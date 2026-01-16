@@ -69,9 +69,11 @@ function defaultWorkspace(projectId: string): WorkspaceRow {
 export function ArtboardFields({
   projectId,
   onChangePx,
+  onChangeMeta,
 }: {
   projectId: string
   onChangePx?: (widthPx: number, heightPx: number) => void
+  onChangeMeta?: (unit: WorkspaceRow["unit"], dpi: number) => void
 }) {
   const [row, setRow] = useState<WorkspaceRow | null>(null)
   const [draftWidth, setDraftWidth] = useState("")
@@ -125,6 +127,7 @@ export function ArtboardFields({
           setDraftDpi(String(ins.dpi_x))
           setDraftUnit(ins.unit as WorkspaceRow["unit"])
           onChangePx?.(Number(ins.width_px), Number(ins.height_px))
+          onChangeMeta?.(ins.unit as WorkspaceRow["unit"], Number(ins.dpi_x))
           return
         }
 
@@ -135,6 +138,7 @@ export function ArtboardFields({
         setDraftDpi(String(r.dpi_x))
         setDraftUnit(r.unit)
         onChangePx?.(Number(r.width_px), Number(r.height_px))
+        onChangeMeta?.(r.unit, Number(r.dpi_x))
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -144,7 +148,7 @@ export function ArtboardFields({
     return () => {
       cancelled = true
     }
-  }, [onChangePx, projectId])
+  }, [onChangeMeta, onChangePx, projectId])
 
   const saveWith = useCallback(
     async (next: { width: number; height: number; dpi: number; unit: WorkspaceRow["unit"] }) => {
@@ -204,11 +208,12 @@ export function ArtboardFields({
         setDraftDpi(String(r.dpi_x))
         setDraftUnit(r.unit)
         onChangePx?.(Number(r.width_px), Number(r.height_px))
+        onChangeMeta?.(r.unit, Number(r.dpi_x))
       } finally {
         setSaving(false)
       }
     },
-    [onChangePx, row, saving]
+    [onChangeMeta, onChangePx, row, saving]
   )
 
   const save = useCallback(async () => {

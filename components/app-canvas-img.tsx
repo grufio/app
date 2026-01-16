@@ -1,6 +1,6 @@
 "use client"
 
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react"
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react"
 import { Image as KonvaImage, Layer, Rect, Stage } from "react-konva"
 import type Konva from "konva"
 
@@ -12,6 +12,7 @@ type Props = {
   imageDraggable?: boolean
   artboardWidthPx?: number
   artboardHeightPx?: number
+  onImageSizeChange?: (widthPx: number, heightPx: number) => void
 }
 
 export type ProjectImageCanvasHandle = {
@@ -19,16 +20,14 @@ export type ProjectImageCanvasHandle = {
   zoomIn: () => void
   zoomOut: () => void
   rotate90: () => void
+  setImageSize: (widthPx: number, heightPx: number) => void
 }
 
 function useHtmlImage(src: string | null) {
   const [img, setImg] = useState<HTMLImageElement | null>(null)
 
   useEffect(() => {
-    if (!src) {
-      setImg(null)
-      return
-    }
+    if (!src) return
     const i = new window.Image()
     i.crossOrigin = "anonymous"
     i.onload = () => setImg(i)
@@ -36,6 +35,7 @@ function useHtmlImage(src: string | null) {
     i.src = src
     return () => {
       // best-effort cleanup
+      setImg(null)
       i.onload = null
       i.onerror = null
     }
@@ -45,7 +45,16 @@ function useHtmlImage(src: string | null) {
 }
 
 export const ProjectImageCanvas = forwardRef<ProjectImageCanvasHandle, Props>(function ProjectImageCanvas(
-  { src, alt, className, panEnabled = true, imageDraggable = false, artboardWidthPx, artboardHeightPx },
+  {
+    src,
+    alt,
+    className,
+    panEnabled = true,
+    imageDraggable = false,
+    artboardWidthPx,
+    artboardHeightPx,
+    onImageSizeChange,
+  },
   ref
 ) {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -58,7 +67,12 @@ export const ProjectImageCanvas = forwardRef<ProjectImageCanvasHandle, Props>(fu
   const [rotation, setRotation] = useState(0)
   const lastAutoFitKeyRef = useRef<string | null>(null)
   const placedKeyRef = useRef<string | null>(null)
-  const [imageTx, setImageTx] = useState<{ x: number; y: number; scale: number } | null>(null)
+  const [imageTx, setImageTx] = useState<{
+    x: number
+    y: number
+    scaleX: number
+    scaleY: number
+  } | null>(null)
   const userInteractedRef = useRef(false)
 
   // Prevent browser page zoom / scroll stealing (Cmd/Ctrl + wheel / trackpad pinch).
@@ -119,6 +133,10 @@ export const ProjectImageCanvas = forwardRef<ProjectImageCanvasHandle, Props>(fu
     setView({ scale: fit.scale, x: fit.x, y: fit.y })
   }
 
+  const showArtboard = Boolean(world && artboardWidthPx && artboardHeightPx)
+  const artW = world?.w ?? 0
+  const artH = world?.h ?? 0
+
   const zoomBy = (factor: number) => {
     const stage = stageRef.current
     if (!stage) return
@@ -151,8 +169,10 @@ export const ProjectImageCanvas = forwardRef<ProjectImageCanvasHandle, Props>(fu
       zoomIn,
       zoomOut,
       rotate90,
+      setImageSize,
     }),
-    [fit] // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [fit, img, showArtboard, artW, artH]
   )
 
   const onWheel = (e: Konva.KonvaEventObject<WheelEvent>) => {
@@ -180,9 +200,13 @@ export const ProjectImageCanvas = forwardRef<ProjectImageCanvasHandle, Props>(fu
     })
   }
 
-  const showArtboard = Boolean(world && artboardWidthPx && artboardHeightPx)
-  const artW = world?.w ?? 0
-  const artH = world?.h ?? 0
+  const reportImageSize = useCallback(
+    (tx: { scaleX: number; scaleY: number } | null) => {
+      if (!img || !tx) return
+      onImageSizeChange?.(Math.round(img.width * tx.scaleX), Math.round(img.height * tx.scaleY))
+    },
+    [img, onImageSizeChange]
+  )
 
   // Place the image ONCE. After that, the image must stay independent from the artboard
   // (artboard changes must NOT move/scale the image).
@@ -192,11 +216,40 @@ export const ProjectImageCanvas = forwardRef<ProjectImageCanvasHandle, Props>(fu
     const key = src
     if (placedKeyRef.current === key) return
     placedKeyRef.current = key
-    // Default: keep 1:1 pixel scale; place centered (prefer artboard center when available).
+    // Default: place once, fitted into the artboard (then independent).
+    const initialScale =
+      showArtboard && artW > 0 && artH > 0 ? Math.min(artW / img.width, artH / img.height) : 1
     const x = showArtboard ? artW / 2 : img.width / 2
     const y = showArtboard ? artH / 2 : img.height / 2
-    setImageTx({ x, y, scale: 1 })
-  }, [artH, artW, img, showArtboard, src])
+    const tx = { x, y, scaleX: initialScale, scaleY: initialScale }
+    setImageTx(tx)
+    reportImageSize(tx)
+  }, [artH, artW, img, reportImageSize, showArtboard, src])
+
+  const setImageSize = (widthPx: number, heightPx: number) => {
+    if (!img) return
+    const w = Number(widthPx)
+    const h = Number(heightPx)
+    // Lock aspect ratio: use width if valid, else height.
+    const scale =
+      Number.isFinite(w) && w > 0
+        ? w / img.width
+        : Number.isFinite(h) && h > 0
+          ? h / img.height
+          : null
+    if (!scale || !Number.isFinite(scale) || scale <= 0) return
+
+    setImageTx((prev) => {
+      const next = {
+        x: prev?.x ?? (showArtboard ? artW / 2 : img.width / 2),
+        y: prev?.y ?? (showArtboard ? artH / 2 : img.height / 2),
+        scaleX: scale,
+        scaleY: scale,
+      }
+      reportImageSize(next)
+      return next
+    })
+  }
 
   if (!src) {
     return null
@@ -253,8 +306,8 @@ export const ProjectImageCanvas = forwardRef<ProjectImageCanvasHandle, Props>(fu
               image={img}
               listening={imageDraggable}
               rotation={rotation}
-              scaleX={imageTx?.scale ?? 1}
-              scaleY={imageTx?.scale ?? 1}
+              scaleX={imageTx?.scaleX ?? 1}
+              scaleY={imageTx?.scaleY ?? 1}
               offsetX={img.width / 2}
               offsetY={img.height / 2}
               x={imageTx?.x ?? img.width / 2}
@@ -265,11 +318,16 @@ export const ProjectImageCanvas = forwardRef<ProjectImageCanvasHandle, Props>(fu
               }}
               onDragEnd={(e) => {
                 const n = e.target
-                setImageTx((prev) => ({
-                  x: n.x(),
-                  y: n.y(),
-                  scale: prev?.scale ?? 1,
-                }))
+                setImageTx((prev) => {
+                  const next = {
+                    x: n.x(),
+                    y: n.y(),
+                    scaleX: prev?.scaleX ?? 1,
+                    scaleY: prev?.scaleY ?? 1,
+                  }
+                  reportImageSize(next)
+                  return next
+                })
               }}
             />
           ) : null}

@@ -9,6 +9,7 @@ import { ProjectImageCanvas, type ProjectImageCanvasHandle } from "@/components/
 import { ProjectToolSidebar } from "@/components/app-sidebar-canvas"
 import { ProjectDetailHeader } from "@/components/app-header-project"
 import { ArtboardFields } from "@/components/app-artboard-fields"
+import { ImageFields } from "@/components/app-image-fields"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 
 export default function ProjectDetailPage() {
@@ -33,6 +34,10 @@ export default function ProjectDetailPage() {
   const imageDraggable = tool === "select"
   const canvasRef = useRef<ProjectImageCanvasHandle | null>(null)
   const [artboardPx, setArtboardPx] = useState<{ w: number; h: number } | null>(null)
+  const [imagePx, setImagePx] = useState<{ w: number; h: number } | null>(null)
+  const [artboardMeta, setArtboardMeta] = useState<{ unit: "mm" | "cm" | "pt" | "px"; dpi: number } | null>(
+    null
+  )
 
   const handleArtboardPxChange = useCallback((w: number, h: number) => {
     setArtboardPx({ w, h })
@@ -165,6 +170,7 @@ export default function ProjectDetailPage() {
                       imageDraggable={imageDraggable}
                       artboardWidthPx={artboardPx?.w}
                       artboardHeightPx={artboardPx?.h}
+                      onImageSizeChange={(w, h) => setImagePx({ w, h })}
                     />
                   ) : null}
                 </div>
@@ -190,11 +196,27 @@ export default function ProjectDetailPage() {
                   key={`${projectId}-artboard-fields`}
                   projectId={projectId}
                   onChangePx={handleArtboardPxChange}
+                  onChangeMeta={(unit, dpi) => setArtboardMeta({ unit, dpi })}
                 />
               </div>
             </div>
+            <div className="border-b px-4 py-3">
+              <div className="text-sm font-medium">Image</div>
+              <div className="mt-3">
+                <ImageFields
+                  key={`${imagePx?.w ?? masterImage?.width_px ?? ""}x${imagePx?.h ?? masterImage?.height_px ?? ""}`}
+                  widthPx={imagePx?.w ?? masterImage?.width_px}
+                  heightPx={imagePx?.h ?? masterImage?.height_px}
+                  unit={artboardMeta?.unit ?? "cm"}
+                  dpi={artboardMeta?.dpi ?? 300}
+                  disabled={!masterImage}
+                  onCommit={(w, h) => canvasRef.current?.setImageSize(w, h)}
+                />
+              </div>
+            </div>
+
             <div className="flex-1 overflow-auto p-4">
-              {/* reserved for future artboard controls */}
+              {/* reserved for future controls */}
             </div>
           </div>
         </aside>
