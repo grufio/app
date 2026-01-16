@@ -1,4 +1,6 @@
 import { AppSidebar } from "@/components/app-sidebar"
+import { ProjectPreviewCard } from "@/components/project-preview-card"
+import { createSupabaseServerClient } from "@/lib/supabase/server"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -14,7 +16,13 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar"
 
-export default function Page() {
+export default async function Page() {
+  const supabase = await createSupabaseServerClient()
+  const { data: projects } = await supabase
+    .from("projects")
+    .select("id,name,updated_at,status")
+    .order("updated_at", { ascending: false })
+
   return (
     <SidebarProvider>
       <AppSidebar />
@@ -42,12 +50,18 @@ export default function Page() {
           </div>
         </header>
         <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-          <div className="grid auto-rows-min gap-4 md:grid-cols-3">
-            <div className="bg-muted/50 aspect-video rounded-xl" />
-            <div className="bg-muted/50 aspect-video rounded-xl" />
-            <div className="bg-muted/50 aspect-video rounded-xl" />
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
+            {(projects ?? []).map((p) => (
+              <ProjectPreviewCard
+                key={p.id}
+                href={`/projects/${p.id}`}
+                title={p.name}
+                dateLabel={p.updated_at ? new Date(p.updated_at).toLocaleString() : undefined}
+                statusLabel={p.status === "completed" ? "Completed" : undefined}
+                hasThumbnail={false}
+              />
+            ))}
           </div>
-          <div className="bg-muted/50 min-h-[100vh] flex-1 rounded-xl md:min-h-min" />
         </div>
       </SidebarInset>
     </SidebarProvider>
