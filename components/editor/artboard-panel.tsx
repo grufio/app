@@ -78,6 +78,16 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
   const [error, setError] = useState("")
 
   const lastSubmitRef = useRef<string | null>(null)
+  const onChangePxRef = useRef<Props["onChangePx"]>(onChangePx)
+  const onChangeMetaRef = useRef<Props["onChangeMeta"]>(onChangeMeta)
+
+  useEffect(() => {
+    onChangePxRef.current = onChangePx
+  }, [onChangePx])
+
+  useEffect(() => {
+    onChangeMetaRef.current = onChangeMeta
+  }, [onChangeMeta])
 
   useEffect(() => {
     let cancelled = false
@@ -118,8 +128,8 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
           setDraftHeight(String(ins.height_value))
           setDraftDpi(String(ins.dpi_x))
           setDraftUnit(ins.unit as Unit)
-          onChangePx?.(Number(ins.width_px), Number(ins.height_px))
-          onChangeMeta?.(ins.unit as Unit, Number(ins.dpi_x))
+          onChangePxRef.current?.(Number(ins.width_px), Number(ins.height_px))
+          onChangeMetaRef.current?.(ins.unit as Unit, Number(ins.dpi_x))
           return
         }
 
@@ -129,8 +139,8 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
         setDraftHeight(String(r.height_value))
         setDraftDpi(String(r.dpi_x))
         setDraftUnit(r.unit)
-        onChangePx?.(Number(r.width_px), Number(r.height_px))
-        onChangeMeta?.(r.unit, Number(r.dpi_x))
+        onChangePxRef.current?.(Number(r.width_px), Number(r.height_px))
+        onChangeMetaRef.current?.(r.unit, Number(r.dpi_x))
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -140,7 +150,7 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
     return () => {
       cancelled = true
     }
-  }, [onChangeMeta, onChangePx, projectId])
+  }, [projectId])
 
   const saveWith = useCallback(
     async (next: { width: number; height: number; dpi: number; unit: Unit }) => {
@@ -199,13 +209,13 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
         setDraftHeight(String(r.height_value))
         setDraftDpi(String(r.dpi_x))
         setDraftUnit(r.unit)
-        onChangePx?.(Number(r.width_px), Number(r.height_px))
-        onChangeMeta?.(r.unit, Number(r.dpi_x))
+        onChangePxRef.current?.(Number(r.width_px), Number(r.height_px))
+        onChangeMetaRef.current?.(r.unit, Number(r.dpi_x))
       } finally {
         setSaving(false)
       }
     },
-    [onChangeMeta, onChangePx, row, saving]
+    [row, saving]
   )
 
   const save = useCallback(async () => {
