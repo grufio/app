@@ -126,9 +126,10 @@ export default function ProjectDetailPage() {
 
       {/* Content row (starts under the same top divider line for both left + right sidebars) */}
       <div className="flex flex-1 border-t border-border bg-muted/50">
-        <main className="flex min-w-0 flex-1">
-          {tab === "image" ? (
-            <>
+        {tab === "image" ? (
+          <>
+            {/* Main content (left tools + canvas/uploader) */}
+            <main className="flex min-w-0 flex-1">
               {/* Template-level left sidebar (Illustrator-style) */}
               <aside className="flex w-12 shrink-0 justify-center border-r bg-background/80 py-2">
                 <CanvasToolSidebar
@@ -179,42 +180,49 @@ export default function ProjectDetailPage() {
                   </div>
                 ) : null}
               </div>
-            </>
-          ) : null}
-        </main>
+            </main>
 
-        {/* Right sidebar (aligned under the same top divider line) */}
-        <aside className="w-96 shrink-0 border-l bg-background">
-          <div className="flex h-full flex-col">
-            <div className="border-b px-4 py-3">
-              <div className="text-sm font-medium">Artboard</div>
-              <div className="mt-3">
-                <ArtboardPanel
-                  projectId={projectId}
-                  onChangePx={handleArtboardPxChange}
-                  onChangeMeta={(unit, dpi) => setArtboardMeta({ unit, dpi })}
-                />
-              </div>
-            </div>
-            <div className="border-b px-4 py-3">
-              <div className="text-sm font-medium">Image</div>
-              <div className="mt-3">
-                <ImagePanel
-                  widthPx={imagePx?.w ?? masterImage?.width_px}
-                  heightPx={imagePx?.h ?? masterImage?.height_px}
-                  unit={artboardMeta?.unit ?? "cm"}
-                  dpi={artboardMeta?.dpi ?? 300}
-                  disabled={!masterImage}
-                  onCommit={(w, h) => canvasRef.current?.setImageSize(w, h)}
-                />
-              </div>
-            </div>
+            {/* Right sidebar belongs only to the Image tab (part of the content layout). */}
+            <aside className="w-96 shrink-0 border-l bg-background">
+              <div className="flex h-full flex-col">
+                <div className="border-b px-4 py-3">
+                  <div className="text-sm font-medium">Artboard</div>
+                  <div className="mt-3">
+                    <ArtboardPanel
+                      projectId={projectId}
+                      onChangePx={handleArtboardPxChange}
+                      onChangeMeta={(unit, dpi) => setArtboardMeta({ unit, dpi })}
+                    />
+                  </div>
+                </div>
+                <div className="border-b px-4 py-3">
+                  <div className="text-sm font-medium">Image</div>
+                  <div className="mt-3">
+                    <ImagePanel
+                      widthPx={imagePx?.w ?? masterImage?.width_px}
+                      heightPx={imagePx?.h ?? masterImage?.height_px}
+                      unit={artboardMeta?.unit ?? "cm"}
+                      dpi={artboardMeta?.dpi ?? 300}
+                      disabled={!masterImage}
+                      onCommit={(w, h) => canvasRef.current?.setImageSize(w, h)}
+                    />
+                  </div>
+                </div>
 
-            <div className="flex-1 overflow-auto p-4">
-              {/* reserved for future controls */}
+                <div className="flex-1 overflow-auto p-4">
+                  {/* reserved for future controls */}
+                </div>
+              </div>
+            </aside>
+          </>
+        ) : (
+          <main className="flex min-w-0 flex-1">
+            {/* Other tabs: full-width content (no right sidebar). */}
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col px-6 py-6">
+              <div className="text-sm text-muted-foreground">Coming soon.</div>
             </div>
-          </div>
-        </aside>
+          </main>
+        )}
       </div>
     </div>
   )
