@@ -1,0 +1,69 @@
+"use client"
+
+import { Hand, Maximize2, RotateCw, ZoomIn, ZoomOut } from "lucide-react"
+
+import { Button } from "@/components/ui/button"
+
+type Props = {
+  panEnabled: boolean
+  onTogglePan: () => void
+  onZoomIn: () => void
+  onZoomOut: () => void
+  onFit: () => void
+  onRotate: () => void
+}
+
+function ToolButton({
+  label,
+  active,
+  onClick,
+  children,
+}: {
+  label: string
+  active?: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <Button
+      type="button"
+      variant={active ? "secondary" : "ghost"}
+      size="icon"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+    >
+      {children}
+    </Button>
+  )
+}
+
+export function ProjectToolSidebar({
+  panEnabled,
+  onTogglePan,
+  onZoomIn,
+  onZoomOut,
+  onFit,
+  onRotate,
+}: Props) {
+  return (
+    <div className="flex flex-col gap-1">
+      <ToolButton label="Hand (Pan)" active={panEnabled} onClick={onTogglePan}>
+        <Hand className="size-4" />
+      </ToolButton>
+      <ToolButton label="Zoom in" onClick={onZoomIn}>
+        <ZoomIn className="size-4" />
+      </ToolButton>
+      <ToolButton label="Zoom out" onClick={onZoomOut}>
+        <ZoomOut className="size-4" />
+      </ToolButton>
+      <ToolButton label="Fit to screen" onClick={onFit}>
+        <Maximize2 className="size-4" />
+      </ToolButton>
+      <ToolButton label="Rotate 90°" onClick={onRotate}>
+        <RotateCw className="size-4" />
+      </ToolButton>
+    </div>
+  )
+}
+

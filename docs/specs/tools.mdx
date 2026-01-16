@@ -16,6 +16,39 @@ Dieses Dokument listet die Tools/Libraries, die wir für den MVP brauchen, und w
   - **Wofür**: Canvas-Scenegraph für Arbeitsfläche, Zoom/Pan (Hand-Tool), Rendern von Overlay-Layern (Raster, Rahmen, Pattern, Zahlen).
   - **Warum**: Sehr geeignet für „Raster (z. B. 40×20) + Overlays + Interaktion“.
 
+#### Editor-Verhalten (Illustrator-Style)
+Konva ist **kein fertiger Foto-Editor**, sondern ein **2D-Scenegraph** (Stage/Layer/Nodes + Events). Die „Tools“ (Hand, Select, Zoom, Rotate, Crop, …) implementieren wir als eigene Logik darauf.
+
+- **Canvas/Viewport Tools (wirken auf den Workspace, nicht auf das Bild)**
+  - **Hand / Pan**: Stage draggable (Viewport verschieben)
+  - **Zoom + / -**: Stage scale/position (Zoom um Cursor oder Canvas-Mitte)
+  - **Fit to screen**: Stage so einstellen, dass Image in View passt
+- **Object Tools (wirken auf Nodes im Canvas)**
+  - **Select (Arrow)**: Stage nicht draggable, stattdessen Image-Node auswählbar + draggable (Bild im Canvas bewegen)
+  - **Transformer (optional)**: Resize/Rotate Handles für selektierte Nodes
+- **Crop (später)**
+  - UI: Crop-Rect als Node + Transformer
+  - Rendering: entweder nur visuell via clipping oder „apply“ als neuer Export (separater Schritt)
+
+#### Saubere Auslagerung (Technik / Architektur)
+Ziel: Die Projekt-Detailseite ist nur „Shell“, der Editor wächst als eigenes Modul.
+
+- **`components/editor/` (UI & Composition)**
+  - **`EditorShell.tsx`**: Layout (links Tools, rechts Canvas, oben Status)
+  - **`ToolSidebar.tsx`**: nur UI (Icons, active state)
+  - **`CanvasStage.tsx`**: Konva Stage/Layer Renderer
+  - **`nodes/`**: `ImageNode.tsx`, später `GridLayer.tsx`, `OverlayNumbers.tsx`, …
+  - **`tools/`**: Tool-Controller/Hooks (Hand/Select/Crop) – reine Input-Logik
+- **`lib/editor/` (State, Commands, Model)**
+  - **Types/Model**: `viewport`, `scene`, `selection`, `tool`
+  - **Commands**: `zoomToPoint`, `panBy`, `fitToView`, `rotateSelection`, `setTool`
+  - **Serialize/Persist** (später): Speichern/Laden von Scene/Settings (DB)
+
+**Prinzipien**
+- Editor-State/Commands sind **UI-unabhängig** (testbar, stabil).
+- Canvas ist **View** (rendert State; keine Business-Logik).
+- API/Storage bleibt separat (Editor konsumiert nur URLs/Metadaten).
+
 ### Datenfluss
 - **Generation JSON** (Palette + Cells + Settings)
   - **Wofür**: Frontend rendert Overlay aus denselben Daten, die Backend für PDF nutzt.

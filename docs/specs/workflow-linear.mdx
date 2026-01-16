@@ -1,0 +1,60 @@
+---
+title: Linearer Workflow & Invalidierung (MVP)
+---
+
+## Warum linear?
+Unser Prozess ist bewusst **linear**, weil jeder Schritt die Grundlage für den nächsten ist.  
+Wenn ein früherer Schritt geändert wird, werden die Ergebnisse der folgenden Schritte **unbrauchbar** und müssen neu erzeugt werden.
+
+## Steps (Tabs)
+1) **Image**  
+   Quelle wählen, Metadaten prüfen. **Keine** Größen-/Farbreduktion hier.
+
+2) **Filter / Optimierung**  
+   Parameter für **Reduktion** setzen (Größe/Auflösung/Farben) und das **Preview** des Endergebnisses sehen.
+
+3) **Konvertierung / Grid**  
+   Aus dem Filter-Ergebnis wird die **Produktgrundlage** erzeugt: Palette + Zellenlabels + Grid-/Vektor-Overlay (inkl. Zahlen/Pattern).
+
+4) **PDF Output**  
+   PDFs generieren und verwalten. Farblegende ist ein **Popup**.
+
+## Status je Step (Konzept)
+Pro Projekt gibt es einen Status pro Step:
+
+- **S1 Image**: `image_ready`
+- **S2 Filter**: `filter_ready` (Preview berechnet)
+- **S3 Konvertierung**: `conversion_ready` (Palette + Cells + Overlay-Daten vorhanden)
+- **S4 Output**: `output_ready` (mind. ein PDF erzeugt)
+
+## Invalidierungsregeln
+### Wenn Step 1 (Image) geändert wird
+Folgende Schritte werden invalidiert und müssen neu:
+- S2 Filter
+- S3 Konvertierung
+- S4 Output
+
+### Wenn Step 2 (Filter / Optimierung) geändert wird
+Folgende Schritte werden invalidiert und müssen neu:
+- S3 Konvertierung
+- S4 Output
+
+### Wenn Step 3 (Konvertierung / Grid) geändert wird
+Folgende Schritte werden invalidiert und müssen neu:
+- S4 Output
+
+### Wenn Step 4 (Output) geändert wird
+Hat **keinen** Einfluss auf vorherige Schritte.
+
+## UX-Regeln (UI-Verhalten)
+- Tabs sind **von links nach rechts** nutzbar.
+- Ein Tab ist **disabled**, wenn der vorherige Step nicht `*_ready` ist.
+- Änderungen an einem früheren Step zeigen einen Hinweis:
+  - „Diese Änderung macht Konvertierung/PDF ungültig.“
+  - und setzen die folgenden Steps zurück.
+
+## Datenkonsequenz (Kurz)
+- **Filter-Ergebnis** ist die Basis für Konvertierung.
+- **Konvertierungs-Ergebnis** (Palette + Cells + Settings) ist die Basis für Overlay und PDF.
+- **PDFs** gehören immer zu einer konkreten Konvertierung; nach Invalidierung sind PDFs „alt“ und werden verworfen/neu erstellt.
+
