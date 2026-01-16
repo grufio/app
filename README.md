@@ -1,36 +1,64 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+## gruf.io
 
-## Getting Started
+Next.js + Supabase app with a lightweight Illustrator-style editor for project images (pan/zoom/artboard + image transform).
 
-First, run the development server:
+## Development
+
+### Prerequisites
+
+- Node.js (recommendation: Node 20+)
+- A Supabase project (DB + Storage)
+
+### Setup
+
+- **Install**:
+
+```bash
+npm install
+```
+
+- **Environment**: copy `env.example` to `.env.local` and fill in:
+  - `NEXT_PUBLIC_SUPABASE_URL`
+  - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+
+- **Run**:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Supabase Notes
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Storage bucket + path convention
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- **Bucket**: `project_images`
+- **Object path** (current convention):
+  - `projects/{projectId}/master/{filename}`
+  - `projects/{projectId}/working/{filename}` (future)
 
-## Learn More
+### RLS policies
 
-To learn more about Next.js, take a look at the following resources:
+- Storage access is restricted to the project owner via policies in:
+  - `db/006_storage_project_images_policies.sql`
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Editor architecture (high level)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- **UI module**: `components/editor/`
+  - Header (inline title editing)
+  - Tool sidebar (hand/select/zoom/fit/rotate)
+  - Konva canvas stage (artboard rect + image node)
+  - Artboard panel (unit/DPI/size → persists to `project_workspace`)
+  - Image panel (size always shown in artboard unit + DPI, commits scaling in px)
 
-## Deploy on Vercel
+### Interaction model
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- **Wheel**: pan
+- **Ctrl/Cmd + Wheel**: zoom around cursor
+- **Hand tool**: drag to pan
+- **Pointer tool**: drag image
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Scripts
+
+- `npm run dev`: local dev server
+- `npm run build`: production build
+- `npm run lint`: eslint

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 import { useDropzone } from "react-dropzone"
 
 import { cn } from "@/lib/utils"
+import { hasMasterImage } from "@/lib/api/project-images"
 
 function guessFormat(file: File): string {
   const mime = (file.type || "").toLowerCase()
@@ -41,16 +42,6 @@ async function getImageDimensions(file: File): Promise<{ width: number; height: 
   } finally {
     URL.revokeObjectURL(objectUrl)
   }
-}
-
-async function hasMasterImage(projectId: string) {
-  const res = await fetch(`/api/projects/${projectId}/images/master/exists`, {
-    method: "GET",
-    credentials: "same-origin",
-  })
-  if (!res.ok) return false
-  const payload = (await res.json().catch(() => null)) as { exists?: boolean } | null
-  return Boolean(payload?.exists)
 }
 
 export function ProjectImageUploader({ projectId, onUploaded }: { projectId: string; onUploaded: () => void }) {
@@ -93,10 +84,14 @@ export function ProjectImageUploader({ projectId, onUploaded }: { projectId: str
         })
         if (!res.ok) {
           const payload = (await res.json().catch(() => null)) as Record<string, unknown> | null
-          setError(
-            `DB write failed (HTTP ${res.status}) ` +
-              (payload ? JSON.stringify(payload) : "(no JSON body returned)")
-          )
+          const stage = typeof payload?.stage === "string" ? ` (${payload.stage})` : ""
+          const msg =
+            typeof payload?.error === "string"
+              ? payload.error
+              : payload
+                ? JSON.stringify(payload)
+                : "No JSON error body returned"
+          setError(`Upload failed (HTTP ${res.status})${stage}: ${msg}`)
           return
         }
 

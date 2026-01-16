@@ -15,7 +15,14 @@ type Props = {
   onTitleUpdated?: (nextTitle: string) => void
 }
 
-export function ProjectDetailHeader({ projectId, initialTitle, onTitleUpdated }: Props) {
+/**
+ * Header for the project editor page.
+ *
+ * Features:
+ * - Back link to the dashboard
+ * - Inline editable project title (Enter/Blur to save, Escape to cancel)
+ */
+export function ProjectEditorHeader({ projectId, initialTitle, onTitleUpdated }: Props) {
   const [title, setTitle] = useState<string>(initialTitle ?? "Untitled")
   const [draft, setDraft] = useState<string>(initialTitle ?? "Untitled")
   const [isEditing, setIsEditing] = useState(false)
@@ -36,7 +43,6 @@ export function ProjectDetailHeader({ projectId, initialTitle, onTitleUpdated }:
 
   useEffect(() => {
     if (!isEditing) return
-    // focus after render
     queueMicrotask(() => {
       inputRef.current?.focus()
       inputRef.current?.select()
@@ -62,10 +68,7 @@ export function ProjectDetailHeader({ projectId, initialTitle, onTitleUpdated }:
     setIsSaving(true)
     try {
       const supabase = createSupabaseBrowserClient()
-      const { error: updateErr } = await supabase
-        .from("projects")
-        .update({ name: next })
-        .eq("id", projectId)
+      const { error: updateErr } = await supabase.from("projects").update({ name: next }).eq("id", projectId)
 
       if (updateErr) {
         lastSubmittedRef.current = null

@@ -34,15 +34,19 @@ Konva ist **kein fertiger Foto-Editor**, sondern ein **2D-Scenegraph** (Stage/La
 Ziel: Die Projekt-Detailseite ist nur „Shell“, der Editor wächst als eigenes Modul.
 
 - **`components/editor/` (UI & Composition)**
-  - **`EditorShell.tsx`**: Layout (links Tools, rechts Canvas, oben Status)
-  - **`ToolSidebar.tsx`**: nur UI (Icons, active state)
-  - **`CanvasStage.tsx`**: Konva Stage/Layer Renderer
-  - **`nodes/`**: `ImageNode.tsx`, später `GridLayer.tsx`, `OverlayNumbers.tsx`, …
-  - **`tools/`**: Tool-Controller/Hooks (Hand/Select/Crop) – reine Input-Logik
+  - **`project-editor-header.tsx`**: Header + inline title editing
+  - **`canvas-tool-sidebar.tsx`**: Tool rail (Hand/Select/Zoom/Fit/Rotate)
+  - **`project-canvas-stage.tsx`**: Konva Stage/Layer renderer (artboard + image)
+  - **`artboard-panel.tsx`**: Artboard controls (unit/dpi/size) + persistence
+  - **`image-panel.tsx`**: Image size controls (always uses artboard unit + dpi)
+  - **`index.ts`**: module barrel exports
 - **`lib/editor/` (State, Commands, Model)**
-  - **Types/Model**: `viewport`, `scene`, `selection`, `tool`
-  - **Commands**: `zoomToPoint`, `panBy`, `fitToView`, `rotateSelection`, `setTool`
+  - **Types/Model**: `canvas-model.ts` (viewport/world math)
+  - **Units/Conversion**: `units.ts` (mm/cm/pt/px ⇄ px)
   - **Serialize/Persist** (später): Speichern/Laden von Scene/Settings (DB)
+ - **`lib/api/` (Client helpers)**
+  - **`http.ts`**: typed JSON fetching helper
+  - **`project-images.ts`**: typed helpers for master image endpoints
 
 **Prinzipien**
 - Editor-State/Commands sind **UI-unabhängig** (testbar, stabil).

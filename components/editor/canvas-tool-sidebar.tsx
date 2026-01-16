@@ -4,9 +4,11 @@ import { Hand, Maximize2, MousePointer2, RotateCw, ZoomIn, ZoomOut } from "lucid
 
 import { Button } from "@/components/ui/button"
 
+type Tool = "select" | "hand"
+
 type Props = {
-  tool: "select" | "hand"
-  onSelectTool: (tool: "select" | "hand") => void
+  tool: Tool
+  onSelectTool: (tool: Tool) => void
   onZoomIn: () => void
   onZoomOut: () => void
   onFit: () => void
@@ -31,6 +33,7 @@ function ToolButton({
       size="icon"
       onClick={onClick}
       aria-label={label}
+      aria-pressed={Boolean(active)}
       title={label}
     >
       {children}
@@ -38,28 +41,18 @@ function ToolButton({
   )
 }
 
-export function ProjectToolSidebar({
-  tool,
-  onSelectTool,
-  onZoomIn,
-  onZoomOut,
-  onFit,
-  onRotate,
-}: Props) {
+/**
+ * Illustrator-style tool rail for the canvas area.
+ * - Hand: pans the viewport (moves the artboard view)
+ * - Pointer: moves the image within the artboard world
+ */
+export function CanvasToolSidebar({ tool, onSelectTool, onZoomIn, onZoomOut, onFit, onRotate }: Props) {
   return (
-    <div className="flex flex-col gap-1">
-      <ToolButton
-        label="Select (Move Image)"
-        active={tool === "select"}
-        onClick={() => onSelectTool("select")}
-      >
+    <div className="flex flex-col gap-1" role="toolbar" aria-label="Canvas tools">
+      <ToolButton label="Select (Move Image)" active={tool === "select"} onClick={() => onSelectTool("select")}>
         <MousePointer2 className="size-4" />
       </ToolButton>
-      <ToolButton
-        label="Hand (Move Artboard)"
-        active={tool === "hand"}
-        onClick={() => onSelectTool("hand")}
-      >
+      <ToolButton label="Hand (Move Artboard)" active={tool === "hand"} onClick={() => onSelectTool("hand")}>
         <Hand className="size-4" />
       </ToolButton>
       <ToolButton label="Zoom in" onClick={onZoomIn}>

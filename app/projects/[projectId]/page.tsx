@@ -5,12 +5,16 @@ import { useCallback, useEffect, useRef, useState } from "react"
 
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ProjectImageUploader } from "@/components/app-img-upload"
-import { ProjectImageCanvas, type ProjectImageCanvasHandle } from "@/components/app-canvas-img"
-import { ProjectToolSidebar } from "@/components/app-sidebar-canvas"
-import { ProjectDetailHeader } from "@/components/app-header-project"
-import { ArtboardFields } from "@/components/app-artboard-fields"
-import { ImageFields } from "@/components/app-image-fields"
+import {
+  ArtboardPanel,
+  CanvasToolSidebar,
+  ImagePanel,
+  ProjectCanvasStage,
+  type ProjectCanvasStageHandle,
+  ProjectEditorHeader,
+} from "@/components/editor"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
+import { getMasterImage } from "@/lib/api/project-images"
 
 export default function ProjectDetailPage() {
   const params = useParams<{ projectId: string }>()
@@ -32,7 +36,7 @@ export default function ProjectDetailPage() {
   const [tool, setTool] = useState<"select" | "hand">("hand")
   const panEnabled = tool === "hand"
   const imageDraggable = tool === "select"
-  const canvasRef = useRef<ProjectImageCanvasHandle | null>(null)
+  const canvasRef = useRef<ProjectCanvasStageHandle | null>(null)
   const [artboardPx, setArtboardPx] = useState<{ w: number; h: number } | null>(null)
   const [imagePx, setImagePx] = useState<{ w: number; h: number } | null>(null)
   const [artboardMeta, setArtboardMeta] = useState<{ unit: "mm" | "cm" | "pt" | "px"; dpi: number } | null>(
@@ -43,26 +47,12 @@ export default function ProjectDetailPage() {
     setArtboardPx({ w, h })
   }, [])
 
-  const refreshMasterImage = async () => {
+  const refreshMasterImage = useCallback(async () => {
     setMasterImageError("")
     setMasterImageLoading(true)
     try {
-      const res = await fetch(`/api/projects/${projectId}/images/master`, {
-        method: "GET",
-        credentials: "same-origin",
-      })
-      if (!res.ok) {
-        const payload = (await res.json().catch(() => null)) as Record<string, unknown> | null
-        setMasterImage(null)
-        setMasterImageError(
-          `Failed to load image (HTTP ${res.status}) ` + (payload ? JSON.stringify(payload) : "")
-        )
-        return
-      }
-      const payload = (await res.json().catch(() => null)) as
-        | { exists?: boolean; signedUrl?: string; width_px?: number; height_px?: number; name?: string }
-        | null
-      if (!payload?.exists || !payload.signedUrl) {
+      const payload = await getMasterImage(projectId)
+      if (!payload?.exists) {
         setMasterImage(null)
         return
       }
@@ -72,10 +62,13 @@ export default function ProjectDetailPage() {
         height_px: Number(payload.height_px ?? 0),
         name: String(payload.name ?? "master image"),
       })
+    } catch (e) {
+      setMasterImage(null)
+      setMasterImageError(e instanceof Error ? e.message : "Failed to load image")
     } finally {
       setMasterImageLoading(false)
     }
-  }
+  }, [projectId])
 
   useEffect(() => {
     let cancelled = false
@@ -102,12 +95,11 @@ export default function ProjectDetailPage() {
 
   useEffect(() => {
     void refreshMasterImage()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId])
+  }, [refreshMasterImage])
 
   return (
     <div className="flex min-h-svh w-full flex-col">
-      <ProjectDetailHeader
+      <ProjectEditorHeader
         projectId={projectId}
         initialTitle={project?.id === projectId ? project.name : "Untitled"}
         onTitleUpdated={(nextTitle) => setProject({ id: projectId, name: nextTitle })}
@@ -132,7 +124,7 @@ export default function ProjectDetailPage() {
             <>
               {/* Template-level left sidebar (Illustrator-style) */}
               <aside className="flex w-12 shrink-0 justify-center border-r bg-background/80 py-2">
-                <ProjectToolSidebar
+                <CanvasToolSidebar
                   tool={tool}
                   onSelectTool={setTool}
                   onZoomIn={() => canvasRef.current?.zoomIn()}
@@ -159,10 +151,8 @@ export default function ProjectDetailPage() {
                 {/* Workspace: use 100% of the available gray content area */}
                 <div className="min-h-0 flex-1">
                   {masterImage ? (
-                    <ProjectImageCanvas
-                      ref={(n) => {
-                        canvasRef.current = n
-                      }}
+                    <ProjectCanvasStage
+                      ref={canvasRef}
                       src={masterImage.signedUrl}
                       alt={masterImage.name}
                       className="h-full w-full"
@@ -192,8 +182,7 @@ export default function ProjectDetailPage() {
             <div className="border-b px-4 py-3">
               <div className="text-sm font-medium">Artboard</div>
               <div className="mt-3">
-                <ArtboardFields
-                  key={`${projectId}-artboard-fields`}
+                <ArtboardPanel
                   projectId={projectId}
                   onChangePx={handleArtboardPxChange}
                   onChangeMeta={(unit, dpi) => setArtboardMeta({ unit, dpi })}
@@ -203,8 +192,7 @@ export default function ProjectDetailPage() {
             <div className="border-b px-4 py-3">
               <div className="text-sm font-medium">Image</div>
               <div className="mt-3">
-                <ImageFields
-                  key={`${imagePx?.w ?? masterImage?.width_px ?? ""}x${imagePx?.h ?? masterImage?.height_px ?? ""}`}
+                <ImagePanel
                   widthPx={imagePx?.w ?? masterImage?.width_px}
                   heightPx={imagePx?.h ?? masterImage?.height_px}
                   unit={artboardMeta?.unit ?? "cm"}

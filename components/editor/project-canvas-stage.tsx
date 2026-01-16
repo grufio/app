@@ -4,6 +4,8 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRe
 import { Image as KonvaImage, Layer, Rect, Stage } from "react-konva"
 import type Konva from "konva"
 
+import { fitToWorld, panBy, scaleToMatchAspect, zoomAround } from "@/lib/editor/canvas-model"
+
 type Props = {
   src: string
   alt?: string
@@ -15,7 +17,7 @@ type Props = {
   onImageSizeChange?: (widthPx: number, heightPx: number) => void
 }
 
-export type ProjectImageCanvasHandle = {
+export type ProjectCanvasStageHandle = {
   fitToView: () => void
   zoomIn: () => void
   zoomOut: () => void
@@ -34,17 +36,27 @@ function useHtmlImage(src: string | null) {
     i.onerror = () => setImg(null)
     i.src = src
     return () => {
-      // best-effort cleanup
-      setImg(null)
       i.onload = null
       i.onerror = null
+      setImg(null)
     }
   }, [src])
 
   return img
 }
 
-export const ProjectImageCanvas = forwardRef<ProjectImageCanvasHandle, Props>(function ProjectImageCanvas(
+/**
+ * Konva stage for the project editor.
+ *
+ * Interaction model (Illustrator-like):
+ * - wheel: pan
+ * - cmd/ctrl + wheel: zoom around cursor
+ * - Hand tool: drag stage (pan)
+ * - Pointer tool: drag image
+ *
+ * The Artboard is a fixed world rect; the image transform is independent.
+ */
+export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(function ProjectCanvasStage(
   {
     src,
     alt,
@@ -59,31 +71,26 @@ export const ProjectImageCanvas = forwardRef<ProjectImageCanvasHandle, Props>(fu
 ) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const stageRef = useRef<Konva.Stage | null>(null)
-
   const img = useHtmlImage(src)
 
   const [size, setSize] = useState({ w: 0, h: 0 })
   const [view, setView] = useState({ scale: 1, x: 0, y: 0 })
   const [rotation, setRotation] = useState(0)
+
   const lastAutoFitKeyRef = useRef<string | null>(null)
   const placedKeyRef = useRef<string | null>(null)
-  const [imageTx, setImageTx] = useState<{
-    x: number
-    y: number
-    scaleX: number
-    scaleY: number
-  } | null>(null)
   const userInteractedRef = useRef(false)
 
+  const [imageTx, setImageTx] = useState<{ x: number; y: number; scaleX: number; scaleY: number } | null>(null)
+  const panRafRef = useRef<number | null>(null)
+  const panDeltaRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 })
+
   // Prevent browser page zoom / scroll stealing (Cmd/Ctrl + wheel / trackpad pinch).
-  // Konva's internal listeners can be passive in some environments, so we add an explicit non-passive listener.
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
     const handler = (evt: WheelEvent) => {
-      if (evt.ctrlKey || evt.metaKey) {
-        evt.preventDefault()
-      }
+      if (evt.ctrlKey || evt.metaKey) evt.preventDefault()
     }
     el.addEventListener("wheel", handler, { passive: false })
     return () => el.removeEventListener("wheel", handler)
@@ -92,10 +99,10 @@ export const ProjectImageCanvas = forwardRef<ProjectImageCanvasHandle, Props>(fu
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
-
     const ro = new ResizeObserver(() => {
       const r = el.getBoundingClientRect()
-      setSize({ w: Math.max(0, Math.floor(r.width)), h: Math.max(0, Math.floor(r.height)) })
+      const next = { w: Math.max(0, Math.floor(r.width)), h: Math.max(0, Math.floor(r.height)) }
+      setSize((prev) => (prev.w === next.w && prev.h === next.h ? prev : next))
     })
     ro.observe(el)
     return () => ro.disconnect()
@@ -108,16 +115,15 @@ export const ProjectImageCanvas = forwardRef<ProjectImageCanvasHandle, Props>(fu
     return { w, h }
   }, [artboardHeightPx, artboardWidthPx, img?.height, img?.width])
 
+  const showArtboard = Boolean(world && artboardWidthPx && artboardHeightPx)
+  const artW = world?.w ?? 0
+  const artH = world?.h ?? 0
+
   const fit = useMemo(() => {
     if (!world || size.w === 0 || size.h === 0) return null
-    const scale = Math.min(size.w / world.w, size.h / world.h)
-    const x = (size.w - world.w * scale) / 2
-    const y = (size.h - world.h * scale) / 2
-    return { scale, x, y }
+    return fitToWorld(size, world)
   }, [size.h, size.w, world])
 
-  // Fit the current "world" into the viewport when it first becomes available.
-  // Do not override the user's view once they've started interacting (zoom/pan).
   useEffect(() => {
     if (!fit || !img || !world) return
     if (userInteractedRef.current) return
@@ -127,78 +133,29 @@ export const ProjectImageCanvas = forwardRef<ProjectImageCanvasHandle, Props>(fu
     setView({ scale: fit.scale, x: fit.x, y: fit.y })
   }, [fit, img, src, world])
 
-  const fitToView = () => {
+  const fitToView = useCallback(() => {
     if (!fit) return
     userInteractedRef.current = false
     setView({ scale: fit.scale, x: fit.x, y: fit.y })
-  }
+  }, [fit])
 
-  const showArtboard = Boolean(world && artboardWidthPx && artboardHeightPx)
-  const artW = world?.w ?? 0
-  const artH = world?.h ?? 0
+  const zoomBy = useCallback(
+    (factor: number) => {
+      const stage = stageRef.current
+      if (!stage) return
+      const pointer = stage.getPointerPosition() ?? { x: size.w / 2, y: size.h / 2 }
 
-  const zoomBy = (factor: number) => {
-    const stage = stageRef.current
-    if (!stage) return
-    const pointer = stage.getPointerPosition() ?? { x: size.w / 2, y: size.h / 2 }
-
-    setView((v) => {
-      const oldScale = v.scale
-      userInteractedRef.current = true
-      const newScale = Math.max(0.01, Math.min(8, oldScale * factor))
-
-      // Zoom around cursor (or center if cursor is outside the stage)
-      const mousePointTo = {
-        x: (pointer.x - v.x) / oldScale,
-        y: (pointer.y - v.y) / oldScale,
-      }
-      const nextX = pointer.x - mousePointTo.x * newScale
-      const nextY = pointer.y - mousePointTo.y * newScale
-      return { scale: newScale, x: nextX, y: nextY }
-    })
-  }
-
-  const zoomIn = () => zoomBy(1.15)
-  const zoomOut = () => zoomBy(1 / 1.15)
-  const rotate90 = () => setRotation((r) => (r + 90) % 360)
-
-  useImperativeHandle(
-    ref,
-    () => ({
-      fitToView,
-      zoomIn,
-      zoomOut,
-      rotate90,
-      setImageSize,
-    }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [fit, img, showArtboard, artW, artH]
+      setView((v) => {
+        userInteractedRef.current = true
+        return zoomAround(v, pointer, factor)
+      })
+    },
+    [size.h, size.w]
   )
 
-  const onWheel = (e: Konva.KonvaEventObject<WheelEvent>) => {
-    e.evt.preventDefault()
-    const isZoomGesture = e.evt.ctrlKey || e.evt.metaKey
-
-    // Illustrator-like:
-    // - wheel = pan (scroll)
-    // - ctrl/cmd + wheel = zoom
-    if (isZoomGesture) {
-      userInteractedRef.current = true
-      zoomBy(e.evt.deltaY > 0 ? 1 / 1.08 : 1.08)
-      return
-    }
-
-    userInteractedRef.current = true
-    const dx = e.evt.deltaX
-    const dy = e.evt.deltaY
-    setView((v) => {
-      // Stage x/y are in screen px. This matches the wheel deltas.
-      // Invert so wheel-down moves content up (natural).
-      const nextX = v.x - dx
-      const nextY = v.y - dy
-      return { ...v, x: nextX, y: nextY }
-    })
-  }
+  const zoomIn = useCallback(() => zoomBy(1.15), [zoomBy])
+  const zoomOut = useCallback(() => zoomBy(1 / 1.15), [zoomBy])
+  const rotate90 = useCallback(() => setRotation((r) => (r + 90) % 360), [])
 
   const reportImageSize = useCallback(
     (tx: { scaleX: number; scaleY: number } | null) => {
@@ -208,17 +165,13 @@ export const ProjectImageCanvas = forwardRef<ProjectImageCanvasHandle, Props>(fu
     [img, onImageSizeChange]
   )
 
-  // Place the image ONCE. After that, the image must stay independent from the artboard
-  // (artboard changes must NOT move/scale the image).
   useEffect(() => {
     if (!src) return
     if (!img) return
     const key = src
     if (placedKeyRef.current === key) return
     placedKeyRef.current = key
-    // Default: place once, fitted into the artboard (then independent).
-    const initialScale =
-      showArtboard && artW > 0 && artH > 0 ? Math.min(artW / img.width, artH / img.height) : 1
+    const initialScale = showArtboard && artW > 0 && artH > 0 ? Math.min(artW / img.width, artH / img.height) : 1
     const x = showArtboard ? artW / 2 : img.width / 2
     const y = showArtboard ? artH / 2 : img.height / 2
     const tx = { x, y, scaleX: initialScale, scaleY: initialScale }
@@ -226,42 +179,61 @@ export const ProjectImageCanvas = forwardRef<ProjectImageCanvasHandle, Props>(fu
     reportImageSize(tx)
   }, [artH, artW, img, reportImageSize, showArtboard, src])
 
-  const setImageSize = (widthPx: number, heightPx: number) => {
-    if (!img) return
-    const w = Number(widthPx)
-    const h = Number(heightPx)
-    // Lock aspect ratio: use width if valid, else height.
-    const scale =
-      Number.isFinite(w) && w > 0
-        ? w / img.width
-        : Number.isFinite(h) && h > 0
-          ? h / img.height
-          : null
-    if (!scale || !Number.isFinite(scale) || scale <= 0) return
+  const setImageSize = useCallback(
+    (widthPx: number, heightPx: number) => {
+      if (!img) return
+      const scale = scaleToMatchAspect(img.width, img.height, widthPx, heightPx)
+      if (!scale || !Number.isFinite(scale) || scale <= 0) return
 
-    setImageTx((prev) => {
-      const next = {
-        x: prev?.x ?? (showArtboard ? artW / 2 : img.width / 2),
-        y: prev?.y ?? (showArtboard ? artH / 2 : img.height / 2),
-        scaleX: scale,
-        scaleY: scale,
+      setImageTx((prev) => {
+        const next = {
+          x: prev?.x ?? (showArtboard ? artW / 2 : img.width / 2),
+          y: prev?.y ?? (showArtboard ? artH / 2 : img.height / 2),
+          scaleX: scale,
+          scaleY: scale,
+        }
+        reportImageSize(next)
+        return next
+      })
+    },
+    [artH, artW, img, reportImageSize, showArtboard]
+  )
+
+  useImperativeHandle(
+    ref,
+    () => ({ fitToView, zoomIn, zoomOut, rotate90, setImageSize }),
+    [fitToView, rotate90, setImageSize, zoomIn, zoomOut]
+  )
+
+  const onWheel = useCallback(
+    (e: Konva.KonvaEventObject<WheelEvent>) => {
+      e.evt.preventDefault()
+      const isZoomGesture = e.evt.ctrlKey || e.evt.metaKey
+
+      if (isZoomGesture) {
+        zoomBy(e.evt.deltaY > 0 ? 1 / 1.08 : 1.08)
+        return
       }
-      reportImageSize(next)
-      return next
-    })
-  }
 
-  if (!src) {
-    return null
-  }
+      userInteractedRef.current = true
+      panDeltaRef.current.dx += e.evt.deltaX
+      panDeltaRef.current.dy += e.evt.deltaY
+
+      if (panRafRef.current != null) return
+      panRafRef.current = requestAnimationFrame(() => {
+        panRafRef.current = null
+        const { dx, dy } = panDeltaRef.current
+        panDeltaRef.current = { dx: 0, dy: 0 }
+        setView((v) => panBy(v, dx, dy))
+      })
+    },
+    [zoomBy]
+  )
+
+  if (!src) return null
 
   return (
-    <div
-      ref={containerRef}
-      className={className}
-      aria-label={alt}
-      style={{ touchAction: "none" }}
-    >
+    <div ref={containerRef} className={className} aria-label={alt} style={{ touchAction: "none" }}>
       <Stage
         ref={(n) => {
           stageRef.current = n
@@ -274,31 +246,19 @@ export const ProjectImageCanvas = forwardRef<ProjectImageCanvasHandle, Props>(fu
         y={view.y}
         draggable={panEnabled}
         onDragStart={(e) => {
-          // Konva drag events bubble: only treat it as viewport pan when the Stage itself is dragged.
-          if (e.target === stageRef.current) {
-            userInteractedRef.current = true
-          }
+          if (e.target === stageRef.current) userInteractedRef.current = true
         }}
         onDragEnd={(e) => {
           const stage = stageRef.current
           if (!stage) return
-          // Konva drag events bubble: ignore image drags.
           if (e.target !== stage) return
           setView((v) => ({ ...v, x: stage.x(), y: stage.y() }))
         }}
         onWheel={onWheel}
       >
         <Layer>
-          {/* Artboard background (behind image) */}
           {showArtboard ? (
-            <Rect
-              x={0}
-              y={0}
-              width={artW}
-              height={artH}
-              fill="#ffffff"
-              listening={false}
-            />
+            <Rect x={0} y={0} width={artW} height={artH} fill="#ffffff" listening={false} />
           ) : null}
 
           {img ? (
@@ -319,12 +279,7 @@ export const ProjectImageCanvas = forwardRef<ProjectImageCanvasHandle, Props>(fu
               onDragEnd={(e) => {
                 const n = e.target
                 setImageTx((prev) => {
-                  const next = {
-                    x: n.x(),
-                    y: n.y(),
-                    scaleX: prev?.scaleX ?? 1,
-                    scaleY: prev?.scaleY ?? 1,
-                  }
+                  const next = { x: n.x(), y: n.y(), scaleX: prev?.scaleX ?? 1, scaleY: prev?.scaleY ?? 1 }
                   reportImageSize(next)
                   return next
                 })
@@ -332,17 +287,8 @@ export const ProjectImageCanvas = forwardRef<ProjectImageCanvasHandle, Props>(fu
             />
           ) : null}
 
-          {/* Artboard border on top so it never "disappears" behind the image */}
           {showArtboard ? (
-            <Rect
-              x={0}
-              y={0}
-              width={artW}
-              height={artH}
-              stroke="#ff0000"
-              strokeWidth={2}
-              listening={false}
-            />
+            <Rect x={0} y={0} width={artW} height={artH} stroke="#ff0000" strokeWidth={2} listening={false} />
           ) : null}
         </Layer>
       </Stage>
