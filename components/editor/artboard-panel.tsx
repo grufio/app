@@ -228,6 +228,7 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
   }, [draftDpi, draftHeight, draftUnit, draftWidth, row, saveWith, saving])
 
   const onUnitChange = (nextUnit: Unit) => {
+    if (nextUnit === draftUnit) return
     const dpi = Number(draftDpi) || (row?.dpi_x ?? 300)
     const fromUnit = draftUnit
     setDraftUnit(nextUnit)
@@ -246,7 +247,10 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
     setDraftWidth(nextWidth)
     setDraftHeight(nextHeight)
 
-    void saveWith({ width: Number(nextWidth), height: Number(nextHeight), dpi, unit: nextUnit })
+    // Persist unit changes immediately, but schedule after this tick to avoid nested-update issues.
+    queueMicrotask(() => {
+      void saveWith({ width: Number(nextWidth), height: Number(nextHeight), dpi, unit: nextUnit })
+    })
   }
 
   const controlsDisabled = loading || !row || saving
@@ -316,6 +320,7 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
               <SelectItem value="mm">mm</SelectItem>
               <SelectItem value="cm">cm</SelectItem>
               <SelectItem value="pt">pt</SelectItem>
+              <SelectItem value="px">px</SelectItem>
             </SelectContent>
           </Select>
         </div>
