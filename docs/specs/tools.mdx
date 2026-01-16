@@ -1,0 +1,52 @@
+---
+title: Tooling / Libraries (MVP)
+---
+
+## Ziel
+Dieses Dokument listet die Tools/Libraries, die wir für den MVP brauchen, und wofür sie eingesetzt werden.
+
+## Frontend (Next.js / React)
+### Basis (bereits im Projekt)
+- **Next.js / React**: App Router, UI-Routing, Client/Server Components.
+- **shadcn/ui**: UI-Komponenten (Tabs, Breadcrumbs, Buttons, etc.).
+- **Tailwind CSS**: Styling.
+
+### Editor / Arbeitsfläche (UI-Layer)
+- **konva + react-konva**
+  - **Wofür**: Canvas-Scenegraph für Arbeitsfläche, Zoom/Pan (Hand-Tool), Rendern von Overlay-Layern (Raster, Rahmen, Pattern, Zahlen).
+  - **Warum**: Sehr geeignet für „Raster (z. B. 40×20) + Overlays + Interaktion“.
+
+### Datenfluss
+- **Generation JSON** (Palette + Cells + Settings)
+  - **Wofür**: Frontend rendert Overlay aus denselben Daten, die Backend für PDF nutzt.
+  - **Spezifikation**: siehe `docs/specs/palette-vektor-generation.mdx`
+
+## Backend (Python, Processing)
+### API
+- **FastAPI**
+  - **Wofür**: HTTP-Endpoints (z. B. `POST /process`, später `POST /export/pdf`).
+- **Uvicorn**
+  - **Wofür**: ASGI Server für FastAPI.
+
+### Bildverarbeitung
+- **Pillow (PIL)**
+  - **Wofür**: Bild einlesen, Format-Erkennung, Basis-Resize/Export (CMYK→RGB reicht über Canvas/Decode, ohne ICC-Genauigkeit).
+- **NumPy**
+  - **Wofür**: Pixel-Arrays, schnelles Rechnen auf Rasterdaten.
+
+### Farbreduktion / Quantisierung
+Eine Option wählen (nicht mehrere parallel):
+- **scikit-image**
+  - **Wofür**: Quantisierung / ggf. Dithering / Hilfsfunktionen.
+  - **Alternative**: **OpenCV** (wenn ihr lieber OpenCV-Tooling nutzt).
+
+### PDF (Vektor-Output)
+- **ReportLab**
+  - **Wofür**: Vektor-PDF generieren (Zellrahmen/Pattern-Linien als Vektoren, Zahlen als Text, Legende als Tabelle/Swatches).
+
+## Optional (später)
+- **Supabase**
+  - **DB**: Projekte, Metadaten, Generation (Palette+Cells+Settings).
+  - **Storage**: Original/Working Images und generierte PDFs.
+- **Auth/Rollen**: später (MVP: Editor/owner-only).
+

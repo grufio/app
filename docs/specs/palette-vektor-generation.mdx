@@ -1,0 +1,105 @@
+---
+title: Palette- & Vektor-Generierung (MVP)
+---
+
+## Ziel
+Aus einer Bitmap wird ein „Malen-nach-Zahlen“-Raster erzeugt:
+
+- **Bitmap → Raster** (z. B. 2000×1000px → 40×20 Zellen)
+- **Farben reduzieren** (typisch 20–40)
+- **Palette erstellen** (Liste der verwendeten Farben)
+- **Zellen labeln** (Zahl 1–99 als Referenz zur Palette)
+- **Vektor-Overlay im Browser** (Layer über dem Bild, ein-/ausblendbar)
+- **PDF-Output** als Vektor, inkl. **Legende**
+
+## Begriffe
+- **Master Image**: Original bleibt erhalten (Reset möglich).
+- **Working Copy**: Arbeitskopie des Bildes.
+- **Generation**: Ergebnis eines Generate-Laufs (Palette + Zellenlabels + Output-Daten).
+
+## 1) Generierung (ein Schritt, Python)
+Beim Klick auf „Generate“ passiert serverseitig in **einem Durchlauf**:
+
+- Bild einlesen
+- auf Zielraster runterrechnen (cols×rows)
+- Farbquantisierung (maxColors)
+- **Palette** erzeugen (nur tatsächlich verwendete Farben)
+- pro Rasterzelle den **Label** (1–99) setzen, der auf einen Palette-Eintrag verweist
+
+## 2) Ergebnisdaten (kanonisch)
+Das Backend liefert als kanonisches Ergebnis (MVP):
+
+- **Raster**: `cols`, `rows`
+- **Palette**: Liste von Einträgen `label → rgb (+ optional hex/count)`
+- **Cells**: pro Zelle genau **ein Label** (1–99), der die Palette referenziert
+
+### Palette (minimal)
+- `label` (1–99)
+- `rgb` (r,g,b)
+- optional: `hex`
+- optional: `count` (Häufigkeit der Farbe im Raster; hilfreich für Sortierung/Legende)
+
+### Cells (minimal)
+- `labels`: Array mit Länge `cols * rows` (1D)
+- Zugriff: `label = labels[y * cols + x]`
+
+> Hinweis: „Zeilen/2D“ ist nur eine alternative Datenstruktur. Inhaltlich ist es immer ein Raster.
+
+## 3) Rendering (Browser)
+Im Browser werden aus den Ergebnisdaten zwei Layer gezeichnet:
+
+- **Bild-Layer** (Working Copy)
+- **Overlay-Layer** (Vektoren): Rahmen/Pattern/Zahlen (ein-/ausblendbar)
+
+### Overlay-Inhalt pro Zelle
+Pro Zelle wird mindestens gezeichnet:
+
+- **Vektorrahmen** (Rechteck)
+- **Zahl** (Label) zentriert (ein-/ausblendbar)
+
+### Globale Stil-Settings (nicht pro Zelle)
+- Rahmen-/Pattern-Farbe (global)
+- Zahlenfarbe (global)
+- Linienstärke Display
+- Linienstärke PDF
+- Flags: `showNumbers`, `showPatterns`
+
+## 4) Pattern-Encoding (aktuell definiert: 0–59)
+Zusätzlich zum Rahmen können Linien gezeichnet werden, um die Orientierung zu verbessern:
+
+- **0–9**: nur Viereck
+- **10–19**: + waagerechter Strich (Mitte)
+- **20–29**: + senkrechter Strich (Mitte)
+- **30–39**: + waagerecht & senkrecht
+- **40–49**: + Diagonale von links unten nach rechts oben
+- **50–59**: + Diagonale von rechts unten nach links oben
+
+> 60–99 ist offen (später). Für >59: entweder neue Pattern-Regeln oder Fallback „nur Zahl“.
+
+## 5) PDF-Output (Python)
+Der PDF-Output wird serverseitig aus denselben Ergebnisdaten erzeugt:
+
+- Vektorrahmen (+ optional Pattern)
+- Zahlen (optional ausblendbar; in PDF meist sinnvoll)
+- **Legende**
+
+### Legende (MVP)
+Für jede verwendete Farbe:
+
+- Farbswatch (gefülltes Viereck mit Palette-Farbe)
+- Label (Zahl)
+- RGB-Wert (z. B. `rgb(204, 35, 79)` und/oder Hex)
+
+## 6) Invalidierung (Reset-Regel)
+Wenn das Bild **neu bearbeitet** wird (z. B. Größe, Zielraster, maxColors …):
+
+- aktuelle **Palette verwerfen**
+- aktuelle **Zellenlabels/Overlay verwerfen**
+- Status: „out of date“
+- erst ein neuer „Generate“-Lauf erzeugt wieder eine gültige Generation
+
+## 7) Speichern (später DB)
+Pro Projekt wird **genau eine aktuelle Generation** gespeichert (kein History nötig, da beim Recompute ersetzt):
+
+- `current_generation = { cols, rows, palette, cells, settings }`
+
