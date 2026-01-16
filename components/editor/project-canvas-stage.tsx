@@ -165,6 +165,13 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     [img, onImageSizeChange]
   )
 
+  // Report image size to the parent *after* state commits.
+  // Do NOT call `onImageSizeChange` inside state updaters; it can trigger
+  // "Cannot update a component while rendering a different component" in React.
+  useEffect(() => {
+    reportImageSize(imageTx)
+  }, [imageTx, reportImageSize])
+
   useEffect(() => {
     if (!src) return
     if (!img) return
@@ -176,7 +183,6 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     const y = showArtboard ? artH / 2 : img.height / 2
     const tx = { x, y, scaleX: initialScale, scaleY: initialScale }
     setImageTx(tx)
-    reportImageSize(tx)
   }, [artH, artW, img, reportImageSize, showArtboard, src])
 
   const setImageSize = useCallback(
@@ -192,7 +198,6 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
           scaleX: scale,
           scaleY: scale,
         }
-        reportImageSize(next)
         return next
       })
     },
@@ -280,7 +285,6 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
                 const n = e.target
                 setImageTx((prev) => {
                   const next = { x: n.x(), y: n.y(), scaleX: prev?.scaleX ?? 1, scaleY: prev?.scaleY ?? 1 }
-                  reportImageSize(next)
                   return next
                 })
               }}
