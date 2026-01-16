@@ -103,50 +103,52 @@ export default function ProjectDetailPage() {
   }, [projectId])
 
   return (
-    <div className="flex min-h-svh w-full">
-      <div className="flex min-w-0 flex-1 flex-col">
-        {/* Breadcrumb header row: same structure/spacing as dashboard header, only the left icon differs */}
-        <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
-          <div className="flex items-center gap-2 px-4">
-            <Link
-              href="/dashboard"
-              aria-label="Back to dashboard"
-              className="-ml-1 inline-flex size-8 items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground"
-            >
-              <ArrowLeft className="size-4" />
-            </Link>
-            <Separator
-              orientation="vertical"
-              className="mr-2 data-[orientation=vertical]:h-4"
-            />
-            <Breadcrumb>
-              <BreadcrumbList>
-                <BreadcrumbItem>
-                  <BreadcrumbLink href="#">Project</BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator />
-                <BreadcrumbItem>
-                  <BreadcrumbPage>
-                    {project?.id === projectId ? project.name || "Untitled" : "Untitled"}
-                  </BreadcrumbPage>
-                </BreadcrumbItem>
-              </BreadcrumbList>
-            </Breadcrumb>
-          </div>
-        </header>
-
-        <div className="bg-background px-4 pb-4">
-          <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
-            <TabsList>
-              <TabsTrigger value="image">Image</TabsTrigger>
-              <TabsTrigger value="filter">Filter / Optimierung</TabsTrigger>
-              <TabsTrigger value="convert">Vektorisierung / Grid</TabsTrigger>
-              <TabsTrigger value="output">PDF Output</TabsTrigger>
-            </TabsList>
-          </Tabs>
+    <div className="flex min-h-svh w-full flex-col">
+      {/* Breadcrumb header row */}
+      <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
+        <div className="flex items-center gap-2 px-4">
+          <Link
+            href="/dashboard"
+            aria-label="Back to dashboard"
+            className="-ml-1 inline-flex size-8 items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground"
+          >
+            <ArrowLeft className="size-4" />
+          </Link>
+          <Separator
+            orientation="vertical"
+            className="mr-2 data-[orientation=vertical]:h-4"
+          />
+          <Breadcrumb>
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                <BreadcrumbLink href="#">Project</BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbPage>
+                  {project?.id === projectId ? project.name || "Untitled" : "Untitled"}
+                </BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
         </div>
+      </header>
 
-        <main className="flex flex-1 border-t border-border bg-muted/50">
+      {/* Tabs row */}
+      <div className="bg-background px-4 pb-4">
+        <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
+          <TabsList>
+            <TabsTrigger value="image">Image</TabsTrigger>
+            <TabsTrigger value="filter">Filter / Optimierung</TabsTrigger>
+            <TabsTrigger value="convert">Vektorisierung / Grid</TabsTrigger>
+            <TabsTrigger value="output">PDF Output</TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
+
+      {/* Content row (starts under the same top divider line for both left + right sidebars) */}
+      <div className="flex flex-1 border-t border-border bg-muted/50">
+        <main className="flex min-w-0 flex-1">
           {tab === "image" ? (
             <>
               {/* Template-level left sidebar (Illustrator-style) */}
@@ -191,26 +193,26 @@ export default function ProjectDetailPage() {
             </>
           ) : null}
         </main>
-      </div>
 
-      {/* Right sidebar (always visible, non-modal) */}
-      <aside className="h-svh w-96 shrink-0 border-l bg-background">
-        <div className="sticky top-0 flex h-svh flex-col">
-          <div className="border-b px-4 py-3">
-            <div className="text-sm font-medium">Sidebar</div>
-            <div className="text-xs text-muted-foreground">
-              Funktionen zum Bearbeiten (wie Illustrator)
+        {/* Right sidebar (aligned under the same top divider line) */}
+        <aside className="w-96 shrink-0 border-l bg-background">
+          <div className="flex h-full flex-col">
+            <div className="border-b px-4 py-3">
+              <div className="text-sm font-medium">Sidebar</div>
+              <div className="text-xs text-muted-foreground">
+                Funktionen zum Bearbeiten (wie Illustrator)
+              </div>
+            </div>
+            <div className="flex-1 overflow-auto p-4">
+              <div className="space-y-3">
+                <div className="h-10 rounded-md bg-muted" />
+                <div className="h-10 rounded-md bg-muted" />
+                <div className="h-10 rounded-md bg-muted" />
+              </div>
             </div>
           </div>
-          <div className="flex-1 overflow-auto p-4">
-            <div className="space-y-3">
-              <div className="h-10 rounded-md bg-muted" />
-              <div className="h-10 rounded-md bg-muted" />
-              <div className="h-10 rounded-md bg-muted" />
-            </div>
-          </div>
-        </div>
-      </aside>
+        </aside>
+      </div>
     </div>
   )
 }
