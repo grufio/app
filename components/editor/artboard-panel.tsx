@@ -6,7 +6,6 @@ import { ArrowLeftRight, ArrowUpDown, Gauge, Ruler } from "lucide-react"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { clampPx, fmt2, type Unit, unitToPx } from "@/lib/editor/units"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 export type WorkspaceRow = {
   project_id: string
@@ -17,6 +16,11 @@ export type WorkspaceRow = {
   dpi_y: number
   width_px: number
   height_px: number
+}
+
+function normalizeUnit(u: unknown): Unit {
+  if (u === "mm" || u === "cm" || u === "pt" || u === "px") return u
+  return "cm"
 }
 
 function toInches(value: number, unit: Unit, dpi: number): number {
@@ -79,8 +83,14 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
 
   const lastSubmitRef = useRef<string | null>(null)
   const ignoreNextBlurSaveRef = useRef(false)
+  const draftUnitRef = useRef<Unit>("mm")
+  const unitChangeInFlightRef = useRef<Unit | null>(null)
   const onChangePxRef = useRef<Props["onChangePx"]>(onChangePx)
   const onChangeMetaRef = useRef<Props["onChangeMeta"]>(onChangeMeta)
+
+  useEffect(() => {
+    draftUnitRef.current = draftUnit
+  }, [draftUnit])
 
   useEffect(() => {
     onChangePxRef.current = onChangePx
@@ -128,20 +138,21 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
           setDraftWidth(String(ins.width_value))
           setDraftHeight(String(ins.height_value))
           setDraftDpi(String(ins.dpi_x))
-          setDraftUnit(ins.unit as Unit)
+          setDraftUnit(normalizeUnit((ins as WorkspaceRow).unit))
           onChangePxRef.current?.(Number(ins.width_px), Number(ins.height_px))
-          onChangeMetaRef.current?.(ins.unit as Unit, Number(ins.dpi_x))
+          onChangeMetaRef.current?.(normalizeUnit((ins as WorkspaceRow).unit), Number(ins.dpi_x))
           return
         }
 
         const r = data as unknown as WorkspaceRow
+        const unit = normalizeUnit((r as unknown as { unit?: unknown })?.unit)
         setRow(r)
         setDraftWidth(String(r.width_value))
         setDraftHeight(String(r.height_value))
         setDraftDpi(String(r.dpi_x))
-        setDraftUnit(r.unit)
+        setDraftUnit(unit)
         onChangePxRef.current?.(Number(r.width_px), Number(r.height_px))
-        onChangeMetaRef.current?.(r.unit, Number(r.dpi_x))
+        onChangeMetaRef.current?.(unit, Number(r.dpi_x))
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -205,13 +216,14 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
         }
 
         const r = data as unknown as WorkspaceRow
+        const unit = normalizeUnit((r as unknown as { unit?: unknown })?.unit)
         setRow(r)
         setDraftWidth(String(r.width_value))
         setDraftHeight(String(r.height_value))
         setDraftDpi(String(r.dpi_x))
-        setDraftUnit(r.unit)
+        setDraftUnit(unit)
         onChangePxRef.current?.(Number(r.width_px), Number(r.height_px))
-        onChangeMetaRef.current?.(r.unit, Number(r.dpi_x))
+        onChangeMetaRef.current?.(unit, Number(r.dpi_x))
       } finally {
         setSaving(false)
       }
@@ -230,14 +242,23 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
 
   const onUnitChange = (nextUnit: Unit) => {
     if (loading || saving) return
-    if (nextUnit === draftUnit) return
+    // Radix can call `onValueChange` multiple times in the same interaction before React re-renders.
+    // Guard with refs to avoid re-entrancy / update loops.
+    if (unitChangeInFlightRef.current === nextUnit) return
+    if (nextUnit === draftUnitRef.current) return
+    unitChangeInFlightRef.current = nextUnit
     const dpi = Number(draftDpi) || (row?.dpi_x ?? 300)
-    const fromUnit = draftUnit
+    const fromUnit = draftUnitRef.current
+    draftUnitRef.current = nextUnit
     setDraftUnit(nextUnit)
 
     const w = Number(draftWidth)
     const h = Number(draftHeight)
-    if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return
+    if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) {
+      // allow unit-only change without conversion/persist
+      unitChangeInFlightRef.current = null
+      return
+    }
 
     const wIn = toInches(w, fromUnit, dpi)
     const hIn = toInches(h, fromUnit, dpi)
@@ -252,6 +273,7 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
     // Persist unit changes immediately, but schedule it after Radix Select finishes closing.
     setTimeout(() => {
       void saveWith({ width: Number(nextWidth), height: Number(nextHeight), dpi, unit: nextUnit })
+      unitChangeInFlightRef.current = null
     }, 0)
   }
 
@@ -332,23 +354,22 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
 
         <div className="flex items-center gap-2">
           <Ruler className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-          <Select value={draftUnit} onValueChange={(v) => onUnitChange(v as Unit)} disabled={controlsDisabled}>
-            <SelectTrigger
-              className="h-6 w-full px-2 py-0 text-[12px] md:text-[12px] shadow-none"
-              onPointerDownCapture={() => {
-                // Prevent the currently focused input from auto-saving on blur while opening the dropdown.
-                ignoreNextBlurSaveRef.current = true
-              }}
-            >
-              <SelectValue aria-label="Artboard unit" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="mm">mm</SelectItem>
-              <SelectItem value="cm">cm</SelectItem>
-              <SelectItem value="pt">pt</SelectItem>
-              <SelectItem value="px">px</SelectItem>
-            </SelectContent>
-          </Select>
+          <select
+            value={draftUnit}
+            disabled={controlsDisabled}
+            aria-label="Artboard unit"
+            className="border-input bg-transparent text-foreground flex h-6 w-full items-center justify-between rounded-md border px-2 py-0 text-[12px] md:text-[12px] shadow-none outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
+            onMouseDown={() => {
+              // Prevent the currently focused input from auto-saving on blur while opening the dropdown.
+              ignoreNextBlurSaveRef.current = true
+            }}
+            onChange={(e) => onUnitChange(e.target.value as Unit)}
+          >
+            <option value="mm">mm</option>
+            <option value="cm">cm</option>
+            <option value="pt">pt</option>
+            <option value="px">px</option>
+          </select>
         </div>
       </div>
 

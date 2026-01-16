@@ -47,6 +47,13 @@ export default function ProjectDetailPage() {
     setArtboardPx({ w, h })
   }, [])
 
+  const handleImagePxChange = useCallback((w: number, h: number) => {
+    setImagePx((prev) => {
+      if (prev && prev.w === w && prev.h === h) return prev
+      return { w, h }
+    })
+  }, [])
+
   const refreshMasterImage = useCallback(async () => {
     setMasterImageError("")
     setMasterImageLoading(true)
@@ -160,7 +167,7 @@ export default function ProjectDetailPage() {
                       imageDraggable={imageDraggable}
                       artboardWidthPx={artboardPx?.w}
                       artboardHeightPx={artboardPx?.h}
-                      onImageSizeChange={(w, h) => setImagePx({ w, h })}
+                      onImageSizeChange={handleImagePxChange}
                     />
                   ) : null}
                 </div>

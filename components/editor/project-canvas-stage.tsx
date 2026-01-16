@@ -84,6 +84,11 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   const [imageTx, setImageTx] = useState<{ x: number; y: number; scaleX: number; scaleY: number } | null>(null)
   const panRafRef = useRef<number | null>(null)
   const panDeltaRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 })
+  const onImageSizeChangeRef = useRef<Props["onImageSizeChange"]>(onImageSizeChange)
+
+  useEffect(() => {
+    onImageSizeChangeRef.current = onImageSizeChange
+  }, [onImageSizeChange])
 
   // Prevent browser page zoom / scroll stealing (Cmd/Ctrl + wheel / trackpad pinch).
   useEffect(() => {
@@ -160,9 +165,9 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   const reportImageSize = useCallback(
     (tx: { scaleX: number; scaleY: number } | null) => {
       if (!img || !tx) return
-      onImageSizeChange?.(Math.round(img.width * tx.scaleX), Math.round(img.height * tx.scaleY))
+      onImageSizeChangeRef.current?.(Math.round(img.width * tx.scaleX), Math.round(img.height * tx.scaleY))
     },
-    [img, onImageSizeChange]
+    [img]
   )
 
   // Report image size to the parent *after* state commits.
