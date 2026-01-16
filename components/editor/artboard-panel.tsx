@@ -78,6 +78,7 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
   const [error, setError] = useState("")
 
   const lastSubmitRef = useRef<string | null>(null)
+  const ignoreNextBlurSaveRef = useRef(false)
   const onChangePxRef = useRef<Props["onChangePx"]>(onChangePx)
   const onChangeMetaRef = useRef<Props["onChangeMeta"]>(onChangeMeta)
 
@@ -228,6 +229,7 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
   }, [draftDpi, draftHeight, draftUnit, draftWidth, row, saveWith, saving])
 
   const onUnitChange = (nextUnit: Unit) => {
+    if (loading || saving) return
     if (nextUnit === draftUnit) return
     const dpi = Number(draftDpi) || (row?.dpi_x ?? 300)
     const fromUnit = draftUnit
@@ -247,10 +249,10 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
     setDraftWidth(nextWidth)
     setDraftHeight(nextHeight)
 
-    // Persist unit changes immediately, but schedule after this tick to avoid nested-update issues.
-    queueMicrotask(() => {
+    // Persist unit changes immediately, but schedule it after Radix Select finishes closing.
+    setTimeout(() => {
       void saveWith({ width: Number(nextWidth), height: Number(nextHeight), dpi, unit: nextUnit })
-    })
+    }, 0)
   }
 
   const controlsDisabled = loading || !row || saving
@@ -268,7 +270,13 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
             onKeyDown={(e) => {
               if (e.key === "Enter") void save()
             }}
-            onBlur={() => void save()}
+            onBlur={() => {
+              if (ignoreNextBlurSaveRef.current) {
+                ignoreNextBlurSaveRef.current = false
+                return
+              }
+              void save()
+            }}
             disabled={controlsDisabled}
             aria-label="Artboard width"
             className="h-6 w-full px-2 py-0 text-[12px] md:text-[12px] shadow-none"
@@ -284,7 +292,13 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
             onKeyDown={(e) => {
               if (e.key === "Enter") void save()
             }}
-            onBlur={() => void save()}
+            onBlur={() => {
+              if (ignoreNextBlurSaveRef.current) {
+                ignoreNextBlurSaveRef.current = false
+                return
+              }
+              void save()
+            }}
             disabled={controlsDisabled}
             aria-label="Artboard height"
             className="h-6 w-full px-2 py-0 text-[12px] md:text-[12px] shadow-none"
@@ -303,7 +317,13 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
             onKeyDown={(e) => {
               if (e.key === "Enter") void save()
             }}
-            onBlur={() => void save()}
+            onBlur={() => {
+              if (ignoreNextBlurSaveRef.current) {
+                ignoreNextBlurSaveRef.current = false
+                return
+              }
+              void save()
+            }}
             disabled={controlsDisabled}
             aria-label="Artboard DPI"
             className="h-6 w-full px-2 py-0 text-[12px] md:text-[12px] shadow-none"
@@ -313,7 +333,13 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
         <div className="flex items-center gap-2">
           <Ruler className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
           <Select value={draftUnit} onValueChange={(v) => onUnitChange(v as Unit)} disabled={controlsDisabled}>
-            <SelectTrigger className="h-6 w-full px-2 py-0 text-[12px] md:text-[12px] shadow-none">
+            <SelectTrigger
+              className="h-6 w-full px-2 py-0 text-[12px] md:text-[12px] shadow-none"
+              onPointerDownCapture={() => {
+                // Prevent the currently focused input from auto-saving on blur while opening the dropdown.
+                ignoreNextBlurSaveRef.current = true
+              }}
+            >
               <SelectValue aria-label="Artboard unit" />
             </SelectTrigger>
             <SelectContent>
