@@ -1,7 +1,7 @@
 "use client"
 
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react"
-import { Image as KonvaImage, Layer, Stage } from "react-konva"
+import { Image as KonvaImage, Layer, Rect, Stage } from "react-konva"
 import type Konva from "konva"
 
 type Props = {
@@ -9,6 +9,9 @@ type Props = {
   alt?: string
   className?: string
   panEnabled?: boolean
+  imageDraggable?: boolean
+  artboardWidthPx?: number
+  artboardHeightPx?: number
 }
 
 export type ProjectImageCanvasHandle = {
@@ -42,7 +45,7 @@ function useHtmlImage(src: string | null) {
 }
 
 export const ProjectImageCanvas = forwardRef<ProjectImageCanvasHandle, Props>(function ProjectImageCanvas(
-  { src, alt, className, panEnabled = true },
+  { src, alt, className, panEnabled = true, imageDraggable = false, artboardWidthPx, artboardHeightPx },
   ref
 ) {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -53,6 +56,24 @@ export const ProjectImageCanvas = forwardRef<ProjectImageCanvasHandle, Props>(fu
   const [size, setSize] = useState({ w: 0, h: 0 })
   const [view, setView] = useState({ scale: 1, x: 0, y: 0 })
   const [rotation, setRotation] = useState(0)
+  const lastAutoFitKeyRef = useRef<string | null>(null)
+  const placedKeyRef = useRef<string | null>(null)
+  const [imageTx, setImageTx] = useState<{ x: number; y: number; scale: number } | null>(null)
+  const userInteractedRef = useRef(false)
+
+  // Prevent browser page zoom / scroll stealing (Cmd/Ctrl + wheel / trackpad pinch).
+  // Konva's internal listeners can be passive in some environments, so we add an explicit non-passive listener.
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const handler = (evt: WheelEvent) => {
+      if (evt.ctrlKey || evt.metaKey) {
+        evt.preventDefault()
+      }
+    }
+    el.addEventListener("wheel", handler, { passive: false })
+    return () => el.removeEventListener("wheel", handler)
+  }, [])
 
   useEffect(() => {
     const el = containerRef.current
@@ -66,22 +87,35 @@ export const ProjectImageCanvas = forwardRef<ProjectImageCanvasHandle, Props>(fu
     return () => ro.disconnect()
   }, [])
 
-  const fit = useMemo(() => {
-    if (!img || size.w === 0 || size.h === 0) return null
-    const scale = Math.min(size.w / img.width, size.h / img.height)
-    const x = (size.w - img.width * scale) / 2
-    const y = (size.h - img.height * scale) / 2
-    return { scale, x, y }
-  }, [img, size.h, size.w])
+  const world = useMemo(() => {
+    const w = artboardWidthPx && artboardWidthPx > 0 ? artboardWidthPx : img?.width
+    const h = artboardHeightPx && artboardHeightPx > 0 ? artboardHeightPx : img?.height
+    if (!w || !h) return null
+    return { w, h }
+  }, [artboardHeightPx, artboardWidthPx, img?.height, img?.width])
 
-  // Reset view when a new image is loaded (fit-to-view)
+  const fit = useMemo(() => {
+    if (!world || size.w === 0 || size.h === 0) return null
+    const scale = Math.min(size.w / world.w, size.h / world.h)
+    const x = (size.w - world.w * scale) / 2
+    const y = (size.h - world.h * scale) / 2
+    return { scale, x, y }
+  }, [size.h, size.w, world])
+
+  // Fit the current "world" into the viewport when it first becomes available.
+  // Do not override the user's view once they've started interacting (zoom/pan).
   useEffect(() => {
-    if (!fit) return
+    if (!fit || !img || !world) return
+    if (userInteractedRef.current) return
+    const key = `${src}:${world.w}x${world.h}`
+    if (lastAutoFitKeyRef.current === key) return
+    lastAutoFitKeyRef.current = key
     setView({ scale: fit.scale, x: fit.x, y: fit.y })
-  }, [fit?.scale, fit?.x, fit?.y]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [fit, img, src, world])
 
   const fitToView = () => {
     if (!fit) return
+    userInteractedRef.current = false
     setView({ scale: fit.scale, x: fit.x, y: fit.y })
   }
 
@@ -92,7 +126,8 @@ export const ProjectImageCanvas = forwardRef<ProjectImageCanvasHandle, Props>(fu
 
     setView((v) => {
       const oldScale = v.scale
-      const newScale = Math.max(0.05, Math.min(8, oldScale * factor))
+      userInteractedRef.current = true
+      const newScale = Math.max(0.01, Math.min(8, oldScale * factor))
 
       // Zoom around cursor (or center if cursor is outside the stage)
       const mousePointTo = {
@@ -122,15 +157,58 @@ export const ProjectImageCanvas = forwardRef<ProjectImageCanvasHandle, Props>(fu
 
   const onWheel = (e: Konva.KonvaEventObject<WheelEvent>) => {
     e.evt.preventDefault()
-    zoomBy(e.evt.deltaY > 0 ? 1 / 1.08 : 1.08)
+    const isZoomGesture = e.evt.ctrlKey || e.evt.metaKey
+
+    // Illustrator-like:
+    // - wheel = pan (scroll)
+    // - ctrl/cmd + wheel = zoom
+    if (isZoomGesture) {
+      userInteractedRef.current = true
+      zoomBy(e.evt.deltaY > 0 ? 1 / 1.08 : 1.08)
+      return
+    }
+
+    userInteractedRef.current = true
+    const dx = e.evt.deltaX
+    const dy = e.evt.deltaY
+    setView((v) => {
+      // Stage x/y are in screen px. This matches the wheel deltas.
+      // Invert so wheel-down moves content up (natural).
+      const nextX = v.x - dx
+      const nextY = v.y - dy
+      return { ...v, x: nextX, y: nextY }
+    })
   }
+
+  const showArtboard = Boolean(world && artboardWidthPx && artboardHeightPx)
+  const artW = world?.w ?? 0
+  const artH = world?.h ?? 0
+
+  // Place the image ONCE. After that, the image must stay independent from the artboard
+  // (artboard changes must NOT move/scale the image).
+  useEffect(() => {
+    if (!src) return
+    if (!img) return
+    const key = src
+    if (placedKeyRef.current === key) return
+    placedKeyRef.current = key
+    // Default: keep 1:1 pixel scale; place centered (prefer artboard center when available).
+    const x = showArtboard ? artW / 2 : img.width / 2
+    const y = showArtboard ? artH / 2 : img.height / 2
+    setImageTx({ x, y, scale: 1 })
+  }, [artH, artW, img, showArtboard, src])
 
   if (!src) {
     return null
   }
 
   return (
-    <div ref={containerRef} className={className} aria-label={alt}>
+    <div
+      ref={containerRef}
+      className={className}
+      aria-label={alt}
+      style={{ touchAction: "none" }}
+    >
       <Stage
         ref={(n) => {
           stageRef.current = n
@@ -142,19 +220,70 @@ export const ProjectImageCanvas = forwardRef<ProjectImageCanvasHandle, Props>(fu
         x={view.x}
         y={view.y}
         draggable={panEnabled}
-        onDragEnd={(e) => setView((v) => ({ ...v, x: e.target.x(), y: e.target.y() }))}
+        onDragStart={(e) => {
+          // Konva drag events bubble: only treat it as viewport pan when the Stage itself is dragged.
+          if (e.target === stageRef.current) {
+            userInteractedRef.current = true
+          }
+        }}
+        onDragEnd={(e) => {
+          const stage = stageRef.current
+          if (!stage) return
+          // Konva drag events bubble: ignore image drags.
+          if (e.target !== stage) return
+          setView((v) => ({ ...v, x: stage.x(), y: stage.y() }))
+        }}
         onWheel={onWheel}
       >
         <Layer>
+          {/* Artboard background (behind image) */}
+          {showArtboard ? (
+            <Rect
+              x={0}
+              y={0}
+              width={artW}
+              height={artH}
+              fill="#ffffff"
+              listening={false}
+            />
+          ) : null}
+
           {img ? (
             <KonvaImage
               image={img}
-              listening={false}
+              listening={imageDraggable}
               rotation={rotation}
+              scaleX={imageTx?.scale ?? 1}
+              scaleY={imageTx?.scale ?? 1}
               offsetX={img.width / 2}
               offsetY={img.height / 2}
-              x={img.width / 2}
-              y={img.height / 2}
+              x={imageTx?.x ?? img.width / 2}
+              y={imageTx?.y ?? img.height / 2}
+              draggable={imageDraggable}
+              onDragStart={() => {
+                userInteractedRef.current = true
+              }}
+              onDragEnd={(e) => {
+                const n = e.target
+                setImageTx((prev) => ({
+                  x: n.x(),
+                  y: n.y(),
+                  scale: prev?.scale ?? 1,
+                }))
+              }}
+            />
+          ) : null}
+
+          {/* Artboard border on top so it never "disappears" behind the image */}
+          {showArtboard ? (
+            <Rect
+              x={0}
+              y={0}
+              width={artW}
+              height={artH}
+              stroke="#ff0000"
+              strokeWidth={2}
+              listening={false}
             />
           ) : null}
         </Layer>

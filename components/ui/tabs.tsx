@@ -27,7 +27,7 @@ function TabsList({
       data-slot="tabs-list"
       className={cn(
         // Pill-style tabs without a container background; spacing is the column gap.
-        "inline-grid h-8 w-fit grid-flow-col auto-cols-max items-center gap-[12px] bg-transparent p-0",
+        "inline-grid h-7 w-fit grid-flow-col auto-cols-max items-center gap-[12px] bg-transparent p-0",
         className
       )}
       {...props}
@@ -46,7 +46,7 @@ function TabsTrigger({
         // Pill-style tabs:
         // - active: black background with white text
         // - inactive: gray background
-        "inline-flex h-8 items-center justify-center gap-1.5 whitespace-nowrap rounded-md bg-muted px-3 py-1 text-sm font-medium text-foreground transition-colors hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-black data-[state=active]:text-white [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "inline-flex h-7 items-center justify-center gap-1.5 whitespace-nowrap rounded-md bg-muted px-3 py-1 text-sm font-medium text-foreground transition-colors hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-black data-[state=active]:text-white [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className
       )}
       {...props}

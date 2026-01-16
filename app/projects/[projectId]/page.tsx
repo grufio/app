@@ -1,23 +1,14 @@
 "use client"
 
-import Link from "next/link"
 import { useParams } from "next/navigation"
-import { ArrowLeft } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbList,
-  BreadcrumbLink,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb"
-import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ProjectImageUploader } from "@/components/app-img-upload"
 import { ProjectImageCanvas, type ProjectImageCanvasHandle } from "@/components/app-canvas-img"
 import { ProjectToolSidebar } from "@/components/app-sidebar-canvas"
+import { ProjectDetailHeader } from "@/components/app-header-project"
+import { ArtboardFields } from "@/components/app-artboard-fields"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 
 export default function ProjectDetailPage() {
@@ -37,8 +28,15 @@ export default function ProjectDetailPage() {
   } | null>(null)
   const [masterImageLoading, setMasterImageLoading] = useState(false)
   const [masterImageError, setMasterImageError] = useState<string>("")
-  const [panEnabled, setPanEnabled] = useState(true)
+  const [tool, setTool] = useState<"select" | "hand">("hand")
+  const panEnabled = tool === "hand"
+  const imageDraggable = tool === "select"
   const canvasRef = useRef<ProjectImageCanvasHandle | null>(null)
+  const [artboardPx, setArtboardPx] = useState<{ w: number; h: number } | null>(null)
+
+  const handleArtboardPxChange = useCallback((w: number, h: number) => {
+    setArtboardPx({ w, h })
+  }, [])
 
   const refreshMasterImage = async () => {
     setMasterImageError("")
@@ -104,35 +102,11 @@ export default function ProjectDetailPage() {
 
   return (
     <div className="flex min-h-svh w-full flex-col">
-      {/* Breadcrumb header row */}
-      <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
-        <div className="flex items-center gap-2 px-4">
-          <Link
-            href="/dashboard"
-            aria-label="Back to dashboard"
-            className="-ml-1 inline-flex size-8 items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground"
-          >
-            <ArrowLeft className="size-4" />
-          </Link>
-          <Separator
-            orientation="vertical"
-            className="mr-2 data-[orientation=vertical]:h-4"
-          />
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem>
-                <BreadcrumbLink href="#">Project</BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbPage>
-                  {project?.id === projectId ? project.name || "Untitled" : "Untitled"}
-                </BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-        </div>
-      </header>
+      <ProjectDetailHeader
+        projectId={projectId}
+        initialTitle={project?.id === projectId ? project.name : "Untitled"}
+        onTitleUpdated={(nextTitle) => setProject({ id: projectId, name: nextTitle })}
+      />
 
       {/* Tabs row */}
       <div className="bg-background px-4 pb-4">
@@ -154,8 +128,8 @@ export default function ProjectDetailPage() {
               {/* Template-level left sidebar (Illustrator-style) */}
               <aside className="flex w-12 shrink-0 justify-center border-r bg-background/80 py-2">
                 <ProjectToolSidebar
-                  panEnabled={panEnabled}
-                  onTogglePan={() => setPanEnabled((v) => !v)}
+                  tool={tool}
+                  onSelectTool={setTool}
                   onZoomIn={() => canvasRef.current?.zoomIn()}
                   onZoomOut={() => canvasRef.current?.zoomOut()}
                   onFit={() => canvasRef.current?.fitToView()}
@@ -164,31 +138,43 @@ export default function ProjectDetailPage() {
               </aside>
 
               {/* Content area */}
-              <div className="flex min-w-0 flex-1 items-center justify-center p-6">
-                <div className="w-full max-w-3xl space-y-4">
-                  {masterImageLoading ? (
-                    <div className="text-sm text-muted-foreground">Loading image…</div>
-                  ) : null}
-                  {masterImageError ? (
-                    <div className="text-sm text-destructive">{masterImageError}</div>
-                  ) : null}
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                {/* status/errors (no centering; keep it out of the canvas area) */}
+                {masterImageLoading || masterImageError ? (
+                  <div className="px-6 pt-4">
+                    {masterImageLoading ? (
+                      <div className="text-sm text-muted-foreground">Loading image…</div>
+                    ) : null}
+                    {masterImageError ? (
+                      <div className="text-sm text-destructive">{masterImageError}</div>
+                    ) : null}
+                  </div>
+                ) : null}
 
+                {/* Workspace: use 100% of the available gray content area */}
+                <div className="min-h-0 flex-1">
                   {masterImage ? (
-                    <div className="overflow-hidden rounded-lg border bg-background">
-                      <ProjectImageCanvas
-                        ref={(n) => {
-                          canvasRef.current = n
-                        }}
-                        src={masterImage.signedUrl}
-                        alt={masterImage.name}
-                        className="h-[520px] w-full"
-                        panEnabled={panEnabled}
-                      />
-                    </div>
+                    <ProjectImageCanvas
+                      ref={(n) => {
+                        canvasRef.current = n
+                      }}
+                      src={masterImage.signedUrl}
+                      alt={masterImage.name}
+                      className="h-full w-full"
+                      panEnabled={panEnabled}
+                      imageDraggable={imageDraggable}
+                      artboardWidthPx={artboardPx?.w}
+                      artboardHeightPx={artboardPx?.h}
+                    />
                   ) : null}
-
-                  <ProjectImageUploader projectId={projectId} onUploaded={refreshMasterImage} />
                 </div>
+
+                {/* Uploader lives below the workspace only when no image exists */}
+                {!masterImage ? (
+                  <div className="px-6 pb-6">
+                    <ProjectImageUploader projectId={projectId} onUploaded={refreshMasterImage} />
+                  </div>
+                ) : null}
               </div>
             </>
           ) : null}
@@ -198,17 +184,17 @@ export default function ProjectDetailPage() {
         <aside className="w-96 shrink-0 border-l bg-background">
           <div className="flex h-full flex-col">
             <div className="border-b px-4 py-3">
-              <div className="text-sm font-medium">Sidebar</div>
-              <div className="text-xs text-muted-foreground">
-                Funktionen zum Bearbeiten (wie Illustrator)
+              <div className="text-sm font-medium">Artboard</div>
+              <div className="mt-3">
+                <ArtboardFields
+                  key={`${projectId}-artboard-fields`}
+                  projectId={projectId}
+                  onChangePx={handleArtboardPxChange}
+                />
               </div>
             </div>
             <div className="flex-1 overflow-auto p-4">
-              <div className="space-y-3">
-                <div className="h-10 rounded-md bg-muted" />
-                <div className="h-10 rounded-md bg-muted" />
-                <div className="h-10 rounded-md bg-muted" />
-              </div>
+              {/* reserved for future artboard controls */}
             </div>
           </div>
         </aside>

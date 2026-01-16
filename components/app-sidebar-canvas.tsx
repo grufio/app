@@ -1,12 +1,12 @@
 "use client"
 
-import { Hand, Maximize2, RotateCw, ZoomIn, ZoomOut } from "lucide-react"
+import { Hand, Maximize2, MousePointer2, RotateCw, ZoomIn, ZoomOut } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 
 type Props = {
-  panEnabled: boolean
-  onTogglePan: () => void
+  tool: "select" | "hand"
+  onSelectTool: (tool: "select" | "hand") => void
   onZoomIn: () => void
   onZoomOut: () => void
   onFit: () => void
@@ -39,8 +39,8 @@ function ToolButton({
 }
 
 export function ProjectToolSidebar({
-  panEnabled,
-  onTogglePan,
+  tool,
+  onSelectTool,
   onZoomIn,
   onZoomOut,
   onFit,
@@ -48,7 +48,18 @@ export function ProjectToolSidebar({
 }: Props) {
   return (
     <div className="flex flex-col gap-1">
-      <ToolButton label="Hand (Pan)" active={panEnabled} onClick={onTogglePan}>
+      <ToolButton
+        label="Select (Move Image)"
+        active={tool === "select"}
+        onClick={() => onSelectTool("select")}
+      >
+        <MousePointer2 className="size-4" />
+      </ToolButton>
+      <ToolButton
+        label="Hand (Move Artboard)"
+        active={tool === "hand"}
+        onClick={() => onSelectTool("hand")}
+      >
         <Hand className="size-4" />
       </ToolButton>
       <ToolButton label="Zoom in" onClick={onZoomIn}>
