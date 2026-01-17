@@ -19,6 +19,8 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar"
 
+export const dynamic = "force-dynamic"
+
 export default async function Page() {
   const supabase = await createSupabaseServerClient()
   const { data: projects } = await supabase
