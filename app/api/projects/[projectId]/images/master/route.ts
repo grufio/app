@@ -162,3 +162,68 @@ export async function POST(
   return NextResponse.json({ ok: true })
 }
 
+
+export async function DELETE(
+  _req: Request,
+  { params }: { params: Promise<{ projectId: string }> }
+) {
+  const { projectId } = await params
+  const supabase = await createSupabaseServerClient()
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized", stage: "auth" }, { status: 401 })
+  }
+
+  // Verify project is accessible to this user under RLS (owner-only).
+  const { data: projectRow, error: projectErr } = await supabase
+    .from("projects")
+    .select("id")
+    .eq("id", projectId)
+    .single()
+
+  if (projectErr || !projectRow) {
+    return NextResponse.json(
+      { error: "Forbidden (project not accessible)", stage: "project_access" },
+      { status: 403 }
+    )
+  }
+
+  const { data: img, error: imgErr } = await supabase
+    .from("project_images")
+    .select("storage_path")
+    .eq("project_id", projectId)
+    .eq("role", "master")
+    .maybeSingle()
+
+  if (imgErr) {
+    return NextResponse.json({ error: imgErr.message, stage: "image_query" }, { status: 400 })
+  }
+
+  if (!img?.storage_path) {
+    return NextResponse.json({ ok: true, deleted: false })
+  }
+
+  const { error: rmErr } = await supabase.storage.from("project_images").remove([img.storage_path])
+  if (rmErr) {
+    return NextResponse.json(
+      { error: rmErr.message, stage: "storage_remove", storage_path: img.storage_path },
+      { status: 400 }
+    )
+  }
+
+  const { error: delErr } = await supabase
+    .from("project_images")
+    .delete()
+    .eq("project_id", projectId)
+    .eq("role", "master")
+
+  if (delErr) {
+    return NextResponse.json({ error: delErr.message, stage: "db_delete" }, { status: 400 })
+  }
+
+  return NextResponse.json({ ok: true, deleted: true })
+}
