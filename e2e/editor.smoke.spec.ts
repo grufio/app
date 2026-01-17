@@ -250,11 +250,27 @@ test("wheel pans and ctrl/cmd+wheel zooms", async ({ page }) => {
 
   await page.waitForFunction(() => Boolean((globalThis as unknown as { __gruf_editor?: GrufEditorHook }).__gruf_editor?.stage))
 
-  const before = await page.evaluate(() => {
-    const h = (globalThis as unknown as { __gruf_editor?: GrufEditorHook }).__gruf_editor
-    if (!h?.stage) throw new Error("Missing stage")
-    return { x: h.stage.x(), y: h.stage.y(), s: h.stage.scaleX() }
-  })
+  const readStage = async () =>
+    await page.evaluate(() => {
+      const h = (globalThis as unknown as { __gruf_editor?: GrufEditorHook }).__gruf_editor
+      if (!h?.stage) throw new Error("Missing stage")
+      return { x: h.stage.x(), y: h.stage.y(), s: h.stage.scaleX() }
+    })
+
+  // In next dev + React StrictMode, refs may briefly be nulled during the mount cycle.
+  // Retry the initial read so the test doesn't flake on a transient "Missing stage".
+  const before = await (async () => {
+    let lastErr: unknown = null
+    for (let i = 0; i < 40; i++) {
+      try {
+        return await readStage()
+      } catch (err) {
+        lastErr = err
+        await page.waitForTimeout(50)
+      }
+    }
+    throw lastErr instanceof Error ? lastErr : new Error("Failed to read stage")
+  })()
 
   const canvas = page.locator("canvas").first()
   const box = await canvas.boundingBox()
@@ -271,11 +287,7 @@ test("wheel pans and ctrl/cmd+wheel zooms", async ({ page }) => {
     }), { timeout: 5000 })
     .not.toEqual({ x: before.x, y: before.y })
 
-  const afterPanScale = await page.evaluate(() => {
-    const h = (globalThis as unknown as { __gruf_editor?: GrufEditorHook }).__gruf_editor
-    if (!h?.stage) throw new Error("Missing stage")
-    return h.stage.scaleX()
-  })
+  const afterPanScale = (await readStage()).s
 
   await page.keyboard.down("Control")
   await page.mouse.wheel(0, -160)
