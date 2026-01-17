@@ -162,7 +162,6 @@ export function ImagePanel({ widthPx, heightPx, unit, dpi, disabled, onCommit, o
               setDraftW(nextW)
             }}
             disabled={disabled}
-            inputMode="decimal"
             aria-label={`Image height (${unit})`}
             className="h-6 w-full px-2 py-0 text-[12px] md:text-[12px] shadow-none"
             onFocus={() => {

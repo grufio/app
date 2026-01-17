@@ -119,7 +119,7 @@ export async function POST(
         hint: (error as unknown as { hint?: string })?.hint,
         details: {
           project_id: projectId,
-          user_id: user.id,
+          user_id: u.user.id,
         },
       },
       { status: 400 }

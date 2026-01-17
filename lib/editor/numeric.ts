@@ -8,8 +8,32 @@ export type NumericMode = "int" | "decimal"
  * Keeps empty string to allow clearing the field.
  */
 export function sanitizeNumericInput(raw: string, mode: NumericMode): string {
-  const normalized = raw.replace(",", ".")
-  if (normalized === "") return ""
+  const trimmed = raw.trim()
+  if (trimmed === "") return ""
+
+  // Heuristic for handling thousands separators:
+  // - If the string contains BOTH "," and ".", treat the *last* separator as the decimal separator
+  //   and the other as a thousands separator.
+  //   - "1,250.00" -> comma thousands, dot decimal
+  //   - "1.250,00" -> dot thousands, comma decimal
+  // - If the string contains only ",", treat it as decimal separator ("12,34" -> "12.34")
+  // - If it contains only ".", keep it as decimal separator
+  const hasComma = trimmed.includes(",")
+  const hasDot = trimmed.includes(".")
+  let normalized = trimmed
+  if (hasComma && hasDot) {
+    const lastComma = trimmed.lastIndexOf(",")
+    const lastDot = trimmed.lastIndexOf(".")
+    if (lastDot > lastComma) {
+      // dot is decimal separator, commas are thousands separators
+      normalized = trimmed.replace(/,/g, "")
+    } else {
+      // comma is decimal separator, dots are thousands separators
+      normalized = trimmed.replace(/\./g, "").replace(/,/g, ".")
+    }
+  } else if (hasComma && !hasDot) {
+    normalized = trimmed.replace(/,/g, ".")
+  }
 
   if (mode === "int") {
     return normalized.replace(/[^\d]/g, "")

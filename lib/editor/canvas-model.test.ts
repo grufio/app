@@ -26,5 +26,14 @@ describe("canvas-model", () => {
     expect(world2.x).toBeCloseTo(world1.x)
     expect(world2.y).toBeCloseTo(world1.y)
   })
+
+  it("zoomAround clamps scale to min/max", () => {
+    const pointer = { x: 0, y: 0 }
+    const v1 = { scale: 1, x: 0, y: 0 }
+    const vMin = zoomAround(v1, pointer, 0.000001, 0.5, 2)
+    expect(vMin.scale).toBeCloseTo(0.5)
+    const vMax = zoomAround(v1, pointer, 1000, 0.5, 2)
+    expect(vMax.scale).toBeCloseTo(2)
+  })
 })
 
