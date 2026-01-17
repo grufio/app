@@ -25,6 +25,7 @@ import {
 } from "@/components/shared/editor"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { getMasterImage } from "@/lib/api/project-images"
+import { useImageState } from "@/lib/editor/use-image-state"
 
 export default function ProjectDetailPage() {
   const params = useParams<{ projectId: string }>()
@@ -43,8 +44,6 @@ export default function ProjectDetailPage() {
   } | null>(null)
   const [masterImageLoading, setMasterImageLoading] = useState(false)
   const [masterImageError, setMasterImageError] = useState<string>("")
-  const [imageStateError, setImageStateError] = useState<string>("")
-  const [imageStateLoading, setImageStateLoading] = useState(false)
   const [restoreOpen, setRestoreOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteBusy, setDeleteBusy] = useState(false)
@@ -55,15 +54,10 @@ export default function ProjectDetailPage() {
   const canvasRef = useRef<ProjectCanvasStageHandle | null>(null)
   const [artboardPx, setArtboardPx] = useState<{ w: number; h: number } | null>(null)
   const [imagePx, setImagePx] = useState<{ w: number; h: number } | null>(null)
-  const [initialImageTransform, setInitialImageTransform] = useState<{
-    x: number
-    y: number
-    scaleX: number
-    scaleY: number
-    widthPx?: number
-    heightPx?: number
-    rotationDeg: number
-  } | null>(null)
+  const { initialImageTransform, imageStateError, imageStateLoading, saveImageState } = useImageState(
+    projectId,
+    Boolean(masterImage)
+  )
   const [artboardMeta, setArtboardMeta] = useState<{ unit: "mm" | "cm" | "pt" | "px"; dpi: number } | null>(null)
 
   const handleArtboardPxChange = useCallback((w: number, h: number) => {
@@ -100,115 +94,6 @@ export default function ProjectDetailPage() {
     }
   }, [projectId])
 
-  const loadImageState = useCallback(async () => {
-    setImageStateError("")
-    setImageStateLoading(true)
-    try {
-      const res = await fetch(`/api/projects/${projectId}/image-state`, {
-        method: "GET",
-        credentials: "same-origin",
-      })
-      if (!res.ok) {
-        const payload = (await res.json().catch(() => null)) as Record<string, unknown> | null
-        const msg =
-          typeof payload?.error === "string"
-            ? payload.error
-            : payload
-              ? JSON.stringify(payload)
-              : `HTTP ${res.status}`
-        setImageStateError(msg)
-        setInitialImageTransform(null)
-        return
-      }
-      const payload = (await res.json().catch(() => null)) as
-        | {
-            exists?: boolean
-            state?: {
-              x: number
-              y: number
-              scale_x: number
-              scale_y: number
-              width_px?: number | null
-              height_px?: number | null
-              unit?: "mm" | "cm" | "pt" | "px" | null
-              dpi?: number | null
-              rotation_deg: number
-            }
-          }
-        | null
-      if (!payload?.exists || !payload.state) {
-        setInitialImageTransform(null)
-        return
-      }
-      setInitialImageTransform({
-        x: Number(payload.state.x),
-        y: Number(payload.state.y),
-        scaleX: Number(payload.state.scale_x),
-        scaleY: Number(payload.state.scale_y),
-        widthPx: payload.state.width_px == null ? undefined : Number(payload.state.width_px),
-        heightPx: payload.state.height_px == null ? undefined : Number(payload.state.height_px),
-        rotationDeg: Number(payload.state.rotation_deg),
-      })
-    } catch (e) {
-      console.error("Failed to load image state", e)
-      setImageStateError("Failed to load image state.")
-      setInitialImageTransform(null)
-    } finally {
-      setImageStateLoading(false)
-    }
-  }, [projectId])
-
-  const saveImageState = useCallback(
-    async (t: {
-      x: number
-      y: number
-      scaleX: number
-      scaleY: number
-      widthPx?: number
-      heightPx?: number
-      unit?: "mm" | "cm" | "pt" | "px"
-      dpi?: number
-      rotationDeg: number
-    }) => {
-      try {
-        const res = await fetch(`/api/projects/${projectId}/image-state`, {
-          method: "POST",
-          credentials: "same-origin",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            role: "master",
-            x: t.x,
-            y: t.y,
-            scale_x: t.scaleX,
-            scale_y: t.scaleY,
-            width_px: t.widthPx,
-            height_px: t.heightPx,
-            unit: t.unit,
-            dpi: t.dpi,
-            rotation_deg: t.rotationDeg,
-          }),
-        })
-        if (!res.ok) {
-          const payload = (await res.json().catch(() => null)) as Record<string, unknown> | null
-          const msg =
-            typeof payload?.error === "string"
-              ? payload.error
-              : payload
-                ? JSON.stringify(payload)
-                : `HTTP ${res.status}`
-          setImageStateError(msg)
-        } else {
-          setImageStateError("")
-        }
-      } catch (e) {
-        console.error("Failed to save image state", e)
-        setImageStateError("Failed to save image state.")
-      }
-    },
-    [projectId]
-  )
-
-
   const deleteMasterImage = useCallback(async () => {
     if (deleteBusy) return
     setDeleteError("")
@@ -232,7 +117,6 @@ export default function ProjectDetailPage() {
       setDeleteOpen(false)
       setMasterImage(null)
       setImagePx(null)
-      setInitialImageTransform(null)
       // Ensure uploader shows again even if some cached state exists.
       void refreshMasterImage()
     } finally {
@@ -268,27 +152,21 @@ export default function ProjectDetailPage() {
   }, [refreshMasterImage])
 
   useEffect(() => {
-    if (!masterImage) {
-      setInitialImageTransform(null)
-      setImageStateError("")
-      setImageStateLoading(false)
-      setArtboardMeta(null)
-      return
-    }
-    void loadImageState()
-  }, [loadImageState, masterImage])
+    if (!masterImage) setArtboardMeta(null)
+  }, [masterImage])
 
   // When persisted image state loads, reflect it in the Image panel immediately (avoid artboard-fit snap on reload).
+  // Keep decimal px (no integer rounding) to prevent value drift.
   useEffect(() => {
     if (!masterImage || !initialImageTransform) return
     const w =
       Number.isFinite(Number(initialImageTransform.widthPx)) && Number(initialImageTransform.widthPx) > 0
-        ? Math.round(Number(initialImageTransform.widthPx))
-        : Math.round(masterImage.width_px * initialImageTransform.scaleX)
+        ? Number(initialImageTransform.widthPx)
+        : masterImage.width_px * initialImageTransform.scaleX
     const h =
       Number.isFinite(Number(initialImageTransform.heightPx)) && Number(initialImageTransform.heightPx) > 0
-        ? Math.round(Number(initialImageTransform.heightPx))
-        : Math.round(masterImage.height_px * initialImageTransform.scaleY)
+        ? Number(initialImageTransform.heightPx)
+        : masterImage.height_px * initialImageTransform.scaleY
     if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return
     setImagePx((prev) => (prev && prev.w === w && prev.h === h ? prev : { w, h }))
   }, [initialImageTransform, masterImage])
@@ -306,8 +184,8 @@ export default function ProjectDetailPage() {
         <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
           <TabsList>
             <TabsTrigger value="image">Image</TabsTrigger>
-            <TabsTrigger value="filter">Filter / Optimierung</TabsTrigger>
-            <TabsTrigger value="convert">Vektorisierung / Grid</TabsTrigger>
+            <TabsTrigger value="filter">Filter</TabsTrigger>
+            <TabsTrigger value="convert">Vectorize / Grid</TabsTrigger>
             <TabsTrigger value="output">PDF Output</TabsTrigger>
           </TabsList>
         </Tabs>
@@ -423,9 +301,7 @@ export default function ProjectDetailPage() {
                     </div>
                   </div>
                   {imageStateError ? (
-                    <div className="mt-2 text-xs text-destructive">
-                      Image state error: {imageStateError}
-                    </div>
+                    <div className="mt-2 text-xs text-destructive">Image state error: {imageStateError}</div>
                   ) : null}
                   <div className="mt-3">
                     <ImagePanel

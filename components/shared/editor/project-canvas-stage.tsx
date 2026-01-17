@@ -229,7 +229,6 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
 
   const zoomIn = useCallback(() => zoomBy(1.15), [zoomBy])
   const zoomOut = useCallback(() => zoomBy(1 / 1.15), [zoomBy])
-  const rotate90 = useCallback(() => setRotation((r) => (r + 90) % 360), [])
 
   const reportImageSize = useCallback(
     (tx: { scaleX: number; scaleY: number } | null) => {
@@ -313,8 +312,10 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
       queueMicrotask(() => setImageBounds(null))
       return
     }
-    updateImageBoundsFromNode()
-  }, [imageDraggable, imageTx, rotation, updateImageBoundsFromNode])
+    // Avoid doing `getClientRect()` synchronously on every render;
+    // schedule via RAF to keep the editor responsive during drags/transforms.
+    scheduleBoundsUpdate()
+  }, [imageDraggable, imageTx, rotation, scheduleBoundsUpdate])
 
   useEffect(() => {
     if (!src) return
@@ -370,6 +371,15 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     },
     [img, onImageTransformCommit]
   )
+
+  const rotate90 = useCallback(() => {
+    setRotation((r) => {
+      const next = (r + 90) % 360
+      // Persist rotation change (commit-on-action, not on every frame).
+      setTimeout(() => commitTransform(imageTxRef.current, next), 0)
+      return next
+    })
+  }, [commitTransform])
 
   const setImageSize = useCallback(
     (widthPx: number, heightPx: number) => {

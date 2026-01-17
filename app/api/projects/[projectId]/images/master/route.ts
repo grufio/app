@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { createSupabaseServerClient } from "@/lib/supabase/server"
+import { requireProjectAccess, requireUser } from "@/lib/api/route-guards"
 
 type Body = {
   storage_path: string
@@ -18,27 +19,10 @@ export async function GET(
   const { projectId } = await params
   const supabase = await createSupabaseServerClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized", stage: "auth" }, { status: 401 })
-  }
-
-  // Verify project is accessible to this user under RLS (owner-only).
-  const { data: projectRow, error: projectErr } = await supabase
-    .from("projects")
-    .select("id")
-    .eq("id", projectId)
-    .single()
-
-  if (projectErr || !projectRow) {
-    return NextResponse.json(
-      { error: "Forbidden (project not accessible)", stage: "project_access" },
-      { status: 403 }
-    )
-  }
+  const u = await requireUser(supabase)
+  if (!u.ok) return u.res
+  const a = await requireProjectAccess(supabase, projectId)
+  if (!a.ok) return a.res
 
   const { data: img, error: imgErr } = await supabase
     .from("project_images")
@@ -85,13 +69,8 @@ export async function POST(
   const { projectId } = await params
   const supabase = await createSupabaseServerClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized", stage: "auth" }, { status: 401 })
-  }
+  const u = await requireUser(supabase)
+  if (!u.ok) return u.res
 
   let body: Body
   try {
@@ -111,20 +90,8 @@ export async function POST(
     return NextResponse.json({ error: "Missing/invalid fields", stage: "validate" }, { status: 400 })
   }
 
-  // Verify project is accessible to this user under RLS (owner-only).
-  const { data: projectRow, error: projectErr } = await supabase
-    .from("projects")
-    .select("id")
-    .eq("id", projectId)
-    .single()
-
-  if (projectErr || !projectRow) {
-    // If RLS hides it, this will behave like "not found".
-    return NextResponse.json(
-      { error: "Forbidden (project not accessible)", stage: "project_access" },
-      { status: 403 }
-    )
-  }
+  const a = await requireProjectAccess(supabase, projectId)
+  if (!a.ok) return a.res
 
   // Upsert master image row; RLS enforces owner-only via projects.owner_id = auth.uid().
   const { error } = await supabase
@@ -169,27 +136,10 @@ export async function DELETE(
   const { projectId } = await params
   const supabase = await createSupabaseServerClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized", stage: "auth" }, { status: 401 })
-  }
-
-  // Verify project is accessible to this user under RLS (owner-only).
-  const { data: projectRow, error: projectErr } = await supabase
-    .from("projects")
-    .select("id")
-    .eq("id", projectId)
-    .single()
-
-  if (projectErr || !projectRow) {
-    return NextResponse.json(
-      { error: "Forbidden (project not accessible)", stage: "project_access" },
-      { status: 403 }
-    )
-  }
+  const u = await requireUser(supabase)
+  if (!u.ok) return u.res
+  const a = await requireProjectAccess(supabase, projectId)
+  if (!a.ok) return a.res
 
   const { data: img, error: imgErr } = await supabase
     .from("project_images")

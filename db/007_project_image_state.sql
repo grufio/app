@@ -12,6 +12,10 @@ create table if not exists public.project_image_state (
   y numeric not null default 0,
   scale_x numeric not null default 1 check (scale_x > 0),
   scale_y numeric not null default 1 check (scale_y > 0),
+  width_px numeric check (width_px is null or width_px > 0),
+  height_px numeric check (height_px is null or height_px > 0),
+  unit public.measure_unit,
+  dpi numeric check (dpi is null or dpi > 0),
   rotation_deg integer not null default 0,
 
   created_at timestamptz not null default now(),

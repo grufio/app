@@ -47,8 +47,18 @@ npm run dev
   - Header (inline title editing)
   - Tool sidebar (hand/select/zoom/fit/rotate)
   - Konva canvas stage (artboard rect + image node)
-  - Artboard panel (unit/DPI/size → persists to `project_workspace`)
-  - Image panel (size always shown in artboard unit + DPI, commits scaling in px)
+  - Artboard panel (unit/size + raster effects preset → persists to `project_workspace`)
+  - Image panel (size shown in artboard unit + DPI, commits scaling in px)
+
+### Persistence
+
+- **Artboard**: `project_workspace`
+  - `unit`, `width_value`, `height_value`
+  - `dpi_x/dpi_y` (numeric DPI)
+  - `raster_effects_preset` ("high" | "medium" | "low")
+- **Image working state**: `project_image_state`
+  - `x/y/scale_x/scale_y/rotation_deg`
+  - optional cached `width_px/height_px`
 
 ### Interaction model
 

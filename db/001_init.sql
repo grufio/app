@@ -112,6 +112,9 @@ create table if not exists public.project_workspace (
   width_px integer not null check (width_px > 0),
   height_px integer not null check (height_px > 0),
 
+  -- Illustrator-like "Document Raster Effects Settings" preset for UX (optional)
+  raster_effects_preset text,
+
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
 
@@ -121,6 +124,12 @@ create table if not exists public.project_workspace (
     (width_value = width_px::numeric and height_value = height_px::numeric)
   )
 );
+
+alter table public.project_workspace
+  drop constraint if exists project_workspace_raster_effects_preset_check;
+alter table public.project_workspace
+  add constraint project_workspace_raster_effects_preset_check
+  check (raster_effects_preset is null or raster_effects_preset in ('high', 'medium', 'low'));
 
 drop trigger if exists trg_project_workspace_updated_at on public.project_workspace;
 create trigger trg_project_workspace_updated_at

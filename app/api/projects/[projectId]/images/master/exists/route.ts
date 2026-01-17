@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { createSupabaseServerClient } from "@/lib/supabase/server"
+import { requireUser } from "@/lib/api/route-guards"
 
 export async function GET(
   _req: Request,
@@ -9,13 +10,8 @@ export async function GET(
   const { projectId } = await params
   const supabase = await createSupabaseServerClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const u = await requireUser(supabase)
+  if (!u.ok) return u.res
 
   const { data, error } = await supabase
     .from("project_images")

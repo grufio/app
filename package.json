@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "check:db-schema": "node scripts/check-db-schema.mjs"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.11",

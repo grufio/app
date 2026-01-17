@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { createSupabaseServerClient } from "@/lib/supabase/server"
+import { requireProjectAccess, requireUser } from "@/lib/api/route-guards"
 
 type Payload = {
   role: "master" | "working"
@@ -26,10 +27,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ project
   const { projectId } = await params
   const supabase = await createSupabaseServerClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const u = await requireUser(supabase)
+  if (!u.ok) return u.res
+  const a = await requireProjectAccess(supabase, projectId)
+  if (!a.ok) return a.res
 
   // Try new schema first (unit + dpi).
   const { data: dataV2, error: errV2 } = await supabase
@@ -62,10 +63,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ project
   const { projectId } = await params
   const supabase = await createSupabaseServerClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const u = await requireUser(supabase)
+  if (!u.ok) return u.res
+  const a = await requireProjectAccess(supabase, projectId)
+  if (!a.ok) return a.res
 
   let body: Partial<Payload> = {}
   try {
