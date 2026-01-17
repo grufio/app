@@ -11,9 +11,12 @@ const toggleGroupItemVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-transparent hover:bg-muted data-[state=on]:bg-muted data-[state=on]:text-foreground",
+        // Segmented control look (toggle bar)
+        default:
+          // Always looks like a functional button group (no selected/active visual state)
+          "rounded-none bg-muted hover:bg-muted-foreground/10 text-foreground",
         outline:
-          "border border-input bg-transparent hover:bg-muted data-[state=on]:bg-muted data-[state=on]:text-foreground",
+          "rounded-none bg-muted hover:bg-muted-foreground/10 text-foreground",
       },
       size: {
         default: "h-9 px-3",
@@ -35,7 +38,12 @@ function ToggleGroup({
   return (
     <ToggleGroupPrimitive.Root
       data-slot="toggle-group"
-      className={cn("inline-flex items-center gap-1", className)}
+      // segmented container (single bar)
+      className={cn(
+        // No outline. Gray background. Dividers come from items.
+        "inline-flex w-full items-stretch overflow-hidden rounded-md bg-muted",
+        className
+      )}
       {...props}
     />
   )
@@ -51,7 +59,12 @@ function ToggleGroupItem({
   return (
     <ToggleGroupPrimitive.Item
       data-slot="toggle-group-item"
-      className={cn(toggleGroupItemVariants({ variant, size }), className)}
+      className={cn(
+        toggleGroupItemVariants({ variant, size }),
+        // segment separators
+        "border-r border-white last:border-r-0 first:rounded-l-md last:rounded-r-md",
+        className
+      )}
       {...props}
     />
   )

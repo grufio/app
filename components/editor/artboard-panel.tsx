@@ -375,7 +375,7 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
               "h-6 w-6 " +
               (lockAspect
                 ? "bg-black text-white hover:bg-black/90 hover:text-white"
-                : "bg-transparent text-foreground hover:bg-muted")
+                : "!bg-muted text-foreground hover:!bg-muted-foreground/10")
             }
             onPointerDownCapture={() => {
               // Avoid blur-autosave firing when clicking the lock button.
@@ -389,7 +389,7 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
               })
             }}
           >
-            {lockAspect ? <Link2 className="size-3.5" /> : <Unlink2 className="size-3.5" />}
+            {lockAspect ? <Link2 className="size-4" /> : <Unlink2 className="size-4" />}
           </Button>
         </div>
       </div>
