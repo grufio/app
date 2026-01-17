@@ -10,13 +10,12 @@ function setupMockRoutes(page: import("@playwright/test").Page, opts: { withImag
     height_value: 30,
     dpi_x: 300,
     dpi_y: 300,
-    // Keep artboard reasonably sized so the image is visible.
     width_px: 800,
     height_px: 600,
     raster_effects_preset: "high",
   }
 
-  // A small visible PNG (20x10) as data URL (works with window.Image).
+  // A tiny 1x1 png data URL (known-good; works reliably with window.Image).
   const dataPng =
     "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO6qv0kAAAAASUVORK5CYII="
 
@@ -113,6 +112,7 @@ function setupMockRoutes(page: import("@playwright/test").Page, opts: { withImag
   return {
     getCounts: () => ({ postCount, getCount }),
     getPersisted: () => persisted,
+    workspaceRow,
   }
 }
 
@@ -141,10 +141,7 @@ test("drag image persists across reload", async ({ page }) => {
   await page.goto(`/projects/${PROJECT_ID}`)
   await expect(page.getByText("Artboard")).toBeVisible()
 
-  // Select tool so the image is draggable.
   await page.getByRole("button", { name: "Select (Move Image)" }).click()
-
-  // Wait for test hook to expose Konva nodes.
   await page.waitForFunction(() => Boolean((globalThis as any).__gruf_editor?.image))
 
   const before = await page.evaluate(() => {
@@ -162,8 +159,7 @@ test("drag image persists across reload", async ({ page }) => {
   await page.mouse.up()
 
   await expect.poll(() => mock.getCounts().postCount, { timeout: 5000 }).toBeGreaterThan(0)
-  const persisted = mock.getPersisted()
-  expect(persisted).toBeTruthy()
+  expect(mock.getPersisted()).toBeTruthy()
 
   const after = await page.evaluate(() => {
     const g: any = (globalThis as any).__gruf_editor
@@ -173,7 +169,6 @@ test("drag image persists across reload", async ({ page }) => {
   expect(after.x).not.toBeCloseTo(before.x)
   expect(after.y).not.toBeCloseTo(before.y)
 
-  // Reload should fetch persisted state and apply it.
   await page.reload()
   await expect(page.getByText("Artboard")).toBeVisible()
   await page.getByRole("button", { name: "Select (Move Image)" }).click()
@@ -192,51 +187,92 @@ test("drag image persists across reload", async ({ page }) => {
 
 test("wheel pans and ctrl/cmd+wheel zooms", async ({ page }) => {
   await page.setExtraHTTPHeaders({ "x-e2e-test": "1" })
-  setupMockRoutes(page, { withImage: true, persistImageState: false })
-  await page.goto(`/projects/${PROJECT_ID}`)
+  setupMockRoutes(page, { withImage: true })
 
+  await page.goto(`/projects/${PROJECT_ID}`)
   await expect(page.getByText("Artboard")).toBeVisible()
 
-  // Wait until test hook exposes the stage node.
-  await page.waitForFunction(() => {
-    const g: any = (globalThis as any).__gruf_editor
-    return Boolean(g?.stage)
-  })
+  await page.waitForFunction(() => Boolean((globalThis as any).__gruf_editor?.stage))
 
   const before = await page.evaluate(() => {
     const g: any = (globalThis as any).__gruf_editor
     return { x: g.stage.x(), y: g.stage.y(), s: g.stage.scaleX() }
   })
 
-  // Pan: wheel without modifier keys should move the stage (x/y).
   const canvas = page.locator("canvas").first()
   const box = await canvas.boundingBox()
   if (!box) throw new Error("canvas not found")
+
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
   await page.mouse.wheel(0, 160)
 
   await expect
-    .poll(
-      async () =>
-        await page.evaluate(() => {
-          const g: any = (globalThis as any).__gruf_editor
-          return { x: g.stage.x(), y: g.stage.y() }
-        }),
-      { timeout: 5000 }
-    )
+    .poll(async () => await page.evaluate(() => ({ x: (globalThis as any).__gruf_editor.stage.x(), y: (globalThis as any).__gruf_editor.stage.y() })), {
+      timeout: 5000,
+    })
     .not.toEqual({ x: before.x, y: before.y })
 
-  const afterPan = await page.evaluate(() => {
-    const g: any = (globalThis as any).__gruf_editor
-    return { x: g.stage.x(), y: g.stage.y(), s: g.stage.scaleX() }
-  })
+  const afterPanScale = await page.evaluate(() => (globalThis as any).__gruf_editor.stage.scaleX())
 
-  // Zoom: ctrl/cmd+wheel should change stage scale.
   await page.keyboard.down("Control")
   await page.mouse.wheel(0, -160)
   await page.keyboard.up("Control")
 
+  await expect.poll(async () => await page.evaluate(() => (globalThis as any).__gruf_editor.stage.scaleX()), { timeout: 5000 }).not.toBeCloseTo(
+    afterPanScale
+  )
+})
+
+test("restore resets image transform (with confirmation)", async ({ page }) => {
+  await page.setExtraHTTPHeaders({ "x-e2e-test": "1" })
+  const mock = setupMockRoutes(page, { withImage: true, persistImageState: true })
+
+  await page.goto(`/projects/${PROJECT_ID}`)
+  await expect(page.getByText("Artboard")).toBeVisible()
+
+  await page.getByRole("button", { name: "Select (Move Image)" }).click()
+  await page.waitForFunction(() => Boolean((globalThis as any).__gruf_editor?.image))
+
+  const canvas = page.locator("canvas").first()
+  const box = await canvas.boundingBox()
+  if (!box) throw new Error("canvas not found")
+
+  // Move away from center
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(box.x + box.width / 2 + 120, box.y + box.height / 2 + 60)
+  await page.mouse.up()
+
+  await expect.poll(() => mock.getCounts().postCount, { timeout: 5000 }).toBeGreaterThan(0)
+
+  // Restore via confirmation dialog.
+  await page.getByRole("button", { name: "Restore image" }).click()
+  await expect(page.getByText("Restore image?")).toBeVisible()
+  await page.getByRole("button", { name: "Restore" }).click()
+
+  await expect.poll(() => mock.getCounts().postCount, { timeout: 5000 }).toBeGreaterThanOrEqual(2)
+
+  const expectedCenter = { x: mock.workspaceRow.width_px / 2, y: mock.workspaceRow.height_px / 2 }
+
   await expect
-    .poll(async () => await page.evaluate(() => (globalThis as any).__gruf_editor.stage.scaleX()), { timeout: 5000 })
-    .not.toBeCloseTo(afterPan.s)
+    .poll(async () => await page.evaluate(() => ({ x: (globalThis as any).__gruf_editor.image.x(), y: (globalThis as any).__gruf_editor.image.y() })), {
+      timeout: 5000,
+    })
+    .toEqual({ x: expectedCenter.x, y: expectedCenter.y })
+
+  // Reload should keep restored placement.
+  await page.reload()
+  await expect(page.getByText("Artboard")).toBeVisible()
+  await page.getByRole("button", { name: "Select (Move Image)" }).click()
+  await page.waitForFunction(() => Boolean((globalThis as any).__gruf_editor?.image))
+
+  await expect.poll(() => mock.getCounts().getCount, { timeout: 5000 }).toBeGreaterThan(0)
+
+  const afterReload = await page.evaluate(() => {
+    const g: any = (globalThis as any).__gruf_editor
+    return { x: g.image.x(), y: g.image.y() }
+  })
+
+  expect(afterReload.x).toBeCloseTo(expectedCenter.x, 0)
+  expect(afterReload.y).toBeCloseTo(expectedCenter.y, 0)
 })
