@@ -34,3 +34,13 @@ export async function hasMasterImage(projectId: string): Promise<boolean> {
   return Boolean(res.data?.exists)
 }
 
+export async function deleteMasterImage(projectId: string): Promise<void> {
+  const res = await fetchJson<unknown>(`/api/projects/${projectId}/images/master`, {
+    method: "DELETE",
+    credentials: "same-origin",
+  })
+  if (!res.ok) {
+    const msg = `Failed to delete image (HTTP ${res.status})` + (res.error ? ` ${JSON.stringify(res.error)}` : "")
+    throw new Error(msg)
+  }
+}
