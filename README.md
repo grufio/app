@@ -72,3 +72,23 @@ npm run dev
 - `npm run dev`: local dev server
 - `npm run build`: production build
 - `npm run lint`: eslint
+- `npm run test`: unit tests (Vitest)
+- `npm run check:db-schema`: validate `db/schema.sql` contains all migration markers
+- `npm run check`: lint + tests + schema marker check
+
+## CI
+
+See `docs/ci/README.md`. (We keep workflows as a template to avoid GitHub token `workflow`-scope issues.)
+
+### Optional: local pre-commit hook
+
+If you want a lightweight local guard (no extra dependencies), you can add a git pre-commit hook:
+
+```bash
+cat > .git/hooks/pre-commit <<'EOF'
+#!/bin/sh
+set -e
+npm -s run check
+EOF
+chmod +x .git/hooks/pre-commit
+```
