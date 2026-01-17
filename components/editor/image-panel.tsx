@@ -69,7 +69,9 @@ export function ImagePanel({ widthPx, heightPx, unit, dpi, disabled, onCommit }:
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3">
+      {/* Keep row layout aligned with other right-panel rows:
+          [field | field | icon-slot placeholder] */}
+      <div className="grid grid-cols-[1fr_1fr_auto] gap-3">
         <div className="flex items-center gap-2">
           <ArrowLeftRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
           <Input
@@ -147,6 +149,8 @@ export function ImagePanel({ widthPx, heightPx, unit, dpi, disabled, onCommit }:
             }}
           />
         </div>
+        {/* icon-slot placeholder */}
+        <div className="h-6 w-6" aria-hidden="true" />
       </div>
     </div>
   )

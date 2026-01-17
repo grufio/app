@@ -1,10 +1,11 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { ArrowLeftRight, ArrowUpDown, Gauge, Ruler } from "lucide-react"
+import { ArrowLeftRight, ArrowUpDown, Gauge, Link2, Ruler } from "lucide-react"
 
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { clampPx, fmt2, type Unit, unitToPx } from "@/lib/editor/units"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 
 export type WorkspaceRow = {
@@ -77,6 +78,7 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
   const [draftHeight, setDraftHeight] = useState("")
   const [draftDpi, setDraftDpi] = useState("")
   const [draftUnit, setDraftUnit] = useState<Unit>("mm")
+  const [lockAspect, setLockAspect] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
@@ -85,6 +87,7 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
   const ignoreNextBlurSaveRef = useRef(false)
   const draftUnitRef = useRef<Unit>("mm")
   const unitChangeInFlightRef = useRef<Unit | null>(null)
+  const lockRatioRef = useRef<number | null>(null)
   const onChangePxRef = useRef<Props["onChangePx"]>(onChangePx)
   const onChangeMetaRef = useRef<Props["onChangeMeta"]>(onChangeMeta)
 
@@ -151,6 +154,9 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
         setDraftHeight(String(r.height_value))
         setDraftDpi(String(r.dpi_x))
         setDraftUnit(unit)
+        // Reset lock to avoid surprising behavior when switching projects.
+        setLockAspect(false)
+        lockRatioRef.current = null
         onChangePxRef.current?.(Number(r.width_px), Number(r.height_px))
         onChangeMetaRef.current?.(unit, Number(r.dpi_x))
       } finally {
@@ -278,17 +284,36 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
   }
 
   const controlsDisabled = loading || !row || saving
+  const ratio = lockRatioRef.current
+  const ensureRatio = () => {
+    const w = Number(draftWidth)
+    const h = Number(draftHeight)
+    if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return null
+    return w / h
+  }
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3">
+      {/* Rows follow a consistent layout:
+          [field | field | icon-slot] so the UI stays aligned across rows. */}
+      <div className="grid grid-cols-[1fr_1fr_auto] gap-3">
         <div className="flex items-center gap-2">
           <ArrowLeftRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
           <Input
             id="artboard-width"
             inputMode="decimal"
             value={draftWidth}
-            onChange={(e) => setDraftWidth(e.target.value)}
+            onChange={(e) => {
+              const next = e.target.value
+              setDraftWidth(next)
+              if (!lockAspect) return
+              const r = ratio ?? ensureRatio()
+              if (!r) return
+              lockRatioRef.current = r
+              const w = Number(next)
+              if (!Number.isFinite(w) || w <= 0) return
+              setDraftHeight(fmt2(w / r))
+            }}
             onKeyDown={(e) => {
               if (e.key === "Enter") void save()
             }}
@@ -310,7 +335,17 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
             id="artboard-height"
             inputMode="decimal"
             value={draftHeight}
-            onChange={(e) => setDraftHeight(e.target.value)}
+            onChange={(e) => {
+              const next = e.target.value
+              setDraftHeight(next)
+              if (!lockAspect) return
+              const r = ratio ?? ensureRatio()
+              if (!r) return
+              lockRatioRef.current = r
+              const h = Number(next)
+              if (!Number.isFinite(h) || h <= 0) return
+              setDraftWidth(fmt2(h * r))
+            }}
             onKeyDown={(e) => {
               if (e.key === "Enter") void save()
             }}
@@ -326,9 +361,34 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
             className="h-6 w-full px-2 py-0 text-[12px] md:text-[12px] shadow-none"
           />
         </div>
+        {/* icon-slot */}
+        <div className="flex items-center justify-end">
+          <Button
+            type="button"
+            size="icon"
+            variant={lockAspect ? "secondary" : "ghost"}
+            aria-label={lockAspect ? "Unlock proportional scaling" : "Lock proportional scaling"}
+            aria-pressed={lockAspect}
+            disabled={controlsDisabled}
+            className="h-6 w-6"
+            onPointerDownCapture={() => {
+              // Avoid blur-autosave firing when clicking the lock button.
+              ignoreNextBlurSaveRef.current = true
+            }}
+            onClick={() => {
+              setLockAspect((prev) => {
+                const next = !prev
+                lockRatioRef.current = next ? ensureRatio() : null
+                return next
+              })
+            }}
+          >
+            <Link2 className="size-3.5" />
+          </Button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-[1fr_1fr_auto] gap-3">
         <div className="flex items-center gap-2">
           <Gauge className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
           <Input
@@ -371,6 +431,9 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
             <option value="px">px</option>
           </select>
         </div>
+
+        {/* icon-slot placeholder for consistent alignment */}
+        <div className="h-6 w-6" aria-hidden="true" />
       </div>
 
       {saving ? <div className="text-[12px] md:text-[12px] text-muted-foreground">Saving…</div> : null}
