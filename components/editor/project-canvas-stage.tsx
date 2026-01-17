@@ -32,6 +32,11 @@ export type ProjectCanvasStageHandle = {
    * Uses the image node's axis-aligned bounding box (includes rotation).
    */
   alignImage: (opts: { x?: "left" | "center" | "right"; y?: "top" | "center" | "bottom" }) => void
+  /**
+   * Restore the "working copy" state of the image back to its original placement.
+   * This resets rotation and re-fits the image into the current artboard.
+   */
+  restoreImage: () => void
 }
 
 function useHtmlImage(src: string | null) {
@@ -282,6 +287,19 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     [artH, artW, img, showArtboard]
   )
 
+  const restoreImage = useCallback(() => {
+    if (!img) return
+    // Restore original placement (like initial "copy" state):
+    // - reset rotation
+    // - fit into current artboard and center
+    setRotation(0)
+    const initialScale = showArtboard && artW > 0 && artH > 0 ? Math.min(artW / img.width, artH / img.height) : 1
+    const x = showArtboard ? artW / 2 : img.width / 2
+    const y = showArtboard ? artH / 2 : img.height / 2
+    setImageTx({ x, y, scaleX: initialScale, scaleY: initialScale })
+    scheduleBoundsUpdate()
+  }, [artH, artW, img, scheduleBoundsUpdate, showArtboard])
+
   const alignImage = useCallback(
     (opts: { x?: "left" | "center" | "right"; y?: "top" | "center" | "bottom" }) => {
       if (!showArtboard) return
@@ -321,8 +339,8 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
 
   useImperativeHandle(
     ref,
-    () => ({ fitToView, zoomIn, zoomOut, rotate90, setImageSize, alignImage }),
-    [alignImage, fitToView, rotate90, setImageSize, zoomIn, zoomOut]
+    () => ({ fitToView, zoomIn, zoomOut, rotate90, setImageSize, alignImage, restoreImage }),
+    [alignImage, fitToView, restoreImage, rotate90, setImageSize, zoomIn, zoomOut]
   )
 
   const onWheel = useCallback(

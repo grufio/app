@@ -2,7 +2,7 @@
 
 import { useParams } from "next/navigation"
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Trash2 } from "lucide-react"
+import { RotateCcw, Trash2 } from "lucide-react"
 
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ProjectImageUploader } from "@/components/app-img-upload"
@@ -199,9 +199,9 @@ export default function ProjectDetailPage() {
                   </div>
                 ) : null}
 
-                {/* Workspace: use 100% of the available gray content area */}
-                <div className="min-h-0 flex-1">
-                  {masterImage ? (
+                {/* Workspace */}
+                {masterImage ? (
+                  <div className="min-h-0 flex-1">
                     <ProjectCanvasStage
                       ref={canvasRef}
                       src={masterImage.signedUrl}
@@ -213,15 +213,14 @@ export default function ProjectDetailPage() {
                       artboardHeightPx={artboardPx?.h}
                       onImageSizeChange={handleImagePxChange}
                     />
-                  ) : null}
-                </div>
-
-                {/* Uploader lives below the workspace only when no image exists */}
-                {!masterImage ? (
-                  <div className="px-6 pb-6">
-                    <ProjectImageUploader projectId={projectId} onUploaded={refreshMasterImage} />
                   </div>
-                ) : null}
+                ) : (
+                  <div className="min-h-0 flex-1">
+                    <div className="flex h-full w-full items-center justify-center">
+                      <ProjectImageUploader projectId={projectId} onUploaded={refreshMasterImage} />
+                    </div>
+                  </div>
+                )}
               </div>
             </main>
 
@@ -241,20 +240,33 @@ export default function ProjectDetailPage() {
                 <div className="border-b px-4 py-3">
                   <div className="flex items-center justify-between gap-2">
                     <div className="text-sm font-medium">Image</div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6"
-                      disabled={!masterImage}
-                      aria-label="Delete image"
-                      onClick={() => {
-                        setDeleteError("")
-                        setDeleteOpen(true)
-                      }}
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        disabled={!masterImage || masterImageLoading || deleteBusy}
+                        aria-label="Restore image"
+                        onClick={() => canvasRef.current?.restoreImage()}
+                      >
+                        <RotateCcw className="size-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        disabled={!masterImage || masterImageLoading || deleteBusy}
+                        aria-label="Delete image"
+                        onClick={() => {
+                          setDeleteError("")
+                          setDeleteOpen(true)
+                        }}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </div>
                   </div>
                   <div className="mt-3">
                     <ImagePanel

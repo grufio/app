@@ -154,11 +154,6 @@ export function ImagePanel({ widthPx, heightPx, unit, dpi, disabled, onCommit, o
               }
               dirtyRef.current = false
               commit()
-              // Re-sync to computed values (aspect ratio lock may adjust one side)
-              queueMicrotask(() => {
-                setDraftW(computedW)
-                setDraftH(computedH)
-              })
             }}
           />
         </div>
@@ -205,10 +200,6 @@ export function ImagePanel({ widthPx, heightPx, unit, dpi, disabled, onCommit, o
               }
               dirtyRef.current = false
               commit()
-              queueMicrotask(() => {
-                setDraftW(computedW)
-                setDraftH(computedH)
-              })
             }}
           />
         </div>

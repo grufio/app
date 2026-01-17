@@ -129,7 +129,7 @@ export function ProjectImageUploader({ projectId, onUploaded }: { projectId: str
   }
 
   return (
-    <div className="w-full max-w-3xl">
+    <div className="w-[320px]">
       <div
         {...getRootProps({
           className: cn(
@@ -144,7 +144,7 @@ export function ProjectImageUploader({ projectId, onUploaded }: { projectId: str
           <div>
             <div className="text-sm font-medium">Upload master image</div>
             <div className="mt-1 text-sm text-muted-foreground">
-              Ziehe ein Bild hierher oder klicke, um eine Datei auszuwählen.
+              Drag an image here or click to select a file.
             </div>
             {file ? (
               <div className="mt-3 text-sm">
