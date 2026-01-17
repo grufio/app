@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "check": "npm -s run lint && npm -s run test --silent && npm -s run check:db-schema",
     "check:db-schema": "node scripts/check-db-schema.mjs"
   },
   "dependencies": {

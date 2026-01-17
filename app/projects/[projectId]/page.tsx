@@ -1,7 +1,7 @@
 "use client"
 
 import { useParams } from "next/navigation"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useMemo, useRef, useState } from "react"
 import { RotateCcw, Trash2 } from "lucide-react"
 
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -23,8 +23,8 @@ import {
   type ProjectCanvasStageHandle,
   ProjectEditorHeader,
 } from "@/components/shared/editor"
-import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
-import { getMasterImage } from "@/lib/api/project-images"
+import { useMasterImage } from "@/lib/editor/use-master-image"
+import { useProject } from "@/lib/editor/use-project"
 import { useImageState } from "@/lib/editor/use-image-state"
 
 export default function ProjectDetailPage() {
@@ -33,21 +33,19 @@ export default function ProjectDetailPage() {
     "image"
   )
   const projectId = params.projectId
-  const [project, setProject] = useState<{ id: string; name: string } | null>(
-    null
-  )
-  const [masterImage, setMasterImage] = useState<{
-    signedUrl: string
-    width_px: number
-    height_px: number
-    name: string
-  } | null>(null)
-  const [masterImageLoading, setMasterImageLoading] = useState(false)
-  const [masterImageError, setMasterImageError] = useState<string>("")
+  const { project, setProject } = useProject(projectId)
+  const {
+    masterImage,
+    masterImageLoading,
+    masterImageError,
+    refreshMasterImage,
+    deleteBusy,
+    deleteError,
+    setDeleteError,
+    deleteImage,
+  } = useMasterImage(projectId)
   const [restoreOpen, setRestoreOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
-  const [deleteBusy, setDeleteBusy] = useState(false)
-  const [deleteError, setDeleteError] = useState<string>("")
   const [tool, setTool] = useState<"select" | "hand">("hand")
   const panEnabled = tool === "hand"
   const imageDraggable = tool === "select"
@@ -60,6 +58,20 @@ export default function ProjectDetailPage() {
   )
   const [artboardMeta, setArtboardMeta] = useState<{ unit: "mm" | "cm" | "pt" | "px"; dpi: number } | null>(null)
 
+  const initialImagePx = useMemo(() => {
+    if (!masterImage || !initialImageTransform) return null
+    const w =
+      Number.isFinite(Number(initialImageTransform.widthPx)) && Number(initialImageTransform.widthPx) > 0
+        ? Number(initialImageTransform.widthPx)
+        : masterImage.width_px * initialImageTransform.scaleX
+    const h =
+      Number.isFinite(Number(initialImageTransform.heightPx)) && Number(initialImageTransform.heightPx) > 0
+        ? Number(initialImageTransform.heightPx)
+        : masterImage.height_px * initialImageTransform.scaleY
+    if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return null
+    return { w, h }
+  }, [initialImageTransform, masterImage])
+
   const handleArtboardPxChange = useCallback((w: number, h: number) => {
     setArtboardPx({ w, h })
   }, [])
@@ -71,105 +83,12 @@ export default function ProjectDetailPage() {
     })
   }, [])
 
-  const refreshMasterImage = useCallback(async () => {
-    setMasterImageError("")
-    setMasterImageLoading(true)
-    try {
-      const payload = await getMasterImage(projectId)
-      if (!payload?.exists) {
-        setMasterImage(null)
-        return
-      }
-      setMasterImage({
-        signedUrl: payload.signedUrl,
-        width_px: Number(payload.width_px ?? 0),
-        height_px: Number(payload.height_px ?? 0),
-        name: String(payload.name ?? "master image"),
-      })
-    } catch (e) {
-      setMasterImage(null)
-      setMasterImageError(e instanceof Error ? e.message : "Failed to load image")
-    } finally {
-      setMasterImageLoading(false)
-    }
-  }, [projectId])
-
-  const deleteMasterImage = useCallback(async () => {
-    if (deleteBusy) return
-    setDeleteError("")
-    setDeleteBusy(true)
-    try {
-      const res = await fetch(`/api/projects/${projectId}/images/master`, {
-        method: "DELETE",
-        credentials: "same-origin",
-      })
-      if (!res.ok) {
-        const payload = (await res.json().catch(() => null)) as Record<string, unknown> | null
-        const msg =
-          typeof payload?.error === "string"
-            ? payload.error
-            : payload
-              ? JSON.stringify(payload)
-              : `HTTP ${res.status}`
-        setDeleteError(msg)
-        return
-      }
-      setDeleteOpen(false)
-      setMasterImage(null)
-      setImagePx(null)
-      // Ensure uploader shows again even if some cached state exists.
-      void refreshMasterImage()
-    } finally {
-      setDeleteBusy(false)
-    }
-  }, [deleteBusy, projectId, refreshMasterImage])
-
-  useEffect(() => {
-    let cancelled = false
-
-    const load = async () => {
-      const supabase = createSupabaseBrowserClient()
-      const { data, error } = await supabase
-        .from("projects")
-        .select("name")
-        .eq("id", projectId)
-        .single()
-
-      if (!cancelled && !error) {
-        setProject({ id: projectId, name: data?.name ?? "" })
-      }
-    }
-
-    void load()
-
-    return () => {
-      cancelled = true
-    }
-  }, [projectId])
-
-  useEffect(() => {
-    void refreshMasterImage()
-  }, [refreshMasterImage])
-
-  useEffect(() => {
-    if (!masterImage) setArtboardMeta(null)
-  }, [masterImage])
-
-  // When persisted image state loads, reflect it in the Image panel immediately (avoid artboard-fit snap on reload).
-  // Keep decimal px (no integer rounding) to prevent value drift.
-  useEffect(() => {
-    if (!masterImage || !initialImageTransform) return
-    const w =
-      Number.isFinite(Number(initialImageTransform.widthPx)) && Number(initialImageTransform.widthPx) > 0
-        ? Number(initialImageTransform.widthPx)
-        : masterImage.width_px * initialImageTransform.scaleX
-    const h =
-      Number.isFinite(Number(initialImageTransform.heightPx)) && Number(initialImageTransform.heightPx) > 0
-        ? Number(initialImageTransform.heightPx)
-        : masterImage.height_px * initialImageTransform.scaleY
-    if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return
-    setImagePx((prev) => (prev && prev.w === w && prev.h === h ? prev : { w, h }))
-  }, [initialImageTransform, masterImage])
+  const handleDeleteMasterImage = useCallback(async () => {
+    const res = await deleteImage()
+    if (!res.ok) return
+    setDeleteOpen(false)
+    setImagePx(null)
+  }, [deleteImage])
 
   return (
     <div className="flex min-h-svh w-full flex-col">
@@ -305,8 +224,8 @@ export default function ProjectDetailPage() {
                   ) : null}
                   <div className="mt-3">
                     <ImagePanel
-                      widthPx={imagePx?.w ?? masterImage?.width_px}
-                      heightPx={imagePx?.h ?? masterImage?.height_px}
+                      widthPx={imagePx?.w ?? initialImagePx?.w ?? masterImage?.width_px}
+                      heightPx={imagePx?.h ?? initialImagePx?.h ?? masterImage?.height_px}
                       unit={artboardMeta?.unit ?? "cm"}
                       dpi={artboardMeta?.dpi ?? 300}
                       disabled={!masterImage || imageStateLoading}
@@ -366,7 +285,7 @@ export default function ProjectDetailPage() {
                   <Button type="button" variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleteBusy}>
                     Cancel
                   </Button>
-                  <Button type="button" variant="destructive" onClick={deleteMasterImage} disabled={deleteBusy}>
+                  <Button type="button" variant="destructive" onClick={handleDeleteMasterImage} disabled={deleteBusy}>
                     {deleteBusy ? "Deleting…" : "Delete"}
                   </Button>
                 </DialogFooter>
