@@ -189,3 +189,54 @@ test("drag image persists across reload", async ({ page }) => {
   expect(afterReload.x).toBeCloseTo(after.x, 0)
   expect(afterReload.y).toBeCloseTo(after.y, 0)
 })
+
+test("wheel pans and ctrl/cmd+wheel zooms", async ({ page }) => {
+  await page.setExtraHTTPHeaders({ "x-e2e-test": "1" })
+  setupMockRoutes(page, { withImage: true, persistImageState: false })
+  await page.goto(`/projects/${PROJECT_ID}`)
+
+  await expect(page.getByText("Artboard")).toBeVisible()
+
+  // Wait until test hook exposes the stage node.
+  await page.waitForFunction(() => {
+    const g: any = (globalThis as any).__gruf_editor
+    return Boolean(g?.stage)
+  })
+
+  const before = await page.evaluate(() => {
+    const g: any = (globalThis as any).__gruf_editor
+    return { x: g.stage.x(), y: g.stage.y(), s: g.stage.scaleX() }
+  })
+
+  // Pan: wheel without modifier keys should move the stage (x/y).
+  const canvas = page.locator("canvas").first()
+  const box = await canvas.boundingBox()
+  if (!box) throw new Error("canvas not found")
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  await page.mouse.wheel(0, 160)
+
+  await expect
+    .poll(
+      async () =>
+        await page.evaluate(() => {
+          const g: any = (globalThis as any).__gruf_editor
+          return { x: g.stage.x(), y: g.stage.y() }
+        }),
+      { timeout: 5000 }
+    )
+    .not.toEqual({ x: before.x, y: before.y })
+
+  const afterPan = await page.evaluate(() => {
+    const g: any = (globalThis as any).__gruf_editor
+    return { x: g.stage.x(), y: g.stage.y(), s: g.stage.scaleX() }
+  })
+
+  // Zoom: ctrl/cmd+wheel should change stage scale.
+  await page.keyboard.down("Control")
+  await page.mouse.wheel(0, -160)
+  await page.keyboard.up("Control")
+
+  await expect
+    .poll(async () => await page.evaluate(() => (globalThis as any).__gruf_editor.stage.scaleX()), { timeout: 5000 })
+    .not.toBeCloseTo(afterPan.s)
+})
