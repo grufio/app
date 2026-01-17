@@ -23,6 +23,7 @@ type Props = {
  */
 export function ImagePanel({ widthPx, heightPx, unit, dpi, disabled, onCommit }: Props) {
   const dirtyRef = useRef(false)
+  const lastEditedRef = useRef<"w" | "h" | null>(null)
   const [draftW, setDraftW] = useState("")
   const [draftH, setDraftH] = useState("")
 
@@ -47,11 +48,23 @@ export function ImagePanel({ widthPx, heightPx, unit, dpi, disabled, onCommit }:
     if (!Number.isFinite(dpi) || dpi <= 0) return
     const wVal = Number(draftW)
     const hVal = Number(draftH)
+
+    // IMPORTANT:
+    // The canvas keeps aspect ratio and prefers width when both are provided.
+    // If the user edits height, we must commit *height only* (and vice versa),
+    // otherwise the old width can "win" and produce confusing results.
+    const edited = lastEditedRef.current
+    if (edited === "h") {
+      if (!Number.isFinite(hVal) || hVal <= 0) return
+      const hPx = clampPx(unitToPx(hVal, unit, dpi))
+      onCommit(Number.NaN, hPx)
+      return
+    }
+
+    // default to width
     if (!Number.isFinite(wVal) || wVal <= 0) return
-    if (!Number.isFinite(hVal) || hVal <= 0) return
     const wPx = clampPx(unitToPx(wVal, unit, dpi))
-    const hPx = clampPx(unitToPx(hVal, unit, dpi))
-    onCommit(wPx, hPx)
+    onCommit(wPx, Number.NaN)
   }
 
   return (
@@ -61,13 +74,18 @@ export function ImagePanel({ widthPx, heightPx, unit, dpi, disabled, onCommit }:
           <ArrowLeftRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
           <Input
             value={draftW}
-            onChange={(e) => setDraftW(e.target.value)}
+            onChange={(e) => {
+              dirtyRef.current = true
+              lastEditedRef.current = "w"
+              setDraftW(e.target.value)
+            }}
             disabled={disabled}
             inputMode="decimal"
             aria-label={`Image width (${unit})`}
             className="h-6 w-full px-2 py-0 text-[12px] md:text-[12px] shadow-none"
             onFocus={() => {
               dirtyRef.current = true
+              lastEditedRef.current = "w"
             }}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
@@ -95,13 +113,18 @@ export function ImagePanel({ widthPx, heightPx, unit, dpi, disabled, onCommit }:
           <ArrowUpDown className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
           <Input
             value={draftH}
-            onChange={(e) => setDraftH(e.target.value)}
+            onChange={(e) => {
+              dirtyRef.current = true
+              lastEditedRef.current = "h"
+              setDraftH(e.target.value)
+            }}
             disabled={disabled}
             inputMode="decimal"
             aria-label={`Image height (${unit})`}
             className="h-6 w-full px-2 py-0 text-[12px] md:text-[12px] shadow-none"
             onFocus={() => {
               dirtyRef.current = true
+              lastEditedRef.current = "h"
             }}
             onKeyDown={(e) => {
               if (e.key === "Enter") {

@@ -1,10 +1,10 @@
 "use client"
 
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react"
-import { Image as KonvaImage, Layer, Rect, Stage } from "react-konva"
+import { Image as KonvaImage, Layer, Line, Rect, Stage } from "react-konva"
 import type Konva from "konva"
 
-import { fitToWorld, panBy, scaleToMatchAspect, zoomAround } from "@/lib/editor/canvas-model"
+import { fitToWorld, panBy, zoomAround } from "@/lib/editor/canvas-model"
 
 type Props = {
   src: string
@@ -22,6 +22,10 @@ export type ProjectCanvasStageHandle = {
   zoomIn: () => void
   zoomOut: () => void
   rotate90: () => void
+  /**
+   * Resize the image in canvas-space (px).
+   * Pass `NaN` for a dimension to keep that axis unchanged.
+   */
   setImageSize: (widthPx: number, heightPx: number) => void
 }
 
@@ -71,6 +75,8 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
 ) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const stageRef = useRef<Konva.Stage | null>(null)
+  const layerRef = useRef<Konva.Layer | null>(null)
+  const imageNodeRef = useRef<Konva.Image | null>(null)
   const img = useHtmlImage(src)
 
   const [size, setSize] = useState({ w: 0, h: 0 })
@@ -82,6 +88,8 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   const userInteractedRef = useRef(false)
 
   const [imageTx, setImageTx] = useState<{ x: number; y: number; scaleX: number; scaleY: number } | null>(null)
+  const [imageBounds, setImageBounds] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
+  const boundsRafRef = useRef<number | null>(null)
   const panRafRef = useRef<number | null>(null)
   const panDeltaRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 })
   const onImageSizeChangeRef = useRef<Props["onImageSizeChange"]>(onImageSizeChange)
@@ -123,6 +131,24 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   const showArtboard = Boolean(world && artboardWidthPx && artboardHeightPx)
   const artW = world?.w ?? 0
   const artH = world?.h ?? 0
+  const borderColor = "#000000"
+  const borderWidth = 1
+  const selectionColor = "#000000"
+  const selectionDash: number[] | undefined = undefined
+  const selectionHandlePx = 8
+
+  // Pixel-snap helper: for a 1px stroke, canvas looks crispest when the line center
+  // lands on N + 0.5 device pixels in screen space.
+  const snapWorldToDeviceHalfPixel = useCallback(
+    (worldCoord: number, axis: "x" | "y") => {
+      const scale = view.scale || 1
+      const offset = axis === "x" ? view.x : view.y
+      const screen = offset + worldCoord * scale
+      const snapped = Math.round(screen - 0.5) + 0.5
+      return (snapped - offset) / scale
+    },
+    [view.scale, view.x, view.y]
+  )
 
   const fit = useMemo(() => {
     if (!world || size.w === 0 || size.h === 0) return null
@@ -177,6 +203,45 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     reportImageSize(imageTx)
   }, [imageTx, reportImageSize])
 
+  const updateImageBoundsFromNode = useCallback(() => {
+    if (!imageDraggable) return
+    const layer = layerRef.current
+    const node = imageNodeRef.current
+    if (!layer || !node) return
+    const r = node.getClientRect({ relativeTo: layer })
+    const next = { x: r.x, y: r.y, w: r.width, h: r.height }
+    setImageBounds((prev) => {
+      if (!prev) return next
+      const eps = 0.01
+      if (
+        Math.abs(prev.x - next.x) < eps &&
+        Math.abs(prev.y - next.y) < eps &&
+        Math.abs(prev.w - next.w) < eps &&
+        Math.abs(prev.h - next.h) < eps
+      )
+        return prev
+      return next
+    })
+  }, [imageDraggable])
+
+  const scheduleBoundsUpdate = useCallback(() => {
+    if (boundsRafRef.current != null) return
+    boundsRafRef.current = requestAnimationFrame(() => {
+      boundsRafRef.current = null
+      updateImageBoundsFromNode()
+    })
+  }, [updateImageBoundsFromNode])
+
+  // Compute selection bounds (axis-aligned) for the image node.
+  // Shown by default when the Select tool is active (`imageDraggable === true`).
+  useEffect(() => {
+    if (!imageDraggable) {
+      setImageBounds(null)
+      return
+    }
+    updateImageBoundsFromNode()
+  }, [imageDraggable, imageTx, rotation, updateImageBoundsFromNode])
+
   useEffect(() => {
     if (!src) return
     if (!img) return
@@ -193,20 +258,23 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   const setImageSize = useCallback(
     (widthPx: number, heightPx: number) => {
       if (!img) return
-      const scale = scaleToMatchAspect(img.width, img.height, widthPx, heightPx)
-      if (!scale || !Number.isFinite(scale) || scale <= 0) return
+      const w = Number(widthPx)
+      const h = Number(heightPx)
+      const nextScaleX = Number.isFinite(w) && w > 0 ? w / img.width : null
+      const nextScaleY = Number.isFinite(h) && h > 0 ? h / img.height : null
+      if (!nextScaleX && !nextScaleY) return
 
       setImageTx((prev) => {
         const next = {
           x: prev?.x ?? (showArtboard ? artW / 2 : img.width / 2),
           y: prev?.y ?? (showArtboard ? artH / 2 : img.height / 2),
-          scaleX: scale,
-          scaleY: scale,
+          scaleX: nextScaleX ?? prev?.scaleX ?? 1,
+          scaleY: nextScaleY ?? prev?.scaleY ?? 1,
         }
         return next
       })
     },
-    [artH, artW, img, reportImageSize, showArtboard]
+    [artH, artW, img, showArtboard]
   )
 
   useImperativeHandle(
@@ -266,13 +334,20 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
         }}
         onWheel={onWheel}
       >
-        <Layer>
+        <Layer
+          ref={(n) => {
+            layerRef.current = n
+          }}
+        >
           {showArtboard ? (
             <Rect x={0} y={0} width={artW} height={artH} fill="#ffffff" listening={false} />
           ) : null}
 
           {img ? (
             <KonvaImage
+              ref={(n) => {
+                imageNodeRef.current = n
+              }}
               image={img}
               listening={imageDraggable}
               rotation={rotation}
@@ -285,6 +360,10 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
               draggable={imageDraggable}
               onDragStart={() => {
                 userInteractedRef.current = true
+                scheduleBoundsUpdate()
+              }}
+              onDragMove={() => {
+                scheduleBoundsUpdate()
               }}
               onDragEnd={(e) => {
                 const n = e.target
@@ -296,8 +375,170 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
             />
           ) : null}
 
+          {/* Default selection frame (shown when the Select tool is active) */}
+          {imageDraggable && imageBounds ? (
+            (() => {
+              const x1 = snapWorldToDeviceHalfPixel(imageBounds.x, "x")
+              const y1 = snapWorldToDeviceHalfPixel(imageBounds.y, "y")
+              const x2 = snapWorldToDeviceHalfPixel(imageBounds.x + imageBounds.w, "x")
+              const y2 = snapWorldToDeviceHalfPixel(imageBounds.y + imageBounds.h, "y")
+
+              const handleW = selectionHandlePx / (view.scale || 1)
+              const handleH = selectionHandlePx / (view.scale || 1)
+
+              const toWorldFromScreen = (screen: number, axis: "x" | "y") => {
+                const scale = view.scale || 1
+                const offset = axis === "x" ? view.x : view.y
+                return (screen - offset) / scale
+              }
+
+              const handleAt = (screenX: number, screenY: number) => {
+                // Center the handle around the corner point in *screen* space (constant px size),
+                // then convert back to world coordinates.
+                const left = Math.round(screenX - selectionHandlePx / 2)
+                const top = Math.round(screenY - selectionHandlePx / 2)
+                return { x: toWorldFromScreen(left, "x"), y: toWorldFromScreen(top, "y") }
+              }
+
+              // Corner screen coords (for pixel-snapped handle placement)
+              const cornerTL = { x: view.x + x1 * view.scale, y: view.y + y1 * view.scale }
+              const cornerTR = { x: view.x + x2 * view.scale, y: view.y + y1 * view.scale }
+              const cornerBR = { x: view.x + x2 * view.scale, y: view.y + y2 * view.scale }
+              const cornerBL = { x: view.x + x1 * view.scale, y: view.y + y2 * view.scale }
+
+              const tl = handleAt(cornerTL.x, cornerTL.y)
+              const tr = handleAt(cornerTR.x, cornerTR.y)
+              const br = handleAt(cornerBR.x, cornerBR.y)
+              const bl = handleAt(cornerBL.x, cornerBL.y)
+
+              return (
+                <>
+                  <Line
+                    points={[x1, y1, x2, y1]}
+                    stroke={selectionColor}
+                    strokeWidth={1}
+                    dash={selectionDash}
+                    strokeScaleEnabled={false}
+                    listening={false}
+                  />
+                  <Line
+                    points={[x2, y1, x2, y2]}
+                    stroke={selectionColor}
+                    strokeWidth={1}
+                    dash={selectionDash}
+                    strokeScaleEnabled={false}
+                    listening={false}
+                  />
+                  <Line
+                    points={[x2, y2, x1, y2]}
+                    stroke={selectionColor}
+                    strokeWidth={1}
+                    dash={selectionDash}
+                    strokeScaleEnabled={false}
+                    listening={false}
+                  />
+                  <Line
+                    points={[x1, y2, x1, y1]}
+                    stroke={selectionColor}
+                    strokeWidth={1}
+                    dash={selectionDash}
+                    strokeScaleEnabled={false}
+                    listening={false}
+                  />
+
+                  {/* Corner handles */}
+                  <Rect
+                    x={tl.x}
+                    y={tl.y}
+                    width={handleW}
+                    height={handleH}
+                    fill="#ffffff"
+                    stroke={selectionColor}
+                    strokeWidth={1}
+                    strokeScaleEnabled={false}
+                    listening={false}
+                  />
+                  <Rect
+                    x={tr.x}
+                    y={tr.y}
+                    width={handleW}
+                    height={handleH}
+                    fill="#ffffff"
+                    stroke={selectionColor}
+                    strokeWidth={1}
+                    strokeScaleEnabled={false}
+                    listening={false}
+                  />
+                  <Rect
+                    x={br.x}
+                    y={br.y}
+                    width={handleW}
+                    height={handleH}
+                    fill="#ffffff"
+                    stroke={selectionColor}
+                    strokeWidth={1}
+                    strokeScaleEnabled={false}
+                    listening={false}
+                  />
+                  <Rect
+                    x={bl.x}
+                    y={bl.y}
+                    width={handleW}
+                    height={handleH}
+                    fill="#ffffff"
+                    stroke={selectionColor}
+                    strokeWidth={1}
+                    strokeScaleEnabled={false}
+                    listening={false}
+                  />
+                </>
+              )
+            })()
+          ) : null}
+
           {showArtboard ? (
-            <Rect x={0} y={0} width={artW} height={artH} stroke="#ff0000" strokeWidth={2} listening={false} />
+            <>
+              {/* Artboard border as 4 independent lines (1px, not scaling) */}
+              {(() => {
+                const xL = snapWorldToDeviceHalfPixel(0, "x")
+                const xR = snapWorldToDeviceHalfPixel(artW, "x")
+                const yT = snapWorldToDeviceHalfPixel(0, "y")
+                const yB = snapWorldToDeviceHalfPixel(artH, "y")
+
+                return (
+                  <>
+                    <Line
+                      points={[xL, 0, xL, artH]}
+                      stroke={borderColor}
+                      strokeWidth={borderWidth}
+                      strokeScaleEnabled={false}
+                      listening={false}
+                    />
+                    <Line
+                      points={[xR, 0, xR, artH]}
+                      stroke={borderColor}
+                      strokeWidth={borderWidth}
+                      strokeScaleEnabled={false}
+                      listening={false}
+                    />
+                    <Line
+                      points={[0, yT, artW, yT]}
+                      stroke={borderColor}
+                      strokeWidth={borderWidth}
+                      strokeScaleEnabled={false}
+                      listening={false}
+                    />
+                    <Line
+                      points={[0, yB, artW, yB]}
+                      stroke={borderColor}
+                      strokeWidth={borderWidth}
+                      strokeScaleEnabled={false}
+                      listening={false}
+                    />
+                  </>
+                )
+              })()}
+            </>
           ) : null}
         </Layer>
       </Stage>
