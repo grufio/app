@@ -2,9 +2,19 @@
 
 import { useParams } from "next/navigation"
 import { useCallback, useEffect, useRef, useState } from "react"
+import { Trash2 } from "lucide-react"
 
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ProjectImageUploader } from "@/components/app-img-upload"
+import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import {
   ArtboardPanel,
   CanvasToolSidebar,
@@ -33,6 +43,9 @@ export default function ProjectDetailPage() {
   } | null>(null)
   const [masterImageLoading, setMasterImageLoading] = useState(false)
   const [masterImageError, setMasterImageError] = useState<string>("")
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleteBusy, setDeleteBusy] = useState(false)
+  const [deleteError, setDeleteError] = useState<string>("")
   const [tool, setTool] = useState<"select" | "hand">("hand")
   const panEnabled = tool === "hand"
   const imageDraggable = tool === "select"
@@ -76,6 +89,36 @@ export default function ProjectDetailPage() {
       setMasterImageLoading(false)
     }
   }, [projectId])
+
+  const deleteMasterImage = useCallback(async () => {
+    if (deleteBusy) return
+    setDeleteError("")
+    setDeleteBusy(true)
+    try {
+      const res = await fetch(`/api/projects/${projectId}/images/master`, {
+        method: "DELETE",
+        credentials: "same-origin",
+      })
+      if (!res.ok) {
+        const payload = (await res.json().catch(() => null)) as Record<string, unknown> | null
+        const msg =
+          typeof payload?.error === "string"
+            ? payload.error
+            : payload
+              ? JSON.stringify(payload)
+              : `HTTP ${res.status}`
+        setDeleteError(msg)
+        return
+      }
+      setDeleteOpen(false)
+      setMasterImage(null)
+      setImagePx(null)
+      // Ensure uploader shows again even if some cached state exists.
+      void refreshMasterImage()
+    } finally {
+      setDeleteBusy(false)
+    }
+  }, [deleteBusy, projectId, refreshMasterImage])
 
   useEffect(() => {
     let cancelled = false
@@ -196,7 +239,23 @@ export default function ProjectDetailPage() {
                   </div>
                 </div>
                 <div className="border-b px-4 py-3">
-                  <div className="text-sm font-medium">Image</div>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-sm font-medium">Image</div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      disabled={!masterImage}
+                      aria-label="Delete image"
+                      onClick={() => {
+                        setDeleteError("")
+                        setDeleteOpen(true)
+                      }}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </div>
                   <div className="mt-3">
                     <ImagePanel
                       widthPx={imagePx?.w ?? masterImage?.width_px}
@@ -205,7 +264,7 @@ export default function ProjectDetailPage() {
                       dpi={artboardMeta?.dpi ?? 300}
                       disabled={!masterImage}
                       onCommit={(w, h) => canvasRef.current?.setImageSize(w, h)}
-                  onAlign={(opts) => canvasRef.current?.alignImage(opts)}
+                      onAlign={(opts) => canvasRef.current?.alignImage(opts)}
                     />
                   </div>
                 </div>
@@ -215,6 +274,29 @@ export default function ProjectDetailPage() {
                 </div>
               </div>
             </aside>
+
+            {/* Delete confirmation dialog */}
+            <Dialog open={deleteOpen} onOpenChange={(o) => (deleteBusy ? null : setDeleteOpen(o))}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Delete image?</DialogTitle>
+                  <DialogDescription>
+                    This will permanently delete the master image from storage and remove its database record.
+                  </DialogDescription>
+                </DialogHeader>
+
+                {deleteError ? <div className="text-sm text-destructive">{deleteError}</div> : null}
+
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleteBusy}>
+                    Cancel
+                  </Button>
+                  <Button type="button" variant="destructive" onClick={deleteMasterImage} disabled={deleteBusy}>
+                    {deleteBusy ? "Deleting…" : "Delete"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </>
         ) : (
           <main className="flex min-w-0 flex-1">
