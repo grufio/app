@@ -5,6 +5,7 @@ import { ArrowLeftRight, ArrowUpDown, Gauge, Link2, Ruler, Unlink2 } from "lucid
 
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { clampPx, fmt2, type Unit, unitToPx } from "@/lib/editor/units"
+import { parseNumericInput, sanitizeNumericInput } from "@/lib/editor/numeric"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 
@@ -286,8 +287,8 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
   const controlsDisabled = loading || !row || saving
   const ratio = lockRatioRef.current
   const ensureRatio = () => {
-    const w = Number(draftWidth)
-    const h = Number(draftHeight)
+    const w = parseNumericInput(draftWidth)
+    const h = parseNumericInput(draftHeight)
     if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return null
     return w / h
   }
@@ -304,13 +305,13 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
             inputMode="decimal"
             value={draftWidth}
             onChange={(e) => {
-              const next = e.target.value
+              const next = sanitizeNumericInput(e.target.value, "decimal")
               setDraftWidth(next)
               if (!lockAspect) return
               const r = ratio ?? ensureRatio()
               if (!r) return
               lockRatioRef.current = r
-              const w = Number(next)
+              const w = parseNumericInput(next)
               if (!Number.isFinite(w) || w <= 0) return
               setDraftHeight(fmt2(w / r))
             }}
@@ -336,13 +337,13 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
             inputMode="decimal"
             value={draftHeight}
             onChange={(e) => {
-              const next = e.target.value
+              const next = sanitizeNumericInput(e.target.value, "decimal")
               setDraftHeight(next)
               if (!lockAspect) return
               const r = ratio ?? ensureRatio()
               if (!r) return
               lockRatioRef.current = r
-              const h = Number(next)
+              const h = parseNumericInput(next)
               if (!Number.isFinite(h) || h <= 0) return
               setDraftWidth(fmt2(h * r))
             }}
@@ -398,9 +399,9 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
           <Gauge className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
           <Input
             id="artboard-dpi"
-            inputMode="decimal"
+            inputMode="numeric"
             value={draftDpi}
-            onChange={(e) => setDraftDpi(e.target.value)}
+            onChange={(e) => setDraftDpi(sanitizeNumericInput(e.target.value, "int"))}
             onKeyDown={(e) => {
               if (e.key === "Enter") void save()
             }}

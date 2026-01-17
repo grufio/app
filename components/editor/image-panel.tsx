@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 
 import { Input } from "@/components/ui/input"
 import { clampPx, fmt2, pxToUnit, type Unit, unitToPx } from "@/lib/editor/units"
+import { parseNumericInput, sanitizeNumericInput } from "@/lib/editor/numeric"
 
 type Props = {
   widthPx?: number
@@ -46,8 +47,8 @@ export function ImagePanel({ widthPx, heightPx, unit, dpi, disabled, onCommit }:
 
   const commit = () => {
     if (!Number.isFinite(dpi) || dpi <= 0) return
-    const wVal = Number(draftW)
-    const hVal = Number(draftH)
+    const wVal = parseNumericInput(draftW)
+    const hVal = parseNumericInput(draftH)
 
     // IMPORTANT:
     // The canvas keeps aspect ratio and prefers width when both are provided.
@@ -79,7 +80,7 @@ export function ImagePanel({ widthPx, heightPx, unit, dpi, disabled, onCommit }:
             onChange={(e) => {
               dirtyRef.current = true
               lastEditedRef.current = "w"
-              setDraftW(e.target.value)
+              setDraftW(sanitizeNumericInput(e.target.value, "decimal"))
             }}
             disabled={disabled}
             inputMode="decimal"
@@ -118,7 +119,7 @@ export function ImagePanel({ widthPx, heightPx, unit, dpi, disabled, onCommit }:
             onChange={(e) => {
               dirtyRef.current = true
               lastEditedRef.current = "h"
-              setDraftH(e.target.value)
+              setDraftH(sanitizeNumericInput(e.target.value, "decimal"))
             }}
             disabled={disabled}
             inputMode="decimal"
