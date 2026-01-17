@@ -77,33 +77,14 @@ export function ImagePanel({ widthPx, heightPx, unit, dpi, disabled, onCommit, o
     const wVal = parseNumericInput(draftW)
     const hVal = parseNumericInput(draftH)
 
-    // IMPORTANT:
-    // The canvas keeps aspect ratio and prefers width when both are provided.
-    // If the user edits height, we must commit *height only* (and vice versa),
-    // otherwise the old width can "win" and produce confusing results.
-    const edited = lastEditedRef.current
-
-    // When locked: commit both dimensions (we keep ratio by updating the other draft).
-    if (lockAspect) {
-      if (!Number.isFinite(wVal) || wVal <= 0) return
-      if (!Number.isFinite(hVal) || hVal <= 0) return
-      const wPx = clampPx(unitToPx(wVal, unit, dpi))
-      const hPx = clampPx(unitToPx(hVal, unit, dpi))
-      onCommit(wPx, hPx)
-      return
-    }
-
-    if (edited === "h") {
-      if (!Number.isFinite(hVal) || hVal <= 0) return
-      const hPx = clampPx(unitToPx(hVal, unit, dpi))
-      onCommit(Number.NaN, hPx)
-      return
-    }
-
-    // default to width
+    // Always commit BOTH dimensions when both inputs are valid.
+    // The canvas supports non-uniform scaling (scaleX/scaleY), so this is the
+    // most predictable behavior: values you type are the values applied.
     if (!Number.isFinite(wVal) || wVal <= 0) return
+    if (!Number.isFinite(hVal) || hVal <= 0) return
     const wPx = clampPx(unitToPx(wVal, unit, dpi))
-    onCommit(wPx, Number.NaN)
+    const hPx = clampPx(unitToPx(hVal, unit, dpi))
+    onCommit(wPx, hPx)
   }
 
   return (
