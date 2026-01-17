@@ -15,6 +15,8 @@ type Props = {
   artboardWidthPx?: number
   artboardHeightPx?: number
   onImageSizeChange?: (widthPx: number, heightPx: number) => void
+  initialImageTransform?: { x: number; y: number; scaleX: number; scaleY: number; rotationDeg: number } | null
+  onImageTransformCommit?: (t: { x: number; y: number; scaleX: number; scaleY: number; rotationDeg: number }) => void
 }
 
 export type ProjectCanvasStageHandle = {
@@ -80,6 +82,8 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     artboardWidthPx,
     artboardHeightPx,
     onImageSizeChange,
+    initialImageTransform,
+    onImageTransformCommit,
   },
   ref
 ) {
@@ -98,7 +102,17 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   const userInteractedRef = useRef(false)
 
   const [imageTx, setImageTx] = useState<{ x: number; y: number; scaleX: number; scaleY: number } | null>(null)
+  const imageTxRef = useRef<{ x: number; y: number; scaleX: number; scaleY: number } | null>(null)
   const [imageBounds, setImageBounds] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
+  const rotationRef = useRef(0)
+  useEffect(() => {
+    rotationRef.current = rotation
+  }, [rotation])
+
+  useEffect(() => {
+    imageTxRef.current = imageTx
+  }, [imageTx])
+
   const boundsRafRef = useRef<number | null>(null)
   const panRafRef = useRef<number | null>(null)
   const panDeltaRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 })
@@ -258,12 +272,37 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     const key = src
     if (placedKeyRef.current === key) return
     placedKeyRef.current = key
-    const initialScale = showArtboard && artW > 0 && artH > 0 ? Math.min(artW / img.width, artH / img.height) : 1
+    if (initialImageTransform) {
+      setRotation(initialImageTransform.rotationDeg || 0)
+      setImageTx({
+        x: initialImageTransform.x,
+        y: initialImageTransform.y,
+        scaleX: initialImageTransform.scaleX,
+        scaleY: initialImageTransform.scaleY,
+      })
+      return
+    }
+    const initialScale =
+      showArtboard && artW > 0 && artH > 0 ? Math.min(artW / img.width, artH / img.height) : 1
     const x = showArtboard ? artW / 2 : img.width / 2
     const y = showArtboard ? artH / 2 : img.height / 2
-    const tx = { x, y, scaleX: initialScale, scaleY: initialScale }
-    setImageTx(tx)
+    setRotation(0)
+    setImageTx({ x, y, scaleX: initialScale, scaleY: initialScale })
   }, [artH, artW, img, reportImageSize, showArtboard, src])
+
+  const commitTransform = useCallback(
+    (tx: { x: number; y: number; scaleX: number; scaleY: number } | null, rotationDeg: number) => {
+      if (!tx) return
+      onImageTransformCommit?.({
+        x: tx.x,
+        y: tx.y,
+        scaleX: tx.scaleX,
+        scaleY: tx.scaleY,
+        rotationDeg,
+      })
+    },
+    [onImageTransformCommit]
+  )
 
   const setImageSize = useCallback(
     (widthPx: number, heightPx: number) => {
@@ -274,17 +313,17 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
       const nextScaleY = Number.isFinite(h) && h > 0 ? h / img.height : null
       if (!nextScaleX && !nextScaleY) return
 
-      setImageTx((prev) => {
-        const next = {
-          x: prev?.x ?? (showArtboard ? artW / 2 : img.width / 2),
-          y: prev?.y ?? (showArtboard ? artH / 2 : img.height / 2),
-          scaleX: nextScaleX ?? prev?.scaleX ?? 1,
-          scaleY: nextScaleY ?? prev?.scaleY ?? 1,
-        }
-        return next
-      })
+      const prev = imageTxRef.current
+      const next = {
+        x: prev?.x ?? (showArtboard ? artW / 2 : img.width / 2),
+        y: prev?.y ?? (showArtboard ? artH / 2 : img.height / 2),
+        scaleX: nextScaleX ?? prev?.scaleX ?? 1,
+        scaleY: nextScaleY ?? prev?.scaleY ?? 1,
+      }
+      setImageTx(next)
+      setTimeout(() => commitTransform(next, rotationRef.current), 0)
     },
-    [artH, artW, img, showArtboard]
+    [artH, artW, commitTransform, img, showArtboard]
   )
 
   const restoreImage = useCallback(() => {
@@ -296,9 +335,11 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     const initialScale = showArtboard && artW > 0 && artH > 0 ? Math.min(artW / img.width, artH / img.height) : 1
     const x = showArtboard ? artW / 2 : img.width / 2
     const y = showArtboard ? artH / 2 : img.height / 2
-    setImageTx({ x, y, scaleX: initialScale, scaleY: initialScale })
+    const next = { x, y, scaleX: initialScale, scaleY: initialScale }
+    setImageTx(next)
+    setTimeout(() => commitTransform(next, 0), 0)
     scheduleBoundsUpdate()
-  }, [artH, artW, img, scheduleBoundsUpdate, showArtboard])
+  }, [artH, artW, commitTransform, img, scheduleBoundsUpdate, showArtboard])
 
   const alignImage = useCallback(
     (opts: { x?: "left" | "center" | "right"; y?: "top" | "center" | "bottom" }) => {
@@ -321,20 +362,21 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
 
       if (dx === 0 && dy === 0) return
 
-      setImageTx((prev) => {
-        const baseX = prev?.x ?? node.x()
-        const baseY = prev?.y ?? node.y()
-        return {
-          x: baseX + dx,
-          y: baseY + dy,
-          scaleX: prev?.scaleX ?? node.scaleX() ?? 1,
-          scaleY: prev?.scaleY ?? node.scaleY() ?? 1,
-        }
-      })
+      const prev = imageTxRef.current
+      const baseX = prev?.x ?? node.x()
+      const baseY = prev?.y ?? node.y()
+      const next = {
+        x: baseX + dx,
+        y: baseY + dy,
+        scaleX: prev?.scaleX ?? node.scaleX() ?? 1,
+        scaleY: prev?.scaleY ?? node.scaleY() ?? 1,
+      }
+      setImageTx(next)
+      setTimeout(() => commitTransform(next, rotationRef.current), 0)
 
       scheduleBoundsUpdate()
     },
-    [artH, artW, scheduleBoundsUpdate, showArtboard]
+    [artH, artW, commitTransform, scheduleBoundsUpdate, showArtboard]
   )
 
   useImperativeHandle(
@@ -427,10 +469,10 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
               }}
               onDragEnd={(e) => {
                 const n = e.target
-                setImageTx((prev) => {
-                  const next = { x: n.x(), y: n.y(), scaleX: prev?.scaleX ?? 1, scaleY: prev?.scaleY ?? 1 }
-                  return next
-                })
+                const prev = imageTxRef.current
+                const next = { x: n.x(), y: n.y(), scaleX: prev?.scaleX ?? 1, scaleY: prev?.scaleY ?? 1 }
+                setImageTx(next)
+                setTimeout(() => commitTransform(next, rotationRef.current), 0)
               }}
             />
           ) : null}

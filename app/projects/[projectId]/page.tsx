@@ -52,6 +52,13 @@ export default function ProjectDetailPage() {
   const canvasRef = useRef<ProjectCanvasStageHandle | null>(null)
   const [artboardPx, setArtboardPx] = useState<{ w: number; h: number } | null>(null)
   const [imagePx, setImagePx] = useState<{ w: number; h: number } | null>(null)
+  const [initialImageTransform, setInitialImageTransform] = useState<{
+    x: number
+    y: number
+    scaleX: number
+    scaleY: number
+    rotationDeg: number
+  } | null>(null)
   const [artboardMeta, setArtboardMeta] = useState<{ unit: "mm" | "cm" | "pt" | "px"; dpi: number } | null>(
     null
   )
@@ -90,6 +97,54 @@ export default function ProjectDetailPage() {
     }
   }, [projectId])
 
+  const loadImageState = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/projects/${projectId}/image-state`, {
+        method: "GET",
+        credentials: "same-origin",
+      })
+      if (!res.ok) {
+        setInitialImageTransform(null)
+        return
+      }
+      const payload = (await res.json().catch(() => null)) as
+        | { exists?: boolean; state?: { x: number; y: number; scale_x: number; scale_y: number; rotation_deg: number } }
+        | null
+      if (!payload?.exists || !payload.state) {
+        setInitialImageTransform(null)
+        return
+      }
+      setInitialImageTransform({
+        x: Number(payload.state.x),
+        y: Number(payload.state.y),
+        scaleX: Number(payload.state.scale_x),
+        scaleY: Number(payload.state.scale_y),
+        rotationDeg: Number(payload.state.rotation_deg),
+      })
+    } catch {
+      setInitialImageTransform(null)
+    }
+  }, [projectId])
+
+  const saveImageState = useCallback(
+    async (t: { x: number; y: number; scaleX: number; scaleY: number; rotationDeg: number }) => {
+      void fetch(`/api/projects/${projectId}/image-state`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          role: "master",
+          x: t.x,
+          y: t.y,
+          scale_x: t.scaleX,
+          scale_y: t.scaleY,
+          rotation_deg: t.rotationDeg,
+        }),
+      }).catch(() => null)
+    },
+    [projectId]
+  )
+
   const deleteMasterImage = useCallback(async () => {
     if (deleteBusy) return
     setDeleteError("")
@@ -113,6 +168,7 @@ export default function ProjectDetailPage() {
       setDeleteOpen(false)
       setMasterImage(null)
       setImagePx(null)
+      setInitialImageTransform(null)
       // Ensure uploader shows again even if some cached state exists.
       void refreshMasterImage()
     } finally {
@@ -146,6 +202,14 @@ export default function ProjectDetailPage() {
   useEffect(() => {
     void refreshMasterImage()
   }, [refreshMasterImage])
+
+  useEffect(() => {
+    if (!masterImage) {
+      setInitialImageTransform(null)
+      return
+    }
+    void loadImageState()
+  }, [loadImageState, masterImage])
 
   return (
     <div className="flex min-h-svh w-full flex-col">
@@ -212,6 +276,8 @@ export default function ProjectDetailPage() {
                       artboardWidthPx={artboardPx?.w}
                       artboardHeightPx={artboardPx?.h}
                       onImageSizeChange={handleImagePxChange}
+                      initialImageTransform={initialImageTransform}
+                      onImageTransformCommit={saveImageState}
                     />
                   </div>
                 ) : (
