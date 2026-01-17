@@ -2,6 +2,53 @@ import { test, expect } from "@playwright/test"
 
 const PROJECT_ID = "00000000-0000-0000-0000-000000000001"
 
+type PersistedImageStateBody = {
+  role: "master"
+  x: number
+  y: number
+  scale_x: number
+  scale_y: number
+  width_px?: number
+  height_px?: number
+  rotation_deg: number
+}
+
+type PersistedImageStateRow = {
+  x: number
+  y: number
+  scale_x: number
+  scale_y: number
+  width_px?: number | null
+  height_px?: number | null
+  rotation_deg: number
+}
+
+type GetImageStateResponse = { exists: false } | { exists: true; state: PersistedImageStateRow }
+
+type GrufEditorHook = {
+  stage?: { x(): number; y(): number; scaleX(): number }
+  image?: { x(): number; y(): number }
+}
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return Boolean(v) && typeof v === "object"
+}
+
+function isFiniteNumber(v: unknown): v is number {
+  return typeof v === "number" && Number.isFinite(v)
+}
+
+function isPersistedImageStateBody(v: unknown): v is PersistedImageStateBody {
+  if (!isRecord(v)) return false
+  if (v.role !== "master") return false
+  if (!isFiniteNumber(v.x) || !isFiniteNumber(v.y)) return false
+  if (!isFiniteNumber(v.scale_x) || !isFiniteNumber(v.scale_y)) return false
+  if (!isFiniteNumber(v.rotation_deg)) return false
+  if (v.width_px != null && !isFiniteNumber(v.width_px)) return false
+  if (v.height_px != null && !isFiniteNumber(v.height_px)) return false
+  return true
+}
+
 function setupMockRoutes(page: import("@playwright/test").Page, opts: { withImage: boolean; persistImageState?: boolean }) {
   const workspaceRow = {
     project_id: PROJECT_ID,
@@ -15,7 +62,6 @@ function setupMockRoutes(page: import("@playwright/test").Page, opts: { withImag
     raster_effects_preset: "high",
   }
 
-  // A tiny 1x1 png data URL (known-good; works reliably with window.Image).
   const dataPng =
     "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO6qv0kAAAAASUVORK5CYII="
 
@@ -29,7 +75,7 @@ function setupMockRoutes(page: import("@playwright/test").Page, opts: { withImag
       }
     : { exists: false }
 
-  let persisted: any = null
+  let persisted: PersistedImageStateBody | null = null
   let postCount = 0
   let getCount = 0
 
@@ -57,6 +103,12 @@ function setupMockRoutes(page: import("@playwright/test").Page, opts: { withImag
 
     // Internal API: master image
     if (url.endsWith(`/api/projects/${PROJECT_ID}/images/master`)) {
+      if (req.method() === "DELETE") {
+        // simulate delete: future GET/exists return "no image"
+        ;(masterImagePayload as unknown as { exists: boolean }).exists = false
+        return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, deleted: true }) })
+      }
+
       return route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -68,7 +120,7 @@ function setupMockRoutes(page: import("@playwright/test").Page, opts: { withImag
       return route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ exists: Boolean(opts.withImage) }),
+        body: JSON.stringify({ exists: Boolean((masterImagePayload as unknown as { exists?: boolean }).exists) }),
       })
     }
 
@@ -76,30 +128,31 @@ function setupMockRoutes(page: import("@playwright/test").Page, opts: { withImag
     if (url.endsWith(`/api/projects/${PROJECT_ID}/image-state`)) {
       if (req.method() === "GET") {
         getCount++
-        if (!opts.persistImageState || !persisted) {
-          return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ exists: false }) })
-        }
-        return route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify({
-            exists: true,
-            state: {
-              x: persisted.x,
-              y: persisted.y,
-              scale_x: persisted.scale_x,
-              scale_y: persisted.scale_y,
-              width_px: persisted.width_px ?? null,
-              height_px: persisted.height_px ?? null,
-              rotation_deg: persisted.rotation_deg ?? 0,
-            },
-          }),
-        })
+        const payload: GetImageStateResponse =
+          opts.persistImageState && persisted
+            ? {
+                exists: true,
+                state: {
+                  x: persisted.x,
+                  y: persisted.y,
+                  scale_x: persisted.scale_x,
+                  scale_y: persisted.scale_y,
+                  width_px: persisted.width_px ?? null,
+                  height_px: persisted.height_px ?? null,
+                  rotation_deg: persisted.rotation_deg,
+                },
+              }
+            : { exists: false }
+        return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(payload) })
       }
 
       if (req.method() === "POST") {
         postCount++
-        persisted = await req.postDataJSON()
+        const body = (await req.postDataJSON()) as unknown
+        if (!isPersistedImageStateBody(body)) {
+          return route.fulfill({ status: 400, contentType: "application/json", body: JSON.stringify({ error: "Invalid payload" }) })
+        }
+        persisted = body
         return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) })
       }
 
@@ -142,11 +195,12 @@ test("drag image persists across reload", async ({ page }) => {
   await expect(page.getByText("Artboard")).toBeVisible()
 
   await page.getByRole("button", { name: "Select (Move Image)" }).click()
-  await page.waitForFunction(() => Boolean((globalThis as any).__gruf_editor?.image))
+  await page.waitForFunction(() => Boolean((globalThis as unknown as { __gruf_editor?: GrufEditorHook }).__gruf_editor?.image))
 
   const before = await page.evaluate(() => {
-    const g: any = (globalThis as any).__gruf_editor
-    return { x: g.image.x(), y: g.image.y() }
+    const h = (globalThis as unknown as { __gruf_editor?: GrufEditorHook }).__gruf_editor
+    if (!h?.image) throw new Error("Missing image")
+    return { x: h.image.x(), y: h.image.y() }
   })
 
   const canvas = page.locator("canvas").first()
@@ -162,8 +216,9 @@ test("drag image persists across reload", async ({ page }) => {
   expect(mock.getPersisted()).toBeTruthy()
 
   const after = await page.evaluate(() => {
-    const g: any = (globalThis as any).__gruf_editor
-    return { x: g.image.x(), y: g.image.y() }
+    const h = (globalThis as unknown as { __gruf_editor?: GrufEditorHook }).__gruf_editor
+    if (!h?.image) throw new Error("Missing image")
+    return { x: h.image.x(), y: h.image.y() }
   })
 
   expect(after.x).not.toBeCloseTo(before.x)
@@ -172,13 +227,14 @@ test("drag image persists across reload", async ({ page }) => {
   await page.reload()
   await expect(page.getByText("Artboard")).toBeVisible()
   await page.getByRole("button", { name: "Select (Move Image)" }).click()
-  await page.waitForFunction(() => Boolean((globalThis as any).__gruf_editor?.image))
+  await page.waitForFunction(() => Boolean((globalThis as unknown as { __gruf_editor?: GrufEditorHook }).__gruf_editor?.image))
 
   await expect.poll(() => mock.getCounts().getCount, { timeout: 5000 }).toBeGreaterThan(0)
 
   const afterReload = await page.evaluate(() => {
-    const g: any = (globalThis as any).__gruf_editor
-    return { x: g.image.x(), y: g.image.y() }
+    const h = (globalThis as unknown as { __gruf_editor?: GrufEditorHook }).__gruf_editor
+    if (!h?.image) throw new Error("Missing image")
+    return { x: h.image.x(), y: h.image.y() }
   })
 
   expect(afterReload.x).toBeCloseTo(after.x, 0)
@@ -192,11 +248,12 @@ test("wheel pans and ctrl/cmd+wheel zooms", async ({ page }) => {
   await page.goto(`/projects/${PROJECT_ID}`)
   await expect(page.getByText("Artboard")).toBeVisible()
 
-  await page.waitForFunction(() => Boolean((globalThis as any).__gruf_editor?.stage))
+  await page.waitForFunction(() => Boolean((globalThis as unknown as { __gruf_editor?: GrufEditorHook }).__gruf_editor?.stage))
 
   const before = await page.evaluate(() => {
-    const g: any = (globalThis as any).__gruf_editor
-    return { x: g.stage.x(), y: g.stage.y(), s: g.stage.scaleX() }
+    const h = (globalThis as unknown as { __gruf_editor?: GrufEditorHook }).__gruf_editor
+    if (!h?.stage) throw new Error("Missing stage")
+    return { x: h.stage.x(), y: h.stage.y(), s: h.stage.scaleX() }
   })
 
   const canvas = page.locator("canvas").first()
@@ -207,20 +264,30 @@ test("wheel pans and ctrl/cmd+wheel zooms", async ({ page }) => {
   await page.mouse.wheel(0, 160)
 
   await expect
-    .poll(async () => await page.evaluate(() => ({ x: (globalThis as any).__gruf_editor.stage.x(), y: (globalThis as any).__gruf_editor.stage.y() })), {
-      timeout: 5000,
-    })
+    .poll(async () => await page.evaluate(() => {
+      const h = (globalThis as unknown as { __gruf_editor?: GrufEditorHook }).__gruf_editor
+      if (!h?.stage) throw new Error("Missing stage")
+      return { x: h.stage.x(), y: h.stage.y() }
+    }), { timeout: 5000 })
     .not.toEqual({ x: before.x, y: before.y })
 
-  const afterPanScale = await page.evaluate(() => (globalThis as any).__gruf_editor.stage.scaleX())
+  const afterPanScale = await page.evaluate(() => {
+    const h = (globalThis as unknown as { __gruf_editor?: GrufEditorHook }).__gruf_editor
+    if (!h?.stage) throw new Error("Missing stage")
+    return h.stage.scaleX()
+  })
 
   await page.keyboard.down("Control")
   await page.mouse.wheel(0, -160)
   await page.keyboard.up("Control")
 
-  await expect.poll(async () => await page.evaluate(() => (globalThis as any).__gruf_editor.stage.scaleX()), { timeout: 5000 }).not.toBeCloseTo(
-    afterPanScale
-  )
+  await expect
+    .poll(async () => await page.evaluate(() => {
+      const h = (globalThis as unknown as { __gruf_editor?: GrufEditorHook }).__gruf_editor
+      if (!h?.stage) throw new Error("Missing stage")
+      return h.stage.scaleX()
+    }), { timeout: 5000 })
+    .not.toBeCloseTo(afterPanScale)
 })
 
 test("restore resets image transform (with confirmation)", async ({ page }) => {
@@ -231,13 +298,12 @@ test("restore resets image transform (with confirmation)", async ({ page }) => {
   await expect(page.getByText("Artboard")).toBeVisible()
 
   await page.getByRole("button", { name: "Select (Move Image)" }).click()
-  await page.waitForFunction(() => Boolean((globalThis as any).__gruf_editor?.image))
+  await page.waitForFunction(() => Boolean((globalThis as unknown as { __gruf_editor?: GrufEditorHook }).__gruf_editor?.image))
 
   const canvas = page.locator("canvas").first()
   const box = await canvas.boundingBox()
   if (!box) throw new Error("canvas not found")
 
-  // Move away from center
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
   await page.mouse.down()
   await page.mouse.move(box.x + box.width / 2 + 120, box.y + box.height / 2 + 60)
@@ -245,7 +311,6 @@ test("restore resets image transform (with confirmation)", async ({ page }) => {
 
   await expect.poll(() => mock.getCounts().postCount, { timeout: 5000 }).toBeGreaterThan(0)
 
-  // Restore via confirmation dialog.
   await page.getByRole("button", { name: "Restore image" }).click()
   await expect(page.getByText("Restore image?")).toBeVisible()
   await page.getByRole("button", { name: "Restore" }).click()
@@ -255,22 +320,24 @@ test("restore resets image transform (with confirmation)", async ({ page }) => {
   const expectedCenter = { x: mock.workspaceRow.width_px / 2, y: mock.workspaceRow.height_px / 2 }
 
   await expect
-    .poll(async () => await page.evaluate(() => ({ x: (globalThis as any).__gruf_editor.image.x(), y: (globalThis as any).__gruf_editor.image.y() })), {
-      timeout: 5000,
-    })
+    .poll(async () => await page.evaluate(() => {
+      const h = (globalThis as unknown as { __gruf_editor?: GrufEditorHook }).__gruf_editor
+      if (!h?.image) throw new Error("Missing image")
+      return { x: h.image.x(), y: h.image.y() }
+    }), { timeout: 5000 })
     .toEqual({ x: expectedCenter.x, y: expectedCenter.y })
 
-  // Reload should keep restored placement.
   await page.reload()
   await expect(page.getByText("Artboard")).toBeVisible()
   await page.getByRole("button", { name: "Select (Move Image)" }).click()
-  await page.waitForFunction(() => Boolean((globalThis as any).__gruf_editor?.image))
+  await page.waitForFunction(() => Boolean((globalThis as unknown as { __gruf_editor?: GrufEditorHook }).__gruf_editor?.image))
 
   await expect.poll(() => mock.getCounts().getCount, { timeout: 5000 }).toBeGreaterThan(0)
 
   const afterReload = await page.evaluate(() => {
-    const g: any = (globalThis as any).__gruf_editor
-    return { x: g.image.x(), y: g.image.y() }
+    const h = (globalThis as unknown as { __gruf_editor?: GrufEditorHook }).__gruf_editor
+    if (!h?.image) throw new Error("Missing image")
+    return { x: h.image.x(), y: h.image.y() }
   })
 
   expect(afterReload.x).toBeCloseTo(expectedCenter.x, 0)
