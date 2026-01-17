@@ -18,6 +18,7 @@ export type WorkspaceRow = {
   dpi_y: number
   width_px: number
   height_px: number
+  raster_effects_preset?: "high" | "medium" | "low" | null
 }
 
 function normalizeUnit(u: unknown): Unit {
@@ -42,7 +43,7 @@ function fromInches(inches: number, unit: Unit, dpi: number): number {
 }
 
 function defaultWorkspace(projectId: string): WorkspaceRow {
-  // MVP default: 20x30cm @ 300dpi
+  // Default: 20x30cm @ 300dpi (Illustrator-like "new document")
   const unit: Unit = "cm"
   const width_value = 20
   const height_value = 30
@@ -55,9 +56,23 @@ function defaultWorkspace(projectId: string): WorkspaceRow {
     height_value,
     dpi_x,
     dpi_y,
+    raster_effects_preset: "high",
     width_px: clampPx(unitToPx(width_value, unit, dpi_x)),
     height_px: clampPx(unitToPx(height_value, unit, dpi_y)),
   }
+}
+
+function presetFromDpi(dpi: number): "high" | "medium" | "low" | null {
+  if (dpi === 300) return "high"
+  if (dpi === 150) return "medium"
+  if (dpi === 72) return "low"
+  return null
+}
+
+function labelForPreset(p: "high" | "medium" | "low"): string {
+  if (p === "high") return "High (300 ppi)"
+  if (p === "medium") return "Medium (150 ppi)"
+  return "Low (72 ppi)"
 }
 
 type Props = {
@@ -79,6 +94,7 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
   const [draftHeight, setDraftHeight] = useState("")
   const [draftDpi, setDraftDpi] = useState("")
   const [draftUnit, setDraftUnit] = useState<Unit>("mm")
+  const [draftRasterPreset, setDraftRasterPreset] = useState<"high" | "medium" | "low" | "custom">("high")
   const [lockAspect, setLockAspect] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -113,7 +129,7 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
         const supabase = createSupabaseBrowserClient()
         const { data, error: selErr } = await supabase
           .from("project_workspace")
-          .select("project_id,unit,width_value,height_value,dpi_x,dpi_y,width_px,height_px")
+          .select("project_id,unit,width_value,height_value,dpi_x,dpi_y,width_px,height_px,raster_effects_preset")
           .eq("project_id", projectId)
           .maybeSingle()
 
@@ -129,7 +145,7 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
           const { data: ins, error: insErr } = await supabase
             .from("project_workspace")
             .insert(def)
-            .select("project_id,unit,width_value,height_value,dpi_x,dpi_y,width_px,height_px")
+            .select("project_id,unit,width_value,height_value,dpi_x,dpi_y,width_px,height_px,raster_effects_preset")
             .single()
 
           if (cancelled) return
@@ -143,18 +159,24 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
           setDraftHeight(String(ins.height_value))
           setDraftDpi(String(ins.dpi_x))
           setDraftUnit(normalizeUnit((ins as WorkspaceRow).unit))
+          setDraftRasterPreset(
+            (ins as WorkspaceRow).raster_effects_preset ??
+              presetFromDpi(Number((ins as WorkspaceRow).dpi_x)) ??
+              "custom"
+          )
           onChangePxRef.current?.(Number(ins.width_px), Number(ins.height_px))
           onChangeMetaRef.current?.(normalizeUnit((ins as WorkspaceRow).unit), Number(ins.dpi_x))
           return
         }
 
         const r = data as unknown as WorkspaceRow
-        const unit = normalizeUnit((r as unknown as { unit?: unknown })?.unit)
         setRow(r)
+        const unit = normalizeUnit((r as unknown as { unit?: unknown })?.unit)
         setDraftWidth(String(r.width_value))
         setDraftHeight(String(r.height_value))
         setDraftDpi(String(r.dpi_x))
         setDraftUnit(unit)
+        setDraftRasterPreset(r.raster_effects_preset ?? presetFromDpi(Number(r.dpi_x)) ?? "custom")
         // Reset lock to avoid surprising behavior when switching projects.
         setLockAspect(false)
         lockRatioRef.current = null
@@ -172,7 +194,7 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
   }, [projectId])
 
   const saveWith = useCallback(
-    async (next: { width: number; height: number; dpi: number; unit: Unit }) => {
+    async (next: { width: number; height: number; dpi: number; unit: Unit; rasterPreset: "high" | "medium" | "low" | null }) => {
       if (!row) return
       if (saving) return
 
@@ -203,6 +225,7 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
         height_value: h,
         dpi_x: dpi,
         dpi_y: dpi,
+        raster_effects_preset: next.rasterPreset,
         width_px: clampPx(unitToPx(w, unit, dpi)),
         height_px: clampPx(unitToPx(h, unit, dpi)),
       }
@@ -213,7 +236,7 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
         const { data, error: upErr } = await supabase
           .from("project_workspace")
           .upsert(nextRow, { onConflict: "project_id" })
-          .select("project_id,unit,width_value,height_value,dpi_x,dpi_y,width_px,height_px")
+          .select("project_id,unit,width_value,height_value,dpi_x,dpi_y,width_px,height_px,raster_effects_preset")
           .single()
 
         if (upErr || !data) {
@@ -223,12 +246,13 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
         }
 
         const r = data as unknown as WorkspaceRow
-        const unit = normalizeUnit((r as unknown as { unit?: unknown })?.unit)
         setRow(r)
+        const unit = normalizeUnit((r as unknown as { unit?: unknown })?.unit)
         setDraftWidth(String(r.width_value))
         setDraftHeight(String(r.height_value))
         setDraftDpi(String(r.dpi_x))
         setDraftUnit(unit)
+        setDraftRasterPreset(r.raster_effects_preset ?? presetFromDpi(Number(r.dpi_x)) ?? "custom")
         onChangePxRef.current?.(Number(r.width_px), Number(r.height_px))
         onChangeMetaRef.current?.(unit, Number(r.dpi_x))
       } finally {
@@ -244,13 +268,11 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
     const w = Number(draftWidth)
     const h = Number(draftHeight)
     const dpi = Number(draftDpi)
-    await saveWith({ width: w, height: h, dpi, unit: draftUnit })
+    await saveWith({ width: w, height: h, dpi, unit: draftUnit, rasterPreset: presetFromDpi(dpi) })
   }, [draftDpi, draftHeight, draftUnit, draftWidth, row, saveWith, saving])
 
   const onUnitChange = (nextUnit: Unit) => {
     if (loading || saving) return
-    // Radix can call `onValueChange` multiple times in the same interaction before React re-renders.
-    // Guard with refs to avoid re-entrancy / update loops.
     if (unitChangeInFlightRef.current === nextUnit) return
     if (nextUnit === draftUnitRef.current) return
     unitChangeInFlightRef.current = nextUnit
@@ -262,7 +284,6 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
     const w = Number(draftWidth)
     const h = Number(draftHeight)
     if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) {
-      // allow unit-only change without conversion/persist
       unitChangeInFlightRef.current = null
       return
     }
@@ -277,10 +298,27 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
     setDraftWidth(nextWidth)
     setDraftHeight(nextHeight)
 
-    // Persist unit changes immediately, but schedule it after Radix Select finishes closing.
     setTimeout(() => {
-      void saveWith({ width: Number(nextWidth), height: Number(nextHeight), dpi, unit: nextUnit })
+      void saveWith({ width: Number(nextWidth), height: Number(nextHeight), dpi, unit: nextUnit, rasterPreset: presetFromDpi(dpi) })
       unitChangeInFlightRef.current = null
+    }, 0)
+  }
+
+  const onRasterPresetChange = (next: string) => {
+    if (loading || saving) return
+    if (next === "custom") return
+    const preset = next === "high" || next === "medium" || next === "low" ? next : "high"
+    const dpi = preset === "high" ? 300 : preset === "medium" ? 150 : 72
+    setDraftRasterPreset(preset)
+    setDraftDpi(String(dpi))
+    setTimeout(() => {
+      void saveWith({
+        width: Number(draftWidth),
+        height: Number(draftHeight),
+        dpi,
+        unit: draftUnitRef.current,
+        rasterPreset: preset,
+      })
     }, 0)
   }
 
@@ -397,25 +435,24 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
       <div className="grid grid-cols-[1fr_1fr_auto] gap-3">
         <div className="flex items-center gap-2">
           <Gauge className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-          <Input
-            id="artboard-dpi"
-            inputMode="numeric"
-            value={draftDpi}
-            onChange={(e) => setDraftDpi(sanitizeNumericInput(e.target.value, "int"))}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") void save()
-            }}
-            onBlur={() => {
-              if (ignoreNextBlurSaveRef.current) {
-                ignoreNextBlurSaveRef.current = false
-                return
-              }
-              void save()
-            }}
+          <select
+            value={draftRasterPreset}
             disabled={controlsDisabled}
-            aria-label="Artboard DPI"
-            className="h-6 w-full px-2 py-0 text-[12px] md:text-[12px] shadow-none"
-          />
+            aria-label="Raster effects resolution"
+            className="border-input bg-transparent text-foreground flex h-6 w-full items-center justify-between rounded-md border px-2 py-0 text-[12px] md:text-[12px] shadow-none outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
+            onMouseDown={() => {
+              // Prevent blur-autosave from a focused input when opening the dropdown.
+              ignoreNextBlurSaveRef.current = true
+            }}
+            onChange={(e) => onRasterPresetChange(e.target.value)}
+          >
+            <option value="high">{labelForPreset("high")}</option>
+            <option value="medium">{labelForPreset("medium")}</option>
+            <option value="low">{labelForPreset("low")}</option>
+            {draftRasterPreset === "custom" ? (
+              <option value="custom">{`Custom (${draftDpi || "?"} ppi)`}</option>
+            ) : null}
+          </select>
         </div>
 
         <div className="flex items-center gap-2">
@@ -426,7 +463,6 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
             aria-label="Artboard unit"
             className="border-input bg-transparent text-foreground flex h-6 w-full items-center justify-between rounded-md border px-2 py-0 text-[12px] md:text-[12px] shadow-none outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
             onMouseDown={() => {
-              // Prevent the currently focused input from auto-saving on blur while opening the dropdown.
               ignoreNextBlurSaveRef.current = true
             }}
             onChange={(e) => onUnitChange(e.target.value as Unit)}
@@ -438,7 +474,6 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
           </select>
         </div>
 
-        {/* icon-slot placeholder for consistent alignment */}
         <div className="h-6 w-6" aria-hidden="true" />
       </div>
 

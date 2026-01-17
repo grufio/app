@@ -162,7 +162,6 @@ export async function POST(
   return NextResponse.json({ ok: true })
 }
 
-
 export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ projectId: string }> }

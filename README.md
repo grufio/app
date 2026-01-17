@@ -43,7 +43,7 @@ npm run dev
 
 ## Editor architecture (high level)
 
-- **UI module**: `components/editor/`
+- **UI module**: `components/shared/editor/`
   - Header (inline title editing)
   - Tool sidebar (hand/select/zoom/fit/rotate)
   - Konva canvas stage (artboard rect + image node)

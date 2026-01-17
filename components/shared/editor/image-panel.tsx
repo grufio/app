@@ -12,12 +12,12 @@ import {
   Link2,
   Unlink2,
 } from "lucide-react"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { clampPx, fmt2, pxToUnit, type Unit, unitToPx } from "@/lib/editor/units"
+import { clampPxFloat, fmt4, pxToUnit, snapNearInt, type Unit, unitToPx } from "@/lib/editor/units"
 import { parseNumericInput, sanitizeNumericInput } from "@/lib/editor/numeric"
 
 type Props = {
@@ -33,14 +33,16 @@ type Props = {
 /**
  * Image sizing panel.
  *
- * The UI always displays image size in the *same unit + DPI* as the artboard,
+ * The UI displays image size in the artboard's *unit + DPI*,
  * but commits changes in pixels to the canvas (so scaling remains stable).
  */
 export function ImagePanel({ widthPx, heightPx, unit, dpi, disabled, onCommit, onAlign }: Props) {
-  const dirtyRef = useRef(false)
+  const [dirty, setDirty] = useState(false)
   const ignoreNextBlurCommitRef = useRef(false)
   const lastEditedRef = useRef<"w" | "h" | null>(null)
   const lockRatioRef = useRef<number | null>(null)
+  const draftWRef = useRef("")
+  const draftHRef = useRef("")
   const [draftW, setDraftW] = useState("")
   const [draftH, setDraftH] = useState("")
   const [lockAspect, setLockAspect] = useState(false)
@@ -50,20 +52,13 @@ export function ImagePanel({ widthPx, heightPx, unit, dpi, disabled, onCommit, o
 
   const computedW = useMemo(() => {
     if (!Number.isFinite(widthPx) || !Number.isFinite(dpi) || dpi <= 0) return ""
-    return fmt2(pxToUnit(Number(widthPx), unit, dpi))
+    return fmt4(snapNearInt(pxToUnit(Number(widthPx), unit, dpi)))
   }, [dpi, unit, widthPx])
 
   const computedH = useMemo(() => {
     if (!Number.isFinite(heightPx) || !Number.isFinite(dpi) || dpi <= 0) return ""
-    return fmt2(pxToUnit(Number(heightPx), unit, dpi))
+    return fmt4(snapNearInt(pxToUnit(Number(heightPx), unit, dpi)))
   }, [dpi, heightPx, unit])
-
-  // Sync drafts to external changes (e.g. canvas updates) when user isn't editing.
-  useEffect(() => {
-    if (dirtyRef.current) return
-    setDraftW(computedW)
-    setDraftH(computedH)
-  }, [computedH, computedW])
 
   const ensureRatio = () => {
     const w = Number(widthPx)
@@ -74,16 +69,18 @@ export function ImagePanel({ widthPx, heightPx, unit, dpi, disabled, onCommit, o
 
   const commit = () => {
     if (!Number.isFinite(dpi) || dpi <= 0) return
-    const wVal = parseNumericInput(draftW)
-    const hVal = parseNumericInput(draftH)
+    // Use refs so blur/tab commits always see the latest typed value
+    // (React state can be one render behind when events batch).
+    const wVal = parseNumericInput(draftWRef.current)
+    const hVal = parseNumericInput(draftHRef.current)
 
     // Always commit BOTH dimensions when both inputs are valid.
     // The canvas supports non-uniform scaling (scaleX/scaleY), so this is the
     // most predictable behavior: values you type are the values applied.
     if (!Number.isFinite(wVal) || wVal <= 0) return
     if (!Number.isFinite(hVal) || hVal <= 0) return
-    const wPx = clampPx(unitToPx(wVal, unit, dpi))
-    const hPx = clampPx(unitToPx(hVal, unit, dpi))
+    const wPx = clampPxFloat(unitToPx(wVal, unit, dpi))
+    const hPx = clampPxFloat(unitToPx(hVal, unit, dpi))
     onCommit(wPx, hPx)
   }
 
@@ -95,11 +92,12 @@ export function ImagePanel({ widthPx, heightPx, unit, dpi, disabled, onCommit, o
         <div className="flex items-center gap-2">
           <ArrowLeftRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
           <Input
-            value={draftW}
+            value={dirty ? draftW : computedW}
             onChange={(e) => {
-              dirtyRef.current = true
+              setDirty(true)
               lastEditedRef.current = "w"
               const next = sanitizeNumericInput(e.target.value, "decimal")
+              draftWRef.current = next
               setDraftW(next)
               if (!lockAspect) return
               const r = lockRatioRef.current ?? ensureRatio()
@@ -107,23 +105,31 @@ export function ImagePanel({ widthPx, heightPx, unit, dpi, disabled, onCommit, o
               lockRatioRef.current = r
               const w = parseNumericInput(next)
               if (!Number.isFinite(w) || w <= 0) return
-              setDraftH(fmt2(w / r))
+              const nextH = fmt4(w / r)
+              draftHRef.current = nextH
+              setDraftH(nextH)
             }}
             disabled={disabled}
             inputMode="decimal"
             aria-label={`Image width (${unit})`}
             className="h-6 w-full px-2 py-0 text-[12px] md:text-[12px] shadow-none"
             onFocus={() => {
-              dirtyRef.current = true
+              setDirty(true)
               lastEditedRef.current = "w"
+              draftWRef.current = computedW
+              draftHRef.current = computedH
+              setDraftW(computedW)
+              setDraftH(computedH)
             }}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
-                dirtyRef.current = false
                 commit()
+                setDirty(false)
               }
               if (e.key === "Escape") {
-                dirtyRef.current = false
+                setDirty(false)
+                draftWRef.current = computedW
+                draftHRef.current = computedH
                 setDraftW(computedW)
                 setDraftH(computedH)
               }
@@ -133,19 +139,20 @@ export function ImagePanel({ widthPx, heightPx, unit, dpi, disabled, onCommit, o
                 ignoreNextBlurCommitRef.current = false
                 return
               }
-              dirtyRef.current = false
               commit()
+              setDirty(false)
             }}
           />
         </div>
         <div className="flex items-center gap-2">
           <ArrowUpDown className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
           <Input
-            value={draftH}
+            value={dirty ? draftH : computedH}
             onChange={(e) => {
-              dirtyRef.current = true
+              setDirty(true)
               lastEditedRef.current = "h"
               const next = sanitizeNumericInput(e.target.value, "decimal")
+              draftHRef.current = next
               setDraftH(next)
               if (!lockAspect) return
               const r = lockRatioRef.current ?? ensureRatio()
@@ -153,23 +160,31 @@ export function ImagePanel({ widthPx, heightPx, unit, dpi, disabled, onCommit, o
               lockRatioRef.current = r
               const h = parseNumericInput(next)
               if (!Number.isFinite(h) || h <= 0) return
-              setDraftW(fmt2(h * r))
+              const nextW = fmt4(h * r)
+              draftWRef.current = nextW
+              setDraftW(nextW)
             }}
             disabled={disabled}
             inputMode="decimal"
             aria-label={`Image height (${unit})`}
             className="h-6 w-full px-2 py-0 text-[12px] md:text-[12px] shadow-none"
             onFocus={() => {
-              dirtyRef.current = true
+              setDirty(true)
               lastEditedRef.current = "h"
+              draftWRef.current = computedW
+              draftHRef.current = computedH
+              setDraftW(computedW)
+              setDraftH(computedH)
             }}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
-                dirtyRef.current = false
                 commit()
+                setDirty(false)
               }
               if (e.key === "Escape") {
-                dirtyRef.current = false
+                setDirty(false)
+                draftWRef.current = computedW
+                draftHRef.current = computedH
                 setDraftW(computedW)
                 setDraftH(computedH)
               }
@@ -179,8 +194,8 @@ export function ImagePanel({ widthPx, heightPx, unit, dpi, disabled, onCommit, o
                 ignoreNextBlurCommitRef.current = false
                 return
               }
-              dirtyRef.current = false
               commit()
+              setDirty(false)
             }}
           />
         </div>

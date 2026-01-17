@@ -22,7 +22,7 @@ import {
   ProjectCanvasStage,
   type ProjectCanvasStageHandle,
   ProjectEditorHeader,
-} from "@/components/editor"
+} from "@/components/shared/editor"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { getMasterImage } from "@/lib/api/project-images"
 
@@ -43,6 +43,9 @@ export default function ProjectDetailPage() {
   } | null>(null)
   const [masterImageLoading, setMasterImageLoading] = useState(false)
   const [masterImageError, setMasterImageError] = useState<string>("")
+  const [imageStateError, setImageStateError] = useState<string>("")
+  const [imageStateLoading, setImageStateLoading] = useState(false)
+  const [restoreOpen, setRestoreOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteBusy, setDeleteBusy] = useState(false)
   const [deleteError, setDeleteError] = useState<string>("")
@@ -57,11 +60,11 @@ export default function ProjectDetailPage() {
     y: number
     scaleX: number
     scaleY: number
+    widthPx?: number
+    heightPx?: number
     rotationDeg: number
   } | null>(null)
-  const [artboardMeta, setArtboardMeta] = useState<{ unit: "mm" | "cm" | "pt" | "px"; dpi: number } | null>(
-    null
-  )
+  const [artboardMeta, setArtboardMeta] = useState<{ unit: "mm" | "cm" | "pt" | "px"; dpi: number } | null>(null)
 
   const handleArtboardPxChange = useCallback((w: number, h: number) => {
     setArtboardPx({ w, h })
@@ -98,17 +101,40 @@ export default function ProjectDetailPage() {
   }, [projectId])
 
   const loadImageState = useCallback(async () => {
+    setImageStateError("")
+    setImageStateLoading(true)
     try {
       const res = await fetch(`/api/projects/${projectId}/image-state`, {
         method: "GET",
         credentials: "same-origin",
       })
       if (!res.ok) {
+        const payload = (await res.json().catch(() => null)) as Record<string, unknown> | null
+        const msg =
+          typeof payload?.error === "string"
+            ? payload.error
+            : payload
+              ? JSON.stringify(payload)
+              : `HTTP ${res.status}`
+        setImageStateError(msg)
         setInitialImageTransform(null)
         return
       }
       const payload = (await res.json().catch(() => null)) as
-        | { exists?: boolean; state?: { x: number; y: number; scale_x: number; scale_y: number; rotation_deg: number } }
+        | {
+            exists?: boolean
+            state?: {
+              x: number
+              y: number
+              scale_x: number
+              scale_y: number
+              width_px?: number | null
+              height_px?: number | null
+              unit?: "mm" | "cm" | "pt" | "px" | null
+              dpi?: number | null
+              rotation_deg: number
+            }
+          }
         | null
       if (!payload?.exists || !payload.state) {
         setInitialImageTransform(null)
@@ -119,31 +145,69 @@ export default function ProjectDetailPage() {
         y: Number(payload.state.y),
         scaleX: Number(payload.state.scale_x),
         scaleY: Number(payload.state.scale_y),
+        widthPx: payload.state.width_px == null ? undefined : Number(payload.state.width_px),
+        heightPx: payload.state.height_px == null ? undefined : Number(payload.state.height_px),
         rotationDeg: Number(payload.state.rotation_deg),
       })
-    } catch {
+    } catch (e) {
+      console.error("Failed to load image state", e)
+      setImageStateError("Failed to load image state.")
       setInitialImageTransform(null)
+    } finally {
+      setImageStateLoading(false)
     }
   }, [projectId])
 
   const saveImageState = useCallback(
-    async (t: { x: number; y: number; scaleX: number; scaleY: number; rotationDeg: number }) => {
-      void fetch(`/api/projects/${projectId}/image-state`, {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          role: "master",
-          x: t.x,
-          y: t.y,
-          scale_x: t.scaleX,
-          scale_y: t.scaleY,
-          rotation_deg: t.rotationDeg,
-        }),
-      }).catch(() => null)
+    async (t: {
+      x: number
+      y: number
+      scaleX: number
+      scaleY: number
+      widthPx?: number
+      heightPx?: number
+      unit?: "mm" | "cm" | "pt" | "px"
+      dpi?: number
+      rotationDeg: number
+    }) => {
+      try {
+        const res = await fetch(`/api/projects/${projectId}/image-state`, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            role: "master",
+            x: t.x,
+            y: t.y,
+            scale_x: t.scaleX,
+            scale_y: t.scaleY,
+            width_px: t.widthPx,
+            height_px: t.heightPx,
+            unit: t.unit,
+            dpi: t.dpi,
+            rotation_deg: t.rotationDeg,
+          }),
+        })
+        if (!res.ok) {
+          const payload = (await res.json().catch(() => null)) as Record<string, unknown> | null
+          const msg =
+            typeof payload?.error === "string"
+              ? payload.error
+              : payload
+                ? JSON.stringify(payload)
+                : `HTTP ${res.status}`
+          setImageStateError(msg)
+        } else {
+          setImageStateError("")
+        }
+      } catch (e) {
+        console.error("Failed to save image state", e)
+        setImageStateError("Failed to save image state.")
+      }
     },
     [projectId]
   )
+
 
   const deleteMasterImage = useCallback(async () => {
     if (deleteBusy) return
@@ -206,10 +270,28 @@ export default function ProjectDetailPage() {
   useEffect(() => {
     if (!masterImage) {
       setInitialImageTransform(null)
+      setImageStateError("")
+      setImageStateLoading(false)
+      setArtboardMeta(null)
       return
     }
     void loadImageState()
   }, [loadImageState, masterImage])
+
+  // When persisted image state loads, reflect it in the Image panel immediately (avoid artboard-fit snap on reload).
+  useEffect(() => {
+    if (!masterImage || !initialImageTransform) return
+    const w =
+      Number.isFinite(Number(initialImageTransform.widthPx)) && Number(initialImageTransform.widthPx) > 0
+        ? Math.round(Number(initialImageTransform.widthPx))
+        : Math.round(masterImage.width_px * initialImageTransform.scaleX)
+    const h =
+      Number.isFinite(Number(initialImageTransform.heightPx)) && Number(initialImageTransform.heightPx) > 0
+        ? Math.round(Number(initialImageTransform.heightPx))
+        : Math.round(masterImage.height_px * initialImageTransform.scaleY)
+    if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return
+    setImagePx((prev) => (prev && prev.w === w && prev.h === h ? prev : { w, h }))
+  }, [initialImageTransform, masterImage])
 
   return (
     <div className="flex min-h-svh w-full flex-col">
@@ -266,19 +348,25 @@ export default function ProjectDetailPage() {
                 {/* Workspace */}
                 {masterImage ? (
                   <div className="min-h-0 flex-1">
-                    <ProjectCanvasStage
-                      ref={canvasRef}
-                      src={masterImage.signedUrl}
-                      alt={masterImage.name}
-                      className="h-full w-full"
-                      panEnabled={panEnabled}
-                      imageDraggable={imageDraggable}
-                      artboardWidthPx={artboardPx?.w}
-                      artboardHeightPx={artboardPx?.h}
-                      onImageSizeChange={handleImagePxChange}
-                      initialImageTransform={initialImageTransform}
-                      onImageTransformCommit={saveImageState}
-                    />
+                    {imageStateLoading ? (
+                      <div className="flex h-full w-full items-center justify-center">
+                        <div className="text-sm text-muted-foreground">Loading image state…</div>
+                      </div>
+                    ) : (
+                      <ProjectCanvasStage
+                        ref={canvasRef}
+                        src={masterImage.signedUrl}
+                        alt={masterImage.name}
+                        className="h-full w-full"
+                        panEnabled={panEnabled}
+                        imageDraggable={imageDraggable}
+                        artboardWidthPx={artboardPx?.w}
+                        artboardHeightPx={artboardPx?.h}
+                        onImageSizeChange={handleImagePxChange}
+                        initialImageTransform={initialImageTransform}
+                        onImageTransformCommit={saveImageState}
+                      />
+                    )}
                   </div>
                 ) : (
                   <div className="min-h-0 flex-1">
@@ -314,7 +402,7 @@ export default function ProjectDetailPage() {
                         className="h-6 w-6"
                         disabled={!masterImage || masterImageLoading || deleteBusy}
                         aria-label="Restore image"
-                        onClick={() => canvasRef.current?.restoreImage()}
+                        onClick={() => setRestoreOpen(true)}
                       >
                         <RotateCcw className="size-4" />
                       </Button>
@@ -334,13 +422,18 @@ export default function ProjectDetailPage() {
                       </Button>
                     </div>
                   </div>
+                  {imageStateError ? (
+                    <div className="mt-2 text-xs text-destructive">
+                      Image state error: {imageStateError}
+                    </div>
+                  ) : null}
                   <div className="mt-3">
                     <ImagePanel
                       widthPx={imagePx?.w ?? masterImage?.width_px}
                       heightPx={imagePx?.h ?? masterImage?.height_px}
                       unit={artboardMeta?.unit ?? "cm"}
                       dpi={artboardMeta?.dpi ?? 300}
-                      disabled={!masterImage}
+                      disabled={!masterImage || imageStateLoading}
                       onCommit={(w, h) => canvasRef.current?.setImageSize(w, h)}
                       onAlign={(opts) => canvasRef.current?.alignImage(opts)}
                     />
@@ -352,6 +445,34 @@ export default function ProjectDetailPage() {
                 </div>
               </div>
             </aside>
+
+            {/* Restore confirmation dialog */}
+            <Dialog open={restoreOpen} onOpenChange={setRestoreOpen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Restore image?</DialogTitle>
+                  <DialogDescription>
+                    This will reset the image position, scale, and rotation back to its default placement within the current
+                    artboard.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setRestoreOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      canvasRef.current?.restoreImage()
+                      setRestoreOpen(false)
+                    }}
+                  >
+                    Restore
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
 
             {/* Delete confirmation dialog */}
             <Dialog open={deleteOpen} onOpenChange={(o) => (deleteBusy ? null : setDeleteOpen(o))}>

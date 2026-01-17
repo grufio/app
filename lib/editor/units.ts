@@ -38,6 +38,33 @@ export function clampPx(px: number): number {
 }
 
 /**
+ * Clamp a pixel dimension to a safe positive number, but keep decimals.
+ * This avoids value drift when converting unit <-> px repeatedly.
+ */
+export function clampPxFloat(px: number): number {
+  if (!Number.isFinite(px)) return 1
+  return Math.max(1, px)
+}
+
+/**
+ * Format a number for compact UI inputs (max 4 decimals, trims trailing zeros).
+ */
+export function fmt4(n: number): string {
+  if (!Number.isFinite(n)) return ""
+  return n.toFixed(4).replace(/\.?0+$/, "")
+}
+
+/**
+ * Snap a number to its nearest integer when it's extremely close.
+ * Useful for display-only formatting to avoid "199.9999" flicker/drift.
+ */
+export function snapNearInt(n: number, eps = 1e-3): number {
+  if (!Number.isFinite(n)) return n
+  const r = Math.round(n)
+  return Math.abs(n - r) <= eps ? r : n
+}
+
+/**
  * Format a number for compact UI inputs (max 2 decimals, trims trailing zeros).
  */
 export function fmt2(n: number): string {
