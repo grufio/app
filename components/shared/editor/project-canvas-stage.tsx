@@ -119,6 +119,10 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   const appliedInitialTransformKeyRef = useRef<string | null>(null)
   const userInteractedRef = useRef(false)
   const userChangedImageTxRef = useRef(false)
+  const commitTimerRef = useRef<number | null>(null)
+  const pendingCommitRef = useRef<{ tx: { x: number; y: number; scaleX: number; scaleY: number } | null; rot: number } | null>(
+    null
+  )
 
   const [imageTx, setImageTx] = useState<{ x: number; y: number; scaleX: number; scaleY: number } | null>(null)
   const imageTxRef = useRef<{ x: number; y: number; scaleX: number; scaleY: number } | null>(null)
@@ -372,14 +376,39 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     [img, onImageTransformCommit]
   )
 
+  const scheduleCommitTransform = useCallback(
+    (tx: { x: number; y: number; scaleX: number; scaleY: number } | null, rotationDeg: number, delayMs = 150) => {
+      pendingCommitRef.current = { tx, rot: rotationDeg }
+      if (commitTimerRef.current != null) return
+      commitTimerRef.current = window.setTimeout(() => {
+        commitTimerRef.current = null
+        const p = pendingCommitRef.current
+        pendingCommitRef.current = null
+        if (!p) return
+        commitTransform(p.tx, p.rot)
+      }, delayMs)
+    },
+    [commitTransform]
+  )
+
+  useEffect(() => {
+    return () => {
+      if (commitTimerRef.current != null) {
+        window.clearTimeout(commitTimerRef.current)
+        commitTimerRef.current = null
+      }
+      pendingCommitRef.current = null
+    }
+  }, [])
+
   const rotate90 = useCallback(() => {
     setRotation((r) => {
       const next = (r + 90) % 360
       // Persist rotation change (commit-on-action, not on every frame).
-      setTimeout(() => commitTransform(imageTxRef.current, next), 0)
+      scheduleCommitTransform(imageTxRef.current, next, 0)
       return next
     })
-  }, [commitTransform])
+  }, [scheduleCommitTransform])
 
   const setImageSize = useCallback(
     (widthPx: number, heightPx: number) => {
@@ -399,9 +428,9 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
       }
       userChangedImageTxRef.current = true
       setImageTx(next)
-      setTimeout(() => commitTransform(next, rotationRef.current), 0)
+      scheduleCommitTransform(next, rotationRef.current, 0)
     },
-    [artH, artW, commitTransform, img, showArtboard]
+    [artH, artW, img, scheduleCommitTransform, showArtboard]
   )
 
   const restoreImage = useCallback(() => {
@@ -416,9 +445,9 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     const next = { x, y, scaleX: initialScale, scaleY: initialScale }
     userChangedImageTxRef.current = true
     setImageTx(next)
-    setTimeout(() => commitTransform(next, 0), 0)
+    scheduleCommitTransform(next, 0, 0)
     scheduleBoundsUpdate()
-  }, [artH, artW, commitTransform, img, scheduleBoundsUpdate, showArtboard])
+  }, [artH, artW, img, scheduleBoundsUpdate, scheduleCommitTransform, showArtboard])
 
   const alignImage = useCallback(
     (opts: { x?: "left" | "center" | "right"; y?: "top" | "center" | "bottom" }) => {
@@ -452,11 +481,11 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
       }
       userChangedImageTxRef.current = true
       setImageTx(next)
-      setTimeout(() => commitTransform(next, rotationRef.current), 0)
+      scheduleCommitTransform(next, rotationRef.current, 0)
 
       scheduleBoundsUpdate()
     },
-    [artH, artW, commitTransform, scheduleBoundsUpdate, showArtboard]
+    [artH, artW, scheduleBoundsUpdate, scheduleCommitTransform, showArtboard]
   )
 
   useImperativeHandle(
@@ -542,6 +571,9 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
               draggable={imageDraggable}
               onDragStart={() => {
                 userInteractedRef.current = true
+                // Mark as user-changed immediately, so a late `initialImageTransform`
+                // cannot override state mid-drag.
+                userChangedImageTxRef.current = true
                 scheduleBoundsUpdate()
               }}
               onDragMove={() => {
@@ -551,9 +583,8 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
                 const n = e.target
                 const prev = imageTxRef.current
                 const next = { x: n.x(), y: n.y(), scaleX: prev?.scaleX ?? 1, scaleY: prev?.scaleY ?? 1 }
-                userChangedImageTxRef.current = true
                 setImageTx(next)
-                setTimeout(() => commitTransform(next, rotationRef.current), 0)
+                scheduleCommitTransform(next, rotationRef.current, 0)
               }}
             />
           ) : null}
