@@ -18,9 +18,23 @@ jobs:
           node-version: 20
           cache: npm
 
+      - name: Cache Next build cache
+        uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: ${{ runner.os }}-nextcache-${{ hashFiles('package-lock.json') }}-${{ hashFiles('next.config.*', 'tsconfig.json', 'app/**/*', 'components/**/*', 'lib/**/*') }}
+          restore-keys: |
+            ${{ runner.os }}-nextcache-${{ hashFiles('package-lock.json') }}-
+            ${{ runner.os }}-nextcache-
+
       - name: Install
         run: npm ci
 
       - name: Check (lint + tests + schema markers)
         run: npm run check:ci
 
+      - name: Install Playwright browsers (Chromium)
+        run: npx -y playwright install --with-deps chromium
+
+      - name: E2E (Playwright)
+        run: npm run test:e2e
