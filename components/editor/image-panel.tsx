@@ -27,6 +27,7 @@ type Props = {
   dpi: number
   disabled?: boolean
   onCommit: (widthPx: number, heightPx: number) => void
+  onAlign: (opts: { x?: "left" | "center" | "right"; y?: "top" | "center" | "bottom" }) => void
 }
 
 /**
@@ -35,7 +36,7 @@ type Props = {
  * The UI always displays image size in the *same unit + DPI* as the artboard,
  * but commits changes in pixels to the canvas (so scaling remains stable).
  */
-export function ImagePanel({ widthPx, heightPx, unit, dpi, disabled, onCommit }: Props) {
+export function ImagePanel({ widthPx, heightPx, unit, dpi, disabled, onCommit, onAlign }: Props) {
   const dirtyRef = useRef(false)
   const ignoreNextBlurCommitRef = useRef(false)
   const lastEditedRef = useRef<"w" | "h" | null>(null)
@@ -43,8 +44,9 @@ export function ImagePanel({ widthPx, heightPx, unit, dpi, disabled, onCommit }:
   const [draftW, setDraftW] = useState("")
   const [draftH, setDraftH] = useState("")
   const [lockAspect, setLockAspect] = useState(false)
-  const [alignX, setAlignX] = useState<"left" | "center" | "right">("center")
-  const [alignY, setAlignY] = useState<"top" | "center" | "bottom">("center")
+  // Functional button bars (no selected visual state). We keep transient value just to satisfy Radix.
+  const [alignXAction, setAlignXAction] = useState<string>("")
+  const [alignYAction, setAlignYAction] = useState<string>("")
 
   const computedW = useMemo(() => {
     if (!Number.isFinite(widthPx) || !Number.isFinite(dpi) || dpi <= 0) return ""
@@ -247,10 +249,11 @@ export function ImagePanel({ widthPx, heightPx, unit, dpi, disabled, onCommit }:
         <div className="flex items-center">
           <ToggleGroup
             type="single"
-            value={alignX}
+            value={alignXAction}
             onValueChange={(v) => {
               if (!v) return
-              setAlignX(v as typeof alignX)
+              onAlign({ x: v as "left" | "center" | "right" })
+              setAlignXAction("")
             }}
             className="w-full justify-start"
           >
@@ -269,10 +272,11 @@ export function ImagePanel({ widthPx, heightPx, unit, dpi, disabled, onCommit }:
         <div className="flex items-center">
           <ToggleGroup
             type="single"
-            value={alignY}
+            value={alignYAction}
             onValueChange={(v) => {
               if (!v) return
-              setAlignY(v as typeof alignY)
+              onAlign({ y: v as "top" | "center" | "bottom" })
+              setAlignYAction("")
             }}
             className="w-full justify-start"
           >

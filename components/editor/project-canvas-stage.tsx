@@ -27,6 +27,11 @@ export type ProjectCanvasStageHandle = {
    * Pass `NaN` for a dimension to keep that axis unchanged.
    */
   setImageSize: (widthPx: number, heightPx: number) => void
+  /**
+   * Align the image position relative to the artboard.
+   * Uses the image node's axis-aligned bounding box (includes rotation).
+   */
+  alignImage: (opts: { x?: "left" | "center" | "right"; y?: "top" | "center" | "bottom" }) => void
 }
 
 function useHtmlImage(src: string | null) {
@@ -277,10 +282,47 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     [artH, artW, img, showArtboard]
   )
 
+  const alignImage = useCallback(
+    (opts: { x?: "left" | "center" | "right"; y?: "top" | "center" | "bottom" }) => {
+      if (!showArtboard) return
+      const layer = layerRef.current
+      const node = imageNodeRef.current
+      if (!layer || !node) return
+
+      const r = node.getClientRect({ relativeTo: layer })
+      let dx = 0
+      let dy = 0
+
+      if (opts.x === "left") dx = 0 - r.x
+      if (opts.x === "center") dx = artW / 2 - (r.x + r.width / 2)
+      if (opts.x === "right") dx = artW - (r.x + r.width)
+
+      if (opts.y === "top") dy = 0 - r.y
+      if (opts.y === "center") dy = artH / 2 - (r.y + r.height / 2)
+      if (opts.y === "bottom") dy = artH - (r.y + r.height)
+
+      if (dx === 0 && dy === 0) return
+
+      setImageTx((prev) => {
+        const baseX = prev?.x ?? node.x()
+        const baseY = prev?.y ?? node.y()
+        return {
+          x: baseX + dx,
+          y: baseY + dy,
+          scaleX: prev?.scaleX ?? node.scaleX() ?? 1,
+          scaleY: prev?.scaleY ?? node.scaleY() ?? 1,
+        }
+      })
+
+      scheduleBoundsUpdate()
+    },
+    [artH, artW, scheduleBoundsUpdate, showArtboard]
+  )
+
   useImperativeHandle(
     ref,
-    () => ({ fitToView, zoomIn, zoomOut, rotate90, setImageSize }),
-    [fitToView, rotate90, setImageSize, zoomIn, zoomOut]
+    () => ({ fitToView, zoomIn, zoomOut, rotate90, setImageSize, alignImage }),
+    [alignImage, fitToView, rotate90, setImageSize, zoomIn, zoomOut]
   )
 
   const onWheel = useCallback(

@@ -205,6 +205,7 @@ export default function ProjectDetailPage() {
                       dpi={artboardMeta?.dpi ?? 300}
                       disabled={!masterImage}
                       onCommit={(w, h) => canvasRef.current?.setImageSize(w, h)}
+                  onAlign={(opts) => canvasRef.current?.alignImage(opts)}
                     />
                   </div>
                 </div>
