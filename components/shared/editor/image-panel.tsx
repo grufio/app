@@ -15,10 +15,11 @@ import {
 import { useMemo, useRef, useState } from "react"
 
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { NumericInput } from "@/components/shared/editor/numeric-input"
+import { PanelField, PanelIconSlot, PanelTwoFieldRow } from "@/components/shared/editor/panel-layout"
 import { clampPxFloat, fmt4, pxToUnit, snapNearInt, type Unit, unitToPx } from "@/lib/editor/units"
-import { parseNumericInput, sanitizeNumericInput } from "@/lib/editor/numeric"
+import { parseNumericInput } from "@/lib/editor/numeric"
 
 type Props = {
   widthPx?: number
@@ -88,15 +89,13 @@ export function ImagePanel({ widthPx, heightPx, unit, dpi, disabled, onCommit, o
     <div className="space-y-4">
       {/* Keep row layout aligned with other right-panel rows:
           [field | field | icon-slot placeholder] */}
-      <div className="grid grid-cols-[1fr_1fr_auto] gap-3">
-        <div className="flex items-center gap-2">
-          <ArrowLeftRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-          <Input
+      <PanelTwoFieldRow>
+        <PanelField icon={<ArrowLeftRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />}>
+          <NumericInput
             value={dirty ? draftW : computedW}
-            onChange={(e) => {
+            onValueChange={(next) => {
               setDirty(true)
               lastEditedRef.current = "w"
-              const next = sanitizeNumericInput(e.target.value, "decimal")
               draftWRef.current = next
               setDraftW(next)
               if (!lockAspect) return
@@ -110,7 +109,6 @@ export function ImagePanel({ widthPx, heightPx, unit, dpi, disabled, onCommit, o
               setDraftH(nextH)
             }}
             disabled={disabled}
-            inputMode="decimal"
             aria-label={`Image width (${unit})`}
             className="h-6 w-full px-2 py-0 text-[12px] md:text-[12px] shadow-none"
             onFocus={() => {
@@ -143,15 +141,14 @@ export function ImagePanel({ widthPx, heightPx, unit, dpi, disabled, onCommit, o
               setDirty(false)
             }}
           />
-        </div>
-        <div className="flex items-center gap-2">
-          <ArrowUpDown className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-          <Input
+        </PanelField>
+
+        <PanelField icon={<ArrowUpDown className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />}>
+          <NumericInput
             value={dirty ? draftH : computedH}
-            onChange={(e) => {
+            onValueChange={(next) => {
               setDirty(true)
               lastEditedRef.current = "h"
-              const next = sanitizeNumericInput(e.target.value, "decimal")
               draftHRef.current = next
               setDraftH(next)
               if (!lockAspect) return
@@ -198,9 +195,9 @@ export function ImagePanel({ widthPx, heightPx, unit, dpi, disabled, onCommit, o
               setDirty(false)
             }}
           />
-        </div>
-        {/* icon-slot: lock aspect for image scaling */}
-        <div className="flex items-center justify-end">
+        </PanelField>
+
+        <PanelIconSlot>
           <Button
             type="button"
             size="icon"
@@ -228,11 +225,11 @@ export function ImagePanel({ widthPx, heightPx, unit, dpi, disabled, onCommit, o
           >
             {lockAspect ? <Link2 className="size-4" /> : <Unlink2 className="size-4" />}
           </Button>
-        </div>
-      </div>
+        </PanelIconSlot>
+      </PanelTwoFieldRow>
 
       {/* Alignment controls (like the screenshot): 3 icons under width and 3 under height */}
-      <div className="grid grid-cols-[1fr_1fr_auto] gap-3">
+      <PanelTwoFieldRow>
         <div className="flex items-center">
           <ToggleGroup
             type="single"
@@ -280,8 +277,8 @@ export function ImagePanel({ widthPx, heightPx, unit, dpi, disabled, onCommit, o
         </div>
 
         {/* icon-slot placeholder */}
-        <div className="h-6 w-6" aria-hidden="true" />
-      </div>
+        <PanelIconSlot />
+      </PanelTwoFieldRow>
     </div>
   )
 }

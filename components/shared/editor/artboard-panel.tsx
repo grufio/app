@@ -5,9 +5,10 @@ import { ArrowLeftRight, ArrowUpDown, Gauge, Link2, Ruler, Unlink2 } from "lucid
 
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { clampPx, fmt2, type Unit, unitToPx } from "@/lib/editor/units"
-import { parseNumericInput, sanitizeNumericInput } from "@/lib/editor/numeric"
+import { parseNumericInput } from "@/lib/editor/numeric"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { NumericInput } from "@/components/shared/editor/numeric-input"
+import { PanelField, PanelIconSlot, PanelTwoFieldRow } from "@/components/shared/editor/panel-layout"
 
 export type WorkspaceRow = {
   project_id: string
@@ -335,15 +336,12 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
     <div className="space-y-4">
       {/* Rows follow a consistent layout:
           [field | field | icon-slot] so the UI stays aligned across rows. */}
-      <div className="grid grid-cols-[1fr_1fr_auto] gap-3">
-        <div className="flex items-center gap-2">
-          <ArrowLeftRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-          <Input
+      <PanelTwoFieldRow>
+        <PanelField icon={<ArrowLeftRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />}>
+          <NumericInput
             id="artboard-width"
-            inputMode="decimal"
             value={draftWidth}
-            onChange={(e) => {
-              const next = sanitizeNumericInput(e.target.value, "decimal")
+            onValueChange={(next) => {
               setDraftWidth(next)
               if (!lockAspect) return
               const r = ratio ?? ensureRatio()
@@ -367,15 +365,13 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
             aria-label="Artboard width"
             className="h-6 w-full px-2 py-0 text-[12px] md:text-[12px] shadow-none"
           />
-        </div>
-        <div className="flex items-center gap-2">
-          <ArrowUpDown className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-          <Input
+        </PanelField>
+
+        <PanelField icon={<ArrowUpDown className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />}>
+          <NumericInput
             id="artboard-height"
-            inputMode="decimal"
             value={draftHeight}
-            onChange={(e) => {
-              const next = sanitizeNumericInput(e.target.value, "decimal")
+            onValueChange={(next) => {
               setDraftHeight(next)
               if (!lockAspect) return
               const r = ratio ?? ensureRatio()
@@ -399,9 +395,9 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
             aria-label="Artboard height"
             className="h-6 w-full px-2 py-0 text-[12px] md:text-[12px] shadow-none"
           />
-        </div>
-        {/* icon-slot */}
-        <div className="flex items-center justify-end">
+        </PanelField>
+
+        <PanelIconSlot>
           <Button
             type="button"
             size="icon"
@@ -429,12 +425,11 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
           >
             {lockAspect ? <Link2 className="size-4" /> : <Unlink2 className="size-4" />}
           </Button>
-        </div>
-      </div>
+        </PanelIconSlot>
+      </PanelTwoFieldRow>
 
-      <div className="grid grid-cols-[1fr_1fr_auto] gap-3">
-        <div className="flex items-center gap-2">
-          <Gauge className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+      <PanelTwoFieldRow>
+        <PanelField icon={<Gauge className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />}>
           <select
             value={draftRasterPreset}
             disabled={controlsDisabled}
@@ -453,10 +448,9 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
               <option value="custom">{`Custom (${draftDpi || "?"} ppi)`}</option>
             ) : null}
           </select>
-        </div>
+        </PanelField>
 
-        <div className="flex items-center gap-2">
-          <Ruler className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+        <PanelField icon={<Ruler className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />}>
           <select
             value={draftUnit}
             disabled={controlsDisabled}
@@ -472,10 +466,10 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
             <option value="pt">pt</option>
             <option value="px">px</option>
           </select>
-        </div>
+        </PanelField>
 
-        <div className="h-6 w-6" aria-hidden="true" />
-      </div>
+        <PanelIconSlot />
+      </PanelTwoFieldRow>
 
       {saving ? <div className="text-[12px] md:text-[12px] text-muted-foreground">Saving…</div> : null}
       {error ? <div className="text-[12px] md:text-[12px] text-destructive">{error}</div> : null}
