@@ -34,3 +34,9 @@ This must be configured in GitHub settings (cannot be automated from within the 
   - db schema marker drift check (`scripts/check-db-schema.mjs`)
   - `next build`
 
+### Optional: E2E in CI
+
+The template `docs/ci/github-actions-ci.yml.template` includes a Playwright Chromium install + `npm run test:e2e`.
+If you don't want E2E in CI (yet), you can remove those two steps from `.github/workflows/ci.yml`.
+
+
