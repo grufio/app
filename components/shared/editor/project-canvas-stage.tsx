@@ -519,6 +519,20 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     [zoomBy]
   )
 
+  // E2E test hook: expose stage + image node to the browser so Playwright can
+  // assert transforms without pixel-based screenshots.
+  useEffect(() => {
+    const isE2E =
+      process.env.NEXT_PUBLIC_E2E_TEST === "1" ||
+      // Playwright sets this in automation; safe to use as a non-production test hook.
+      (typeof navigator !== "undefined" && Boolean((navigator as unknown as { webdriver?: boolean })?.webdriver))
+    if (!isE2E) return
+    ;(globalThis as unknown as Record<string, unknown>).__gruf_editor = {
+      stage: stageRef.current,
+      image: imageNodeRef.current,
+    }
+  })
+
   if (!src) return null
 
   return (
@@ -526,6 +540,15 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
       <Stage
         ref={(n) => {
           stageRef.current = n
+          if (
+            process.env.NEXT_PUBLIC_E2E_TEST === "1" ||
+            (typeof navigator !== "undefined" && Boolean((navigator as unknown as { webdriver?: boolean })?.webdriver))
+          ) {
+            ;(globalThis as unknown as Record<string, unknown>).__gruf_editor = {
+              stage: n,
+              image: imageNodeRef.current,
+            }
+          }
         }}
         width={size.w}
         height={size.h}
@@ -558,6 +581,15 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
             <KonvaImage
               ref={(n) => {
                 imageNodeRef.current = n
+                if (
+                  process.env.NEXT_PUBLIC_E2E_TEST === "1" ||
+                  (typeof navigator !== "undefined" && Boolean((navigator as unknown as { webdriver?: boolean })?.webdriver))
+                ) {
+                  ;(globalThis as unknown as Record<string, unknown>).__gruf_editor = {
+                    stage: stageRef.current,
+                    image: n,
+                  }
+                }
               }}
               image={img}
               listening={imageDraggable}

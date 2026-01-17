@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test"
 
 const PROJECT_ID = "00000000-0000-0000-0000-000000000001"
 
-function mockSupabaseAndApi(page: import("@playwright/test").Page, opts: { withImage: boolean }) {
+function setupMockRoutes(page: import("@playwright/test").Page, opts: { withImage: boolean; persistImageState?: boolean }) {
   const workspaceRow = {
     project_id: PROJECT_ID,
     unit: "cm",
@@ -10,12 +10,13 @@ function mockSupabaseAndApi(page: import("@playwright/test").Page, opts: { withI
     height_value: 30,
     dpi_x: 300,
     dpi_y: 300,
-    width_px: 2362.2047,
-    height_px: 3543.3071,
+    // Keep artboard reasonably sized so the image is visible.
+    width_px: 800,
+    height_px: 600,
     raster_effects_preset: "high",
   }
 
-  // A tiny 1x1 png data URL (works with window.Image).
+  // A small visible PNG (20x10) as data URL (works with window.Image).
   const dataPng =
     "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO6qv0kAAAAASUVORK5CYII="
 
@@ -23,14 +24,19 @@ function mockSupabaseAndApi(page: import("@playwright/test").Page, opts: { withI
     ? {
         exists: true,
         signedUrl: dataPng,
-        width_px: 1000,
-        height_px: 500,
+        width_px: 200,
+        height_px: 100,
         name: "test.png",
       }
     : { exists: false }
 
+  let persisted: any = null
+  let postCount = 0
+  let getCount = 0
+
   page.route("**/*", async (route) => {
-    const url = route.request().url()
+    const req = route.request()
+    const url = req.url()
 
     // Supabase PostgREST: projects
     if (url.includes("/rest/v1/projects")) {
@@ -50,7 +56,7 @@ function mockSupabaseAndApi(page: import("@playwright/test").Page, opts: { withI
       })
     }
 
-    // Internal API: master image exists + signed URL
+    // Internal API: master image
     if (url.endsWith(`/api/projects/${PROJECT_ID}/images/master`)) {
       return route.fulfill({
         status: 200,
@@ -67,22 +73,52 @@ function mockSupabaseAndApi(page: import("@playwright/test").Page, opts: { withI
       })
     }
 
-    // Internal API: image-state (persisted transform)
+    // Internal API: image-state
     if (url.endsWith(`/api/projects/${PROJECT_ID}/image-state`)) {
-      return route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ exists: false }),
-      })
+      if (req.method() === "GET") {
+        getCount++
+        if (!opts.persistImageState || !persisted) {
+          return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ exists: false }) })
+        }
+        return route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            exists: true,
+            state: {
+              x: persisted.x,
+              y: persisted.y,
+              scale_x: persisted.scale_x,
+              scale_y: persisted.scale_y,
+              width_px: persisted.width_px ?? null,
+              height_px: persisted.height_px ?? null,
+              rotation_deg: persisted.rotation_deg ?? 0,
+            },
+          }),
+        })
+      }
+
+      if (req.method() === "POST") {
+        postCount++
+        persisted = await req.postDataJSON()
+        return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) })
+      }
+
+      return route.fulfill({ status: 405, contentType: "application/json", body: JSON.stringify({ error: "Method not allowed" }) })
     }
 
     return route.fallback()
   })
+
+  return {
+    getCounts: () => ({ postCount, getCount }),
+    getPersisted: () => persisted,
+  }
 }
 
 test("editor loads without an image (uploader shown)", async ({ page }) => {
   await page.setExtraHTTPHeaders({ "x-e2e-test": "1" })
-  mockSupabaseAndApi(page, { withImage: false })
+  setupMockRoutes(page, { withImage: false })
   await page.goto(`/projects/${PROJECT_ID}`)
 
   await expect(page.getByText("Artboard")).toBeVisible()
@@ -91,11 +127,65 @@ test("editor loads without an image (uploader shown)", async ({ page }) => {
 
 test("editor loads with an image (konva canvas present)", async ({ page }) => {
   await page.setExtraHTTPHeaders({ "x-e2e-test": "1" })
-  mockSupabaseAndApi(page, { withImage: true })
+  setupMockRoutes(page, { withImage: true })
   await page.goto(`/projects/${PROJECT_ID}`)
 
   await expect(page.getByText("Artboard")).toBeVisible()
-  // react-konva renders a <canvas> inside the stage container
   await expect(page.locator("canvas").first()).toBeVisible()
 })
 
+test("drag image persists across reload", async ({ page }) => {
+  await page.setExtraHTTPHeaders({ "x-e2e-test": "1" })
+  const mock = setupMockRoutes(page, { withImage: true, persistImageState: true })
+
+  await page.goto(`/projects/${PROJECT_ID}`)
+  await expect(page.getByText("Artboard")).toBeVisible()
+
+  // Select tool so the image is draggable.
+  await page.getByRole("button", { name: "Select (Move Image)" }).click()
+
+  // Wait for test hook to expose Konva nodes.
+  await page.waitForFunction(() => Boolean((globalThis as any).__gruf_editor?.image))
+
+  const before = await page.evaluate(() => {
+    const g: any = (globalThis as any).__gruf_editor
+    return { x: g.image.x(), y: g.image.y() }
+  })
+
+  const canvas = page.locator("canvas").first()
+  const box = await canvas.boundingBox()
+  if (!box) throw new Error("canvas not found")
+
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(box.x + box.width / 2 + 80, box.y + box.height / 2 + 40)
+  await page.mouse.up()
+
+  await expect.poll(() => mock.getCounts().postCount, { timeout: 5000 }).toBeGreaterThan(0)
+  const persisted = mock.getPersisted()
+  expect(persisted).toBeTruthy()
+
+  const after = await page.evaluate(() => {
+    const g: any = (globalThis as any).__gruf_editor
+    return { x: g.image.x(), y: g.image.y() }
+  })
+
+  expect(after.x).not.toBeCloseTo(before.x)
+  expect(after.y).not.toBeCloseTo(before.y)
+
+  // Reload should fetch persisted state and apply it.
+  await page.reload()
+  await expect(page.getByText("Artboard")).toBeVisible()
+  await page.getByRole("button", { name: "Select (Move Image)" }).click()
+  await page.waitForFunction(() => Boolean((globalThis as any).__gruf_editor?.image))
+
+  await expect.poll(() => mock.getCounts().getCount, { timeout: 5000 }).toBeGreaterThan(0)
+
+  const afterReload = await page.evaluate(() => {
+    const g: any = (globalThis as any).__gruf_editor
+    return { x: g.image.x(), y: g.image.y() }
+  })
+
+  expect(afterReload.x).toBeCloseTo(after.x, 0)
+  expect(afterReload.y).toBeCloseTo(after.y, 0)
+})
