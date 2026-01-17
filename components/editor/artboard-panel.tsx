@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { ArrowLeftRight, ArrowUpDown, Gauge, Link2, Ruler } from "lucide-react"
+import { ArrowLeftRight, ArrowUpDown, Gauge, Link2, Ruler, Unlink2 } from "lucide-react"
 
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { clampPx, fmt2, type Unit, unitToPx } from "@/lib/editor/units"
@@ -366,11 +366,16 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
           <Button
             type="button"
             size="icon"
-            variant={lockAspect ? "secondary" : "ghost"}
+            variant="ghost"
             aria-label={lockAspect ? "Unlock proportional scaling" : "Lock proportional scaling"}
             aria-pressed={lockAspect}
             disabled={controlsDisabled}
-            className="h-6 w-6"
+            className={
+              "h-6 w-6 " +
+              (lockAspect
+                ? "bg-black text-white hover:bg-black/90 hover:text-white"
+                : "bg-transparent text-foreground hover:bg-muted")
+            }
             onPointerDownCapture={() => {
               // Avoid blur-autosave firing when clicking the lock button.
               ignoreNextBlurSaveRef.current = true
@@ -383,7 +388,7 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
               })
             }}
           >
-            <Link2 className="size-3.5" />
+            {lockAspect ? <Link2 className="size-3.5" /> : <Unlink2 className="size-3.5" />}
           </Button>
         </div>
       </div>
