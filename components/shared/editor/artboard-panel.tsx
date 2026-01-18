@@ -219,16 +219,22 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
       if (lastSubmitRef.current === signature) return
       lastSubmitRef.current = signature
 
+      // DB constraint `workspace_px_consistency`:
+      // if unit is px, width_value/height_value must EXACTLY match width_px/height_px.
+      // So for `px` we always round once and store the same integers in both places.
+      const widthPx = unit === "px" ? clampPx(w) : clampPx(unitToPx(w, unit, dpi))
+      const heightPx = unit === "px" ? clampPx(h) : clampPx(unitToPx(h, unit, dpi))
+
       const nextRow: WorkspaceRow = {
         ...row,
         unit,
-        width_value: w,
-        height_value: h,
+        width_value: unit === "px" ? widthPx : w,
+        height_value: unit === "px" ? heightPx : h,
         dpi_x: dpi,
         dpi_y: dpi,
         raster_effects_preset: next.rasterPreset,
-        width_px: clampPx(unitToPx(w, unit, dpi)),
-        height_px: clampPx(unitToPx(h, unit, dpi)),
+        width_px: widthPx,
+        height_px: heightPx,
       }
 
       setSaving(true)
@@ -294,8 +300,8 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
     const wNext = fromInches(wIn, nextUnit, dpi)
     const hNext = fromInches(hIn, nextUnit, dpi)
 
-    const nextWidth = fmt2(wNext)
-    const nextHeight = fmt2(hNext)
+    const nextWidth = nextUnit === "px" ? String(clampPx(wNext)) : fmt2(wNext)
+    const nextHeight = nextUnit === "px" ? String(clampPx(hNext)) : fmt2(hNext)
     setDraftWidth(nextWidth)
     setDraftHeight(nextHeight)
 
