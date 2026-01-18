@@ -226,9 +226,10 @@ export default function ProjectDetailPage() {
                       </Button>
                     </div>
                   </div>
-                  {imageStateError ? (
-                    <div className="mt-2 text-xs text-destructive">Image state error: {imageStateError}</div>
-                  ) : null}
+                  {/* Reserve space to avoid layout shift/flicker when this message appears/disappears. */}
+                  <div className="mt-2 min-h-4 text-xs" aria-live="polite">
+                    {imageStateError ? <span className="text-destructive">Image state error: {imageStateError}</span> : null}
+                  </div>
                   <div className="mt-3">
                     <ImagePanel
                       widthPx={imagePx?.w ?? initialImagePx?.w ?? masterImage?.width_px}
