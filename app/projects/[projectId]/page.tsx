@@ -90,6 +90,12 @@ export default function ProjectDetailPage() {
     setImagePx(null)
   }, [deleteImage])
 
+  // Keep tool sidebar callbacks stable to avoid unnecessary rerenders.
+  const handleZoomIn = useCallback(() => canvasRef.current?.zoomIn(), [])
+  const handleZoomOut = useCallback(() => canvasRef.current?.zoomOut(), [])
+  const handleFit = useCallback(() => canvasRef.current?.fitToView(), [])
+  const handleRotate = useCallback(() => canvasRef.current?.rotate90(), [])
+
   return (
     <div className="flex min-h-svh w-full flex-col">
       <ProjectEditorHeader
@@ -121,10 +127,10 @@ export default function ProjectDetailPage() {
                 <CanvasToolSidebar
                   tool={tool}
                   onSelectTool={setTool}
-                  onZoomIn={() => canvasRef.current?.zoomIn()}
-                  onZoomOut={() => canvasRef.current?.zoomOut()}
-                  onFit={() => canvasRef.current?.fitToView()}
-                  onRotate={() => canvasRef.current?.rotate90()}
+                  onZoomIn={handleZoomIn}
+                  onZoomOut={handleZoomOut}
+                  onFit={handleFit}
+                  onRotate={handleRotate}
                 />
               </aside>
 
@@ -178,7 +184,7 @@ export default function ProjectDetailPage() {
             {/* Right sidebar belongs only to the Image tab (part of the content layout). */}
             <aside className="w-96 shrink-0 border-l bg-background">
               <div className="flex h-full flex-col">
-                <div className="border-b px-4 py-3">
+                <div className="border-b px-4 py-3" data-testid="editor-artboard-panel">
                   <div className="text-sm font-medium">Artboard</div>
                   <div className="mt-3">
                     <ArtboardPanel

@@ -546,7 +546,12 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   if (!src) return null
 
   return (
-    <div ref={containerRef} className={`touch-none ${className ?? ""}`} aria-label={alt}>
+    <div
+      ref={containerRef}
+      className={`touch-none ${className ?? ""}`}
+      aria-label={alt}
+      data-testid="editor-canvas-root"
+    >
       <Stage
         ref={(n) => {
           stageRef.current = n

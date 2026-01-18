@@ -7,6 +7,7 @@ test("smoke: /projects/:id loads editor with artboard + canvas", async ({ page }
   await setupMockRoutes(page, { withImage: true })
 
   await page.goto(`/projects/${PROJECT_ID}`)
-  await expect(page.getByText("Artboard")).toBeVisible()
+  await expect(page.getByTestId("editor-artboard-panel")).toBeVisible()
+  await expect(page.getByTestId("editor-canvas-root")).toBeVisible()
   await expect(page.locator("canvas").first()).toBeVisible()
 })
