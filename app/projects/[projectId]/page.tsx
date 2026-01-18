@@ -23,6 +23,7 @@ import {
   type ProjectCanvasStageHandle,
   ProjectEditorHeader,
 } from "@/components/shared/editor"
+import { EditorErrorBoundary } from "@/components/shared/editor/editor-error-boundary"
 import { useMasterImage } from "@/lib/editor/use-master-image"
 import { useProject } from "@/lib/editor/use-project"
 import { useImageState } from "@/lib/editor/use-image-state"
@@ -119,7 +120,7 @@ export default function ProjectDetailPage() {
       {/* Content row (starts under the same top divider line for both left + right sidebars) */}
       <div className="flex flex-1 border-t border-border bg-muted/50">
         {tab === "image" ? (
-          <>
+          <EditorErrorBoundary resetKey={`${projectId}:${masterImage?.signedUrl ?? "no-image"}`}>
             {/* Main content (left tools + canvas/uploader) */}
             <main className="flex min-w-0 flex-1">
               {/* Template-level left sidebar (Illustrator-style) */}
@@ -297,7 +298,7 @@ export default function ProjectDetailPage() {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
-          </>
+          </EditorErrorBoundary>
         ) : (
           <main className="flex min-w-0 flex-1">
             {/* Other tabs: full-width content (no right sidebar). */}

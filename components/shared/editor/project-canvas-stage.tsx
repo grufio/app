@@ -570,7 +570,12 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
           const stage = stageRef.current
           if (!stage) return
           if (e.target !== stage) return
-          setView((v) => ({ ...v, x: stage.x(), y: stage.y() }))
+          setView((v) => {
+            const x = stage.x()
+            const y = stage.y()
+            if (v.x === x && v.y === y) return v
+            return { ...v, x, y }
+          })
         }}
         onWheel={onWheel}
       >

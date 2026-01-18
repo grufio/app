@@ -70,6 +70,7 @@ npm run dev
 ## Scripts
 
 - `npm run dev`: local dev server
+- `npm run dev:e2e`: local dev server with `NEXT_PUBLIC_E2E_TEST=1` for Playwright smoke runs
 - `npm run build`: production build
 - `npm run lint`: eslint
 - `npm run test`: unit tests (Vitest)

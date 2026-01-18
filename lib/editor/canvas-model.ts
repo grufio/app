@@ -26,6 +26,7 @@ export function clamp(n: number, min: number, max: number): number {
 export function zoomAround(view: Viewport, pointer: Pointer, factor: number, minScale = 0.01, maxScale = 8): Viewport {
   const oldScale = view.scale
   const newScale = clamp(oldScale * factor, minScale, maxScale)
+  if (newScale === oldScale) return view
 
   const mousePointTo = {
     x: (pointer.x - view.x) / oldScale,
