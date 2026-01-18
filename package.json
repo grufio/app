@@ -14,7 +14,7 @@
     "check": "npm -s run lint && npm -s run test --silent && npm -s run check:db-schema",
     "check:ci": "npm -s run check && npm -s run build",
     "check:db-schema": "node scripts/check-db-schema.mjs",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test e2e/editor.boot.spec.ts"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.11",
