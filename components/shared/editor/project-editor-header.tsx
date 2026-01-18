@@ -93,7 +93,7 @@ export function ProjectEditorHeader({ projectId, initialTitle, onTitleUpdated }:
           aria-label="Back to dashboard"
           className="-ml-1 inline-flex size-8 items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground"
         >
-          <ArrowLeft className="size-4" />
+          <ArrowLeft className="h-[16px] w-[16px]" />
         </Link>
 
         <Separator orientation="vertical" className="mr-2 data-[orientation=vertical]:h-4" />

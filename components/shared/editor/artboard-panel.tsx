@@ -429,7 +429,7 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
               })
             }}
           >
-            {lockAspect ? <Link2 className="size-4" /> : <Unlink2 className="size-4" />}
+            {lockAspect ? <Link2 className="h-[16px] w-[16px]" /> : <Unlink2 className="h-[16px] w-[16px]" />}
           </Button>
         </PanelIconSlot>
       </PanelTwoFieldRow>
