@@ -522,27 +522,26 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   // E2E test hook: expose stage + image node to the browser so Playwright can
   // assert transforms without pixel-based screenshots.
   //
-  // Important: in React StrictMode (next dev), refs can briefly be set to `null`
-  // during the mount/unmount/mount cycle. We must NOT overwrite the hook with
-  // `{ stage: null }` (that creates flaky tests like "Missing stage").
+  // Use *getters* so the test always reads the latest refs (and we never clobber
+  // state with transient null refs during React StrictMode mount cycles).
   const isE2E =
     process.env.NEXT_PUBLIC_E2E_TEST === "1" ||
     (typeof navigator !== "undefined" && Boolean((navigator as unknown as { webdriver?: boolean })?.webdriver))
 
-  const updateE2EHook = useCallback(
-    (patch: { stage?: Konva.Stage | null; image?: Konva.Image | null }) => {
-      if (!isE2E) return
-      const g = globalThis as unknown as {
-        __gruf_editor?: { stage?: Konva.Stage; image?: Konva.Image }
-      }
-      const prev = g.__gruf_editor ?? {}
-      const next: { stage?: Konva.Stage; image?: Konva.Image } = { ...prev }
-      if (patch.stage) next.stage = patch.stage
-      if (patch.image) next.image = patch.image
-      g.__gruf_editor = next
-    },
-    [isE2E]
-  )
+  useEffect(() => {
+    if (!isE2E) return
+    const g = globalThis as unknown as {
+      __gruf_editor?: { stage?: Konva.Stage | null; image?: Konva.Image | null }
+    }
+    g.__gruf_editor = {
+      get stage() {
+        return stageRef.current
+      },
+      get image() {
+        return imageNodeRef.current
+      },
+    }
+  }, [isE2E])
 
   if (!src) return null
 
@@ -551,7 +550,6 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
       <Stage
         ref={(n) => {
           stageRef.current = n
-          updateE2EHook({ stage: n })
         }}
         width={size.w}
         height={size.h}
@@ -584,7 +582,6 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
             <KonvaImage
               ref={(n) => {
                 imageNodeRef.current = n
-                updateE2EHook({ image: n })
               }}
               image={img}
               listening={imageDraggable}

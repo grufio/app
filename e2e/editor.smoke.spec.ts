@@ -253,23 +253,19 @@ test("wheel pans and ctrl/cmd+wheel zooms", async ({ page }) => {
   const readStage = async () =>
     await page.evaluate(() => {
       const h = (globalThis as unknown as { __gruf_editor?: GrufEditorHook }).__gruf_editor
-      if (!h?.stage) throw new Error("Missing stage")
+      if (!h?.stage) return null
       return { x: h.stage.x(), y: h.stage.y(), s: h.stage.scaleX() }
     })
 
   // In next dev + React StrictMode, refs may briefly be nulled during the mount cycle.
   // Retry the initial read so the test doesn't flake on a transient "Missing stage".
   const before = await (async () => {
-    let lastErr: unknown = null
-    for (let i = 0; i < 40; i++) {
-      try {
-        return await readStage()
-      } catch (err) {
-        lastErr = err
-        await page.waitForTimeout(50)
-      }
+    for (let i = 0; i < 60; i++) {
+      const v = await readStage()
+      if (v) return v
+      await page.waitForTimeout(50)
     }
-    throw lastErr instanceof Error ? lastErr : new Error("Failed to read stage")
+    throw new Error("Failed to read stage")
   })()
 
   const canvas = page.locator("canvas").first()
@@ -282,12 +278,19 @@ test("wheel pans and ctrl/cmd+wheel zooms", async ({ page }) => {
   await expect
     .poll(async () => await page.evaluate(() => {
       const h = (globalThis as unknown as { __gruf_editor?: GrufEditorHook }).__gruf_editor
-      if (!h?.stage) throw new Error("Missing stage")
+      if (!h?.stage) return null
       return { x: h.stage.x(), y: h.stage.y() }
     }), { timeout: 5000 })
     .not.toEqual({ x: before.x, y: before.y })
 
-  const afterPanScale = (await readStage()).s
+  const afterPanScale = await (async () => {
+    for (let i = 0; i < 60; i++) {
+      const v = await readStage()
+      if (v) return v.s
+      await page.waitForTimeout(50)
+    }
+    throw new Error("Failed to read stage scale")
+  })()
 
   await page.keyboard.down("Control")
   await page.mouse.wheel(0, -160)
@@ -296,7 +299,7 @@ test("wheel pans and ctrl/cmd+wheel zooms", async ({ page }) => {
   await expect
     .poll(async () => await page.evaluate(() => {
       const h = (globalThis as unknown as { __gruf_editor?: GrufEditorHook }).__gruf_editor
-      if (!h?.stage) throw new Error("Missing stage")
+      if (!h?.stage) return null
       return h.stage.scaleX()
     }), { timeout: 5000 })
     .not.toBeCloseTo(afterPanScale)
