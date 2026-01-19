@@ -10,6 +10,15 @@ describe("canvas-model", () => {
     expect(view.y).toBeCloseTo(0)
   })
 
+  it("fitToWorld supports padding", () => {
+    const view = fitToWorld({ w: 1000, h: 500 }, { w: 500, h: 500 }, 32)
+    // Height is limiting (500-64 = 436): scale = 436/500 = 0.872
+    // x centered within padded box: (936-436)/2 + 32 = 282
+    expect(view.scale).toBeCloseTo(0.872)
+    expect(view.x).toBeCloseTo(282)
+    expect(view.y).toBeCloseTo(32)
+  })
+
   it("panBy applies deltas in screen space", () => {
     const v = panBy({ scale: 1, x: 10, y: 20 }, 5, -5)
     expect(v.x).toBe(5)

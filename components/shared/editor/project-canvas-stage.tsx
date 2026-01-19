@@ -199,7 +199,9 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
 
   const fit = useMemo(() => {
     if (!world || size.w === 0 || size.h === 0) return null
-    return fitToWorld(size, world)
+    // For initial fit / "fit to view" action: keep a 32px padding around the artboard.
+    // This is not enforced during user interactions (pan/zoom).
+    return fitToWorld(size, world, 32)
   }, [size, world])
 
   useEffect(() => {

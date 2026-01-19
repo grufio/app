@@ -8,10 +8,19 @@ export type Viewport = {
 
 export type Pointer = { x: number; y: number }
 
-export function fitToWorld(viewSize: Size, worldSize: Size): Viewport {
-  const scale = Math.min(viewSize.w / worldSize.w, viewSize.h / worldSize.h)
-  const x = (viewSize.w - worldSize.w * scale) / 2
-  const y = (viewSize.h - worldSize.h * scale) / 2
+/**
+ * Fit world into view, optionally reserving a uniform padding (in screen px) around it.
+ * Padding affects only the computed "fit" view and is NOT enforced during user pan/zoom.
+ */
+export function fitToWorld(viewSize: Size, worldSize: Size, paddingPx = 0): Viewport {
+  const p = Math.max(0, Number(paddingPx) || 0)
+  const vw = Math.max(0, viewSize.w - 2 * p)
+  const vh = Math.max(0, viewSize.h - 2 * p)
+  if (vw === 0 || vh === 0 || worldSize.w <= 0 || worldSize.h <= 0) return { scale: 1, x: 0, y: 0 }
+
+  const scale = Math.min(vw / worldSize.w, vh / worldSize.h)
+  const x = (vw - worldSize.w * scale) / 2 + p
+  const y = (vh - worldSize.h * scale) / 2 + p
   return { scale, x, y }
 }
 
