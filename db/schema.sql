@@ -644,6 +644,8 @@ using (
 -- =========================================================
 -- END db/005_project_images_rls_policies.sql
 -- =========================================================
+
+-- =========================================================
 -- BEGIN db/006_storage_project_images_policies.sql
 -- =========================================================
 -- gruf.io - Supabase Storage RLS for bucket: project_images
@@ -652,11 +654,6 @@ using (
 
 -- Ensure RLS is enabled on storage.objects (it usually is, but be explicit)
 alter table storage.objects enable row level security;
-
--- Helper predicate (inlined in each policy):
--- - bucket_id = 'project_images'
--- - name starts with projects/<uuid>/...
--- - the referenced project is owned by auth.uid()
 
 drop policy if exists project_images_storage_select_owner on storage.objects;
 create policy project_images_storage_select_owner
@@ -728,8 +725,7 @@ using (
       and p.owner_id = auth.uid()
   )
 );
+
 -- =========================================================
 -- END db/006_storage_project_images_policies.sql
 -- =========================================================
--- =========================================================
-
