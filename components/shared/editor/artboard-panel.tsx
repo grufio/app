@@ -7,6 +7,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { clampPx, fmt2, type Unit, unitToPx } from "@/lib/editor/units"
 import { parseNumericInput } from "@/lib/editor/numeric"
 import { Button } from "@/components/ui/button"
+import { InputGroup, InputGroupAddon } from "@/components/ui/input-group"
 import { NumericInput } from "@/components/shared/editor/numeric-input"
 import { PanelField, PanelIconSlot, PanelTwoFieldRow } from "@/components/shared/editor/panel-layout"
 
@@ -343,7 +344,7 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
       {/* Rows follow a consistent layout:
           [field | field | icon-slot] so the UI stays aligned across rows. */}
       <PanelTwoFieldRow>
-        <PanelField icon={<ArrowLeftRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />}>
+        <InputGroup>
           <NumericInput
             id="artboard-width"
             value={draftWidth}
@@ -369,11 +370,13 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
             }}
             disabled={controlsDisabled}
             aria-label="Artboard width"
-            className="h-6 w-full px-2 py-0 text-[12px] md:text-[12px] shadow-none"
           />
-        </PanelField>
+          <InputGroupAddon>
+            <ArrowLeftRight aria-hidden="true" />
+          </InputGroupAddon>
+        </InputGroup>
 
-        <PanelField icon={<ArrowUpDown className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />}>
+        <InputGroup>
           <NumericInput
             id="artboard-height"
             value={draftHeight}
@@ -399,9 +402,11 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
             }}
             disabled={controlsDisabled}
             aria-label="Artboard height"
-            className="h-6 w-full px-2 py-0 text-[12px] md:text-[12px] shadow-none"
           />
-        </PanelField>
+          <InputGroupAddon>
+            <ArrowUpDown aria-hidden="true" />
+          </InputGroupAddon>
+        </InputGroup>
 
         <PanelIconSlot>
           <Button
@@ -412,7 +417,7 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
             aria-pressed={lockAspect}
             disabled={controlsDisabled}
             className={
-              "h-6 w-6 " +
+              "h-9 w-9 " +
               (lockAspect
                 ? "bg-black text-white hover:bg-black/90 hover:text-white"
                 : "!bg-muted text-foreground hover:!bg-muted-foreground/10")
@@ -440,7 +445,7 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
             value={draftRasterPreset}
             disabled={controlsDisabled}
             aria-label="Raster effects resolution"
-            className="border-input bg-transparent text-foreground flex h-6 w-full items-center justify-between rounded-md border px-2 py-0 text-[12px] md:text-[12px] shadow-none outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
+            className="border-input bg-transparent text-foreground flex h-9 w-full items-center justify-between rounded-md border px-3 py-2 text-sm shadow-none outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
             onMouseDown={() => {
               // Prevent blur-autosave from a focused input when opening the dropdown.
               ignoreNextBlurSaveRef.current = true
@@ -461,7 +466,7 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
             value={draftUnit}
             disabled={controlsDisabled}
             aria-label="Artboard unit"
-            className="border-input bg-transparent text-foreground flex h-6 w-full items-center justify-between rounded-md border px-2 py-0 text-[12px] md:text-[12px] shadow-none outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
+            className="border-input bg-transparent text-foreground flex h-9 w-full items-center justify-between rounded-md border px-3 py-2 text-sm shadow-none outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
             onMouseDown={() => {
               ignoreNextBlurSaveRef.current = true
             }}

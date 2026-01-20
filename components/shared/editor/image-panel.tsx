@@ -16,8 +16,9 @@ import { useMemo, useRef, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { InputGroup, InputGroupAddon } from "@/components/ui/input-group"
 import { NumericInput } from "@/components/shared/editor/numeric-input"
-import { PanelField, PanelIconSlot, PanelTwoFieldRow } from "@/components/shared/editor/panel-layout"
+import { PanelIconSlot, PanelTwoFieldRow } from "@/components/shared/editor/panel-layout"
 import { clampPxFloat, fmt4, pxToUnit, snapNearInt, type Unit, unitToPx } from "@/lib/editor/units"
 import { parseNumericInput } from "@/lib/editor/numeric"
 
@@ -90,7 +91,7 @@ export function ImagePanel({ widthPx, heightPx, unit, dpi, disabled, onCommit, o
       {/* Keep row layout aligned with other right-panel rows:
           [field | field | icon-slot placeholder] */}
       <PanelTwoFieldRow>
-        <PanelField icon={<ArrowLeftRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />}>
+        <InputGroup>
           <NumericInput
             value={dirty ? draftW : computedW}
             onValueChange={(next) => {
@@ -110,7 +111,6 @@ export function ImagePanel({ widthPx, heightPx, unit, dpi, disabled, onCommit, o
             }}
             disabled={disabled}
             aria-label={`Image width (${unit})`}
-            className="h-6 w-full px-2 py-0 text-[12px] md:text-[12px] shadow-none"
             onFocus={() => {
               setDirty(true)
               lastEditedRef.current = "w"
@@ -141,9 +141,12 @@ export function ImagePanel({ widthPx, heightPx, unit, dpi, disabled, onCommit, o
               setDirty(false)
             }}
           />
-        </PanelField>
+          <InputGroupAddon>
+            <ArrowLeftRight aria-hidden="true" />
+          </InputGroupAddon>
+        </InputGroup>
 
-        <PanelField icon={<ArrowUpDown className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />}>
+        <InputGroup>
           <NumericInput
             value={dirty ? draftH : computedH}
             onValueChange={(next) => {
@@ -163,7 +166,6 @@ export function ImagePanel({ widthPx, heightPx, unit, dpi, disabled, onCommit, o
             }}
             disabled={disabled}
             aria-label={`Image height (${unit})`}
-            className="h-6 w-full px-2 py-0 text-[12px] md:text-[12px] shadow-none"
             onFocus={() => {
               setDirty(true)
               lastEditedRef.current = "h"
@@ -194,7 +196,10 @@ export function ImagePanel({ widthPx, heightPx, unit, dpi, disabled, onCommit, o
               setDirty(false)
             }}
           />
-        </PanelField>
+          <InputGroupAddon>
+            <ArrowUpDown aria-hidden="true" />
+          </InputGroupAddon>
+        </InputGroup>
 
         <PanelIconSlot>
           <Button
@@ -205,7 +210,7 @@ export function ImagePanel({ widthPx, heightPx, unit, dpi, disabled, onCommit, o
             aria-pressed={lockAspect}
             disabled={disabled}
             className={
-              "h-6 w-6 " +
+              "h-9 w-9 " +
               (lockAspect
                 ? "bg-black text-white hover:bg-black/90 hover:text-white"
                 : "!bg-muted text-foreground hover:!bg-muted-foreground/10")

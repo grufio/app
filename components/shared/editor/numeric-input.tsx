@@ -2,10 +2,10 @@
 
 import React, { forwardRef } from "react"
 
-import { Input } from "@/components/ui/input"
+import { InputGroupInput } from "@/components/ui/input-group"
 import { sanitizeNumericInput, type NumericMode } from "@/lib/editor/numeric"
 
-type Props = Omit<React.ComponentPropsWithoutRef<typeof Input>, "onChange" | "value" | "inputMode"> & {
+type Props = Omit<React.ComponentPropsWithoutRef<typeof InputGroupInput>, "onChange" | "value" | "inputMode"> & {
   value: string
   mode?: NumericMode
   onValueChange: (next: string) => void
@@ -23,7 +23,7 @@ export const NumericInput = forwardRef<HTMLInputElement, Props>(function Numeric
   const inputMode = mode === "int" ? "numeric" : "decimal"
 
   return (
-    <Input
+    <InputGroupInput
       {...rest}
       ref={ref}
       value={value}
