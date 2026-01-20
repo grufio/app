@@ -210,7 +210,6 @@ export function ImagePanel({ widthPx, heightPx, unit, dpi, disabled, onCommit, o
             aria-pressed={lockAspect}
             disabled={disabled}
             className={
-              "h-9 w-9 " +
               (lockAspect
                 ? "bg-black text-white hover:bg-black/90 hover:text-white"
                 : "!bg-muted text-foreground hover:!bg-muted-foreground/10")

@@ -53,7 +53,7 @@ export default function ProjectDetailPage() {
   const canvasRef = useRef<ProjectCanvasStageHandle | null>(null)
   const [artboardPx, setArtboardPx] = useState<{ w: number; h: number } | null>(null)
   const [imagePx, setImagePx] = useState<{ w: number; h: number } | null>(null)
-  const { initialImageTransform, imageStateError, imageStateLoading, saveImageState } = useImageState(
+  const { initialImageTransform, imageStateLoading, saveImageState } = useImageState(
     projectId,
     Boolean(masterImage)
   )
@@ -226,21 +226,15 @@ export default function ProjectDetailPage() {
                       </Button>
                     </div>
                   </div>
-                  {/* Reserve space to avoid layout shift/flicker when this message appears/disappears. */}
-                  <div className="mt-2 min-h-4 text-xs" aria-live="polite">
-                    {imageStateError ? <span className="text-destructive">Image state error: {imageStateError}</span> : null}
-                  </div>
-                  <div className="mt-3">
-                    <ImagePanel
-                      widthPx={imagePx?.w ?? initialImagePx?.w ?? masterImage?.width_px}
-                      heightPx={imagePx?.h ?? initialImagePx?.h ?? masterImage?.height_px}
-                      unit={artboardMeta?.unit ?? "cm"}
-                      dpi={artboardMeta?.dpi ?? 300}
-                      disabled={!masterImage || imageStateLoading}
-                      onCommit={(w, h) => canvasRef.current?.setImageSize(w, h)}
-                      onAlign={(opts) => canvasRef.current?.alignImage(opts)}
-                    />
-                  </div>
+                  <ImagePanel
+                    widthPx={imagePx?.w ?? initialImagePx?.w ?? masterImage?.width_px}
+                    heightPx={imagePx?.h ?? initialImagePx?.h ?? masterImage?.height_px}
+                    unit={artboardMeta?.unit ?? "cm"}
+                    dpi={artboardMeta?.dpi ?? 300}
+                    disabled={!masterImage || imageStateLoading}
+                    onCommit={(w, h) => canvasRef.current?.setImageSize(w, h)}
+                    onAlign={(opts) => canvasRef.current?.alignImage(opts)}
+                  />
                 </div>
 
                 <div className="flex-1 overflow-auto p-4">

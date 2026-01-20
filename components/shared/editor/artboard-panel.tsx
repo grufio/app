@@ -101,7 +101,8 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
   const [lockAspect, setLockAspect] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState("")
+  // Intentionally no inline error UI in the panel (per product requirement).
+  const [, setError] = useState("")
 
   const lastSubmitRef = useRef<string | null>(null)
   const ignoreNextBlurSaveRef = useRef(false)
@@ -418,7 +419,6 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
             aria-pressed={lockAspect}
             disabled={controlsDisabled}
             className={
-              "h-9 w-9 " +
               (lockAspect
                 ? "bg-black text-white hover:bg-black/90 hover:text-white"
                 : "!bg-muted text-foreground hover:!bg-muted-foreground/10")
@@ -494,8 +494,6 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
         <PanelIconSlot />
       </PanelTwoFieldRow>
 
-      {saving ? <div className="text-[12px] md:text-[12px] text-muted-foreground">Saving…</div> : null}
-      {error ? <div className="text-[12px] md:text-[12px] text-destructive">{error}</div> : null}
     </div>
   )
 }

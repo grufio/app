@@ -16,7 +16,7 @@ export function PanelField({ icon, children }: { icon: ReactNode; children: Reac
 }
 
 export function PanelIconSlot({ children }: { children?: ReactNode }) {
-  if (!children) return <div className="h-9 w-9" aria-hidden="true" />
+  if (!children) return <div className="h-6 w-6" aria-hidden="true" />
   return <div className="flex items-center justify-end">{children}</div>
 }
 

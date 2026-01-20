@@ -75,17 +75,22 @@ function InputGroupAddon({
 }
 
 function InputGroupText({ className, ...props }: React.ComponentProps<"span">) {
-  return <span data-slot="input-group-text" className={cn("text-xs", className)} {...props} />
+  return (
+    <span
+      data-slot="input-group-text"
+      className={cn("text-[12px] leading-[24px]", className)}
+      {...props}
+    />
+  )
 }
 
 function InputGroupInput({ className, ...props }: React.ComponentProps<typeof Input>) {
   return (
-    // IMPORTANT: This is copied verbatim from the shadcn InputGroup example output.
-    // Do not "simplify" or "refactor" this — the goal is identical DOM/class output.
-    <input
+    <Input
       data-slot="input-group-control"
       className={cn(
-        "file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground border-input h-9 w-full min-w-0 px-3 py-1 text-base transition-[color,box-shadow] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent",
+        // Group owns the chrome; input stays transparent.
+        "flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent",
         className
       )}
       {...props}
@@ -99,7 +104,7 @@ function InputGroupTextarea({ className, ...props }: React.ComponentProps<"texta
       data-slot="input-group-control"
       className={cn(
         "flex field-sizing-content min-h-16 w-full resize-none",
-        "rounded-none border-0 bg-transparent px-3 py-2 text-base outline-none md:text-sm",
+        "rounded-none border-0 bg-transparent px-3 py-0 text-[12px] leading-[24px] outline-none",
         className
       )}
       {...props}
@@ -114,7 +119,7 @@ function InputGroupButton({
   return (
     <Button
       data-slot="input-group-button"
-      className={cn("h-9 rounded-none", className)}
+      className={cn("h-6 rounded-none", className)}
       {...props}
     />
   )
