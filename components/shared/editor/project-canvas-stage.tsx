@@ -7,7 +7,7 @@ import type Konva from "konva"
 import { fitToWorld, panBy, zoomAround } from "@/lib/editor/canvas-model"
 
 type Props = {
-  src: string
+  src?: string
   alt?: string
   className?: string
   panEnabled?: boolean
@@ -108,7 +108,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   const stageRef = useRef<Konva.Stage | null>(null)
   const layerRef = useRef<Konva.Layer | null>(null)
   const imageNodeRef = useRef<Konva.Image | null>(null)
-  const img = useHtmlImage(src)
+  const img = useHtmlImage(src ?? null)
 
   const [size, setSize] = useState({ w: 0, h: 0 })
   const [view, setView] = useState({ scale: 1, x: 0, y: 0 })
@@ -205,13 +205,13 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   }, [size, world])
 
   useEffect(() => {
-    if (!fit || !img || !world) return
+    if (!fit || !world) return
     if (userInteractedRef.current) return
-    const key = `${src}:${world.w}x${world.h}`
+    const key = `${src ?? "no-image"}:${world.w}x${world.h}`
     if (lastAutoFitKeyRef.current === key) return
     lastAutoFitKeyRef.current = key
     queueMicrotask(() => setView({ scale: fit.scale, x: fit.x, y: fit.y }))
-  }, [fit, img, src, world])
+  }, [fit, src, world])
 
   const fitToView = useCallback(() => {
     if (!fit) return
@@ -545,13 +545,11 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     }
   }, [isE2E])
 
-  if (!src) return null
-
   return (
     <div
       ref={containerRef}
       className={`touch-none ${className ?? ""}`}
-      aria-label={alt}
+      aria-label={alt ?? "Canvas"}
       data-testid="editor-canvas-root"
     >
       <Stage

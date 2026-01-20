@@ -1,7 +1,6 @@
-import Link from "next/link"
-
 import { AppSidebar } from "@/components/app-sidebar"
 import { ProjectPreviewCard } from "@/components/app-card-project"
+import { CreateProjectDialog } from "@/app/dashboard/create-project-dialog"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import {
   Breadcrumb,
@@ -53,9 +52,7 @@ export default async function Page() {
               </BreadcrumbList>
             </Breadcrumb>
 
-            <Button asChild className="ml-auto">
-              <Link href="/projects/new">New project</Link>
-            </Button>
+            <CreateProjectDialog />
           </div>
         </header>
         <div className="flex flex-1 flex-col gap-4 p-4 pt-0">

@@ -150,35 +150,35 @@ export default function ProjectDetailPage() {
                 ) : null}
 
                 {/* Workspace */}
-                {masterImage ? (
-                  <div className="min-h-0 flex-1">
-                    {imageStateLoading ? (
-                      <div className="flex h-full w-full items-center justify-center">
-                        <div className="text-sm text-muted-foreground">Loading image state…</div>
-                      </div>
-                    ) : (
-                      <ProjectCanvasStage
-                        ref={canvasRef}
-                        src={masterImage.signedUrl}
-                        alt={masterImage.name}
-                        className="h-full w-full"
-                        panEnabled={panEnabled}
-                        imageDraggable={imageDraggable}
-                        artboardWidthPx={artboardPx?.w}
-                        artboardHeightPx={artboardPx?.h}
-                        onImageSizeChange={handleImagePxChange}
-                        initialImageTransform={initialImageTransform}
-                        onImageTransformCommit={saveImageState}
-                      />
-                    )}
-                  </div>
-                ) : (
-                  <div className="min-h-0 flex-1">
+                <div className="relative min-h-0 flex-1">
+                  {masterImage && imageStateLoading ? (
                     <div className="flex h-full w-full items-center justify-center">
-                      <ProjectImageUploader projectId={projectId} onUploaded={refreshMasterImage} />
+                      <div className="text-sm text-muted-foreground">Loading image state…</div>
                     </div>
-                  </div>
-                )}
+                  ) : (
+                    <ProjectCanvasStage
+                      ref={canvasRef}
+                      src={masterImage?.signedUrl}
+                      alt={masterImage?.name}
+                      className="h-full w-full"
+                      panEnabled={panEnabled}
+                      imageDraggable={Boolean(masterImage) && imageDraggable}
+                      artboardWidthPx={artboardPx?.w}
+                      artboardHeightPx={artboardPx?.h}
+                      onImageSizeChange={handleImagePxChange}
+                      initialImageTransform={masterImage ? initialImageTransform : null}
+                      onImageTransformCommit={masterImage ? saveImageState : undefined}
+                    />
+                  )}
+
+                  {!masterImage && !masterImageLoading && !masterImageError ? (
+                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                      <div className="pointer-events-auto">
+                        <ProjectImageUploader projectId={projectId} onUploaded={refreshMasterImage} />
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
               </div>
             </main>
 
@@ -186,7 +186,7 @@ export default function ProjectDetailPage() {
             <aside className="w-96 shrink-0 border-l bg-background">
               <div className="flex h-full flex-col">
                 <div className="border-b px-4 py-3" data-testid="editor-artboard-panel">
-                  <div className="text-sm font-medium">Artboard</div>
+                  <div className="flex h-6 items-center text-sm font-medium">Artboard</div>
                   <div className="mt-3">
                     <ArtboardPanel
                       projectId={projectId}
@@ -226,15 +226,17 @@ export default function ProjectDetailPage() {
                       </Button>
                     </div>
                   </div>
-                  <ImagePanel
-                    widthPx={imagePx?.w ?? initialImagePx?.w ?? masterImage?.width_px}
-                    heightPx={imagePx?.h ?? initialImagePx?.h ?? masterImage?.height_px}
-                    unit={artboardMeta?.unit ?? "cm"}
-                    dpi={artboardMeta?.dpi ?? 300}
-                    disabled={!masterImage || imageStateLoading}
-                    onCommit={(w, h) => canvasRef.current?.setImageSize(w, h)}
-                    onAlign={(opts) => canvasRef.current?.alignImage(opts)}
-                  />
+                  <div className="mt-3">
+                    <ImagePanel
+                      widthPx={imagePx?.w ?? initialImagePx?.w ?? masterImage?.width_px}
+                      heightPx={imagePx?.h ?? initialImagePx?.h ?? masterImage?.height_px}
+                      unit={artboardMeta?.unit ?? "cm"}
+                      dpi={artboardMeta?.dpi ?? 300}
+                      disabled={!masterImage || imageStateLoading}
+                      onCommit={(w, h) => canvasRef.current?.setImageSize(w, h)}
+                      onAlign={(opts) => canvasRef.current?.alignImage(opts)}
+                    />
+                  </div>
                 </div>
 
                 <div className="flex-1 overflow-auto p-4">
