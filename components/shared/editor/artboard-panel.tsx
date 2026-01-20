@@ -8,8 +8,9 @@ import { clampPx, fmt2, type Unit, unitToPx } from "@/lib/editor/units"
 import { parseNumericInput } from "@/lib/editor/numeric"
 import { Button } from "@/components/ui/button"
 import { InputGroup, InputGroupAddon } from "@/components/ui/input-group"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { NumericInput } from "@/components/shared/editor/numeric-input"
-import { PanelField, PanelIconSlot, PanelTwoFieldRow } from "@/components/shared/editor/panel-layout"
+import { PanelIconSlot, PanelTwoFieldRow } from "@/components/shared/editor/panel-layout"
 
 export type WorkspaceRow = {
   project_id: string
@@ -440,44 +441,55 @@ export function ArtboardPanel({ projectId, onChangePx, onChangeMeta }: Props) {
       </PanelTwoFieldRow>
 
       <PanelTwoFieldRow>
-        <PanelField icon={<Gauge className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />}>
-          <select
-            value={draftRasterPreset}
-            disabled={controlsDisabled}
-            aria-label="Raster effects resolution"
-            className="border-input bg-transparent text-foreground flex h-9 w-full items-center justify-between rounded-md border px-3 py-2 text-sm shadow-none outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
-            onMouseDown={() => {
-              // Prevent blur-autosave from a focused input when opening the dropdown.
-              ignoreNextBlurSaveRef.current = true
-            }}
-            onChange={(e) => onRasterPresetChange(e.target.value)}
-          >
-            <option value="high">{labelForPreset("high")}</option>
-            <option value="medium">{labelForPreset("medium")}</option>
-            <option value="low">{labelForPreset("low")}</option>
-            {draftRasterPreset === "custom" ? (
-              <option value="custom">{`Custom (${draftDpi || "?"} ppi)`}</option>
-            ) : null}
-          </select>
-        </PanelField>
+        <InputGroup>
+          <Select value={draftRasterPreset} onValueChange={(v) => onRasterPresetChange(v)}>
+            <SelectTrigger
+              className="flex-1 min-w-0 border-0 bg-transparent shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 overflow-hidden whitespace-nowrap"
+              disabled={controlsDisabled}
+              aria-label="Raster effects resolution"
+              onPointerDownCapture={() => {
+                ignoreNextBlurSaveRef.current = true
+              }}
+            >
+              <SelectValue className="truncate" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="high">{labelForPreset("high")}</SelectItem>
+              <SelectItem value="medium">{labelForPreset("medium")}</SelectItem>
+              <SelectItem value="low">{labelForPreset("low")}</SelectItem>
+              {draftRasterPreset === "custom" ? (
+                <SelectItem value="custom">{`Custom (${draftDpi || "?"} ppi)`}</SelectItem>
+              ) : null}
+            </SelectContent>
+          </Select>
+          <InputGroupAddon align="inline-start">
+            <Gauge aria-hidden="true" />
+          </InputGroupAddon>
+        </InputGroup>
 
-        <PanelField icon={<Ruler className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />}>
-          <select
-            value={draftUnit}
-            disabled={controlsDisabled}
-            aria-label="Artboard unit"
-            className="border-input bg-transparent text-foreground flex h-9 w-full items-center justify-between rounded-md border px-3 py-2 text-sm shadow-none outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
-            onMouseDown={() => {
-              ignoreNextBlurSaveRef.current = true
-            }}
-            onChange={(e) => onUnitChange(e.target.value as Unit)}
-          >
-            <option value="mm">mm</option>
-            <option value="cm">cm</option>
-            <option value="pt">pt</option>
-            <option value="px">px</option>
-          </select>
-        </PanelField>
+        <InputGroup>
+          <Select value={draftUnit} onValueChange={(v) => onUnitChange(v as Unit)}>
+            <SelectTrigger
+              className="flex-1 min-w-0 border-0 bg-transparent shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 overflow-hidden whitespace-nowrap"
+              disabled={controlsDisabled}
+              aria-label="Artboard unit"
+              onPointerDownCapture={() => {
+                ignoreNextBlurSaveRef.current = true
+              }}
+            >
+              <SelectValue className="truncate" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="mm">mm</SelectItem>
+              <SelectItem value="cm">cm</SelectItem>
+              <SelectItem value="pt">pt</SelectItem>
+              <SelectItem value="px">px</SelectItem>
+            </SelectContent>
+          </Select>
+          <InputGroupAddon align="inline-start">
+            <Ruler aria-hidden="true" />
+          </InputGroupAddon>
+        </InputGroup>
 
         <PanelIconSlot />
       </PanelTwoFieldRow>

@@ -24,14 +24,16 @@ function InputGroup({ className, ...props }: React.ComponentProps<"div">) {
         "dark:bg-input/30 border-input bg-transparent rounded-md border shadow-xs transition-[color,box-shadow] outline-none",
         "hover:border-muted-foreground/30",
         // Focus handling via the control slot
-        "has-[[data-slot=input-group-control]:focus-visible]:border-ring",
+        "has-[[data-slot=input-group-control]:focus-visible]:border-ring has-[[data-slot=select-trigger]:focus-visible]:border-ring",
         "has-[[data-slot=input-group-control]:focus-visible]:ring-[3px] has-[[data-slot=input-group-control]:focus-visible]:ring-ring/50",
+        "has-[[data-slot=select-trigger]:focus-visible]:ring-[3px] has-[[data-slot=select-trigger]:focus-visible]:ring-ring/50",
         // Invalid
-        "has-[[data-slot=input-group-control][aria-invalid=true]]:border-destructive",
+        "has-[[data-slot=input-group-control][aria-invalid=true]]:border-destructive has-[[data-slot=select-trigger][aria-invalid=true]]:border-destructive",
         // Ensure inner controls don't create double-rounded corners
         "[&>[data-slot=input-group-control]]:rounded-none",
         "[&>[data-slot=input-group-addon]]:rounded-none",
         "[&>[data-slot=input-group-button]]:rounded-none",
+        "[&>[data-slot=select-trigger]]:rounded-none",
         className
       )}
       {...props}
