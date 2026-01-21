@@ -12,6 +12,10 @@ type Props = {
   className?: string
   panEnabled?: boolean
   imageDraggable?: boolean
+  /** Padding used for initial auto-fit and fit-to-view action. */
+  fitPaddingPx?: number
+  /** Whether to render the artboard background/border. (Thumbnails want image-only.) */
+  renderArtboard?: boolean
   artboardWidthPx?: number
   artboardHeightPx?: number
   onImageSizeChange?: (widthPx: number, heightPx: number) => void
@@ -95,6 +99,8 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     className,
     panEnabled = true,
     imageDraggable = false,
+    fitPaddingPx = 32,
+    renderArtboard = true,
     artboardWidthPx,
     artboardHeightPx,
     onImageSizeChange,
@@ -175,7 +181,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     return { w, h }
   }, [artboardHeightPx, artboardWidthPx, img?.height, img?.width])
 
-  const showArtboard = Boolean(world && artboardWidthPx && artboardHeightPx)
+  const showArtboard = renderArtboard && Boolean(world && artboardWidthPx && artboardHeightPx)
   const artW = world?.w ?? 0
   const artH = world?.h ?? 0
   const borderColor = "#000000"
@@ -199,10 +205,10 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
 
   const fit = useMemo(() => {
     if (!world || size.w === 0 || size.h === 0) return null
-    // For initial fit / "fit to view" action: keep a 32px padding around the artboard.
+    // For initial fit / "fit to view" action: optionally keep padding around the artboard.
     // This is not enforced during user interactions (pan/zoom).
-    return fitToWorld(size, world, 32)
-  }, [size, world])
+    return fitToWorld(size, world, fitPaddingPx)
+  }, [fitPaddingPx, size, world])
 
   useEffect(() => {
     if (!fit || !world) return
@@ -584,9 +590,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
             layerRef.current = n
           }}
         >
-          {showArtboard ? (
-            <Rect x={0} y={0} width={artW} height={artH} fill="#ffffff" listening={false} />
-          ) : null}
+          {showArtboard ? <Rect x={0} y={0} width={artW} height={artH} fill="#ffffff" listening={false} /> : null}
 
           {img ? (
             <KonvaImage
@@ -624,7 +628,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
           ) : null}
 
           {/* Default selection frame (shown when the Select tool is active) */}
-          {imageDraggable && imageBounds ? (
+          {renderArtboard && imageDraggable && imageBounds ? (
             (() => {
               const x1 = snapWorldToDeviceHalfPixel(imageBounds.x, "x")
               const y1 = snapWorldToDeviceHalfPixel(imageBounds.y, "y")

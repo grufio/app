@@ -10,7 +10,6 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
-import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import {
   SidebarInset,
@@ -24,7 +23,9 @@ export default async function Page() {
   const supabase = await createSupabaseServerClient()
   const { data: projects } = await supabase
     .from("projects")
-    .select("id,name,updated_at,status,project_images(role,file_size_bytes)")
+    .select(
+      "id,name,updated_at,status,project_images(role,file_size_bytes),project_workspace(width_px,height_px),project_image_state(role,x,y,scale_x,scale_y,rotation_deg,width_px,height_px)"
+    )
     .order("updated_at", { ascending: false })
 
   return (
@@ -59,8 +60,26 @@ export default async function Page() {
           <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
             {(projects ?? []).map((p) => (
               (() => {
-                const images = (p as unknown as { project_images?: Array<{ role: string; file_size_bytes: unknown }> })
-                  .project_images
+                const row = p as unknown as {
+                  id: string
+                  name: string
+                  updated_at?: string | null
+                  status?: string | null
+                  project_images?: Array<{ role: string; file_size_bytes: unknown }>
+                  project_workspace?: { width_px?: unknown; height_px?: unknown } | null
+                  project_image_state?: Array<{
+                    role: string
+                    x: unknown
+                    y: unknown
+                    scale_x: unknown
+                    scale_y: unknown
+                    rotation_deg: unknown
+                    width_px?: unknown
+                    height_px?: unknown
+                  }>
+                }
+
+                const images = row.project_images
                 const master = images?.find((img) => img.role === "master")
                 const bytesRaw = master?.file_size_bytes
                 const bytes =
@@ -72,13 +91,35 @@ export default async function Page() {
                 const fileSizeLabel = `${Math.round(bytes / 1024)} kb`
                 const hasThumbnail = Boolean(master)
 
+                const wsW = row.project_workspace?.width_px
+                const wsH = row.project_workspace?.height_px
+                const artboardWidthPx = typeof wsW === "number" ? wsW : typeof wsW === "string" ? Number(wsW) : undefined
+                const artboardHeightPx = typeof wsH === "number" ? wsH : typeof wsH === "string" ? Number(wsH) : undefined
+
+                const st = row.project_image_state?.find((s) => s.role === "master") ?? null
+                const initialImageTransform = st
+                  ? {
+                      x: Number(st.x),
+                      y: Number(st.y),
+                      scaleX: Number(st.scale_x),
+                      scaleY: Number(st.scale_y),
+                      rotationDeg: Number(st.rotation_deg),
+                      widthPx: st.width_px == null ? undefined : Number(st.width_px),
+                      heightPx: st.height_px == null ? undefined : Number(st.height_px),
+                    }
+                  : null
+
                 return (
               <ProjectPreviewCard
-                key={p.id}
-                href={`/projects/${p.id}`}
-                title={p.name}
-                dateLabel={p.updated_at ? new Date(p.updated_at).toLocaleString() : undefined}
-                statusLabel={p.status === "completed" ? "Completed" : undefined}
+                key={row.id}
+                projectId={row.id}
+                href={`/projects/${row.id}`}
+                title={row.name}
+                dateLabel={row.updated_at ? new Date(row.updated_at).toLocaleString() : undefined}
+                statusLabel={row.status === "completed" ? "Completed" : undefined}
+                artboardWidthPx={artboardWidthPx}
+                artboardHeightPx={artboardHeightPx}
+                initialImageTransform={initialImageTransform}
                 {...(hasThumbnail ? { hasThumbnail: true, fileSizeLabel } : { hasThumbnail: false })}
               />
                 )
