@@ -165,7 +165,6 @@ export default function ProjectDetailPage() {
                       imageDraggable={Boolean(masterImage) && imageDraggable}
                       artboardWidthPx={artboardPx?.w}
                       artboardHeightPx={artboardPx?.h}
-                      artboardDpi={artboardMeta?.dpi}
                       onImageSizeChange={handleImagePxChange}
                       initialImageTransform={masterImage ? initialImageTransform : null}
                       onImageTransformCommit={masterImage ? saveImageState : undefined}

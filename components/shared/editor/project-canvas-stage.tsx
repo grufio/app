@@ -18,7 +18,6 @@ type Props = {
   renderArtboard?: boolean
   artboardWidthPx?: number
   artboardHeightPx?: number
-  artboardDpi?: number
   onImageSizeChange?: (widthPx: number, heightPx: number) => void
   initialImageTransform?: {
     x: number
@@ -103,7 +102,6 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     renderArtboard = true,
     artboardWidthPx,
     artboardHeightPx,
-    artboardDpi,
     onImageSizeChange,
     initialImageTransform,
     onImageTransformCommit,
@@ -285,13 +283,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     })
   }, [img, initialImageTransform, scheduleBoundsUpdate, src])
 
-  const BASE_DPI = 72
-  const computeDpiScale = useCallback(() => {
-    const dpi = Number(artboardDpi)
-    if (!Number.isFinite(dpi) || dpi <= 0) return null
-    // Float math, no rounding.
-    return BASE_DPI / dpi
-  }, [artboardDpi])
+  // DPI is metadata-only. Rendering must never use it.
 
   // Compute selection bounds (axis-aligned) for the image node.
   // Shown by default when the Select tool is active (`imageDraggable === true`).
@@ -310,14 +302,12 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     if (!img) return
     if (userChangedImageTxRef.current) return
     // Initial placement:
-    // - wait until artboardWidthPx, artboardHeightPx, and artboardDpi are known
+    // - wait until artboardWidthPx and artboardHeightPx are known
     // - width/height used ONLY for centering
-    // - DPI affects ONLY image scale (not Stage/Layer)
+    // - DO NOT change anything based on DPI
     if (!hasArtboard) return
     if (initialImageTransform) return
     if (appliedInitialTransformKeyRef.current === src) return
-    const dpiScale = computeDpiScale()
-    if (dpiScale == null) return
 
     const key = `${src}:${artW}x${artH}`
     if (placedKeyRef.current === key) return
@@ -325,9 +315,9 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
 
     queueMicrotask(() => {
       setRotation(0)
-      setImageTx({ x: artW / 2, y: artH / 2, scaleX: dpiScale, scaleY: dpiScale })
+      setImageTx({ x: artW / 2, y: artH / 2, scaleX: 1, scaleY: 1 })
     })
-  }, [artH, artW, computeDpiScale, hasArtboard, img, initialImageTransform, src])
+  }, [artH, artW, hasArtboard, img, initialImageTransform, src])
 
   const commitTransform = useCallback(
     (tx: { x: number; y: number; scaleX: number; scaleY: number } | null, rotationDeg: number) => {
@@ -419,9 +409,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
         }
       : (() => {
           if (!hasArtboard) return null
-          const dpiScale = computeDpiScale()
-          if (dpiScale == null) return null
-          return { x: artW / 2, y: artH / 2, scaleX: dpiScale, scaleY: dpiScale }
+          return { x: artW / 2, y: artH / 2, scaleX: 1, scaleY: 1 }
         })()
 
     if (!next || !Number.isFinite(next.x) || !Number.isFinite(next.y) || !Number.isFinite(next.scaleX) || !Number.isFinite(next.scaleY)) return
@@ -433,7 +421,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     setImageTx(next)
     scheduleCommitTransform(next, rot, 0)
     scheduleBoundsUpdate()
-  }, [artH, artW, computeDpiScale, hasArtboard, img, initialImageTransform, scheduleBoundsUpdate, scheduleCommitTransform])
+  }, [artH, artW, hasArtboard, img, initialImageTransform, scheduleBoundsUpdate, scheduleCommitTransform])
 
   const alignImage = useCallback(
     (opts: { x?: "left" | "center" | "right"; y?: "top" | "center" | "bottom" }) => {
