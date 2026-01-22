@@ -4,7 +4,7 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRe
 import { Image as KonvaImage, Layer, Line, Rect, Stage } from "react-konva"
 import type Konva from "konva"
 
-import { fitToWorld, panBy, zoomAround } from "@/lib/editor/canvas-model"
+import { panBy } from "@/lib/editor/canvas-model"
 
 type Props = {
   src?: string
@@ -18,6 +18,7 @@ type Props = {
   renderArtboard?: boolean
   artboardWidthPx?: number
   artboardHeightPx?: number
+  artboardDpi?: number
   onImageSizeChange?: (widthPx: number, heightPx: number) => void
   initialImageTransform?: {
     x: number
@@ -99,10 +100,10 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     className,
     panEnabled = true,
     imageDraggable = false,
-    fitPaddingPx = 32,
     renderArtboard = true,
     artboardWidthPx,
     artboardHeightPx,
+    artboardDpi,
     onImageSizeChange,
     initialImageTransform,
     onImageTransformCommit,
@@ -120,7 +121,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   const [view, setView] = useState({ scale: 1, x: 0, y: 0 })
   const [rotation, setRotation] = useState(0)
 
-  const lastAutoFitKeyRef = useRef<string | null>(null)
+  // (legacy) was used for auto-fit; zoom/fitting is forbidden by the PX-WORLD + DPI-image-scale model.
   const placedKeyRef = useRef<string | null>(null)
   const appliedInitialTransformKeyRef = useRef<string | null>(null)
   const userInteractedRef = useRef(false)
@@ -181,7 +182,11 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     return { w, h }
   }, [artboardHeightPx, artboardWidthPx, img?.height, img?.width])
 
-  const showArtboard = renderArtboard && Boolean(world && artboardWidthPx && artboardHeightPx)
+  // `hasArtboard` controls layout math and must be based on explicit artboard px inputs.
+  // (No fallback to image size here.)
+  const hasArtboard = Boolean((artboardWidthPx ?? 0) > 0 && (artboardHeightPx ?? 0) > 0)
+  // `drawArtboard` controls only whether the artboard visuals are rendered.
+  const drawArtboard = renderArtboard && hasArtboard
   const artW = world?.w ?? 0
   const artH = world?.h ?? 0
   const borderColor = "#000000"
@@ -194,53 +199,23 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   // lands on N + 0.5 device pixels in screen space.
   const snapWorldToDeviceHalfPixel = useCallback(
     (worldCoord: number, axis: "x" | "y") => {
-      const scale = view.scale || 1
+      const scale = 1
       const offset = axis === "x" ? view.x : view.y
       const screen = offset + worldCoord * scale
       const snapped = Math.round(screen - 0.5) + 0.5
       return (snapped - offset) / scale
     },
-    [view.scale, view.x, view.y]
+    [view.x, view.y]
   )
-
-  const fit = useMemo(() => {
-    if (!world || size.w === 0 || size.h === 0) return null
-    // For initial fit / "fit to view" action: optionally keep padding around the artboard.
-    // This is not enforced during user interactions (pan/zoom).
-    return fitToWorld(size, world, fitPaddingPx)
-  }, [fitPaddingPx, size, world])
-
-  useEffect(() => {
-    if (!fit || !world) return
-    if (userInteractedRef.current) return
-    const key = `${src ?? "no-image"}:${world.w}x${world.h}`
-    if (lastAutoFitKeyRef.current === key) return
-    lastAutoFitKeyRef.current = key
-    queueMicrotask(() => setView({ scale: fit.scale, x: fit.x, y: fit.y }))
-  }, [fit, src, world])
 
   const fitToView = useCallback(() => {
-    if (!fit) return
+    // API kept for UI wiring; PX-WORLD invariant: Stage scale stays 1. We only reset pan.
     userInteractedRef.current = false
-    setView({ scale: fit.scale, x: fit.x, y: fit.y })
-  }, [fit])
+    setView((v) => ({ ...v, scale: 1, x: 0, y: 0 }))
+  }, [])
 
-  const zoomBy = useCallback(
-    (factor: number) => {
-      const stage = stageRef.current
-      if (!stage) return
-      const pointer = stage.getPointerPosition() ?? { x: size.w / 2, y: size.h / 2 }
-
-      setView((v) => {
-        userInteractedRef.current = true
-        return zoomAround(v, pointer, factor)
-      })
-    },
-    [size.h, size.w]
-  )
-
-  const zoomIn = useCallback(() => zoomBy(1.15), [zoomBy])
-  const zoomOut = useCallback(() => zoomBy(1 / 1.15), [zoomBy])
+  const zoomIn = useCallback(() => {}, [])
+  const zoomOut = useCallback(() => {}, [])
 
   const reportImageSize = useCallback(
     (tx: { scaleX: number; scaleY: number } | null) => {
@@ -286,9 +261,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     })
   }, [updateImageBoundsFromNode])
 
-  // Apply persisted image state even if it arrives after the initial placement.
-  // Without this, a late `initialImageTransform` gets ignored (because we only "place" once per `src`),
-  // which makes the image re-open at the default "fit to artboard" size.
+  // Apply persisted image state even if it arrives after initial placement.
   useEffect(() => {
     if (!img) return
     if (!src) return
@@ -296,26 +269,29 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     if (userChangedImageTxRef.current) return
     if (appliedInitialTransformKeyRef.current === src) return
 
+    const x = Number(initialImageTransform.x)
+    const y = Number(initialImageTransform.y)
+    const scaleX = Number(initialImageTransform.scaleX)
+    const scaleY = Number(initialImageTransform.scaleY)
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return
+    if (!Number.isFinite(scaleX) || !Number.isFinite(scaleY)) return
+
     appliedInitialTransformKeyRef.current = src
     queueMicrotask(() => {
-      setRotation(initialImageTransform.rotationDeg || 0)
-      const wPx = Number(initialImageTransform.widthPx)
-      const hPx = Number(initialImageTransform.heightPx)
-      const scaleX =
-        Number.isFinite(wPx) && wPx > 0 && img.width > 0 ? wPx / img.width : Number(initialImageTransform.scaleX) || 1
-      const scaleY =
-        Number.isFinite(hPx) && hPx > 0 && img.height > 0
-          ? hPx / img.height
-          : Number(initialImageTransform.scaleY) || 1
-      setImageTx({
-        x: initialImageTransform.x,
-        y: initialImageTransform.y,
-        scaleX,
-        scaleY,
-      })
+      const rotationDeg = Number(initialImageTransform.rotationDeg)
+      setRotation(Number.isFinite(rotationDeg) ? rotationDeg : 0)
+      setImageTx({ x, y, scaleX, scaleY })
       scheduleBoundsUpdate()
     })
   }, [img, initialImageTransform, scheduleBoundsUpdate, src])
+
+  const BASE_DPI = 72
+  const computeDpiScale = useCallback(() => {
+    const dpi = Number(artboardDpi)
+    if (!Number.isFinite(dpi) || dpi <= 0) return null
+    // Float math, no rounding.
+    return BASE_DPI / dpi
+  }, [artboardDpi])
 
   // Compute selection bounds (axis-aligned) for the image node.
   // Shown by default when the Select tool is active (`imageDraggable === true`).
@@ -332,41 +308,26 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   useEffect(() => {
     if (!src) return
     if (!img) return
-    const key = src
+    if (userChangedImageTxRef.current) return
+    // Initial placement:
+    // - wait until artboardWidthPx, artboardHeightPx, and artboardDpi are known
+    // - width/height used ONLY for centering
+    // - DPI affects ONLY image scale (not Stage/Layer)
+    if (!hasArtboard) return
+    if (initialImageTransform) return
+    if (appliedInitialTransformKeyRef.current === src) return
+    const dpiScale = computeDpiScale()
+    if (dpiScale == null) return
+
+    const key = `${src}:${artW}x${artH}`
     if (placedKeyRef.current === key) return
     placedKeyRef.current = key
-    appliedInitialTransformKeyRef.current = null
-    userChangedImageTxRef.current = false
-    if (initialImageTransform) {
-      appliedInitialTransformKeyRef.current = key
-      queueMicrotask(() => {
-        setRotation(initialImageTransform.rotationDeg || 0)
-        const wPx = Number(initialImageTransform.widthPx)
-        const hPx = Number(initialImageTransform.heightPx)
-        const scaleX =
-          Number.isFinite(wPx) && wPx > 0 && img.width > 0 ? wPx / img.width : Number(initialImageTransform.scaleX) || 1
-        const scaleY =
-          Number.isFinite(hPx) && hPx > 0 && img.height > 0
-            ? hPx / img.height
-            : Number(initialImageTransform.scaleY) || 1
-        setImageTx({
-          x: initialImageTransform.x,
-          y: initialImageTransform.y,
-          scaleX,
-          scaleY,
-        })
-      })
-      return
-    }
-    const initialScale =
-      showArtboard && artW > 0 && artH > 0 ? Math.min(artW / img.width, artH / img.height) : 1
-    const x = showArtboard ? artW / 2 : img.width / 2
-    const y = showArtboard ? artH / 2 : img.height / 2
+
     queueMicrotask(() => {
       setRotation(0)
-      setImageTx({ x, y, scaleX: initialScale, scaleY: initialScale })
+      setImageTx({ x: artW / 2, y: artH / 2, scaleX: dpiScale, scaleY: dpiScale })
     })
-  }, [artH, artW, img, initialImageTransform, reportImageSize, showArtboard, src])
+  }, [artH, artW, computeDpiScale, hasArtboard, img, initialImageTransform, src])
 
   const commitTransform = useCallback(
     (tx: { x: number; y: number; scaleX: number; scaleY: number } | null, rotationDeg: number) => {
@@ -421,45 +382,62 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   const setImageSize = useCallback(
     (widthPx: number, heightPx: number) => {
       if (!img) return
+      if (!hasArtboard) return
+      const prev = imageTxRef.current
+      if (!prev) return
       const w = Number(widthPx)
       const h = Number(heightPx)
       const nextScaleX = Number.isFinite(w) && w > 0 ? w / img.width : null
       const nextScaleY = Number.isFinite(h) && h > 0 ? h / img.height : null
       if (!nextScaleX && !nextScaleY) return
 
-      const prev = imageTxRef.current
+      const scaleX = nextScaleX ?? prev.scaleX
+      const scaleY = nextScaleY ?? prev.scaleY
+      if (!Number.isFinite(scaleX) || !Number.isFinite(scaleY)) return
       const next = {
-        x: prev?.x ?? (showArtboard ? artW / 2 : img.width / 2),
-        y: prev?.y ?? (showArtboard ? artH / 2 : img.height / 2),
-        scaleX: nextScaleX ?? prev?.scaleX ?? 1,
-        scaleY: nextScaleY ?? prev?.scaleY ?? 1,
+        x: prev.x,
+        y: prev.y,
+        scaleX,
+        scaleY,
       }
       userChangedImageTxRef.current = true
       setImageTx(next)
       scheduleCommitTransform(next, rotationRef.current, 0)
     },
-    [artH, artW, img, scheduleCommitTransform, showArtboard]
+    [hasArtboard, img, scheduleCommitTransform]
   )
 
   const restoreImage = useCallback(() => {
     if (!img) return
-    // Restore original placement (like initial "copy" state):
-    // - reset rotation
-    // - fit into current artboard and center
-    setRotation(0)
-    const initialScale = showArtboard && artW > 0 && artH > 0 ? Math.min(artW / img.width, artH / img.height) : 1
-    const x = showArtboard ? artW / 2 : img.width / 2
-    const y = showArtboard ? artH / 2 : img.height / 2
-    const next = { x, y, scaleX: initialScale, scaleY: initialScale }
+    const t = initialImageTransform
+    const next = t
+      ? {
+          x: Number(t.x),
+          y: Number(t.y),
+          scaleX: Number(t.scaleX),
+          scaleY: Number(t.scaleY),
+        }
+      : (() => {
+          if (!hasArtboard) return null
+          const dpiScale = computeDpiScale()
+          if (dpiScale == null) return null
+          return { x: artW / 2, y: artH / 2, scaleX: dpiScale, scaleY: dpiScale }
+        })()
+
+    if (!next || !Number.isFinite(next.x) || !Number.isFinite(next.y) || !Number.isFinite(next.scaleX) || !Number.isFinite(next.scaleY)) return
+
+    const nextRotation = t ? Number(t.rotationDeg) : 0
+    const rot = Number.isFinite(nextRotation) ? nextRotation : 0
+    setRotation(rot)
     userChangedImageTxRef.current = true
     setImageTx(next)
-    scheduleCommitTransform(next, 0, 0)
+    scheduleCommitTransform(next, rot, 0)
     scheduleBoundsUpdate()
-  }, [artH, artW, img, scheduleBoundsUpdate, scheduleCommitTransform, showArtboard])
+  }, [artH, artW, computeDpiScale, hasArtboard, img, initialImageTransform, scheduleBoundsUpdate, scheduleCommitTransform])
 
   const alignImage = useCallback(
     (opts: { x?: "left" | "center" | "right"; y?: "top" | "center" | "bottom" }) => {
-      if (!showArtboard) return
+      if (!hasArtboard) return
       const layer = layerRef.current
       const node = imageNodeRef.current
       if (!layer || !node) return
@@ -481,11 +459,12 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
       const prev = imageTxRef.current
       const baseX = prev?.x ?? node.x()
       const baseY = prev?.y ?? node.y()
+      if (!prev) return
       const next = {
         x: baseX + dx,
         y: baseY + dy,
-        scaleX: prev?.scaleX ?? node.scaleX() ?? 1,
-        scaleY: prev?.scaleY ?? node.scaleY() ?? 1,
+        scaleX: prev.scaleX,
+        scaleY: prev.scaleY,
       }
       userChangedImageTxRef.current = true
       setImageTx(next)
@@ -493,7 +472,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
 
       scheduleBoundsUpdate()
     },
-    [artH, artW, scheduleBoundsUpdate, scheduleCommitTransform, showArtboard]
+    [artH, artW, hasArtboard, scheduleBoundsUpdate, scheduleCommitTransform]
   )
 
   useImperativeHandle(
@@ -505,12 +484,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   const onWheel = useCallback(
     (e: Konva.KonvaEventObject<WheelEvent>) => {
       e.evt.preventDefault()
-      const isZoomGesture = e.evt.ctrlKey || e.evt.metaKey
-
-      if (isZoomGesture) {
-        zoomBy(e.evt.deltaY > 0 ? 1 / 1.08 : 1.08)
-        return
-      }
+      // PX-WORLD invariant: no zooming (Stage scale stays 1).
 
       userInteractedRef.current = true
       panDeltaRef.current.dx += e.evt.deltaX
@@ -524,7 +498,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
         setView((v) => panBy(v, dx, dy))
       })
     },
-    [zoomBy]
+    []
   )
 
   // E2E test hook: expose stage + image node to the browser so Playwright can
@@ -564,8 +538,9 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
         }}
         width={size.w}
         height={size.h}
-        scaleX={view.scale}
-        scaleY={view.scale}
+        pixelRatio={1}
+        scaleX={1}
+        scaleY={1}
         x={view.x}
         y={view.y}
         draggable={panEnabled}
@@ -590,9 +565,9 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
             layerRef.current = n
           }}
         >
-          {showArtboard ? <Rect x={0} y={0} width={artW} height={artH} fill="#ffffff" listening={false} /> : null}
+          {drawArtboard ? <Rect x={0} y={0} width={artW} height={artH} fill="#ffffff" listening={false} /> : null}
 
-          {img ? (
+          {img && imageTx ? (
             <KonvaImage
               ref={(n) => {
                 imageNodeRef.current = n
@@ -600,12 +575,12 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
               image={img}
               listening={imageDraggable}
               rotation={rotation}
-              scaleX={imageTx?.scaleX ?? 1}
-              scaleY={imageTx?.scaleY ?? 1}
+              scaleX={imageTx.scaleX}
+              scaleY={imageTx.scaleY}
               offsetX={img.width / 2}
               offsetY={img.height / 2}
-              x={imageTx?.x ?? img.width / 2}
-              y={imageTx?.y ?? img.height / 2}
+              x={imageTx.x}
+              y={imageTx.y}
               draggable={imageDraggable}
               onDragStart={() => {
                 userInteractedRef.current = true
@@ -635,13 +610,12 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
               const x2 = snapWorldToDeviceHalfPixel(imageBounds.x + imageBounds.w, "x")
               const y2 = snapWorldToDeviceHalfPixel(imageBounds.y + imageBounds.h, "y")
 
-              const handleW = selectionHandlePx / (view.scale || 1)
-              const handleH = selectionHandlePx / (view.scale || 1)
+                const handleW = selectionHandlePx
+                const handleH = selectionHandlePx
 
               const toWorldFromScreen = (screen: number, axis: "x" | "y") => {
-                const scale = view.scale || 1
                 const offset = axis === "x" ? view.x : view.y
-                return (screen - offset) / scale
+                  return screen - offset
               }
 
               const handleAt = (screenX: number, screenY: number) => {
@@ -748,7 +722,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
             })()
           ) : null}
 
-          {showArtboard ? (
+          {drawArtboard ? (
             <>
               {/* Artboard border as 4 independent lines (1px, not scaling) */}
               {(() => {

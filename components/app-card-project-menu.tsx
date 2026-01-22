@@ -1,26 +1,24 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import Link from "next/link"
+import { useCallback, useMemo, useState } from "react"
 import { MoreVertical } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 
 export function ProjectCardMenu({
   projectId,
@@ -31,9 +29,32 @@ export function ProjectCardMenu({
   href: string
   className?: string
 }) {
-  const router = useRouter()
-  const [busy, setBusy] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  const deleteProject = useCallback(async () => {
+    if (busy) return
+    setBusy(true)
+    try {
+      const res = await fetch(`/api/projects/${projectId}`, {
+        method: "DELETE",
+        credentials: "same-origin",
+      })
+      if (!res.ok) return
+      setConfirmOpen(false)
+      // MVP: simplest refresh for server-rendered dashboard list
+      window.location.reload()
+    } finally {
+      setBusy(false)
+    }
+  }, [busy, projectId])
+
+  const triggerClassName = useMemo(() => {
+    return (
+      className ??
+      "h-6 w-6 cursor-pointer rounded-full border border-muted-foreground/60 bg-white/80 text-foreground/70 hover:border-[#7C5CFF] hover:bg-white hover:text-foreground"
+    )
+  }, [className])
 
   return (
     <>
@@ -43,10 +64,7 @@ export function ProjectCardMenu({
             type="button"
             variant="ghost"
             size="icon"
-            className={
-              className ??
-              "h-6 w-6 cursor-pointer rounded-full border border-muted-foreground/60 bg-white/80 text-foreground/70 hover:border-[#7C5CFF] hover:bg-white hover:text-foreground"
-            }
+            className={triggerClassName}
             aria-label="Project actions"
             onClick={(e) => {
               e.preventDefault()
@@ -57,21 +75,14 @@ export function ProjectCardMenu({
             <MoreVertical className="size-4" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-          <DropdownMenuItem
-            onSelect={(e) => {
-              e.preventDefault()
-              router.push(href)
-            }}
-          >
-            Open
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem asChild className="text-[12px]">
+            <Link href={href}>Open</Link>
           </DropdownMenuItem>
-          <DropdownMenuSeparator />
           <DropdownMenuItem
-            variant="destructive"
+            className="text-[12px]"
             onSelect={(e) => {
               e.preventDefault()
-              if (busy) return
               setConfirmOpen(true)
             }}
           >
@@ -80,41 +91,17 @@ export function ProjectCardMenu({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <Dialog open={confirmOpen} onOpenChange={(o) => (busy ? null : setConfirmOpen(o))}>
-        <DialogContent className="sm:max-w-[425px]">
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent onClick={(e) => e.stopPropagation()}>
           <DialogHeader>
             <DialogTitle>Delete project?</DialogTitle>
-            <DialogDescription>
-              This action cannot be undone. This will permanently delete this project and all its data.
-            </DialogDescription>
+            <DialogDescription>This cannot be undone.</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <DialogClose asChild>
-              <Button type="button" variant="outline" disabled={busy}>
-                Cancel
-              </Button>
-            </DialogClose>
-            <Button
-              type="button"
-              variant="destructive"
-              disabled={busy}
-              onClick={async () => {
-                if (busy) return
-                setBusy(true)
-                try {
-                  const res = await fetch(`/api/projects/${projectId}`, { method: "DELETE", credentials: "same-origin" })
-                  if (!res.ok) {
-                    const text = await res.text()
-                    throw new Error(text || `Delete failed (${res.status})`)
-                  }
-                  setConfirmOpen(false)
-                  router.refresh()
-                } catch (err) {
-                  window.alert(err instanceof Error ? err.message : "Delete failed")
-                  setBusy(false)
-                }
-              }}
-            >
+            <Button type="button" variant="secondary" onClick={() => setConfirmOpen(false)} disabled={busy}>
+              Cancel
+            </Button>
+            <Button type="button" variant="destructive" onClick={deleteProject} disabled={busy}>
               Delete
             </Button>
           </DialogFooter>

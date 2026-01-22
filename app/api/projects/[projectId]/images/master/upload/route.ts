@@ -118,6 +118,47 @@ export async function POST(
     )
   }
 
+  // OPTIONAL: persist DPI-based image scale (semantic only; no width/height math).
+  const BASE_DPI = 72
+  const { data: ws, error: wsErr } = await authed
+    .from("project_workspace")
+    .select("dpi_x,width_px,height_px")
+    .eq("project_id", projectId)
+    .maybeSingle()
+
+  if (wsErr) {
+    return NextResponse.json({ error: wsErr.message, stage: "workspace_select", details: wsErr }, { status: 400 })
+  }
+  const dpi = Number(ws?.dpi_x)
+  const artW = Number(ws?.width_px)
+  const artH = Number(ws?.height_px)
+  if (!Number.isFinite(dpi) || dpi <= 0) {
+    return NextResponse.json({ error: "Workspace DPI invalid", stage: "workspace_dpi_invalid" }, { status: 400 })
+  }
+  if (!Number.isFinite(artW) || !Number.isFinite(artH) || artW <= 0 || artH <= 0) {
+    return NextResponse.json({ error: "Workspace dimensions invalid", stage: "workspace_invalid" }, { status: 400 })
+  }
+
+  const dpiScale = BASE_DPI / dpi
+
+  const { error: stateErr } = await authed.from("project_image_state").upsert(
+    {
+      project_id: projectId,
+      role: "master",
+      x: artW / 2,
+      y: artH / 2,
+      scale_x: dpiScale,
+      scale_y: dpiScale,
+      rotation_deg: 0,
+      width_px,
+      height_px,
+    },
+    { onConflict: "project_id,role" }
+  )
+  if (stateErr) {
+    return NextResponse.json({ error: stateErr.message, stage: "image_state_upsert", details: stateErr }, { status: 400 })
+  }
+
   return NextResponse.json({ ok: true, storage_path: objectPath })
 }
 

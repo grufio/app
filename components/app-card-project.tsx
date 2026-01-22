@@ -3,7 +3,7 @@ import { ImageOff } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Card, CardContent } from "@/components/ui/card"
-import { ProjectCardMenu } from "@/components/app-card-project-menu"
+import { ProjectCardMenu } from "./app-card-project-menu"
 import { ProjectCardThumbnail, type ProjectThumbImageState } from "@/components/app-card-project-thumbnail"
 
 export type ProjectPreviewCardProps = {

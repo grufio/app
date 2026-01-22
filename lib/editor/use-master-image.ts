@@ -8,6 +8,7 @@ export type MasterImage = {
   signedUrl: string
   width_px: number
   height_px: number
+  dpi: number | null
   name: string
 }
 
@@ -32,6 +33,7 @@ export function useMasterImage(projectId: string) {
         signedUrl: payload.signedUrl,
         width_px: Number(payload.width_px ?? 0),
         height_px: Number(payload.height_px ?? 0),
+        dpi: payload.dpi == null ? null : Number(payload.dpi),
         name: String(payload.name ?? "master image"),
       })
     } catch (e) {

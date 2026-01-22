@@ -7,6 +7,7 @@ export type MasterImageResponse =
       signedUrl: string
       width_px: number
       height_px: number
+      dpi?: number | null
       name: string
       storage_path?: string
       format?: string
