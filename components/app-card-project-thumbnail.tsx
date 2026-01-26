@@ -26,19 +26,19 @@ export function ProjectCardThumbnail({
   artboardHeightPx?: number
   initialImageTransform: ProjectThumbImageState
 }) {
-  const [src, setSrc] = useState<string | null>(null)
+  const [state, setState] = useState<{ projectId: string; src: string | null }>({ projectId, src: null })
+  const src = state.projectId === projectId ? state.src : null
 
   useEffect(() => {
     let cancelled = false
-    setSrc(null)
     getMasterImage(projectId)
       .then((res) => {
         if (cancelled) return
-        setSrc(res.exists ? res.signedUrl : null)
+        setState({ projectId, src: res.exists ? res.signedUrl : null })
       })
       .catch(() => {
         if (cancelled) return
-        setSrc(null)
+        setState({ projectId, src: null })
       })
     return () => {
       cancelled = true

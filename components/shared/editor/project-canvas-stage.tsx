@@ -4,7 +4,7 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRe
 import { Image as KonvaImage, Layer, Line, Rect, Stage } from "react-konva"
 import type Konva from "konva"
 
-import { panBy } from "@/lib/editor/canvas-model"
+import { fitToWorld, panBy, zoomAround } from "@/lib/editor/canvas-model"
 
 type Props = {
   src?: string
@@ -99,6 +99,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     className,
     panEnabled = true,
     imageDraggable = false,
+    fitPaddingPx = 24,
     renderArtboard = true,
     artboardWidthPx,
     artboardHeightPx,
@@ -119,11 +120,12 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   const [view, setView] = useState({ scale: 1, x: 0, y: 0 })
   const [rotation, setRotation] = useState(0)
 
-  // (legacy) was used for auto-fit; zoom/fitting is forbidden by the PX-WORLD + DPI-image-scale model.
+  // Used to avoid re-running initial placement/fit logic unnecessarily.
   const placedKeyRef = useRef<string | null>(null)
   const appliedInitialTransformKeyRef = useRef<string | null>(null)
   const userInteractedRef = useRef(false)
   const userChangedImageTxRef = useRef(false)
+  const autoFitKeyRef = useRef<string | null>(null)
   const commitTimerRef = useRef<number | null>(null)
   const pendingCommitRef = useRef<{ tx: { x: number; y: number; scaleX: number; scaleY: number } | null; rot: number } | null>(
     null
@@ -192,28 +194,53 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   const selectionColor = "#000000"
   const selectionDash: number[] | undefined = undefined
   const selectionHandlePx = 8
+  const fitPadding = Math.max(0, Number(fitPaddingPx) || 0)
 
   // Pixel-snap helper: for a 1px stroke, canvas looks crispest when the line center
   // lands on N + 0.5 device pixels in screen space.
   const snapWorldToDeviceHalfPixel = useCallback(
     (worldCoord: number, axis: "x" | "y") => {
-      const scale = 1
+      const scale = view.scale || 1
       const offset = axis === "x" ? view.x : view.y
       const screen = offset + worldCoord * scale
       const snapped = Math.round(screen - 0.5) + 0.5
       return (snapped - offset) / scale
     },
-    [view.x, view.y]
+    [view.scale, view.x, view.y]
   )
 
   const fitToView = useCallback(() => {
-    // API kept for UI wiring; PX-WORLD invariant: Stage scale stays 1. We only reset pan.
+    if (!world) return
+    if (size.w <= 0 || size.h <= 0) return
     userInteractedRef.current = false
-    setView((v) => ({ ...v, scale: 1, x: 0, y: 0 }))
-  }, [])
+    autoFitKeyRef.current = null
+    setView(fitToWorld(size, world, fitPadding))
+  }, [fitPadding, size, world])
 
-  const zoomIn = useCallback(() => {}, [])
-  const zoomOut = useCallback(() => {}, [])
+  const zoomIn = useCallback(() => {
+    const pointer = { x: size.w / 2, y: size.h / 2 }
+    userInteractedRef.current = true
+    setView((v) => zoomAround(v, pointer, 1.1, 0.05, 8))
+  }, [size.h, size.w])
+
+  const zoomOut = useCallback(() => {
+    const pointer = { x: size.w / 2, y: size.h / 2 }
+    userInteractedRef.current = true
+    setView((v) => zoomAround(v, pointer, 1 / 1.1, 0.05, 8))
+  }, [size.h, size.w])
+
+  // Auto-fit view once the artboard + container dimensions are known.
+  useEffect(() => {
+    if (!hasArtboard) return
+    if (!world) return
+    if (size.w <= 0 || size.h <= 0) return
+    if (userInteractedRef.current) return
+
+    const key = `${size.w}x${size.h}:${world.w}x${world.h}:p${fitPadding}`
+    if (autoFitKeyRef.current === key) return
+    autoFitKeyRef.current = key
+    setView(fitToWorld(size, world, fitPadding))
+  }, [fitPadding, hasArtboard, size, world])
 
   const reportImageSize = useCallback(
     (tx: { scaleX: number; scaleY: number } | null) => {
@@ -269,8 +296,14 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
 
     const x = Number(initialImageTransform.x)
     const y = Number(initialImageTransform.y)
-    const scaleX = Number(initialImageTransform.scaleX)
-    const scaleY = Number(initialImageTransform.scaleY)
+    const wPx = initialImageTransform.widthPx == null ? null : Number(initialImageTransform.widthPx)
+    const hPx = initialImageTransform.heightPx == null ? null : Number(initialImageTransform.heightPx)
+    // Prefer persisted pixel size when available; it's what the user edited.
+    // This avoids visible drift when scale was stored with limited precision.
+    const scaleX =
+      wPx != null && Number.isFinite(wPx) && wPx > 0 && img.width > 0 ? wPx / img.width : Number(initialImageTransform.scaleX)
+    const scaleY =
+      hPx != null && Number.isFinite(hPx) && hPx > 0 && img.height > 0 ? hPx / img.height : Number(initialImageTransform.scaleY)
     if (!Number.isFinite(x) || !Number.isFinite(y)) return
     if (!Number.isFinite(scaleX) || !Number.isFinite(scaleY)) return
 
@@ -472,7 +505,20 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   const onWheel = useCallback(
     (e: Konva.KonvaEventObject<WheelEvent>) => {
       e.evt.preventDefault()
-      // PX-WORLD invariant: no zooming (Stage scale stays 1).
+      const stage = stageRef.current
+      if (!stage) return
+
+      // Illustrator-like:
+      // - wheel: pan
+      // - ctrl/cmd + wheel: zoom around cursor
+      if (e.evt.ctrlKey || e.evt.metaKey) {
+        userInteractedRef.current = true
+        const pos = stage.getPointerPosition()
+        if (!pos) return
+        const factor = Math.pow(1.0015, -e.evt.deltaY)
+        setView((v) => zoomAround(v, { x: pos.x, y: pos.y }, factor, 0.05, 8))
+        return
+      }
 
       userInteractedRef.current = true
       panDeltaRef.current.dx += e.evt.deltaX
@@ -527,8 +573,8 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
         width={size.w}
         height={size.h}
         pixelRatio={1}
-        scaleX={1}
-        scaleY={1}
+        scaleX={view.scale}
+        scaleY={view.scale}
         x={view.x}
         y={view.y}
         draggable={panEnabled}
@@ -603,7 +649,8 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
 
               const toWorldFromScreen = (screen: number, axis: "x" | "y") => {
                 const offset = axis === "x" ? view.x : view.y
-                  return screen - offset
+                const scale = view.scale || 1
+                return (screen - offset) / scale
               }
 
               const handleAt = (screenX: number, screenY: number) => {

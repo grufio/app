@@ -17,23 +17,23 @@ import {
 } from "@/components/ui/dialog"
 import {
   ArtboardPanel,
-  CanvasToolSidebar,
+  FloatingToolbar,
   ImagePanel,
   ProjectCanvasStage,
   type ProjectCanvasStageHandle,
   ProjectEditorHeader,
 } from "@/components/shared/editor"
 import { EditorErrorBoundary } from "@/components/shared/editor/editor-error-boundary"
+import { useFloatingToolbarControls } from "@/lib/editor/floating-toolbar-controls"
+import { ProjectWorkspaceProvider, useProjectWorkspace } from "@/lib/editor/project-workspace"
 import { useMasterImage } from "@/lib/editor/use-master-image"
 import { useProject } from "@/lib/editor/use-project"
 import { useImageState } from "@/lib/editor/use-image-state"
 
-export default function ProjectDetailPage() {
-  const params = useParams<{ projectId: string }>()
-  const [tab, setTab] = useState<"image" | "filter" | "convert" | "output">(
-    "image"
-  )
-  const projectId = params.projectId
+function ProjectDetailPageInner({ projectId }: { projectId: string }) {
+  const { unit: workspaceUnit, dpi: workspaceDpi, widthPx: artboardWidthPx, heightPx: artboardHeightPx, loading: workspaceLoading } =
+    useProjectWorkspace()
+  const [tab, setTab] = useState<"image" | "filter" | "convert" | "output">("image")
   const { project, setProject } = useProject(projectId)
   const {
     masterImage,
@@ -47,17 +47,12 @@ export default function ProjectDetailPage() {
   } = useMasterImage(projectId)
   const [restoreOpen, setRestoreOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
-  const [tool, setTool] = useState<"select" | "hand">("hand")
-  const panEnabled = tool === "hand"
-  const imageDraggable = tool === "select"
   const canvasRef = useRef<ProjectCanvasStageHandle | null>(null)
-  const [artboardPx, setArtboardPx] = useState<{ w: number; h: number } | null>(null)
   const [imagePx, setImagePx] = useState<{ w: number; h: number } | null>(null)
   const { initialImageTransform, imageStateLoading, saveImageState } = useImageState(
     projectId,
     Boolean(masterImage)
   )
-  const [artboardMeta, setArtboardMeta] = useState<{ unit: "mm" | "cm" | "pt" | "px"; dpi: number } | null>(null)
 
   const initialImagePx = useMemo(() => {
     if (!masterImage || !initialImageTransform) return null
@@ -73,10 +68,6 @@ export default function ProjectDetailPage() {
     return { w, h }
   }, [initialImageTransform, masterImage])
 
-  const handleArtboardPxChange = useCallback((w: number, h: number) => {
-    setArtboardPx({ w, h })
-  }, [])
-
   const handleImagePxChange = useCallback((w: number, h: number) => {
     setImagePx((prev) => {
       if (prev && prev.w === w && prev.h === h) return prev
@@ -91,11 +82,19 @@ export default function ProjectDetailPage() {
     setImagePx(null)
   }, [deleteImage])
 
-  // Keep tool sidebar callbacks stable to avoid unnecessary rerenders.
-  const handleZoomIn = useCallback(() => canvasRef.current?.zoomIn(), [])
-  const handleZoomOut = useCallback(() => canvasRef.current?.zoomOut(), [])
-  const handleFit = useCallback(() => canvasRef.current?.fitToView(), [])
-  const handleRotate = useCallback(() => canvasRef.current?.rotate90(), [])
+  const toolbar = useFloatingToolbarControls({
+    canvasRef,
+    hasImage: Boolean(masterImage),
+    masterImageLoading,
+    imageStateLoading,
+    enableShortcuts: true,
+  })
+
+  const panelImagePx = useMemo(() => {
+    // Avoid the "flash" of raw master px sizes before persisted image-state arrives.
+    if (imageStateLoading) return null
+    return imagePx ?? initialImagePx ?? (masterImage ? { w: masterImage.width_px, h: masterImage.height_px } : null)
+  }, [imagePx, imageStateLoading, initialImagePx, masterImage])
 
   return (
     <div className="flex min-h-svh w-full flex-col">
@@ -124,16 +123,7 @@ export default function ProjectDetailPage() {
             {/* Main content (left tools + canvas/uploader) */}
             <main className="flex min-w-0 flex-1">
               {/* Template-level left sidebar (Illustrator-style) */}
-              <aside className="flex w-12 shrink-0 justify-center border-r bg-background/80 py-2">
-                <CanvasToolSidebar
-                  tool={tool}
-                  onSelectTool={setTool}
-                  onZoomIn={handleZoomIn}
-                  onZoomOut={handleZoomOut}
-                  onFit={handleFit}
-                  onRotate={handleRotate}
-                />
-              </aside>
+              <aside className="flex w-12 shrink-0 border-r bg-background/80 py-2" aria-label="Canvas tools" />
 
               {/* Content area */}
               <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -151,6 +141,20 @@ export default function ProjectDetailPage() {
 
                 {/* Workspace */}
                 <div className="relative min-h-0 flex-1">
+                  {/* Floating toolbar overlay (Figma-like) */}
+                  <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center">
+                    <div className="pointer-events-auto">
+                      <FloatingToolbar
+                        tool={toolbar.tool}
+                        onToolChange={toolbar.setTool}
+                        onZoomIn={toolbar.actions.zoomIn}
+                        onZoomOut={toolbar.actions.zoomOut}
+                        onFit={toolbar.actions.fit}
+                        onRotate={toolbar.actions.rotate}
+                        actionsDisabled={toolbar.actionsDisabled}
+                      />
+                    </div>
+                  </div>
                   {masterImage && imageStateLoading ? (
                     <div className="flex h-full w-full items-center justify-center">
                       <div className="text-sm text-muted-foreground">Loading image state…</div>
@@ -161,10 +165,10 @@ export default function ProjectDetailPage() {
                       src={masterImage?.signedUrl}
                       alt={masterImage?.name}
                       className="h-full w-full"
-                      panEnabled={panEnabled}
-                      imageDraggable={Boolean(masterImage) && imageDraggable}
-                      artboardWidthPx={artboardPx?.w}
-                      artboardHeightPx={artboardPx?.h}
+                      panEnabled={toolbar.panEnabled}
+                      imageDraggable={Boolean(masterImage) && toolbar.imageDraggable}
+                      artboardWidthPx={artboardWidthPx ?? undefined}
+                      artboardHeightPx={artboardHeightPx ?? undefined}
                       onImageSizeChange={handleImagePxChange}
                       initialImageTransform={masterImage ? initialImageTransform : null}
                       onImageTransformCommit={masterImage ? saveImageState : undefined}
@@ -188,11 +192,7 @@ export default function ProjectDetailPage() {
                 <div className="border-b px-4 py-3" data-testid="editor-artboard-panel">
                   <div className="flex h-6 items-center text-sm font-medium">Artboard</div>
                   <div className="mt-3">
-                    <ArtboardPanel
-                      projectId={projectId}
-                      onChangePx={handleArtboardPxChange}
-                      onChangeMeta={(unit, dpi) => setArtboardMeta({ unit, dpi })}
-                    />
+                    <ArtboardPanel />
                   </div>
                 </div>
                 <div className="border-b px-4 py-3">
@@ -227,15 +227,20 @@ export default function ProjectDetailPage() {
                     </div>
                   </div>
                   <div className="mt-3">
-                    <ImagePanel
-                      widthPx={imagePx?.w ?? initialImagePx?.w ?? masterImage?.width_px}
-                      heightPx={imagePx?.h ?? initialImagePx?.h ?? masterImage?.height_px}
-                      unit={artboardMeta?.unit ?? "cm"}
-                      dpi={artboardMeta?.dpi ?? 300}
-                      disabled={!masterImage || imageStateLoading}
-                      onCommit={(w, h) => canvasRef.current?.setImageSize(w, h)}
-                      onAlign={(opts) => canvasRef.current?.alignImage(opts)}
-                    />
+                    {workspaceLoading || !workspaceUnit || !workspaceDpi ? (
+                      // Keep layout stable without showing misleading values.
+                      <div className="h-[124px]" aria-hidden="true" />
+                    ) : (
+                      <ImagePanel
+                        widthPx={panelImagePx?.w}
+                        heightPx={panelImagePx?.h}
+                        unit={workspaceUnit}
+                        dpi={workspaceDpi}
+                        disabled={!masterImage || imageStateLoading}
+                        onCommit={(w, h) => canvasRef.current?.setImageSize(w, h)}
+                        onAlign={(opts) => canvasRef.current?.alignImage(opts)}
+                      />
+                    )}
                   </div>
                 </div>
 
@@ -306,6 +311,16 @@ export default function ProjectDetailPage() {
         )}
       </div>
     </div>
+  )
+}
+
+export default function ProjectDetailPage() {
+  const params = useParams<{ projectId: string }>()
+  const projectId = params.projectId
+  return (
+    <ProjectWorkspaceProvider projectId={projectId}>
+      <ProjectDetailPageInner projectId={projectId} />
+    </ProjectWorkspaceProvider>
   )
 }
 

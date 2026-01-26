@@ -18,12 +18,17 @@ function round4(n: number): number {
   return Math.round(n * 10_000) / 10_000
 }
 
+function round8(n: number): number {
+  return Math.round(n * 100_000_000) / 100_000_000
+}
+
 function normalizeState(t: ImageState) {
   return {
     x: round4(t.x),
     y: round4(t.y),
-    scaleX: round4(t.scaleX),
-    scaleY: round4(t.scaleY),
+    // Scale needs higher precision; rounding too aggressively causes visible size drift after reload.
+    scaleX: round8(t.scaleX),
+    scaleY: round8(t.scaleY),
     widthPx: t.widthPx == null ? undefined : round4(t.widthPx),
     heightPx: t.heightPx == null ? undefined : round4(t.heightPx),
     rotationDeg: round4(t.rotationDeg),

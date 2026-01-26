@@ -22,9 +22,10 @@ export default defineConfig({
         // NOTE: Next.js does not allow multiple `next dev` processes in the same repo
         // (it uses `.next/dev/lock`). If you already have `npm run dev` running,
         // set `PLAYWRIGHT_BASE_URL` to reuse it.
-        command: "npm run dev -- --port 3000",
+        command: "npm run dev:e2e",
         url: baseURL,
-        reuseExistingServer: !process.env.CI,
+        // Always reuse if something is already listening on baseURL.
+        reuseExistingServer: true,
         timeout: 120_000,
         env: {
           // Dummy values; tests mock network calls so no real Supabase is required.

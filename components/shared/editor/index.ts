@@ -1,5 +1,6 @@
 export { ProjectEditorHeader } from "./project-editor-header"
 export { CanvasToolSidebar } from "./canvas-tool-sidebar"
+export { FloatingToolbar, type FloatingToolbarTool } from "./floating-toolbar"
 export { ProjectCanvasStage, type ProjectCanvasStageHandle } from "./project-canvas-stage"
 export { ArtboardPanel } from "./artboard-panel"
 export { ImagePanel } from "./image-panel"
