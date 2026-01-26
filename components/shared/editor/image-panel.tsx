@@ -106,6 +106,7 @@ function ImageSizeInputs({
     if (!Number.isFinite(dpi) || dpi <= 0) return
     // Use refs so blur/tab commits always see the latest typed value
     // (React state can be one render behind when events batch).
+    // Invariants: docs/specs/sizing-invariants.mdx (round once at input conversion).
     let wPxU: bigint
     let hPxU: bigint
     try {

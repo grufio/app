@@ -26,6 +26,18 @@ describe("units", () => {
     expect(pxU2).toBe(pxU)
   })
 
+  it("toggle sequence preserves canonical µpx", () => {
+    const dpi = 300
+    const pxU = unitToPxU("123.45", "mm", dpi)
+    const mm = pxUToUnitDisplay(pxU, "mm", dpi)
+    const cm = pxUToUnitDisplay(unitToPxU(mm, "mm", dpi), "cm", dpi)
+    const pt = pxUToUnitDisplay(unitToPxU(cm, "cm", dpi), "pt", dpi)
+    const px = pxUToUnitDisplay(unitToPxU(pt, "pt", dpi), "px", dpi)
+    const mm2 = pxUToUnitDisplay(unitToPxU(px, "px", dpi), "mm", dpi)
+    const pxU2 = unitToPxU(mm2, "mm", dpi)
+    expect(pxU2).toBe(pxU)
+  })
+
   it("stress: display->parse->display is stable (no oscillation)", () => {
     const dpi = 300
     const units = ["mm", "cm", "pt", "px"] as const

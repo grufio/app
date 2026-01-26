@@ -1,6 +1,6 @@
 "use client"
 
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react"
+import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react"
 import { Image as KonvaImage, Layer, Line, Rect, Stage } from "react-konva"
 import type Konva from "konva"
 
@@ -65,6 +65,74 @@ export type ProjectCanvasStageHandle = {
   restoreImage: () => void
 }
 
+type ViewState = { scale: number; x: number; y: number }
+type BoundsRect = { x: number; y: number; w: number; h: number }
+
+const SelectionOverlay = memo(function SelectionOverlay({
+  imageBounds,
+  view,
+  selectionHandlePx,
+  selectionColor,
+  selectionDash,
+  snapWorldToDeviceHalfPixel,
+}: {
+  imageBounds: BoundsRect | null
+  view: ViewState
+  selectionHandlePx: number
+  selectionColor: string
+  selectionDash: number[] | undefined
+  snapWorldToDeviceHalfPixel: (worldCoord: number, axis: "x" | "y") => number
+}) {
+  if (!imageBounds) return null
+  const x1 = snapWorldToDeviceHalfPixel(imageBounds.x, "x")
+  const y1 = snapWorldToDeviceHalfPixel(imageBounds.y, "y")
+  const x2 = snapWorldToDeviceHalfPixel(imageBounds.x + imageBounds.w, "x")
+  const y2 = snapWorldToDeviceHalfPixel(imageBounds.y + imageBounds.h, "y")
+
+  const handleW = selectionHandlePx
+  const handleH = selectionHandlePx
+
+  const toWorldFromScreen = (screen: number, axis: "x" | "y") => {
+    const offset = axis === "x" ? view.x : view.y
+    const scale = view.scale || 1
+    return (screen - offset) / scale
+  }
+
+  const handleAt = (screenX: number, screenY: number) => {
+    // Center the handle around the corner point in *screen* space (constant px size),
+    // then convert back to world coordinates.
+    const left = Math.round(screenX - selectionHandlePx / 2)
+    const top = Math.round(screenY - selectionHandlePx / 2)
+    return { x: toWorldFromScreen(left, "x"), y: toWorldFromScreen(top, "y") }
+  }
+
+  // Corner screen coords (for pixel-snapped handle placement)
+  const cornerTL = { x: view.x + x1 * view.scale, y: view.y + y1 * view.scale }
+  const cornerTR = { x: view.x + x2 * view.scale, y: view.y + y1 * view.scale }
+  const cornerBR = { x: view.x + x2 * view.scale, y: view.y + y2 * view.scale }
+  const cornerBL = { x: view.x + x1 * view.scale, y: view.y + y2 * view.scale }
+
+  const tl = handleAt(cornerTL.x, cornerTL.y)
+  const tr = handleAt(cornerTR.x, cornerTR.y)
+  const br = handleAt(cornerBR.x, cornerBR.y)
+  const bl = handleAt(cornerBL.x, cornerBL.y)
+
+  return (
+    <>
+      <Line points={[x1, y1, x2, y1]} stroke={selectionColor} strokeWidth={1} dash={selectionDash} strokeScaleEnabled={false} listening={false} />
+      <Line points={[x2, y1, x2, y2]} stroke={selectionColor} strokeWidth={1} dash={selectionDash} strokeScaleEnabled={false} listening={false} />
+      <Line points={[x2, y2, x1, y2]} stroke={selectionColor} strokeWidth={1} dash={selectionDash} strokeScaleEnabled={false} listening={false} />
+      <Line points={[x1, y2, x1, y1]} stroke={selectionColor} strokeWidth={1} dash={selectionDash} strokeScaleEnabled={false} listening={false} />
+
+      {/* Corner handles */}
+      <Rect x={tl.x} y={tl.y} width={handleW} height={handleH} fill="#ffffff" stroke={selectionColor} strokeWidth={1} strokeScaleEnabled={false} listening={false} />
+      <Rect x={tr.x} y={tr.y} width={handleW} height={handleH} fill="#ffffff" stroke={selectionColor} strokeWidth={1} strokeScaleEnabled={false} listening={false} />
+      <Rect x={br.x} y={br.y} width={handleW} height={handleH} fill="#ffffff" stroke={selectionColor} strokeWidth={1} strokeScaleEnabled={false} listening={false} />
+      <Rect x={bl.x} y={bl.y} width={handleW} height={handleH} fill="#ffffff" stroke={selectionColor} strokeWidth={1} strokeScaleEnabled={false} listening={false} />
+    </>
+  )
+})
+
 function useHtmlImage(src: string | null) {
   const [img, setImg] = useState<HTMLImageElement | null>(null)
 
@@ -120,7 +188,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   const img = useHtmlImage(src ?? null)
 
   const [size, setSize] = useState({ w: 0, h: 0 })
-  const [view, setView] = useState({ scale: 1, x: 0, y: 0 })
+  const [view, setView] = useState<ViewState>({ scale: 1, x: 0, y: 0 })
   const [rotation, setRotation] = useState(0)
 
   // Used to avoid re-running initial placement/fit logic unnecessarily.
@@ -144,7 +212,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     widthPxU: bigint
     heightPxU: bigint
   } | null>(null)
-  const [imageBounds, setImageBounds] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
+  const [imageBounds, setImageBounds] = useState<BoundsRect | null>(null)
   const rotationRef = useRef(0)
   useEffect(() => {
     rotationRef.current = rotation
@@ -155,10 +223,12 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   }, [imageTx])
 
   const boundsRafRef = useRef<number | null>(null)
+  const dragBoundsRafRef = useRef<number | null>(null)
   const panRafRef = useRef<number | null>(null)
   const panDeltaRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 })
   const onImageSizeChangeRef = useRef<Props["onImageSizeChange"]>(onImageSizeChange)
   const dragPosRef = useRef<{ x: number; y: number } | null>(null)
+  const dragDeltaRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 })
 
   useEffect(() => {
     onImageSizeChangeRef.current = onImageSizeChange
@@ -298,6 +368,10 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   const updateBoundsDuringDragMove = useCallback(() => {
     const node = imageNodeRef.current
     if (!node) return
+    if (rotationRef.current % 360 !== 0) {
+      scheduleBoundsUpdate()
+      return
+    }
     const prevPos = dragPosRef.current
     const nextPos = { x: node.x(), y: node.y() }
     dragPosRef.current = nextPos
@@ -311,11 +385,20 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     const dy = nextPos.y - prevPos.y
     if (dx === 0 && dy === 0) return
 
-    // Drag is a pure translation. The axis-aligned bounds translate 1:1 with the node.
-    // Avoid calling getClientRect() on every move.
-    setImageBounds((prev) => {
-      if (!prev) return prev
-      return { x: prev.x + dx, y: prev.y + dy, w: prev.w, h: prev.h }
+    dragDeltaRef.current.dx += dx
+    dragDeltaRef.current.dy += dy
+    if (dragBoundsRafRef.current != null) return
+    dragBoundsRafRef.current = requestAnimationFrame(() => {
+      dragBoundsRafRef.current = null
+      const { dx: accDx, dy: accDy } = dragDeltaRef.current
+      dragDeltaRef.current = { dx: 0, dy: 0 }
+      if (accDx === 0 && accDy === 0) return
+      // Drag is a pure translation. The axis-aligned bounds translate 1:1 with the node.
+      // Avoid calling getClientRect() on every move.
+      setImageBounds((prev) => {
+        if (!prev) return prev
+        return { x: prev.x + accDx, y: prev.y + accDy, w: prev.w, h: prev.h }
+      })
     })
   }, [scheduleBoundsUpdate])
 
@@ -693,130 +776,26 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
                 userChangedImageTxRef.current = true
                 scheduleCommitTransform(true, 0)
                 dragPosRef.current = null
+                dragDeltaRef.current = { dx: 0, dy: 0 }
+                if (dragBoundsRafRef.current != null) {
+                  cancelAnimationFrame(dragBoundsRafRef.current)
+                  dragBoundsRafRef.current = null
+                }
                 scheduleBoundsUpdate()
               }}
             />
           ) : null}
 
           {/* Default selection frame (shown when the Select tool is active) */}
-          {renderArtboard && imageDraggable && imageBounds ? (
-            (() => {
-              const x1 = snapWorldToDeviceHalfPixel(imageBounds.x, "x")
-              const y1 = snapWorldToDeviceHalfPixel(imageBounds.y, "y")
-              const x2 = snapWorldToDeviceHalfPixel(imageBounds.x + imageBounds.w, "x")
-              const y2 = snapWorldToDeviceHalfPixel(imageBounds.y + imageBounds.h, "y")
-
-                const handleW = selectionHandlePx
-                const handleH = selectionHandlePx
-
-              const toWorldFromScreen = (screen: number, axis: "x" | "y") => {
-                const offset = axis === "x" ? view.x : view.y
-                const scale = view.scale || 1
-                return (screen - offset) / scale
-              }
-
-              const handleAt = (screenX: number, screenY: number) => {
-                // Center the handle around the corner point in *screen* space (constant px size),
-                // then convert back to world coordinates.
-                const left = Math.round(screenX - selectionHandlePx / 2)
-                const top = Math.round(screenY - selectionHandlePx / 2)
-                return { x: toWorldFromScreen(left, "x"), y: toWorldFromScreen(top, "y") }
-              }
-
-              // Corner screen coords (for pixel-snapped handle placement)
-              const cornerTL = { x: view.x + x1 * view.scale, y: view.y + y1 * view.scale }
-              const cornerTR = { x: view.x + x2 * view.scale, y: view.y + y1 * view.scale }
-              const cornerBR = { x: view.x + x2 * view.scale, y: view.y + y2 * view.scale }
-              const cornerBL = { x: view.x + x1 * view.scale, y: view.y + y2 * view.scale }
-
-              const tl = handleAt(cornerTL.x, cornerTL.y)
-              const tr = handleAt(cornerTR.x, cornerTR.y)
-              const br = handleAt(cornerBR.x, cornerBR.y)
-              const bl = handleAt(cornerBL.x, cornerBL.y)
-
-              return (
-                <>
-                  <Line
-                    points={[x1, y1, x2, y1]}
-                    stroke={selectionColor}
-                    strokeWidth={1}
-                    dash={selectionDash}
-                    strokeScaleEnabled={false}
-                    listening={false}
-                  />
-                  <Line
-                    points={[x2, y1, x2, y2]}
-                    stroke={selectionColor}
-                    strokeWidth={1}
-                    dash={selectionDash}
-                    strokeScaleEnabled={false}
-                    listening={false}
-                  />
-                  <Line
-                    points={[x2, y2, x1, y2]}
-                    stroke={selectionColor}
-                    strokeWidth={1}
-                    dash={selectionDash}
-                    strokeScaleEnabled={false}
-                    listening={false}
-                  />
-                  <Line
-                    points={[x1, y2, x1, y1]}
-                    stroke={selectionColor}
-                    strokeWidth={1}
-                    dash={selectionDash}
-                    strokeScaleEnabled={false}
-                    listening={false}
-                  />
-
-                  {/* Corner handles */}
-                  <Rect
-                    x={tl.x}
-                    y={tl.y}
-                    width={handleW}
-                    height={handleH}
-                    fill="#ffffff"
-                    stroke={selectionColor}
-                    strokeWidth={1}
-                    strokeScaleEnabled={false}
-                    listening={false}
-                  />
-                  <Rect
-                    x={tr.x}
-                    y={tr.y}
-                    width={handleW}
-                    height={handleH}
-                    fill="#ffffff"
-                    stroke={selectionColor}
-                    strokeWidth={1}
-                    strokeScaleEnabled={false}
-                    listening={false}
-                  />
-                  <Rect
-                    x={br.x}
-                    y={br.y}
-                    width={handleW}
-                    height={handleH}
-                    fill="#ffffff"
-                    stroke={selectionColor}
-                    strokeWidth={1}
-                    strokeScaleEnabled={false}
-                    listening={false}
-                  />
-                  <Rect
-                    x={bl.x}
-                    y={bl.y}
-                    width={handleW}
-                    height={handleH}
-                    fill="#ffffff"
-                    stroke={selectionColor}
-                    strokeWidth={1}
-                    strokeScaleEnabled={false}
-                    listening={false}
-                  />
-                </>
-              )
-            })()
+          {renderArtboard && imageDraggable ? (
+            <SelectionOverlay
+              imageBounds={imageBounds}
+              view={view}
+              selectionHandlePx={selectionHandlePx}
+              selectionColor={selectionColor}
+              selectionDash={selectionDash}
+              snapWorldToDeviceHalfPixel={snapWorldToDeviceHalfPixel}
+            />
           ) : null}
 
           {drawArtboard ? (
