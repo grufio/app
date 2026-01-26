@@ -239,6 +239,19 @@ alter table public.project_image_state
 -- =========================================================
 
 -- =========================================================
+-- BEGIN db/011_project_image_state_micro_px.sql
+-- =========================================================
+-- Persist image state in µpx (string BigInt)
+alter table public.project_image_state
+  add column if not exists width_px_u text,
+  add column if not exists height_px_u text,
+  add column if not exists x_px_u text,
+  add column if not exists y_px_u text;
+-- =========================================================
+-- END db/011_project_image_state_micro_px.sql
+-- =========================================================
+
+-- =========================================================
 -- BEGIN db/010_project_workspace_raster_preset.sql
 -- =========================================================
 -- Persist artboard raster effects quality preset (Illustrator-like)

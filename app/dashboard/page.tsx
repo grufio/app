@@ -24,7 +24,7 @@ export default async function Page() {
   const { data: projects } = await supabase
     .from("projects")
     .select(
-      "id,name,updated_at,status,project_images(role,file_size_bytes),project_workspace(width_px,height_px),project_image_state(role,x,y,scale_x,scale_y,rotation_deg,width_px,height_px)"
+      "id,name,updated_at,status,project_images(role,file_size_bytes),project_workspace(width_px,height_px),project_image_state(role,x_px_u,y_px_u,width_px_u,height_px_u,rotation_deg)"
     )
     .order("updated_at", { ascending: false })
 
@@ -69,13 +69,11 @@ export default async function Page() {
                   project_workspace?: { width_px?: unknown; height_px?: unknown } | null
                   project_image_state?: Array<{
                     role: string
-                    x: unknown
-                    y: unknown
-                    scale_x: unknown
-                    scale_y: unknown
+                    x_px_u?: unknown
+                    y_px_u?: unknown
+                    width_px_u?: unknown
+                    height_px_u?: unknown
                     rotation_deg: unknown
-                    width_px?: unknown
-                    height_px?: unknown
                   }>
                 }
 
@@ -99,13 +97,11 @@ export default async function Page() {
                 const st = row.project_image_state?.find((s) => s.role === "master") ?? null
                 const initialImageTransform = st
                   ? {
-                      x: Number(st.x),
-                      y: Number(st.y),
-                      scaleX: Number(st.scale_x),
-                      scaleY: Number(st.scale_y),
                       rotationDeg: Number(st.rotation_deg),
-                      widthPx: st.width_px == null ? undefined : Number(st.width_px),
-                      heightPx: st.height_px == null ? undefined : Number(st.height_px),
+                      xPxU: typeof st.x_px_u === "string" ? BigInt(st.x_px_u) : undefined,
+                      yPxU: typeof st.y_px_u === "string" ? BigInt(st.y_px_u) : undefined,
+                      widthPxU: typeof st.width_px_u === "string" ? BigInt(st.width_px_u) : undefined,
+                      heightPxU: typeof st.height_px_u === "string" ? BigInt(st.height_px_u) : undefined,
                     }
                   : null
 

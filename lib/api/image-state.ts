@@ -2,17 +2,7 @@
 
 import { fetchJson } from "@/lib/api/http"
 
-export type ImageStateRow = {
-  x: number
-  y: number
-  scale_x: number
-  scale_y: number
-  width_px?: number | null
-  height_px?: number | null
-  rotation_deg: number
-}
-
-export type GetImageStateResponse = { exists: false } | { exists: true; state: ImageStateRow }
+export type { GetImageStateResponse, ImageStateRow, SaveImageStateBody } from "@/lib/editor/imageState"
 
 export async function getImageState(projectId: string): Promise<GetImageStateResponse> {
   const res = await fetchJson<GetImageStateResponse>(`/api/projects/${projectId}/image-state`, {
@@ -24,17 +14,6 @@ export async function getImageState(projectId: string): Promise<GetImageStateRes
     throw new Error(msg)
   }
   return res.data
-}
-
-export type SaveImageStateBody = {
-  role: "master"
-  x: number
-  y: number
-  scale_x: number
-  scale_y: number
-  width_px?: number
-  height_px?: number
-  rotation_deg: number
 }
 
 export async function saveImageState(projectId: string, body: SaveImageStateBody): Promise<void> {

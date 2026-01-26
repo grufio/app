@@ -57,8 +57,10 @@ npm run dev
   - `dpi_x/dpi_y` (numeric DPI)
   - `raster_effects_preset` ("high" | "medium" | "low")
 - **Image working state**: `project_image_state`
-  - `x/y/scale_x/scale_y/rotation_deg`
-  - optional cached `width_px/height_px`
+  - canonical µpx: `width_px_u/height_px_u` (strings; µpx = px·1e6)
+  - optional µpx position: `x_px_u/y_px_u`
+  - `rotation_deg`
+  - unit changes are display-only (no save)
 
 ### Interaction model
 

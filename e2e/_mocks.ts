@@ -4,10 +4,29 @@ export const PROJECT_ID = "00000000-0000-0000-0000-000000000001"
 
 export type SetupMockRoutesOpts = {
   withImage: boolean
+  workspace?: Partial<{
+    unit: "mm" | "cm" | "pt" | "px"
+    width_value: number
+    height_value: number
+    dpi_x: number
+    dpi_y: number
+    width_px: number
+    height_px: number
+    raster_effects_preset: "high" | "medium" | "low" | "custom" | null
+  }>
+  imageState?: { exists: false } | { exists: true; state: ImageStateRow }
+}
+
+type ImageStateRow = {
+  x_px_u?: string | null
+  y_px_u?: string | null
+  width_px_u?: string | null
+  height_px_u?: string | null
+  rotation_deg: number
 }
 
 export async function setupMockRoutes(page: Page, opts: SetupMockRoutesOpts) {
-  const workspaceRow = {
+  const defaultWorkspaceRow = {
     project_id: PROJECT_ID,
     unit: "cm",
     width_value: 20,
@@ -18,6 +37,7 @@ export async function setupMockRoutes(page: Page, opts: SetupMockRoutesOpts) {
     height_px: 3543.3071,
     raster_effects_preset: "high",
   }
+  const workspaceRow = { ...defaultWorkspaceRow, ...(opts.workspace ?? {}) }
 
   // Visible inline SVG so Konva renders deterministically.
   const dataImage =
@@ -32,6 +52,8 @@ export async function setupMockRoutes(page: Page, opts: SetupMockRoutesOpts) {
         name: "test.svg",
       }
     : { exists: false }
+
+  let imageState: ImageStateRow | null = opts.imageState && opts.imageState.exists ? opts.imageState.state : null
 
   page.route("**/*", async (route) => {
     const url = route.request().url()
@@ -73,10 +95,27 @@ export async function setupMockRoutes(page: Page, opts: SetupMockRoutesOpts) {
 
     // Internal API: image-state (not needed for MVP smoke)
     if (url.includes(`/api/projects/${PROJECT_ID}/image-state`)) {
+      const req = route.request()
+      if (req.method() === "POST") {
+        try {
+          const body = (await req.postDataJSON()) as Partial<ImageStateRow>
+          imageState = {
+            x_px_u: body.x_px_u ?? null,
+            y_px_u: body.y_px_u ?? null,
+            width_px_u: body.width_px_u ?? null,
+            height_px_u: body.height_px_u ?? null,
+            rotation_deg: Number(body.rotation_deg ?? 0),
+          }
+        } catch {
+          // ignore bad body
+        }
+        return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) })
+      }
+
       return route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ exists: false }),
+        body: JSON.stringify(imageState ? { exists: true, state: imageState } : { exists: false }),
       })
     }
 

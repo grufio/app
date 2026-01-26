@@ -54,28 +54,22 @@ function ProjectDetailPageInner({ projectId }: { projectId: string }) {
   const [restoreOpen, setRestoreOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const canvasRef = useRef<ProjectCanvasStageHandle | null>(null)
-  const [imagePx, setImagePx] = useState<{ w: number; h: number } | null>(null)
+  const [imagePxU, setImagePxU] = useState<{ w: bigint; h: bigint } | null>(null)
   const { initialImageTransform, imageStateLoading, saveImageState } = useImageState(
     projectId,
     Boolean(masterImage)
   )
 
-  const initialImagePx = useMemo(() => {
+  const initialImagePxU = useMemo(() => {
     if (!masterImage || !initialImageTransform) return null
-    const w =
-      Number.isFinite(Number(initialImageTransform.widthPx)) && Number(initialImageTransform.widthPx) > 0
-        ? Number(initialImageTransform.widthPx)
-        : masterImage.width_px * initialImageTransform.scaleX
-    const h =
-      Number.isFinite(Number(initialImageTransform.heightPx)) && Number(initialImageTransform.heightPx) > 0
-        ? Number(initialImageTransform.heightPx)
-        : masterImage.height_px * initialImageTransform.scaleY
-    if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return null
-    return { w, h }
+    const wU = initialImageTransform.widthPxU
+    const hU = initialImageTransform.heightPxU
+    if (!wU || !hU || wU <= 0n || hU <= 0n) return null
+    return { w: wU, h: hU }
   }, [initialImageTransform, masterImage])
 
-  const handleImagePxChange = useCallback((w: number, h: number) => {
-    setImagePx((prev) => {
+  const handleImagePxChange = useCallback((w: bigint, h: bigint) => {
+    setImagePxU((prev) => {
       if (prev && prev.w === w && prev.h === h) return prev
       return { w, h }
     })
@@ -85,7 +79,7 @@ function ProjectDetailPageInner({ projectId }: { projectId: string }) {
     const res = await deleteImage()
     if (!res.ok) return
     setDeleteOpen(false)
-    setImagePx(null)
+    setImagePxU(null)
   }, [deleteImage])
 
   const toolbar = useFloatingToolbarControls({
@@ -152,11 +146,23 @@ function ProjectDetailPageInner({ projectId }: { projectId: string }) {
     [toolbar]
   )
 
-  const panelImagePx = useMemo(() => {
+  const panelImagePxU = useMemo(() => {
     // Avoid the "flash" of raw master px sizes before persisted image-state arrives.
     if (imageStateLoading) return null
-    return imagePx ?? initialImagePx ?? (masterImage ? { w: masterImage.width_px, h: masterImage.height_px } : null)
-  }, [imagePx, imageStateLoading, initialImagePx, masterImage])
+    return imagePxU ?? initialImagePxU ?? null
+  }, [imagePxU, imageStateLoading, initialImagePxU])
+
+  const workspaceReady =
+    !workspaceLoading &&
+    Boolean(workspaceUnit) &&
+    Number.isFinite(Number(workspaceDpi)) &&
+    Number(workspaceDpi) > 0
+
+  const imagePanelReady =
+    workspaceReady &&
+    Boolean(masterImage) &&
+    !imageStateLoading &&
+    Boolean(panelImagePxU && panelImagePxU.w > 0n && panelImagePxU.h > 0n)
 
   return (
     <div className="flex min-h-svh w-full flex-col">
@@ -199,14 +205,9 @@ function ProjectDetailPageInner({ projectId }: { projectId: string }) {
               {/* Content area */}
               <div className="flex min-h-0 min-w-0 flex-1 flex-col">
                 {/* status/errors (no centering; keep it out of the canvas area) */}
-                {masterImageLoading || masterImageError ? (
+                {masterImageError ? (
                   <div className="px-6 pt-4">
-                    {masterImageLoading ? (
-                      <div className="text-sm text-muted-foreground">Loading image…</div>
-                    ) : null}
-                    {masterImageError ? (
-                      <div className="text-sm text-destructive">{masterImageError}</div>
-                    ) : null}
+                    <div className="text-sm text-destructive">{masterImageError}</div>
                   </div>
                 ) : null}
 
@@ -227,9 +228,8 @@ function ProjectDetailPageInner({ projectId }: { projectId: string }) {
                     </div>
                   </div>
                   {masterImage && imageStateLoading ? (
-                    <div className="flex h-full w-full items-center justify-center">
-                      <div className="text-sm text-muted-foreground">Loading image state…</div>
-                    </div>
+                    // Keep layout stable without "Loading…" text (per UX requirement).
+                    <div className="h-full w-full" aria-hidden="true" />
                   ) : (
                     <ProjectCanvasStage
                       ref={canvasRef}
@@ -298,20 +298,16 @@ function ProjectDetailPageInner({ projectId }: { projectId: string }) {
                     </div>
                   </div>
                   <div className="mt-3">
-                    {workspaceLoading || !workspaceUnit || !workspaceDpi ? (
-                      // Keep layout stable without showing misleading values.
-                      <div className="h-[124px]" aria-hidden="true" />
-                    ) : (
-                      <ImagePanel
-                        widthPx={panelImagePx?.w}
-                        heightPx={panelImagePx?.h}
-                        unit={workspaceUnit}
-                        dpi={workspaceDpi}
-                        disabled={!masterImage || imageStateLoading}
-                        onCommit={(w, h) => canvasRef.current?.setImageSize(w, h)}
-                        onAlign={(opts) => canvasRef.current?.alignImage(opts)}
-                      />
-                    )}
+                    <ImagePanel
+                      widthPxU={panelImagePxU?.w}
+                      heightPxU={panelImagePxU?.h}
+                      unit={workspaceUnit ?? "cm"}
+                      dpi={workspaceDpi ?? 300}
+                      ready={imagePanelReady}
+                      disabled={!masterImage || imageStateLoading || !workspaceReady}
+                      onCommit={(w, h) => canvasRef.current?.setImageSize(w, h)}
+                      onAlign={(opts) => canvasRef.current?.alignImage(opts)}
+                    />
                   </div>
                 </div>
 

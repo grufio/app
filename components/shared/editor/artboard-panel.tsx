@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { ArrowLeftRight, ArrowUpDown, Gauge, Link2, Ruler, Unlink2 } from "lucide-react"
 
-import { clampPx, fmt2, type Unit, unitToPx } from "@/lib/editor/units"
+import { clampPx, fmt2, pxToUnit, type Unit, unitToPx } from "@/lib/editor/units"
 import { parseNumericInput } from "@/lib/editor/numeric"
 import { Button } from "@/components/ui/button"
 import { InputGroup, InputGroupAddon } from "@/components/ui/input-group"
@@ -15,22 +15,6 @@ import { type WorkspaceRow, useProjectWorkspace } from "@/lib/editor/project-wor
 function normalizeUnit(u: unknown): Unit {
   if (u === "mm" || u === "cm" || u === "pt" || u === "px") return u
   return "cm"
-}
-
-function toInches(value: number, unit: Unit, dpi: number): number {
-  if (unit === "mm") return value / 25.4
-  if (unit === "cm") return value / 2.54
-  if (unit === "pt") return value / 72
-  if (unit === "px") return value / dpi
-  return value / 25.4
-}
-
-function fromInches(inches: number, unit: Unit, dpi: number): number {
-  if (unit === "mm") return inches * 25.4
-  if (unit === "cm") return inches * 2.54
-  if (unit === "pt") return inches * 72
-  if (unit === "px") return inches * dpi
-  return inches * 25.4
 }
 
 function presetFromDpi(dpi: number): "high" | "medium" | "low" | null {
@@ -207,10 +191,11 @@ export function ArtboardPanel() {
       return
     }
 
-    const wIn = toInches(w, fromUnit, dpi)
-    const hIn = toInches(h, fromUnit, dpi)
-    const wNext = fromInches(wIn, nextUnit, dpi)
-    const hNext = fromInches(hIn, nextUnit, dpi)
+    // Convert via px using the shared deterministic unit math.
+    const wPx = unitToPx(w, fromUnit, dpi)
+    const hPx = unitToPx(h, fromUnit, dpi)
+    const wNext = pxToUnit(wPx, nextUnit, dpi)
+    const hNext = pxToUnit(hPx, nextUnit, dpi)
 
     const nextWidth = nextUnit === "px" ? String(clampPx(wNext)) : fmt2(wNext)
     const nextHeight = nextUnit === "px" ? String(clampPx(hNext)) : fmt2(hNext)

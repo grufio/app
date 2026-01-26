@@ -4,7 +4,12 @@ title: Image State API
 
 ## Overview
 
-The editor persists the *working* image transform (position/scale/rotation) per project so the canvas can be restored on reload.
+The editor persists the *working* image transform per project using **µpx fixed-point integers** so the canvas can be restored without drift.
+
+Save triggers (important):
+
+- Saves happen **only** on explicit user actions (e.g. drag end / transform end / apply).
+- Unit dropdown changes are **display-only** and must **not** trigger any save (including debounced saves).
 
 Endpoint:
 
@@ -26,9 +31,9 @@ Key:
 
 Fields:
 
-- **transform**: `x`, `y`, `scale_x`, `scale_y`, `rotation_deg`
-- **optional cached size**: `width_px`, `height_px` (numeric, > 0 when present)
-- **optional display meta**: `unit` (`measure_unit`) and `dpi` (numeric, > 0 when present)
+- **canonical µpx size**: `width_px_u`, `height_px_u` (string BigInt, required)
+- **optional µpx position**: `x_px_u`, `y_px_u` (string BigInt)
+- **rotation**: `rotation_deg` (number)
 
 ## GET response
 
@@ -38,15 +43,11 @@ Fields:
   "state": {
     "project_id": "uuid",
     "role": "master",
-    "x": 123.45,
-    "y": 67.89,
-    "scale_x": 1.0,
-    "scale_y": 1.0,
+    "x_px_u": "123450000",
+    "y_px_u": "67890000",
+    "width_px_u": "1024500000",
+    "height_px_u": "768250000",
     "rotation_deg": 0,
-    "width_px": 1024.5,
-    "height_px": 768.25,
-    "unit": "cm",
-    "dpi": 300
   }
 }
 ```
@@ -62,20 +63,16 @@ If no state exists:
 ```json
 {
   "role": "master",
-  "x": 123.45,
-  "y": 67.89,
-  "scale_x": 1.0,
-  "scale_y": 1.0,
+  "x_px_u": "123450000",
+  "y_px_u": "67890000",
+  "width_px_u": "1024500000",
+  "height_px_u": "768250000",
   "rotation_deg": 0,
-  "width_px": 1024.5,
-  "height_px": 768.25,
-  "unit": "cm",
-  "dpi": 300
 }
 ```
 
 Notes:
 
-- `width_px/height_px/unit/dpi` are optional; the editor can compute display values from other sources.
-- The route is backward-compatible: if DB columns don't exist yet, the API falls back to the legacy selection/upsert without those columns.
+- `width_px_u/height_px_u` are required when `exists=true`.
+- No runtime fallback/migration is supported. If `width_px_u/height_px_u` are missing, the state is considered unsupported.
 

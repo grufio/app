@@ -3,36 +3,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { getImageState, saveImageState as saveImageStateApi } from "@/lib/api/image-state"
+import { parseBigIntString, toSaveImageStateBody } from "@/lib/editor/imageState"
 
 export type ImageState = {
-  x: number
-  y: number
-  scaleX: number
-  scaleY: number
-  widthPx?: number
-  heightPx?: number
+  xPxU?: bigint
+  yPxU?: bigint
+  widthPxU?: bigint
+  heightPxU?: bigint
   rotationDeg: number
-}
-
-function round4(n: number): number {
-  return Math.round(n * 10_000) / 10_000
-}
-
-function round8(n: number): number {
-  return Math.round(n * 100_000_000) / 100_000_000
-}
-
-function normalizeState(t: ImageState) {
-  return {
-    x: round4(t.x),
-    y: round4(t.y),
-    // Scale needs higher precision; rounding too aggressively causes visible size drift after reload.
-    scaleX: round8(t.scaleX),
-    scaleY: round8(t.scaleY),
-    widthPx: t.widthPx == null ? undefined : round4(t.widthPx),
-    heightPx: t.heightPx == null ? undefined : round4(t.heightPx),
-    rotationDeg: round4(t.rotationDeg),
-  }
 }
 
 export function useImageState(projectId: string, enabled: boolean) {
@@ -55,13 +33,18 @@ export function useImageState(projectId: string, enabled: boolean) {
         setInitialImageTransform(null)
         return
       }
+      const widthPxU = parseBigIntString(payload.state.width_px_u)
+      const heightPxU = parseBigIntString(payload.state.height_px_u)
+      if (!widthPxU || !heightPxU) {
+        throw new Error("Unsupported image state: missing width_px_u/height_px_u")
+      }
+      const xPxU = parseBigIntString(payload.state.x_px_u)
+      const yPxU = parseBigIntString(payload.state.y_px_u)
       setInitialImageTransform({
-        x: Number(payload.state.x),
-        y: Number(payload.state.y),
-        scaleX: Number(payload.state.scale_x),
-        scaleY: Number(payload.state.scale_y),
-        widthPx: payload.state.width_px == null ? undefined : Number(payload.state.width_px),
-        heightPx: payload.state.height_px == null ? undefined : Number(payload.state.height_px),
+        xPxU: xPxU ?? undefined,
+        yPxU: yPxU ?? undefined,
+        widthPxU,
+        heightPxU,
         rotationDeg: Number(payload.state.rotation_deg),
       })
     } catch (e) {
@@ -78,21 +61,21 @@ export function useImageState(projectId: string, enabled: boolean) {
     if (!t) return
     pendingRef.current = null
 
-    const n = normalizeState(t)
-    const signature = JSON.stringify(n)
+    if (!t.widthPxU || !t.heightPxU) return
+
+    const payload = toSaveImageStateBody({
+      xPxU: t.xPxU,
+      yPxU: t.yPxU,
+      widthPxU: t.widthPxU,
+      heightPxU: t.heightPxU,
+      rotationDeg: t.rotationDeg,
+    })
+
+    const signature = JSON.stringify(payload)
     if (lastSavedSignatureRef.current === signature) return
     lastSavedSignatureRef.current = signature
 
-    await saveImageStateApi(projectId, {
-      role: "master",
-      x: n.x,
-      y: n.y,
-      scale_x: n.scaleX,
-      scale_y: n.scaleY,
-      width_px: n.widthPx,
-      height_px: n.heightPx,
-      rotation_deg: n.rotationDeg,
-    })
+    await saveImageStateApi(projectId, payload)
   }, [projectId])
 
   const saveImageState = useCallback(
