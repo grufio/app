@@ -1,7 +1,7 @@
 "use client"
 
 import { useParams } from "next/navigation"
-import { useCallback, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { RotateCcw, Trash2 } from "lucide-react"
 
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -19,16 +19,22 @@ import {
   ArtboardPanel,
   FloatingToolbar,
   ImagePanel,
+  LayersMenu,
   ProjectCanvasStage,
   type ProjectCanvasStageHandle,
   ProjectEditorHeader,
 } from "@/components/shared/editor"
 import { EditorErrorBoundary } from "@/components/shared/editor/editor-error-boundary"
 import { useFloatingToolbarControls } from "@/lib/editor/floating-toolbar-controls"
+import { buildLayersTree } from "@/lib/editor/layers-tree"
 import { ProjectWorkspaceProvider, useProjectWorkspace } from "@/lib/editor/project-workspace"
 import { useMasterImage } from "@/lib/editor/use-master-image"
 import { useProject } from "@/lib/editor/use-project"
 import { useImageState } from "@/lib/editor/use-image-state"
+
+function layerSelectionStorageKey(projectId: string) {
+  return `gruf:editor:layers:selected:${projectId}`
+}
 
 function ProjectDetailPageInner({ projectId }: { projectId: string }) {
   const { unit: workspaceUnit, dpi: workspaceDpi, widthPx: artboardWidthPx, heightPx: artboardHeightPx, loading: workspaceLoading } =
@@ -90,6 +96,62 @@ function ProjectDetailPageInner({ projectId }: { projectId: string }) {
     enableShortcuts: true,
   })
 
+  const [selectedNodeId, setSelectedNodeId] = useState<string>(() => {
+    if (typeof window === "undefined") return "artboard"
+    try {
+      return window.localStorage.getItem(layerSelectionStorageKey(projectId)) ?? "artboard"
+    } catch {
+      return "artboard"
+    }
+  })
+
+  const layersRoot = useMemo(() => {
+    const images = masterImage
+      ? [
+          {
+            imageId: "master",
+            label: masterImage.name ?? "Image",
+            // Filters are not modeled yet; keep empty for now.
+            filters: [],
+          },
+        ]
+      : []
+    return buildLayersTree({ images })
+  }, [masterImage])
+
+  const validLayerIds = useMemo(() => {
+    const ids = new Set<string>()
+    const walk = (n: { id: string; children?: unknown }) => {
+      ids.add(n.id)
+      const kids = (n as { children?: { id: string; children?: unknown }[] }).children ?? []
+      for (const c of kids) walk(c)
+    }
+    walk(layersRoot)
+    return ids
+  }, [layersRoot])
+
+  const selectedNodeIdEffective = validLayerIds.has(selectedNodeId) ? selectedNodeId : "artboard"
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(layerSelectionStorageKey(projectId), selectedNodeIdEffective)
+    } catch {
+      // ignore (private mode / denied)
+    }
+  }, [projectId, selectedNodeIdEffective])
+
+  const handleSelectLayer = useCallback(
+    (n: { id: string; kind: "artboard" | "image" | "filter" }) => {
+      setSelectedNodeId(n.id)
+      if (n.kind === "filter") setTab("filter")
+      else setTab("image")
+
+      if (n.kind === "artboard") toolbar.setTool("hand")
+      else toolbar.setTool("select")
+    },
+    [toolbar]
+  )
+
   const panelImagePx = useMemo(() => {
     // Avoid the "flash" of raw master px sizes before persisted image-state arrives.
     if (imageStateLoading) return null
@@ -123,7 +185,16 @@ function ProjectDetailPageInner({ projectId }: { projectId: string }) {
             {/* Main content (left tools + canvas/uploader) */}
             <main className="flex min-w-0 flex-1">
               {/* Template-level left sidebar (Illustrator-style) */}
-              <aside className="flex w-12 shrink-0 border-r bg-background/80 py-2" aria-label="Canvas tools" />
+              <aside className="w-96 shrink-0 border-r bg-background/80" aria-label="Layers">
+                <div className="flex h-full flex-col">
+                  <div className="border-b px-4 py-3">
+                    <div className="text-sm font-medium">Layers</div>
+                  </div>
+                  <div className="flex-1 overflow-auto p-2">
+                    <LayersMenu root={layersRoot} selectedId={selectedNodeIdEffective} onSelect={handleSelectLayer} />
+                  </div>
+                </div>
+              </aside>
 
               {/* Content area */}
               <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -319,7 +390,7 @@ export default function ProjectDetailPage() {
   const projectId = params.projectId
   return (
     <ProjectWorkspaceProvider projectId={projectId}>
-      <ProjectDetailPageInner projectId={projectId} />
+      <ProjectDetailPageInner key={projectId} projectId={projectId} />
     </ProjectWorkspaceProvider>
   )
 }
