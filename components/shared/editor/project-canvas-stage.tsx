@@ -186,10 +186,14 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   const layerRef = useRef<Konva.Layer | null>(null)
   const imageNodeRef = useRef<Konva.Image | null>(null)
   const img = useHtmlImage(src ?? null)
+  const isE2E =
+    process.env.NEXT_PUBLIC_E2E_TEST === "1" ||
+    (typeof navigator !== "undefined" && Boolean((navigator as unknown as { webdriver?: boolean })?.webdriver))
 
   const [size, setSize] = useState({ w: 0, h: 0 })
   const [view, setView] = useState<ViewState>({ scale: 1, x: 0, y: 0 })
   const [rotation, setRotation] = useState(0)
+  const [isDraggingImage, setIsDraggingImage] = useState(false)
 
   // Used to avoid re-running initial placement/fit logic unnecessarily.
   const placedKeyRef = useRef<string | null>(null)
@@ -341,6 +345,10 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     const layer = layerRef.current
     const node = imageNodeRef.current
     if (!layer || !node) return
+    if (isE2E) {
+      const g = globalThis as unknown as { __gruf_editor?: { boundsReads?: number } }
+      if (g.__gruf_editor) g.__gruf_editor.boundsReads = (g.__gruf_editor.boundsReads ?? 0) + 1
+    }
     const r = node.getClientRect({ relativeTo: layer })
     const next = { x: r.x, y: r.y, w: r.width, h: r.height }
     setImageBounds((prev) => {
@@ -355,7 +363,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
         return prev
       return next
     })
-  }, [imageDraggable])
+  }, [imageDraggable, isE2E])
 
   const scheduleBoundsUpdate = useCallback(() => {
     if (boundsRafRef.current != null) return
@@ -673,14 +681,10 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   //
   // Use *getters* so the test always reads the latest refs (and we never clobber
   // state with transient null refs during React StrictMode mount cycles).
-  const isE2E =
-    process.env.NEXT_PUBLIC_E2E_TEST === "1" ||
-    (typeof navigator !== "undefined" && Boolean((navigator as unknown as { webdriver?: boolean })?.webdriver))
-
   useEffect(() => {
     if (!isE2E) return
     const g = globalThis as unknown as {
-      __gruf_editor?: { stage?: Konva.Stage | null; image?: Konva.Image | null }
+      __gruf_editor?: { stage?: Konva.Stage | null; image?: Konva.Image | null; boundsReads?: number }
     }
     g.__gruf_editor = {
       get stage() {
@@ -689,6 +693,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
       get image() {
         return imageNodeRef.current
       },
+      boundsReads: 0,
     }
   }, [isE2E])
 
@@ -767,6 +772,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
                 userChangedImageTxRef.current = true
                 const node = imageNodeRef.current
                 dragPosRef.current = node ? { x: node.x(), y: node.y() } : null
+                setIsDraggingImage(true)
                 scheduleBoundsUpdate()
               }}
               onDragMove={() => {
@@ -781,13 +787,14 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
                   cancelAnimationFrame(dragBoundsRafRef.current)
                   dragBoundsRafRef.current = null
                 }
+                setIsDraggingImage(false)
                 scheduleBoundsUpdate()
               }}
             />
           ) : null}
 
           {/* Default selection frame (shown when the Select tool is active) */}
-          {renderArtboard && imageDraggable ? (
+          {renderArtboard && imageDraggable && !isDraggingImage ? (
             <SelectionOverlay
               imageBounds={imageBounds}
               view={view}

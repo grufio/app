@@ -1,5 +1,5 @@
-import type { MicroPx } from "@/lib/editor/imageState/types"
-import { MAX_PX_U, PX_U_SCALE } from "@/lib/editor/units"
+import type { MicroPx } from "./types"
+import { MAX_PX_U, PX_U_SCALE } from "../units"
 
 export const MIN_PX_U = PX_U_SCALE
 export { MAX_PX_U }

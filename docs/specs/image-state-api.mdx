@@ -12,6 +12,12 @@ Save triggers (important):
 - Unit dropdown changes are **display-only** and must **not** trigger any save (including debounced saves).
 - Rounding happens **exactly once** (bake-in / user input conversion). Save/persist must not apply a second rounding pass.
 
+MVP guarantees:
+
+- No drift/flash in displayed sizes after reload.
+- Unit changes never trigger persistence.
+- Persisted state is always µpx canonical values.
+
 Endpoint:
 
 - `GET /api/projects/:projectId/image-state`

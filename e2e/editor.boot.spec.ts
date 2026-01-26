@@ -85,3 +85,82 @@ test("image size: setting 100mm survives reload (no drift)", async ({ page }) =>
   await page.waitForTimeout(250)
   expect(imageStatePosts).toBe(1)
 })
+
+test("image transform chain: resize + rotate + drag persists", async ({ page }) => {
+  await page.setExtraHTTPHeaders({ "x-e2e-test": "1" })
+  await setupMockRoutes(page, {
+    withImage: true,
+    workspace: {
+      unit: "mm",
+      width_value: 200,
+      height_value: 200,
+      dpi_x: 300,
+      dpi_y: 300,
+      width_px: 2362.2047,
+      height_px: 2362.2047,
+      raster_effects_preset: "high",
+    },
+  })
+
+  await page.goto(`/projects/${PROJECT_ID}`)
+
+  const w = page.getByLabel("Image width (mm)")
+  const h = page.getByLabel("Image height (mm)")
+
+  await expect(w).toBeEnabled()
+  await expect(h).toBeEnabled()
+
+  const expectedPxU = unitToPxU("120", "mm", 300).toString()
+  const isSaveWith = (req: Request, opts?: { rotation?: number; requirePosition?: boolean }) => {
+    if (!req.url().includes(`/api/projects/${PROJECT_ID}/image-state`)) return false
+    if (req.method() !== "POST") return false
+    const body = req.postData() ?? ""
+    if (!body.includes(`"width_px_u":"${expectedPxU}"`)) return false
+    if (!body.includes(`"height_px_u":"${expectedPxU}"`)) return false
+    if (opts?.rotation != null && !body.includes(`"rotation_deg":${opts.rotation}`)) return false
+    if (opts?.requirePosition && (!body.includes(`"x_px_u":"`) || !body.includes(`"y_px_u":"`))) return false
+    return true
+  }
+
+  const waitSizeSave = page.waitForRequest((req) => isSaveWith(req))
+  await w.fill("120")
+  await h.fill("120")
+  await h.press("Enter")
+  await waitSizeSave
+
+  const waitRotateSave = page.waitForRequest((req) => isSaveWith(req, { rotation: 90 }))
+  await page.getByLabel("Rotate 90°").click()
+  await waitRotateSave
+
+  await page.getByLabel("Select (Move Image)").click()
+  const canvas = page.locator("canvas").first()
+  const box = await canvas.boundingBox()
+  if (!box) throw new Error("canvas not visible for drag")
+  const beforeBoundsReads = await page.evaluate(() => (globalThis as { __gruf_editor?: { boundsReads?: number } }).__gruf_editor?.boundsReads ?? 0)
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(box.x + box.width / 2 + 60, box.y + box.height / 2 + 30)
+  await page.mouse.up()
+
+  const waitDragSave = page.waitForRequest((req) => isSaveWith(req, { rotation: 90, requirePosition: true }))
+  await waitDragSave
+  const afterBoundsReads = await page.evaluate(() => (globalThis as { __gruf_editor?: { boundsReads?: number } }).__gruf_editor?.boundsReads ?? 0)
+  expect(afterBoundsReads - beforeBoundsReads).toBeLessThanOrEqual(3)
+
+  const [imageStateAfterReload] = await Promise.all([
+    page.waitForResponse((res) => res.url().includes(`/api/projects/${PROJECT_ID}/image-state`) && res.request().method() === "GET"),
+    page.reload(),
+  ])
+
+  const imageStateJson = (await imageStateAfterReload.json()) as {
+    state?: { width_px_u?: string; height_px_u?: string; x_px_u?: string | null; y_px_u?: string | null; rotation_deg?: number }
+  }
+  expect(imageStateJson.state?.width_px_u).toBe(expectedPxU)
+  expect(imageStateJson.state?.height_px_u).toBe(expectedPxU)
+  expect(imageStateJson.state?.rotation_deg).toBe(90)
+  expect(imageStateJson.state?.x_px_u).toBeTruthy()
+  expect(imageStateJson.state?.y_px_u).toBeTruthy()
+
+  await expect(page.getByLabel("Image width (mm)")).toHaveValue("120")
+  await expect(page.getByLabel("Image height (mm)")).toHaveValue("120")
+})
