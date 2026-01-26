@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test"
+import { test, expect, type Request } from "@playwright/test"
 
 import { unitToPxU } from "../lib/editor/units"
 import { PROJECT_ID, setupMockRoutes } from "./_mocks"
@@ -16,11 +16,6 @@ test("smoke: /projects/:id loads editor with artboard + canvas", async ({ page }
 test("image size: setting 100mm survives reload (no drift)", async ({ page }) => {
   await page.setExtraHTTPHeaders({ "x-e2e-test": "1" })
   let imageStatePosts = 0
-  page.on("request", (req) => {
-    if (req.url().includes(`/api/projects/${PROJECT_ID}/image-state`) && req.method() === "POST") {
-      imageStatePosts += 1
-    }
-  })
   await setupMockRoutes(page, {
     withImage: true,
     workspace: {
@@ -41,13 +36,24 @@ test("image size: setting 100mm survives reload (no drift)", async ({ page }) =>
   const w = page.getByLabel("Image width (mm)")
   const h = page.getByLabel("Image height (mm)")
 
+  const expectedPxU = unitToPxU("100", "mm", 300).toString()
+
+  const isExpectedImageStateSave = (req: Request) => {
+    if (!req.url().includes(`/api/projects/${PROJECT_ID}/image-state`)) return false
+    if (req.method() !== "POST") return false
+    const body = req.postData() ?? ""
+    return body.includes(`"width_px_u":"${expectedPxU}"`) && body.includes(`"height_px_u":"${expectedPxU}"`)
+  }
+
+  page.on("request", (req) => {
+    if (isExpectedImageStateSave(req)) imageStatePosts += 1
+  })
+
   // Wait until the panel is interactive (workspace + image-state finished).
   await expect(w).toBeEnabled()
   await expect(h).toBeEnabled()
 
-  const waitSave = page.waitForRequest(
-    (req) => req.url().includes(`/api/projects/${PROJECT_ID}/image-state`) && req.method() === "POST"
-  )
+  const waitSave = page.waitForRequest((req) => isExpectedImageStateSave(req))
 
   await w.fill("100")
   await h.fill("100")
@@ -55,7 +61,6 @@ test("image size: setting 100mm survives reload (no drift)", async ({ page }) =>
 
   const saveReq = await waitSave
   const saveBody = (await saveReq.postDataJSON()) as { width_px_u?: string; height_px_u?: string }
-  const expectedPxU = unitToPxU("100", "mm", 300).toString()
   expect(saveBody.width_px_u).toBe(expectedPxU)
   expect(saveBody.height_px_u).toBe(expectedPxU)
   expect(imageStatePosts).toBe(1)

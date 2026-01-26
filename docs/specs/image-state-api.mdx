@@ -10,6 +10,7 @@ Save triggers (important):
 
 - Saves happen **only** on explicit user actions (e.g. drag end / transform end / apply).
 - Unit dropdown changes are **display-only** and must **not** trigger any save (including debounced saves).
+- Rounding happens **exactly once** (bake-in / user input conversion). Save/persist must not apply a second rounding pass.
 
 Endpoint:
 
@@ -75,4 +76,5 @@ Notes:
 
 - `width_px_u/height_px_u` are required when `exists=true`.
 - No runtime fallback/migration is supported. If `width_px_u/height_px_u` are missing, the state is considered unsupported.
+- Bounds: sizes are clamped/validated to \(1px..32768px\) (in µpx: `1_000_000..32_768_000_000`).
 

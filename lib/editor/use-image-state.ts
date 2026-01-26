@@ -71,7 +71,8 @@ export function useImageState(projectId: string, enabled: boolean) {
       rotationDeg: t.rotationDeg,
     })
 
-    const signature = JSON.stringify(payload)
+    // Avoid JSON.stringify GC churn; we only need a stable equality key.
+    const signature = `${payload.x_px_u ?? ""}|${payload.y_px_u ?? ""}|${payload.width_px_u}|${payload.height_px_u}|${payload.rotation_deg}`
     if (lastSavedSignatureRef.current === signature) return
     lastSavedSignatureRef.current = signature
 

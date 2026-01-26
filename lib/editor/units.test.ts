@@ -25,5 +25,36 @@ describe("units", () => {
     const pxU2 = unitToPxU(asCm, "cm", dpi)
     expect(pxU2).toBe(pxU)
   })
+
+  it("stress: display->parse->display is stable (no oscillation)", () => {
+    const dpi = 300
+    const units = ["mm", "cm", "pt", "px"] as const
+
+    // Deterministic PRNG (LCG) so the test is stable.
+    let seed = 0x1234abcd
+    const nextU32 = () => {
+      seed = (seed * 1664525 + 1013904223) >>> 0
+      return seed
+    }
+
+    // Generate decimal strings with up to 4 dp (matches display rule).
+    const makeValue = () => {
+      const intPart = (nextU32() % 5000) + 1 // 1..5000
+      const dp = nextU32() % 5 // 0..4
+      if (dp === 0) return String(intPart)
+      const frac = String(nextU32() % 10 ** dp).padStart(dp, "0")
+      return `${intPart}.${frac}`
+    }
+
+    for (let i = 0; i < 500; i += 1) {
+      const unit = units[nextU32() % units.length]
+      const input = makeValue()
+      const pxU = unitToPxU(input, unit, dpi)
+      const display1 = pxUToUnitDisplay(pxU, unit, dpi)
+      const pxU2 = unitToPxU(display1, unit, dpi)
+      const display2 = pxUToUnitDisplay(pxU2, unit, dpi)
+      expect(display2).toBe(display1)
+    }
+  })
 })
 

@@ -1,0 +1,15 @@
+---
+title: Sizing invariants (µpx model)
+---
+
+## Invariants
+
+- **Canonical truth (persisted)**: `width_px_u` + `height_px_u` (µpx fixed-point integers as strings; \(1px = 1_000_000µpx\)).
+- **Optional persisted fields**: `x_px_u`, `y_px_u` (µpx strings), `rotation_deg` (number).
+- **Never persisted**: unit-specific values (`mm/cm/pt`), `dpi`, or `scaleX/scaleY` as truth.
+- **Konva steady state**: node `width/height` are canonical (from µpx) and `scaleX/scaleY === 1`.
+- **Bake-in/Commit**: only on explicit user actions (transform end, drag end, enter/blur/apply). Bake transient scale into `width/height`, clamp, set node consistent, then persist.
+- **Rounding policy**: rounding happens **exactly once** at bake-in (or when converting user input to µpx). Save/persist must not do a second rounding pass.
+- **Unit change**: display-only; must never trigger a save.
+- **Unsupported state**: if `exists=true` but `width_px_u/height_px_u` missing → error (no runtime migration/fallback).
+

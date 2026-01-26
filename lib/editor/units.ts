@@ -5,6 +5,11 @@ export const UM_PER_INCH = 25_400n // µm per inch
 export const PT_PER_INCH = 72n
 export const MAX_PX_U = 32_768_000_000n // 32768 px per edge at µpx scale
 
+// Invariants / single source of truth:
+// - Unit conversions are display/input only; canonical persisted truth is µpx (strings/BigInt).
+// - Display formatting: up to 4dp, trim trailing zeros.
+// See docs/specs/sizing-invariants.mdx
+
 function pow10(n: number): bigint {
   return 10n ** BigInt(n)
 }

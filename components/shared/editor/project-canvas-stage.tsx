@@ -12,7 +12,7 @@ import {
   bakeInSizeToMicroPx,
   numberToMicroPx,
   readMicroPxPositionFromNode,
-} from "@/lib/editor/konva/bakein"
+} from "@/lib/editor/konva"
 
 type Props = {
   src?: string
@@ -154,11 +154,11 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     imageTxRef.current = imageTx
   }, [imageTx])
 
-
   const boundsRafRef = useRef<number | null>(null)
   const panRafRef = useRef<number | null>(null)
   const panDeltaRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 })
   const onImageSizeChangeRef = useRef<Props["onImageSizeChange"]>(onImageSizeChange)
+  const dragPosRef = useRef<{ x: number; y: number } | null>(null)
 
   useEffect(() => {
     onImageSizeChangeRef.current = onImageSizeChange
@@ -294,6 +294,30 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
       updateImageBoundsFromNode()
     })
   }, [updateImageBoundsFromNode])
+
+  const updateBoundsDuringDragMove = useCallback(() => {
+    const node = imageNodeRef.current
+    if (!node) return
+    const prevPos = dragPosRef.current
+    const nextPos = { x: node.x(), y: node.y() }
+    dragPosRef.current = nextPos
+
+    if (!prevPos) {
+      scheduleBoundsUpdate()
+      return
+    }
+
+    const dx = nextPos.x - prevPos.x
+    const dy = nextPos.y - prevPos.y
+    if (dx === 0 && dy === 0) return
+
+    // Drag is a pure translation. The axis-aligned bounds translate 1:1 with the node.
+    // Avoid calling getClientRect() on every move.
+    setImageBounds((prev) => {
+      if (!prev) return prev
+      return { x: prev.x + dx, y: prev.y + dy, w: prev.w, h: prev.h }
+    })
+  }, [scheduleBoundsUpdate])
 
   // Apply persisted image state even if it arrives after initial placement.
   useEffect(() => {
@@ -658,14 +682,18 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
                 // Mark as user-changed immediately, so a late `initialImageTransform`
                 // cannot override state mid-drag.
                 userChangedImageTxRef.current = true
+                const node = imageNodeRef.current
+                dragPosRef.current = node ? { x: node.x(), y: node.y() } : null
                 scheduleBoundsUpdate()
               }}
               onDragMove={() => {
-                scheduleBoundsUpdate()
+                updateBoundsDuringDragMove()
               }}
               onDragEnd={() => {
                 userChangedImageTxRef.current = true
                 scheduleCommitTransform(true, 0)
+                dragPosRef.current = null
+                scheduleBoundsUpdate()
               }}
             />
           ) : null}
