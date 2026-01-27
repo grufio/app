@@ -1,0 +1,40 @@
+"use client"
+
+import type * as React from "react"
+
+import { InputGroupInput } from "@/components/ui/input-group"
+import { IconInputGroup } from "@/components/shared/editor/fields/icon-input-group"
+
+/**
+ * Color field with leading icon, rendered via InputGroup.
+ * Note: keeps native <input type="color"> behavior (no styling hacks here).
+ */
+export function IconColorField({
+  value,
+  onChange,
+  ariaLabel,
+  disabled,
+  icon,
+  inputClassName,
+}: {
+  value: string
+  onChange: (next: string) => void
+  ariaLabel: string
+  disabled?: boolean
+  icon: React.ReactNode
+  inputClassName?: string
+}) {
+  return (
+    <IconInputGroup addon={icon} addonAlign="inline-start">
+      <InputGroupInput
+        type="color"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        aria-label={ariaLabel}
+        disabled={disabled}
+        className={inputClassName}
+      />
+    </IconInputGroup>
+  )
+}
+

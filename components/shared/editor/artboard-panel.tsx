@@ -6,9 +6,9 @@ import { ArrowLeftRight, ArrowUpDown, Gauge, Link2, Ruler, Unlink2 } from "lucid
 import { clampPx, fmt2, pxToUnit, type Unit, unitToPx } from "@/lib/editor/units"
 import { parseNumericInput } from "@/lib/editor/numeric"
 import { Button } from "@/components/ui/button"
-import { InputGroup, InputGroupAddon } from "@/components/ui/input-group"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { NumericInput } from "@/components/shared/editor/numeric-input"
+import { SelectItem } from "@/components/ui/select"
+import { IconNumericField } from "@/components/shared/editor/fields/icon-numeric-field"
+import { IconSelectField } from "@/components/shared/editor/fields/icon-select-field"
 import { PanelIconSlot, PanelTwoFieldRow } from "@/components/shared/editor/panel-layout"
 import { type WorkspaceRow, useProjectWorkspace } from "@/lib/editor/project-workspace"
 
@@ -240,69 +240,67 @@ export function ArtboardPanel() {
       {/* Rows follow a consistent layout:
           [field | field | icon-slot] so the UI stays aligned across rows. */}
       <PanelTwoFieldRow>
-        <InputGroup>
-          <NumericInput
-            id="artboard-width"
-            value={draftWidth}
-            onValueChange={(next) => {
-              setDraftWidth(next)
-              if (!lockAspect) return
-              const r = ratio ?? ensureRatio()
-              if (!r) return
-              lockRatioRef.current = r
-              const w = parseNumericInput(next)
-              if (!Number.isFinite(w) || w <= 0) return
-              setDraftHeight(fmt2(w / r))
-            }}
-            onKeyDown={(e) => {
+        <IconNumericField
+          value={draftWidth}
+          onValueChange={(next) => {
+            setDraftWidth(next)
+            if (!lockAspect) return
+            const r = ratio ?? ensureRatio()
+            if (!r) return
+            lockRatioRef.current = r
+            const w = parseNumericInput(next)
+            if (!Number.isFinite(w) || w <= 0) return
+            setDraftHeight(fmt2(w / r))
+          }}
+          mode="float"
+          ariaLabel="Artboard width"
+          disabled={controlsDisabled}
+          icon={<ArrowLeftRight aria-hidden="true" />}
+          numericProps={{
+            id: "artboard-width",
+            onKeyDown: (e) => {
               if (e.key === "Enter") void save()
-            }}
-            onBlur={() => {
+            },
+            onBlur: () => {
               if (ignoreNextBlurSaveRef.current) {
                 ignoreNextBlurSaveRef.current = false
                 return
               }
               void save()
-            }}
-            disabled={controlsDisabled}
-            aria-label="Artboard width"
-          />
-          <InputGroupAddon>
-            <ArrowLeftRight aria-hidden="true" />
-          </InputGroupAddon>
-        </InputGroup>
+            },
+          }}
+        />
 
-        <InputGroup>
-          <NumericInput
-            id="artboard-height"
-            value={draftHeight}
-            onValueChange={(next) => {
-              setDraftHeight(next)
-              if (!lockAspect) return
-              const r = ratio ?? ensureRatio()
-              if (!r) return
-              lockRatioRef.current = r
-              const h = parseNumericInput(next)
-              if (!Number.isFinite(h) || h <= 0) return
-              setDraftWidth(fmt2(h * r))
-            }}
-            onKeyDown={(e) => {
+        <IconNumericField
+          value={draftHeight}
+          onValueChange={(next) => {
+            setDraftHeight(next)
+            if (!lockAspect) return
+            const r = ratio ?? ensureRatio()
+            if (!r) return
+            lockRatioRef.current = r
+            const h = parseNumericInput(next)
+            if (!Number.isFinite(h) || h <= 0) return
+            setDraftWidth(fmt2(h * r))
+          }}
+          mode="float"
+          ariaLabel="Artboard height"
+          disabled={controlsDisabled}
+          icon={<ArrowUpDown aria-hidden="true" />}
+          numericProps={{
+            id: "artboard-height",
+            onKeyDown: (e) => {
               if (e.key === "Enter") void save()
-            }}
-            onBlur={() => {
+            },
+            onBlur: () => {
               if (ignoreNextBlurSaveRef.current) {
                 ignoreNextBlurSaveRef.current = false
                 return
               }
               void save()
-            }}
-            disabled={controlsDisabled}
-            aria-label="Artboard height"
-          />
-          <InputGroupAddon>
-            <ArrowUpDown aria-hidden="true" />
-          </InputGroupAddon>
-        </InputGroup>
+            },
+          }}
+        />
 
         <PanelIconSlot>
           <Button
@@ -335,55 +333,39 @@ export function ArtboardPanel() {
       </PanelTwoFieldRow>
 
       <PanelTwoFieldRow>
-        <InputGroup>
-          <Select value={draftRasterPreset} onValueChange={(v) => onRasterPresetChange(v)}>
-            <SelectTrigger
-              className="flex-1 min-w-0 border-0 bg-transparent shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 overflow-hidden whitespace-nowrap"
-              disabled={controlsDisabled}
-              aria-label="Raster effects resolution"
-              onPointerDownCapture={() => {
-                ignoreNextBlurSaveRef.current = true
-              }}
-            >
-              <SelectValue className="truncate" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="high">{labelForPreset("high")}</SelectItem>
-              <SelectItem value="medium">{labelForPreset("medium")}</SelectItem>
-              <SelectItem value="low">{labelForPreset("low")}</SelectItem>
-              {draftRasterPreset === "custom" ? (
-                <SelectItem value="custom">{`Custom (${draftDpi || "?"} ppi)`}</SelectItem>
-              ) : null}
-            </SelectContent>
-          </Select>
-          <InputGroupAddon align="inline-start">
-            <Gauge aria-hidden="true" />
-          </InputGroupAddon>
-        </InputGroup>
+        <IconSelectField
+          value={draftRasterPreset}
+          onValueChange={(v) => onRasterPresetChange(v)}
+          ariaLabel="Raster effects resolution"
+          disabled={controlsDisabled}
+          icon={<Gauge aria-hidden="true" />}
+          triggerOnPointerDownCapture={() => {
+            ignoreNextBlurSaveRef.current = true
+          }}
+        >
+          <SelectItem value="high">{labelForPreset("high")}</SelectItem>
+          <SelectItem value="medium">{labelForPreset("medium")}</SelectItem>
+          <SelectItem value="low">{labelForPreset("low")}</SelectItem>
+          {draftRasterPreset === "custom" ? (
+            <SelectItem value="custom">{`Custom (${draftDpi || "?"} ppi)`}</SelectItem>
+          ) : null}
+        </IconSelectField>
 
-        <InputGroup>
-          <Select value={draftUnit} onValueChange={(v) => onUnitChange(v as Unit)}>
-            <SelectTrigger
-              className="flex-1 min-w-0 border-0 bg-transparent shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 overflow-hidden whitespace-nowrap"
-              disabled={controlsDisabled}
-              aria-label="Artboard unit"
-              onPointerDownCapture={() => {
-                ignoreNextBlurSaveRef.current = true
-              }}
-            >
-              <SelectValue className="truncate" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="mm">mm</SelectItem>
-              <SelectItem value="cm">cm</SelectItem>
-              <SelectItem value="pt">pt</SelectItem>
-              <SelectItem value="px">px</SelectItem>
-            </SelectContent>
-          </Select>
-          <InputGroupAddon align="inline-start">
-            <Ruler aria-hidden="true" />
-          </InputGroupAddon>
-        </InputGroup>
+        <IconSelectField
+          value={draftUnit}
+          onValueChange={(v) => onUnitChange(v as Unit)}
+          ariaLabel="Artboard unit"
+          disabled={controlsDisabled}
+          icon={<Ruler aria-hidden="true" />}
+          triggerOnPointerDownCapture={() => {
+            ignoreNextBlurSaveRef.current = true
+          }}
+        >
+          <SelectItem value="mm">mm</SelectItem>
+          <SelectItem value="cm">cm</SelectItem>
+          <SelectItem value="pt">pt</SelectItem>
+          <SelectItem value="px">px</SelectItem>
+        </IconSelectField>
 
         <PanelIconSlot />
       </PanelTwoFieldRow>

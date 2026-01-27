@@ -12,11 +12,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 import { ArtboardPanel, ImagePanel, type ProjectCanvasStageHandle } from "@/components/shared/editor"
 import { PanelIconSlot, PanelTwoFieldRow } from "@/components/shared/editor/panel-layout"
+import { IconColorField } from "@/components/shared/editor/fields/icon-color-field"
+import { IconNumericField } from "@/components/shared/editor/fields/icon-numeric-field"
+import { EditorSidebarSection } from "@/components/shared/editor/sidebar/editor-sidebar-section"
 import type { Unit } from "@/lib/editor/units"
-import { NumericInput } from "@/components/shared/editor/numeric-input"
 
 export function ProjectEditorRightPanel(props: {
   panelWidthRem: number
@@ -120,67 +121,52 @@ export function ProjectEditorRightPanel(props: {
           onMouseDown={onResizeMouseDown}
         />
         <div className="flex h-full flex-col">
-          <div className="border-b px-4 py-3">
-            <div className="flex h-6 items-center text-xs font-medium text-sidebar-foreground/70">Page</div>
-            <div className="mt-3">
-              <PanelTwoFieldRow>
-                <InputGroup>
-                  <InputGroupInput
-                    type="color"
-                    value={pageBgColor}
-                    onChange={(e) => onPageBgColorChange(e.target.value)}
-                    aria-label="Page background color"
-                    className="cursor-pointer"
-                  />
-                  <InputGroupAddon align="inline-start">
-                    <Palette aria-hidden="true" />
-                  </InputGroupAddon>
-                </InputGroup>
+          <EditorSidebarSection title="Page">
+            <PanelTwoFieldRow>
+              <IconColorField
+                value={pageBgColor}
+                onChange={onPageBgColorChange}
+                ariaLabel="Page background color"
+                icon={<Palette aria-hidden="true" />}
+                inputClassName="cursor-pointer"
+              />
 
-                <InputGroup>
-                  <NumericInput
-                    value={String(pageBgOpacity)}
-                    mode="int"
-                    onValueChange={(next) => {
-                      const n = Number(next)
-                      const clamped = Math.max(0, Math.min(100, Number.isFinite(n) ? n : 0))
-                      onPageBgOpacityChange(clamped)
-                    }}
-                    aria-label="Page background opacity percent"
-                  />
-                  <InputGroupAddon align="inline-start">
-                    <Percent aria-hidden="true" />
-                  </InputGroupAddon>
-                </InputGroup>
+              <IconNumericField
+                value={String(pageBgOpacity)}
+                mode="int"
+                ariaLabel="Page background opacity percent"
+                icon={<Percent aria-hidden="true" />}
+                onValueChange={(next) => {
+                  const n = Number(next)
+                  const clamped = Math.max(0, Math.min(100, Number.isFinite(n) ? n : 0))
+                  onPageBgOpacityChange(clamped)
+                }}
+              />
 
-                <PanelIconSlot>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    aria-label="Hide page background"
-                    onClick={() => onPageBgEnabledChange(false)}
-                  >
-                    <EyeOff className="size-4" />
-                  </Button>
-                </PanelIconSlot>
-              </PanelTwoFieldRow>
-            </div>
-          </div>
+              <PanelIconSlot>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  aria-label="Hide page background"
+                  onClick={() => onPageBgEnabledChange(false)}
+                >
+                  <EyeOff className="size-4" />
+                </Button>
+              </PanelIconSlot>
+            </PanelTwoFieldRow>
+          </EditorSidebarSection>
           {activeSection === "artboard" ? (
-            <div className="border-b px-4 py-3" data-testid="editor-artboard-panel">
-              <div className="flex h-6 items-center text-xs font-medium text-sidebar-foreground/70">Artboard</div>
-              <div className="mt-3">
-                <ArtboardPanel />
-              </div>
-            </div>
+            <EditorSidebarSection title="Artboard" testId="editor-artboard-panel">
+              <ArtboardPanel />
+            </EditorSidebarSection>
           ) : null}
           {activeSection === "image" ? (
-            <div className="border-b px-4 py-3">
-              <div className="flex items-center justify-between gap-2">
-                <div className="text-xs font-medium text-sidebar-foreground/70">Image</div>
-                <div className="flex items-center gap-1">
+            <EditorSidebarSection
+              title="Image"
+              headerActions={
+                <>
                   <Button
                     type="button"
                     variant="ghost"
@@ -206,21 +192,20 @@ export function ProjectEditorRightPanel(props: {
                   >
                     <Trash2 className="size-4" />
                   </Button>
-                </div>
-              </div>
-              <div className="mt-3">
-                <ImagePanel
-                  widthPxU={panelImagePxU?.w}
-                  heightPxU={panelImagePxU?.h}
-                  unit={workspaceUnit}
-                  dpi={workspaceDpi}
-                  ready={imagePanelReady}
-                  disabled={!masterImage || imageStateLoading || !workspaceReady}
-                  onCommit={(w, h) => canvasRef.current?.setImageSize(w, h)}
-                  onAlign={(opts) => canvasRef.current?.alignImage(opts)}
-                />
-              </div>
-            </div>
+                </>
+              }
+            >
+              <ImagePanel
+                widthPxU={panelImagePxU?.w}
+                heightPxU={panelImagePxU?.h}
+                unit={workspaceUnit}
+                dpi={workspaceDpi}
+                ready={imagePanelReady}
+                disabled={!masterImage || imageStateLoading || !workspaceReady}
+                onCommit={(w, h) => canvasRef.current?.setImageSize(w, h)}
+                onAlign={(opts) => canvasRef.current?.alignImage(opts)}
+              />
+            </EditorSidebarSection>
           ) : null}
 
           <div className="flex-1 overflow-auto p-4">
