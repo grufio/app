@@ -13,16 +13,17 @@ import { ProjectEditorLayout } from "@/components/project-editor/ProjectEditorLa
 import { ProjectEditorLeftPanel } from "@/components/project-editor/ProjectEditorLeftPanel"
 import { ProjectEditorRightPanel } from "@/components/project-editor/ProjectEditorRightPanel"
 import { ProjectEditorStage } from "@/components/project-editor/ProjectEditorStage"
+import { computeImagePanelReady, computeWorkspaceReady } from "@/lib/editor/editor-ready"
 import { useFloatingToolbarControls } from "@/lib/editor/floating-toolbar-controls"
 import { buildLayersTree } from "@/lib/editor/layers-tree"
 import { ProjectWorkspaceProvider, useProjectWorkspace } from "@/lib/editor/project-workspace"
 import { useMasterImage } from "@/lib/editor/use-master-image"
 import { useProject } from "@/lib/editor/use-project"
 import { useImageState } from "@/lib/editor/use-image-state"
-
-function layerSelectionStorageKey(projectId: string) {
-  return `gruf:editor:layers:selected:${projectId}`
-}
+import {
+  readSelectedLayerId,
+  writeSelectedLayerId,
+} from "@/lib/editor/layer-selection-storage"
 
 function ProjectDetailPageInner({ projectId }: { projectId: string }) {
   const { unit: workspaceUnit, dpi: workspaceDpi, widthPx: artboardWidthPx, heightPx: artboardHeightPx, loading: workspaceLoading } =
@@ -79,12 +80,7 @@ function ProjectDetailPageInner({ projectId }: { projectId: string }) {
   })
 
   const [selectedNodeId, setSelectedNodeId] = useState<string>(() => {
-    if (typeof window === "undefined") return "artboard"
-    try {
-      return window.localStorage.getItem(layerSelectionStorageKey(projectId)) ?? "artboard"
-    } catch {
-      return "artboard"
-    }
+    return readSelectedLayerId(projectId)
   })
 
   const layersRoot = useMemo(() => {
@@ -115,11 +111,7 @@ function ProjectDetailPageInner({ projectId }: { projectId: string }) {
   const selectedNodeIdEffective = validLayerIds.has(selectedNodeId) ? selectedNodeId : "artboard"
 
   useEffect(() => {
-    try {
-      window.localStorage.setItem(layerSelectionStorageKey(projectId), selectedNodeIdEffective)
-    } catch {
-      // ignore (private mode / denied)
-    }
+    writeSelectedLayerId(projectId, selectedNodeIdEffective)
   }, [projectId, selectedNodeIdEffective])
 
   const handleSelectLayer = useCallback(
@@ -140,17 +132,18 @@ function ProjectDetailPageInner({ projectId }: { projectId: string }) {
     return imagePxU ?? initialImagePxU ?? null
   }, [imagePxU, imageStateLoading, initialImagePxU])
 
-  const workspaceReady =
-    !workspaceLoading &&
-    Boolean(workspaceUnit) &&
-    Number.isFinite(Number(workspaceDpi)) &&
-    Number(workspaceDpi) > 0
+  const workspaceReady = computeWorkspaceReady({
+    workspaceLoading,
+    workspaceUnit,
+    workspaceDpi,
+  })
 
-  const imagePanelReady =
-    workspaceReady &&
-    Boolean(masterImage) &&
-    !imageStateLoading &&
-    Boolean(panelImagePxU && panelImagePxU.w > 0n && panelImagePxU.h > 0n)
+  const imagePanelReady = computeImagePanelReady({
+    workspaceReady,
+    masterImage,
+    imageStateLoading,
+    panelImagePxU,
+  })
 
   return (
     <div className="flex min-h-svh w-full flex-col">

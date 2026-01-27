@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { createSupabaseServerClient } from "@/lib/supabase/server"
-import { requireUser } from "@/lib/api/route-guards"
+import { requireProjectAccess, requireUser } from "@/lib/api/route-guards"
 
 export async function GET(
   _req: Request,
@@ -12,6 +12,8 @@ export async function GET(
 
   const u = await requireUser(supabase)
   if (!u.ok) return u.res
+  const a = await requireProjectAccess(supabase, projectId)
+  if (!a.ok) return a.res
 
   const { data, error } = await supabase
     .from("project_images")

@@ -23,12 +23,15 @@ export function useImageState(projectId: string, enabled: boolean) {
   const lastSavedSignatureRef = useRef<string | null>(null)
   const pendingRef = useRef<ImageState | null>(null)
   const timerRef = useRef<number | null>(null)
+  const requestSeqRef = useRef(0)
 
   const loadImageState = useCallback(async () => {
+    const seq = ++requestSeqRef.current
     setImageStateError("")
     setImageStateLoading(true)
     try {
       const payload = await getImageState(projectId)
+      if (seq !== requestSeqRef.current) return
       if (!payload?.exists) {
         setInitialImageTransform(null)
         return
@@ -48,10 +51,12 @@ export function useImageState(projectId: string, enabled: boolean) {
         rotationDeg: Number(payload.state.rotation_deg),
       })
     } catch (e) {
+      if (seq !== requestSeqRef.current) return
       console.error(`${logPrefix} load failed`, e)
       setImageStateError(e instanceof Error ? e.message : "Failed to load image state.")
       setInitialImageTransform(null)
     } finally {
+      if (seq !== requestSeqRef.current) return
       setImageStateLoading(false)
     }
   }, [logPrefix, projectId])
@@ -106,6 +111,7 @@ export function useImageState(projectId: string, enabled: boolean) {
 
   useEffect(() => {
     if (!enabled) {
+      requestSeqRef.current++
       setInitialImageTransform(null)
       setImageStateError("")
       setImageStateLoading(false)

@@ -96,6 +96,9 @@ export function useFloatingToolbarControls(opts: {
 
   const actions = useMemo<FloatingToolbarActions>(() => ({ zoomIn, zoomOut, fit, rotate }), [fit, rotate, zoomIn, zoomOut])
 
-  return { tool, setTool, panEnabled, imageDraggable, actionsDisabled, actions }
+  return useMemo(
+    () => ({ tool, setTool, panEnabled, imageDraggable, actionsDisabled, actions }),
+    [actions, actionsDisabled, imageDraggable, panEnabled, tool]
+  )
 }
 
