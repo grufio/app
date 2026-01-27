@@ -15,6 +15,10 @@ import {
 import { ArtboardPanel, ImagePanel } from "@/components/shared/editor"
 
 export function ProjectEditorRightPanel(props: {
+  panelWidthRem: number
+  minPanelRem: number
+  maxPanelRem: number
+  onPanelWidthRemChange: (next: number) => void
   masterImage: { signedUrl?: string | null; name?: string | null } | null
   masterImageLoading: boolean
   deleteBusy: boolean
@@ -38,6 +42,10 @@ export function ProjectEditorRightPanel(props: {
   } | null>
 }) {
   const {
+    panelWidthRem,
+    minPanelRem,
+    maxPanelRem,
+    onPanelWidthRemChange,
     masterImage,
     masterImageLoading,
     deleteBusy,
@@ -57,9 +65,47 @@ export function ProjectEditorRightPanel(props: {
     canvasRef,
   } = props
 
+  const clamp = (v: number) => Math.max(minPanelRem, Math.min(maxPanelRem, v))
+
+  const onResizeMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const prevCursor = document.body.style.cursor
+    const prevUserSelect = document.body.style.userSelect
+    document.body.style.cursor = "col-resize"
+    document.body.style.userSelect = "none"
+    const startX = e.clientX
+    const startWidthPx = panelWidthRem * 16
+
+    const onMove = (ev: MouseEvent) => {
+      const nextWidthPx = startWidthPx + (startX - ev.clientX)
+      const nextRem = clamp(nextWidthPx / 16)
+      onPanelWidthRemChange(nextRem)
+    }
+
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove)
+      window.removeEventListener("mouseup", onUp)
+      document.body.style.cursor = prevCursor
+      document.body.style.userSelect = prevUserSelect
+    }
+
+    window.addEventListener("mousemove", onMove)
+    window.addEventListener("mouseup", onUp)
+  }
+
   return (
     <>
-      <aside className="w-96 shrink-0 border-l bg-background">
+      <aside
+        className="shrink-0 border-l bg-background relative"
+        style={{ width: `${clamp(panelWidthRem)}rem` }}
+      >
+        {/* Resize handle (use border line; no separate visual handle). */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-y-0 -left-1 z-20 w-2 cursor-col-resize"
+          onMouseDown={onResizeMouseDown}
+        />
         <div className="flex h-full flex-col">
           <div className="border-b px-4 py-3" data-testid="editor-artboard-panel">
             <div className="flex h-6 items-center text-sm font-medium">Artboard</div>

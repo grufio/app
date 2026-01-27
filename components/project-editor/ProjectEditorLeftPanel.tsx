@@ -3,27 +3,60 @@
 import * as React from "react"
 
 import { ProjectSidebar } from "@/components/navigation/ProjectSidebar"
+import { SidebarFrame } from "@/components/navigation/SidebarFrame"
 
 export function ProjectEditorLeftPanel(props: {
-  layersRoot: Parameters<typeof ProjectSidebar>[0]["root"]
-  selectedNodeIdEffective: Parameters<typeof ProjectSidebar>[0]["selectedId"]
-  handleSelectLayer: Parameters<typeof ProjectSidebar>[0]["onSelect"]
+  widthRem: number
+  minRem: number
+  maxRem: number
+  onWidthRemChange: (next: number) => void
 }) {
-  const { layersRoot, selectedNodeIdEffective, handleSelectLayer } = props
+  const { widthRem, minRem, maxRem, onWidthRemChange } = props
+
+  const clamp = (v: number) => Math.max(minRem, Math.min(maxRem, v))
+
+  const onResizeMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const prevCursor = document.body.style.cursor
+    const prevUserSelect = document.body.style.userSelect
+    document.body.style.cursor = "col-resize"
+    document.body.style.userSelect = "none"
+    const startX = e.clientX
+    const startWidthPx = widthRem * 16
+
+    const onMove = (ev: MouseEvent) => {
+      const nextWidthPx = startWidthPx + (ev.clientX - startX)
+      const nextRem = clamp(nextWidthPx / 16)
+      onWidthRemChange(nextRem)
+    }
+
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove)
+      window.removeEventListener("mouseup", onUp)
+      document.body.style.cursor = prevCursor
+      document.body.style.userSelect = prevUserSelect
+    }
+
+    window.addEventListener("mousemove", onMove)
+    window.addEventListener("mouseup", onUp)
+  }
+
   return (
-    <aside className="w-96 shrink-0 border-r bg-background/80" aria-label="Layers">
-      <div className="flex h-full flex-col">
-        <div className="border-b px-4 py-3">
-          <div className="text-sm font-medium">Layers</div>
-        </div>
-        <div className="flex-1 overflow-auto p-2">
-          <ProjectSidebar
-            root={layersRoot}
-            selectedId={selectedNodeIdEffective}
-            onSelect={handleSelectLayer}
-          />
-        </div>
-      </div>
+    <aside
+      className="shrink-0 border-r bg-background/80 relative"
+      aria-label="Layers"
+      style={{ width: `${clamp(widthRem)}rem` }}
+    >
+      <SidebarFrame className="block min-h-0 w-full">
+        <ProjectSidebar />
+      </SidebarFrame>
+      {/* Resize handle (use border line; no separate visual handle). */}
+      <div
+        aria-hidden="true"
+        className="absolute inset-y-0 -right-1 z-20 w-2 cursor-col-resize"
+        onMouseDown={onResizeMouseDown}
+      />
     </aside>
   )
 }

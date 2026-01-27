@@ -3,7 +3,6 @@
 import { useParams } from "next/navigation"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   type ProjectCanvasStageHandle,
   ProjectEditorHeader,
@@ -15,20 +14,14 @@ import { ProjectEditorRightPanel } from "@/components/project-editor/ProjectEdit
 import { ProjectEditorStage } from "@/components/project-editor/ProjectEditorStage"
 import { computeImagePanelReady, computeWorkspaceReady } from "@/lib/editor/editor-ready"
 import { useFloatingToolbarControls } from "@/lib/editor/floating-toolbar-controls"
-import { buildLayersTree } from "@/lib/editor/layers-tree"
 import { ProjectWorkspaceProvider, useProjectWorkspace } from "@/lib/editor/project-workspace"
 import { useMasterImage } from "@/lib/editor/use-master-image"
 import { useProject } from "@/lib/editor/use-project"
 import { useImageState } from "@/lib/editor/use-image-state"
-import {
-  readSelectedLayerId,
-  writeSelectedLayerId,
-} from "@/lib/editor/layer-selection-storage"
 
 function ProjectDetailPageInner({ projectId }: { projectId: string }) {
   const { unit: workspaceUnit, dpi: workspaceDpi, widthPx: artboardWidthPx, heightPx: artboardHeightPx, loading: workspaceLoading } =
     useProjectWorkspace()
-  const [tab, setTab] = useState<"image" | "filter" | "convert" | "output">("image")
   const { project, setProject } = useProject(projectId)
   const {
     masterImage,
@@ -79,52 +72,10 @@ function ProjectDetailPageInner({ projectId }: { projectId: string }) {
     enableShortcuts: true,
   })
 
-  const [selectedNodeId, setSelectedNodeId] = useState<string>(() => {
-    return readSelectedLayerId(projectId)
-  })
-
-  const layersRoot = useMemo(() => {
-    const images = masterImage
-      ? [
-          {
-            imageId: "master",
-            label: masterImage.name ?? "Image",
-            // Filters are not modeled yet; keep empty for now.
-            filters: [],
-          },
-        ]
-      : []
-    return buildLayersTree({ images })
-  }, [masterImage])
-
-  const validLayerIds = useMemo(() => {
-    const ids = new Set<string>()
-    const walk = (n: { id: string; children?: unknown }) => {
-      ids.add(n.id)
-      const kids = (n as { children?: { id: string; children?: unknown }[] }).children ?? []
-      for (const c of kids) walk(c)
-    }
-    walk(layersRoot)
-    return ids
-  }, [layersRoot])
-
-  const selectedNodeIdEffective = validLayerIds.has(selectedNodeId) ? selectedNodeId : "artboard"
-
-  useEffect(() => {
-    writeSelectedLayerId(projectId, selectedNodeIdEffective)
-  }, [projectId, selectedNodeIdEffective])
-
-  const handleSelectLayer = useCallback(
-    (n: { id: string; kind: "artboard" | "image" | "filter" }) => {
-      setSelectedNodeId(n.id)
-      if (n.kind === "filter") setTab("filter")
-      else setTab("image")
-
-      if (n.kind === "artboard") toolbar.setTool("hand")
-      else toolbar.setTool("select")
-    },
-    [toolbar]
-  )
+  const [leftPanelWidthRem, setLeftPanelWidthRem] = useState(20)
+  const [rightPanelWidthRem, setRightPanelWidthRem] = useState(20)
+  const minPanelRem = 18
+  const maxPanelRem = 24
 
   const panelImagePxU = useMemo(() => {
     // Avoid the "flash" of raw master px sizes before persisted image-state arrives.
@@ -153,78 +104,57 @@ function ProjectDetailPageInner({ projectId }: { projectId: string }) {
         onTitleUpdated={(nextTitle) => setProject({ id: projectId, name: nextTitle })}
       />
 
-      {/* Tabs row */}
-      <div className="bg-background px-4 pb-4">
-        <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
-          <TabsList>
-            <TabsTrigger value="image">Image</TabsTrigger>
-            <TabsTrigger value="filter">Filter</TabsTrigger>
-            <TabsTrigger value="convert">Vectorize / Grid</TabsTrigger>
-            <TabsTrigger value="output">PDF Output</TabsTrigger>
-          </TabsList>
-        </Tabs>
-      </div>
-
-      {/* Content row (starts under the same top divider line for both left + right sidebars) */}
+      {/* Content row */}
       <ProjectEditorLayout>
-        {tab === "image" ? (
-          <EditorErrorBoundary resetKey={`${projectId}:${masterImage?.signedUrl ?? "no-image"}`}>
-            {/* Main content (left tools + canvas/uploader) */}
-            <main className="flex min-w-0 flex-1">
-              {/* Template-level left sidebar (Illustrator-style) */}
-              <ProjectEditorLeftPanel
-                layersRoot={layersRoot}
-                selectedNodeIdEffective={selectedNodeIdEffective}
-                handleSelectLayer={handleSelectLayer}
-              />
-
-              {/* Content area */}
-              <ProjectEditorStage
-                projectId={projectId}
-                masterImage={masterImage}
-                masterImageLoading={masterImageLoading}
-                masterImageError={masterImageError}
-                refreshMasterImage={refreshMasterImage}
-                imageStateLoading={imageStateLoading}
-                toolbar={toolbar}
-                canvasRef={canvasRef}
-                artboardWidthPx={artboardWidthPx ?? undefined}
-                artboardHeightPx={artboardHeightPx ?? undefined}
-                handleImagePxChange={handleImagePxChange}
-                initialImageTransform={initialImageTransform}
-                saveImageState={saveImageState}
-              />
-            </main>
-
-            {/* Right sidebar belongs only to the Image tab (part of the content layout). */}
-            <ProjectEditorRightPanel
+        <EditorErrorBoundary resetKey={`${projectId}:${masterImage?.signedUrl ?? "no-image"}`}>
+          <main className="flex min-w-0 flex-1">
+            <ProjectEditorLeftPanel
+              widthRem={leftPanelWidthRem}
+              minRem={minPanelRem}
+              maxRem={maxPanelRem}
+              onWidthRemChange={setLeftPanelWidthRem}
+            />
+            <ProjectEditorStage
+              projectId={projectId}
               masterImage={masterImage}
               masterImageLoading={masterImageLoading}
-              deleteBusy={deleteBusy}
-              deleteError={deleteError}
-              setDeleteError={setDeleteError}
-              restoreOpen={restoreOpen}
-              setRestoreOpen={setRestoreOpen}
-              deleteOpen={deleteOpen}
-              setDeleteOpen={setDeleteOpen}
-              handleDeleteMasterImage={handleDeleteMasterImage}
-              panelImagePxU={panelImagePxU}
-              workspaceUnit={workspaceUnit ?? "cm"}
-              workspaceDpi={workspaceDpi ?? 300}
-              workspaceReady={workspaceReady}
+              masterImageError={masterImageError}
+              refreshMasterImage={refreshMasterImage}
               imageStateLoading={imageStateLoading}
-              imagePanelReady={imagePanelReady}
-              canvasRef={canvasRef as any}
+              toolbar={toolbar}
+              canvasRef={canvasRef}
+              artboardWidthPx={artboardWidthPx ?? undefined}
+              artboardHeightPx={artboardHeightPx ?? undefined}
+              handleImagePxChange={handleImagePxChange}
+              initialImageTransform={initialImageTransform}
+              saveImageState={saveImageState}
             />
-          </EditorErrorBoundary>
-        ) : (
-          <main className="flex min-w-0 flex-1">
-            {/* Other tabs: full-width content (no right sidebar). */}
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col px-6 py-6">
-              <div className="text-sm text-muted-foreground">Coming soon.</div>
-            </div>
           </main>
-        )}
+
+          <ProjectEditorRightPanel
+            panelWidthRem={rightPanelWidthRem}
+            minPanelRem={minPanelRem}
+            maxPanelRem={maxPanelRem}
+            onPanelWidthRemChange={setRightPanelWidthRem}
+            masterImage={masterImage}
+            masterImageLoading={masterImageLoading}
+            deleteBusy={deleteBusy}
+            deleteError={deleteError}
+            setDeleteError={setDeleteError}
+            restoreOpen={restoreOpen}
+            setRestoreOpen={setRestoreOpen}
+            deleteOpen={deleteOpen}
+            setDeleteOpen={setDeleteOpen}
+            handleDeleteMasterImage={handleDeleteMasterImage}
+            panelImagePxU={panelImagePxU}
+            workspaceUnit={workspaceUnit ?? "cm"}
+            workspaceDpi={workspaceDpi ?? 300}
+            workspaceReady={workspaceReady}
+            imageStateLoading={imageStateLoading}
+            imagePanelReady={imagePanelReady}
+            canvasRef={canvasRef as any}
+          />
+        </EditorErrorBoundary>
       </ProjectEditorLayout>
     </div>
   )
