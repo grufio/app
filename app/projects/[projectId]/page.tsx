@@ -1,7 +1,7 @@
 "use client"
 
 import { useParams } from "next/navigation"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useMemo, useRef, useState } from "react"
 
 import {
   type ProjectCanvasStageHandle,
@@ -72,10 +72,16 @@ function ProjectDetailPageInner({ projectId }: { projectId: string }) {
     enableShortcuts: true,
   })
 
+  const [selectedNavId, setSelectedNavId] = useState<string>("app")
+
   const [leftPanelWidthRem, setLeftPanelWidthRem] = useState(20)
   const [rightPanelWidthRem, setRightPanelWidthRem] = useState(20)
   const minPanelRem = 18
   const maxPanelRem = 24
+
+  const [pageBgEnabled, setPageBgEnabled] = useState(false)
+  const [pageBgColor, setPageBgColor] = useState("#ffffff")
+  const [pageBgOpacity, setPageBgOpacity] = useState(50)
 
   const panelImagePxU = useMemo(() => {
     // Avoid the "flash" of raw master px sizes before persisted image-state arrives.
@@ -96,6 +102,8 @@ function ProjectDetailPageInner({ projectId }: { projectId: string }) {
     panelImagePxU,
   })
 
+  const activeRightSection = selectedNavId.startsWith("app/api") ? "image" : "artboard"
+
   return (
     <div className="flex min-h-svh w-full flex-col">
       <ProjectEditorHeader
@@ -113,6 +121,8 @@ function ProjectDetailPageInner({ projectId }: { projectId: string }) {
               minRem={minPanelRem}
               maxRem={maxPanelRem}
               onWidthRemChange={setLeftPanelWidthRem}
+              selectedId={selectedNavId}
+              onSelect={setSelectedNavId}
             />
             <ProjectEditorStage
               projectId={projectId}
@@ -128,6 +138,9 @@ function ProjectDetailPageInner({ projectId }: { projectId: string }) {
               handleImagePxChange={handleImagePxChange}
               initialImageTransform={initialImageTransform}
               saveImageState={saveImageState}
+              pageBgEnabled={pageBgEnabled}
+              pageBgColor={pageBgColor}
+              pageBgOpacity={pageBgOpacity}
             />
           </main>
 
@@ -136,6 +149,19 @@ function ProjectDetailPageInner({ projectId }: { projectId: string }) {
             minPanelRem={minPanelRem}
             maxPanelRem={maxPanelRem}
             onPanelWidthRemChange={setRightPanelWidthRem}
+            activeSection={activeRightSection}
+            pageBgEnabled={pageBgEnabled}
+            pageBgColor={pageBgColor}
+            pageBgOpacity={pageBgOpacity}
+            onPageBgEnabledChange={setPageBgEnabled}
+            onPageBgColorChange={(c) => {
+              setPageBgColor(c)
+              setPageBgEnabled(true)
+            }}
+            onPageBgOpacityChange={(o) => {
+              setPageBgOpacity(o)
+              setPageBgEnabled(true)
+            }}
             masterImage={masterImage}
             masterImageLoading={masterImageLoading}
             deleteBusy={deleteBusy}
@@ -152,7 +178,7 @@ function ProjectDetailPageInner({ projectId }: { projectId: string }) {
             workspaceReady={workspaceReady}
             imageStateLoading={imageStateLoading}
             imagePanelReady={imagePanelReady}
-            canvasRef={canvasRef as any}
+            canvasRef={canvasRef}
           />
         </EditorErrorBoundary>
       </ProjectEditorLayout>

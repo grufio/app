@@ -3,7 +3,15 @@
 import * as React from "react"
 
 import { ProjectImageUploader } from "@/components/app-img-upload"
-import { FloatingToolbar, ProjectCanvasStage, type ProjectCanvasStageHandle } from "@/components/shared/editor"
+import {
+  FloatingToolbar,
+  type FloatingToolbarTool,
+  ProjectCanvasStage,
+  type ProjectCanvasStageHandle,
+} from "@/components/shared/editor"
+
+type CanvasInitialImageTransform = React.ComponentProps<typeof ProjectCanvasStage>["initialImageTransform"]
+type CanvasTransformCommit = React.ComponentProps<typeof ProjectCanvasStage>["onImageTransformCommit"]
 
 export function ProjectEditorStage(props: {
   projectId: string
@@ -12,9 +20,12 @@ export function ProjectEditorStage(props: {
   masterImageError: string
   refreshMasterImage: () => void | Promise<void>
   imageStateLoading: boolean
+  pageBgEnabled: boolean
+  pageBgColor: string
+  pageBgOpacity: number
   toolbar: {
-    tool: string
-    setTool: (t: any) => void
+    tool: FloatingToolbarTool
+    setTool: (t: FloatingToolbarTool) => void
     actions: {
       zoomIn: () => void
       zoomOut: () => void
@@ -29,8 +40,8 @@ export function ProjectEditorStage(props: {
   artboardWidthPx?: number
   artboardHeightPx?: number
   handleImagePxChange: (w: bigint, h: bigint) => void
-  initialImageTransform: unknown
-  saveImageState?: (v: unknown) => void | Promise<void>
+  initialImageTransform: CanvasInitialImageTransform
+  saveImageState?: CanvasTransformCommit
 }) {
   const {
     projectId,
@@ -39,6 +50,9 @@ export function ProjectEditorStage(props: {
     masterImageError,
     refreshMasterImage,
     imageStateLoading,
+    pageBgEnabled,
+    pageBgColor,
+    pageBgOpacity,
     toolbar,
     canvasRef,
     artboardWidthPx,
@@ -47,6 +61,19 @@ export function ProjectEditorStage(props: {
     initialImageTransform,
     saveImageState,
   } = props
+
+  const bgStyle = React.useMemo(() => {
+    if (!pageBgEnabled) return undefined
+    const hex = pageBgColor.trim()
+    const m = /^#?([0-9a-fA-F]{6})$/.exec(hex)
+    if (!m) return undefined
+    const int = Number.parseInt(m[1], 16)
+    const r = (int >> 16) & 255
+    const g = (int >> 8) & 255
+    const b = int & 255
+    const a = Math.max(0, Math.min(100, pageBgOpacity)) / 100
+    return { backgroundColor: `rgba(${r}, ${g}, ${b}, ${a})` } as React.CSSProperties
+  }, [pageBgColor, pageBgEnabled, pageBgOpacity])
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -58,12 +85,12 @@ export function ProjectEditorStage(props: {
       ) : null}
 
       {/* Workspace */}
-      <div className="relative min-h-0 flex-1">
+      <div className="relative min-h-0 flex-1" style={bgStyle}>
         {/* Floating toolbar overlay (Figma-like) */}
         <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center">
           <div className="pointer-events-auto">
             <FloatingToolbar
-              tool={toolbar.tool as any}
+              tool={toolbar.tool}
               onToolChange={toolbar.setTool}
               onZoomIn={toolbar.actions.zoomIn}
               onZoomOut={toolbar.actions.zoomOut}
@@ -87,8 +114,8 @@ export function ProjectEditorStage(props: {
             artboardWidthPx={artboardWidthPx ?? undefined}
             artboardHeightPx={artboardHeightPx ?? undefined}
             onImageSizeChange={handleImagePxChange}
-            initialImageTransform={masterImage ? (initialImageTransform as any) : null}
-            onImageTransformCommit={masterImage ? (saveImageState as any) : undefined}
+            initialImageTransform={masterImage ? initialImageTransform : null}
+            onImageTransformCommit={masterImage ? saveImageState : undefined}
           />
         )}
 

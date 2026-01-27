@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { RotateCcw, Trash2 } from "lucide-react"
+import { EyeOff, Palette, Percent, RotateCcw, Trash2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -12,13 +12,24 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { ArtboardPanel, ImagePanel } from "@/components/shared/editor"
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
+import { ArtboardPanel, ImagePanel, type ProjectCanvasStageHandle } from "@/components/shared/editor"
+import { PanelIconSlot, PanelTwoFieldRow } from "@/components/shared/editor/panel-layout"
+import type { Unit } from "@/lib/editor/units"
+import { NumericInput } from "@/components/shared/editor/numeric-input"
 
 export function ProjectEditorRightPanel(props: {
   panelWidthRem: number
   minPanelRem: number
   maxPanelRem: number
   onPanelWidthRemChange: (next: number) => void
+  activeSection: "artboard" | "image"
+  pageBgEnabled: boolean
+  pageBgColor: string
+  pageBgOpacity: number
+  onPageBgEnabledChange: (v: boolean) => void
+  onPageBgColorChange: (v: string) => void
+  onPageBgOpacityChange: (v: number) => void
   masterImage: { signedUrl?: string | null; name?: string | null } | null
   masterImageLoading: boolean
   deleteBusy: boolean
@@ -30,22 +41,24 @@ export function ProjectEditorRightPanel(props: {
   setDeleteOpen: (v: boolean) => void
   handleDeleteMasterImage: () => void | Promise<void>
   panelImagePxU: { w: bigint; h: bigint } | null
-  workspaceUnit: string
+  workspaceUnit: Unit
   workspaceDpi: number
   workspaceReady: boolean
   imageStateLoading: boolean
   imagePanelReady: boolean
-  canvasRef: React.RefObject<{
-    setImageSize: (w: bigint, h: bigint) => void
-    alignImage: (opts: unknown) => void
-    restoreImage: () => void
-  } | null>
+  canvasRef: React.RefObject<ProjectCanvasStageHandle | null>
 }) {
   const {
     panelWidthRem,
     minPanelRem,
     maxPanelRem,
     onPanelWidthRemChange,
+    activeSection,
+    pageBgColor,
+    pageBgOpacity,
+    onPageBgEnabledChange,
+    onPageBgColorChange,
+    onPageBgOpacityChange,
     masterImage,
     masterImageLoading,
     deleteBusy,
@@ -107,56 +120,108 @@ export function ProjectEditorRightPanel(props: {
           onMouseDown={onResizeMouseDown}
         />
         <div className="flex h-full flex-col">
-          <div className="border-b px-4 py-3" data-testid="editor-artboard-panel">
-            <div className="flex h-6 items-center text-sm font-medium">Artboard</div>
+          <div className="border-b px-4 py-3">
+            <div className="flex h-6 items-center text-xs font-medium text-sidebar-foreground/70">Page</div>
             <div className="mt-3">
-              <ArtboardPanel />
+              <PanelTwoFieldRow>
+                <InputGroup>
+                  <InputGroupInput
+                    type="color"
+                    value={pageBgColor}
+                    onChange={(e) => onPageBgColorChange(e.target.value)}
+                    aria-label="Page background color"
+                    className="cursor-pointer"
+                  />
+                  <InputGroupAddon align="inline-start">
+                    <Palette aria-hidden="true" />
+                  </InputGroupAddon>
+                </InputGroup>
+
+                <InputGroup>
+                  <NumericInput
+                    value={String(pageBgOpacity)}
+                    mode="int"
+                    onValueChange={(next) => {
+                      const n = Number(next)
+                      const clamped = Math.max(0, Math.min(100, Number.isFinite(n) ? n : 0))
+                      onPageBgOpacityChange(clamped)
+                    }}
+                    aria-label="Page background opacity percent"
+                  />
+                  <InputGroupAddon align="inline-start">
+                    <Percent aria-hidden="true" />
+                  </InputGroupAddon>
+                </InputGroup>
+
+                <PanelIconSlot>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    aria-label="Hide page background"
+                    onClick={() => onPageBgEnabledChange(false)}
+                  >
+                    <EyeOff className="size-4" />
+                  </Button>
+                </PanelIconSlot>
+              </PanelTwoFieldRow>
             </div>
           </div>
-          <div className="border-b px-4 py-3">
-            <div className="flex items-center justify-between gap-2">
-              <div className="text-sm font-medium">Image</div>
-              <div className="flex items-center gap-1">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6"
-                  disabled={!masterImage || masterImageLoading || deleteBusy}
-                  aria-label="Restore image"
-                  onClick={() => setRestoreOpen(true)}
-                >
-                  <RotateCcw className="size-4" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6"
-                  disabled={!masterImage || masterImageLoading || deleteBusy}
-                  aria-label="Delete image"
-                  onClick={() => {
-                    setDeleteError("")
-                    setDeleteOpen(true)
-                  }}
-                >
-                  <Trash2 className="size-4" />
-                </Button>
+          {activeSection === "artboard" ? (
+            <div className="border-b px-4 py-3" data-testid="editor-artboard-panel">
+              <div className="flex h-6 items-center text-xs font-medium text-sidebar-foreground/70">Artboard</div>
+              <div className="mt-3">
+                <ArtboardPanel />
               </div>
             </div>
-            <div className="mt-3">
-              <ImagePanel
-                widthPxU={panelImagePxU?.w}
-                heightPxU={panelImagePxU?.h}
-                unit={workspaceUnit}
-                dpi={workspaceDpi}
-                ready={imagePanelReady}
-                disabled={!masterImage || imageStateLoading || !workspaceReady}
-                onCommit={(w, h) => canvasRef.current?.setImageSize(w, h)}
-                onAlign={(opts) => canvasRef.current?.alignImage(opts)}
-              />
+          ) : null}
+          {activeSection === "image" ? (
+            <div className="border-b px-4 py-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-xs font-medium text-sidebar-foreground/70">Image</div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    disabled={!masterImage || masterImageLoading || deleteBusy}
+                    aria-label="Restore image"
+                    onClick={() => setRestoreOpen(true)}
+                  >
+                    <RotateCcw className="size-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    disabled={!masterImage || masterImageLoading || deleteBusy}
+                    aria-label="Delete image"
+                    onClick={() => {
+                      setDeleteError("")
+                      setDeleteOpen(true)
+                    }}
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                </div>
+              </div>
+              <div className="mt-3">
+                <ImagePanel
+                  widthPxU={panelImagePxU?.w}
+                  heightPxU={panelImagePxU?.h}
+                  unit={workspaceUnit}
+                  dpi={workspaceDpi}
+                  ready={imagePanelReady}
+                  disabled={!masterImage || imageStateLoading || !workspaceReady}
+                  onCommit={(w, h) => canvasRef.current?.setImageSize(w, h)}
+                  onAlign={(opts) => canvasRef.current?.alignImage(opts)}
+                />
+              </div>
             </div>
-          </div>
+          ) : null}
 
           <div className="flex-1 overflow-auto p-4">
             {/* reserved for future controls */}

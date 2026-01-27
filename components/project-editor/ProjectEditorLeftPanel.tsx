@@ -10,8 +10,10 @@ export function ProjectEditorLeftPanel(props: {
   minRem: number
   maxRem: number
   onWidthRemChange: (next: number) => void
+  selectedId: string
+  onSelect: (id: string) => void
 }) {
-  const { widthRem, minRem, maxRem, onWidthRemChange } = props
+  const { widthRem, minRem, maxRem, onWidthRemChange, selectedId, onSelect } = props
 
   const clamp = (v: number) => Math.max(minRem, Math.min(maxRem, v))
 
@@ -49,7 +51,7 @@ export function ProjectEditorLeftPanel(props: {
       style={{ width: `${clamp(widthRem)}rem` }}
     >
       <SidebarFrame className="block min-h-0 w-full">
-        <ProjectSidebar />
+        <ProjectSidebar selectedId={selectedId} onSelect={onSelect} />
       </SidebarFrame>
       {/* Resize handle (use border line; no separate visual handle). */}
       <div
