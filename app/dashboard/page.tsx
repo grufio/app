@@ -1,7 +1,8 @@
-import { AppSidebar } from "@/components/app-sidebar"
+import { AppSidebarMain } from "@/components/navigation/AppSidebarMain"
 import { ProjectPreviewCard } from "@/components/app-card-project"
 import { CreateProjectDialog } from "@/app/dashboard/create-project-dialog"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
+import { SidebarFrame } from "@/components/navigation/SidebarFrame"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -13,7 +14,6 @@ import {
 import { Separator } from "@/components/ui/separator"
 import {
   SidebarInset,
-  SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar"
 
@@ -29,8 +29,8 @@ export default async function Page() {
     .order("updated_at", { ascending: false })
 
   return (
-    <SidebarProvider>
-      <AppSidebar />
+    <SidebarFrame>
+      <AppSidebarMain />
       <SidebarInset>
         <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
           <div className="flex w-full items-center gap-2 px-4">
@@ -124,6 +124,6 @@ export default async function Page() {
           </div>
         </div>
       </SidebarInset>
-    </SidebarProvider>
+    </SidebarFrame>
   )
 }

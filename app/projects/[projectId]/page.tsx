@@ -2,29 +2,17 @@
 
 import { useParams } from "next/navigation"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { RotateCcw, Trash2 } from "lucide-react"
 
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ProjectImageUploader } from "@/components/app-img-upload"
-import { Button } from "@/components/ui/button"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import {
-  ArtboardPanel,
-  FloatingToolbar,
-  ImagePanel,
-  LayersMenu,
-  ProjectCanvasStage,
   type ProjectCanvasStageHandle,
   ProjectEditorHeader,
 } from "@/components/shared/editor"
 import { EditorErrorBoundary } from "@/components/shared/editor/editor-error-boundary"
+import { ProjectEditorLayout } from "@/components/project-editor/ProjectEditorLayout"
+import { ProjectEditorLeftPanel } from "@/components/project-editor/ProjectEditorLeftPanel"
+import { ProjectEditorRightPanel } from "@/components/project-editor/ProjectEditorRightPanel"
+import { ProjectEditorStage } from "@/components/project-editor/ProjectEditorStage"
 import { useFloatingToolbarControls } from "@/lib/editor/floating-toolbar-controls"
 import { buildLayersTree } from "@/lib/editor/layers-tree"
 import { ProjectWorkspaceProvider, useProjectWorkspace } from "@/lib/editor/project-workspace"
@@ -185,188 +173,56 @@ function ProjectDetailPageInner({ projectId }: { projectId: string }) {
       </div>
 
       {/* Content row (starts under the same top divider line for both left + right sidebars) */}
-      <div className="flex flex-1 border-t border-border bg-muted/50">
+      <ProjectEditorLayout>
         {tab === "image" ? (
           <EditorErrorBoundary resetKey={`${projectId}:${masterImage?.signedUrl ?? "no-image"}`}>
             {/* Main content (left tools + canvas/uploader) */}
             <main className="flex min-w-0 flex-1">
               {/* Template-level left sidebar (Illustrator-style) */}
-              <aside className="w-96 shrink-0 border-r bg-background/80" aria-label="Layers">
-                <div className="flex h-full flex-col">
-                  <div className="border-b px-4 py-3">
-                    <div className="text-sm font-medium">Layers</div>
-                  </div>
-                  <div className="flex-1 overflow-auto p-2">
-                    <LayersMenu root={layersRoot} selectedId={selectedNodeIdEffective} onSelect={handleSelectLayer} />
-                  </div>
-                </div>
-              </aside>
+              <ProjectEditorLeftPanel
+                layersRoot={layersRoot}
+                selectedNodeIdEffective={selectedNodeIdEffective}
+                handleSelectLayer={handleSelectLayer}
+              />
 
               {/* Content area */}
-              <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-                {/* status/errors (no centering; keep it out of the canvas area) */}
-                {masterImageError ? (
-                  <div className="px-6 pt-4">
-                    <div className="text-sm text-destructive">{masterImageError}</div>
-                  </div>
-                ) : null}
-
-                {/* Workspace */}
-                <div className="relative min-h-0 flex-1">
-                  {/* Floating toolbar overlay (Figma-like) */}
-                  <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center">
-                    <div className="pointer-events-auto">
-                      <FloatingToolbar
-                        tool={toolbar.tool}
-                        onToolChange={toolbar.setTool}
-                        onZoomIn={toolbar.actions.zoomIn}
-                        onZoomOut={toolbar.actions.zoomOut}
-                        onFit={toolbar.actions.fit}
-                        onRotate={toolbar.actions.rotate}
-                        actionsDisabled={toolbar.actionsDisabled}
-                      />
-                    </div>
-                  </div>
-                  {masterImage && imageStateLoading ? (
-                    // Keep layout stable without "Loading…" text (per UX requirement).
-                    <div className="h-full w-full" aria-hidden="true" />
-                  ) : (
-                    <ProjectCanvasStage
-                      ref={canvasRef}
-                      src={masterImage?.signedUrl}
-                      alt={masterImage?.name}
-                      className="h-full w-full"
-                      panEnabled={toolbar.panEnabled}
-                      imageDraggable={Boolean(masterImage) && toolbar.imageDraggable}
-                      artboardWidthPx={artboardWidthPx ?? undefined}
-                      artboardHeightPx={artboardHeightPx ?? undefined}
-                      onImageSizeChange={handleImagePxChange}
-                      initialImageTransform={masterImage ? initialImageTransform : null}
-                      onImageTransformCommit={masterImage ? saveImageState : undefined}
-                    />
-                  )}
-
-                  {!masterImage && !masterImageLoading && !masterImageError ? (
-                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                      <div className="pointer-events-auto">
-                        <ProjectImageUploader projectId={projectId} onUploaded={refreshMasterImage} />
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-              </div>
+              <ProjectEditorStage
+                projectId={projectId}
+                masterImage={masterImage}
+                masterImageLoading={masterImageLoading}
+                masterImageError={masterImageError}
+                refreshMasterImage={refreshMasterImage}
+                imageStateLoading={imageStateLoading}
+                toolbar={toolbar}
+                canvasRef={canvasRef}
+                artboardWidthPx={artboardWidthPx ?? undefined}
+                artboardHeightPx={artboardHeightPx ?? undefined}
+                handleImagePxChange={handleImagePxChange}
+                initialImageTransform={initialImageTransform}
+                saveImageState={saveImageState}
+              />
             </main>
 
             {/* Right sidebar belongs only to the Image tab (part of the content layout). */}
-            <aside className="w-96 shrink-0 border-l bg-background">
-              <div className="flex h-full flex-col">
-                <div className="border-b px-4 py-3" data-testid="editor-artboard-panel">
-                  <div className="flex h-6 items-center text-sm font-medium">Artboard</div>
-                  <div className="mt-3">
-                    <ArtboardPanel />
-                  </div>
-                </div>
-                <div className="border-b px-4 py-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="text-sm font-medium">Image</div>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        disabled={!masterImage || masterImageLoading || deleteBusy}
-                        aria-label="Restore image"
-                        onClick={() => setRestoreOpen(true)}
-                      >
-                        <RotateCcw className="size-4" />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        disabled={!masterImage || masterImageLoading || deleteBusy}
-                        aria-label="Delete image"
-                        onClick={() => {
-                          setDeleteError("")
-                          setDeleteOpen(true)
-                        }}
-                      >
-                        <Trash2 className="size-4" />
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="mt-3">
-                    <ImagePanel
-                      widthPxU={panelImagePxU?.w}
-                      heightPxU={panelImagePxU?.h}
-                      unit={workspaceUnit ?? "cm"}
-                      dpi={workspaceDpi ?? 300}
-                      ready={imagePanelReady}
-                      disabled={!masterImage || imageStateLoading || !workspaceReady}
-                      onCommit={(w, h) => canvasRef.current?.setImageSize(w, h)}
-                      onAlign={(opts) => canvasRef.current?.alignImage(opts)}
-                    />
-                  </div>
-                </div>
-
-                <div className="flex-1 overflow-auto p-4">
-                  {/* reserved for future controls */}
-                </div>
-              </div>
-            </aside>
-
-            {/* Restore confirmation dialog */}
-            <Dialog open={restoreOpen} onOpenChange={setRestoreOpen}>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Restore image?</DialogTitle>
-                  <DialogDescription>
-                    This will reset the image position, scale, and rotation back to its default placement within the current
-                    artboard.
-                  </DialogDescription>
-                </DialogHeader>
-
-                <DialogFooter>
-                  <Button type="button" variant="outline" onClick={() => setRestoreOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button
-                    type="button"
-                    onClick={() => {
-                      canvasRef.current?.restoreImage()
-                      setRestoreOpen(false)
-                    }}
-                  >
-                    Restore
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-
-            {/* Delete confirmation dialog */}
-            <Dialog open={deleteOpen} onOpenChange={(o) => (deleteBusy ? null : setDeleteOpen(o))}>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Delete image?</DialogTitle>
-                  <DialogDescription>
-                    This will permanently delete the master image from storage and remove its database record.
-                  </DialogDescription>
-                </DialogHeader>
-
-                {deleteError ? <div className="text-sm text-destructive">{deleteError}</div> : null}
-
-                <DialogFooter>
-                  <Button type="button" variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleteBusy}>
-                    Cancel
-                  </Button>
-                  <Button type="button" variant="destructive" onClick={handleDeleteMasterImage} disabled={deleteBusy}>
-                    {deleteBusy ? "Deleting…" : "Delete"}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+            <ProjectEditorRightPanel
+              masterImage={masterImage}
+              masterImageLoading={masterImageLoading}
+              deleteBusy={deleteBusy}
+              deleteError={deleteError}
+              setDeleteError={setDeleteError}
+              restoreOpen={restoreOpen}
+              setRestoreOpen={setRestoreOpen}
+              deleteOpen={deleteOpen}
+              setDeleteOpen={setDeleteOpen}
+              handleDeleteMasterImage={handleDeleteMasterImage}
+              panelImagePxU={panelImagePxU}
+              workspaceUnit={workspaceUnit ?? "cm"}
+              workspaceDpi={workspaceDpi ?? 300}
+              workspaceReady={workspaceReady}
+              imageStateLoading={imageStateLoading}
+              imagePanelReady={imagePanelReady}
+              canvasRef={canvasRef as any}
+            />
           </EditorErrorBoundary>
         ) : (
           <main className="flex min-w-0 flex-1">
@@ -376,7 +232,7 @@ function ProjectDetailPageInner({ projectId }: { projectId: string }) {
             </div>
           </main>
         )}
-      </div>
+      </ProjectEditorLayout>
     </div>
   )
 }
