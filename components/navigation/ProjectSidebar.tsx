@@ -93,7 +93,7 @@ function Tree(props: {
     return (
       <SidebarMenuButton
         isActive={selectedId === id}
-        className="data-[active=true]:font-normal"
+        className="text-xs data-[active=true]:font-normal"
         onClick={() => onSelect(id)}
       >
         <File />
@@ -112,7 +112,7 @@ function Tree(props: {
         <SidebarMenuButton
           asChild
           isActive={selectedId === id}
-          className="data-[active=true]:font-normal"
+          className="text-xs data-[active=true]:font-normal"
         >
           <div>
             <button
@@ -125,7 +125,13 @@ function Tree(props: {
                 onToggleExpanded(id)
               }}
             >
-              <ChevronRight className={isExpanded ? "rotate-90 transition-transform" : "transition-transform"} />
+              <ChevronRight
+                className={
+                  isExpanded
+                    ? "size-4 rotate-90 transition-transform"
+                    : "size-4 transition-transform"
+                }
+              />
             </button>
             {name === "app" ? (
               <LayoutGrid />

@@ -46,7 +46,7 @@ export function ProjectEditorLeftPanel(props: {
 
   return (
     <aside
-      className="shrink-0 border-r bg-background/80 relative"
+      className="shrink-0 border-r bg-white relative"
       aria-label="Layers"
       style={{ width: `${clamp(widthRem)}rem` }}
     >

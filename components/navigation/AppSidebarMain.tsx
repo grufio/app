@@ -18,6 +18,7 @@ import { NavMain } from "@/components/nav-main"
 import { NavProjects } from "@/components/nav-projects"
 import { NavUser } from "@/components/nav-user"
 import { TeamSwitcher } from "@/components/team-switcher"
+import { cn } from "@/lib/utils"
 import {
   Sidebar,
   SidebarContent,
@@ -157,10 +158,15 @@ const data = {
 }
 
 export function AppSidebarMain({
+  className,
   ...props
 }: React.ComponentProps<typeof Sidebar>) {
   return (
-    <Sidebar collapsible="icon" {...props}>
+    <Sidebar
+      collapsible="icon"
+      className={cn("[&_[data-slot=sidebar-inner]]:bg-white", className)}
+      {...props}
+    >
       <SidebarHeader>
         <TeamSwitcher teams={data.teams} />
       </SidebarHeader>
