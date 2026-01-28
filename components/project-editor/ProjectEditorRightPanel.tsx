@@ -12,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { ArtboardPanel, ImagePanel, type ProjectCanvasStageHandle } from "@/components/shared/editor"
+import { ArtboardPanel, GridPanel, ImagePanel, type ProjectCanvasStageHandle } from "@/components/shared/editor"
 import { PanelIconSlot, PanelTwoFieldRow } from "@/components/shared/editor/panel-layout"
 import { IconColorField } from "@/components/shared/editor/fields/icon-color-field"
 import { IconNumericField } from "@/components/shared/editor/fields/icon-numeric-field"
@@ -158,9 +158,12 @@ export function ProjectEditorRightPanel(props: {
             </PanelTwoFieldRow>
           </EditorSidebarSection>
           {activeSection === "artboard" ? (
-            <EditorSidebarSection title="Artboard" testId="editor-artboard-panel">
-              <ArtboardPanel />
-            </EditorSidebarSection>
+            <>
+              <GridPanel />
+              <EditorSidebarSection title="Artboard" testId="editor-artboard-panel">
+                <ArtboardPanel />
+              </EditorSidebarSection>
+            </>
           ) : null}
           {activeSection === "image" ? (
             <EditorSidebarSection

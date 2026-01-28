@@ -112,7 +112,7 @@ create table if not exists public.project_workspace (
   -- UI/editing unit for width_value/height_value
   unit public.measure_unit not null default 'mm',
 
-  -- authoritative values in the chosen unit
+  -- UI/editing values (display inputs). Canonical truth is µpx (see width_px_u/height_px_u).
   width_value numeric not null check (width_value > 0),
   height_value numeric not null check (height_value > 0),
 
@@ -120,18 +120,16 @@ create table if not exists public.project_workspace (
   dpi_x numeric not null check (dpi_x > 0),
   dpi_y numeric not null check (dpi_y > 0),
 
+  -- canonical µpx size (fixed-point integers stored as strings)
+  width_px_u text,
+  height_px_u text,
+
   -- cached/derived pixel size
   width_px integer not null check (width_px > 0),
   height_px integer not null check (height_px > 0),
 
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-
-  -- if unit is px, the values must match cached px
-  constraint workspace_px_consistency check (
-    unit <> 'px' or
-    (width_value = width_px::numeric and height_value = height_px::numeric)
-  )
+  updated_at timestamptz not null default now()
 );
 
 drop trigger if exists trg_project_workspace_updated_at on public.project_workspace;
@@ -252,6 +250,37 @@ alter table public.project_image_state
 -- =========================================================
 
 -- =========================================================
+-- BEGIN db/012_project_grid_xy.sql
+-- =========================================================
+-- gruf.io - Grid spacing X/Y (MVP)
+-- Adds independent grid spacing for X and Y axes.
+
+alter table public.project_grid
+  add column if not exists spacing_x_value numeric,
+  add column if not exists spacing_y_value numeric;
+
+-- Backfill existing single spacing_value into both axes.
+update public.project_grid
+set
+  spacing_x_value = coalesce(spacing_x_value, spacing_value),
+  spacing_y_value = coalesce(spacing_y_value, spacing_value)
+where spacing_x_value is null or spacing_y_value is null;
+
+alter table public.project_grid
+  drop constraint if exists project_grid_spacing_x_positive;
+alter table public.project_grid
+  add constraint project_grid_spacing_x_positive check (spacing_x_value is null or spacing_x_value > 0);
+
+alter table public.project_grid
+  drop constraint if exists project_grid_spacing_y_positive;
+alter table public.project_grid
+  add constraint project_grid_spacing_y_positive check (spacing_y_value is null or spacing_y_value > 0);
+
+-- =========================================================
+-- END db/012_project_grid_xy.sql
+-- =========================================================
+
+-- =========================================================
 -- BEGIN db/010_project_workspace_raster_preset.sql
 -- =========================================================
 -- Persist artboard raster effects quality preset (Illustrator-like)
@@ -265,6 +294,93 @@ alter table public.project_workspace
   check (raster_effects_preset is null or raster_effects_preset in ('high', 'medium', 'low'));
 -- =========================================================
 -- END db/010_project_workspace_raster_preset.sql
+-- =========================================================
+
+-- =========================================================
+-- BEGIN db/013_project_workspace_micro_px.sql
+-- =========================================================
+-- gruf.io - Canonical workspace sizing in µpx (micro-pixels)
+--
+-- See `db/013_project_workspace_micro_px.sql` for rationale.
+create or replace function public.workspace_value_to_px_u(v numeric, u public.measure_unit, dpi numeric)
+returns bigint
+language sql
+immutable
+as $$
+  select case u
+    when 'px' then round(v * 1000000)::bigint
+    when 'mm' then round((v * dpi * 1000000) / 25.4)::bigint
+    when 'cm' then round(((v * 10) * dpi * 1000000) / 25.4)::bigint
+    when 'pt' then round((v * dpi * 1000000) / 72)::bigint
+    else null
+  end
+$$;
+
+alter table public.project_workspace
+  add column if not exists width_px_u text,
+  add column if not exists height_px_u text;
+
+update public.project_workspace
+set
+  width_px_u = coalesce(width_px_u, public.workspace_value_to_px_u(width_value, unit, dpi_x)::text),
+  height_px_u = coalesce(height_px_u, public.workspace_value_to_px_u(height_value, unit, dpi_y)::text)
+where width_px_u is null or height_px_u is null;
+
+alter table public.project_workspace
+  drop constraint if exists workspace_px_consistency;
+
+create or replace function public.project_workspace_sync_px_cache()
+returns trigger
+language plpgsql
+as $$
+declare
+  w_u bigint;
+  h_u bigint;
+  w_px int;
+  h_px int;
+begin
+  if new.width_px_u is null then
+    new.width_px_u := public.workspace_value_to_px_u(new.width_value, new.unit, new.dpi_x)::text;
+  end if;
+  if new.height_px_u is null then
+    new.height_px_u := public.workspace_value_to_px_u(new.height_value, new.unit, new.dpi_y)::text;
+  end if;
+
+  w_u := new.width_px_u::bigint;
+  h_u := new.height_px_u::bigint;
+
+  w_px := greatest(1, ((w_u + 500000) / 1000000)::int);
+  h_px := greatest(1, ((h_u + 500000) / 1000000)::int);
+
+  new.width_px := w_px;
+  new.height_px := h_px;
+  return new;
+end
+$$;
+
+drop trigger if exists trg_project_workspace_sync_px_cache on public.project_workspace;
+create trigger trg_project_workspace_sync_px_cache
+before insert or update on public.project_workspace
+for each row execute function public.project_workspace_sync_px_cache();
+
+alter table public.project_workspace
+  alter column width_px_u set not null,
+  alter column height_px_u set not null;
+
+alter table public.project_workspace
+  drop constraint if exists project_workspace_width_px_u_positive,
+  drop constraint if exists project_workspace_height_px_u_positive,
+  drop constraint if exists project_workspace_px_cache_consistency;
+
+alter table public.project_workspace
+  add constraint project_workspace_width_px_u_positive check ((width_px_u::bigint) >= 1000000 and (width_px_u::bigint) <= 32768000000),
+  add constraint project_workspace_height_px_u_positive check ((height_px_u::bigint) >= 1000000 and (height_px_u::bigint) <= 32768000000),
+  add constraint project_workspace_px_cache_consistency check (
+    width_px = greatest(1, (((width_px_u::bigint) + 500000) / 1000000)::int) and
+    height_px = greatest(1, (((height_px_u::bigint) + 500000) / 1000000)::int)
+  );
+-- =========================================================
+-- END db/013_project_workspace_micro_px.sql
 -- =========================================================
 
 -- Vectorization settings (Bitmap -> vectors) - optional per project

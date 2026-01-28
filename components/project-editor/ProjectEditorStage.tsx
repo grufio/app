@@ -39,6 +39,12 @@ export function ProjectEditorStage(props: {
   canvasRef: React.RefObject<ProjectCanvasStageHandle | null>
   artboardWidthPx?: number
   artboardHeightPx?: number
+  grid?: {
+    spacingXPx: number
+    spacingYPx: number
+    lineWidthPx: number
+    color: string
+  } | null
   handleImagePxChange: (w: bigint, h: bigint) => void
   initialImageTransform: CanvasInitialImageTransform
   saveImageState?: CanvasTransformCommit
@@ -57,6 +63,7 @@ export function ProjectEditorStage(props: {
     canvasRef,
     artboardWidthPx,
     artboardHeightPx,
+    grid,
     handleImagePxChange,
     initialImageTransform,
     saveImageState,
@@ -113,6 +120,7 @@ export function ProjectEditorStage(props: {
             imageDraggable={Boolean(masterImage) && toolbar.imageDraggable}
             artboardWidthPx={artboardWidthPx ?? undefined}
             artboardHeightPx={artboardHeightPx ?? undefined}
+            grid={grid ?? null}
             onImageSizeChange={handleImagePxChange}
             initialImageTransform={masterImage ? initialImageTransform : null}
             onImageTransformCommit={masterImage ? saveImageState : undefined}

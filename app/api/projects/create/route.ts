@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 
-import { clampPx, type Unit, unitToPx } from "@/lib/editor/units"
+import { clampPx, pxUToPxNumber, type Unit, unitToPxU } from "@/lib/editor/units"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 
 function rasterPresetForDpi(dpi: number): "high" | "medium" | "low" {
@@ -50,8 +50,12 @@ export async function POST(req: Request) {
 
   const dpi_x = dpi
   const dpi_y = dpi
-  const width_px = clampPx(unitToPx(width_value, unit, dpi_x))
-  const height_px = clampPx(unitToPx(height_value, unit, dpi_y))
+  const widthPxU = unitToPxU(String(width_value), unit, dpi_x)
+  const heightPxU = unitToPxU(String(height_value), unit, dpi_y)
+  const width_px_u = widthPxU.toString()
+  const height_px_u = heightPxU.toString()
+  const width_px = clampPx(pxUToPxNumber(widthPxU))
+  const height_px = clampPx(pxUToPxNumber(heightPxU))
 
   const { data: project, error: projectErr } = await supabase
     .from("projects")
@@ -71,6 +75,8 @@ export async function POST(req: Request) {
     dpi_x,
     dpi_y,
     raster_effects_preset: rasterPresetForDpi(dpi),
+    width_px_u,
+    height_px_u,
     width_px,
     height_px,
   })

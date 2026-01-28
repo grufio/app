@@ -108,6 +108,15 @@ export function pxUToPxNumber(pxU: bigint): number {
   return Number(pxU) / 1e6
 }
 
+/**
+ * Convert a value from one unit to another via µpx (no float px roundtrip).
+ * Use this for unit changes so 10 cm → 100 mm exactly, not 99.99 mm.
+ */
+export function convertUnit(value: string, fromUnit: Unit, toUnit: Unit, dpi: number): string {
+  const pxU = unitToPxU(value.trim() || "0", fromUnit, dpi)
+  return pxUToUnitDisplay(pxU, toUnit, dpi)
+}
+
 // Legacy numeric helpers for non-image flows (artboard, etc.).
 export function unitToPx(value: number, unit: Unit, dpi: number): number {
   return pxUToPxNumber(unitToPxU(String(value), unit, dpi))

@@ -15,6 +15,8 @@ import { ProjectEditorStage } from "@/components/project-editor/ProjectEditorSta
 import { computeImagePanelReady, computeWorkspaceReady } from "@/lib/editor/editor-ready"
 import { useFloatingToolbarControls } from "@/lib/editor/floating-toolbar-controls"
 import { ProjectWorkspaceProvider, useProjectWorkspace } from "@/lib/editor/project-workspace"
+import { ProjectGridProvider } from "@/lib/editor/project-grid"
+import { useProjectGrid } from "@/lib/editor/project-grid"
 import { useMasterImage } from "@/lib/editor/use-master-image"
 import { useProject } from "@/lib/editor/use-project"
 import { useImageState } from "@/lib/editor/use-image-state"
@@ -22,6 +24,7 @@ import { useImageState } from "@/lib/editor/use-image-state"
 function ProjectDetailPageInner({ projectId }: { projectId: string }) {
   const { unit: workspaceUnit, dpi: workspaceDpi, widthPx: artboardWidthPx, heightPx: artboardHeightPx, loading: workspaceLoading } =
     useProjectWorkspace()
+  const { row: gridRow, spacingXPx, spacingYPx, lineWidthPx } = useProjectGrid()
   const { project, setProject } = useProject(projectId)
   const {
     masterImage,
@@ -104,6 +107,16 @@ function ProjectDetailPageInner({ projectId }: { projectId: string }) {
 
   const activeRightSection = selectedNavId.startsWith("app/api") ? "image" : "artboard"
 
+  const grid = useMemo(() => {
+    if (!gridRow) return null
+    if (!Number.isFinite(spacingXPx ?? NaN) || !Number.isFinite(spacingYPx ?? NaN) || !Number.isFinite(lineWidthPx ?? NaN)) return null
+    const spacingX = Number(spacingXPx)
+    const spacingY = Number(spacingYPx)
+    const lw = Number(lineWidthPx)
+    if (spacingX <= 0 || spacingY <= 0 || lw <= 0) return null
+    return { spacingXPx: spacingX, spacingYPx: spacingY, lineWidthPx: lw, color: gridRow.color }
+  }, [gridRow, lineWidthPx, spacingXPx, spacingYPx])
+
   return (
     <div className="flex min-h-svh w-full flex-col">
       <ProjectEditorHeader
@@ -135,6 +148,7 @@ function ProjectDetailPageInner({ projectId }: { projectId: string }) {
               canvasRef={canvasRef}
               artboardWidthPx={artboardWidthPx ?? undefined}
               artboardHeightPx={artboardHeightPx ?? undefined}
+              grid={grid}
               handleImagePxChange={handleImagePxChange}
               initialImageTransform={initialImageTransform}
               saveImageState={saveImageState}
@@ -191,7 +205,9 @@ export default function ProjectDetailPage() {
   const projectId = params.projectId
   return (
     <ProjectWorkspaceProvider projectId={projectId}>
-      <ProjectDetailPageInner key={projectId} projectId={projectId} />
+      <ProjectGridProvider projectId={projectId}>
+        <ProjectDetailPageInner key={projectId} projectId={projectId} />
+      </ProjectGridProvider>
     </ProjectWorkspaceProvider>
   )
 }

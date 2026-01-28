@@ -10,6 +10,8 @@ export type SetupMockRoutesOpts = {
     height_value: number
     dpi_x: number
     dpi_y: number
+    width_px_u: string
+    height_px_u: string
     width_px: number
     height_px: number
     raster_effects_preset: "high" | "medium" | "low" | "custom" | null
@@ -33,8 +35,12 @@ export async function setupMockRoutes(page: Page, opts: SetupMockRoutesOpts) {
     height_value: 30,
     dpi_x: 300,
     dpi_y: 300,
-    width_px: 2362.2047,
-    height_px: 3543.3071,
+    // canonical µpx (strings)
+    width_px_u: "2362204724",
+    height_px_u: "3543307087",
+    // cached integer px
+    width_px: 2362,
+    height_px: 3543,
     raster_effects_preset: "high",
   }
   const workspaceRow = { ...defaultWorkspaceRow, ...(opts.workspace ?? {}) }

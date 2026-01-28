@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
 
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
-import { clampPx, type Unit, unitToPx } from "@/lib/editor/units"
+import { clampPx, pxUToPxNumber, type Unit, unitToPxU } from "@/lib/editor/units"
 
 export type WorkspaceRow = {
   project_id: string
@@ -12,6 +12,8 @@ export type WorkspaceRow = {
   height_value: number
   dpi_x: number
   dpi_y: number
+  width_px_u: string
+  height_px_u: string
   width_px: number
   height_px: number
   raster_effects_preset?: "high" | "medium" | "low" | null
@@ -29,6 +31,8 @@ function defaultWorkspace(projectId: string): WorkspaceRow {
   const height_value = 30
   const dpi_x = 300
   const dpi_y = 300
+  const widthPxU = unitToPxU(String(width_value), unit, dpi_x)
+  const heightPxU = unitToPxU(String(height_value), unit, dpi_y)
   return {
     project_id: projectId,
     unit,
@@ -37,8 +41,10 @@ function defaultWorkspace(projectId: string): WorkspaceRow {
     dpi_x,
     dpi_y,
     raster_effects_preset: "high",
-    width_px: clampPx(unitToPx(width_value, unit, dpi_x)),
-    height_px: clampPx(unitToPx(height_value, unit, dpi_y)),
+    width_px_u: widthPxU.toString(),
+    height_px_u: heightPxU.toString(),
+    width_px: clampPx(pxUToPxNumber(widthPxU)),
+    height_px: clampPx(pxUToPxNumber(heightPxU)),
   }
 }
 
@@ -53,6 +59,8 @@ type WorkspaceContextValue = {
   // convenience
   unit: Unit | null
   dpi: number | null
+  widthPxU: bigint | null
+  heightPxU: bigint | null
   widthPx: number | null
   heightPx: number | null
 }
@@ -72,7 +80,7 @@ export function ProjectWorkspaceProvider({ projectId, children }: { projectId: s
       const supabase = createSupabaseBrowserClient()
       const { data, error: selErr } = await supabase
         .from("project_workspace")
-        .select("project_id,unit,width_value,height_value,dpi_x,dpi_y,width_px,height_px,raster_effects_preset")
+        .select("project_id,unit,width_value,height_value,dpi_x,dpi_y,width_px_u,height_px_u,width_px,height_px,raster_effects_preset")
         .eq("project_id", projectId)
         .maybeSingle()
 
@@ -87,7 +95,7 @@ export function ProjectWorkspaceProvider({ projectId, children }: { projectId: s
         const { data: ins, error: insErr } = await supabase
           .from("project_workspace")
           .insert(def)
-          .select("project_id,unit,width_value,height_value,dpi_x,dpi_y,width_px,height_px,raster_effects_preset")
+          .select("project_id,unit,width_value,height_value,dpi_x,dpi_y,width_px_u,height_px_u,width_px,height_px,raster_effects_preset")
           .single()
 
         if (insErr || !ins) {
@@ -118,7 +126,7 @@ export function ProjectWorkspaceProvider({ projectId, children }: { projectId: s
         const { data, error: upErr } = await supabase
           .from("project_workspace")
           .upsert(nextRow, { onConflict: "project_id" })
-          .select("project_id,unit,width_value,height_value,dpi_x,dpi_y,width_px,height_px,raster_effects_preset")
+          .select("project_id,unit,width_value,height_value,dpi_x,dpi_y,width_px_u,height_px_u,width_px,height_px,raster_effects_preset")
           .single()
         if (upErr || !data) {
           setError(upErr?.message ?? "Failed to save workspace")
@@ -142,6 +150,26 @@ export function ProjectWorkspaceProvider({ projectId, children }: { projectId: s
   const value = useMemo<WorkspaceContextValue>(() => {
     const unit = row ? normalizeUnit((row as unknown as { unit?: unknown })?.unit) : null
     const dpi = row && Number.isFinite(Number(row.dpi_x)) ? Number(row.dpi_x) : null
+    const widthPxU =
+      row && typeof (row as unknown as { width_px_u?: unknown })?.width_px_u === "string"
+        ? (() => {
+            try {
+              return BigInt((row as unknown as { width_px_u: string }).width_px_u)
+            } catch {
+              return null
+            }
+          })()
+        : null
+    const heightPxU =
+      row && typeof (row as unknown as { height_px_u?: unknown })?.height_px_u === "string"
+        ? (() => {
+            try {
+              return BigInt((row as unknown as { height_px_u: string }).height_px_u)
+            } catch {
+              return null
+            }
+          })()
+        : null
     const widthPx = row && Number.isFinite(Number(row.width_px)) ? Number(row.width_px) : null
     const heightPx = row && Number.isFinite(Number(row.height_px)) ? Number(row.height_px) : null
     return {
@@ -154,6 +182,8 @@ export function ProjectWorkspaceProvider({ projectId, children }: { projectId: s
       upsertWorkspace,
       unit,
       dpi,
+      widthPxU,
+      heightPxU,
       widthPx,
       heightPx,
     }

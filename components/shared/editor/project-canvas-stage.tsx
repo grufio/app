@@ -26,6 +26,12 @@ type Props = {
   renderArtboard?: boolean
   artboardWidthPx?: number
   artboardHeightPx?: number
+  grid?: {
+    spacingXPx: number
+    spacingYPx: number
+    lineWidthPx: number
+    color: string
+  } | null
   onImageSizeChange?: (widthPxU: bigint, heightPxU: bigint) => void
   initialImageTransform?: {
     xPxU?: bigint
@@ -175,6 +181,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     renderArtboard = true,
     artboardWidthPx,
     artboardHeightPx,
+    grid = null,
     onImageSizeChange,
     initialImageTransform,
     onImageTransformCommit,
@@ -281,6 +288,40 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   const selectionDash: number[] | undefined = undefined
   const selectionHandlePx = 8
   const fitPadding = Math.max(0, Number(fitPaddingPx) || 0)
+
+  const gridLines = useMemo(() => {
+    if (!drawArtboard) return null
+    if (!grid) return null
+    if (!Number.isFinite(grid.spacingXPx) || !Number.isFinite(grid.spacingYPx)) return null
+    if (!Number.isFinite(grid.lineWidthPx) || grid.lineWidthPx <= 0) return null
+    if (grid.spacingXPx <= 0 || grid.spacingYPx <= 0) return null
+    if (artW <= 0 || artH <= 0) return null
+
+    const maxLines = 600
+    const nx = Math.floor(artW / grid.spacingXPx)
+    const ny = Math.floor(artH / grid.spacingYPx)
+    const total = Math.max(0, nx) + Math.max(0, ny)
+    if (!Number.isFinite(total) || total <= 0) return []
+
+    // If there are too many lines, skip some to stay performant.
+    const stride = total > maxLines ? Math.ceil(total / maxLines) : 1
+
+    const stroke = grid.color
+    const strokeWidth = grid.lineWidthPx
+    const lines: Array<{ key: string; points: number[] }> = []
+
+    for (let i = 0; i <= nx; i += stride) {
+      const x = i * grid.spacingXPx
+      if (x < 0 || x > artW) continue
+      lines.push({ key: `vx:${i}`, points: [x, 0, x, artH] })
+    }
+    for (let j = 0; j <= ny; j += stride) {
+      const y = j * grid.spacingYPx
+      if (y < 0 || y > artH) continue
+      lines.push({ key: `hy:${j}`, points: [0, y, artW, y] })
+    }
+    return { stroke, strokeWidth, lines }
+  }, [artH, artW, drawArtboard, grid])
 
   // Pixel-snap helper: for a 1px stroke, canvas looks crispest when the line center
   // lands on N + 0.5 device pixels in screen space.
@@ -791,6 +832,22 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
                 scheduleBoundsUpdate()
               }}
             />
+          ) : null}
+
+          {/* Grid overlay (under selection frame). */}
+          {gridLines && gridLines.lines.length ? (
+            <>
+              {gridLines.lines.map((l) => (
+                <Line
+                  key={l.key}
+                  points={l.points}
+                  stroke={gridLines.stroke}
+                  strokeWidth={gridLines.strokeWidth}
+                  strokeScaleEnabled={false}
+                  listening={false}
+                />
+              ))}
+            </>
           ) : null}
 
           {/* Default selection frame (shown when the Select tool is active) */}
