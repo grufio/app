@@ -1,3 +1,10 @@
+/**
+ * Dashboard page route.
+ *
+ * Responsibilities:
+ * - Server-render the project list for the signed-in user.
+ * - Provide entrypoints for creating and opening projects.
+ */
 import { AppSidebarMain } from "@/components/navigation/AppSidebarMain"
 import { ProjectPreviewCard } from "@/components/app-card-project"
 import { CreateProjectDialog } from "@/app/dashboard/create-project-dialog"

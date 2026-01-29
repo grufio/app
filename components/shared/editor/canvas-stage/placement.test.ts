@@ -1,3 +1,9 @@
+/**
+ * Unit tests for `placement`.
+ *
+ * Focus:
+ * - Intrinsic sizing selection and persisted-transform gating logic.
+ */
 import { describe, expect, it } from "vitest"
 
 import { pickIntrinsicSize, shouldApplyPersistedTransform } from "./placement"

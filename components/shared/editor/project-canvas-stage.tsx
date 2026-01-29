@@ -1,5 +1,12 @@
 "use client"
 
+/**
+ * Konva canvas stage for the project editor.
+ *
+ * Responsibilities:
+ * - Render the artboard, grid, selection overlay, and image node.
+ * - Delegate RAF/bounds/transform persistence to controller modules.
+ */
 import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react"
 import { Image as KonvaImage, Layer, Line, Rect, Stage } from "react-konva"
 import type Konva from "konva"

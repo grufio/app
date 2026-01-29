@@ -1,3 +1,10 @@
+/**
+ * Project preview card (dashboard grid).
+ *
+ * Responsibilities:
+ * - Render project metadata (title/status/updated time).
+ * - Show a thumbnail preview of the project canvas when available.
+ */
 import Link from "next/link"
 import { ImageOff } from "lucide-react"
 

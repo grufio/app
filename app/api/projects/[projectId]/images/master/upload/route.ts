@@ -1,3 +1,10 @@
+/**
+ * API route: upload master image.
+ *
+ * Responsibilities:
+ * - Accept an upload request and store the file in Supabase Storage.
+ * - Insert/update `project_images` metadata for the project master role.
+ */
 import { NextResponse } from "next/server"
 
 import { createSupabaseServerClient } from "@/lib/supabase/server"

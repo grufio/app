@@ -1,5 +1,12 @@
 "use client"
 
+/**
+ * User menu (sidebar footer).
+ *
+ * Responsibilities:
+ * - Display the current user identity.
+ * - Provide account/settings actions via dropdown menu.
+ */
 import {
   BadgeCheck,
   Bell,

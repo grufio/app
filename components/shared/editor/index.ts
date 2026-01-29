@@ -1,3 +1,9 @@
+/**
+ * Shared editor component exports (barrel).
+ *
+ * Responsibilities:
+ * - Provide a stable import surface for editor UI components.
+ */
 export { ProjectEditorHeader } from "./project-editor-header"
 export { CanvasToolSidebar } from "./canvas-tool-sidebar"
 export { FloatingToolbar, type FloatingToolbarTool } from "./floating-toolbar"

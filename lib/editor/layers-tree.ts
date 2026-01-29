@@ -1,5 +1,11 @@
 "use client"
 
+/**
+ * Layers tree model.
+ *
+ * Responsibilities:
+ * - Build a normalized layer hierarchy used by the editor layers menu.
+ */
 export type LayerKind = "artboard" | "image" | "filter"
 
 export type LayerNode = {

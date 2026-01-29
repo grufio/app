@@ -1,3 +1,9 @@
+/**
+ * Next.js configuration.
+ *
+ * Responsibilities:
+ * - Configure dev server origins for Playwright/E2E usage.
+ */
 import type { NextConfig } from "next"
 
 const nextConfig: NextConfig = {

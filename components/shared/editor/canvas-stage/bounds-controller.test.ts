@@ -1,3 +1,9 @@
+/**
+ * Unit tests for `bounds-controller`.
+ *
+ * Focus:
+ * - Drag delta accumulation and flush semantics.
+ */
 import { describe, expect, it } from "vitest"
 
 import { createBoundsController } from "./bounds-controller"

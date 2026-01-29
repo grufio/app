@@ -1,3 +1,10 @@
+/**
+ * Editor smoke/regression E2E tests.
+ *
+ * Responsibilities:
+ * - Verify the editor boot flow renders canvas and panels.
+ * - Regression-test persisted image size behavior across reloads.
+ */
 import { test, expect, type Request } from "@playwright/test"
 
 import { unitToPxU } from "../lib/editor/units"

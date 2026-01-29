@@ -1,3 +1,9 @@
+/**
+ * Pixel snap helpers (pure).
+ *
+ * Responsibilities:
+ * - Snap world coordinates so 1px strokes render crisp at the current view scale.
+ */
 import type { ViewState } from "./types"
 
 /**

@@ -1,5 +1,12 @@
 "use client"
 
+/**
+ * Image transform panel.
+ *
+ * Responsibilities:
+ * - Edit the working image size and alignment in the editor.
+ * - Dispatch commits to the canvas stage imperative API.
+ */
 import {
   AlignCenter,
   AlignLeft,

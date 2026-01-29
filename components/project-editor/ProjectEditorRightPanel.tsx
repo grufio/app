@@ -1,5 +1,12 @@
 "use client"
 
+/**
+ * Right panel for the project editor (controls).
+ *
+ * Responsibilities:
+ * - Page background controls (color/opacity/visibility).
+ * - Contextual editor panels (grid, artboard, image actions).
+ */
 import * as React from "react"
 import { EyeOff, Palette, Percent, RotateCcw, Trash2 } from "lucide-react"
 

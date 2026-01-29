@@ -1,5 +1,12 @@
 "use client"
 
+/**
+ * HTML image loader hook.
+ *
+ * Responsibilities:
+ * - Load an `HTMLImageElement` for a given URL and keep it in React state.
+ * - Ensure cross-origin is set for canvas usage.
+ */
 import { useEffect, useState } from "react"
 
 export function useHtmlImage(src: string | null) {

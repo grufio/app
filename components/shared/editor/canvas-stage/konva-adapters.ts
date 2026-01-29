@@ -1,3 +1,9 @@
+/**
+ * Minimal Konva adapters.
+ *
+ * Responsibilities:
+ * - Wrap small Konva calls behind functions to improve testability/mocking.
+ */
 import type Konva from "konva"
 
 export type ClientRect = { x: number; y: number; width: number; height: number }

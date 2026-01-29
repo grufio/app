@@ -1,3 +1,10 @@
+/**
+ * Numeric input parsing/sanitization helpers.
+ *
+ * Responsibilities:
+ * - Normalize user-entered numeric strings for editor inputs.
+ * - Keep parsing rules consistent across panels (int vs decimal).
+ */
 export type NumericMode = "int" | "decimal"
 
 /**

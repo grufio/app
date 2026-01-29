@@ -1,5 +1,11 @@
 "use client"
 
+/**
+ * Editor field: numeric input with leading icon.
+ *
+ * Responsibilities:
+ * - Provide a numeric-only input in panel rows with consistent chrome.
+ */
 import type * as React from "react"
 
 import { NumericInput } from "@/components/shared/editor/numeric-input"

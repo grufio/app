@@ -1,5 +1,11 @@
 "use client"
 
+/**
+ * Projects navigation section for the sidebar.
+ *
+ * Responsibilities:
+ * - Render user projects as navigation items with overflow actions.
+ */
 import {
   Folder,
   Forward,

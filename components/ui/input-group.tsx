@@ -1,5 +1,11 @@
 "use client"
 
+/**
+ * Input group UI primitive.
+ *
+ * Responsibilities:
+ * - Compose inputs/selects with addons/buttons into a single focus ring + border.
+ */
 import * as React from "react"
 
 import { cn } from "@/lib/utils"

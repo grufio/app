@@ -1,5 +1,12 @@
 "use client"
 
+/**
+ * React hook for persisted image transform state.
+ *
+ * Responsibilities:
+ * - Load initial image state (x/y/size/rotation) for a project role.
+ * - Serialize and save commits via the API with coalescing/inflight protection.
+ */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { getImageState, saveImageState as saveImageStateApi } from "@/lib/api/image-state"

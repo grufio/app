@@ -1,5 +1,11 @@
 "use client"
 
+/**
+ * Editor field: select dropdown with leading icon.
+ *
+ * Responsibilities:
+ * - Provide a compact select control within the shared input-group chrome.
+ */
 import type * as React from "react"
 
 import { Select, SelectContent, SelectTrigger, SelectValue } from "@/components/ui/select"

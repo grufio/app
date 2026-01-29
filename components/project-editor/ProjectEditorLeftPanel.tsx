@@ -1,5 +1,12 @@
 "use client"
 
+/**
+ * Left panel for the project editor (layers/navigation).
+ *
+ * Responsibilities:
+ * - Render the project sidebar and selection.
+ * - Provide a resizable panel width via pointer drag.
+ */
 import * as React from "react"
 
 import { ProjectSidebar } from "@/components/navigation/ProjectSidebar"

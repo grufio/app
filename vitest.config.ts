@@ -1,3 +1,10 @@
+/**
+ * Vitest configuration.
+ *
+ * Responsibilities:
+ * - Define test file globs and concurrency settings.
+ * - Provide `@` path alias for tests (matches Next/tsconfig usage).
+ */
 import { defineConfig } from "vitest/config"
 import { fileURLToPath } from "node:url"
 

@@ -1,3 +1,9 @@
+/**
+ * Unit tests for `pixel-snap`.
+ *
+ * Focus:
+ * - Half-pixel snapping under different view scales and offsets.
+ */
 import { describe, expect, it } from "vitest"
 
 import { snapWorldToDeviceHalfPixel } from "./pixel-snap"

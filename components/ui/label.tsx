@@ -1,5 +1,11 @@
 "use client"
 
+/**
+ * Label UI primitive (Radix).
+ *
+ * Responsibilities:
+ * - Provide consistent label styling and disabled/peer states for form controls.
+ */
 import * as React from "react"
 import * as LabelPrimitive from "@radix-ui/react-label"
 

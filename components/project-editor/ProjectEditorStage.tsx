@@ -1,5 +1,12 @@
 "use client"
 
+/**
+ * Editor stage wrapper (canvas + overlays).
+ *
+ * Responsibilities:
+ * - Render the Konva canvas stage and wire persistence callbacks.
+ * - Apply the “page background” style behind the canvas when enabled.
+ */
 import * as React from "react"
 
 import { ProjectImageUploader } from "@/components/app-img-upload"

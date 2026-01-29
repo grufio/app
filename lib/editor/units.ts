@@ -1,3 +1,10 @@
+/**
+ * Unit conversion and formatting helpers for the editor.
+ *
+ * Responsibilities:
+ * - Convert between physical units and pixels using fixed-point µpx (BigInt).
+ * - Provide deterministic formatting for UI display and persistence invariants.
+ */
 export type Unit = "mm" | "cm" | "pt" | "px"
 
 export const PX_U_SCALE = 1_000_000n // µpx per px

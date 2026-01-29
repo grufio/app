@@ -1,3 +1,10 @@
+/**
+ * New project route (server action).
+ *
+ * Responsibilities:
+ * - Create a project row for the signed-in user.
+ * - Best-effort create the default workspace/artboard, then redirect to the editor.
+ */
 import { redirect } from "next/navigation"
 
 import { createSupabaseServerClient } from "@/lib/supabase/server"

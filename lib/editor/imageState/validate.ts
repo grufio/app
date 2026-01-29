@@ -1,3 +1,10 @@
+/**
+ * Image-state input validation.
+ *
+ * Responsibilities:
+ * - Validate incoming JSON payloads for image-state upserts.
+ * - Enforce bounds/invariants before persisting to the database.
+ */
 import { MAX_PX_U, MIN_PX_U, parseBigIntString } from "@/lib/editor/imageState"
 
 export type IncomingImageStatePayload = {

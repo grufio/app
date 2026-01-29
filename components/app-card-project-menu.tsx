@@ -1,5 +1,12 @@
 "use client"
 
+/**
+ * Per-project card actions menu.
+ *
+ * Responsibilities:
+ * - Provide contextual actions (e.g. delete) for a project card.
+ * - Confirm destructive actions via dialog.
+ */
 import Link from "next/link"
 import { useCallback, useMemo, useState } from "react"
 import { MoreVertical } from "lucide-react"

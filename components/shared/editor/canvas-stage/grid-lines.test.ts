@@ -1,3 +1,9 @@
+/**
+ * Unit tests for `grid-lines`.
+ *
+ * Focus:
+ * - Grid line generation and stride behavior under large counts.
+ */
 import { describe, expect, it } from "vitest"
 
 import { computeGridLines } from "./grid-lines"

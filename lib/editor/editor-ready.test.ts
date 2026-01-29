@@ -1,3 +1,9 @@
+/**
+ * Unit tests for `lib/editor/editor-ready.ts`.
+ *
+ * Focus:
+ * - Readiness gate conditions for workspace and image panels.
+ */
 import { describe, expect, test } from "vitest"
 
 import { computeImagePanelReady, computeWorkspaceReady } from "./editor-ready"

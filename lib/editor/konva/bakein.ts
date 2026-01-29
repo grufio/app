@@ -1,3 +1,10 @@
+/**
+ * Konva node µpx helpers.
+ *
+ * Responsibilities:
+ * - Convert between Konva node width/height/position and canonical µpx values.
+ * - Bake node scale into size deterministically and reset scale to 1.
+ */
 import { PX_U_SCALE, pxUToPxNumber } from "@/lib/editor/units"
 import type { MicroPx } from "@/lib/editor/imageState"
 import { clampMicroPx as clampMicroPxShared } from "@/lib/editor/imageState"

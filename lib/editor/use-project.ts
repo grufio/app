@@ -1,5 +1,12 @@
 "use client"
 
+/**
+ * React hook for basic project metadata.
+ *
+ * Responsibilities:
+ * - Load the project name for the editor header.
+ * - Support optional server-provided initial data to avoid waterfalls.
+ */
 import { useEffect, useState } from "react"
 
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"

@@ -1,3 +1,10 @@
+/**
+ * µpx parsing and clamping helpers.
+ *
+ * Responsibilities:
+ * - Parse persisted string values to `bigint` safely.
+ * - Clamp µpx values to editor invariants (MIN/MAX).
+ */
 import type { MicroPx } from "./types"
 import { MAX_PX_U, PX_U_SCALE } from "../units"
 

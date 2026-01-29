@@ -1,3 +1,10 @@
+/**
+ * Route handler guard helpers.
+ *
+ * Responsibilities:
+ * - Standardize error responses and UUID validation across API routes.
+ * - Provide an auth check wrapper for Supabase-backed routes.
+ */
 import { NextResponse } from "next/server"
 import type { SupabaseClient } from "@supabase/supabase-js"
 

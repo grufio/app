@@ -1,5 +1,11 @@
 "use client"
 
+/**
+ * Avatar UI primitives (Radix).
+ *
+ * Responsibilities:
+ * - Render user/avatar images with fallback content.
+ */
 import * as React from "react"
 import * as AvatarPrimitive from "@radix-ui/react-avatar"
 

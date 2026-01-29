@@ -1,3 +1,9 @@
+/**
+ * Unit tests for `lib/editor/units.ts`.
+ *
+ * Focus:
+ * - µpx-based conversions stay stable across roundtrips.
+ */
 import { describe, expect, it } from "vitest"
 
 import { convertUnit, pxUToUnitDisplay, unitToPxU } from "./units"

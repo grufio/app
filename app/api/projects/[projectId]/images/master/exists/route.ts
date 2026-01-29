@@ -1,3 +1,9 @@
+/**
+ * API route: master image existence check.
+ *
+ * Responsibilities:
+ * - Return whether a master image exists for a project (owner-only via auth/RLS).
+ */
 import { NextResponse } from "next/server"
 
 import { createSupabaseServerClient } from "@/lib/supabase/server"

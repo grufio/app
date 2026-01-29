@@ -1,3 +1,10 @@
+/**
+ * Supabase server client factory (App Router).
+ *
+ * Responsibilities:
+ * - Create a Supabase client bound to Next.js cookies for SSR/auth.
+ * - Support cookie reads in Server Components and writes in actions/handlers.
+ */
 import { cookies } from "next/headers"
 import { createServerClient } from "@supabase/ssr"
 

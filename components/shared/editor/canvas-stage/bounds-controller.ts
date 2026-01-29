@@ -1,3 +1,10 @@
+/**
+ * Bounds controller for the canvas stage.
+ *
+ * Responsibilities:
+ * - Update selection bounds from Konva nodes with rotation-aware logic.
+ * - Accumulate drag deltas and apply them efficiently (RAF-friendly).
+ */
 import type Konva from "konva"
 
 import { boundsFromNodeClientRect, boundsFromNodeNoRotation, shouldUpdateBounds } from "./bounds"

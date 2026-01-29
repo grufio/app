@@ -1,3 +1,9 @@
+/**
+ * API route: project resource operations.
+ *
+ * Responsibilities:
+ * - Handle project deletion (owner-only via auth/RLS).
+ */
 import { NextResponse } from "next/server"
 
 import { createSupabaseServerClient } from "@/lib/supabase/server"

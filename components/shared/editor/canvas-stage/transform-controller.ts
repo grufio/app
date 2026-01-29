@@ -1,3 +1,10 @@
+/**
+ * Transform/commit controller for the canvas stage.
+ *
+ * Responsibilities:
+ * - Provide deterministic commit semantics for drag vs explicit actions.
+ * - Translate between Konva node state and persisted µpx image transform state.
+ */
 import type Konva from "konva"
 
 import type { MicroPx } from "@/lib/editor/imageState"

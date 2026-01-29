@@ -1,5 +1,11 @@
 "use client"
 
+/**
+ * Select UI primitives (Radix).
+ *
+ * Responsibilities:
+ * - Provide a styled select dropdown used in forms and dialogs.
+ */
 import * as React from "react"
 import * as SelectPrimitive from "@radix-ui/react-select"
 import { Check, ChevronDown, ChevronUp } from "lucide-react"

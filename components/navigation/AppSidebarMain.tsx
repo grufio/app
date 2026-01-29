@@ -1,5 +1,12 @@
 "use client"
 
+/**
+ * Main application sidebar.
+ *
+ * Responsibilities:
+ * - Compose nav sections (main, projects, user) and team switcher.
+ * - Currently uses sample data placeholders.
+ */
 import * as React from "react"
 import {
   AudioWaveform,

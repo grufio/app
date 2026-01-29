@@ -1,3 +1,10 @@
+/**
+ * API route: persisted image state (transform) for a project.
+ *
+ * Responsibilities:
+ * - GET: read `project_image_state` for the master role.
+ * - POST: validate and upsert µpx-based transform state.
+ */
 import { NextResponse } from "next/server"
 
 import { createSupabaseServerClient } from "@/lib/supabase/server"

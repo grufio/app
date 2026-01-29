@@ -1,3 +1,10 @@
+/**
+ * requestAnimationFrame scheduler (pure-ish).
+ *
+ * Responsibilities:
+ * - Coalesce multiple flags into a single RAF callback per frame.
+ * - Provide an explicit `dispose()` to cancel pending work.
+ */
 export const RAF_PAN = 1
 export const RAF_BOUNDS = 2
 export const RAF_DRAG_BOUNDS = 4

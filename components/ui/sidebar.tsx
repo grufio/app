@@ -1,5 +1,12 @@
 "use client"
 
+/**
+ * Sidebar UI system.
+ *
+ * Responsibilities:
+ * - Provide a responsive sidebar layout with keyboard shortcut and persistence.
+ * - Expose composable primitives used by dashboard/editor navigation.
+ */
 import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { cva, type VariantProps } from "class-variance-authority"

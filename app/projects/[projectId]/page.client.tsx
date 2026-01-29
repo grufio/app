@@ -1,5 +1,12 @@
 "use client"
 
+/**
+ * Project editor client orchestrator.
+ *
+ * Responsibilities:
+ * - Wire workspace/grid/image state hooks into editor UI panels and canvas.
+ * - Maintain view/UI state that is not persisted in the database.
+ */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { type ProjectCanvasStageHandle, ProjectEditorHeader } from "@/components/shared/editor"

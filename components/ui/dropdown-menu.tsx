@@ -1,5 +1,11 @@
 "use client"
 
+/**
+ * Dropdown menu UI primitives (Radix).
+ *
+ * Responsibilities:
+ * - Provide composable context menus and action menus across the app.
+ */
 import * as React from "react"
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu"
 import { CheckIcon, ChevronRightIcon, CircleIcon } from "lucide-react"

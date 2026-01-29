@@ -1,5 +1,11 @@
 "use client"
 
+/**
+ * Main navigation section for the sidebar.
+ *
+ * Responsibilities:
+ * - Render grouped navigation items with optional nested entries.
+ */
 import { ChevronRight, type LucideIcon } from "lucide-react"
 
 import {

@@ -1,3 +1,10 @@
+/**
+ * Bounds helpers for the canvas stage.
+ *
+ * Responsibilities:
+ * - Compute axis-aligned bounds for the image node (fast path and rotated path).
+ * - Provide a small epsilon-based change detector for state updates.
+ */
 import type { BoundsRect } from "./types"
 import type Konva from "konva"
 

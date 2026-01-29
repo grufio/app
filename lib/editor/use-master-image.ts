@@ -1,5 +1,12 @@
 "use client"
 
+/**
+ * React hook for master image lifecycle.
+ *
+ * Responsibilities:
+ * - Load/refresh the project's master image metadata and signed URL.
+ * - Provide deletion workflow and error/loading state.
+ */
 import { useCallback, useEffect, useRef, useState } from "react"
 
 import { deleteMasterImage, getMasterImage } from "@/lib/api/project-images"

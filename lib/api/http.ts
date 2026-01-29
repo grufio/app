@@ -1,3 +1,10 @@
+/**
+ * JSON HTTP helper for client-side API calls.
+ *
+ * Responsibilities:
+ * - Provide a consistent `fetchJson` result shape (no throw on non-2xx).
+ * - Coalesce duplicate GET requests with a small in-memory TTL cache.
+ */
 export type JsonRecord = Record<string, unknown>
 
 export type FetchJsonResult<T> =

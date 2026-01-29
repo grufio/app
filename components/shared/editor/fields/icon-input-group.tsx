@@ -1,5 +1,12 @@
 "use client"
 
+/**
+ * Shared icon+control wrapper for editor panel fields.
+ *
+ * Responsibilities:
+ * - Compose an `InputGroup` with a trailing/leading addon slot for icons.
+ * - Must not add extra DOM wrappers (layout-sensitive).
+ */
 import type * as React from "react"
 
 import { InputGroup, InputGroupAddon } from "@/components/ui/input-group"

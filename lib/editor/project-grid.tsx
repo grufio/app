@@ -1,5 +1,12 @@
 "use client"
 
+/**
+ * Project grid provider.
+ *
+ * Responsibilities:
+ * - Load and persist grid settings (`project_grid`) for the current project.
+ * - Expose derived pixel values for rendering.
+ */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
 
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"

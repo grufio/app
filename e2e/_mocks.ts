@@ -1,3 +1,10 @@
+/**
+ * Playwright network mocks for E2E.
+ *
+ * Responsibilities:
+ * - Stub Supabase PostgREST + Storage calls for editor flows.
+ * - Provide deterministic test fixtures (project/workspace/image/image-state).
+ */
 import type { Page } from "@playwright/test"
 
 export const PROJECT_ID = "00000000-0000-0000-0000-000000000001"

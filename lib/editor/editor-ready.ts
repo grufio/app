@@ -1,3 +1,10 @@
+/**
+ * Editor readiness gates.
+ *
+ * Responsibilities:
+ * - Compute when workspace/image state is ready to drive UI and commits.
+ * - Centralize “is ready” logic to avoid drift across components.
+ */
 export function computeWorkspaceReady(opts: {
   workspaceLoading: boolean
   workspaceUnit: unknown

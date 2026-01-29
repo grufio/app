@@ -1,5 +1,12 @@
 "use client"
 
+/**
+ * Artboard settings panel.
+ *
+ * Responsibilities:
+ * - Edit workspace unit, DPI, and artboard dimensions.
+ * - Persist changes via `project_workspace` providers.
+ */
 import { useCallback, useEffect, useRef, useState } from "react"
 import { ArrowLeftRight, ArrowUpDown, Gauge, Link2, Ruler, Unlink2 } from "lucide-react"
 

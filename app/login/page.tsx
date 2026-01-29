@@ -1,3 +1,9 @@
+/**
+ * Login page route.
+ *
+ * Responsibilities:
+ * - Render the login form shell for authentication.
+ */
 import { GalleryVerticalEnd } from "lucide-react"
 
 import { LoginForm } from "@/components/login-form"

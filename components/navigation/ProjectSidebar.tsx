@@ -1,5 +1,12 @@
 "use client"
 
+/**
+ * Project editor sidebar (file/layer tree placeholder).
+ *
+ * Responsibilities:
+ * - Render a collapsible tree and selection state for the editor left panel.
+ * - Currently uses sample data.
+ */
 import * as React from "react"
 import { ChevronRight, File, Folder, Image as ImageIcon, LayoutGrid } from "lucide-react"
 

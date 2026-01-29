@@ -1,3 +1,10 @@
+/**
+ * Placement/persist gating helpers (pure).
+ *
+ * Responsibilities:
+ * - Pick intrinsic image size from metadata/DOM safely.
+ * - Gate when persisted transforms should be applied vs user-changed state.
+ */
 export function pickIntrinsicSize(args: {
   intrinsicWidthPx?: number
   intrinsicHeightPx?: number

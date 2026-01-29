@@ -1,5 +1,12 @@
 "use client"
 
+/**
+ * Grid settings panel.
+ *
+ * Responsibilities:
+ * - Configure grid spacing and line style for the editor artboard.
+ * - Persist settings via `project_grid`.
+ */
 import { useCallback, useEffect, useRef, useState } from "react"
 import { ArrowLeftRight, ArrowUpDown, Palette, Ruler } from "lucide-react"
 

@@ -1,3 +1,10 @@
+/**
+ * API route: create a new project.
+ *
+ * Responsibilities:
+ * - Validate request body and auth.
+ * - Insert `projects` and initial `project_workspace` rows.
+ */
 import { NextResponse } from "next/server"
 
 import { clampPx, pxUToPxNumber, type Unit, unitToPxU } from "@/lib/editor/units"

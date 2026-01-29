@@ -1,5 +1,11 @@
 "use client"
 
+/**
+ * Team switcher dropdown (sidebar).
+ *
+ * Responsibilities:
+ * - Switch between teams/workspaces (sample data currently).
+ */
 import * as React from "react"
 import { ChevronsUpDown, Plus } from "lucide-react"
 

@@ -1,3 +1,9 @@
+/**
+ * Unit tests for `lib/editor/layer-selection-storage.ts`.
+ *
+ * Focus:
+ * - LocalStorage read/write behavior and legacy key compatibility.
+ */
 import { describe, expect, test } from "vitest"
 
 import { readSelectedLayerId, writeSelectedLayerId } from "./layer-selection-storage"

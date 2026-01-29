@@ -1,5 +1,12 @@
 "use client"
 
+/**
+ * App Router error boundary UI.
+ *
+ * Responsibilities:
+ * - Render a minimal recovery screen for unexpected route errors.
+ * - Provide reset/reload actions for the user.
+ */
 import { useEffect } from "react"
 
 import { Button } from "@/components/ui/button"

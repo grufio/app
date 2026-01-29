@@ -1,3 +1,10 @@
+/**
+ * Layer selection persistence (localStorage).
+ *
+ * Responsibilities:
+ * - Store/restore the selected layer id per project.
+ * - Maintain backward compatibility keys during migrations.
+ */
 export type LayerSelectionKind = "artboard" | "image" | "filter"
 
 function legacyKey(projectId: string) {

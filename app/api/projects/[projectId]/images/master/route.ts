@@ -1,3 +1,10 @@
+/**
+ * API route: master image metadata and signed URL.
+ *
+ * Responsibilities:
+ * - Return master image metadata and a short-lived signed URL for download.
+ * - Support deletion of the master image (and associated state) via Supabase.
+ */
 import { NextResponse } from "next/server"
 
 import { createSupabaseServerClient } from "@/lib/supabase/server"

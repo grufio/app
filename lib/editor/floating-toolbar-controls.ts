@@ -1,5 +1,12 @@
 "use client"
 
+/**
+ * Floating toolbar state + shortcut bindings.
+ *
+ * Responsibilities:
+ * - Manage tool selection (select/hand) and map actions to canvas imperative API.
+ * - Optionally bind keyboard shortcuts when enabled.
+ */
 import { useCallback, useEffect, useMemo, useState } from "react"
 
 import type { ProjectCanvasStageHandle } from "@/components/shared/editor"

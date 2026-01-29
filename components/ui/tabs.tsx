@@ -1,5 +1,11 @@
 "use client"
 
+/**
+ * Tabs UI primitives (Radix).
+ *
+ * Responsibilities:
+ * - Provide tabbed navigation and panels with consistent styling.
+ */
 import * as React from "react"
 import * as TabsPrimitive from "@radix-ui/react-tabs"
 

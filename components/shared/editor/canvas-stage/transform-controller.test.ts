@@ -1,3 +1,9 @@
+/**
+ * Unit tests for `transform-controller`.
+ *
+ * Focus:
+ * - Immediate commit behavior for explicit size changes.
+ */
 import { describe, expect, it } from "vitest"
 
 import { createTransformController } from "./transform-controller"

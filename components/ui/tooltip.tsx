@@ -1,5 +1,11 @@
 "use client"
 
+/**
+ * Tooltip UI primitives (Radix).
+ *
+ * Responsibilities:
+ * - Provide consistent tooltips with predictable delays and styling.
+ */
 import * as React from "react"
 import * as TooltipPrimitive from "@radix-ui/react-tooltip"
 

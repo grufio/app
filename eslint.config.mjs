@@ -1,3 +1,10 @@
+/**
+ * ESLint configuration (Next.js + TypeScript).
+ *
+ * Responsibilities:
+ * - Apply Next core-web-vitals + TS rules.
+ * - Define ignores for build artifacts and reports.
+ */
 import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";

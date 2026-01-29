@@ -1,5 +1,12 @@
  "use client"
 
+/**
+ * Login form UI.
+ *
+ * Responsibilities:
+ * - Trigger OAuth sign-in flows via Supabase Auth.
+ * - Render a simple “welcome back” form shell.
+ */
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {

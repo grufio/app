@@ -1,5 +1,11 @@
 "use client"
 
+/**
+ * Editor field: color input with leading icon.
+ *
+ * Responsibilities:
+ * - Wrap a native `<input type=\"color\">` in the shared icon/input-group chrome.
+ */
 import type * as React from "react"
 
 import { InputGroupInput } from "@/components/ui/input-group"

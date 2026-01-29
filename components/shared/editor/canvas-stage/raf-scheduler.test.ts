@@ -1,3 +1,9 @@
+/**
+ * Unit tests for `raf-scheduler`.
+ *
+ * Focus:
+ * - Coalescing flags into a single RAF callback and disposing safely.
+ */
 import { describe, expect, it, vi } from "vitest"
 
 import { createRafScheduler, RAF_BOUNDS, RAF_DRAG_BOUNDS, RAF_PAN } from "./raf-scheduler"

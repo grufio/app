@@ -1,5 +1,11 @@
 "use client"
 
+/**
+ * Small layout helpers for editor panels.
+ *
+ * Responsibilities:
+ * - Provide consistent row/field/icon spacing for right-panel controls.
+ */
 import type { ReactNode } from "react"
 
 export function PanelTwoFieldRow({ children }: { children: ReactNode }) {

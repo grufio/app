@@ -1,3 +1,10 @@
+/**
+ * Project editor page (server component shell).
+ *
+ * Responsibilities:
+ * - Validate `projectId` and enforce authentication.
+ * - Fetch initial workspace/grid/image/image-state data server-side and hydrate client editor.
+ */
 import { notFound, redirect } from "next/navigation"
 
 import { ProjectWorkspaceProvider, type WorkspaceRow } from "@/lib/editor/project-workspace"

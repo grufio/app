@@ -1,5 +1,12 @@
 "use client"
 
+/**
+ * Project workspace (artboard) provider.
+ *
+ * Responsibilities:
+ * - Load and persist `project_workspace` (unit, DPI, canonical µpx size, page background).
+ * - Expose derived convenience values (px/µpx) for editor components.
+ */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
 
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"

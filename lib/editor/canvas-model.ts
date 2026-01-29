@@ -1,3 +1,10 @@
+/**
+ * Canvas view math utilities.
+ *
+ * Responsibilities:
+ * - Provide pan/zoom/fit calculations in screen/world space.
+ * - Keep editor interactions deterministic and testable (pure functions).
+ */
 export type Size = { w: number; h: number }
 
 export type Viewport = {

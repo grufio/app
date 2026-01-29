@@ -1,3 +1,10 @@
+/**
+ * Button UI primitive.
+ *
+ * Responsibilities:
+ * - Provide consistent button styling and variants across the app.
+ * - Wrap Radix `Slot` to support `asChild`.
+ */
 import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { cva, type VariantProps } from "class-variance-authority"

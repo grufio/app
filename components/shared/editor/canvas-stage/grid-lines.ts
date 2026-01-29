@@ -1,3 +1,9 @@
+/**
+ * Grid line geometry (pure).
+ *
+ * Responsibilities:
+ * - Compute artboard grid line points for rendering (performance-safe).
+ */
 export type GridSpec = {
   spacingXPx: number
   spacingYPx: number

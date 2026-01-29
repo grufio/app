@@ -1,5 +1,12 @@
 "use client"
 
+/**
+ * Layers menu (editor).
+ *
+ * Responsibilities:
+ * - Render a selectable, expandable layer tree.
+ * - Track expanded state locally and report selection to callers.
+ */
 import { ChevronDown, ChevronRight, Image as ImageIcon, LayoutGrid, SlidersHorizontal } from "lucide-react"
 import { useCallback, useMemo, useRef, useState } from "react"
 

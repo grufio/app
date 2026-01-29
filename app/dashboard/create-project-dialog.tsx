@@ -1,5 +1,12 @@
 "use client"
 
+/**
+ * Create-project dialog (dashboard).
+ *
+ * Responsibilities:
+ * - Collect artboard preset and DPI.
+ * - Call the project creation API and navigate to the new project.
+ */
 import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 

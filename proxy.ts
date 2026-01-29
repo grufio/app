@@ -1,3 +1,10 @@
+/**
+ * Next.js request proxy (middleware replacement for Next 16).
+ *
+ * Responsibilities:
+ * - Enforce auth redirects for protected routes using Supabase SSR client.
+ * - Bypass auth in E2E runs where network is mocked.
+ */
 import { NextResponse, type NextRequest } from "next/server"
 import { createServerClient } from "@supabase/ssr"
 
