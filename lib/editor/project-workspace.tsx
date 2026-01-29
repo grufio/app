@@ -67,9 +67,17 @@ type WorkspaceContextValue = {
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null)
 
-export function ProjectWorkspaceProvider({ projectId, children }: { projectId: string; children: React.ReactNode }) {
-  const [row, setRow] = useState<WorkspaceRow | null>(null)
-  const [loading, setLoading] = useState(true)
+export function ProjectWorkspaceProvider({
+  projectId,
+  initialRow = null,
+  children,
+}: {
+  projectId: string
+  initialRow?: WorkspaceRow | null
+  children: React.ReactNode
+}) {
+  const [row, setRow] = useState<WorkspaceRow | null>(() => (initialRow?.project_id === projectId ? initialRow : null))
+  const [loading, setLoading] = useState(() => !(initialRow?.project_id === projectId))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
 
@@ -144,8 +152,10 @@ export function ProjectWorkspaceProvider({ projectId, children }: { projectId: s
   )
 
   useEffect(() => {
+    // If server provided initial data, don't refetch on mount.
+    if (initialRow?.project_id === projectId) return
     void refresh()
-  }, [refresh])
+  }, [initialRow?.project_id, projectId, refresh])
 
   const value = useMemo<WorkspaceContextValue>(() => {
     const unit = row ? normalizeUnit((row as unknown as { unit?: unknown })?.unit) : null

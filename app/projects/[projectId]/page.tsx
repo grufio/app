@@ -1,212 +1,111 @@
-"use client"
+import { notFound, redirect } from "next/navigation"
 
-import { useParams } from "next/navigation"
-import { useCallback, useMemo, useRef, useState } from "react"
+import { ProjectWorkspaceProvider, type WorkspaceRow } from "@/lib/editor/project-workspace"
+import { ProjectGridProvider, type ProjectGridRow } from "@/lib/editor/project-grid"
+import { createSupabaseServerClient } from "@/lib/supabase/server"
+import type { MasterImage } from "@/lib/editor/use-master-image"
+import type { Project } from "@/lib/editor/use-project"
+import type { ImageState } from "@/lib/editor/use-image-state"
+import { isUuid } from "@/lib/api/route-guards"
 
-import {
-  type ProjectCanvasStageHandle,
-  ProjectEditorHeader,
-} from "@/components/shared/editor"
-import { EditorErrorBoundary } from "@/components/shared/editor/editor-error-boundary"
-import { ProjectEditorLayout } from "@/components/project-editor/ProjectEditorLayout"
-import { ProjectEditorLeftPanel } from "@/components/project-editor/ProjectEditorLeftPanel"
-import { ProjectEditorRightPanel } from "@/components/project-editor/ProjectEditorRightPanel"
-import { ProjectEditorStage } from "@/components/project-editor/ProjectEditorStage"
-import { computeImagePanelReady, computeWorkspaceReady } from "@/lib/editor/editor-ready"
-import { useFloatingToolbarControls } from "@/lib/editor/floating-toolbar-controls"
-import { ProjectWorkspaceProvider, useProjectWorkspace } from "@/lib/editor/project-workspace"
-import { ProjectGridProvider } from "@/lib/editor/project-grid"
-import { useProjectGrid } from "@/lib/editor/project-grid"
-import { useMasterImage } from "@/lib/editor/use-master-image"
-import { useProject } from "@/lib/editor/use-project"
-import { useImageState } from "@/lib/editor/use-image-state"
+import { ProjectDetailPageClient } from "./page.client"
 
-function ProjectDetailPageInner({ projectId }: { projectId: string }) {
-  const { unit: workspaceUnit, dpi: workspaceDpi, widthPx: artboardWidthPx, heightPx: artboardHeightPx, loading: workspaceLoading } =
-    useProjectWorkspace()
-  const { row: gridRow, spacingXPx, spacingYPx, lineWidthPx } = useProjectGrid()
-  const { project, setProject } = useProject(projectId)
+export const dynamic = "force-dynamic"
+
+async function getInitialProjectData(projectId: string): Promise<{
+  project: Project | null
+  workspace: WorkspaceRow | null
+  grid: ProjectGridRow | null
+  masterImage: MasterImage | null
+  imageState: ImageState | null
+}> {
+  const supabase = await createSupabaseServerClient()
   const {
-    masterImage,
-    masterImageLoading,
-    masterImageError,
-    refreshMasterImage,
-    deleteBusy,
-    deleteError,
-    setDeleteError,
-    deleteImage,
-  } = useMasterImage(projectId)
-  const [restoreOpen, setRestoreOpen] = useState(false)
-  const [deleteOpen, setDeleteOpen] = useState(false)
-  const canvasRef = useRef<ProjectCanvasStageHandle | null>(null)
-  const [imagePxU, setImagePxU] = useState<{ w: bigint; h: bigint } | null>(null)
-  const { initialImageTransform, imageStateLoading, saveImageState } = useImageState(
-    projectId,
-    Boolean(masterImage)
-  )
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) redirect("/login")
 
-  const initialImagePxU = useMemo(() => {
-    if (!masterImage || !initialImageTransform) return null
-    const wU = initialImageTransform.widthPxU
-    const hU = initialImageTransform.heightPxU
-    if (!wU || !hU || wU <= 0n || hU <= 0n) return null
-    return { w: wU, h: hU }
-  }, [initialImageTransform, masterImage])
+  const [{ data: p }, { data: ws }, { data: grid }, { data: img }, { data: st }] = await Promise.all([
+    supabase.from("projects").select("id,name").eq("id", projectId).maybeSingle(),
+    supabase
+      .from("project_workspace")
+      .select("project_id,unit,width_value,height_value,dpi_x,dpi_y,width_px_u,height_px_u,width_px,height_px,raster_effects_preset")
+      .eq("project_id", projectId)
+      .maybeSingle(),
+    supabase
+      .from("project_grid")
+      .select("project_id,color,unit,spacing_value,spacing_x_value,spacing_y_value,line_width_value")
+      .eq("project_id", projectId)
+      .maybeSingle(),
+    supabase
+      .from("project_images")
+      .select("storage_path,name,width_px,height_px,dpi_x,role")
+      .eq("project_id", projectId)
+      .eq("role", "master")
+      .maybeSingle(),
+    supabase
+      .from("project_image_state")
+      .select("x_px_u,y_px_u,width_px_u,height_px_u,rotation_deg,role")
+      .eq("project_id", projectId)
+      .eq("role", "master")
+      .maybeSingle(),
+  ])
 
-  const handleImagePxChange = useCallback((w: bigint, h: bigint) => {
-    setImagePxU((prev) => {
-      if (prev && prev.w === w && prev.h === h) return prev
-      return { w, h }
-    })
-  }, [])
+  const project: Project | null = p?.id ? { id: projectId, name: String((p as { name?: unknown })?.name ?? "") } : null
+  const workspaceRow = ws ? (ws as unknown as WorkspaceRow) : null
+  const gridRow = grid ? (grid as unknown as ProjectGridRow) : null
 
-  const handleDeleteMasterImage = useCallback(async () => {
-    const res = await deleteImage()
-    if (!res.ok) return
-    setDeleteOpen(false)
-    setImagePxU(null)
-  }, [deleteImage])
+  let masterImage: MasterImage | null = null
+  if (img && (img as { storage_path?: unknown })?.storage_path) {
+    const storagePath = String((img as { storage_path: unknown }).storage_path)
+    const { data: signed } = await supabase.storage.from("project_images").createSignedUrl(storagePath, 60 * 10)
+    if (signed?.signedUrl) {
+      masterImage = {
+        signedUrl: signed.signedUrl,
+        width_px: Number((img as { width_px?: unknown })?.width_px ?? 0),
+        height_px: Number((img as { height_px?: unknown })?.height_px ?? 0),
+        dpi: (img as { dpi_x?: unknown })?.dpi_x == null ? null : Number((img as { dpi_x: unknown }).dpi_x),
+        name: String((img as { name?: unknown })?.name ?? "master image"),
+      }
+    }
+  }
 
-  const toolbar = useFloatingToolbarControls({
-    canvasRef,
-    hasImage: Boolean(masterImage),
-    masterImageLoading,
-    imageStateLoading,
-    enableShortcuts: true,
-  })
+  const imageState: ImageState | null =
+    st && (st as { width_px_u?: unknown; height_px_u?: unknown })?.width_px_u && (st as { height_px_u?: unknown })?.height_px_u
+      ? {
+          xPxU: typeof (st as { x_px_u?: unknown })?.x_px_u === "string" ? BigInt((st as { x_px_u: string }).x_px_u) : undefined,
+          yPxU: typeof (st as { y_px_u?: unknown })?.y_px_u === "string" ? BigInt((st as { y_px_u: string }).y_px_u) : undefined,
+          widthPxU: BigInt((st as { width_px_u: string }).width_px_u),
+          heightPxU: BigInt((st as { height_px_u: string }).height_px_u),
+          rotationDeg: Number((st as { rotation_deg?: unknown })?.rotation_deg ?? 0),
+        }
+      : null
 
-  const [selectedNavId, setSelectedNavId] = useState<string>("app")
-
-  const [leftPanelWidthRem, setLeftPanelWidthRem] = useState(20)
-  const [rightPanelWidthRem, setRightPanelWidthRem] = useState(20)
-  const minPanelRem = 18
-  const maxPanelRem = 24
-
-  const [pageBgEnabled, setPageBgEnabled] = useState(false)
-  const [pageBgColor, setPageBgColor] = useState("#ffffff")
-  const [pageBgOpacity, setPageBgOpacity] = useState(50)
-
-  const panelImagePxU = useMemo(() => {
-    // Avoid the "flash" of raw master px sizes before persisted image-state arrives.
-    if (imageStateLoading) return null
-    return imagePxU ?? initialImagePxU ?? null
-  }, [imagePxU, imageStateLoading, initialImagePxU])
-
-  const workspaceReady = computeWorkspaceReady({
-    workspaceLoading,
-    workspaceUnit,
-    workspaceDpi,
-  })
-
-  const imagePanelReady = computeImagePanelReady({
-    workspaceReady,
-    masterImage,
-    imageStateLoading,
-    panelImagePxU,
-  })
-
-  const activeRightSection = selectedNavId.startsWith("app/api") ? "image" : "artboard"
-
-  const grid = useMemo(() => {
-    if (!gridRow) return null
-    if (!Number.isFinite(spacingXPx ?? NaN) || !Number.isFinite(spacingYPx ?? NaN) || !Number.isFinite(lineWidthPx ?? NaN)) return null
-    const spacingX = Number(spacingXPx)
-    const spacingY = Number(spacingYPx)
-    const lw = Number(lineWidthPx)
-    if (spacingX <= 0 || spacingY <= 0 || lw <= 0) return null
-    return { spacingXPx: spacingX, spacingYPx: spacingY, lineWidthPx: lw, color: gridRow.color }
-  }, [gridRow, lineWidthPx, spacingXPx, spacingYPx])
-
-  return (
-    <div className="flex min-h-svh w-full flex-col">
-      <ProjectEditorHeader
-        projectId={projectId}
-        initialTitle={project?.id === projectId ? project.name : "Untitled"}
-        onTitleUpdated={(nextTitle) => setProject({ id: projectId, name: nextTitle })}
-      />
-
-      {/* Content row */}
-      <ProjectEditorLayout>
-        <EditorErrorBoundary resetKey={`${projectId}:${masterImage?.signedUrl ?? "no-image"}`}>
-          <main className="flex min-w-0 flex-1">
-            <ProjectEditorLeftPanel
-              widthRem={leftPanelWidthRem}
-              minRem={minPanelRem}
-              maxRem={maxPanelRem}
-              onWidthRemChange={setLeftPanelWidthRem}
-              selectedId={selectedNavId}
-              onSelect={setSelectedNavId}
-            />
-            <ProjectEditorStage
-              projectId={projectId}
-              masterImage={masterImage}
-              masterImageLoading={masterImageLoading}
-              masterImageError={masterImageError}
-              refreshMasterImage={refreshMasterImage}
-              imageStateLoading={imageStateLoading}
-              toolbar={toolbar}
-              canvasRef={canvasRef}
-              artboardWidthPx={artboardWidthPx ?? undefined}
-              artboardHeightPx={artboardHeightPx ?? undefined}
-              grid={grid}
-              handleImagePxChange={handleImagePxChange}
-              initialImageTransform={initialImageTransform}
-              saveImageState={saveImageState}
-              pageBgEnabled={pageBgEnabled}
-              pageBgColor={pageBgColor}
-              pageBgOpacity={pageBgOpacity}
-            />
-          </main>
-
-          <ProjectEditorRightPanel
-            panelWidthRem={rightPanelWidthRem}
-            minPanelRem={minPanelRem}
-            maxPanelRem={maxPanelRem}
-            onPanelWidthRemChange={setRightPanelWidthRem}
-            activeSection={activeRightSection}
-            pageBgEnabled={pageBgEnabled}
-            pageBgColor={pageBgColor}
-            pageBgOpacity={pageBgOpacity}
-            onPageBgEnabledChange={setPageBgEnabled}
-            onPageBgColorChange={(c) => {
-              setPageBgColor(c)
-              setPageBgEnabled(true)
-            }}
-            onPageBgOpacityChange={(o) => {
-              setPageBgOpacity(o)
-              setPageBgEnabled(true)
-            }}
-            masterImage={masterImage}
-            masterImageLoading={masterImageLoading}
-            deleteBusy={deleteBusy}
-            deleteError={deleteError}
-            setDeleteError={setDeleteError}
-            restoreOpen={restoreOpen}
-            setRestoreOpen={setRestoreOpen}
-            deleteOpen={deleteOpen}
-            setDeleteOpen={setDeleteOpen}
-            handleDeleteMasterImage={handleDeleteMasterImage}
-            panelImagePxU={panelImagePxU}
-            workspaceUnit={workspaceUnit ?? "cm"}
-            workspaceDpi={workspaceDpi ?? 300}
-            workspaceReady={workspaceReady}
-            imageStateLoading={imageStateLoading}
-            imagePanelReady={imagePanelReady}
-            canvasRef={canvasRef}
-          />
-        </EditorErrorBoundary>
-      </ProjectEditorLayout>
-    </div>
-  )
+  return { project, workspace: workspaceRow, grid: gridRow, masterImage, imageState }
 }
 
-export default function ProjectDetailPage() {
-  const params = useParams<{ projectId: string }>()
-  const projectId = params.projectId
+export default async function ProjectDetailPage({ params }: { params: { projectId: string } }) {
+  // Next.js may pass params as a Promise in newer versions (similar to Route Handlers).
+  // Accept both shapes to avoid accidentally treating projectId as undefined.
+  const awaitedParams = (params as unknown) as { projectId?: unknown } | Promise<{ projectId?: unknown }>
+  const resolved = awaitedParams instanceof Promise ? await awaitedParams : awaitedParams
+  const projectId = String(resolved?.projectId ?? "")
+  if (!isUuid(String(projectId))) notFound()
+  const isE2E = process.env.NEXT_PUBLIC_E2E_TEST === "1" || process.env.E2E_TEST === "1"
+  // E2E runs with mocked browser network and no real Supabase; skip server fetch in that mode.
+  const { project, workspace, grid, masterImage, imageState } = isE2E
+    ? { project: null, workspace: null, grid: null, masterImage: null, imageState: null }
+    : await getInitialProjectData(projectId)
+
   return (
-    <ProjectWorkspaceProvider projectId={projectId}>
-      <ProjectGridProvider projectId={projectId}>
-        <ProjectDetailPageInner key={projectId} projectId={projectId} />
+    <ProjectWorkspaceProvider projectId={projectId} initialRow={workspace}>
+      <ProjectGridProvider projectId={projectId} initialRow={grid}>
+        <ProjectDetailPageClient
+          projectId={projectId}
+          initialProject={project}
+          initialMasterImage={masterImage}
+          initialImageState={imageState}
+        />
       </ProjectGridProvider>
     </ProjectWorkspaceProvider>
   )

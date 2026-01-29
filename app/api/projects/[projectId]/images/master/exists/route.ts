@@ -1,19 +1,20 @@
 import { NextResponse } from "next/server"
 
 import { createSupabaseServerClient } from "@/lib/supabase/server"
-import { requireProjectAccess, requireUser } from "@/lib/api/route-guards"
+import { isUuid, requireUser } from "@/lib/api/route-guards"
 
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   const { projectId } = await params
+  if (!isUuid(String(projectId))) {
+    return NextResponse.json({ error: "Invalid projectId", stage: "params" }, { status: 400 })
+  }
   const supabase = await createSupabaseServerClient()
 
   const u = await requireUser(supabase)
   if (!u.ok) return u.res
-  const a = await requireProjectAccess(supabase, projectId)
-  if (!a.ok) return a.res
 
   const { data, error } = await supabase
     .from("project_images")

@@ -2,12 +2,16 @@ import { NextResponse } from "next/server"
 
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { createClient } from "@supabase/supabase-js"
+import { isUuid } from "@/lib/api/route-guards"
 
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   const { projectId } = await params
+  if (!isUuid(String(projectId))) {
+    return NextResponse.json({ error: "Invalid projectId", stage: "params" }, { status: 400 })
+  }
   const supabase = await createSupabaseServerClient()
 
   const {

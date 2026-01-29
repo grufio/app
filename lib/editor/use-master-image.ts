@@ -12,8 +12,10 @@ export type MasterImage = {
   name: string
 }
 
-export function useMasterImage(projectId: string) {
-  const [masterImage, setMasterImage] = useState<MasterImage | null>(null)
+export function useMasterImage(projectId: string, initialMasterImage?: MasterImage | null) {
+  const [masterImage, setMasterImage] = useState<MasterImage | null>(() =>
+    initialMasterImage?.signedUrl ? initialMasterImage : null
+  )
   const [masterImageLoading, setMasterImageLoading] = useState(false)
   const [masterImageError, setMasterImageError] = useState("")
 
@@ -78,8 +80,10 @@ export function useMasterImage(projectId: string) {
   }, [deleteBusy, projectId, refreshMasterImage])
 
   useEffect(() => {
+    // If server already provided the master image, skip the initial fetch.
+    if (initialMasterImage?.signedUrl) return
     void refreshMasterImage()
-  }, [refreshMasterImage])
+  }, [initialMasterImage?.signedUrl, refreshMasterImage])
 
   return {
     masterImage,

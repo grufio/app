@@ -26,6 +26,12 @@ type Props = {
   renderArtboard?: boolean
   artboardWidthPx?: number
   artboardHeightPx?: number
+  /**
+   * Intrinsic (source) image pixel dimensions from persisted metadata (DB).
+   * This must be the canonical source of truth for initial sizing (not DOM layout).
+   */
+  intrinsicWidthPx?: number
+  intrinsicHeightPx?: number
   grid?: {
     spacingXPx: number
     spacingYPx: number
@@ -181,6 +187,8 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     renderArtboard = true,
     artboardWidthPx,
     artboardHeightPx,
+    intrinsicWidthPx,
+    intrinsicHeightPx,
     grid = null,
     onImageSizeChange,
     initialImageTransform,
@@ -233,9 +241,12 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     imageTxRef.current = imageTx
   }, [imageTx])
 
-  const boundsRafRef = useRef<number | null>(null)
-  const dragBoundsRafRef = useRef<number | null>(null)
-  const panRafRef = useRef<number | null>(null)
+  // Single RAF scheduler to batch pan/bounds work per frame.
+  const rafRef = useRef<number | null>(null)
+  const rafFlagsRef = useRef(0)
+  const RAF_PAN = 1
+  const RAF_BOUNDS = 2
+  const RAF_DRAG_BOUNDS = 4
   const panDeltaRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 })
   const onImageSizeChangeRef = useRef<Props["onImageSizeChange"]>(onImageSizeChange)
   const dragPosRef = useRef<{ x: number; y: number } | null>(null)
@@ -269,11 +280,23 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   }, [])
 
   const world = useMemo(() => {
-    const w = artboardWidthPx && artboardWidthPx > 0 ? artboardWidthPx : img?.width
-    const h = artboardHeightPx && artboardHeightPx > 0 ? artboardHeightPx : img?.height
+    // "World" size is used for view math (fit/pan/zoom). Prefer explicit artboard,
+    // otherwise fall back to intrinsic image metadata (DB), and only then DOM image values.
+    const w =
+      artboardWidthPx && artboardWidthPx > 0
+        ? artboardWidthPx
+        : typeof intrinsicWidthPx === "number" && Number.isFinite(intrinsicWidthPx) && intrinsicWidthPx > 0
+          ? intrinsicWidthPx
+          : img?.naturalWidth || img?.width
+    const h =
+      artboardHeightPx && artboardHeightPx > 0
+        ? artboardHeightPx
+        : typeof intrinsicHeightPx === "number" && Number.isFinite(intrinsicHeightPx) && intrinsicHeightPx > 0
+          ? intrinsicHeightPx
+          : img?.naturalHeight || img?.height
     if (!w || !h) return null
     return { w, h }
-  }, [artboardHeightPx, artboardWidthPx, img?.height, img?.width])
+  }, [artboardHeightPx, artboardWidthPx, img?.height, img?.naturalHeight, img?.naturalWidth, img?.width, intrinsicHeightPx, intrinsicWidthPx])
 
   // `hasArtboard` controls layout math and must be based on explicit artboard px inputs.
   // (No fallback to image size here.)
@@ -301,7 +324,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     const nx = Math.floor(artW / grid.spacingXPx)
     const ny = Math.floor(artH / grid.spacingYPx)
     const total = Math.max(0, nx) + Math.max(0, ny)
-    if (!Number.isFinite(total) || total <= 0) return []
+    if (!Number.isFinite(total) || total <= 0) return null
 
     // If there are too many lines, skip some to stay performant.
     const stride = total > maxLines ? Math.ceil(total / maxLines) : 1
@@ -390,8 +413,20 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
       const g = globalThis as unknown as { __gruf_editor?: { boundsReads?: number } }
       if (g.__gruf_editor) g.__gruf_editor.boundsReads = (g.__gruf_editor.boundsReads ?? 0) + 1
     }
-    const r = node.getClientRect({ relativeTo: layer })
-    const next = { x: r.x, y: r.y, w: r.width, h: r.height }
+    // Fast path: no rotation => bounds are axis-aligned and can be derived without getClientRect().
+    // KonvaImage uses offsetX/offsetY so x/y are the center in world coords.
+    const rot = rotationRef.current % 360
+    let next: BoundsRect
+    if (rot === 0) {
+      const w = node.width()
+      const h = node.height()
+      const x = node.x() - w / 2
+      const y = node.y() - h / 2
+      next = { x, y, w, h }
+    } else {
+      const r = node.getClientRect({ relativeTo: layer })
+      next = { x: r.x, y: r.y, w: r.width, h: r.height }
+    }
     setImageBounds((prev) => {
       if (!prev) return next
       const eps = 0.01
@@ -406,13 +441,41 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     })
   }, [imageDraggable, isE2E])
 
-  const scheduleBoundsUpdate = useCallback(() => {
-    if (boundsRafRef.current != null) return
-    boundsRafRef.current = requestAnimationFrame(() => {
-      boundsRafRef.current = null
-      updateImageBoundsFromNode()
-    })
-  }, [updateImageBoundsFromNode])
+  const scheduleRaf = useCallback(
+    (flag: number) => {
+      rafFlagsRef.current |= flag
+      if (rafRef.current != null) return
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = null
+        const flags = rafFlagsRef.current
+        rafFlagsRef.current = 0
+
+        if (flags & RAF_PAN) {
+          const { dx, dy } = panDeltaRef.current
+          panDeltaRef.current = { dx: 0, dy: 0 }
+          if (dx !== 0 || dy !== 0) setView((v) => panBy(v, dx, dy))
+        }
+
+        if (flags & RAF_DRAG_BOUNDS) {
+          const { dx: accDx, dy: accDy } = dragDeltaRef.current
+          dragDeltaRef.current = { dx: 0, dy: 0 }
+          if (accDx !== 0 || accDy !== 0) {
+            setImageBounds((prev) => {
+              if (!prev) return prev
+              return { x: prev.x + accDx, y: prev.y + accDy, w: prev.w, h: prev.h }
+            })
+          }
+        }
+
+        if (flags & RAF_BOUNDS) {
+          updateImageBoundsFromNode()
+        }
+      })
+    },
+    [updateImageBoundsFromNode]
+  )
+
+  const scheduleBoundsUpdate = useCallback(() => scheduleRaf(RAF_BOUNDS), [scheduleRaf])
 
   const updateBoundsDuringDragMove = useCallback(() => {
     const node = imageNodeRef.current
@@ -436,20 +499,8 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
 
     dragDeltaRef.current.dx += dx
     dragDeltaRef.current.dy += dy
-    if (dragBoundsRafRef.current != null) return
-    dragBoundsRafRef.current = requestAnimationFrame(() => {
-      dragBoundsRafRef.current = null
-      const { dx: accDx, dy: accDy } = dragDeltaRef.current
-      dragDeltaRef.current = { dx: 0, dy: 0 }
-      if (accDx === 0 && accDy === 0) return
-      // Drag is a pure translation. The axis-aligned bounds translate 1:1 with the node.
-      // Avoid calling getClientRect() on every move.
-      setImageBounds((prev) => {
-        if (!prev) return prev
-        return { x: prev.x + accDx, y: prev.y + accDy, w: prev.w, h: prev.h }
-      })
-    })
-  }, [scheduleBoundsUpdate])
+    scheduleRaf(RAF_DRAG_BOUNDS)
+  }, [scheduleBoundsUpdate, scheduleRaf])
 
   // Apply persisted image state even if it arrives after initial placement.
   useEffect(() => {
@@ -458,6 +509,12 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     if (!initialImageTransform) return
     if (userChangedImageTxRef.current) return
     if (appliedInitialTransformKeyRef.current === src) return
+
+    const hasPersistedSize = Boolean(initialImageTransform.widthPxU && initialImageTransform.heightPxU)
+    // Backwards-compat: older rows might not have persisted size yet.
+    // In that case we intentionally DO NOT apply this transform here; the initial placement
+    // logic (using intrinsicWidthPx/HeightPx) will establish canonical µpx size first.
+    if (!hasPersistedSize) return
 
     const rotationDeg = Number(initialImageTransform.rotationDeg)
     const nextWidthPxU = initialImageTransform.widthPxU
@@ -499,23 +556,35 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     // - width/height used ONLY for centering
     // - DO NOT change anything based on DPI
     if (!hasArtboard) return
-    if (initialImageTransform) return
+    const hasPersistedSize = Boolean(initialImageTransform?.widthPxU && initialImageTransform?.heightPxU)
+    if (hasPersistedSize) return
     if (appliedInitialTransformKeyRef.current === src) return
 
     const key = `${src}:${artW}x${artH}`
     if (placedKeyRef.current === key) return
     placedKeyRef.current = key
 
+    // Canonical source for initial image size is persisted metadata (DB).
+    // We only fall back to the loaded image's natural size if metadata is absent.
+    const metaW =
+      typeof intrinsicWidthPx === "number" && Number.isFinite(intrinsicWidthPx) && intrinsicWidthPx > 0 ? intrinsicWidthPx : null
+    const metaH =
+      typeof intrinsicHeightPx === "number" && Number.isFinite(intrinsicHeightPx) && intrinsicHeightPx > 0 ? intrinsicHeightPx : null
+    const fallbackW = img.naturalWidth || img.width
+    const fallbackH = img.naturalHeight || img.height
+    const baseW = metaW ?? fallbackW
+    const baseH = metaH ?? fallbackH
+
     queueMicrotask(() => {
       setRotation(0)
       setImageTx({
         xPxU: numberToMicroPx(artW / 2),
         yPxU: numberToMicroPx(artH / 2),
-        widthPxU: numberToMicroPx(img.width),
-        heightPxU: numberToMicroPx(img.height),
+        widthPxU: numberToMicroPx(baseW),
+        heightPxU: numberToMicroPx(baseH),
       })
     })
-  }, [artH, artW, hasArtboard, img, initialImageTransform, src])
+  }, [artH, artW, hasArtboard, img, initialImageTransform, intrinsicHeightPx, intrinsicWidthPx, src])
 
   const commitFromNode = useCallback(
     (commitPosition: boolean) => {
@@ -570,29 +639,46 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
         commitTimerRef.current = null
       }
       pendingCommitRef.current = null
+      if (rafRef.current != null) {
+        cancelAnimationFrame(rafRef.current)
+        rafRef.current = null
+      }
+      rafFlagsRef.current = 0
     }
   }, [])
 
   const rotate90 = useCallback(() => {
     setRotation((r) => {
       const next = (r + 90) % 360
-      // Persist rotation change (commit-on-action, not on every frame).
-      scheduleCommitTransform(false, 0)
+      // Persist rotation change immediately (explicit action).
+      const prev = imageTxRef.current
+      if (prev) {
+        userChangedImageTxRef.current = true
+        onImageTransformCommit?.({
+          xPxU: prev.xPxU,
+          yPxU: prev.yPxU,
+          widthPxU: prev.widthPxU,
+          heightPxU: prev.heightPxU,
+          rotationDeg: next,
+        })
+      }
       return next
     })
-  }, [scheduleCommitTransform])
+  }, [onImageTransformCommit])
 
   const setImageSize = useCallback(
     (widthPxU: bigint, heightPxU: bigint) => {
-      if (!img) return
-      if (!hasArtboard) return
       const prev = imageTxRef.current
-      if (!prev) return
       if (widthPxU <= 0n || heightPxU <= 0n) return
 
+      // Explicit user action must always persist, even if the image hasn't loaded yet
+      // or initial placement hasn't run. Use a deterministic fallback position.
+      const baseX = prev?.xPxU ?? (hasArtboard ? numberToMicroPx(artW / 2) : 0n)
+      const baseY = prev?.yPxU ?? (hasArtboard ? numberToMicroPx(artH / 2) : 0n)
+
       const next = {
-        xPxU: prev.xPxU,
-        yPxU: prev.yPxU,
+        xPxU: baseX,
+        yPxU: baseY,
         widthPxU,
         heightPxU,
       }
@@ -602,16 +688,32 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
       }
       userChangedImageTxRef.current = true
       setImageTx(next)
-      scheduleCommitTransform(false, 0)
+      // Explicit action -> persist immediately.
+      onImageTransformCommit?.({
+        xPxU: next.xPxU,
+        yPxU: next.yPxU,
+        widthPxU: next.widthPxU,
+        heightPxU: next.heightPxU,
+        rotationDeg: rotationRef.current,
+      })
     },
-    [hasArtboard, img, scheduleCommitTransform]
+    [artH, artW, hasArtboard, onImageTransformCommit]
   )
 
   const restoreImage = useCallback(() => {
     if (!img) return
     const t = initialImageTransform
-    const nextWidthPxU = t?.widthPxU ?? numberToMicroPx(img.width)
-    const nextHeightPxU = t?.heightPxU ?? numberToMicroPx(img.height)
+    const metaW =
+      typeof intrinsicWidthPx === "number" && Number.isFinite(intrinsicWidthPx) && intrinsicWidthPx > 0 ? intrinsicWidthPx : null
+    const metaH =
+      typeof intrinsicHeightPx === "number" && Number.isFinite(intrinsicHeightPx) && intrinsicHeightPx > 0 ? intrinsicHeightPx : null
+    const fallbackW = img.naturalWidth || img.width
+    const fallbackH = img.naturalHeight || img.height
+    const baseW = metaW ?? fallbackW
+    const baseH = metaH ?? fallbackH
+
+    const nextWidthPxU = t?.widthPxU ?? numberToMicroPx(baseW)
+    const nextHeightPxU = t?.heightPxU ?? numberToMicroPx(baseH)
     const nextX = t?.xPxU ?? numberToMicroPx(artW / 2)
     const nextY = t?.yPxU ?? numberToMicroPx(artH / 2)
 
@@ -632,9 +734,16 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     }
     userChangedImageTxRef.current = true
     setImageTx(next)
-    scheduleCommitTransform(true, 0)
+    // Explicit action -> persist immediately.
+    onImageTransformCommit?.({
+      xPxU: next.xPxU,
+      yPxU: next.yPxU,
+      widthPxU: next.widthPxU,
+      heightPxU: next.heightPxU,
+      rotationDeg: rot,
+    })
     scheduleBoundsUpdate()
-  }, [artH, artW, img, initialImageTransform, scheduleBoundsUpdate, scheduleCommitTransform])
+  }, [artH, artW, img, initialImageTransform, intrinsicHeightPx, intrinsicWidthPx, onImageTransformCommit, scheduleBoundsUpdate])
 
   const alignImage = useCallback(
     (opts: { x?: "left" | "center" | "right"; y?: "top" | "center" | "bottom" }) => {
@@ -671,11 +780,18 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
       node.y(baseY + dy)
       userChangedImageTxRef.current = true
       setImageTx(next)
-      scheduleCommitTransform(true, 0)
+      // Explicit action -> persist immediately.
+      onImageTransformCommit?.({
+        xPxU: next.xPxU,
+        yPxU: next.yPxU,
+        widthPxU: next.widthPxU,
+        heightPxU: next.heightPxU,
+        rotationDeg: rotationRef.current,
+      })
 
       scheduleBoundsUpdate()
     },
-    [artH, artW, hasArtboard, scheduleBoundsUpdate, scheduleCommitTransform]
+    [artH, artW, hasArtboard, onImageTransformCommit, scheduleBoundsUpdate]
   )
 
   useImperativeHandle(
@@ -705,16 +821,9 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
       userInteractedRef.current = true
       panDeltaRef.current.dx += e.evt.deltaX
       panDeltaRef.current.dy += e.evt.deltaY
-
-      if (panRafRef.current != null) return
-      panRafRef.current = requestAnimationFrame(() => {
-        panRafRef.current = null
-        const { dx, dy } = panDeltaRef.current
-        panDeltaRef.current = { dx: 0, dy: 0 }
-        setView((v) => panBy(v, dx, dy))
-      })
+      scheduleRaf(RAF_PAN)
     },
-    []
+    [scheduleRaf]
   )
 
   // E2E test hook: expose stage + image node to the browser so Playwright can
@@ -824,10 +933,6 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
                 scheduleCommitTransform(true, 0)
                 dragPosRef.current = null
                 dragDeltaRef.current = { dx: 0, dy: 0 }
-                if (dragBoundsRafRef.current != null) {
-                  cancelAnimationFrame(dragBoundsRafRef.current)
-                  dragBoundsRafRef.current = null
-                }
                 setIsDraggingImage(false)
                 scheduleBoundsUpdate()
               }}

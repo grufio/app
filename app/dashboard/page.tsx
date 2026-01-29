@@ -27,6 +27,7 @@ export default async function Page() {
       "id,name,updated_at,status,project_images(role,file_size_bytes),project_workspace(width_px,height_px),project_image_state(role,x_px_u,y_px_u,width_px_u,height_px_u,rotation_deg)"
     )
     .order("updated_at", { ascending: false })
+    .limit(100)
 
   return (
     <SidebarFrame>

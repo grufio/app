@@ -15,7 +15,7 @@ type CanvasTransformCommit = React.ComponentProps<typeof ProjectCanvasStage>["on
 
 export function ProjectEditorStage(props: {
   projectId: string
-  masterImage: { signedUrl?: string | null; name?: string | null } | null
+  masterImage: { signedUrl?: string | null; name?: string | null; width_px?: number | null; height_px?: number | null } | null
   masterImageLoading: boolean
   masterImageError: string
   refreshMasterImage: () => void | Promise<void>
@@ -120,6 +120,12 @@ export function ProjectEditorStage(props: {
             imageDraggable={Boolean(masterImage) && toolbar.imageDraggable}
             artboardWidthPx={artboardWidthPx ?? undefined}
             artboardHeightPx={artboardHeightPx ?? undefined}
+            intrinsicWidthPx={
+              typeof masterImage?.width_px === "number" && Number.isFinite(masterImage.width_px) ? masterImage.width_px : undefined
+            }
+            intrinsicHeightPx={
+              typeof masterImage?.height_px === "number" && Number.isFinite(masterImage.height_px) ? masterImage.height_px : undefined
+            }
             grid={grid ?? null}
             onImageSizeChange={handleImagePxChange}
             initialImageTransform={masterImage ? initialImageTransform : null}

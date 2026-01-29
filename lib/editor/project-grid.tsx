@@ -70,10 +70,18 @@ function mapGridSchemaError(message: string): string {
   return message
 }
 
-export function ProjectGridProvider({ projectId, children }: { projectId: string; children: React.ReactNode }) {
+export function ProjectGridProvider({
+  projectId,
+  initialRow = null,
+  children,
+}: {
+  projectId: string
+  initialRow?: ProjectGridRow | null
+  children: React.ReactNode
+}) {
   const { unit: workspaceUnit, dpi: workspaceDpi } = useProjectWorkspace()
-  const [row, setRow] = useState<ProjectGridRow | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [row, setRow] = useState<ProjectGridRow | null>(() => (initialRow?.project_id === projectId ? initialRow : null))
+  const [loading, setLoading] = useState(() => !(initialRow?.project_id === projectId))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
 
@@ -130,8 +138,10 @@ export function ProjectGridProvider({ projectId, children }: { projectId: string
   }, [projectId, workspaceUnit])
 
   useEffect(() => {
+    // If server provided initial data, don't refetch on mount.
+    if (initialRow?.project_id === projectId) return
     void refresh()
-  }, [refresh])
+  }, [initialRow?.project_id, projectId, refresh])
 
   const upsertGrid = useCallback(
     async (nextRow: ProjectGridRow): Promise<ProjectGridRow | null> => {
