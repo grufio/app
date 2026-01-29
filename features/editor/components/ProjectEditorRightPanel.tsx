@@ -19,11 +19,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { ArtboardPanel, GridPanel, ImagePanel, type ProjectCanvasStageHandle } from "@/components/shared/editor"
-import { PanelIconSlot, PanelTwoFieldRow } from "@/components/shared/editor/panel-layout"
-import { IconColorField } from "@/components/shared/editor/fields/icon-color-field"
-import { IconNumericField } from "@/components/shared/editor/fields/icon-numeric-field"
-import { EditorSidebarSection } from "@/components/shared/editor/sidebar/editor-sidebar-section"
+import { ArtboardPanel } from "./artboard-panel"
+import { GridPanel } from "./grid-panel"
+import { ImagePanel } from "./image-panel"
+import type { ProjectCanvasStageHandle } from "./project-canvas-stage"
+import { PanelIconSlot, PanelTwoFieldRow } from "./panel-layout"
+import { IconColorField } from "./fields/icon-color-field"
+import { IconNumericField } from "./fields/icon-numeric-field"
+import { EditorSidebarSection } from "./sidebar/editor-sidebar-section"
 import type { Unit } from "@/lib/editor/units"
 
 export function ProjectEditorRightPanel(props: {

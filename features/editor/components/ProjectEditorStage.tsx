@@ -13,9 +13,8 @@ import { ProjectImageUploader } from "@/components/app-img-upload"
 import {
   FloatingToolbar,
   type FloatingToolbarTool,
-  ProjectCanvasStage,
-  type ProjectCanvasStageHandle,
-} from "@/components/shared/editor"
+} from "./floating-toolbar"
+import { ProjectCanvasStage, type ProjectCanvasStageHandle } from "./project-canvas-stage"
 
 type CanvasInitialImageTransform = React.ComponentProps<typeof ProjectCanvasStage>["initialImageTransform"]
 type CanvasTransformCommit = React.ComponentProps<typeof ProjectCanvasStage>["onImageTransformCommit"]

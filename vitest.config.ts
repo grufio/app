@@ -15,7 +15,7 @@ export default defineConfig({
     },
   },
   test: {
-    include: ["lib/**/*.test.ts", "components/**/*.test.ts", "services/**/*.test.ts"],
+    include: ["lib/**/*.test.ts", "components/**/*.test.ts", "features/**/*.test.ts", "services/**/*.test.ts"],
     exclude: ["e2e/**", "node_modules/**", ".next/**"],
     // CI speed: small suite today, but enable parallel execution as it grows.
     pool: "threads",

@@ -9,8 +9,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
-import { type ProjectCanvasStageHandle, ProjectEditorHeader } from "@/components/shared/editor"
-import { EditorErrorBoundary } from "@/components/shared/editor/editor-error-boundary"
+import { EditorErrorBoundary, ProjectEditorHeader, type ProjectCanvasStageHandle } from "@/features/editor"
 import { ProjectEditorLayout } from "@/components/project-editor/ProjectEditorLayout"
 import { ProjectEditorLeftPanel } from "@/components/project-editor/ProjectEditorLeftPanel"
 import { ProjectEditorRightPanel } from "@/components/project-editor/ProjectEditorRightPanel"

@@ -10,7 +10,7 @@
 import { useEffect, useMemo, useState } from "react"
 
 import { getMasterImage } from "@/lib/api/project-images"
-import { ProjectCanvasStage } from "@/components/shared/editor/project-canvas-stage"
+import { ProjectCanvasStage } from "@/features/editor"
 
 export type ProjectThumbImageState = {
   x: number
