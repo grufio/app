@@ -14,7 +14,11 @@ import type { SupabaseClient } from "@supabase/supabase-js"
  */
 
 export function jsonError(message: string, status: number, extra?: Record<string, unknown>) {
-  return NextResponse.json({ error: message, ...extra }, { status })
+  const stageFromExtra = (extra as { stage?: unknown } | undefined)?.stage
+  const stage = typeof stageFromExtra === "string" && stageFromExtra.trim() ? stageFromExtra.trim() : "unknown"
+  const rest = { ...(extra ?? {}) } as Record<string, unknown>
+  delete rest.stage
+  return NextResponse.json({ error: message, stage, ...rest }, { status })
 }
 
 export function isUuid(value: string): boolean {

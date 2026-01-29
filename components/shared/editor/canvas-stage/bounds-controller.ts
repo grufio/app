@@ -18,6 +18,7 @@ export type BoundsControllerDeps = {
   getImageNode: () => Konva.Image | null
   onBoundsChanged: (next: BoundsRect | null | ((prev: BoundsRect | null) => BoundsRect | null)) => void
   onBoundsRead?: () => void
+  onClientRectRead?: () => void
 }
 
 export type BoundsController = {
@@ -38,7 +39,13 @@ export function createBoundsController(deps: BoundsControllerDeps): BoundsContro
     if (deps.isE2E()) deps.onBoundsRead?.()
 
     const rot = deps.rotationDeg() % 360
-    const next = rot === 0 ? boundsFromNodeNoRotation(node) : boundsFromNodeClientRect(node, layer)
+    const next =
+      rot === 0
+        ? boundsFromNodeNoRotation(node)
+        : (() => {
+            if (deps.isE2E()) deps.onClientRectRead?.()
+            return boundsFromNodeClientRect(node, layer)
+          })()
     deps.onBoundsChanged((prev) => (shouldUpdateBounds(prev, next, 0.01) ? next : prev))
   }
 

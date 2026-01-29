@@ -13,8 +13,8 @@ describe("createBoundsController", () => {
   it("flushDragBounds applies accumulated deltas to previous bounds", () => {
     let bounds: BoundsRect | null = { x: 1, y: 2, w: 3, h: 4 }
     const c = createBoundsController({
-      imageDraggable: true,
-      isE2E: false,
+      imageDraggable: () => true,
+      isE2E: () => false,
       rotationDeg: () => 0,
       getLayer: () => null,
       getImageNode: () => null,

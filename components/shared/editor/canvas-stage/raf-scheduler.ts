@@ -13,6 +13,16 @@ export type RafSchedulerHandlers = {
   onPan: () => void
   onDragBounds: () => void
   onBounds: () => void
+  /**
+   * Counter hook: increments when a new RAF is scheduled (one per frame at most).
+   * Intended for dev/E2E performance guardrails.
+   */
+  onRafScheduled?: () => void
+  /**
+   * Counter hook: increments when the RAF callback executes.
+   * Intended for dev/E2E performance guardrails.
+   */
+  onRafExecuted?: () => void
 }
 
 export type RafScheduler = {
@@ -31,8 +41,10 @@ export function createRafScheduler(handlers: RafSchedulerHandlers): RafScheduler
   const schedule = (flag: number) => {
     flags |= flag
     if (rafId != null) return
+    handlers.onRafScheduled?.()
     rafId = requestAnimationFrame(() => {
       rafId = null
+      handlers.onRafExecuted?.()
       const f = flags
       flags = 0
 

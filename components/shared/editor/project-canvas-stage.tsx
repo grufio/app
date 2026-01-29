@@ -370,6 +370,10 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
         const g = globalThis as unknown as { __gruf_editor?: { boundsReads?: number } }
         if (g.__gruf_editor) g.__gruf_editor.boundsReads = (g.__gruf_editor.boundsReads ?? 0) + 1
       },
+      onClientRectRead: () => {
+        const g = globalThis as unknown as { __gruf_editor?: { clientRectReads?: number } }
+        if (g.__gruf_editor) g.__gruf_editor.clientRectReads = (g.__gruf_editor.clientRectReads ?? 0) + 1
+      },
     })
   }
 
@@ -390,6 +394,14 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
       },
       onBounds: () => {
         updateImageBoundsFromNode()
+      },
+      onRafScheduled: () => {
+        const g = globalThis as unknown as { __gruf_editor?: { rafScheduled?: number } }
+        if (g.__gruf_editor) g.__gruf_editor.rafScheduled = (g.__gruf_editor.rafScheduled ?? 0) + 1
+      },
+      onRafExecuted: () => {
+        const g = globalThis as unknown as { __gruf_editor?: { rafExecuted?: number } }
+        if (g.__gruf_editor) g.__gruf_editor.rafExecuted = (g.__gruf_editor.rafExecuted ?? 0) + 1
       },
     })
   }
@@ -600,7 +612,14 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   useEffect(() => {
     if (!isE2E) return
     const g = globalThis as unknown as {
-      __gruf_editor?: { stage?: Konva.Stage | null; image?: Konva.Image | null; boundsReads?: number }
+      __gruf_editor?: {
+        stage?: Konva.Stage | null
+        image?: Konva.Image | null
+        boundsReads?: number
+        clientRectReads?: number
+        rafScheduled?: number
+        rafExecuted?: number
+      }
     }
     g.__gruf_editor = {
       get stage() {
@@ -610,6 +629,9 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
         return imageNodeRef.current
       },
       boundsReads: 0,
+      clientRectReads: 0,
+      rafScheduled: 0,
+      rafExecuted: 0,
     }
   }, [isE2E])
 

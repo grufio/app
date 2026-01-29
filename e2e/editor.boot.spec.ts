@@ -20,6 +20,41 @@ test("smoke: /projects/:id loads editor with artboard + canvas", async ({ page }
   await expect(page.locator("canvas").first()).toBeVisible()
 })
 
+test("storage: upload → master returns signed URL → editor renders image", async ({ page }) => {
+  await page.setExtraHTTPHeaders({ "x-e2e-test": "1" })
+  await setupMockRoutes(page, { withImage: false })
+
+  await page.goto(`/projects/${PROJECT_ID}`)
+  await expect(page.getByTestId("editor-canvas-root")).toBeVisible()
+
+  const upload = await page.evaluate(async (projectId: string) => {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10"><rect width="20" height="10" fill="#ff3b30"/></svg>`
+    const file = new File([new Blob([svg], { type: "image/svg+xml" })], "test.svg", { type: "image/svg+xml" })
+    const fd = new FormData()
+    fd.append("file", file)
+    fd.append("width_px", "20")
+    fd.append("height_px", "10")
+    fd.append("format", "svg")
+    const res = await fetch(`/api/projects/${projectId}/images/master/upload`, { method: "POST", body: fd })
+    return { status: res.status, json: await res.json() }
+  }, PROJECT_ID)
+  expect(upload.status).toBe(200)
+  expect(upload.json).toMatchObject({ ok: true })
+
+  const master = await page.evaluate(async (projectId: string) => {
+    const res = await fetch(`/api/projects/${projectId}/images/master`)
+    return (await res.json()) as unknown
+  }, PROJECT_ID)
+  expect(master).toMatchObject({ exists: true })
+  expect((master as { signedUrl?: string }).signedUrl).toContain("data:image/svg+xml")
+
+  await page.reload()
+  await expect(page.getByTestId("editor-canvas-root")).toBeVisible()
+  await expect.poll(async () => {
+    return await page.evaluate(() => Boolean((globalThis as { __gruf_editor?: { image?: unknown } }).__gruf_editor?.image))
+  }).toBe(true)
+})
+
 test("image size: setting 100mm survives reload (no drift)", async ({ page }) => {
   await page.setExtraHTTPHeaders({ "x-e2e-test": "1" })
   let imageStatePosts = 0
@@ -143,7 +178,17 @@ test("image transform chain: resize + rotate + drag persists", async ({ page }) 
   const canvas = page.locator("canvas").first()
   const box = await canvas.boundingBox()
   if (!box) throw new Error("canvas not visible for drag")
-  const beforeBoundsReads = await page.evaluate(() => (globalThis as { __gruf_editor?: { boundsReads?: number } }).__gruf_editor?.boundsReads ?? 0)
+  const beforePerf = await page.evaluate(() => {
+    const g = globalThis as {
+      __gruf_editor?: { boundsReads?: number; clientRectReads?: number; rafScheduled?: number; rafExecuted?: number }
+    }
+    return {
+      boundsReads: g.__gruf_editor?.boundsReads ?? 0,
+      clientRectReads: g.__gruf_editor?.clientRectReads ?? 0,
+      rafScheduled: g.__gruf_editor?.rafScheduled ?? 0,
+      rafExecuted: g.__gruf_editor?.rafExecuted ?? 0,
+    }
+  })
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
   await page.mouse.down()
   await page.mouse.move(box.x + box.width / 2 + 60, box.y + box.height / 2 + 30)
@@ -151,15 +196,47 @@ test("image transform chain: resize + rotate + drag persists", async ({ page }) 
 
   const waitDragSave = page.waitForRequest((req) => isSaveWith(req, { rotation: 90, requirePosition: true }))
   await waitDragSave
-  const afterBoundsReads = await page.evaluate(() => (globalThis as { __gruf_editor?: { boundsReads?: number } }).__gruf_editor?.boundsReads ?? 0)
-  expect(afterBoundsReads - beforeBoundsReads).toBeLessThanOrEqual(3)
+  const afterPerf = await page.evaluate(() => {
+    const g = globalThis as {
+      __gruf_editor?: { boundsReads?: number; clientRectReads?: number; rafScheduled?: number; rafExecuted?: number }
+    }
+    return {
+      boundsReads: g.__gruf_editor?.boundsReads ?? 0,
+      clientRectReads: g.__gruf_editor?.clientRectReads ?? 0,
+      rafScheduled: g.__gruf_editor?.rafScheduled ?? 0,
+      rafExecuted: g.__gruf_editor?.rafExecuted ?? 0,
+    }
+  })
+  expect(afterPerf.boundsReads - beforePerf.boundsReads).toBeLessThanOrEqual(3)
+  expect(afterPerf.clientRectReads - beforePerf.clientRectReads).toBeLessThanOrEqual(3)
+  expect(afterPerf.rafExecuted - beforePerf.rafExecuted).toBeLessThanOrEqual(6)
 
   // Pan should not explode bounds reads.
-  const beforePanReads = await page.evaluate(() => (globalThis as { __gruf_editor?: { boundsReads?: number } }).__gruf_editor?.boundsReads ?? 0)
+  const beforePan = await page.evaluate(() => {
+    const g = globalThis as {
+      __gruf_editor?: { boundsReads?: number; clientRectReads?: number; rafExecuted?: number }
+    }
+    return {
+      boundsReads: g.__gruf_editor?.boundsReads ?? 0,
+      clientRectReads: g.__gruf_editor?.clientRectReads ?? 0,
+      rafExecuted: g.__gruf_editor?.rafExecuted ?? 0,
+    }
+  })
   await page.mouse.wheel(30, 20)
   await page.waitForTimeout(50)
-  const afterPanReads = await page.evaluate(() => (globalThis as { __gruf_editor?: { boundsReads?: number } }).__gruf_editor?.boundsReads ?? 0)
-  expect(afterPanReads - beforePanReads).toBeLessThanOrEqual(2)
+  const afterPan = await page.evaluate(() => {
+    const g = globalThis as {
+      __gruf_editor?: { boundsReads?: number; clientRectReads?: number; rafExecuted?: number }
+    }
+    return {
+      boundsReads: g.__gruf_editor?.boundsReads ?? 0,
+      clientRectReads: g.__gruf_editor?.clientRectReads ?? 0,
+      rafExecuted: g.__gruf_editor?.rafExecuted ?? 0,
+    }
+  })
+  expect(afterPan.boundsReads - beforePan.boundsReads).toBeLessThanOrEqual(2)
+  expect(afterPan.clientRectReads - beforePan.clientRectReads).toBeLessThanOrEqual(2)
+  expect(afterPan.rafExecuted - beforePan.rafExecuted).toBeLessThanOrEqual(3)
 
   const [imageStateAfterReload] = await Promise.all([
     page.waitForResponse((res) => res.url().includes(`/api/projects/${PROJECT_ID}/image-state`) && res.request().method() === "GET"),

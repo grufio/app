@@ -2,9 +2,22 @@
 
 ### 1) Database migrations
 
-- Identify new migrations since last release: `db/0xx_*.sql`
-- Apply each new migration in Supabase SQL editor (see `docs/migrations.md`)
-- If using `public.schema_migrations`, insert a row per applied migration (filename + checksum)
+- Canonical migrations (recommended): `supabase/migrations/*.sql` (Supabase CLI-first)
+  - Run the remote gate (requires linked project):
+
+```bash
+npm run verify:remote-migrations
+```
+
+  - If it fails because migrations are missing, apply them:
+
+```bash
+supabase db push --linked
+```
+
+- Legacy fallback: `db/0xx_*.sql` (SQL editor)
+  - Apply each new migration in Supabase SQL editor (see `docs/migrations.md`)
+  - If using `public.schema_migrations`, insert a row per applied migration (filename + checksum)
 
 ### 2) Local verification
 

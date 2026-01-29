@@ -20,6 +20,21 @@ import { ProjectDetailPageClient } from "./page.client"
 
 export const dynamic = "force-dynamic"
 
+function isSchemaMismatchMessage(message: string): boolean {
+  // PostgREST schema cache / missing DDL commonly presents as "column ... does not exist" or similar.
+  return /does not exist|schema cache|PGRST/i.test(message) && /column|relation|schema/i.test(message)
+}
+
+function schemaMismatchError(stage: string, message: string): Error {
+  return new Error(
+    [
+      `Schema mismatch (${stage}).`,
+      message,
+      "Fix: apply migrations (preferred: `supabase db push --linked`), then regenerate types (`npm run types:gen`).",
+    ].join(" ")
+  )
+}
+
 async function getInitialProjectData(projectId: string): Promise<{
   project: Project | null
   workspace: WorkspaceRow | null
@@ -33,9 +48,13 @@ async function getInitialProjectData(projectId: string): Promise<{
   } = await supabase.auth.getUser()
   if (!user) redirect("/login")
 
-  const [{ data: p, error: pErr }, { data: ws, error: wsErr }, { data: grid, error: gridErr }, { data: img, error: imgErr }, { data: st, error: stErr }] =
+  // Project must exist and be accessible; otherwise treat as 404.
+  const { data: p, error: pErr } = await supabase.from("projects").select("id,name").eq("id", projectId).maybeSingle()
+  if (pErr || !p?.id) notFound()
+
+  // Fetch non-critical editor data in parallel.
+  const [{ data: ws, error: wsErr }, { data: grid, error: gridErr }, { data: img, error: imgErr }, { data: st, error: stErr }] =
     await Promise.all([
-      supabase.from("projects").select("id,name").eq("id", projectId).maybeSingle(),
       supabase
         .from("project_workspace")
         .select(
@@ -50,8 +69,8 @@ async function getInitialProjectData(projectId: string): Promise<{
         .maybeSingle(),
       supabase
         .from("project_images")
-      // Some deployments do not have `project_images.dpi_x` yet; DPI is metadata-only.
-      .select("storage_path,name,width_px,height_px,role")
+        // Some deployments do not have `project_images.dpi_x` yet; DPI is metadata-only.
+        .select("storage_path,name,width_px,height_px,role")
         .eq("project_id", projectId)
         .eq("role", "master")
         .maybeSingle(),
@@ -63,13 +82,34 @@ async function getInitialProjectData(projectId: string): Promise<{
         .maybeSingle(),
     ])
 
-  // Project must exist and be accessible; otherwise treat as 404.
-  if (pErr || !p?.id) notFound()
-  // Workspace/grid/image-state errors should be surfaced as route errors (not silent partial boot).
-  if (wsErr) throw new Error(`Failed to load workspace: ${wsErr.message}`)
-  if (gridErr) throw new Error(`Failed to load grid: ${gridErr.message}`)
-  if (imgErr) throw new Error(`Failed to load master image metadata: ${imgErr.message}`)
-  if (stErr) throw new Error(`Failed to load image state: ${stErr.message}`)
+  // Workspace is effectively required; surface schema mismatch explicitly.
+  if (wsErr) {
+    if (isSchemaMismatchMessage(wsErr.message)) throw schemaMismatchError("project_workspace", wsErr.message)
+    throw new Error(`Failed to load workspace: ${wsErr.message}`)
+  }
+
+  // Grid and image state can be missing; prefer partial boot.
+  if (gridErr) {
+    if (isSchemaMismatchMessage(gridErr.message)) {
+      console.warn("project_grid schema mismatch:", gridErr.message)
+    } else {
+      throw new Error(`Failed to load grid: ${gridErr.message}`)
+    }
+  }
+  if (stErr) {
+    if (isSchemaMismatchMessage(stErr.message)) {
+      console.warn("project_image_state schema mismatch:", stErr.message)
+    } else {
+      throw new Error(`Failed to load image state: ${stErr.message}`)
+    }
+  }
+  if (imgErr) {
+    if (isSchemaMismatchMessage(imgErr.message)) {
+      console.warn("project_images schema mismatch:", imgErr.message)
+    } else {
+      throw new Error(`Failed to load master image metadata: ${imgErr.message}`)
+    }
+  }
 
   const project: Project = { id: projectId, name: p.name ?? "" }
   const workspaceRow: WorkspaceRow | null = ws
@@ -90,7 +130,7 @@ async function getInitialProjectData(projectId: string): Promise<{
         page_bg_opacity: ws.page_bg_opacity,
       }
     : null
-  const gridRow: ProjectGridRow | null = grid
+  const gridRow: ProjectGridRow | null = grid && !gridErr
     ? {
         project_id: grid.project_id,
         color: grid.color,
@@ -103,10 +143,13 @@ async function getInitialProjectData(projectId: string): Promise<{
     : null
 
   let masterImage: MasterImage | null = null
-  if (img?.storage_path) {
+  if (img?.storage_path && !imgErr) {
     const storagePath = img.storage_path
     const { data: signed, error: signedErr } = await supabase.storage.from("project_images").createSignedUrl(storagePath, 60 * 10)
-    if (signedErr) throw new Error(`Failed to create signed URL: ${signedErr.message}`)
+    if (signedErr) {
+      // Prefer partial boot: editor can still open and the user can re-upload.
+      console.warn("Failed to create signed URL:", signedErr.message)
+    }
     if (signed?.signedUrl) {
       masterImage = {
         signedUrl: signed.signedUrl,
@@ -132,7 +175,7 @@ async function getInitialProjectData(projectId: string): Promise<{
           heightPxU,
           rotationDeg: Number(rotationDeg),
         }
-      : st
+      : st && !stErr
         ? (() => {
             // Unsupported persisted state: present row but missing canonical µpx size.
             throw new Error("Unsupported image state: missing width_px_u/height_px_u")

@@ -62,15 +62,17 @@ export async function setupMockRoutes(page: Page, opts: SetupMockRoutesOpts) {
   const dataImage =
     "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%2220%22%20height%3D%2210%22%3E%3Crect%20width%3D%2220%22%20height%3D%2210%22%20fill%3D%22%23ff3b30%22/%3E%3C/svg%3E"
 
-  const masterImagePayload = opts.withImage
-    ? {
-        exists: true,
-        signedUrl: dataImage,
-        width_px: 20,
-        height_px: 10,
-        name: "test.svg",
-      }
-    : { exists: false }
+  let hasImage = Boolean(opts.withImage)
+  const masterImagePayload = () =>
+    hasImage
+      ? {
+          exists: true,
+          signedUrl: dataImage,
+          width_px: 20,
+          height_px: 10,
+          name: "test.svg",
+        }
+      : { exists: false }
 
   let imageState: ImageStateRow | null = opts.imageState && opts.imageState.exists ? opts.imageState.state : null
 
@@ -100,7 +102,7 @@ export async function setupMockRoutes(page: Page, opts: SetupMockRoutesOpts) {
       return route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify(masterImagePayload),
+        body: JSON.stringify(masterImagePayload()),
       })
     }
 
@@ -108,8 +110,22 @@ export async function setupMockRoutes(page: Page, opts: SetupMockRoutesOpts) {
       return route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ exists: Boolean(opts.withImage) }),
+        body: JSON.stringify({ exists: hasImage }),
       })
+    }
+
+    // Internal API: upload master image (mocked)
+    if (url.includes(`/api/projects/${PROJECT_ID}/images/master/upload`)) {
+      const req = route.request()
+      if (req.method() === "POST") {
+        hasImage = true
+        return route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ ok: true, storage_path: `projects/${PROJECT_ID}/master/mock-upload.svg` }),
+        })
+      }
+      return route.fulfill({ status: 405, contentType: "application/json", body: JSON.stringify({ error: "Method not allowed" }) })
     }
 
     // Internal API: image-state (not needed for MVP smoke)
