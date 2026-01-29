@@ -8,7 +8,7 @@
 import { NextResponse } from "next/server"
 
 import { createSupabaseServerClient } from "@/lib/supabase/server"
-import { createClient } from "@supabase/supabase-js"
+import { createSupabaseAuthedUserClient } from "@/lib/supabase/authed-user"
 import { isUuid, jsonError, requireUser } from "@/lib/api/route-guards"
 
 export async function POST(
@@ -40,10 +40,7 @@ export async function POST(
   }
 
   // Explicit authed client for Storage + DB (ensures Authorization header is present for RLS).
-  const authed = createClient(url, anonKey, {
-    global: { headers: { Authorization: `Bearer ${accessToken}` } },
-    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-  })
+  const authed = createSupabaseAuthedUserClient(accessToken)
 
   // Verify project is accessible under RLS (owner-only).
   const { data: projectRow, error: projectErr } = await authed
