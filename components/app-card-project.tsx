@@ -21,6 +21,7 @@ export type ProjectPreviewCardProps = {
   statusLabel?: string
   artboardWidthPx?: number
   artboardHeightPx?: number
+  thumbUrl?: string | null
   initialImageTransform: ProjectThumbImageState
 } & (
   | {
@@ -41,12 +42,13 @@ export function ProjectPreviewCard({
   statusLabel,
   artboardWidthPx,
   artboardHeightPx,
+  thumbUrl,
   initialImageTransform,
   hasThumbnail,
   fileSizeLabel,
 }: ProjectPreviewCardProps) {
   const sizeText = hasThumbnail ? fileSizeLabel : "0 kb"
-  const showCanvasThumb = hasThumbnail || Boolean((artboardWidthPx ?? 0) > 0 && (artboardHeightPx ?? 0) > 0)
+  const showCanvasThumb = Boolean(thumbUrl)
 
   return (
     <div className="relative">
@@ -77,7 +79,7 @@ export function ProjectPreviewCard({
 
             {showCanvasThumb ? (
               <ProjectCardThumbnail
-                projectId={projectId}
+                thumbUrl={thumbUrl ?? undefined}
                 artboardWidthPx={artboardWidthPx}
                 artboardHeightPx={artboardHeightPx}
                 initialImageTransform={initialImageTransform}

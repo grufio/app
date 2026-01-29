@@ -32,7 +32,12 @@ type DashboardProjectRow = Pick<
   Database["public"]["Tables"]["projects"]["Row"],
   "id" | "name" | "updated_at" | "status"
 > & {
-  project_images: Array<Pick<Database["public"]["Tables"]["project_images"]["Row"], "role" | "file_size_bytes">>
+  project_images: Array<
+    Pick<
+      Database["public"]["Tables"]["project_images"]["Row"],
+      "role" | "file_size_bytes" | "storage_path" | "name" | "format" | "width_px" | "height_px"
+    >
+  >
   project_workspace: Pick<Database["public"]["Tables"]["project_workspace"]["Row"], "width_px" | "height_px"> | null
   project_image_state: Array<
     Pick<
@@ -47,13 +52,34 @@ export default async function Page() {
   const { data: projects, error } = await supabase
     .from("projects")
     .select(
-      "id,name,updated_at,status,project_images(role,file_size_bytes),project_workspace(width_px,height_px),project_image_state(role,x_px_u,y_px_u,width_px_u,height_px_u,rotation_deg)"
+      "id,name,updated_at,status,project_images(role,file_size_bytes,storage_path,name,format,width_px,height_px),project_workspace(width_px,height_px),project_image_state(role,x_px_u,y_px_u,width_px_u,height_px_u,rotation_deg)"
     )
     .order("updated_at", { ascending: false })
     .limit(100)
     .returns<DashboardProjectRow[]>()
 
   if (error) throw new Error(`Failed to load projects: ${error.message}`)
+
+  const masterPaths = Array.from(
+    new Set(
+      (projects ?? [])
+        .map((row) => row.project_images?.find((img) => img.role === "master")?.storage_path ?? null)
+        .filter((p): p is string => typeof p === "string" && p.length > 0)
+    )
+  )
+
+  // Signed URLs are user-scoped bearer tokens; do not cache across users.
+  const signedUrlByPath = new Map<string, string>()
+  if (masterPaths.length) {
+    const { data: signed, error: signedErr } = await supabase.storage.from("project_images").createSignedUrls(masterPaths, 60 * 10)
+    if (signedErr) {
+      console.warn("Failed to batch-sign thumbnail URLs:", signedErr.message)
+    } else {
+      for (const item of signed ?? []) {
+        if (item?.path && item?.signedUrl) signedUrlByPath.set(item.path, item.signedUrl)
+      }
+    }
+  }
 
   return (
     <SidebarFrame>
@@ -90,6 +116,7 @@ export default async function Page() {
               const bytes = master?.file_size_bytes ?? 0
               const fileSizeLabel = `${Math.round(bytes / 1024)} kb`
               const hasThumbnail = Boolean(master)
+              const thumbUrl = master?.storage_path ? signedUrlByPath.get(master.storage_path) ?? null : null
 
               const artboardWidthPx = row.project_workspace?.width_px
               const artboardHeightPx = row.project_workspace?.height_px
@@ -115,6 +142,7 @@ export default async function Page() {
                   statusLabel={row.status === "completed" ? "Completed" : undefined}
                   artboardWidthPx={artboardWidthPx}
                   artboardHeightPx={artboardHeightPx}
+                  thumbUrl={thumbUrl}
                   initialImageTransform={initialImageTransform}
                   {...(hasThumbnail ? { hasThumbnail: true, fileSizeLabel } : { hasThumbnail: false })}
                 />

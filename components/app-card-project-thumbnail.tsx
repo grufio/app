@@ -1,16 +1,10 @@
-"use client"
-
 /**
  * Project thumbnail renderer (dashboard).
  *
  * Responsibilities:
- * - Fetch the project's master image and render a lightweight canvas preview.
- * - Use persisted image transform to match the editor view.
+ * - Render a lightweight preview of the project's master image.
+ * - Avoid pulling Konva into non-editor bundles.
  */
-import { useEffect, useMemo, useState } from "react"
-
-import { getMasterImage } from "@/lib/api/project-images"
-import { ProjectCanvasStage } from "@/features/editor"
 
 export type ProjectThumbImageState = {
   x: number
@@ -23,55 +17,28 @@ export type ProjectThumbImageState = {
 } | null
 
 export function ProjectCardThumbnail({
-  projectId,
+  thumbUrl,
   artboardWidthPx,
   artboardHeightPx,
   initialImageTransform,
 }: {
-  projectId: string
+  thumbUrl?: string
   artboardWidthPx?: number
   artboardHeightPx?: number
   initialImageTransform: ProjectThumbImageState
 }) {
-  const [state, setState] = useState<{ projectId: string; src: string | null }>({ projectId, src: null })
-  const src = state.projectId === projectId ? state.src : null
+  // `initialImageTransform` is currently not applied. Keeping it allows future “match editor view”
+  // rendering without re-plumbing dashboard data.
+  void initialImageTransform
+  void artboardWidthPx
+  void artboardHeightPx
 
-  useEffect(() => {
-    let cancelled = false
-    getMasterImage(projectId)
-      .then((res) => {
-        if (cancelled) return
-        setState({ projectId, src: res.exists ? res.signedUrl : null })
-      })
-      .catch(() => {
-        if (cancelled) return
-        setState({ projectId, src: null })
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [projectId])
-
-  const hasArtboard = useMemo(
-    () => Boolean((artboardWidthPx ?? 0) > 0 && (artboardHeightPx ?? 0) > 0),
-    [artboardHeightPx, artboardWidthPx]
-  )
-
-  // Render a non-interactive stage that is clipped to the thumbnail viewport (4:3 container).
-  // Fit padding is 0 so the artboard triggers full height/width like a thumbnail "contain".
   return (
     <div className="absolute inset-0">
-      <ProjectCanvasStage
-        src={src ?? undefined}
-        className="pointer-events-none h-full w-full"
-        panEnabled={false}
-        imageDraggable={false}
-        fitPaddingPx={0}
-        renderArtboard={false}
-        artboardWidthPx={hasArtboard ? artboardWidthPx : undefined}
-        artboardHeightPx={hasArtboard ? artboardHeightPx : undefined}
-        initialImageTransform={initialImageTransform}
-      />
+      {thumbUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={thumbUrl} alt="" className="h-full w-full object-contain" />
+      ) : null}
     </div>
   )
 }

@@ -9,7 +9,6 @@
  * - `canvas-stage/*` modules are implementation details (not exported).
  */
 export * from "./project-editor-header"
-export * from "./project-canvas-stage"
 export * from "./editor-error-boundary"
 
 export * from "./floating-toolbar"
@@ -27,4 +26,7 @@ export * from "./fields/icon-color-field"
 export * from "./fields/icon-input-group"
 export * from "./fields/icon-numeric-field"
 export * from "./fields/icon-select-field"
+
+// Types only: avoid exporting Konva-heavy canvas stage into non-editor bundles.
+export type { ProjectCanvasStageHandle } from "./project-canvas-stage"
 
