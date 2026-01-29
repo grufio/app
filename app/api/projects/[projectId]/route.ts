@@ -9,6 +9,8 @@ import { NextResponse } from "next/server"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { isUuid, jsonError, requireUser } from "@/lib/api/route-guards"
 
+export const dynamic = "force-dynamic"
+
 export async function DELETE(_req: Request, { params }: { params: Promise<{ projectId: string }> }) {
   const supabase = await createSupabaseServerClient()
   const u = await requireUser(supabase)

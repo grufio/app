@@ -129,17 +129,17 @@ export function ProjectDetailPageClient({
   const bgSaveTimerRef = useRef<number | null>(null)
   const scheduleSavePageBg = useCallback(
     (next: { enabled: boolean; color: string; opacity: number }) => {
-      const base = workspaceRowRef.current
-      if (!base) return
-      const merged: WorkspaceRow = {
-        ...base,
-        page_bg_enabled: next.enabled,
-        page_bg_color: next.color,
-        page_bg_opacity: next.opacity,
-      }
       if (bgSaveTimerRef.current != null) window.clearTimeout(bgSaveTimerRef.current)
       bgSaveTimerRef.current = window.setTimeout(() => {
         bgSaveTimerRef.current = null
+        const base = workspaceRowRef.current
+        if (!base) return
+        const merged: WorkspaceRow = {
+          ...base,
+          page_bg_enabled: next.enabled,
+          page_bg_color: next.color,
+          page_bg_opacity: next.opacity,
+        }
         void upsertWorkspace(merged)
       }, 250)
     },

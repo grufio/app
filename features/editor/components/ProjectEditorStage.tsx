@@ -8,13 +8,20 @@
  * - Apply the “page background” style behind the canvas when enabled.
  */
 import * as React from "react"
+import dynamic from "next/dynamic"
 
 import { ProjectImageUploader } from "@/components/app-img-upload"
 import {
   FloatingToolbar,
   type FloatingToolbarTool,
 } from "./floating-toolbar"
-import { ProjectCanvasStage, type ProjectCanvasStageHandle } from "./project-canvas-stage"
+import type { ProjectCanvasStageHandle } from "./project-canvas-stage"
+
+// Code-split Konva-heavy canvas stage (no UI change, improves editor TTI).
+const ProjectCanvasStage = dynamic(
+  () => import("./project-canvas-stage").then((m) => m.ProjectCanvasStage),
+  { ssr: false, loading: () => <div className="h-full w-full" aria-hidden="true" /> }
+)
 
 type CanvasInitialImageTransform = React.ComponentProps<typeof ProjectCanvasStage>["initialImageTransform"]
 type CanvasTransformCommit = React.ComponentProps<typeof ProjectCanvasStage>["onImageTransformCommit"]

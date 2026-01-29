@@ -11,6 +11,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { isUuid, jsonError, readJson, requireUser } from "@/lib/api/route-guards"
 import { validateIncomingImageStateUpsert, type IncomingImageStatePayload } from "@/lib/editor/imageState"
 
+export const dynamic = "force-dynamic"
+
 export async function GET(_req: Request, { params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params
   if (!isUuid(String(projectId))) {
@@ -48,6 +50,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ project
 
   const u = await requireUser(supabase)
   if (!u.ok) return u.res
+
+  // Explicit access check for clearer error staging (RLS still enforces owner-only).
+  const { data: projectRow, error: projectErr } = await supabase.from("projects").select("id").eq("id", projectId).maybeSingle()
+  if (projectErr) {
+    console.warn("image-state: project access query failed", { projectId, message: projectErr.message })
+    return jsonError("Failed to verify project access", 400, { stage: "project_access" })
+  }
+  if (!projectRow?.id) {
+    return jsonError("Forbidden (project not accessible)", 403, { stage: "project_access" })
+  }
 
   const parsed = await readJson<IncomingImageStatePayload>(req, { stage: "body" })
   if (!parsed.ok) return parsed.res

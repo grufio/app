@@ -12,6 +12,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { createProjectWithWorkspace } from "@/services/projects"
 import type { Unit } from "@/lib/editor/units"
 
+export const dynamic = "force-dynamic"
+
 export async function POST(req: Request) {
   const supabase = await createSupabaseServerClient()
   const u = await requireUser(supabase)

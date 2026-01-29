@@ -12,11 +12,14 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "check": "npm -s run lint && npm -s run test --silent && npm -s run check:db-schema && npm -s run verify:rls",
     "check:ci": "npm -s run check && npm -s run build",
     "check:db-schema": "node scripts/check-db-schema.mjs",
     "verify:rls": "node scripts/verify-rls.mjs",
     "verify:remote-migrations": "node scripts/verify-remote-migrations.mjs",
+    "verify:types-synced": "node scripts/verify-types-synced.mjs",
     "db:pull": "supabase db pull --linked",
     "db:push": "supabase db push --linked",
     "types:gen": "supabase gen types typescript --linked --schema public > lib/supabase/database.types.ts",
@@ -49,6 +52,7 @@
     "tailwind-merge": "^3.4.0"
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "^3.2.4",
     "@playwright/test": "^1.57.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",

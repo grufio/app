@@ -10,6 +10,8 @@ import { NextResponse } from "next/server"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { isUuid, jsonError, readJson, requireUser } from "@/lib/api/route-guards"
 
+export const dynamic = "force-dynamic"
+
 type Body = {
   storage_path: string
   name: string
@@ -22,6 +24,7 @@ type Body = {
 // Best-effort in-memory cache to reduce Storage signed URL churn.
 // This is per server process (works well in dev / long-lived runtimes).
 const signedUrlCache = new Map<string, { url: string; expiresAtMs: number }>()
+const SIGNED_URL_CACHE_MAX_ENTRIES = 500
 const SIGNED_URL_TTL_S = 60 * 10
 const SIGNED_URL_RENEW_BUFFER_MS = 60_000
 
@@ -54,7 +57,9 @@ export async function GET(
   }
 
   const now = Date.now()
-  const cached = signedUrlCache.get(img.storage_path)
+  // Signed URLs are bearer tokens; the cache must be user-scoped.
+  const cacheKey = `${u.user.id}:${img.storage_path}`
+  const cached = signedUrlCache.get(cacheKey)
   if (cached && cached.expiresAtMs - SIGNED_URL_RENEW_BUFFER_MS > now) {
     return NextResponse.json({
       exists: true,
@@ -76,7 +81,12 @@ export async function GET(
     return jsonError(signedErr?.message ?? "Failed to create signed URL", 400, { stage: "signed_url" })
   }
 
-  signedUrlCache.set(img.storage_path, { url: signed.signedUrl, expiresAtMs: now + SIGNED_URL_TTL_S * 1000 })
+  signedUrlCache.set(cacheKey, { url: signed.signedUrl, expiresAtMs: now + SIGNED_URL_TTL_S * 1000 })
+  // Prevent unbounded growth in long-lived runtimes.
+  if (signedUrlCache.size > SIGNED_URL_CACHE_MAX_ENTRIES) {
+    const firstKey = signedUrlCache.keys().next().value as string | undefined
+    if (firstKey) signedUrlCache.delete(firstKey)
+  }
 
   return NextResponse.json({
     exists: true,
@@ -139,8 +149,6 @@ export async function POST(
     return jsonError(error.message, 400, {
       stage: "upsert",
       code: (error as unknown as { code?: string })?.code,
-      hint: (error as unknown as { hint?: string })?.hint,
-      details: { project_id: projectId, user_id: u.user.id },
     })
   }
 

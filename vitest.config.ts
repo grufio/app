@@ -22,6 +22,11 @@ export default defineConfig({
     fileParallelism: true,
     maxThreads: 4,
     testTimeout: 10_000,
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "html", "json"],
+      exclude: ["e2e/**", "node_modules/**", ".next/**"],
+    },
   },
 })
 

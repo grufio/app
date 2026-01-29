@@ -11,6 +11,14 @@ import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { createSupabaseAuthedUserClient } from "@/lib/supabase/authed-user"
 import { isUuid, jsonError, requireUser } from "@/lib/api/route-guards"
 
+export const dynamic = "force-dynamic"
+
+function sanitizeFilename(name: string): string {
+  const base = typeof name === "string" && name.trim() ? name.trim() : "upload"
+  // Keep Storage paths predictable and avoid control chars / path-like names.
+  return base.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 200)
+}
+
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ projectId: string }> }
@@ -35,7 +43,6 @@ export async function POST(
   if (!url || !anonKey || !accessToken) {
     return jsonError("Missing Supabase env or session token", 401, {
       stage: "auth_session",
-      details: { hasUrl: Boolean(url), hasAnonKey: Boolean(anonKey), hasAccessToken: Boolean(accessToken) },
     })
   }
 
@@ -50,7 +57,8 @@ export async function POST(
     .single()
 
   if (projectErr || !projectRow) {
-    return jsonError("Forbidden (project not accessible)", 403, { stage: "project_access", details: projectErr })
+    console.warn("master upload: project access denied", { projectId, code: (projectErr as unknown as { code?: string })?.code })
+    return jsonError("Forbidden (project not accessible)", 403, { stage: "project_access" })
   }
 
   const form = await req.formData().catch(() => null)
@@ -71,7 +79,7 @@ export async function POST(
     return jsonError("Missing/invalid width_px/height_px", 400, { stage: "validate" })
   }
 
-  const objectPath = `projects/${projectId}/master/${crypto.randomUUID()}-${file.name}`
+  const objectPath = `projects/${projectId}/master/${crypto.randomUUID()}-${sanitizeFilename(file.name)}`
 
   // Upload to Storage as the authenticated user (Storage RLS enforced).
   const { error: uploadErr } = await authed.storage.from("project_images").upload(objectPath, file, {
@@ -80,7 +88,8 @@ export async function POST(
   })
 
   if (uploadErr) {
-    return jsonError(uploadErr.message, 400, { stage: "storage_upload", details: uploadErr })
+    console.warn("master upload: storage upload failed", { projectId, message: uploadErr.message })
+    return jsonError(uploadErr.message, 400, { stage: "storage_upload" })
   }
 
   // Upsert DB record for master image.
@@ -101,6 +110,7 @@ export async function POST(
     )
 
   if (dbErr) {
+    console.warn("master upload: db upsert failed", { projectId, message: dbErr.message, code: (dbErr as unknown as { code?: string })?.code })
     return jsonError(dbErr.message, 400, {
       stage: "db_upsert",
       code: (dbErr as unknown as { code?: string })?.code,
