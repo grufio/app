@@ -22,6 +22,9 @@ export type SetupMockRoutesOpts = {
     width_px: number
     height_px: number
     raster_effects_preset: "high" | "medium" | "low" | "custom" | null
+    page_bg_enabled: boolean
+    page_bg_color: string
+    page_bg_opacity: number
   }>
   imageState?: { exists: false } | { exists: true; state: ImageStateRow }
 }
@@ -49,6 +52,9 @@ export async function setupMockRoutes(page: Page, opts: SetupMockRoutesOpts) {
     width_px: 2362,
     height_px: 3543,
     raster_effects_preset: "high",
+    page_bg_enabled: false,
+    page_bg_color: "#ffffff",
+    page_bg_opacity: 50,
   }
   const workspaceRow = { ...defaultWorkspaceRow, ...(opts.workspace ?? {}) }
 

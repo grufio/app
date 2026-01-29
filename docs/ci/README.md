@@ -34,6 +34,12 @@ This must be configured in GitHub settings (cannot be automated from within the 
   - db schema marker drift check (`scripts/check-db-schema.mjs`)
   - `next build`
 
+### DB migrations (runtime)
+
+CI validates that `db/schema.sql` includes all migration markers, but it does **not** apply migrations to your Supabase project.
+
+See `docs/migrations.md` for how to apply new `db/0xx_*.sql` migrations safely.
+
 ### Optional: E2E in CI
 
 The template `docs/ci/github-actions-ci.yml.template` includes a Playwright Chromium install + `npm run test:e2e`.

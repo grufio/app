@@ -178,3 +178,49 @@ test("image transform chain: resize + rotate + drag persists", async ({ page }) 
   await expect(page.getByLabel("Image width (mm)")).toHaveValue("120")
   await expect(page.getByLabel("Image height (mm)")).toHaveValue("120")
 })
+
+test("page background: toggling persists via workspace upsert", async ({ page }) => {
+  await page.setExtraHTTPHeaders({ "x-e2e-test": "1" })
+  let workspaceUpserts = 0
+
+  await setupMockRoutes(page, {
+    withImage: true,
+    workspace: {
+      unit: "mm",
+      width_value: 200,
+      height_value: 200,
+      dpi_x: 300,
+      dpi_y: 300,
+      width_px: 2362.2047,
+      height_px: 2362.2047,
+      raster_effects_preset: "high",
+      page_bg_enabled: false,
+      page_bg_color: "#ffffff",
+      page_bg_opacity: 50,
+    },
+  })
+
+  page.on("request", (req) => {
+    if (req.url().includes("/rest/v1/project_workspace") && req.method() === "POST") workspaceUpserts += 1
+  })
+
+  await page.goto(`/projects/${PROJECT_ID}`)
+
+  const toggle = page.getByLabel("Page background enabled")
+  await expect(toggle).toBeEnabled()
+  await toggle.click()
+
+  // Debounced save.
+  await page.waitForTimeout(350)
+  expect(workspaceUpserts).toBeGreaterThanOrEqual(1)
+})
+
+test("auth redirects: protected pages require auth (E2E simulated)", async ({ page }) => {
+  // In E2E dev server mode, proxy.ts avoids Supabase network and simulates auth via headers.
+  await page.goto("/dashboard")
+  await expect(page).toHaveURL(/\/login$/)
+
+  await page.setExtraHTTPHeaders({ "x-e2e-user": "1" })
+  await page.goto("/login")
+  await expect(page).toHaveURL(/\/dashboard$/)
+})

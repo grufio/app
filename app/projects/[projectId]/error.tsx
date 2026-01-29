@@ -9,6 +9,7 @@
 import { useEffect } from "react"
 
 import { Button } from "@/components/ui/button"
+import { reportError } from "@/lib/monitoring/error-reporting"
 
 export default function Error({
   error,
@@ -19,6 +20,7 @@ export default function Error({
 }) {
   useEffect(() => {
     console.error("Project editor route error:", error)
+    void reportError(error, { tags: { route: "project-editor" } })
   }, [error])
 
   return (

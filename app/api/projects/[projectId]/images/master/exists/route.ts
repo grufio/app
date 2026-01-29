@@ -7,7 +7,7 @@
 import { NextResponse } from "next/server"
 
 import { createSupabaseServerClient } from "@/lib/supabase/server"
-import { isUuid, requireUser } from "@/lib/api/route-guards"
+import { isUuid, jsonError, requireUser } from "@/lib/api/route-guards"
 
 export async function GET(
   _req: Request,
@@ -15,7 +15,7 @@ export async function GET(
 ) {
   const { projectId } = await params
   if (!isUuid(String(projectId))) {
-    return NextResponse.json({ error: "Invalid projectId", stage: "params" }, { status: 400 })
+    return jsonError("Invalid projectId", 400, { stage: "params" })
   }
   const supabase = await createSupabaseServerClient()
 
@@ -30,7 +30,7 @@ export async function GET(
     .maybeSingle()
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 })
+    return jsonError(error.message, 400, { stage: "image_exists_query" })
   }
 
   return NextResponse.json({ exists: Boolean(data?.id) })

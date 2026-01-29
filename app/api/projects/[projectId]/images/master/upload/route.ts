@@ -9,7 +9,7 @@ import { NextResponse } from "next/server"
 
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { createClient } from "@supabase/supabase-js"
-import { isUuid } from "@/lib/api/route-guards"
+import { isUuid, jsonError, requireUser } from "@/lib/api/route-guards"
 
 export async function POST(
   req: Request,
@@ -17,17 +17,12 @@ export async function POST(
 ) {
   const { projectId } = await params
   if (!isUuid(String(projectId))) {
-    return NextResponse.json({ error: "Invalid projectId", stage: "params" }, { status: 400 })
+    return jsonError("Invalid projectId", 400, { stage: "params" })
   }
   const supabase = await createSupabaseServerClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const u = await requireUser(supabase)
+  if (!u.ok) return u.res
 
   const {
     data: { session },
@@ -38,18 +33,10 @@ export async function POST(
   const accessToken = session?.access_token
 
   if (!url || !anonKey || !accessToken) {
-    return NextResponse.json(
-      {
-        error: "Missing Supabase env or session token",
-        stage: "auth_session",
-        details: {
-          hasUrl: Boolean(url),
-          hasAnonKey: Boolean(anonKey),
-          hasAccessToken: Boolean(accessToken),
-        },
-      },
-      { status: 401 }
-    )
+    return jsonError("Missing Supabase env or session token", 401, {
+      stage: "auth_session",
+      details: { hasUrl: Boolean(url), hasAnonKey: Boolean(anonKey), hasAccessToken: Boolean(accessToken) },
+    })
   }
 
   // Explicit authed client for Storage + DB (ensures Authorization header is present for RLS).
@@ -66,20 +53,17 @@ export async function POST(
     .single()
 
   if (projectErr || !projectRow) {
-    return NextResponse.json(
-      { error: "Forbidden (project not accessible)", stage: "project_access", details: projectErr },
-      { status: 403 }
-    )
+    return jsonError("Forbidden (project not accessible)", 403, { stage: "project_access", details: projectErr })
   }
 
   const form = await req.formData().catch(() => null)
   if (!form) {
-    return NextResponse.json({ error: "Invalid multipart form data" }, { status: 400 })
+    return jsonError("Invalid multipart form data", 400, { stage: "body" })
   }
 
   const file = form.get("file")
   if (!(file instanceof File)) {
-    return NextResponse.json({ error: "Missing file" }, { status: 400 })
+    return jsonError("Missing file", 400, { stage: "validate" })
   }
 
   const width_px = Number(form.get("width_px"))
@@ -87,7 +71,7 @@ export async function POST(
   const format = String(form.get("format") ?? "unknown")
 
   if (!Number.isFinite(width_px) || !Number.isFinite(height_px)) {
-    return NextResponse.json({ error: "Missing/invalid width_px/height_px" }, { status: 400 })
+    return jsonError("Missing/invalid width_px/height_px", 400, { stage: "validate" })
   }
 
   const objectPath = `projects/${projectId}/master/${crypto.randomUUID()}-${file.name}`
@@ -99,10 +83,7 @@ export async function POST(
   })
 
   if (uploadErr) {
-    return NextResponse.json(
-      { error: uploadErr.message, stage: "storage_upload", details: uploadErr },
-      { status: 400 }
-    )
+    return jsonError(uploadErr.message, 400, { stage: "storage_upload", details: uploadErr })
   }
 
   // Upsert DB record for master image.
@@ -123,10 +104,10 @@ export async function POST(
     )
 
   if (dbErr) {
-    return NextResponse.json(
-      { error: dbErr.message, stage: "db_upsert", code: (dbErr as unknown as { code?: string })?.code },
-      { status: 400 }
-    )
+    return jsonError(dbErr.message, 400, {
+      stage: "db_upsert",
+      code: (dbErr as unknown as { code?: string })?.code,
+    })
   }
 
   return NextResponse.json({ ok: true, storage_path: objectPath })

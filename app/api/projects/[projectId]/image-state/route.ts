@@ -8,13 +8,13 @@
 import { NextResponse } from "next/server"
 
 import { createSupabaseServerClient } from "@/lib/supabase/server"
-import { isUuid, requireUser } from "@/lib/api/route-guards"
+import { isUuid, jsonError, readJson, requireUser } from "@/lib/api/route-guards"
 import { validateIncomingImageStateUpsert, type IncomingImageStatePayload } from "@/lib/editor/imageState"
 
 export async function GET(_req: Request, { params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params
   if (!isUuid(String(projectId))) {
-    return NextResponse.json({ error: "Invalid projectId", stage: "params" }, { status: 400 })
+    return jsonError("Invalid projectId", 400, { stage: "params" })
   }
   const supabase = await createSupabaseServerClient()
 
@@ -29,11 +29,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ project
     .maybeSingle()
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 })
+    return jsonError(error.message, 400, { stage: "select_state" })
   }
 
   if (data && (!data.width_px_u || !data.height_px_u)) {
-    return NextResponse.json({ error: "Unsupported image state: missing width_px_u/height_px_u" }, { status: 400 })
+    return jsonError("Unsupported image state: missing width_px_u/height_px_u", 400, { stage: "validate_state" })
   }
 
   return NextResponse.json({ exists: Boolean(data), state: data ?? null })
@@ -42,23 +42,20 @@ export async function GET(_req: Request, { params }: { params: Promise<{ project
 export async function POST(req: Request, { params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params
   if (!isUuid(String(projectId))) {
-    return NextResponse.json({ error: "Invalid projectId", stage: "params" }, { status: 400 })
+    return jsonError("Invalid projectId", 400, { stage: "params" })
   }
   const supabase = await createSupabaseServerClient()
 
   const u = await requireUser(supabase)
   if (!u.ok) return u.res
 
-  let body: IncomingImageStatePayload = {}
-  try {
-    body = (await req.json()) as IncomingImageStatePayload
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
-  }
+  const parsed = await readJson<IncomingImageStatePayload>(req, { stage: "body" })
+  if (!parsed.ok) return parsed.res
+  const body: IncomingImageStatePayload = parsed.value
 
   const validated = validateIncomingImageStateUpsert(body)
   if (!validated) {
-    return NextResponse.json({ error: "Invalid fields" }, { status: 400 })
+    return jsonError("Invalid fields", 400, { stage: "validate" })
   }
 
   // µpx schema required.
@@ -70,7 +67,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ project
   const { error: errV2 } = await supabase.from("project_image_state").upsert(baseRow, { onConflict: "project_id,role" })
 
   if (errV2) {
-    return NextResponse.json({ error: errV2.message }, { status: 400 })
+    return jsonError(errV2.message, 400, { stage: "upsert" })
   }
 
   return NextResponse.json({ ok: true })

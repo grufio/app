@@ -14,6 +14,7 @@ import type { MasterImage } from "@/lib/editor/use-master-image"
 import type { Project } from "@/lib/editor/use-project"
 import type { ImageState } from "@/lib/editor/use-image-state"
 import { isUuid } from "@/lib/api/route-guards"
+import { parseBigIntString } from "@/lib/editor/imageState"
 
 import { ProjectDetailPageClient } from "./page.client"
 
@@ -32,63 +33,83 @@ async function getInitialProjectData(projectId: string): Promise<{
   } = await supabase.auth.getUser()
   if (!user) redirect("/login")
 
-  const [{ data: p }, { data: ws }, { data: grid }, { data: img }, { data: st }] = await Promise.all([
-    supabase.from("projects").select("id,name").eq("id", projectId).maybeSingle(),
-    supabase
-      .from("project_workspace")
-      .select(
-        "project_id,unit,width_value,height_value,dpi_x,dpi_y,width_px_u,height_px_u,width_px,height_px,raster_effects_preset,page_bg_enabled,page_bg_color,page_bg_opacity"
-      )
-      .eq("project_id", projectId)
-      .maybeSingle(),
-    supabase
-      .from("project_grid")
-      .select("project_id,color,unit,spacing_value,spacing_x_value,spacing_y_value,line_width_value")
-      .eq("project_id", projectId)
-      .maybeSingle(),
-    supabase
-      .from("project_images")
-      .select("storage_path,name,width_px,height_px,dpi_x,role")
-      .eq("project_id", projectId)
-      .eq("role", "master")
-      .maybeSingle(),
-    supabase
-      .from("project_image_state")
-      .select("x_px_u,y_px_u,width_px_u,height_px_u,rotation_deg,role")
-      .eq("project_id", projectId)
-      .eq("role", "master")
-      .maybeSingle(),
-  ])
+  const [{ data: p, error: pErr }, { data: ws, error: wsErr }, { data: grid, error: gridErr }, { data: img, error: imgErr }, { data: st, error: stErr }] =
+    await Promise.all([
+      supabase.from("projects").select("id,name").eq("id", projectId).maybeSingle(),
+      supabase
+        .from("project_workspace")
+        .select(
+          "project_id,unit,width_value,height_value,dpi_x,dpi_y,width_px_u,height_px_u,width_px,height_px,raster_effects_preset,page_bg_enabled,page_bg_color,page_bg_opacity"
+        )
+        .eq("project_id", projectId)
+        .maybeSingle(),
+      supabase
+        .from("project_grid")
+        .select("project_id,color,unit,spacing_value,spacing_x_value,spacing_y_value,line_width_value")
+        .eq("project_id", projectId)
+        .maybeSingle(),
+      supabase
+        .from("project_images")
+      // Some deployments do not have `project_images.dpi_x` yet; DPI is metadata-only.
+      .select("storage_path,name,width_px,height_px,role")
+        .eq("project_id", projectId)
+        .eq("role", "master")
+        .maybeSingle(),
+      supabase
+        .from("project_image_state")
+        .select("x_px_u,y_px_u,width_px_u,height_px_u,rotation_deg,role")
+        .eq("project_id", projectId)
+        .eq("role", "master")
+        .maybeSingle(),
+    ])
 
-  const project: Project | null = p?.id ? { id: projectId, name: String((p as { name?: unknown })?.name ?? "") } : null
+  // Project must exist and be accessible; otherwise treat as 404.
+  if (pErr || !p?.id) notFound()
+  // Workspace/grid/image-state errors should be surfaced as route errors (not silent partial boot).
+  if (wsErr) throw new Error(`Failed to load workspace: ${wsErr.message}`)
+  if (gridErr) throw new Error(`Failed to load grid: ${gridErr.message}`)
+  if (imgErr) throw new Error(`Failed to load master image metadata: ${imgErr.message}`)
+  if (stErr) throw new Error(`Failed to load image state: ${stErr.message}`)
+
+  const project: Project = { id: projectId, name: String((p as { name?: unknown })?.name ?? "") }
   const workspaceRow = ws ? (ws as unknown as WorkspaceRow) : null
   const gridRow = grid ? (grid as unknown as ProjectGridRow) : null
 
   let masterImage: MasterImage | null = null
   if (img && (img as { storage_path?: unknown })?.storage_path) {
     const storagePath = String((img as { storage_path: unknown }).storage_path)
-    const { data: signed } = await supabase.storage.from("project_images").createSignedUrl(storagePath, 60 * 10)
+    const { data: signed, error: signedErr } = await supabase.storage.from("project_images").createSignedUrl(storagePath, 60 * 10)
+    if (signedErr) throw new Error(`Failed to create signed URL: ${signedErr.message}`)
     if (signed?.signedUrl) {
       masterImage = {
         signedUrl: signed.signedUrl,
         width_px: Number((img as { width_px?: unknown })?.width_px ?? 0),
         height_px: Number((img as { height_px?: unknown })?.height_px ?? 0),
-        dpi: (img as { dpi_x?: unknown })?.dpi_x == null ? null : Number((img as { dpi_x: unknown }).dpi_x),
+        dpi: null,
         name: String((img as { name?: unknown })?.name ?? "master image"),
       }
     }
   }
 
+  const widthPxU = st ? parseBigIntString((st as { width_px_u?: unknown })?.width_px_u) : null
+  const heightPxU = st ? parseBigIntString((st as { height_px_u?: unknown })?.height_px_u) : null
+  const xPxU = st ? parseBigIntString((st as { x_px_u?: unknown })?.x_px_u) : null
+  const yPxU = st ? parseBigIntString((st as { y_px_u?: unknown })?.y_px_u) : null
   const imageState: ImageState | null =
-    st && (st as { width_px_u?: unknown; height_px_u?: unknown })?.width_px_u && (st as { height_px_u?: unknown })?.height_px_u
+    widthPxU && heightPxU
       ? {
-          xPxU: typeof (st as { x_px_u?: unknown })?.x_px_u === "string" ? BigInt((st as { x_px_u: string }).x_px_u) : undefined,
-          yPxU: typeof (st as { y_px_u?: unknown })?.y_px_u === "string" ? BigInt((st as { y_px_u: string }).y_px_u) : undefined,
-          widthPxU: BigInt((st as { width_px_u: string }).width_px_u),
-          heightPxU: BigInt((st as { height_px_u: string }).height_px_u),
+          xPxU: xPxU ?? undefined,
+          yPxU: yPxU ?? undefined,
+          widthPxU,
+          heightPxU,
           rotationDeg: Number((st as { rotation_deg?: unknown })?.rotation_deg ?? 0),
         }
-      : null
+      : st
+        ? (() => {
+            // Unsupported persisted state: present row but missing canonical µpx size.
+            throw new Error("Unsupported image state: missing width_px_u/height_px_u")
+          })()
+        : null
 
   return { project, workspace: workspaceRow, grid: gridRow, masterImage, imageState }
 }

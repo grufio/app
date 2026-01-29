@@ -23,6 +23,7 @@ import {
   SidebarInset,
   SidebarTrigger,
 } from "@/components/ui/sidebar"
+import { parseBigIntString } from "@/lib/editor/imageState"
 
 export const dynamic = "force-dynamic"
 
@@ -106,10 +107,10 @@ export default async function Page() {
                 const initialImageTransform = st
                   ? {
                       rotationDeg: Number(st.rotation_deg),
-                      xPxU: typeof st.x_px_u === "string" ? BigInt(st.x_px_u) : undefined,
-                      yPxU: typeof st.y_px_u === "string" ? BigInt(st.y_px_u) : undefined,
-                      widthPxU: typeof st.width_px_u === "string" ? BigInt(st.width_px_u) : undefined,
-                      heightPxU: typeof st.height_px_u === "string" ? BigInt(st.height_px_u) : undefined,
+                      xPxU: parseBigIntString(st.x_px_u) ?? undefined,
+                      yPxU: parseBigIntString(st.y_px_u) ?? undefined,
+                      widthPxU: parseBigIntString(st.width_px_u) ?? undefined,
+                      heightPxU: parseBigIntString(st.height_px_u) ?? undefined,
                     }
                   : null
 

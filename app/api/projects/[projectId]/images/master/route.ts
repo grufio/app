@@ -8,7 +8,7 @@
 import { NextResponse } from "next/server"
 
 import { createSupabaseServerClient } from "@/lib/supabase/server"
-import { isUuid, requireUser } from "@/lib/api/route-guards"
+import { isUuid, jsonError, readJson, requireUser } from "@/lib/api/route-guards"
 
 type Body = {
   storage_path: string
@@ -31,7 +31,7 @@ export async function GET(
 ) {
   const { projectId } = await params
   if (!isUuid(String(projectId))) {
-    return NextResponse.json({ error: "Invalid projectId", stage: "params" }, { status: 400 })
+    return jsonError("Invalid projectId", 400, { stage: "params" })
   }
   const supabase = await createSupabaseServerClient()
 
@@ -46,7 +46,7 @@ export async function GET(
     .maybeSingle()
 
   if (imgErr) {
-    return NextResponse.json({ error: imgErr.message, stage: "image_query" }, { status: 400 })
+    return jsonError(imgErr.message, 400, { stage: "image_query" })
   }
 
   if (!img?.storage_path) {
@@ -73,10 +73,7 @@ export async function GET(
     .createSignedUrl(img.storage_path, SIGNED_URL_TTL_S)
 
   if (signedErr || !signed?.signedUrl) {
-    return NextResponse.json(
-      { error: signedErr?.message ?? "Failed to create signed URL", stage: "signed_url" },
-      { status: 400 }
-    )
+    return jsonError(signedErr?.message ?? "Failed to create signed URL", 400, { stage: "signed_url" })
   }
 
   signedUrlCache.set(img.storage_path, { url: signed.signedUrl, expiresAtMs: now + SIGNED_URL_TTL_S * 1000 })
@@ -99,19 +96,16 @@ export async function POST(
 ) {
   const { projectId } = await params
   if (!isUuid(String(projectId))) {
-    return NextResponse.json({ error: "Invalid projectId", stage: "params" }, { status: 400 })
+    return jsonError("Invalid projectId", 400, { stage: "params" })
   }
   const supabase = await createSupabaseServerClient()
 
   const u = await requireUser(supabase)
   if (!u.ok) return u.res
 
-  let body: Body
-  try {
-    body = (await req.json()) as Body
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON", stage: "body" }, { status: 400 })
-  }
+  const parsed = await readJson<Body>(req, { stage: "body" })
+  if (!parsed.ok) return parsed.res
+  const body = parsed.value
 
   if (
     !body?.storage_path ||
@@ -121,7 +115,7 @@ export async function POST(
     !Number.isFinite(body.height_px) ||
     !Number.isFinite(body.file_size_bytes)
   ) {
-    return NextResponse.json({ error: "Missing/invalid fields", stage: "validate" }, { status: 400 })
+    return jsonError("Missing/invalid fields", 400, { stage: "validate" })
   }
 
   // Upsert master image row; RLS enforces owner-only via projects.owner_id = auth.uid().
@@ -142,19 +136,12 @@ export async function POST(
     )
 
   if (error) {
-    return NextResponse.json(
-      {
-        error: error.message,
-        stage: "upsert",
-        code: (error as unknown as { code?: string })?.code,
-        hint: (error as unknown as { hint?: string })?.hint,
-        details: {
-          project_id: projectId,
-          user_id: u.user.id,
-        },
-      },
-      { status: 400 }
-    )
+    return jsonError(error.message, 400, {
+      stage: "upsert",
+      code: (error as unknown as { code?: string })?.code,
+      hint: (error as unknown as { hint?: string })?.hint,
+      details: { project_id: projectId, user_id: u.user.id },
+    })
   }
 
   return NextResponse.json({ ok: true })
@@ -166,7 +153,7 @@ export async function DELETE(
 ) {
   const { projectId } = await params
   if (!isUuid(String(projectId))) {
-    return NextResponse.json({ error: "Invalid projectId", stage: "params" }, { status: 400 })
+    return jsonError("Invalid projectId", 400, { stage: "params" })
   }
   const supabase = await createSupabaseServerClient()
 
@@ -181,7 +168,7 @@ export async function DELETE(
     .maybeSingle()
 
   if (imgErr) {
-    return NextResponse.json({ error: imgErr.message, stage: "image_query" }, { status: 400 })
+    return jsonError(imgErr.message, 400, { stage: "image_query" })
   }
 
   if (!img?.storage_path) {
@@ -190,10 +177,7 @@ export async function DELETE(
 
   const { error: rmErr } = await supabase.storage.from("project_images").remove([img.storage_path])
   if (rmErr) {
-    return NextResponse.json(
-      { error: rmErr.message, stage: "storage_remove", storage_path: img.storage_path },
-      { status: 400 }
-    )
+    return jsonError(rmErr.message, 400, { stage: "storage_remove", storage_path: img.storage_path })
   }
 
   const { error: delErr } = await supabase
@@ -203,7 +187,7 @@ export async function DELETE(
     .eq("role", "master")
 
   if (delErr) {
-    return NextResponse.json({ error: delErr.message, stage: "db_delete" }, { status: 400 })
+    return jsonError(delErr.message, 400, { stage: "db_delete" })
   }
 
   return NextResponse.json({ ok: true, deleted: true })

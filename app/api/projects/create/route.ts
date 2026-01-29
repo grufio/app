@@ -8,6 +8,7 @@
 import { NextResponse } from "next/server"
 
 import { clampPx, pxUToPxNumber, type Unit, unitToPxU } from "@/lib/editor/units"
+import { jsonError, readJson, requireUser } from "@/lib/api/route-guards"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 
 function rasterPresetForDpi(dpi: number): "high" | "medium" | "low" {
@@ -18,18 +19,12 @@ function rasterPresetForDpi(dpi: number): "high" | "medium" | "low" {
 
 export async function POST(req: Request) {
   const supabase = await createSupabaseServerClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const u = await requireUser(supabase)
+  if (!u.ok) return u.res
 
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
-  let body: unknown
-  try {
-    body = await req.json()
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
-  }
+  const parsed = await readJson(req, { stage: "body" })
+  if (!parsed.ok) return parsed.res
+  const body = parsed.value as unknown
 
   const b = body as Partial<{
     name: string
@@ -46,14 +41,14 @@ export async function POST(req: Request) {
   const dpi = Number(b.dpi)
 
   const validUnits: Unit[] = ["mm", "cm", "pt", "px"]
-  if (!unit || !validUnits.includes(unit)) return NextResponse.json({ error: "Invalid unit" }, { status: 400 })
+  if (!unit || !validUnits.includes(unit)) return jsonError("Invalid unit", 400, { stage: "validate" })
   if (!Number.isFinite(width_value) || width_value <= 0) {
-    return NextResponse.json({ error: "Invalid width_value" }, { status: 400 })
+    return jsonError("Invalid width_value", 400, { stage: "validate" })
   }
   if (!Number.isFinite(height_value) || height_value <= 0) {
-    return NextResponse.json({ error: "Invalid height_value" }, { status: 400 })
+    return jsonError("Invalid height_value", 400, { stage: "validate" })
   }
-  if (!Number.isFinite(dpi) || dpi <= 0) return NextResponse.json({ error: "Invalid dpi" }, { status: 400 })
+  if (!Number.isFinite(dpi) || dpi <= 0) return jsonError("Invalid dpi", 400, { stage: "validate" })
 
   const dpi_x = dpi
   const dpi_y = dpi
@@ -66,12 +61,12 @@ export async function POST(req: Request) {
 
   const { data: project, error: projectErr } = await supabase
     .from("projects")
-    .insert({ owner_id: user.id, name })
+    .insert({ owner_id: u.user.id, name })
     .select("id")
     .single()
 
   if (projectErr || !project?.id) {
-    return NextResponse.json({ error: "Failed to create project" }, { status: 500 })
+    return jsonError("Failed to create project", 500, { stage: "insert_project" })
   }
 
   const { error: wsErr } = await supabase.from("project_workspace").insert({
@@ -91,7 +86,7 @@ export async function POST(req: Request) {
   if (wsErr) {
     // Best-effort rollback
     await supabase.from("projects").delete().eq("id", project.id)
-    return NextResponse.json({ error: "Failed to create workspace" }, { status: 500 })
+    return jsonError("Failed to create workspace", 500, { stage: "insert_workspace" })
   }
 
   return NextResponse.json({ id: project.id })
