@@ -15,6 +15,10 @@
     "check": "npm -s run lint && npm -s run test --silent && npm -s run check:db-schema",
     "check:ci": "npm -s run check && npm -s run build",
     "check:db-schema": "node scripts/check-db-schema.mjs",
+    "db:pull": "supabase db pull --linked",
+    "db:push": "supabase db push --linked",
+    "types:gen": "supabase gen types typescript --linked --schema public > lib/supabase/database.types.ts",
+    "test:e2e:install": "playwright install",
     "test:e2e": "playwright test e2e/editor.boot.spec.ts"
   },
   "dependencies": {

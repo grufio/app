@@ -1,6 +1,53 @@
 ## Database migrations (Supabase)
 
-This repo keeps numbered SQL files in `db/` as the canonical migrations, and embeds them into `db/schema.sql` for convenience.
+Legacy migrations live in `db/` and are embedded into `db/schema.sql` for convenience.
+
+Going forward, **canonical migrations** are in `supabase/migrations/` and should be applied via Supabase CLI.
+
+### CLI-first workflow (recommended)
+
+This repo supports a Supabase CLI-first workflow using:
+
+- `supabase/config.toml`
+- `supabase/migrations/` (canonical going forward)
+
+#### One-time setup
+
+1. Login:
+
+```bash
+supabase login
+```
+
+2. Link this repo to the hosted Supabase project:
+
+```bash
+supabase link --project-ref "<your-project-ref>" --password "$SUPABASE_DB_PASSWORD"
+```
+
+#### Day-to-day
+
+- Apply pending migrations to hosted DB:
+
+```bash
+npm run db:push
+```
+
+- Pull hosted schema changes into a new migration file (remote-aligned snapshot):
+
+```bash
+npm run db:pull
+```
+
+- Regenerate typed `Database` definitions (used by app queries):
+
+```bash
+npm run types:gen
+```
+
+### Legacy SQL editor workflow (fallback)
+
+Use this only if you cannot use the Supabase CLI flow.
 
 ### Apply a new migration
 

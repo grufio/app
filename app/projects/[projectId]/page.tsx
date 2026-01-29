@@ -71,30 +71,58 @@ async function getInitialProjectData(projectId: string): Promise<{
   if (imgErr) throw new Error(`Failed to load master image metadata: ${imgErr.message}`)
   if (stErr) throw new Error(`Failed to load image state: ${stErr.message}`)
 
-  const project: Project = { id: projectId, name: String((p as { name?: unknown })?.name ?? "") }
-  const workspaceRow = ws ? (ws as unknown as WorkspaceRow) : null
-  const gridRow = grid ? (grid as unknown as ProjectGridRow) : null
+  const project: Project = { id: projectId, name: p.name ?? "" }
+  const workspaceRow: WorkspaceRow | null = ws
+    ? {
+        project_id: ws.project_id,
+        unit: ws.unit,
+        width_value: ws.width_value,
+        height_value: ws.height_value,
+        dpi_x: ws.dpi_x,
+        dpi_y: ws.dpi_y,
+        width_px_u: ws.width_px_u,
+        height_px_u: ws.height_px_u,
+        width_px: ws.width_px,
+        height_px: ws.height_px,
+        raster_effects_preset: (ws.raster_effects_preset as WorkspaceRow["raster_effects_preset"]) ?? null,
+        page_bg_enabled: ws.page_bg_enabled,
+        page_bg_color: ws.page_bg_color,
+        page_bg_opacity: ws.page_bg_opacity,
+      }
+    : null
+  const gridRow: ProjectGridRow | null = grid
+    ? {
+        project_id: grid.project_id,
+        color: grid.color,
+        unit: grid.unit,
+        spacing_value: grid.spacing_value,
+        spacing_x_value: grid.spacing_x_value ?? grid.spacing_value,
+        spacing_y_value: grid.spacing_y_value ?? grid.spacing_value,
+        line_width_value: grid.line_width_value,
+      }
+    : null
 
   let masterImage: MasterImage | null = null
-  if (img && (img as { storage_path?: unknown })?.storage_path) {
-    const storagePath = String((img as { storage_path: unknown }).storage_path)
+  if (img?.storage_path) {
+    const storagePath = img.storage_path
     const { data: signed, error: signedErr } = await supabase.storage.from("project_images").createSignedUrl(storagePath, 60 * 10)
     if (signedErr) throw new Error(`Failed to create signed URL: ${signedErr.message}`)
     if (signed?.signedUrl) {
       masterImage = {
         signedUrl: signed.signedUrl,
-        width_px: Number((img as { width_px?: unknown })?.width_px ?? 0),
-        height_px: Number((img as { height_px?: unknown })?.height_px ?? 0),
+        width_px: Number(img.width_px ?? 0),
+        height_px: Number(img.height_px ?? 0),
         dpi: null,
-        name: String((img as { name?: unknown })?.name ?? "master image"),
+        name: img.name ?? "master image",
       }
     }
   }
 
-  const widthPxU = st ? parseBigIntString((st as { width_px_u?: unknown })?.width_px_u) : null
-  const heightPxU = st ? parseBigIntString((st as { height_px_u?: unknown })?.height_px_u) : null
-  const xPxU = st ? parseBigIntString((st as { x_px_u?: unknown })?.x_px_u) : null
-  const yPxU = st ? parseBigIntString((st as { y_px_u?: unknown })?.y_px_u) : null
+  const widthPxU = st ? parseBigIntString(st.width_px_u) : null
+  const heightPxU = st ? parseBigIntString(st.height_px_u) : null
+  const xPxU = st ? parseBigIntString(st.x_px_u) : null
+  const yPxU = st ? parseBigIntString(st.y_px_u) : null
+  const rotationDeg = st?.rotation_deg ?? 0
   const imageState: ImageState | null =
     widthPxU && heightPxU
       ? {
@@ -102,7 +130,7 @@ async function getInitialProjectData(projectId: string): Promise<{
           yPxU: yPxU ?? undefined,
           widthPxU,
           heightPxU,
-          rotationDeg: Number((st as { rotation_deg?: unknown })?.rotation_deg ?? 0),
+          rotationDeg: Number(rotationDeg),
         }
       : st
         ? (() => {

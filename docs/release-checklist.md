@@ -11,7 +11,7 @@
 Run:
 
 ```bash
-npx playwright install
+npm run test:e2e:install
 npm run check
 npm run test:e2e
 ```

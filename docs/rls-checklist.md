@@ -37,3 +37,43 @@ This MVP is **owner-only**. Access control relies on:
 - In Supabase SQL editor, run a simple select as the authenticated user (if using the “Run as” feature) to confirm RLS behavior.
 - Verify storage policy by attempting to list/download an object as owner vs non-owner.
 
+### CLI-runnable verification (recommended)
+
+If you have the Supabase CLI linked to the project, prefer a repeatable verification flow:
+
+1. **Confirm link + project**:
+
+```bash
+supabase projects list
+supabase link --project-ref rfaykmiydsvdhrqngjue --password "$SUPABASE_DB_PASSWORD"
+```
+
+2. **Dump public schema for review** (no data):
+
+```bash
+supabase db dump --linked --schema public --file /tmp/public.schema.sql
+```
+
+3. **Spot-check policies via SQL editor** (fastest) or `psql` using your DB URL:
+
+```sql
+-- Sanity: user can see own projects
+select id, owner_id, name
+from public.projects
+order by updated_at desc
+limit 5;
+
+-- Child tables should be restricted by parent ownership
+select project_id, role, storage_path
+from public.project_images
+limit 5;
+
+select project_id, role, width_px_u, height_px_u, rotation_deg
+from public.project_image_state
+limit 5;
+```
+
+4. **Storage policy smoke**:
+- In the Supabase dashboard Storage UI, try listing/download as owner.
+- If you have a second (non-owner) user, confirm access is denied.
+
