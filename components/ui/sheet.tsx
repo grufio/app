@@ -1,5 +1,11 @@
 "use client"
 
+/**
+ * Sheet UI primitives (Radix Dialog-based).
+ *
+ * Responsibilities:
+ * - Provide slide-over panels used for mobile navigation and secondary UI.
+ */
 import * as React from "react"
 import * as SheetPrimitive from "@radix-ui/react-dialog"
 import { XIcon } from "lucide-react"

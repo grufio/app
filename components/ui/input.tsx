@@ -1,3 +1,9 @@
+/**
+ * Input UI primitive.
+ *
+ * Responsibilities:
+ * - Provide consistent input styling and focus/invalid states across the app.
+ */
 import * as React from "react"
 
 import { cn } from "@/lib/utils"

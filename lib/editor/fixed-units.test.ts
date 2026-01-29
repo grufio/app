@@ -1,5 +1,11 @@
 "use client"
 
+/**
+ * Unit tests for `lib/editor/fixed-units.ts`.
+ *
+ * Focus:
+ * - Deterministic roundtrips at fixed precision across units and DPI.
+ */
 import { describe, expect, it } from "vitest"
 
 import { pxToUnitDeterministic, unitToPxDeterministic } from "./fixed-units"

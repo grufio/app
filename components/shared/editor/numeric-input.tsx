@@ -1,5 +1,12 @@
 "use client"
 
+/**
+ * Numeric input helpers for editor panels.
+ *
+ * Responsibilities:
+ * - Provide a controlled input that sanitizes numeric text (int/decimal).
+ * - Keep parsing/commit decisions in callers.
+ */
 import React, { forwardRef } from "react"
 
 import { InputGroupInput } from "@/components/ui/input-group"

@@ -1,5 +1,11 @@
 "use client"
 
+/**
+ * Dialog UI primitives (Radix).
+ *
+ * Responsibilities:
+ * - Provide modal dialog building blocks used throughout the app.
+ */
 import * as React from "react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { X } from "lucide-react"

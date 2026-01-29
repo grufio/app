@@ -1,5 +1,11 @@
 "use client"
 
+/**
+ * Toggle-group UI primitives (Radix).
+ *
+ * Responsibilities:
+ * - Provide segmented controls for choosing among options.
+ */
 import * as React from "react"
 import * as ToggleGroupPrimitive from "@radix-ui/react-toggle-group"
 import { cva, type VariantProps } from "class-variance-authority"

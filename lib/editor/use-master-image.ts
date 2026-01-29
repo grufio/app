@@ -1,6 +1,13 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+/**
+ * React hook for master image lifecycle.
+ *
+ * Responsibilities:
+ * - Load/refresh the project's master image metadata and signed URL.
+ * - Provide deletion workflow and error/loading state.
+ */
+import { useCallback, useEffect, useRef, useState } from "react"
 
 import { deleteMasterImage, getMasterImage } from "@/lib/api/project-images"
 
@@ -12,60 +19,78 @@ export type MasterImage = {
   name: string
 }
 
-export function useMasterImage(projectId: string) {
-  const [masterImage, setMasterImage] = useState<MasterImage | null>(null)
+export function useMasterImage(projectId: string, initialMasterImage?: MasterImage | null) {
+  const [masterImage, setMasterImage] = useState<MasterImage | null>(() =>
+    initialMasterImage?.signedUrl ? initialMasterImage : null
+  )
   const [masterImageLoading, setMasterImageLoading] = useState(false)
   const [masterImageError, setMasterImageError] = useState("")
 
   const [deleteBusy, setDeleteBusy] = useState(false)
   const [deleteError, setDeleteError] = useState("")
 
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
+
   const refreshMasterImage = useCallback(async () => {
+    if (!mountedRef.current) return
     setMasterImageError("")
     setMasterImageLoading(true)
     try {
       const payload = await getMasterImage(projectId)
       if (!payload?.exists) {
-        setMasterImage(null)
+        if (mountedRef.current) setMasterImage(null)
         return
       }
-      setMasterImage({
-        signedUrl: payload.signedUrl,
-        width_px: Number(payload.width_px ?? 0),
-        height_px: Number(payload.height_px ?? 0),
-        dpi: payload.dpi == null ? null : Number(payload.dpi),
-        name: String(payload.name ?? "master image"),
-      })
+      if (mountedRef.current) {
+        setMasterImage({
+          signedUrl: payload.signedUrl,
+          width_px: Number(payload.width_px ?? 0),
+          height_px: Number(payload.height_px ?? 0),
+          dpi: payload.dpi == null ? null : Number(payload.dpi),
+          name: String(payload.name ?? "master image"),
+        })
+      }
     } catch (e) {
-      setMasterImage(null)
-      setMasterImageError(e instanceof Error ? e.message : "Failed to load image")
+      if (mountedRef.current) {
+        setMasterImage(null)
+        setMasterImageError(e instanceof Error ? e.message : "Failed to load image")
+      }
     } finally {
-      setMasterImageLoading(false)
+      if (mountedRef.current) setMasterImageLoading(false)
     }
   }, [projectId])
 
   const deleteImage = useCallback(async () => {
     if (deleteBusy) return { ok: false as const, error: "Delete already in progress" }
+    if (!mountedRef.current) return { ok: false as const, error: "Unmounted" }
     setDeleteError("")
     setDeleteBusy(true)
     try {
       await deleteMasterImage(projectId)
-      setMasterImage(null)
+      if (mountedRef.current) setMasterImage(null)
       // Ensure uploader shows again even if some cached state exists.
       void refreshMasterImage()
       return { ok: true as const }
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Failed to delete image"
-      setDeleteError(msg)
+      if (mountedRef.current) setDeleteError(msg)
       return { ok: false as const, error: msg }
     } finally {
-      setDeleteBusy(false)
+      if (mountedRef.current) setDeleteBusy(false)
     }
   }, [deleteBusy, projectId, refreshMasterImage])
 
   useEffect(() => {
+    // If server already provided the master image, skip the initial fetch.
+    if (initialMasterImage?.signedUrl) return
     void refreshMasterImage()
-  }, [refreshMasterImage])
+  }, [initialMasterImage?.signedUrl, refreshMasterImage])
 
   return {
     masterImage,

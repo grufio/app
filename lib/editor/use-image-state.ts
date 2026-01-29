@@ -1,5 +1,12 @@
 "use client"
 
+/**
+ * React hook for persisted image transform state.
+ *
+ * Responsibilities:
+ * - Load initial image state (x/y/size/rotation) for a project role.
+ * - Serialize and save commits via the API with coalescing/inflight protection.
+ */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { getImageState, saveImageState as saveImageStateApi } from "@/lib/api/image-state"
@@ -13,8 +20,8 @@ export type ImageState = {
   rotationDeg: number
 }
 
-export function useImageState(projectId: string, enabled: boolean) {
-  const [initialImageTransform, setInitialImageTransform] = useState<ImageState | null>(null)
+export function useImageState(projectId: string, enabled: boolean, initial?: ImageState | null) {
+  const [initialImageTransform, setInitialImageTransform] = useState<ImageState | null>(() => initial ?? null)
   const [imageStateError, setImageStateError] = useState("")
   const [imageStateLoading, setImageStateLoading] = useState(false)
 
@@ -22,13 +29,16 @@ export function useImageState(projectId: string, enabled: boolean) {
 
   const lastSavedSignatureRef = useRef<string | null>(null)
   const pendingRef = useRef<ImageState | null>(null)
-  const timerRef = useRef<number | null>(null)
+  const inflightRef = useRef<Promise<void> | null>(null)
+  const requestSeqRef = useRef(0)
 
   const loadImageState = useCallback(async () => {
+    const seq = ++requestSeqRef.current
     setImageStateError("")
     setImageStateLoading(true)
     try {
       const payload = await getImageState(projectId)
+      if (seq !== requestSeqRef.current) return
       if (!payload?.exists) {
         setInitialImageTransform(null)
         return
@@ -48,15 +58,17 @@ export function useImageState(projectId: string, enabled: boolean) {
         rotationDeg: Number(payload.state.rotation_deg),
       })
     } catch (e) {
+      if (seq !== requestSeqRef.current) return
       console.error(`${logPrefix} load failed`, e)
       setImageStateError(e instanceof Error ? e.message : "Failed to load image state.")
       setInitialImageTransform(null)
     } finally {
+      if (seq !== requestSeqRef.current) return
       setImageStateLoading(false)
     }
   }, [logPrefix, projectId])
 
-  const flush = useCallback(async () => {
+  const flushOnce = useCallback(async (): Promise<void> => {
     const t = pendingRef.current
     if (!t) return
     pendingRef.current = null
@@ -79,22 +91,32 @@ export function useImageState(projectId: string, enabled: boolean) {
     await saveImageStateApi(projectId, payload)
   }, [projectId])
 
+  const flush = useCallback(async (): Promise<void> => {
+    if (inflightRef.current) return await inflightRef.current
+    const p = (async () => {
+      // Coalesce: if new commits arrive while a request is in-flight,
+      // run another pass after it finishes.
+      for (;;) {
+        const hasPending = Boolean(pendingRef.current)
+        if (!hasPending) return
+        await flushOnce()
+      }
+    })()
+    inflightRef.current = p
+    try {
+      await p
+    } finally {
+      inflightRef.current = null
+    }
+  }, [flushOnce])
+
   const saveImageState = useCallback(
     async (t: ImageState) => {
       try {
-        // Throttle + skip no-op saves (MVP-friendly: less network spam, same UX).
+        // Persist immediately. Any debouncing/throttling belongs in the caller
+        // (canvas interactions), not in this IO hook.
         pendingRef.current = t
-        if (timerRef.current != null) return
-        timerRef.current = window.setTimeout(async () => {
-          timerRef.current = null
-          try {
-            await flush()
-            setImageStateError("")
-          } catch (e) {
-            console.error(`${logPrefix} save failed`, e)
-            setImageStateError(e instanceof Error ? e.message : "Failed to save image state.")
-          }
-        }, 250)
+        await flush()
         setImageStateError("")
       } catch (e) {
         console.error(`${logPrefix} save failed`, e)
@@ -106,20 +128,19 @@ export function useImageState(projectId: string, enabled: boolean) {
 
   useEffect(() => {
     if (!enabled) {
+      requestSeqRef.current++
       setInitialImageTransform(null)
       setImageStateError("")
       setImageStateLoading(false)
       return
     }
+    // If server already provided the state, skip initial fetch.
+    if (initial) return
     void loadImageState()
-  }, [enabled, loadImageState])
+  }, [enabled, initial, loadImageState])
 
   useEffect(() => {
     return () => {
-      if (timerRef.current != null) {
-        window.clearTimeout(timerRef.current)
-        timerRef.current = null
-      }
       pendingRef.current = null
     }
   }, [])

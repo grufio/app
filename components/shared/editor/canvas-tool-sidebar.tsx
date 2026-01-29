@@ -1,5 +1,12 @@
 "use client"
 
+/**
+ * Legacy/simple tool sidebar for canvas interactions.
+ *
+ * Responsibilities:
+ * - Provide tool selection and view actions (zoom/fit/rotate) for the canvas.
+ * - Kept for compatibility; the primary UI is `FloatingToolbar`.
+ */
 import { Hand, Maximize2, MousePointer2, RotateCw, ZoomIn, ZoomOut } from "lucide-react"
 
 import { Button } from "@/components/ui/button"

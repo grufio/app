@@ -1,3 +1,10 @@
+/**
+ * Client API wrappers for project images.
+ *
+ * Responsibilities:
+ * - Fetch metadata and signed URLs for the master image.
+ * - Perform existence checks and deletion via API routes.
+ */
 import { fetchJson } from "@/lib/api/http"
 
 export type MasterImageResponse =

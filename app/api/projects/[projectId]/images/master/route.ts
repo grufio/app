@@ -1,7 +1,14 @@
+/**
+ * API route: master image metadata and signed URL.
+ *
+ * Responsibilities:
+ * - Return master image metadata and a short-lived signed URL for download.
+ * - Support deletion of the master image (and associated state) via Supabase.
+ */
 import { NextResponse } from "next/server"
 
 import { createSupabaseServerClient } from "@/lib/supabase/server"
-import { requireProjectAccess, requireUser } from "@/lib/api/route-guards"
+import { isUuid, requireUser } from "@/lib/api/route-guards"
 
 type Body = {
   storage_path: string
@@ -12,17 +19,24 @@ type Body = {
   file_size_bytes: number
 }
 
+// Best-effort in-memory cache to reduce Storage signed URL churn.
+// This is per server process (works well in dev / long-lived runtimes).
+const signedUrlCache = new Map<string, { url: string; expiresAtMs: number }>()
+const SIGNED_URL_TTL_S = 60 * 10
+const SIGNED_URL_RENEW_BUFFER_MS = 60_000
+
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   const { projectId } = await params
+  if (!isUuid(String(projectId))) {
+    return NextResponse.json({ error: "Invalid projectId", stage: "params" }, { status: 400 })
+  }
   const supabase = await createSupabaseServerClient()
 
   const u = await requireUser(supabase)
   if (!u.ok) return u.res
-  const a = await requireProjectAccess(supabase, projectId)
-  if (!a.ok) return a.res
 
   const { data: img, error: imgErr } = await supabase
     .from("project_images")
@@ -39,9 +53,24 @@ export async function GET(
     return NextResponse.json({ exists: false })
   }
 
+  const now = Date.now()
+  const cached = signedUrlCache.get(img.storage_path)
+  if (cached && cached.expiresAtMs - SIGNED_URL_RENEW_BUFFER_MS > now) {
+    return NextResponse.json({
+      exists: true,
+      signedUrl: cached.url,
+      storage_path: img.storage_path,
+      name: img.name,
+      format: img.format,
+      width_px: img.width_px,
+      height_px: img.height_px,
+      file_size_bytes: img.file_size_bytes,
+    })
+  }
+
   const { data: signed, error: signedErr } = await supabase.storage
     .from("project_images")
-    .createSignedUrl(img.storage_path, 60 * 10) // 10 minutes
+    .createSignedUrl(img.storage_path, SIGNED_URL_TTL_S)
 
   if (signedErr || !signed?.signedUrl) {
     return NextResponse.json(
@@ -49,6 +78,8 @@ export async function GET(
       { status: 400 }
     )
   }
+
+  signedUrlCache.set(img.storage_path, { url: signed.signedUrl, expiresAtMs: now + SIGNED_URL_TTL_S * 1000 })
 
   return NextResponse.json({
     exists: true,
@@ -67,6 +98,9 @@ export async function POST(
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   const { projectId } = await params
+  if (!isUuid(String(projectId))) {
+    return NextResponse.json({ error: "Invalid projectId", stage: "params" }, { status: 400 })
+  }
   const supabase = await createSupabaseServerClient()
 
   const u = await requireUser(supabase)
@@ -89,9 +123,6 @@ export async function POST(
   ) {
     return NextResponse.json({ error: "Missing/invalid fields", stage: "validate" }, { status: 400 })
   }
-
-  const a = await requireProjectAccess(supabase, projectId)
-  if (!a.ok) return a.res
 
   // Upsert master image row; RLS enforces owner-only via projects.owner_id = auth.uid().
   const { error } = await supabase
@@ -134,12 +165,13 @@ export async function DELETE(
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   const { projectId } = await params
+  if (!isUuid(String(projectId))) {
+    return NextResponse.json({ error: "Invalid projectId", stage: "params" }, { status: 400 })
+  }
   const supabase = await createSupabaseServerClient()
 
   const u = await requireUser(supabase)
   if (!u.ok) return u.res
-  const a = await requireProjectAccess(supabase, projectId)
-  if (!a.ok) return a.res
 
   const { data: img, error: imgErr } = await supabase
     .from("project_images")

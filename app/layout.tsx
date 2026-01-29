@@ -1,3 +1,10 @@
+/**
+ * Next.js root layout.
+ *
+ * Responsibilities:
+ * - Load global styles and fonts.
+ * - Define top-level HTML/body structure and metadata.
+ */
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"

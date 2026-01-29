@@ -1,5 +1,12 @@
 "use client"
 
+/**
+ * React error boundary for the editor surface.
+ *
+ * Responsibilities:
+ * - Prevent editor crashes from taking down the full page.
+ * - Provide a reset hook when project/image context changes.
+ */
 import React from "react"
 
 import { Button } from "@/components/ui/button"

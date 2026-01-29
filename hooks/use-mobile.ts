@@ -1,3 +1,9 @@
+/**
+ * Responsive breakpoint hook.
+ *
+ * Responsibilities:
+ * - Expose a boolean for “is mobile” based on a fixed breakpoint.
+ */
 import * as React from "react"
 
 const MOBILE_BREAKPOINT = 768

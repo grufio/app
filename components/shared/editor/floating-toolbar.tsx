@@ -1,5 +1,12 @@
 "use client"
 
+/**
+ * Floating toolbar overlay for the editor canvas.
+ *
+ * Responsibilities:
+ * - Provide tool selection (select/hand) and view actions (zoom/fit/rotate).
+ * - Stay visually lightweight and keyboard-friendly.
+ */
 import { Hand, Maximize2, MousePointer2, RotateCw, ZoomIn, ZoomOut } from "lucide-react"
 
 import { Button } from "@/components/ui/button"

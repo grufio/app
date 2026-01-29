@@ -1,5 +1,11 @@
 "use client"
 
+/**
+ * Collapsible UI primitives (Radix).
+ *
+ * Responsibilities:
+ * - Provide collapsible/expandable sections used in sidebars and panels.
+ */
 import * as CollapsiblePrimitive from "@radix-ui/react-collapsible"
 
 function Collapsible({

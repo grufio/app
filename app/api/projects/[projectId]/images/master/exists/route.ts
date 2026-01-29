@@ -1,13 +1,22 @@
+/**
+ * API route: master image existence check.
+ *
+ * Responsibilities:
+ * - Return whether a master image exists for a project (owner-only via auth/RLS).
+ */
 import { NextResponse } from "next/server"
 
 import { createSupabaseServerClient } from "@/lib/supabase/server"
-import { requireUser } from "@/lib/api/route-guards"
+import { isUuid, requireUser } from "@/lib/api/route-guards"
 
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   const { projectId } = await params
+  if (!isUuid(String(projectId))) {
+    return NextResponse.json({ error: "Invalid projectId", stage: "params" }, { status: 400 })
+  }
   const supabase = await createSupabaseServerClient()
 
   const u = await requireUser(supabase)

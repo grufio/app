@@ -1,3 +1,10 @@
+/**
+ * DB schema marker checker.
+ *
+ * Responsibilities:
+ * - Ensure every `db/0xx_*.sql` migration is embedded in `db/schema.sql` with matching BEGIN/END markers.
+ * - Used by CI to prevent schema drift.
+ */
 import fs from "node:fs"
 import path from "node:path"
 

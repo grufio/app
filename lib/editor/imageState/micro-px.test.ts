@@ -1,3 +1,9 @@
+/**
+ * Unit tests for `lib/editor/imageState/micro-px.ts`.
+ *
+ * Focus:
+ * - µpx clamping bounds.
+ */
 import { describe, expect, it } from "vitest"
 
 import { clampMicroPx, MAX_PX_U, MIN_PX_U } from "./micro-px"

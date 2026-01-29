@@ -1,5 +1,11 @@
 "use client"
 
+/**
+ * Client API wrapper for persisted image state.
+ *
+ * Responsibilities:
+ * - Fetch and save the editor image transform state via `/api/projects/:id/image-state`.
+ */
 import { fetchJson } from "@/lib/api/http"
 
 export type { GetImageStateResponse, ImageStateRow, SaveImageStateBody } from "@/lib/editor/imageState"

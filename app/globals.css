@@ -1,3 +1,10 @@
+/*
+ * Global styles and theme tokens.
+ *
+ * Responsibilities:
+ * - Define Tailwind/TW-animate imports and app-wide design tokens.
+ * - Provide light/dark theme variable mappings used by UI components.
+ */
 @import "tailwindcss";
 @import "tw-animate-css";
 

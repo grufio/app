@@ -1,3 +1,10 @@
+/**
+ * Unit conversion and formatting helpers for the editor.
+ *
+ * Responsibilities:
+ * - Convert between physical units and pixels using fixed-point µpx (BigInt).
+ * - Provide deterministic formatting for UI display and persistence invariants.
+ */
 export type Unit = "mm" | "cm" | "pt" | "px"
 
 export const PX_U_SCALE = 1_000_000n // µpx per px
@@ -106,6 +113,15 @@ export function pxUToUnitDisplay(pxU: bigint, unit: Unit, dpi: number): string {
 
 export function pxUToPxNumber(pxU: bigint): number {
   return Number(pxU) / 1e6
+}
+
+/**
+ * Convert a value from one unit to another via µpx (no float px roundtrip).
+ * Use this for unit changes so 10 cm → 100 mm exactly, not 99.99 mm.
+ */
+export function convertUnit(value: string, fromUnit: Unit, toUnit: Unit, dpi: number): string {
+  const pxU = unitToPxU(value.trim() || "0", fromUnit, dpi)
+  return pxUToUnitDisplay(pxU, toUnit, dpi)
 }
 
 // Legacy numeric helpers for non-image flows (artboard, etc.).

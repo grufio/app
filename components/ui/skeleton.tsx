@@ -1,3 +1,9 @@
+/**
+ * Skeleton UI primitive.
+ *
+ * Responsibilities:
+ * - Render a pulsing placeholder block for loading states.
+ */
 import { cn } from "@/lib/utils"
 
 function Skeleton({ className, ...props }: React.ComponentProps<"div">) {

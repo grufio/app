@@ -1,5 +1,12 @@
 "use client"
 
+/**
+ * Floating toolbar state + shortcut bindings.
+ *
+ * Responsibilities:
+ * - Manage tool selection (select/hand) and map actions to canvas imperative API.
+ * - Optionally bind keyboard shortcuts when enabled.
+ */
 import { useCallback, useEffect, useMemo, useState } from "react"
 
 import type { ProjectCanvasStageHandle } from "@/components/shared/editor"
@@ -96,6 +103,9 @@ export function useFloatingToolbarControls(opts: {
 
   const actions = useMemo<FloatingToolbarActions>(() => ({ zoomIn, zoomOut, fit, rotate }), [fit, rotate, zoomIn, zoomOut])
 
-  return { tool, setTool, panEnabled, imageDraggable, actionsDisabled, actions }
+  return useMemo(
+    () => ({ tool, setTool, panEnabled, imageDraggable, actionsDisabled, actions }),
+    [actions, actionsDisabled, imageDraggable, panEnabled, tool]
+  )
 }
 

@@ -1,8 +1,20 @@
+/**
+ * Unit tests for `lib/editor/units.ts`.
+ *
+ * Focus:
+ * - µpx-based conversions stay stable across roundtrips.
+ */
 import { describe, expect, it } from "vitest"
 
-import { pxUToUnitDisplay, unitToPxU } from "./units"
+import { convertUnit, pxUToUnitDisplay, unitToPxU } from "./units"
 
 describe("units", () => {
+  it("convertUnit uses µpx so 10 cm → 100 mm exactly", () => {
+    const dpi = 300
+    expect(convertUnit("10", "cm", "mm", dpi)).toBe("100")
+    expect(convertUnit("100", "mm", "cm", dpi)).toBe("10")
+  })
+
   it("100mm@300dpi displays exactly 100", () => {
     const dpi = 300
     const pxU = unitToPxU("100", "mm", dpi)

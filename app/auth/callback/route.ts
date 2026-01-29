@@ -1,3 +1,9 @@
+/**
+ * Auth callback route for Supabase OAuth.
+ *
+ * Responsibilities:
+ * - Exchange the OAuth `code` for a Supabase session and redirect to dashboard.
+ */
 import { NextResponse } from "next/server"
 
 import { createSupabaseServerClient } from "@/lib/supabase/server"

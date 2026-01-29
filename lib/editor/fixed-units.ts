@@ -1,5 +1,12 @@
 "use client"
 
+/**
+ * Legacy fixed-unit conversion helpers.
+ *
+ * Responsibilities:
+ * - Provide deterministic conversions using fixed-point integers (10k/1k scales).
+ * - Kept to avoid circular imports and to support older call sites/tests.
+ */
 // Intentionally duplicated union to avoid circular imports with `units.ts`.
 export type FixedUnit = "mm" | "cm" | "pt" | "px"
 

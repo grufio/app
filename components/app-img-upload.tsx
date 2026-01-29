@@ -1,5 +1,12 @@
 "use client"
 
+/**
+ * Image upload widget (master image).
+ *
+ * Responsibilities:
+ * - Provide drag-and-drop upload UI for the project's master image.
+ * - Validate image format/dimensions client-side before upload.
+ */
 import { useCallback, useEffect, useState } from "react"
 import { useDropzone } from "react-dropzone"
 

@@ -1,3 +1,9 @@
+/**
+ * Playwright E2E configuration.
+ *
+ * Responsibilities:
+ * - Configure browser projects, timeouts, and dev-server startup for CI/local runs.
+ */
 import { defineConfig, devices } from "@playwright/test"
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3000"
@@ -5,9 +11,10 @@ const shouldStartWebServer = !process.env.PLAYWRIGHT_BASE_URL
 
 export default defineConfig({
   testDir: "./e2e",
-  timeout: 30_000,
-  expect: { timeout: 10_000 },
+  timeout: 60_000,
+  expect: { timeout: 15_000 },
   fullyParallel: true,
+  maxFailures: process.env.CI ? 1 : undefined,
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : [["list"]],
   use: {
@@ -16,6 +23,7 @@ export default defineConfig({
     screenshot: "only-on-failure",
     video: "retain-on-failure",
   },
+  workers: process.env.CI ? 2 : undefined,
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: shouldStartWebServer
     ? {

@@ -1,3 +1,10 @@
+/**
+ * Editor smoke/regression E2E tests.
+ *
+ * Responsibilities:
+ * - Verify the editor boot flow renders canvas and panels.
+ * - Regression-test persisted image size behavior across reloads.
+ */
 import { test, expect, type Request } from "@playwright/test"
 
 import { unitToPxU } from "../lib/editor/units"
@@ -146,6 +153,13 @@ test("image transform chain: resize + rotate + drag persists", async ({ page }) 
   await waitDragSave
   const afterBoundsReads = await page.evaluate(() => (globalThis as { __gruf_editor?: { boundsReads?: number } }).__gruf_editor?.boundsReads ?? 0)
   expect(afterBoundsReads - beforeBoundsReads).toBeLessThanOrEqual(3)
+
+  // Pan should not explode bounds reads.
+  const beforePanReads = await page.evaluate(() => (globalThis as { __gruf_editor?: { boundsReads?: number } }).__gruf_editor?.boundsReads ?? 0)
+  await page.mouse.wheel(30, 20)
+  await page.waitForTimeout(50)
+  const afterPanReads = await page.evaluate(() => (globalThis as { __gruf_editor?: { boundsReads?: number } }).__gruf_editor?.boundsReads ?? 0)
+  expect(afterPanReads - beforePanReads).toBeLessThanOrEqual(2)
 
   const [imageStateAfterReload] = await Promise.all([
     page.waitForResponse((res) => res.url().includes(`/api/projects/${PROJECT_ID}/image-state`) && res.request().method() === "GET"),

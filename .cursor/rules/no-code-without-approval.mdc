@@ -1,0 +1,27 @@
+---
+description: Never change code/SQL without explicit user approval
+alwaysApply: true
+---
+
+# No code changes without approval
+
+## Rule
+
+- Do **not** modify any files (code, SQL, configs, docs) unless the user explicitly approves the specific change.
+- If changes are needed, present a **clear plan + diff summary** first, then wait for a "Go"/approval.
+- Allowed without approval: **read-only** actions (searching, reading files, explaining, proposing approaches).
+
+## When approval is required
+
+- Any edit via patches
+- Creating/deleting files
+- Running commands that change repo state (including git write operations)
+- Formatting/refactors, even if “safe”
+
+## Approval format
+
+User must explicitly confirm, e.g.:
+- “Go”
+- “Mach das”
+- “Apply the changes”
+

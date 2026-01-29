@@ -1,3 +1,9 @@
+/**
+ * Card UI primitive.
+ *
+ * Responsibilities:
+ * - Provide a structured container (header/content/footer) with consistent spacing.
+ */
 import * as React from "react"
 
 import { cn } from "@/lib/utils"

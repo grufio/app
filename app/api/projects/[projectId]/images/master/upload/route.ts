@@ -1,13 +1,24 @@
+/**
+ * API route: upload master image.
+ *
+ * Responsibilities:
+ * - Accept an upload request and store the file in Supabase Storage.
+ * - Insert/update `project_images` metadata for the project master role.
+ */
 import { NextResponse } from "next/server"
 
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { createClient } from "@supabase/supabase-js"
+import { isUuid } from "@/lib/api/route-guards"
 
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   const { projectId } = await params
+  if (!isUuid(String(projectId))) {
+    return NextResponse.json({ error: "Invalid projectId", stage: "params" }, { status: 400 })
+  }
   const supabase = await createSupabaseServerClient()
 
   const {

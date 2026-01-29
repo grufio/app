@@ -1,5 +1,11 @@
 "use client"
 
+/**
+ * Project editor route error boundary UI.
+ *
+ * Responsibilities:
+ * - Render a recovery screen for project editor route errors.
+ */
 import { useEffect } from "react"
 
 import { Button } from "@/components/ui/button"

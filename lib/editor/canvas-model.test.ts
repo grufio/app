@@ -1,3 +1,9 @@
+/**
+ * Unit tests for `lib/editor/canvas-model.ts`.
+ *
+ * Focus:
+ * - Fit/pan/zoom math remains correct and deterministic.
+ */
 import { describe, expect, it } from "vitest"
 
 import { fitToWorld, panBy, zoomAround } from "./canvas-model"

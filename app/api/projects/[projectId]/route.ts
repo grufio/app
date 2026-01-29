@@ -1,6 +1,13 @@
+/**
+ * API route: project resource operations.
+ *
+ * Responsibilities:
+ * - Handle project deletion (owner-only via auth/RLS).
+ */
 import { NextResponse } from "next/server"
 
 import { createSupabaseServerClient } from "@/lib/supabase/server"
+import { isUuid } from "@/lib/api/route-guards"
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ projectId: string }> }) {
   const supabase = await createSupabaseServerClient()
@@ -11,7 +18,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ proj
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const { projectId } = await params
-  if (!projectId) return NextResponse.json({ error: "Missing projectId" }, { status: 400 })
+  if (!isUuid(String(projectId))) return NextResponse.json({ error: "Invalid projectId", stage: "params" }, { status: 400 })
 
   const { data, error } = await supabase
     .from("projects")

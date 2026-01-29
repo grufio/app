@@ -1,3 +1,10 @@
+/**
+ * Image-state serialization for API persistence.
+ *
+ * Responsibilities:
+ * - Convert in-memory µpx/rotation values into API payload shapes.
+ * - Avoid additional rounding; only clamp to safety bounds.
+ */
 import type { SaveImageStateBody } from "@/lib/editor/imageState/contracts"
 import type { MicroPx } from "@/lib/editor/imageState/types"
 import { clampMicroPx } from "@/lib/editor/imageState/micro-px"

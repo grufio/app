@@ -1,3 +1,9 @@
+/**
+ * Unit tests for `lib/editor/numeric.ts`.
+ *
+ * Focus:
+ * - Input sanitization and parsing behave predictably for editor fields.
+ */
 import { describe, expect, it } from "vitest"
 
 import { parseNumericInput, sanitizeNumericInput } from "./numeric"

@@ -1,5 +1,12 @@
 "use client"
 
+/**
+ * Image transform panel.
+ *
+ * Responsibilities:
+ * - Edit the working image size and alignment in the editor.
+ * - Dispatch commits to the canvas stage imperative API.
+ */
 import {
   AlignCenter,
   AlignLeft,
@@ -17,8 +24,7 @@ import { useMemo, useRef, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { InputGroup, InputGroupAddon } from "@/components/ui/input-group"
-import { NumericInput } from "@/components/shared/editor/numeric-input"
+import { IconNumericField } from "@/components/shared/editor/fields/icon-numeric-field"
 import { PanelIconSlot, PanelTwoFieldRow } from "@/components/shared/editor/panel-layout"
 import { divRoundHalfUp, pxUToUnitDisplay, type Unit, unitToPxU } from "@/lib/editor/units"
 
@@ -42,18 +48,19 @@ function SizeField({
   addon: ReactNode
 }) {
   return (
-    <InputGroup>
-      <NumericInput
-        value={value}
-        onValueChange={onValueChange}
-        disabled={disabled}
-        aria-label={ariaLabel}
-        onFocus={onFocus}
-        onKeyDown={onKeyDown}
-        onBlur={onBlur}
-      />
-      <InputGroupAddon>{addon}</InputGroupAddon>
-    </InputGroup>
+    <IconNumericField
+      value={value}
+      onValueChange={onValueChange}
+      disabled={disabled}
+      ariaLabel={ariaLabel}
+      icon={addon}
+      mode="float"
+      numericProps={{
+        onFocus,
+        onKeyDown,
+        onBlur,
+      }}
+    />
   )
 }
 

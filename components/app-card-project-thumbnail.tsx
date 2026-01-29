@@ -1,5 +1,12 @@
 "use client"
 
+/**
+ * Project thumbnail renderer (dashboard).
+ *
+ * Responsibilities:
+ * - Fetch the project's master image and render a lightweight canvas preview.
+ * - Use persisted image transform to match the editor view.
+ */
 import { useEffect, useMemo, useState } from "react"
 
 import { getMasterImage } from "@/lib/api/project-images"

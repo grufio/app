@@ -1,5 +1,12 @@
 "use client"
 
+/**
+ * Form field layout primitives.
+ *
+ * Responsibilities:
+ * - Standardize label/legend/description/error spacing and variants.
+ * - Provide consistent field group composition in panels and dialogs.
+ */
 import { useMemo } from "react"
 import { cva, type VariantProps } from "class-variance-authority"
 

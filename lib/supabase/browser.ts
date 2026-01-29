@@ -1,3 +1,10 @@
+/**
+ * Supabase browser client factory.
+ *
+ * Responsibilities:
+ * - Construct an SSR-compatible Supabase client for use in the browser.
+ * - Validate required public env vars are present.
+ */
 import { createBrowserClient } from "@supabase/ssr"
 
 export function createSupabaseBrowserClient() {
