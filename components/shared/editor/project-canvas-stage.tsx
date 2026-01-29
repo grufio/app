@@ -6,13 +6,15 @@ import type Konva from "konva"
 
 import { fitToWorld, panBy, zoomAround } from "@/lib/editor/canvas-model"
 import { pxUToPxNumber } from "@/lib/editor/units"
-import {
-  applyMicroPxPositionToNode,
-  applyMicroPxToNode,
-  bakeInSizeToMicroPx,
-  numberToMicroPx,
-  readMicroPxPositionFromNode,
-} from "@/lib/editor/konva"
+import { numberToMicroPx } from "@/lib/editor/konva"
+import { createBoundsController } from "./canvas-stage/bounds-controller"
+import { computeGridLines } from "./canvas-stage/grid-lines"
+import { pickIntrinsicSize, shouldApplyPersistedTransform } from "./canvas-stage/placement"
+import { snapWorldToDeviceHalfPixel as snapHalfPixel } from "./canvas-stage/pixel-snap"
+import { createRafScheduler, RAF_BOUNDS, RAF_DRAG_BOUNDS, RAF_PAN } from "./canvas-stage/raf-scheduler"
+import { createTransformController } from "./canvas-stage/transform-controller"
+import type { BoundsRect, ViewState } from "./canvas-stage/types"
+import { useHtmlImage } from "./canvas-stage/use-html-image"
 
 type Props = {
   src?: string
@@ -76,9 +78,6 @@ export type ProjectCanvasStageHandle = {
    */
   restoreImage: () => void
 }
-
-type ViewState = { scale: number; x: number; y: number }
-type BoundsRect = { x: number; y: number; w: number; h: number }
 
 const SelectionOverlay = memo(function SelectionOverlay({
   imageBounds,
@@ -145,26 +144,6 @@ const SelectionOverlay = memo(function SelectionOverlay({
   )
 })
 
-function useHtmlImage(src: string | null) {
-  const [img, setImg] = useState<HTMLImageElement | null>(null)
-
-  useEffect(() => {
-    if (!src) return
-    const i = new window.Image()
-    i.crossOrigin = "anonymous"
-    i.onload = () => setImg(i)
-    i.onerror = () => setImg(null)
-    i.src = src
-    return () => {
-      i.onload = null
-      i.onerror = null
-      setImg(null)
-    }
-  }, [src])
-
-  return img
-}
-
 /**
  * Konva stage for the project editor.
  *
@@ -216,8 +195,10 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   const userInteractedRef = useRef(false)
   const userChangedImageTxRef = useRef(false)
   const autoFitKeyRef = useRef<string | null>(null)
-  const commitTimerRef = useRef<number | null>(null)
-  const pendingCommitRef = useRef<{ commitPosition: boolean } | null>(null)
+  const transformControllerRef = useRef<ReturnType<typeof createTransformController> | null>(null)
+  const imageDraggableRef = useRef(Boolean(imageDraggable))
+  const isE2ERef = useRef(Boolean(isE2E))
+  const onImageTransformCommitRef = useRef<Props["onImageTransformCommit"]>(onImageTransformCommit)
 
   const [imageTx, setImageTx] = useState<{
     xPxU: bigint
@@ -242,19 +223,25 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   }, [imageTx])
 
   // Single RAF scheduler to batch pan/bounds work per frame.
-  const rafRef = useRef<number | null>(null)
-  const rafFlagsRef = useRef(0)
-  const RAF_PAN = 1
-  const RAF_BOUNDS = 2
-  const RAF_DRAG_BOUNDS = 4
   const panDeltaRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 })
   const onImageSizeChangeRef = useRef<Props["onImageSizeChange"]>(onImageSizeChange)
   const dragPosRef = useRef<{ x: number; y: number } | null>(null)
-  const dragDeltaRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 })
 
   useEffect(() => {
     onImageSizeChangeRef.current = onImageSizeChange
   }, [onImageSizeChange])
+
+  useEffect(() => {
+    imageDraggableRef.current = Boolean(imageDraggable)
+  }, [imageDraggable])
+
+  useEffect(() => {
+    isE2ERef.current = Boolean(isE2E)
+  }, [isE2E])
+
+  useEffect(() => {
+    onImageTransformCommitRef.current = onImageTransformCommit
+  }, [onImageTransformCommit])
 
   // Prevent browser page zoom / scroll stealing (Cmd/Ctrl + wheel / trackpad pinch).
   useEffect(() => {
@@ -282,21 +269,12 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   const world = useMemo(() => {
     // "World" size is used for view math (fit/pan/zoom). Prefer explicit artboard,
     // otherwise fall back to intrinsic image metadata (DB), and only then DOM image values.
-    const w =
-      artboardWidthPx && artboardWidthPx > 0
-        ? artboardWidthPx
-        : typeof intrinsicWidthPx === "number" && Number.isFinite(intrinsicWidthPx) && intrinsicWidthPx > 0
-          ? intrinsicWidthPx
-          : img?.naturalWidth || img?.width
-    const h =
-      artboardHeightPx && artboardHeightPx > 0
-        ? artboardHeightPx
-        : typeof intrinsicHeightPx === "number" && Number.isFinite(intrinsicHeightPx) && intrinsicHeightPx > 0
-          ? intrinsicHeightPx
-          : img?.naturalHeight || img?.height
+    const intrinsic = pickIntrinsicSize({ intrinsicWidthPx, intrinsicHeightPx, img })
+    const w = artboardWidthPx && artboardWidthPx > 0 ? artboardWidthPx : intrinsic?.w
+    const h = artboardHeightPx && artboardHeightPx > 0 ? artboardHeightPx : intrinsic?.h
     if (!w || !h) return null
     return { w, h }
-  }, [artboardHeightPx, artboardWidthPx, img?.height, img?.naturalHeight, img?.naturalWidth, img?.width, intrinsicHeightPx, intrinsicWidthPx])
+  }, [artboardHeightPx, artboardWidthPx, img, intrinsicHeightPx, intrinsicWidthPx])
 
   // `hasArtboard` controls layout math and must be based on explicit artboard px inputs.
   // (No fallback to image size here.)
@@ -315,46 +293,14 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   const gridLines = useMemo(() => {
     if (!drawArtboard) return null
     if (!grid) return null
-    if (!Number.isFinite(grid.spacingXPx) || !Number.isFinite(grid.spacingYPx)) return null
-    if (!Number.isFinite(grid.lineWidthPx) || grid.lineWidthPx <= 0) return null
-    if (grid.spacingXPx <= 0 || grid.spacingYPx <= 0) return null
-    if (artW <= 0 || artH <= 0) return null
-
-    const maxLines = 600
-    const nx = Math.floor(artW / grid.spacingXPx)
-    const ny = Math.floor(artH / grid.spacingYPx)
-    const total = Math.max(0, nx) + Math.max(0, ny)
-    if (!Number.isFinite(total) || total <= 0) return null
-
-    // If there are too many lines, skip some to stay performant.
-    const stride = total > maxLines ? Math.ceil(total / maxLines) : 1
-
-    const stroke = grid.color
-    const strokeWidth = grid.lineWidthPx
-    const lines: Array<{ key: string; points: number[] }> = []
-
-    for (let i = 0; i <= nx; i += stride) {
-      const x = i * grid.spacingXPx
-      if (x < 0 || x > artW) continue
-      lines.push({ key: `vx:${i}`, points: [x, 0, x, artH] })
-    }
-    for (let j = 0; j <= ny; j += stride) {
-      const y = j * grid.spacingYPx
-      if (y < 0 || y > artH) continue
-      lines.push({ key: `hy:${j}`, points: [0, y, artW, y] })
-    }
-    return { stroke, strokeWidth, lines }
+    return computeGridLines({ artW, artH, grid, maxLines: 600 })
   }, [artH, artW, drawArtboard, grid])
 
   // Pixel-snap helper: for a 1px stroke, canvas looks crispest when the line center
   // lands on N + 0.5 device pixels in screen space.
   const snapWorldToDeviceHalfPixel = useCallback(
     (worldCoord: number, axis: "x" | "y") => {
-      const scale = view.scale || 1
-      const offset = axis === "x" ? view.x : view.y
-      const screen = offset + worldCoord * scale
-      const snapped = Math.round(screen - 0.5) + 0.5
-      return (snapped - offset) / scale
+      return snapHalfPixel({ worldCoord, axis, view: { scale: view.scale, x: view.x, y: view.y } })
     },
     [view.scale, view.x, view.y]
   )
@@ -404,77 +350,43 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     reportImageSize(imageTx)
   }, [imageTx, reportImageSize])
 
-  const updateImageBoundsFromNode = useCallback(() => {
-    if (!imageDraggable) return
-    const layer = layerRef.current
-    const node = imageNodeRef.current
-    if (!layer || !node) return
-    if (isE2E) {
-      const g = globalThis as unknown as { __gruf_editor?: { boundsReads?: number } }
-      if (g.__gruf_editor) g.__gruf_editor.boundsReads = (g.__gruf_editor.boundsReads ?? 0) + 1
-    }
-    // Fast path: no rotation => bounds are axis-aligned and can be derived without getClientRect().
-    // KonvaImage uses offsetX/offsetY so x/y are the center in world coords.
-    const rot = rotationRef.current % 360
-    let next: BoundsRect
-    if (rot === 0) {
-      const w = node.width()
-      const h = node.height()
-      const x = node.x() - w / 2
-      const y = node.y() - h / 2
-      next = { x, y, w, h }
-    } else {
-      const r = node.getClientRect({ relativeTo: layer })
-      next = { x: r.x, y: r.y, w: r.width, h: r.height }
-    }
-    setImageBounds((prev) => {
-      if (!prev) return next
-      const eps = 0.01
-      if (
-        Math.abs(prev.x - next.x) < eps &&
-        Math.abs(prev.y - next.y) < eps &&
-        Math.abs(prev.w - next.w) < eps &&
-        Math.abs(prev.h - next.h) < eps
-      )
-        return prev
-      return next
+  const boundsControllerRef = useRef<ReturnType<typeof createBoundsController> | null>(null)
+  if (!boundsControllerRef.current) {
+    boundsControllerRef.current = createBoundsController({
+      imageDraggable: () => imageDraggableRef.current,
+      isE2E: () => isE2ERef.current,
+      rotationDeg: () => rotationRef.current,
+      getLayer: () => layerRef.current,
+      getImageNode: () => imageNodeRef.current,
+      onBoundsChanged: (next) => setImageBounds(next as BoundsRect | null),
+      onBoundsRead: () => {
+        const g = globalThis as unknown as { __gruf_editor?: { boundsReads?: number } }
+        if (g.__gruf_editor) g.__gruf_editor.boundsReads = (g.__gruf_editor.boundsReads ?? 0) + 1
+      },
     })
-  }, [imageDraggable, isE2E])
+  }
 
-  const scheduleRaf = useCallback(
-    (flag: number) => {
-      rafFlagsRef.current |= flag
-      if (rafRef.current != null) return
-      rafRef.current = requestAnimationFrame(() => {
-        rafRef.current = null
-        const flags = rafFlagsRef.current
-        rafFlagsRef.current = 0
+  const updateImageBoundsFromNode = useCallback(() => {
+    boundsControllerRef.current?.updateImageBoundsFromNode()
+  }, [])
 
-        if (flags & RAF_PAN) {
-          const { dx, dy } = panDeltaRef.current
-          panDeltaRef.current = { dx: 0, dy: 0 }
-          if (dx !== 0 || dy !== 0) setView((v) => panBy(v, dx, dy))
-        }
-
-        if (flags & RAF_DRAG_BOUNDS) {
-          const { dx: accDx, dy: accDy } = dragDeltaRef.current
-          dragDeltaRef.current = { dx: 0, dy: 0 }
-          if (accDx !== 0 || accDy !== 0) {
-            setImageBounds((prev) => {
-              if (!prev) return prev
-              return { x: prev.x + accDx, y: prev.y + accDy, w: prev.w, h: prev.h }
-            })
-          }
-        }
-
-        if (flags & RAF_BOUNDS) {
-          updateImageBoundsFromNode()
-        }
-      })
-    },
-    [updateImageBoundsFromNode]
-  )
-
+  const rafSchedulerRef = useRef<ReturnType<typeof createRafScheduler> | null>(null)
+  if (!rafSchedulerRef.current) {
+    rafSchedulerRef.current = createRafScheduler({
+      onPan: () => {
+        const { dx, dy } = panDeltaRef.current
+        panDeltaRef.current = { dx: 0, dy: 0 }
+        if (dx !== 0 || dy !== 0) setView((v) => panBy(v, dx, dy))
+      },
+      onDragBounds: () => {
+        boundsControllerRef.current?.flushDragBounds()
+      },
+      onBounds: () => {
+        updateImageBoundsFromNode()
+      },
+    })
+  }
+  const scheduleRaf = useCallback((flag: number) => rafSchedulerRef.current?.schedule(flag), [])
   const scheduleBoundsUpdate = useCallback(() => scheduleRaf(RAF_BOUNDS), [scheduleRaf])
 
   const updateBoundsDuringDragMove = useCallback(() => {
@@ -497,8 +409,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     const dy = nextPos.y - prevPos.y
     if (dx === 0 && dy === 0) return
 
-    dragDeltaRef.current.dx += dx
-    dragDeltaRef.current.dy += dy
+    boundsControllerRef.current?.accumulateDragDelta(dx, dy)
     scheduleRaf(RAF_DRAG_BOUNDS)
   }, [scheduleBoundsUpdate, scheduleRaf])
 
@@ -507,14 +418,15 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     if (!img) return
     if (!src) return
     if (!initialImageTransform) return
-    if (userChangedImageTxRef.current) return
-    if (appliedInitialTransformKeyRef.current === src) return
-
-    const hasPersistedSize = Boolean(initialImageTransform.widthPxU && initialImageTransform.heightPxU)
-    // Backwards-compat: older rows might not have persisted size yet.
-    // In that case we intentionally DO NOT apply this transform here; the initial placement
-    // logic (using intrinsicWidthPx/HeightPx) will establish canonical µpx size first.
-    if (!hasPersistedSize) return
+    if (
+      !shouldApplyPersistedTransform({
+        src,
+        appliedKey: appliedInitialTransformKeyRef.current,
+        userChanged: userChangedImageTxRef.current,
+        initialImageTransform,
+      })
+    )
+      return
 
     const rotationDeg = Number(initialImageTransform.rotationDeg)
     const nextWidthPxU = initialImageTransform.widthPxU
@@ -564,16 +476,10 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     if (placedKeyRef.current === key) return
     placedKeyRef.current = key
 
-    // Canonical source for initial image size is persisted metadata (DB).
-    // We only fall back to the loaded image's natural size if metadata is absent.
-    const metaW =
-      typeof intrinsicWidthPx === "number" && Number.isFinite(intrinsicWidthPx) && intrinsicWidthPx > 0 ? intrinsicWidthPx : null
-    const metaH =
-      typeof intrinsicHeightPx === "number" && Number.isFinite(intrinsicHeightPx) && intrinsicHeightPx > 0 ? intrinsicHeightPx : null
-    const fallbackW = img.naturalWidth || img.width
-    const fallbackH = img.naturalHeight || img.height
-    const baseW = metaW ?? fallbackW
-    const baseH = metaH ?? fallbackH
+    const intrinsic = pickIntrinsicSize({ intrinsicWidthPx, intrinsicHeightPx, img })
+    if (!intrinsic) return
+    const baseW = intrinsic.w
+    const baseH = intrinsic.h
 
     queueMicrotask(() => {
       setRotation(0)
@@ -586,212 +492,65 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     })
   }, [artH, artW, hasArtboard, img, initialImageTransform, intrinsicHeightPx, intrinsicWidthPx, src])
 
-  const commitFromNode = useCallback(
-    (commitPosition: boolean) => {
-      const node = imageNodeRef.current
-      if (!node) return
-      const baked = bakeInSizeToMicroPx(node)
+  if (!transformControllerRef.current) {
+    transformControllerRef.current = createTransformController({
+      getImageNode: () => imageNodeRef.current,
+      getLayer: () => layerRef.current,
+      getRotationDeg: () => rotationRef.current,
+      setRotationDeg: (deg) => setRotation(deg),
+      getImageTx: () => imageTxRef.current,
+      setImageTx: (next) => setImageTx(next),
+      markUserChanged: () => {
+        userChangedImageTxRef.current = true
+      },
+      onCommit: (t) => onImageTransformCommitRef.current?.(t),
+    })
+  }
 
-      const rotationDeg = rotationRef.current
-      const pos = commitPosition ? readMicroPxPositionFromNode(node) : null
-      const xPxU = commitPosition ? pos?.xPxU : imageTxRef.current?.xPxU
-      const yPxU = commitPosition ? pos?.yPxU : imageTxRef.current?.yPxU
-
-      const next = {
-        xPxU: xPxU ?? 0n,
-        yPxU: yPxU ?? 0n,
-        widthPxU: baked.widthPxU,
-        heightPxU: baked.heightPxU,
-      }
-
-      setImageTx(next)
-
-      onImageTransformCommit?.({
-        xPxU: commitPosition ? next.xPxU : undefined,
-        yPxU: commitPosition ? next.yPxU : undefined,
-        widthPxU: next.widthPxU,
-        heightPxU: next.heightPxU,
-        rotationDeg,
-      })
-    },
-    [onImageTransformCommit]
-  )
-
-  const scheduleCommitTransform = useCallback(
-    (commitPosition: boolean, delayMs = 150) => {
-      pendingCommitRef.current = { commitPosition }
-      if (commitTimerRef.current != null) return
-      commitTimerRef.current = window.setTimeout(() => {
-        commitTimerRef.current = null
-        const p = pendingCommitRef.current
-        pendingCommitRef.current = null
-        if (!p) return
-        commitFromNode(p.commitPosition)
-      }, delayMs)
-    },
-    [commitFromNode]
-  )
+  const scheduleCommitTransform = useCallback((commitPosition: boolean, delayMs = 150) => {
+    transformControllerRef.current?.scheduleCommit(commitPosition, delayMs)
+  }, [])
 
   useEffect(() => {
     return () => {
-      if (commitTimerRef.current != null) {
-        window.clearTimeout(commitTimerRef.current)
-        commitTimerRef.current = null
-      }
-      pendingCommitRef.current = null
-      if (rafRef.current != null) {
-        cancelAnimationFrame(rafRef.current)
-        rafRef.current = null
-      }
-      rafFlagsRef.current = 0
+      transformControllerRef.current?.dispose()
+      rafSchedulerRef.current?.dispose()
     }
   }, [])
 
   const rotate90 = useCallback(() => {
-    setRotation((r) => {
-      const next = (r + 90) % 360
-      // Persist rotation change immediately (explicit action).
-      const prev = imageTxRef.current
-      if (prev) {
-        userChangedImageTxRef.current = true
-        onImageTransformCommit?.({
-          xPxU: prev.xPxU,
-          yPxU: prev.yPxU,
-          widthPxU: prev.widthPxU,
-          heightPxU: prev.heightPxU,
-          rotationDeg: next,
-        })
-      }
-      return next
-    })
-  }, [onImageTransformCommit])
+    transformControllerRef.current?.rotate90()
+  }, [])
 
   const setImageSize = useCallback(
     (widthPxU: bigint, heightPxU: bigint) => {
-      const prev = imageTxRef.current
-      if (widthPxU <= 0n || heightPxU <= 0n) return
-
-      // Explicit user action must always persist, even if the image hasn't loaded yet
-      // or initial placement hasn't run. Use a deterministic fallback position.
-      const baseX = prev?.xPxU ?? (hasArtboard ? numberToMicroPx(artW / 2) : 0n)
-      const baseY = prev?.yPxU ?? (hasArtboard ? numberToMicroPx(artH / 2) : 0n)
-
-      const next = {
-        xPxU: baseX,
-        yPxU: baseY,
-        widthPxU,
-        heightPxU,
-      }
-      const node = imageNodeRef.current
-      if (node) {
-        applyMicroPxToNode(node, widthPxU, heightPxU)
-      }
-      userChangedImageTxRef.current = true
-      setImageTx(next)
-      // Explicit action -> persist immediately.
-      onImageTransformCommit?.({
-        xPxU: next.xPxU,
-        yPxU: next.yPxU,
-        widthPxU: next.widthPxU,
-        heightPxU: next.heightPxU,
-        rotationDeg: rotationRef.current,
-      })
+      const center = hasArtboard ? { x: artW / 2, y: artH / 2 } : null
+      transformControllerRef.current?.setImageSize(widthPxU, heightPxU, center)
     },
-    [artH, artW, hasArtboard, onImageTransformCommit]
+    [artW, artH, hasArtboard]
   )
 
   const restoreImage = useCallback(() => {
     if (!img) return
-    const t = initialImageTransform
-    const metaW =
-      typeof intrinsicWidthPx === "number" && Number.isFinite(intrinsicWidthPx) && intrinsicWidthPx > 0 ? intrinsicWidthPx : null
-    const metaH =
-      typeof intrinsicHeightPx === "number" && Number.isFinite(intrinsicHeightPx) && intrinsicHeightPx > 0 ? intrinsicHeightPx : null
-    const fallbackW = img.naturalWidth || img.width
-    const fallbackH = img.naturalHeight || img.height
-    const baseW = metaW ?? fallbackW
-    const baseH = metaH ?? fallbackH
-
-    const nextWidthPxU = t?.widthPxU ?? numberToMicroPx(baseW)
-    const nextHeightPxU = t?.heightPxU ?? numberToMicroPx(baseH)
-    const nextX = t?.xPxU ?? numberToMicroPx(artW / 2)
-    const nextY = t?.yPxU ?? numberToMicroPx(artH / 2)
-
-    const next = {
-      xPxU: nextX,
-      yPxU: nextY,
-      widthPxU: nextWidthPxU,
-      heightPxU: nextHeightPxU,
-    }
-
-    const nextRotation = t ? Number(t.rotationDeg) : 0
-    const rot = Number.isFinite(nextRotation) ? nextRotation : 0
-    setRotation(rot)
-    const node = imageNodeRef.current
-    if (node) {
-      applyMicroPxToNode(node, nextWidthPxU, nextHeightPxU)
-      applyMicroPxPositionToNode(node, nextX, nextY)
-    }
-    userChangedImageTxRef.current = true
-    setImageTx(next)
-    // Explicit action -> persist immediately.
-    onImageTransformCommit?.({
-      xPxU: next.xPxU,
-      yPxU: next.yPxU,
-      widthPxU: next.widthPxU,
-      heightPxU: next.heightPxU,
-      rotationDeg: rot,
+    const intrinsic = pickIntrinsicSize({ intrinsicWidthPx, intrinsicHeightPx, img })
+    if (!intrinsic) return
+    transformControllerRef.current?.restoreImage({
+      artW,
+      artH,
+      baseW: intrinsic.w,
+      baseH: intrinsic.h,
+      initialImageTransform,
     })
     scheduleBoundsUpdate()
-  }, [artH, artW, img, initialImageTransform, intrinsicHeightPx, intrinsicWidthPx, onImageTransformCommit, scheduleBoundsUpdate])
+  }, [artH, artW, img, initialImageTransform, intrinsicHeightPx, intrinsicWidthPx, scheduleBoundsUpdate])
 
   const alignImage = useCallback(
     (opts: { x?: "left" | "center" | "right"; y?: "top" | "center" | "bottom" }) => {
       if (!hasArtboard) return
-      const layer = layerRef.current
-      const node = imageNodeRef.current
-      if (!layer || !node) return
-
-      const r = node.getClientRect({ relativeTo: layer })
-      let dx = 0
-      let dy = 0
-
-      if (opts.x === "left") dx = 0 - r.x
-      if (opts.x === "center") dx = artW / 2 - (r.x + r.width / 2)
-      if (opts.x === "right") dx = artW - (r.x + r.width)
-
-      if (opts.y === "top") dy = 0 - r.y
-      if (opts.y === "center") dy = artH / 2 - (r.y + r.height / 2)
-      if (opts.y === "bottom") dy = artH - (r.y + r.height)
-
-      if (dx === 0 && dy === 0) return
-
-      const prev = imageTxRef.current
-      const baseX = prev ? pxUToPxNumber(prev.xPxU) : node.x()
-      const baseY = prev ? pxUToPxNumber(prev.yPxU) : node.y()
-      if (!prev) return
-      const next = {
-        xPxU: numberToMicroPx(baseX + dx),
-        yPxU: numberToMicroPx(baseY + dy),
-        widthPxU: prev.widthPxU,
-        heightPxU: prev.heightPxU,
-      }
-      node.x(baseX + dx)
-      node.y(baseY + dy)
-      userChangedImageTxRef.current = true
-      setImageTx(next)
-      // Explicit action -> persist immediately.
-      onImageTransformCommit?.({
-        xPxU: next.xPxU,
-        yPxU: next.yPxU,
-        widthPxU: next.widthPxU,
-        heightPxU: next.heightPxU,
-        rotationDeg: rotationRef.current,
-      })
-
+      transformControllerRef.current?.alignImage({ artW, artH, ...opts })
       scheduleBoundsUpdate()
     },
-    [artH, artW, hasArtboard, onImageTransformCommit, scheduleBoundsUpdate]
+    [artH, artW, hasArtboard, scheduleBoundsUpdate]
   )
 
   useImperativeHandle(
@@ -932,7 +691,6 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
                 userChangedImageTxRef.current = true
                 scheduleCommitTransform(true, 0)
                 dragPosRef.current = null
-                dragDeltaRef.current = { dx: 0, dy: 0 }
                 setIsDraggingImage(false)
                 scheduleBoundsUpdate()
               }}
