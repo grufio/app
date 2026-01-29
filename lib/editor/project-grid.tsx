@@ -12,18 +12,17 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { pxUToUnitDisplay, type Unit, unitToPx, unitToPxU } from "@/lib/editor/units"
 import { useProjectWorkspace } from "@/lib/editor/project-workspace"
+import {
+  defaultGrid,
+  insertGrid,
+  mapGridSchemaError,
+  normalizeProjectGridRow,
+  normalizeUnit as normalizeGridUnit,
+  selectGrid,
+  upsertGrid as upsertGridRepo,
+} from "@/services/editor"
 
-export type ProjectGridRow = {
-  project_id: string
-  color: string
-  unit: Unit
-  // Legacy single-axis spacing column (still NOT NULL in DB).
-  // Keep it in sync with spacing_x_value to satisfy constraints.
-  spacing_value: number
-  spacing_x_value: number
-  spacing_y_value: number
-  line_width_value: number
-}
+export type ProjectGridRow = import("@/services/editor").ProjectGridRow
 
 type ProjectGridContextValue = {
   projectId: string
@@ -40,42 +39,6 @@ type ProjectGridContextValue = {
 }
 
 const ProjectGridContext = createContext<ProjectGridContextValue | null>(null)
-
-function normalizeUnit(u: unknown): Unit {
-  if (u === "mm" || u === "cm" || u === "pt" || u === "px") return u
-  return "cm"
-}
-
-function normalizeHexColor(input: unknown): string {
-  if (typeof input !== "string") return "#000000"
-  const s = input.trim()
-  const m = /^#([0-9a-fA-F]{6})$/.exec(s)
-  if (!m) return "#000000"
-  return `#${m[1].toLowerCase()}`
-}
-
-function defaultGrid(projectId: string, unit: Unit): ProjectGridRow {
-  return {
-    project_id: projectId,
-    unit,
-    color: "#000000",
-    spacing_value: 10,
-    spacing_x_value: 10,
-    spacing_y_value: 10,
-    line_width_value: 0.1,
-  }
-}
-
-function mapGridSchemaError(message: string): string {
-  // Most common local/dev issue: migration not applied to the DB yet.
-  if (
-    /column .*spacing_x_value.* does not exist/i.test(message) ||
-    /column .*spacing_y_value.* does not exist/i.test(message)
-  ) {
-    return 'Grid storage is not ready. Apply migration "db/012_project_grid_xy.sql" to your database.'
-  }
-  return message
-}
 
 export function ProjectGridProvider({
   projectId,
@@ -97,48 +60,28 @@ export function ProjectGridProvider({
     setError("")
     try {
       const supabase = createSupabaseBrowserClient()
-      const { data, error: selErr } = await supabase
-        .from("project_grid")
-        .select("project_id,color,unit,spacing_x_value,spacing_y_value,line_width_value")
-        .eq("project_id", projectId)
-        .maybeSingle()
-
+      const { row: data, error: selErr } = await selectGrid(supabase, projectId)
       if (selErr) {
         setRow(null)
-        setError(mapGridSchemaError(selErr.message))
+        setError(mapGridSchemaError(selErr))
         return
       }
 
       if (!data) {
         const unit = workspaceUnit ?? "cm"
         const def = defaultGrid(projectId, unit)
-        const { data: ins, error: insErr } = await supabase
-          .from("project_grid")
-          .insert(def)
-          .select("project_id,color,unit,spacing_x_value,spacing_y_value,line_width_value")
-          .single()
-
+        const { row: ins, error: insErr } = await insertGrid(supabase, def)
         if (insErr || !ins) {
           setRow(null)
-          setError(mapGridSchemaError(insErr?.message ?? "Failed to create default grid"))
+          setError(mapGridSchemaError(insErr ?? "Failed to create default grid"))
           return
         }
 
-        const r = ins as unknown as ProjectGridRow
-        setRow({
-          ...r,
-          unit: normalizeUnit((r as unknown as { unit?: unknown })?.unit),
-          color: normalizeHexColor((r as unknown as { color?: unknown })?.color),
-        })
+        setRow(normalizeProjectGridRow(ins))
         return
       }
 
-      const r = data as unknown as ProjectGridRow
-      setRow({
-        ...r,
-        unit: normalizeUnit((r as unknown as { unit?: unknown })?.unit),
-        color: normalizeHexColor((r as unknown as { color?: unknown })?.color),
-      })
+      setRow(normalizeProjectGridRow(data))
     } finally {
       setLoading(false)
     }
@@ -157,25 +100,15 @@ export function ProjectGridProvider({
       setError("")
       try {
         const supabase = createSupabaseBrowserClient()
-        const { data, error: upErr } = await supabase
-          .from("project_grid")
-          .upsert(nextRow, { onConflict: "project_id" })
-          .select("project_id,color,unit,spacing_x_value,spacing_y_value,line_width_value")
-          .single()
-
+        const { row: data, error: upErr } = await upsertGridRepo(supabase, nextRow)
         if (upErr || !data) {
-          setError(mapGridSchemaError(upErr?.message ?? "Failed to save grid"))
+          setError(mapGridSchemaError(upErr ?? "Failed to save grid"))
           return null
         }
 
-        const r = data as unknown as ProjectGridRow
-        const normalized = {
-          ...r,
-          unit: normalizeUnit((r as unknown as { unit?: unknown })?.unit),
-          color: normalizeHexColor((r as unknown as { color?: unknown })?.color),
-        }
+        const normalized = normalizeProjectGridRow(data)
         setRow(normalized)
-        return normalized
+        return normalized as unknown as ProjectGridRow
       } finally {
         setSaving(false)
       }
@@ -217,7 +150,7 @@ export function ProjectGridProvider({
   }, [row?.unit, workspaceUnit, workspaceDpi])
 
   const value = useMemo<ProjectGridContextValue>(() => {
-    const unit = row ? normalizeUnit((row as unknown as { unit?: unknown })?.unit) : null
+    const unit = row ? normalizeGridUnit((row as unknown as { unit?: unknown })?.unit) : null
     const dpi = Number(workspaceDpi ?? NaN)
     const canConvert = Boolean(unit && Number.isFinite(dpi) && dpi > 0)
 

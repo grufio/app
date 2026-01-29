@@ -1,18 +1,8 @@
-"use client"
-
 /**
- * Project editor layout wrapper.
+ * Re-export shim.
  *
- * Responsibilities:
- * - Provide the main editor container styling and layout constraints.
+ * This file remains to avoid churn in existing imports while the editor is migrated
+ * to `features/editor`.
  */
-import * as React from "react"
-
-export function ProjectEditorLayout(props: { children: React.ReactNode }) {
-  return (
-    <div className="flex flex-1 border-t border-border bg-muted/50">
-      {props.children}
-    </div>
-  )
-}
+export * from "@/features/editor/components/ProjectEditorLayout"
 

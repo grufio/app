@@ -26,7 +26,12 @@ import { Button } from "@/components/ui/button"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { IconNumericField } from "@/components/shared/editor/fields/icon-numeric-field"
 import { PanelIconSlot, PanelTwoFieldRow } from "@/components/shared/editor/panel-layout"
-import { divRoundHalfUp, pxUToUnitDisplay, type Unit, unitToPxU } from "@/lib/editor/units"
+import { pxUToUnitDisplay, type Unit } from "@/lib/editor/units"
+import {
+  computeLockedAspectOtherDimensionFromHeightInput,
+  computeLockedAspectOtherDimensionFromWidthInput,
+  parseAndClampImageSize,
+} from "@/services/editor/image-sizing"
 
 function SizeField({
   value,
@@ -110,20 +115,12 @@ function ImageSizeInputs({
 
   const commit = () => {
     if (!ready) return
-    if (!Number.isFinite(dpi) || dpi <= 0) return
     // Use refs so blur/tab commits always see the latest typed value
     // (React state can be one render behind when events batch).
     // Invariants: docs/specs/sizing-invariants.mdx (round once at input conversion).
-    let wPxU: bigint
-    let hPxU: bigint
-    try {
-      wPxU = unitToPxU(draftWRef.current, unit, dpi)
-      hPxU = unitToPxU(draftHRef.current, unit, dpi)
-    } catch {
-      return
-    }
-    if (wPxU <= 0n || hPxU <= 0n) return
-    onCommit(wPxU, hPxU)
+    const parsed = parseAndClampImageSize({ draftW: draftWRef.current, draftH: draftHRef.current, unit, dpi })
+    if (!parsed) return
+    onCommit(parsed.wPxU, parsed.hPxU)
   }
 
   return (
@@ -141,17 +138,15 @@ function ImageSizeInputs({
           const r = lockRatioRef.current ?? ensureRatio()
           if (!r) return
           lockRatioRef.current = r
-          let wPxU: bigint
-          try {
-            wPxU = unitToPxU(next, unit, dpi)
-          } catch {
-            return
-          }
-          if (wPxU <= 0n) return
-          const nextHPxU = divRoundHalfUp(wPxU * r.h, r.w)
-          const nextH = pxUToUnitDisplay(nextHPxU, unit, dpi)
-          draftHRef.current = nextH
-          setDraftH(nextH)
+          const out = computeLockedAspectOtherDimensionFromWidthInput({
+            nextWidthInput: next,
+            unit,
+            dpi,
+            ratio: { wPxU: r.w, hPxU: r.h },
+          })
+          if (!out) return
+          draftHRef.current = out.nextHeightDisplay
+          setDraftH(out.nextHeightDisplay)
         }}
         onFocus={() => {
           if (!ready) return
@@ -198,17 +193,15 @@ function ImageSizeInputs({
           const r = lockRatioRef.current ?? ensureRatio()
           if (!r) return
           lockRatioRef.current = r
-          let hPxU: bigint
-          try {
-            hPxU = unitToPxU(next, unit, dpi)
-          } catch {
-            return
-          }
-          if (hPxU <= 0n) return
-          const nextWPxU = divRoundHalfUp(hPxU * r.w, r.h)
-          const nextW = pxUToUnitDisplay(nextWPxU, unit, dpi)
-          draftWRef.current = nextW
-          setDraftW(nextW)
+          const out = computeLockedAspectOtherDimensionFromHeightInput({
+            nextHeightInput: next,
+            unit,
+            dpi,
+            ratio: { wPxU: r.w, hPxU: r.h },
+          })
+          if (!out) return
+          draftWRef.current = out.nextWidthDisplay
+          setDraftW(out.nextWidthDisplay)
         }}
         onFocus={() => {
           if (!ready) return

@@ -10,56 +10,16 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
 
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
-import { clampPx, pxUToPxNumber, type Unit, unitToPxU } from "@/lib/editor/units"
+import type { Unit } from "@/lib/editor/units"
+import {
+  defaultWorkspace,
+  insertWorkspace,
+  normalizeWorkspaceRow,
+  selectWorkspace,
+  upsertWorkspace as upsertWorkspaceRepo,
+} from "@/services/editor"
 
-export type WorkspaceRow = {
-  project_id: string
-  unit: Unit
-  width_value: number
-  height_value: number
-  dpi_x: number
-  dpi_y: number
-  width_px_u: string
-  height_px_u: string
-  width_px: number
-  height_px: number
-  raster_effects_preset?: "high" | "medium" | "low" | null
-  page_bg_enabled?: boolean
-  page_bg_color?: string
-  page_bg_opacity?: number
-}
-
-function normalizeUnit(u: unknown): Unit {
-  if (u === "mm" || u === "cm" || u === "pt" || u === "px") return u
-  return "cm"
-}
-
-function defaultWorkspace(projectId: string): WorkspaceRow {
-  // Default: 20x30cm @ 300dpi (Illustrator-like "new document")
-  const unit: Unit = "cm"
-  const width_value = 20
-  const height_value = 30
-  const dpi_x = 300
-  const dpi_y = 300
-  const widthPxU = unitToPxU(String(width_value), unit, dpi_x)
-  const heightPxU = unitToPxU(String(height_value), unit, dpi_y)
-  return {
-    project_id: projectId,
-    unit,
-    width_value,
-    height_value,
-    dpi_x,
-    dpi_y,
-    raster_effects_preset: "high",
-    width_px_u: widthPxU.toString(),
-    height_px_u: heightPxU.toString(),
-    width_px: clampPx(pxUToPxNumber(widthPxU)),
-    height_px: clampPx(pxUToPxNumber(heightPxU)),
-    page_bg_enabled: false,
-    page_bg_color: "#ffffff",
-    page_bg_opacity: 50,
-  }
-}
+export type WorkspaceRow = import("@/services/editor").WorkspaceRow
 
 type WorkspaceContextValue = {
   projectId: string
@@ -99,43 +59,27 @@ export function ProjectWorkspaceProvider({
     setError("")
     try {
       const supabase = createSupabaseBrowserClient()
-      const { data, error: selErr } = await supabase
-        .from("project_workspace")
-        .select(
-          "project_id,unit,width_value,height_value,dpi_x,dpi_y,width_px_u,height_px_u,width_px,height_px,raster_effects_preset,page_bg_enabled,page_bg_color,page_bg_opacity"
-        )
-        .eq("project_id", projectId)
-        .maybeSingle()
-
+      const { row: data, error: selErr } = await selectWorkspace(supabase, projectId)
       if (selErr) {
         setRow(null)
-        setError(selErr.message)
+        setError(selErr)
         return
       }
 
       if (!data) {
         const def = defaultWorkspace(projectId)
-        const { data: ins, error: insErr } = await supabase
-          .from("project_workspace")
-          .insert(def)
-          .select(
-            "project_id,unit,width_value,height_value,dpi_x,dpi_y,width_px_u,height_px_u,width_px,height_px,raster_effects_preset,page_bg_enabled,page_bg_color,page_bg_opacity"
-          )
-          .single()
-
+        const { row: ins, error: insErr } = await insertWorkspace(supabase, def)
         if (insErr || !ins) {
           setRow(null)
-          setError(insErr?.message ?? "Failed to create default artboard")
+          setError(insErr ?? "Failed to create default artboard")
           return
         }
 
-        const r = ins as unknown as WorkspaceRow
-        setRow({ ...r, unit: normalizeUnit((r as unknown as { unit?: unknown })?.unit) })
+        setRow(normalizeWorkspaceRow(ins))
         return
       }
 
-      const r = data as unknown as WorkspaceRow
-      setRow({ ...r, unit: normalizeUnit((r as unknown as { unit?: unknown })?.unit) })
+      setRow(normalizeWorkspaceRow(data))
     } finally {
       setLoading(false)
     }
@@ -148,21 +92,14 @@ export function ProjectWorkspaceProvider({
       setError("")
       try {
         const supabase = createSupabaseBrowserClient()
-        const { data, error: upErr } = await supabase
-          .from("project_workspace")
-          .upsert(nextRow, { onConflict: "project_id" })
-          .select(
-            "project_id,unit,width_value,height_value,dpi_x,dpi_y,width_px_u,height_px_u,width_px,height_px,raster_effects_preset,page_bg_enabled,page_bg_color,page_bg_opacity"
-          )
-          .single()
+        const { row: data, error: upErr } = await upsertWorkspaceRepo(supabase, nextRow)
         if (upErr || !data) {
-          setError(upErr?.message ?? "Failed to save workspace")
+          setError(upErr ?? "Failed to save workspace")
           return null
         }
-        const r = data as unknown as WorkspaceRow
-        const normalized = { ...r, unit: normalizeUnit((r as unknown as { unit?: unknown })?.unit) }
+        const normalized = normalizeWorkspaceRow(data)
         setRow(normalized)
-        return normalized
+        return normalized as unknown as WorkspaceRow
       } finally {
         setSaving(false)
       }
@@ -177,7 +114,7 @@ export function ProjectWorkspaceProvider({
   }, [initialRow?.project_id, projectId, refresh])
 
   const value = useMemo<WorkspaceContextValue>(() => {
-    const unit = row ? normalizeUnit((row as unknown as { unit?: unknown })?.unit) : null
+    const unit = row ? normalizeWorkspaceRow(row).unit : null
     const dpi = row && Number.isFinite(Number(row.dpi_x)) ? Number(row.dpi_x) : null
     const widthPxU =
       row && typeof (row as unknown as { width_px_u?: unknown })?.width_px_u === "string"

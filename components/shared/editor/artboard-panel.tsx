@@ -18,6 +18,7 @@ import { IconNumericField } from "@/components/shared/editor/fields/icon-numeric
 import { IconSelectField } from "@/components/shared/editor/fields/icon-select-field"
 import { PanelIconSlot, PanelTwoFieldRow } from "@/components/shared/editor/panel-layout"
 import { type WorkspaceRow, useProjectWorkspace } from "@/lib/editor/project-workspace"
+import { computeArtboardSizeDisplay } from "@/services/editor/artboard-display"
 
 function normalizeUnit(u: unknown): Unit {
   if (u === "mm" || u === "cm" || u === "pt" || u === "px") return u
@@ -69,10 +70,9 @@ export function ArtboardPanel() {
         : "mm"
 
   const dpiForDisplay = Number(draftDpi) || Number(row?.dpi_x) || 300
-  const computedWidth =
-    row && widthPxU && Number.isFinite(dpiForDisplay) && dpiForDisplay > 0 ? pxUToUnitDisplay(widthPxU, draftUnit, dpiForDisplay) : row ? String(row.width_value) : ""
-  const computedHeight =
-    row && heightPxU && Number.isFinite(dpiForDisplay) && dpiForDisplay > 0 ? pxUToUnitDisplay(heightPxU, draftUnit, dpiForDisplay) : row ? String(row.height_value) : ""
+  const computedDisplay = row && widthPxU && heightPxU ? computeArtboardSizeDisplay({ widthPxU, heightPxU, unit: draftUnit, dpi: dpiForDisplay }) : null
+  const computedWidth = computedDisplay ? computedDisplay.width : row ? String(row.width_value) : ""
+  const computedHeight = computedDisplay ? computedDisplay.height : row ? String(row.height_value) : ""
 
   const draftWidth = row && draftWidthState.projectId === activeProjectId ? draftWidthState.value : computedWidth
   const draftHeight = row && draftHeightState.projectId === activeProjectId ? draftHeightState.value : computedHeight
@@ -203,8 +203,9 @@ export function ArtboardPanel() {
     setDraftUnit(nextUnit)
 
     // Display-only: canonical µpx stays unchanged.
-    setDraftWidth(pxUToUnitDisplay(canonicalW, nextUnit, dpi))
-    setDraftHeight(pxUToUnitDisplay(canonicalH, nextUnit, dpi))
+    const display = computeArtboardSizeDisplay({ widthPxU: canonicalW, heightPxU: canonicalH, unit: nextUnit, dpi })
+    setDraftWidth(display?.width ?? "")
+    setDraftHeight(display?.height ?? "")
 
     setTimeout(() => {
       void saveUnitOnly(nextUnit)
