@@ -24,6 +24,8 @@ import type { Project } from "@/lib/editor/use-project"
 import { useProject } from "@/lib/editor/use-project"
 import type { ImageState } from "@/lib/editor/use-image-state"
 import { useImageState } from "@/lib/editor/use-image-state"
+import { computeRenderableGrid } from "@/services/editor/grid/validation"
+import { clampOpacityPercent, normalizeWorkspacePageBg } from "@/services/editor/page-background"
 
 export function ProjectDetailPageClient({
   projectId,
@@ -120,10 +122,10 @@ export function ProjectDetailPageClient({
     // Initialize once per project load (avoid overwriting user edits mid-session).
     if (pageBgInitKeyRef.current === workspaceRow.project_id) return
     pageBgInitKeyRef.current = workspaceRow.project_id
-    setPageBgEnabled(Boolean(workspaceRow.page_bg_enabled ?? false))
-    setPageBgColor(typeof workspaceRow.page_bg_color === "string" ? workspaceRow.page_bg_color : "#ffffff")
-    const op = Number(workspaceRow.page_bg_opacity ?? 50)
-    setPageBgOpacity(Math.max(0, Math.min(100, Number.isFinite(op) ? op : 50)))
+    const normalized = normalizeWorkspacePageBg(workspaceRow)
+    setPageBgEnabled(normalized.enabled)
+    setPageBgColor(normalized.color)
+    setPageBgOpacity(normalized.opacity)
   }, [workspaceRow])
 
   const bgSaveTimerRef = useRef<number | null>(null)
@@ -173,13 +175,7 @@ export function ProjectDetailPageClient({
   const activeRightSection = selectedNavId.startsWith("app/api") ? "image" : "artboard"
 
   const grid = useMemo(() => {
-    if (!gridRow) return null
-    if (!Number.isFinite(spacingXPx ?? NaN) || !Number.isFinite(spacingYPx ?? NaN) || !Number.isFinite(lineWidthPx ?? NaN)) return null
-    const spacingX = Number(spacingXPx)
-    const spacingY = Number(spacingYPx)
-    const lw = Number(lineWidthPx)
-    if (spacingX <= 0 || spacingY <= 0 || lw <= 0) return null
-    return { spacingXPx: spacingX, spacingYPx: spacingY, lineWidthPx: lw, color: gridRow.color }
+    return computeRenderableGrid({ row: gridRow, spacingXPx, spacingYPx, lineWidthPx })
   }, [gridRow, lineWidthPx, spacingXPx, spacingYPx])
 
   return (
@@ -243,7 +239,7 @@ export function ProjectDetailPageClient({
             }}
             onPageBgOpacityChange={(o) => {
               const enabled = true
-              const clamped = Math.max(0, Math.min(100, Number.isFinite(o) ? o : 0))
+              const clamped = clampOpacityPercent(o, 0)
               setPageBgOpacity(clamped)
               setPageBgEnabled(enabled)
               scheduleSavePageBg({ enabled, color: pageBgColor, opacity: clamped })

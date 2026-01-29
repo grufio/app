@@ -24,6 +24,7 @@ import {
   SidebarMenuItem,
   SidebarMenuSub,
 } from "@/components/ui/sidebar"
+import { mapSidebarNodeIconKey, mapSidebarNodeLabel } from "@/services/editor/navigation-mapping"
 
 // This is sample data.
 const data = {
@@ -91,7 +92,7 @@ function Tree(props: {
   const { item, parentId, selectedId, onSelect, expandedIds, onToggleExpanded } =
     props
   const [name, ...items] = Array.isArray(item) ? item : [item]
-  const label = name === "app" ? "Artboard" : name === "api" ? "Image" : name
+  const label = mapSidebarNodeLabel(name)
 
   const id = parentId ? `${parentId}/${name}` : String(name)
   const isExpanded = items.length ? expandedIds.has(id) : false
@@ -140,13 +141,12 @@ function Tree(props: {
                 }
               />
             </button>
-            {name === "app" ? (
-              <LayoutGrid />
-            ) : name === "api" ? (
-              <ImageIcon />
-            ) : (
-              <Folder />
-            )}
+            {(() => {
+              const key = mapSidebarNodeIconKey(name)
+              if (key === "artboard") return <LayoutGrid />
+              if (key === "image") return <ImageIcon />
+              return <Folder />
+            })()}
             <button
               type="button"
               className="flex-1 text-left"

@@ -11,6 +11,7 @@ import * as React from "react"
 import dynamic from "next/dynamic"
 
 import { ProjectImageUploader } from "@/components/app-img-upload"
+import { computeRgbaBackgroundStyleFromHex } from "@/lib/editor/color"
 import {
   FloatingToolbar,
   type FloatingToolbarTool,
@@ -83,16 +84,9 @@ export function ProjectEditorStage(props: {
   } = props
 
   const bgStyle = React.useMemo(() => {
-    if (!pageBgEnabled) return undefined
-    const hex = pageBgColor.trim()
-    const m = /^#?([0-9a-fA-F]{6})$/.exec(hex)
-    if (!m) return undefined
-    const int = Number.parseInt(m[1], 16)
-    const r = (int >> 16) & 255
-    const g = (int >> 8) & 255
-    const b = int & 255
-    const a = Math.max(0, Math.min(100, pageBgOpacity)) / 100
-    return { backgroundColor: `rgba(${r}, ${g}, ${b}, ${a})` } as React.CSSProperties
+    return computeRgbaBackgroundStyleFromHex({ enabled: pageBgEnabled, hex: pageBgColor, opacityPercent: pageBgOpacity }) as
+      | React.CSSProperties
+      | undefined
   }, [pageBgColor, pageBgEnabled, pageBgOpacity])
 
   return (

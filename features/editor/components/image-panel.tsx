@@ -30,8 +30,8 @@ import { pxUToUnitDisplay, type Unit } from "@/lib/editor/units"
 import {
   computeLockedAspectOtherDimensionFromHeightInput,
   computeLockedAspectOtherDimensionFromWidthInput,
-  parseAndClampImageSize,
 } from "@/services/editor/image-sizing"
+import { computeImageSizeCommit, computeLockedAspectRatioFromCurrentSize } from "@/services/editor/image-sizing-operations"
 
 function SizeField({
   value,
@@ -107,18 +107,11 @@ function ImageSizeInputs({
     return pxUToUnitDisplay(heightPxU, unit, dpi)
   }, [dpi, heightPxU, ready, unit])
 
-  const ensureRatio = () => {
-    if (!widthPxU || !heightPxU) return null
-    if (widthPxU <= 0n || heightPxU <= 0n) return null
-    return { w: widthPxU, h: heightPxU }
-  }
-
   const commit = () => {
-    if (!ready) return
     // Use refs so blur/tab commits always see the latest typed value
     // (React state can be one render behind when events batch).
     // Invariants: docs/specs/sizing-invariants.mdx (round once at input conversion).
-    const parsed = parseAndClampImageSize({ draftW: draftWRef.current, draftH: draftHRef.current, unit, dpi })
+    const parsed = computeImageSizeCommit({ ready, draftW: draftWRef.current, draftH: draftHRef.current, unit, dpi })
     if (!parsed) return
     onCommit(parsed.wPxU, parsed.hPxU)
   }
@@ -135,7 +128,7 @@ function ImageSizeInputs({
           draftWRef.current = next
           setDraftW(next)
           if (!lockAspect) return
-          const r = lockRatioRef.current ?? ensureRatio()
+          const r = lockRatioRef.current ?? computeLockedAspectRatioFromCurrentSize({ widthPxU, heightPxU })
           if (!r) return
           lockRatioRef.current = r
           const out = computeLockedAspectOtherDimensionFromWidthInput({
@@ -190,7 +183,7 @@ function ImageSizeInputs({
           draftHRef.current = next
           setDraftH(next)
           if (!lockAspect) return
-          const r = lockRatioRef.current ?? ensureRatio()
+          const r = lockRatioRef.current ?? computeLockedAspectRatioFromCurrentSize({ widthPxU, heightPxU })
           if (!r) return
           lockRatioRef.current = r
           const out = computeLockedAspectOtherDimensionFromHeightInput({
@@ -255,7 +248,7 @@ function ImageSizeInputs({
           onClick={() => {
             setLockAspect((prev) => {
               const next = !prev
-              lockRatioRef.current = next ? ensureRatio() : null
+              lockRatioRef.current = next ? computeLockedAspectRatioFromCurrentSize({ widthPxU, heightPxU }) : null
               return next
             })
           }}
