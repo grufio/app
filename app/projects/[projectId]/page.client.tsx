@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { type ProjectCanvasStageHandle, ProjectEditorHeader } from "@/components/shared/editor"
 import { EditorErrorBoundary } from "@/components/shared/editor/editor-error-boundary"
@@ -10,7 +10,7 @@ import { ProjectEditorRightPanel } from "@/components/project-editor/ProjectEdit
 import { ProjectEditorStage } from "@/components/project-editor/ProjectEditorStage"
 import { computeImagePanelReady, computeWorkspaceReady } from "@/lib/editor/editor-ready"
 import { useFloatingToolbarControls } from "@/lib/editor/floating-toolbar-controls"
-import { useProjectWorkspace } from "@/lib/editor/project-workspace"
+import { type WorkspaceRow, useProjectWorkspace } from "@/lib/editor/project-workspace"
 import { useProjectGrid } from "@/lib/editor/project-grid"
 import type { MasterImage } from "@/lib/editor/use-master-image"
 import { useMasterImage } from "@/lib/editor/use-master-image"
@@ -30,8 +30,15 @@ export function ProjectDetailPageClient({
   initialMasterImage: MasterImage | null
   initialImageState: ImageState | null
 }) {
-  const { unit: workspaceUnit, dpi: workspaceDpi, widthPx: artboardWidthPx, heightPx: artboardHeightPx, loading: workspaceLoading } =
-    useProjectWorkspace()
+  const {
+    row: workspaceRow,
+    upsertWorkspace,
+    unit: workspaceUnit,
+    dpi: workspaceDpi,
+    widthPx: artboardWidthPx,
+    heightPx: artboardHeightPx,
+    loading: workspaceLoading,
+  } = useProjectWorkspace()
   const { row: gridRow, spacingXPx, spacingYPx, lineWidthPx } = useProjectGrid()
 
   const { project, setProject } = useProject(projectId, initialProject)
@@ -95,6 +102,49 @@ export function ProjectDetailPageClient({
   const [pageBgEnabled, setPageBgEnabled] = useState(false)
   const [pageBgColor, setPageBgColor] = useState("#ffffff")
   const [pageBgOpacity, setPageBgOpacity] = useState(50)
+
+  const workspaceRowRef = useRef(workspaceRow)
+  useEffect(() => {
+    workspaceRowRef.current = workspaceRow
+  }, [workspaceRow])
+
+  const pageBgInitKeyRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!workspaceRow) return
+    // Initialize once per project load (avoid overwriting user edits mid-session).
+    if (pageBgInitKeyRef.current === workspaceRow.project_id) return
+    pageBgInitKeyRef.current = workspaceRow.project_id
+    setPageBgEnabled(Boolean(workspaceRow.page_bg_enabled ?? false))
+    setPageBgColor(typeof workspaceRow.page_bg_color === "string" ? workspaceRow.page_bg_color : "#ffffff")
+    const op = Number(workspaceRow.page_bg_opacity ?? 50)
+    setPageBgOpacity(Math.max(0, Math.min(100, Number.isFinite(op) ? op : 50)))
+  }, [workspaceRow])
+
+  const bgSaveTimerRef = useRef<number | null>(null)
+  const scheduleSavePageBg = useCallback(
+    (next: { enabled: boolean; color: string; opacity: number }) => {
+      const base = workspaceRowRef.current
+      if (!base) return
+      const merged: WorkspaceRow = {
+        ...base,
+        page_bg_enabled: next.enabled,
+        page_bg_color: next.color,
+        page_bg_opacity: next.opacity,
+      }
+      if (bgSaveTimerRef.current != null) window.clearTimeout(bgSaveTimerRef.current)
+      bgSaveTimerRef.current = window.setTimeout(() => {
+        bgSaveTimerRef.current = null
+        void upsertWorkspace(merged)
+      }, 250)
+    },
+    [upsertWorkspace]
+  )
+
+  useEffect(() => {
+    return () => {
+      if (bgSaveTimerRef.current != null) window.clearTimeout(bgSaveTimerRef.current)
+    }
+  }, [])
 
   const panelImagePxU = useMemo(() => {
     if (imageStateLoading) return null
@@ -175,14 +225,22 @@ export function ProjectDetailPageClient({
             pageBgEnabled={pageBgEnabled}
             pageBgColor={pageBgColor}
             pageBgOpacity={pageBgOpacity}
-            onPageBgEnabledChange={setPageBgEnabled}
+            onPageBgEnabledChange={(v) => {
+              setPageBgEnabled(v)
+              scheduleSavePageBg({ enabled: v, color: pageBgColor, opacity: pageBgOpacity })
+            }}
             onPageBgColorChange={(c) => {
+              const enabled = true
               setPageBgColor(c)
-              setPageBgEnabled(true)
+              setPageBgEnabled(enabled)
+              scheduleSavePageBg({ enabled, color: c, opacity: pageBgOpacity })
             }}
             onPageBgOpacityChange={(o) => {
-              setPageBgOpacity(o)
-              setPageBgEnabled(true)
+              const enabled = true
+              const clamped = Math.max(0, Math.min(100, Number.isFinite(o) ? o : 0))
+              setPageBgOpacity(clamped)
+              setPageBgEnabled(enabled)
+              scheduleSavePageBg({ enabled, color: pageBgColor, opacity: clamped })
             }}
             masterImage={masterImage}
             masterImageLoading={masterImageLoading}

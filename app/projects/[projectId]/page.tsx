@@ -29,7 +29,9 @@ async function getInitialProjectData(projectId: string): Promise<{
     supabase.from("projects").select("id,name").eq("id", projectId).maybeSingle(),
     supabase
       .from("project_workspace")
-      .select("project_id,unit,width_value,height_value,dpi_x,dpi_y,width_px_u,height_px_u,width_px,height_px,raster_effects_preset")
+      .select(
+        "project_id,unit,width_value,height_value,dpi_x,dpi_y,width_px_u,height_px_u,width_px,height_px,raster_effects_preset,page_bg_enabled,page_bg_color,page_bg_opacity"
+      )
       .eq("project_id", projectId)
       .maybeSingle(),
     supabase

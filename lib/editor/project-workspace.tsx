@@ -17,6 +17,9 @@ export type WorkspaceRow = {
   width_px: number
   height_px: number
   raster_effects_preset?: "high" | "medium" | "low" | null
+  page_bg_enabled?: boolean
+  page_bg_color?: string
+  page_bg_opacity?: number
 }
 
 function normalizeUnit(u: unknown): Unit {
@@ -45,6 +48,9 @@ function defaultWorkspace(projectId: string): WorkspaceRow {
     height_px_u: heightPxU.toString(),
     width_px: clampPx(pxUToPxNumber(widthPxU)),
     height_px: clampPx(pxUToPxNumber(heightPxU)),
+    page_bg_enabled: false,
+    page_bg_color: "#ffffff",
+    page_bg_opacity: 50,
   }
 }
 
@@ -88,7 +94,9 @@ export function ProjectWorkspaceProvider({
       const supabase = createSupabaseBrowserClient()
       const { data, error: selErr } = await supabase
         .from("project_workspace")
-        .select("project_id,unit,width_value,height_value,dpi_x,dpi_y,width_px_u,height_px_u,width_px,height_px,raster_effects_preset")
+        .select(
+          "project_id,unit,width_value,height_value,dpi_x,dpi_y,width_px_u,height_px_u,width_px,height_px,raster_effects_preset,page_bg_enabled,page_bg_color,page_bg_opacity"
+        )
         .eq("project_id", projectId)
         .maybeSingle()
 
@@ -103,7 +111,9 @@ export function ProjectWorkspaceProvider({
         const { data: ins, error: insErr } = await supabase
           .from("project_workspace")
           .insert(def)
-          .select("project_id,unit,width_value,height_value,dpi_x,dpi_y,width_px_u,height_px_u,width_px,height_px,raster_effects_preset")
+          .select(
+            "project_id,unit,width_value,height_value,dpi_x,dpi_y,width_px_u,height_px_u,width_px,height_px,raster_effects_preset,page_bg_enabled,page_bg_color,page_bg_opacity"
+          )
           .single()
 
         if (insErr || !ins) {
@@ -134,7 +144,9 @@ export function ProjectWorkspaceProvider({
         const { data, error: upErr } = await supabase
           .from("project_workspace")
           .upsert(nextRow, { onConflict: "project_id" })
-          .select("project_id,unit,width_value,height_value,dpi_x,dpi_y,width_px_u,height_px_u,width_px,height_px,raster_effects_preset")
+          .select(
+            "project_id,unit,width_value,height_value,dpi_x,dpi_y,width_px_u,height_px_u,width_px,height_px,raster_effects_preset,page_bg_enabled,page_bg_color,page_bg_opacity"
+          )
           .single()
         if (upErr || !data) {
           setError(upErr?.message ?? "Failed to save workspace")
