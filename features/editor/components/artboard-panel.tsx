@@ -7,30 +7,26 @@
  * - Edit workspace unit, DPI, and artboard dimensions.
  * - Persist changes via `project_workspace` providers.
  */
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useEffect, useRef } from "react"
 import { ArrowLeftRight, ArrowUpDown, Gauge, Link2, Ruler, Unlink2 } from "lucide-react"
 
-import { clampPx, fmt2, pxUToPxNumber, pxUToUnitDisplay, type Unit, unitToPxU } from "@/lib/editor/units"
+import { fmt2, pxUToUnitDisplay, type Unit } from "@/lib/editor/units"
 import { parseNumericInput } from "@/lib/editor/numeric"
 import { Button } from "@/components/ui/button"
 import { SelectItem } from "@/components/ui/select"
 import { IconNumericField } from "./fields/icon-numeric-field"
 import { IconSelectField } from "./fields/icon-select-field"
 import { PanelIconSlot, PanelTwoFieldRow } from "./panel-layout"
-import { type WorkspaceRow, useProjectWorkspace } from "@/lib/editor/project-workspace"
+import { useProjectWorkspace } from "@/lib/editor/project-workspace"
 import { computeArtboardSizeDisplay } from "@/services/editor/artboard-display"
-
-function normalizeUnit(u: unknown): Unit {
-  if (u === "mm" || u === "cm" || u === "pt" || u === "px") return u
-  return "cm"
-}
-
-function presetFromDpi(dpi: number): "high" | "medium" | "low" | null {
-  if (dpi === 300) return "high"
-  if (dpi === 150) return "medium"
-  if (dpi === 72) return "low"
-  return null
-}
+import {
+  computeLockedDimension,
+  computeWorkspaceSizeSave,
+  computeWorkspaceUnitChange,
+  mapDpiToRasterPreset,
+  normalizeUnit,
+} from "@/services/editor/workspace-operations"
+import { useKeyedDraft } from "@/lib/editor/use-keyed-draft"
 
 function labelForPreset(p: "high" | "medium" | "low"): string {
   if (p === "high") return "High (300 ppi)"
@@ -48,26 +44,20 @@ function labelForPreset(p: "high" | "medium" | "low"): string {
 export function ArtboardPanel() {
   const { row, loading, saving, upsertWorkspace, widthPxU, heightPxU } = useProjectWorkspace()
 
-  type Keyed<T> = { projectId: string | null; value: T }
   const activeProjectId = row?.project_id ?? null
 
-  const [draftWidthState, setDraftWidthState] = useState<Keyed<string>>({ projectId: null, value: "" })
-  const [draftHeightState, setDraftHeightState] = useState<Keyed<string>>({ projectId: null, value: "" })
-  const [draftDpiState, setDraftDpiState] = useState<Keyed<string>>({ projectId: null, value: "" })
-  const [draftUnitState, setDraftUnitState] = useState<Keyed<Unit>>({ projectId: null, value: "mm" })
-  const [draftRasterPresetState, setDraftRasterPresetState] = useState<Keyed<"high" | "medium" | "low" | "custom">>({
-    projectId: null,
-    value: "high",
-  })
-  const [lockAspectState, setLockAspectState] = useState<Keyed<boolean>>({ projectId: null, value: false })
+  const computedDpi = row ? String(row.dpi_x) : ""
+  const computedUnit = row ? normalizeUnit((row as unknown as { unit?: unknown })?.unit) : "mm"
+  const computedPreset =
+    row ? ((row.raster_effects_preset ?? mapDpiToRasterPreset(Number(row.dpi_x)) ?? "custom") as "high" | "medium" | "low" | "custom") : "high"
 
-  const draftDpi = row && draftDpiState.projectId === activeProjectId ? draftDpiState.value : row ? String(row.dpi_x) : ""
-  const draftUnit =
-    row && draftUnitState.projectId === activeProjectId
-      ? draftUnitState.value
-      : row
-        ? normalizeUnit((row as unknown as { unit?: unknown })?.unit)
-        : "mm"
+  const { value: draftDpi, setValue: setDraftDpi } = useKeyedDraft(activeProjectId, computedDpi)
+  const { value: draftUnit, setValue: setDraftUnit } = useKeyedDraft<Unit>(activeProjectId, computedUnit)
+  const { value: draftRasterPreset, setValue: setDraftRasterPreset } = useKeyedDraft<"high" | "medium" | "low" | "custom">(
+    activeProjectId,
+    computedPreset
+  )
+  const { value: lockAspect, setValue: setLockAspect } = useKeyedDraft<boolean>(activeProjectId, false)
 
   const dpiForDisplay = Number(draftDpi) || Number(row?.dpi_x) || 300
   const computedDisplay =
@@ -75,30 +65,8 @@ export function ArtboardPanel() {
   const computedWidth = computedDisplay ? computedDisplay.width : row ? String(row.width_value) : ""
   const computedHeight = computedDisplay ? computedDisplay.height : row ? String(row.height_value) : ""
 
-  const draftWidth = row && draftWidthState.projectId === activeProjectId ? draftWidthState.value : computedWidth
-  const draftHeight = row && draftHeightState.projectId === activeProjectId ? draftHeightState.value : computedHeight
-  const draftRasterPreset =
-    row && draftRasterPresetState.projectId === activeProjectId
-      ? draftRasterPresetState.value
-      : row
-        ? (row.raster_effects_preset ?? presetFromDpi(Number(row.dpi_x)) ?? "custom")
-        : "high"
-  const lockAspect = row && lockAspectState.projectId === activeProjectId ? lockAspectState.value : false
-
-  const setDraftWidth = (next: string) => setDraftWidthState({ projectId: activeProjectId, value: next })
-  const setDraftHeight = (next: string) => setDraftHeightState({ projectId: activeProjectId, value: next })
-  const setDraftDpi = (next: string) => setDraftDpiState({ projectId: activeProjectId, value: next })
-  const setDraftUnit = (next: Unit) => setDraftUnitState({ projectId: activeProjectId, value: next })
-  const setDraftRasterPreset = (next: "high" | "medium" | "low" | "custom") =>
-    setDraftRasterPresetState({ projectId: activeProjectId, value: next })
-  const setLockAspect = (updater: boolean | ((prev: boolean) => boolean)) =>
-    setLockAspectState((prev) => ({
-      projectId: activeProjectId,
-      value:
-        typeof updater === "function"
-          ? (updater as (p: boolean) => boolean)(prev.projectId === activeProjectId ? prev.value : false)
-          : updater,
-    }))
+  const { value: draftWidth, setValue: setDraftWidth } = useKeyedDraft(activeProjectId, computedWidth)
+  const { value: draftHeight, setValue: setDraftHeight } = useKeyedDraft(activeProjectId, computedHeight)
 
   const lastSubmitRef = useRef<string | null>(null)
   const ignoreNextBlurSaveRef = useRef(false)
@@ -119,7 +87,7 @@ export function ArtboardPanel() {
   const canonicalW = widthPxU
   const canonicalH = heightPxU
 
-  const saveSize = useCallback(async () => {
+  const saveSize = async () => {
     if (!row) return
     if (saving) return
     if (!canonicalW || !canonicalH) return
@@ -127,43 +95,20 @@ export function ArtboardPanel() {
     const dpi = Number(draftDpi) || Number(row.dpi_x) || 300
     if (!Number.isFinite(dpi) || dpi <= 0) return
 
-    const wStr = String(draftWidth).trim()
-    const hStr = String(draftHeight).trim()
-    if (!wStr || !hStr) return
+    const computed = computeWorkspaceSizeSave({
+      base: row,
+      unit: draftUnit,
+      dpi,
+      draftW: draftWidth,
+      draftH: draftHeight,
+    })
+    if ("error" in computed) return
 
-    let nextWPxU: bigint
-    let nextHPxU: bigint
-    try {
-      nextWPxU = unitToPxU(wStr, draftUnit, dpi)
-      nextHPxU = unitToPxU(hStr, draftUnit, dpi)
-    } catch {
-      return
-    }
-
-    const signature = `${row.project_id}:${draftUnit}:${nextWPxU}:${nextHPxU}:${dpi}:${row.raster_effects_preset ?? ""}`
+    const signature = computed.signature
     if (lastSubmitRef.current === signature) return
     lastSubmitRef.current = signature
 
-    const width_px_u = nextWPxU.toString()
-    const height_px_u = nextHPxU.toString()
-    const width_px = clampPx(pxUToPxNumber(nextWPxU))
-    const height_px = clampPx(pxUToPxNumber(nextHPxU))
-
-    const nextRow: WorkspaceRow = {
-      ...row,
-      unit: draftUnit,
-      dpi_x: dpi,
-      dpi_y: dpi,
-      width_value: Number(wStr),
-      height_value: Number(hStr),
-      width_px_u,
-      height_px_u,
-      width_px,
-      height_px,
-      raster_effects_preset: presetFromDpi(dpi),
-    }
-
-    const saved = await upsertWorkspace(nextRow)
+    const saved = await upsertWorkspace(computed.next)
     if (!saved) {
       lastSubmitRef.current = null
       return
@@ -174,26 +119,21 @@ export function ArtboardPanel() {
     const savedDpi = Number(saved.dpi_x) || dpi
     const wU = BigInt(saved.width_px_u)
     const hU = BigInt(saved.height_px_u)
-    setDraftWidthState({ projectId: activeProjectId, value: pxUToUnitDisplay(wU, unitNormalized, savedDpi) })
-    setDraftHeightState({ projectId: activeProjectId, value: pxUToUnitDisplay(hU, unitNormalized, savedDpi) })
-    setDraftDpiState({ projectId: activeProjectId, value: String(savedDpi) })
-    setDraftUnitState({ projectId: activeProjectId, value: unitNormalized })
-    setDraftRasterPresetState({
-      projectId: activeProjectId,
-      value: (saved.raster_effects_preset ?? presetFromDpi(savedDpi) ?? "custom") as "high" | "medium" | "low" | "custom",
-    })
-  }, [activeProjectId, canonicalH, canonicalW, draftDpi, draftHeight, draftUnit, draftWidth, row, saving, upsertWorkspace])
+    setDraftWidth(pxUToUnitDisplay(wU, unitNormalized, savedDpi))
+    setDraftHeight(pxUToUnitDisplay(hU, unitNormalized, savedDpi))
+    setDraftDpi(String(savedDpi))
+    setDraftUnit(unitNormalized)
+    setDraftRasterPreset((saved.raster_effects_preset ?? mapDpiToRasterPreset(savedDpi) ?? "custom") as "high" | "medium" | "low" | "custom")
+  }
 
-  const saveUnitOnly = useCallback(
-    async (nextUnit: Unit) => {
-      if (!row) return
-      if (saving) return
-      const saved = await upsertWorkspace({ ...row, unit: nextUnit })
-      if (!saved) return
-      setDraftUnitState({ projectId: activeProjectId, value: nextUnit })
-    },
-    [activeProjectId, row, saving, upsertWorkspace]
-  )
+  const saveUnitOnly = async (nextUnit: Unit) => {
+    if (!row) return
+    if (saving) return
+    const computed = computeWorkspaceUnitChange({ base: row, nextUnit })
+    const saved = await upsertWorkspace(computed.next)
+    if (!saved) return
+    setDraftUnit(nextUnit)
+  }
 
   const onUnitChange = (nextUnit: Unit) => {
     if (loading || saving) return
@@ -261,7 +201,9 @@ export function ArtboardPanel() {
             lockRatioRef.current = r
             const w = parseNumericInput(next)
             if (!Number.isFinite(w) || w <= 0) return
-            setDraftHeight(fmt2(w / r))
+            const nextH = computeLockedDimension({ changedValue: w, ratio: r, changedAxis: "w" })
+            if (nextH == null) return
+            setDraftHeight(fmt2(nextH))
           }}
           mode="float"
           ariaLabel="Artboard width"
@@ -292,7 +234,9 @@ export function ArtboardPanel() {
             lockRatioRef.current = r
             const h = parseNumericInput(next)
             if (!Number.isFinite(h) || h <= 0) return
-            setDraftWidth(fmt2(h * r))
+            const nextW = computeLockedDimension({ changedValue: h, ratio: r, changedAxis: "h" })
+            if (nextW == null) return
+            setDraftWidth(fmt2(nextW))
           }}
           mode="float"
           ariaLabel="Artboard height"

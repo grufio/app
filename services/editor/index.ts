@@ -12,12 +12,17 @@ export * from "./workspace/types"
 export * from "./workspace/normalize"
 export * from "./workspace/default"
 export * from "./workspace/browser-repo-supabase"
+export * from "./workspace-operations"
+
+export * from "./canvas/world-size"
+export * from "./canvas/selection-handles"
 
 export * from "./grid/types"
 export * from "./grid/normalize"
 export * from "./grid/default"
 export * from "./grid/schema-errors"
 export * from "./grid/browser-repo-supabase"
+export * from "./grid/operations"
 
 export * from "./server/schema-errors"
 export * from "./server/master-image"

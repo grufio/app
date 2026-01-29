@@ -12,13 +12,8 @@ import { useCallback, useMemo, useRef, useState } from "react"
 
 import type { LayerNode, LayerKind } from "@/lib/editor/layers-tree"
 import { cn } from "@/lib/utils"
-
-type FlatRow = {
-  node: LayerNode
-  depth: number
-  hasChildren: boolean
-  isExpanded: boolean
-}
+import { flattenLayerTree, type FlatLayerRow } from "@/lib/editor/layers/flatten"
+import { nextLayerTreeStateFromKey } from "@/lib/editor/layers/keyboard"
 
 type Props = {
   root: LayerNode
@@ -31,20 +26,6 @@ function iconFor(kind: LayerKind) {
   if (kind === "artboard") return LayoutGrid
   if (kind === "image") return ImageIcon
   return SlidersHorizontal
-}
-
-function flatten(root: LayerNode, expanded: Set<string>): FlatRow[] {
-  const rows: FlatRow[] = []
-  const walk = (n: LayerNode, depth: number) => {
-    const children = n.children ?? []
-    const hasChildren = children.length > 0
-    const isExpanded = hasChildren ? expanded.has(n.id) : false
-    rows.push({ node: n, depth, hasChildren, isExpanded })
-    if (!hasChildren || !isExpanded) return
-    for (const c of children) walk(c, depth + 1)
-  }
-  walk(root, 0)
-  return rows
 }
 
 function isTypingTarget(el: EventTarget | null): boolean {
@@ -67,7 +48,7 @@ export function LayersMenu({ root, selectedId, onSelect, className }: Props) {
     [expandedState.expanded, expandedState.rootId, root.id]
   )
 
-  const rows = useMemo(() => flatten(root, expandedIds), [expandedIds, root])
+  const rows = useMemo(() => flattenLayerTree(root, expandedIds), [expandedIds, root])
 
   const toggle = useCallback(
     (id: string) => {
@@ -97,55 +78,29 @@ export function LayersMenu({ root, selectedId, onSelect, className }: Props) {
     if (e.defaultPrevented) return
     if (isTypingTarget(e.target)) return
 
-    if (e.key === "ArrowDown") {
-      e.preventDefault()
-      const next = Math.min(rows.length - 1, Math.max(0, selectedIdx) + 1)
-      const r = rows[next]
+    const res = nextLayerTreeStateFromKey({ key: e.key, selectedIndex: selectedIdx, rows: rows as FlatLayerRow[] })
+    if (!res.preventDefault) return
+    e.preventDefault()
+
+    if (res.selectId) {
+      const r = rows.find((x) => x.node.id === res.selectId)
       if (r) onSelect({ id: r.node.id, kind: r.node.kind, parentId: r.node.parentId })
-      queueMicrotask(() => focusByIndex(next))
     }
-    if (e.key === "ArrowUp") {
-      e.preventDefault()
-      const next = Math.max(0, Math.max(0, selectedIdx) - 1)
-      const r = rows[next]
-      if (r) onSelect({ id: r.node.id, kind: r.node.kind, parentId: r.node.parentId })
-      queueMicrotask(() => focusByIndex(next))
+    if (typeof res.nextSelectedIndex === "number") {
+      queueMicrotask(() => focusByIndex(res.nextSelectedIndex!))
     }
-    if (e.key === "ArrowRight") {
-      const r = rows[selectedIdx]
-      if (!r?.hasChildren) return
-      e.preventDefault()
+    if (res.toggleExpandId) {
+      toggle(res.toggleExpandId)
+    }
+    if (res.setExpandedId) {
       setExpandedState((prev) => {
         const base = prev.rootId === root.id ? prev.expanded : new Set([root.id])
         const next = new Set(base)
-        next.add(r.node.id)
+        if (res.setExpandedId!.expanded) next.add(res.setExpandedId!.id)
+        else next.delete(res.setExpandedId!.id)
         next.add(root.id)
         return { rootId: root.id, expanded: next }
       })
-    }
-    if (e.key === "ArrowLeft") {
-      const r = rows[selectedIdx]
-      if (!r?.hasChildren) return
-      e.preventDefault()
-      setExpandedState((prev) => {
-        const base = prev.rootId === root.id ? prev.expanded : new Set([root.id])
-        const next = new Set(base)
-        next.delete(r.node.id)
-        next.add(root.id)
-        return { rootId: root.id, expanded: next }
-      })
-    }
-    if (e.key === "Enter") {
-      e.preventDefault()
-      const r = rows[selectedIdx]
-      if (!r) return
-      onSelect({ id: r.node.id, kind: r.node.kind, parentId: r.node.parentId })
-    }
-    if (e.key === " ") {
-      const r = rows[selectedIdx]
-      if (!r?.hasChildren) return
-      e.preventDefault()
-      toggle(r.node.id)
     }
   }
 

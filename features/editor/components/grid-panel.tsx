@@ -7,7 +7,7 @@
  * - Configure grid spacing and line style for the editor artboard.
  * - Persist settings via `project_grid`.
  */
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef } from "react"
 import { ArrowLeftRight, ArrowUpDown, Palette, Ruler } from "lucide-react"
 
 import { IconColorField } from "./fields/icon-color-field"
@@ -16,8 +16,8 @@ import { PanelIconSlot, PanelTwoFieldRow } from "./panel-layout"
 import { EditorSidebarSection } from "./sidebar/editor-sidebar-section"
 import { useProjectGrid, type ProjectGridRow } from "@/lib/editor/project-grid"
 import { useProjectWorkspace } from "@/lib/editor/project-workspace"
-
-type Keyed<T> = { projectId: string | null; value: T }
+import { computeGridUpsert } from "@/services/editor"
+import { useKeyedDraft } from "@/lib/editor/use-keyed-draft"
 
 export function GridPanel() {
   const { projectId, row, loading, saving, error, upsertGrid } = useProjectGrid()
@@ -25,18 +25,13 @@ export function GridPanel() {
 
   const effectiveUnit = workspaceUnit ?? row?.unit ?? "cm"
 
-  const [draftWState, setDraftWState] = useState<Keyed<string>>({ projectId: null, value: "" })
-  const [draftHState, setDraftHState] = useState<Keyed<string>>({ projectId: null, value: "" })
-  const [draftLineWidthState, setDraftLineWidthState] = useState<Keyed<string>>({ projectId: null, value: "" })
+  const computedW = row ? String(row.spacing_x_value) : ""
+  const computedH = row ? String(row.spacing_y_value) : ""
+  const computedLineWidth = row ? String(row.line_width_value) : ""
 
-  const draftW = row && draftWState.projectId === projectId ? draftWState.value : row ? String(row.spacing_x_value) : ""
-  const draftH = row && draftHState.projectId === projectId ? draftHState.value : row ? String(row.spacing_y_value) : ""
-  const draftLineWidth =
-    row && draftLineWidthState.projectId === projectId ? draftLineWidthState.value : row ? String(row.line_width_value) : ""
-
-  const setDraftW = (next: string) => setDraftWState({ projectId, value: next })
-  const setDraftH = (next: string) => setDraftHState({ projectId, value: next })
-  const setDraftLineWidth = (next: string) => setDraftLineWidthState({ projectId, value: next })
+  const { value: draftW, setValue: setDraftW } = useKeyedDraft(projectId ?? null, computedW)
+  const { value: draftH, setValue: setDraftH } = useKeyedDraft(projectId ?? null, computedH)
+  const { value: draftLineWidth, setValue: setDraftLineWidth } = useKeyedDraft(projectId ?? null, computedLineWidth)
 
   const lastSubmitRef = useRef<string | null>(null)
   const ignoreNextBlurSaveRef = useRef(false)
@@ -53,11 +48,11 @@ export function GridPanel() {
       if (!row) return
       if (saving) return
 
-      const signature = `${next.project_id}:${next.unit}:${next.spacing_x_value}:${next.spacing_y_value}:${next.line_width_value}:${next.color}`
+      const { next: merged, signature } = computeGridUpsert(next, row)
       if (lastSubmitRef.current === signature) return
       lastSubmitRef.current = signature
 
-      await upsertGrid(next)
+      await upsertGrid(merged)
     },
     [row, saving, upsertGrid]
   )

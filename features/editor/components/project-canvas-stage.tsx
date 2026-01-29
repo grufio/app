@@ -22,6 +22,7 @@ import { createRafScheduler, RAF_BOUNDS, RAF_DRAG_BOUNDS, RAF_PAN } from "./canv
 import { createTransformController } from "./canvas-stage/transform-controller"
 import type { BoundsRect, ViewState } from "./canvas-stage/types"
 import { useHtmlImage } from "./canvas-stage/use-html-image"
+import { computeSelectionHandleRects, computeWorldSize } from "@/services/editor"
 
 type Props = {
   src?: string
@@ -102,38 +103,16 @@ const SelectionOverlay = memo(function SelectionOverlay({
   snapWorldToDeviceHalfPixel: (worldCoord: number, axis: "x" | "y") => number
 }) {
   if (!imageBounds) return null
-  const x1 = snapWorldToDeviceHalfPixel(imageBounds.x, "x")
-  const y1 = snapWorldToDeviceHalfPixel(imageBounds.y, "y")
-  const x2 = snapWorldToDeviceHalfPixel(imageBounds.x + imageBounds.w, "x")
-  const y2 = snapWorldToDeviceHalfPixel(imageBounds.y + imageBounds.h, "y")
-
-  const handleW = selectionHandlePx
-  const handleH = selectionHandlePx
-
-  const toWorldFromScreen = (screen: number, axis: "x" | "y") => {
-    const offset = axis === "x" ? view.x : view.y
-    const scale = view.scale || 1
-    return (screen - offset) / scale
-  }
-
-  const handleAt = (screenX: number, screenY: number) => {
-    // Center the handle around the corner point in *screen* space (constant px size),
-    // then convert back to world coordinates.
-    const left = Math.round(screenX - selectionHandlePx / 2)
-    const top = Math.round(screenY - selectionHandlePx / 2)
-    return { x: toWorldFromScreen(left, "x"), y: toWorldFromScreen(top, "y") }
-  }
-
-  // Corner screen coords (for pixel-snapped handle placement)
-  const cornerTL = { x: view.x + x1 * view.scale, y: view.y + y1 * view.scale }
-  const cornerTR = { x: view.x + x2 * view.scale, y: view.y + y1 * view.scale }
-  const cornerBR = { x: view.x + x2 * view.scale, y: view.y + y2 * view.scale }
-  const cornerBL = { x: view.x + x1 * view.scale, y: view.y + y2 * view.scale }
-
-  const tl = handleAt(cornerTL.x, cornerTL.y)
-  const tr = handleAt(cornerTR.x, cornerTR.y)
-  const br = handleAt(cornerBR.x, cornerBR.y)
-  const bl = handleAt(cornerBL.x, cornerBL.y)
+  const rects = computeSelectionHandleRects({
+    bounds: { x: imageBounds.x, y: imageBounds.y, w: imageBounds.w, h: imageBounds.h },
+    view: { x: view.x, y: view.y, scale: view.scale },
+    handlePx: selectionHandlePx,
+    snapWorldToDeviceHalfPixel,
+  })
+  const { x1, y1, x2, y2 } = rects.outline
+  const { tl, tr, br, bl } = rects.handles
+  const handleW = rects.handleSize.w
+  const handleH = rects.handleSize.h
 
   return (
     <>
@@ -345,10 +324,14 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     // "World" size is used for view math (fit/pan/zoom). Prefer explicit artboard,
     // otherwise fall back to intrinsic image metadata (DB), and only then DOM image values.
     const intrinsic = pickIntrinsicSize({ intrinsicWidthPx, intrinsicHeightPx, img })
-    const w = artboardWidthPx && artboardWidthPx > 0 ? artboardWidthPx : intrinsic?.w
-    const h = artboardHeightPx && artboardHeightPx > 0 ? artboardHeightPx : intrinsic?.h
-    if (!w || !h) return null
-    return { w, h }
+    return computeWorldSize({
+      artboardWidthPx,
+      artboardHeightPx,
+      intrinsicWidthPx: intrinsic?.w,
+      intrinsicHeightPx: intrinsic?.h,
+      domWidthPx: img?.width,
+      domHeightPx: img?.height,
+    })
   }, [artboardHeightPx, artboardWidthPx, img, intrinsicHeightPx, intrinsicWidthPx])
 
   // `hasArtboard` controls layout math and must be based on explicit artboard px inputs.
