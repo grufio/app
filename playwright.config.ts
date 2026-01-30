@@ -32,7 +32,7 @@ export default defineConfig({
         // set `PLAYWRIGHT_BASE_URL` to reuse it.
         command: "npm run dev:e2e",
         url: baseURL,
-        // Always reuse if something is already listening on baseURL.
+        // Reuse if something is already listening on baseURL (avoids `.next/dev/lock` conflicts).
         reuseExistingServer: true,
         timeout: 120_000,
         env: {

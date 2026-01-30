@@ -1,37 +1,37 @@
 ## Release checklist (MVP)
 
-### 1) Database migrations
+### 1) MVP release gate (local-only)
 
-- Canonical migrations (recommended): `supabase/migrations/*.sql` (Supabase CLI-first)
-  - Run the remote gate (requires linked project):
+```bash
+npm ci
+npm run check
+```
+
+Optional smoke (recommended before demos/releases):
+
+```bash
+npm run test:e2e:install
+npm run test:e2e
+```
+
+Notes:
+- `npm run test:e2e` runs the **single** editor boot smoke (tripwire).
+- Playwright browsers are installed into the repo-local cache (`.playwright-browsers/`) to avoid cross-arch cache issues on macOS.
+
+### 2) Optional: remote verification (use when needed)
+
+If you suspect “works locally, fails in Supabase” (migration/policy drift), use the CLI-first workflow in `docs/migrations.md`:
 
 ```bash
 npm run verify:remote-migrations
 npm run verify:remote-rls
 ```
 
-  - If it fails because migrations are missing, apply them:
+If migrations are missing:
 
 ```bash
 supabase db push --linked
 ```
-
-- Legacy fallback: `db/0xx_*.sql` (SQL editor)
-  - Apply each new migration in Supabase SQL editor (see `docs/migrations.md`)
-  - If using `public.schema_migrations`, insert a row per applied migration (filename + checksum)
-
-### 2) Local verification
-
-Run:
-
-```bash
-npm run test:e2e:install
-npm run check
-npm run test:e2e
-```
-
-Notes:
-- Playwright browsers are installed into the repo-local cache (`.playwright-browsers/`) to avoid cross-arch cache issues on macOS.
 
 ### 3) Manual QA (editor)
 
@@ -47,8 +47,6 @@ Minimum:
 
 ### 4) Production sanity checks
 
-- Pre-release gate (recommended):
-  - Run the GitHub Actions workflow **“Pre-release gates”** (manual trigger) to enforce remote checks.
 - Auth:
   - Unauthed: `/dashboard` redirects to `/login`
   - Authed: `/login` redirects to `/dashboard`

@@ -6,6 +6,7 @@
  * - Fetch initial workspace/grid/image/image-state data server-side and hydrate client editor.
  */
 import { notFound, redirect } from "next/navigation"
+import { headers } from "next/headers"
 
 import { ProjectWorkspaceProvider, type WorkspaceRow } from "@/lib/editor/project-workspace"
 import { ProjectGridProvider, type ProjectGridRow } from "@/lib/editor/project-grid"
@@ -92,7 +93,10 @@ export default async function ProjectDetailPage({ params }: { params: { projectI
   const resolved = awaitedParams instanceof Promise ? await awaitedParams : awaitedParams
   const projectId = String(resolved?.projectId ?? "")
   if (!isUuid(String(projectId))) notFound()
-  const isE2E = process.env.NEXT_PUBLIC_E2E_TEST === "1" || process.env.E2E_TEST === "1"
+  const headersList = await headers()
+  const isE2EHeader = headersList.get("x-e2e-test") === "1"
+  const isE2EEnv = process.env.NEXT_PUBLIC_E2E_TEST === "1" || process.env.E2E_TEST === "1"
+  const isE2E = isE2EHeader || isE2EEnv
   // E2E runs with mocked browser network and no real Supabase; skip server fetch in that mode.
   const { project, workspace, grid, masterImage, imageState } = isE2E
     ? { project: null, workspace: null, grid: null, masterImage: null, imageState: null }
