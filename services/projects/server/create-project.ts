@@ -40,10 +40,10 @@ export async function createProjectWithWorkspace(
   const dpi = Number(input.dpi)
 
   const validUnits: Unit[] = ["mm", "cm", "pt", "px"]
-  if (!unit || !validUnits.includes(unit)) return { ok: false, stage: "validate", message: "Invalid unit" }
-  if (!Number.isFinite(width_value) || width_value <= 0) return { ok: false, stage: "validate", message: "Invalid width_value" }
-  if (!Number.isFinite(height_value) || height_value <= 0) return { ok: false, stage: "validate", message: "Invalid height_value" }
-  if (!Number.isFinite(dpi) || dpi <= 0) return { ok: false, stage: "validate", message: "Invalid dpi" }
+  if (!unit || !validUnits.includes(unit)) return { ok: false, stage: "validation", message: "Invalid unit" }
+  if (!Number.isFinite(width_value) || width_value <= 0) return { ok: false, stage: "validation", message: "Invalid width_value" }
+  if (!Number.isFinite(height_value) || height_value <= 0) return { ok: false, stage: "validation", message: "Invalid height_value" }
+  if (!Number.isFinite(dpi) || dpi <= 0) return { ok: false, stage: "validation", message: "Invalid dpi" }
 
   const name = typeof input.name === "string" && input.name.trim() ? input.name.trim() : "Untitled"
 

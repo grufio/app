@@ -19,7 +19,7 @@ export async function POST(req: Request) {
   const u = await requireUser(supabase)
   if (!u.ok) return u.res
 
-  const parsed = await readJson(req, { stage: "body" })
+  const parsed = await readJson(req, { stage: "validation" })
   if (!parsed.ok) return parsed.res
   const body = parsed.value as unknown
 

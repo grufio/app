@@ -15,7 +15,7 @@ describe("API routes", () => {
     const res = await mod.GET(new Request("http://test.local"), { params: Promise.resolve({ projectId: "nope" }) })
     expect(res.status).toBe(400)
     const body = await res.json()
-    expect(body.stage).toBe("params")
+    expect(body.stage).toBe("validation")
   })
 
   it("master upload route rejects invalid UUID params", async () => {
@@ -23,7 +23,7 @@ describe("API routes", () => {
     const res = await mod.POST(new Request("http://test.local", { method: "POST" }), { params: Promise.resolve({ projectId: "nope" }) })
     expect(res.status).toBe(400)
     const body = await res.json()
-    expect(body.stage).toBe("params")
+    expect(body.stage).toBe("validation")
   })
 
   it("image-state route rejects invalid UUID params", async () => {
@@ -31,7 +31,7 @@ describe("API routes", () => {
     const res = await mod.POST(new Request("http://test.local", { method: "POST" }), { params: Promise.resolve({ projectId: "nope" }) })
     expect(res.status).toBe(400)
     const body = await res.json()
-    expect(body.stage).toBe("params")
+    expect(body.stage).toBe("validation")
   })
 
   it("master image signed URL cache is user-scoped", async () => {

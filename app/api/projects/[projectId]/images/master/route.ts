@@ -34,7 +34,7 @@ export async function GET(
 ) {
   const { projectId } = await params
   if (!isUuid(String(projectId))) {
-    return jsonError("Invalid projectId", 400, { stage: "params" })
+    return jsonError("Invalid projectId", 400, { stage: "validation", where: "params" })
   }
   const supabase = await createSupabaseServerClient()
 
@@ -78,7 +78,7 @@ export async function GET(
     .createSignedUrl(img.storage_path, SIGNED_URL_TTL_S)
 
   if (signedErr || !signed?.signedUrl) {
-    return jsonError(signedErr?.message ?? "Failed to create signed URL", 400, { stage: "signed_url" })
+    return jsonError(signedErr?.message ?? "Failed to create signed URL", 400, { stage: "storage_policy", op: "createSignedUrl" })
   }
 
   signedUrlCache.set(cacheKey, { url: signed.signedUrl, expiresAtMs: now + SIGNED_URL_TTL_S * 1000 })
@@ -106,14 +106,14 @@ export async function POST(
 ) {
   const { projectId } = await params
   if (!isUuid(String(projectId))) {
-    return jsonError("Invalid projectId", 400, { stage: "params" })
+    return jsonError("Invalid projectId", 400, { stage: "validation", where: "params" })
   }
   const supabase = await createSupabaseServerClient()
 
   const u = await requireUser(supabase)
   if (!u.ok) return u.res
 
-  const parsed = await readJson<Body>(req, { stage: "body" })
+  const parsed = await readJson<Body>(req, { stage: "validation" })
   if (!parsed.ok) return parsed.res
   const body = parsed.value
 
@@ -125,7 +125,7 @@ export async function POST(
     !Number.isFinite(body.height_px) ||
     !Number.isFinite(body.file_size_bytes)
   ) {
-    return jsonError("Missing/invalid fields", 400, { stage: "validate" })
+    return jsonError("Missing/invalid fields", 400, { stage: "validation", where: "validate" })
   }
 
   // Upsert master image row; RLS enforces owner-only via projects.owner_id = auth.uid().
@@ -161,7 +161,7 @@ export async function DELETE(
 ) {
   const { projectId } = await params
   if (!isUuid(String(projectId))) {
-    return jsonError("Invalid projectId", 400, { stage: "params" })
+    return jsonError("Invalid projectId", 400, { stage: "validation", where: "params" })
   }
   const supabase = await createSupabaseServerClient()
 
@@ -185,7 +185,7 @@ export async function DELETE(
 
   const { error: rmErr } = await supabase.storage.from("project_images").remove([img.storage_path])
   if (rmErr) {
-    return jsonError(rmErr.message, 400, { stage: "storage_remove", storage_path: img.storage_path })
+    return jsonError(rmErr.message, 400, { stage: "storage_policy", op: "remove", storage_path: img.storage_path })
   }
 
   const { error: delErr } = await supabase

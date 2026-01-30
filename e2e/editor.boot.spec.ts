@@ -10,22 +10,42 @@ import { test, expect, type Request } from "@playwright/test"
 import { unitToPxU } from "../lib/editor/units"
 import { PROJECT_ID, setupMockRoutes } from "./_mocks"
 
+async function assertEditorSurfaceVisible(page: import("@playwright/test").Page, projectId: string) {
+  await expect(page).toHaveURL(new RegExp(`/projects/${projectId.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\\\$&")}$`))
+
+  const crashed = page.getByText("Editor crashed")
+  const canvasRoot = page.getByTestId("editor-canvas-root")
+  const artboardPanel = page.getByTestId("editor-artboard-panel")
+
+  // Wait for either the happy path (canvas + at least one panel) or the error boundary.
+  await expect(crashed.or(canvasRoot)).toBeVisible()
+
+  if (await crashed.isVisible()) {
+    const details = await page.locator("pre").first().textContent().catch(() => null)
+    throw new Error(`Editor crashed in E2E.\n\n${details ?? "(no stack available)"}`)
+  }
+
+  // Canvas is present; now ensure the sidebar content is also mounted.
+  await expect(artboardPanel.or(page.getByLabel("Image width (cm)"))).toBeVisible()
+}
+
 test("smoke: /projects/:id loads editor with artboard + canvas", async ({ page }) => {
-  await page.setExtraHTTPHeaders({ "x-e2e-test": "1" })
+  await page.setExtraHTTPHeaders({ "x-e2e-test": "1", "x-e2e-user": "1" })
   await setupMockRoutes(page, { withImage: true })
 
-  await page.goto(`/projects/${PROJECT_ID}`)
-  await expect(page.getByTestId("editor-artboard-panel")).toBeVisible()
-  await expect(page.getByTestId("editor-canvas-root")).toBeVisible()
+  const res = await page.goto(`/projects/${PROJECT_ID}`)
+  expect(res?.ok()).toBe(true)
+  await assertEditorSurfaceVisible(page, PROJECT_ID)
   await expect(page.locator("canvas").first()).toBeVisible()
 })
 
 test("storage: upload → master returns signed URL → editor renders image", async ({ page }) => {
-  await page.setExtraHTTPHeaders({ "x-e2e-test": "1" })
+  await page.setExtraHTTPHeaders({ "x-e2e-test": "1", "x-e2e-user": "1" })
   await setupMockRoutes(page, { withImage: false })
 
-  await page.goto(`/projects/${PROJECT_ID}`)
-  await expect(page.getByTestId("editor-canvas-root")).toBeVisible()
+  const res = await page.goto(`/projects/${PROJECT_ID}`)
+  expect(res?.ok()).toBe(true)
+  await assertEditorSurfaceVisible(page, PROJECT_ID)
 
   const upload = await page.evaluate(async (projectId: string) => {
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10"><rect width="20" height="10" fill="#ff3b30"/></svg>`
@@ -56,7 +76,7 @@ test("storage: upload → master returns signed URL → editor renders image", a
 })
 
 test("image size: setting 100mm survives reload (no drift)", async ({ page }) => {
-  await page.setExtraHTTPHeaders({ "x-e2e-test": "1" })
+  await page.setExtraHTTPHeaders({ "x-e2e-test": "1", "x-e2e-user": "1" })
   let imageStatePosts = 0
   await setupMockRoutes(page, {
     withImage: true,
@@ -129,7 +149,7 @@ test("image size: setting 100mm survives reload (no drift)", async ({ page }) =>
 })
 
 test("image transform chain: resize + rotate + drag persists", async ({ page }) => {
-  await page.setExtraHTTPHeaders({ "x-e2e-test": "1" })
+  await page.setExtraHTTPHeaders({ "x-e2e-test": "1", "x-e2e-user": "1" })
   await setupMockRoutes(page, {
     withImage: true,
     workspace: {
@@ -257,7 +277,7 @@ test("image transform chain: resize + rotate + drag persists", async ({ page }) 
 })
 
 test("page background: toggling persists via workspace upsert", async ({ page }) => {
-  await page.setExtraHTTPHeaders({ "x-e2e-test": "1" })
+  await page.setExtraHTTPHeaders({ "x-e2e-test": "1", "x-e2e-user": "1" })
   let workspaceUpserts = 0
 
   await setupMockRoutes(page, {

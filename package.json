@@ -19,12 +19,13 @@
     "check:db-schema": "node scripts/check-db-schema.mjs",
     "verify:rls": "node scripts/verify-rls.mjs",
     "verify:remote-migrations": "node scripts/verify-remote-migrations.mjs",
+    "verify:remote-rls": "node scripts/verify-remote-rls.mjs",
     "verify:types-synced": "node scripts/verify-types-synced.mjs",
     "db:pull": "supabase db pull --linked",
     "db:push": "supabase db push --linked",
     "types:gen": "supabase gen types typescript --linked --schema public > lib/supabase/database.types.ts",
-    "test:e2e:install": "playwright install",
-    "test:e2e": "playwright test e2e/editor.boot.spec.ts"
+    "test:e2e:install": "PLAYWRIGHT_BROWSERS_PATH=.playwright-browsers playwright install",
+    "test:e2e": "PLAYWRIGHT_BROWSERS_PATH=.playwright-browsers playwright test e2e/editor.boot.spec.ts"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.11",

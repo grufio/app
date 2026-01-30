@@ -17,7 +17,7 @@ export async function GET(
 ) {
   const { projectId } = await params
   if (!isUuid(String(projectId))) {
-    return jsonError("Invalid projectId", 400, { stage: "params" })
+    return jsonError("Invalid projectId", 400, { stage: "validation", where: "params" })
   }
   const supabase = await createSupabaseServerClient()
 

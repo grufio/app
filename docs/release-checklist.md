@@ -7,6 +7,7 @@
 
 ```bash
 npm run verify:remote-migrations
+npm run verify:remote-rls
 ```
 
   - If it fails because migrations are missing, apply them:
@@ -29,6 +30,9 @@ npm run check
 npm run test:e2e
 ```
 
+Notes:
+- Playwright browsers are installed into the repo-local cache (`.playwright-browsers/`) to avoid cross-arch cache issues on macOS.
+
 ### 3) Manual QA (editor)
 
 Use:
@@ -43,6 +47,8 @@ Minimum:
 
 ### 4) Production sanity checks
 
+- Pre-release gate (recommended):
+  - Run the GitHub Actions workflow **“Pre-release gates”** (manual trigger) to enforce remote checks.
 - Auth:
   - Unauthed: `/dashboard` redirects to `/login`
   - Authed: `/login` redirects to `/dashboard`

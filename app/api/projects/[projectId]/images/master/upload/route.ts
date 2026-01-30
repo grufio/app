@@ -25,7 +25,7 @@ export async function POST(
 ) {
   const { projectId } = await params
   if (!isUuid(String(projectId))) {
-    return jsonError("Invalid projectId", 400, { stage: "params" })
+    return jsonError("Invalid projectId", 400, { stage: "validation", where: "params" })
   }
   const supabase = await createSupabaseServerClient()
 
@@ -58,17 +58,17 @@ export async function POST(
 
   if (projectErr || !projectRow) {
     console.warn("master upload: project access denied", { projectId, code: (projectErr as unknown as { code?: string })?.code })
-    return jsonError("Forbidden (project not accessible)", 403, { stage: "project_access" })
+    return jsonError("Forbidden (project not accessible)", 403, { stage: "rls_denied", where: "project_access" })
   }
 
   const form = await req.formData().catch(() => null)
   if (!form) {
-    return jsonError("Invalid multipart form data", 400, { stage: "body" })
+    return jsonError("Invalid multipart form data", 400, { stage: "validation", where: "body" })
   }
 
   const file = form.get("file")
   if (!(file instanceof File)) {
-    return jsonError("Missing file", 400, { stage: "validate" })
+    return jsonError("Missing file", 400, { stage: "validation", where: "validate" })
   }
 
   const width_px = Number(form.get("width_px"))
@@ -76,7 +76,7 @@ export async function POST(
   const format = String(form.get("format") ?? "unknown")
 
   if (!Number.isFinite(width_px) || !Number.isFinite(height_px)) {
-    return jsonError("Missing/invalid width_px/height_px", 400, { stage: "validate" })
+    return jsonError("Missing/invalid width_px/height_px", 400, { stage: "validation", where: "validate" })
   }
 
   const objectPath = `projects/${projectId}/master/${crypto.randomUUID()}-${sanitizeFilename(file.name)}`
@@ -89,7 +89,7 @@ export async function POST(
 
   if (uploadErr) {
     console.warn("master upload: storage upload failed", { projectId, message: uploadErr.message })
-    return jsonError(uploadErr.message, 400, { stage: "storage_upload" })
+    return jsonError(uploadErr.message, 400, { stage: "storage_policy", op: "upload" })
   }
 
   // Upsert DB record for master image.

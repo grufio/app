@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic"
 export async function GET(_req: Request, { params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params
   if (!isUuid(String(projectId))) {
-    return jsonError("Invalid projectId", 400, { stage: "params" })
+    return jsonError("Invalid projectId", 400, { stage: "validation", where: "params" })
   }
   const supabase = await createSupabaseServerClient()
 
@@ -35,7 +35,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ project
   }
 
   if (data && (!data.width_px_u || !data.height_px_u)) {
-    return jsonError("Unsupported image state: missing width_px_u/height_px_u", 400, { stage: "validate_state" })
+    return jsonError("Unsupported image state: missing width_px_u/height_px_u", 400, { stage: "schema_missing", where: "validate_state" })
   }
 
   return NextResponse.json({ exists: Boolean(data), state: data ?? null })
@@ -44,7 +44,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ project
 export async function POST(req: Request, { params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params
   if (!isUuid(String(projectId))) {
-    return jsonError("Invalid projectId", 400, { stage: "params" })
+    return jsonError("Invalid projectId", 400, { stage: "validation", where: "params" })
   }
   const supabase = await createSupabaseServerClient()
 
@@ -58,16 +58,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ project
     return jsonError("Failed to verify project access", 400, { stage: "project_access" })
   }
   if (!projectRow?.id) {
-    return jsonError("Forbidden (project not accessible)", 403, { stage: "project_access" })
+    return jsonError("Forbidden (project not accessible)", 403, { stage: "rls_denied", where: "project_access" })
   }
 
-  const parsed = await readJson<IncomingImageStatePayload>(req, { stage: "body" })
+  const parsed = await readJson<IncomingImageStatePayload>(req, { stage: "validation" })
   if (!parsed.ok) return parsed.res
   const body: IncomingImageStatePayload = parsed.value
 
   const validated = validateIncomingImageStateUpsert(body)
   if (!validated) {
-    return jsonError("Invalid fields", 400, { stage: "validate" })
+    return jsonError("Invalid fields", 400, { stage: "validation", where: "validate" })
   }
 
   // µpx schema required.

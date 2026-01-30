@@ -7,7 +7,8 @@
  */
 import type { Page } from "@playwright/test"
 
-export const PROJECT_ID = "00000000-0000-0000-0000-000000000001"
+// Must match `isUuid()` (UUID v1-5); use a deterministic v4-style UUID for tests.
+export const PROJECT_ID = "00000000-0000-4000-8000-000000000001"
 
 export type SetupMockRoutesOpts = {
   withImage: boolean

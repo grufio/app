@@ -1,0 +1,48 @@
+## Pre-release workflow
+#
+# Responsibilities:
+# - Provide a manually triggered, deterministic “release gate” for hosted Supabase state.
+# - Enforce remote verification (migrations + storage/RLS) before public beta releases.
+name: Pre-release gates
+
+on:
+  workflow_dispatch:
+
+jobs:
+  pre_release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Require Supabase DB password secret
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          if [ -z "$SUPABASE_DB_PASSWORD" ]; then
+            echo "Missing required secret: SUPABASE_DB_PASSWORD"
+            exit 1
+          fi
+
+      - name: Verify local checks (lint + tests + schema markers + static RLS)
+        run: npm run check
+
+      - name: Verify remote migrations (required)
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: npm run verify:remote-migrations
+
+      - name: Verify remote RLS + storage policies (required)
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: npm run verify:remote-rls
+

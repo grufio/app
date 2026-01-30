@@ -36,6 +36,12 @@ jobs:
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: npm run verify:remote-migrations
 
+      - name: Verify remote RLS + storage policies (optional)
+        if: ${{ secrets.SUPABASE_DB_PASSWORD != '' }}
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: npm run verify:remote-rls
+
       - name: Verify DB types are synced (optional)
         if: ${{ secrets.SUPABASE_DB_PASSWORD != '' }}
         env:

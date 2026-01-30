@@ -17,7 +17,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ proj
   if (!u.ok) return u.res
 
   const { projectId } = await params
-  if (!isUuid(String(projectId))) return jsonError("Invalid projectId", 400, { stage: "params" })
+  if (!isUuid(String(projectId))) return jsonError("Invalid projectId", 400, { stage: "validation", where: "params" })
 
   const { data, error } = await supabase
     .from("projects")
