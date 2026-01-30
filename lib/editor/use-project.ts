@@ -9,7 +9,7 @@
  */
 import { useEffect, useState } from "react"
 
-import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
+import { getProjectNameClient } from "@/services/projects/client/get-project"
 
 export type Project = { id: string; name: string }
 
@@ -22,15 +22,14 @@ export function useProject(projectId: string, initialProject?: Project | null) {
     if (initialProject?.id === projectId) return
 
     const load = async () => {
-      const supabase = createSupabaseBrowserClient()
-      const { data, error } = await supabase.from("projects").select("name").eq("id", projectId).single()
+      const { name, error } = await getProjectNameClient(projectId)
       if (cancelled) return
       if (error) {
-        setError(error.message)
+        setError(error)
         return
       }
       setError("")
-      setProject({ id: projectId, name: data?.name ?? "" })
+      setProject({ id: projectId, name: name ?? "" })
     }
 
     void load()

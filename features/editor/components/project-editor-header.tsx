@@ -4,10 +4,10 @@ import Link from "next/link"
 import { useEffect, useRef, useState } from "react"
 import { ArrowLeft } from "lucide-react"
 
-import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
+import { updateProjectTitleClient } from "@/services/projects/client/update-project-title"
 
 type Props = {
   projectId: string
@@ -67,12 +67,10 @@ export function ProjectEditorHeader({ projectId, initialTitle, onTitleUpdated }:
 
     setIsSaving(true)
     try {
-      const supabase = createSupabaseBrowserClient()
-      const { error: updateErr } = await supabase.from("projects").update({ name: next }).eq("id", projectId)
-
-      if (updateErr) {
+      const { error } = await updateProjectTitleClient({ projectId, name: next })
+      if (error) {
         lastSubmittedRef.current = null
-        setError(updateErr.message)
+        setError(error)
         return
       }
 

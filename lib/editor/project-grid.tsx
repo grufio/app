@@ -9,18 +9,15 @@
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
 
-import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { pxUToUnitDisplay, type Unit, unitToPx, unitToPxU } from "@/lib/editor/units"
 import { useProjectWorkspace } from "@/lib/editor/project-workspace"
 import {
   defaultGrid,
-  insertGrid,
   mapGridSchemaError,
   normalizeProjectGridRow,
   normalizeUnit as normalizeGridUnit,
-  selectGrid,
-  upsertGrid as upsertGridRepo,
 } from "@/services/editor"
+import { insertGridClient, selectGridClient, upsertGridClient } from "@/services/editor/grid/client"
 
 export type ProjectGridRow = import("@/services/editor").ProjectGridRow
 
@@ -59,8 +56,7 @@ export function ProjectGridProvider({
     setLoading(true)
     setError("")
     try {
-      const supabase = createSupabaseBrowserClient()
-      const { row: data, error: selErr } = await selectGrid(supabase, projectId)
+      const { row: data, error: selErr } = await selectGridClient(projectId)
       if (selErr) {
         setRow(null)
         setError(mapGridSchemaError(selErr))
@@ -70,7 +66,7 @@ export function ProjectGridProvider({
       if (!data) {
         const unit = workspaceUnit ?? "cm"
         const def = defaultGrid(projectId, unit)
-        const { row: ins, error: insErr } = await insertGrid(supabase, def)
+        const { row: ins, error: insErr } = await insertGridClient(def)
         if (insErr || !ins) {
           setRow(null)
           setError(mapGridSchemaError(insErr ?? "Failed to create default grid"))
@@ -99,8 +95,7 @@ export function ProjectGridProvider({
       setSaving(true)
       setError("")
       try {
-        const supabase = createSupabaseBrowserClient()
-        const { row: data, error: upErr } = await upsertGridRepo(supabase, nextRow)
+        const { row: data, error: upErr } = await upsertGridClient(nextRow)
         if (upErr || !data) {
           setError(mapGridSchemaError(upErr ?? "Failed to save grid"))
           return null

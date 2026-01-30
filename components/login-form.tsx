@@ -24,7 +24,7 @@ import {
   FieldSeparator,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
+import { signInWithGoogleOAuth } from "@/services/auth/client/oauth"
 
 export function LoginForm({
   className,
@@ -60,12 +60,8 @@ export function LoginForm({
                   variant="outline"
                   type="button"
                   onClick={async () => {
-                    const supabase = createSupabaseBrowserClient()
-                    await supabase.auth.signInWithOAuth({
-                      provider: "google",
-                      options: {
-                        redirectTo: `${window.location.origin}/auth/callback`,
-                      },
+                    await signInWithGoogleOAuth({
+                      redirectTo: `${window.location.origin}/auth/callback`,
                     })
                   }}
                 >

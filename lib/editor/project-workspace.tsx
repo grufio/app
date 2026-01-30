@@ -9,15 +9,12 @@
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
 
-import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import type { Unit } from "@/lib/editor/units"
 import {
   defaultWorkspace,
-  insertWorkspace,
   normalizeWorkspaceRow,
-  selectWorkspace,
-  upsertWorkspace as upsertWorkspaceRepo,
 } from "@/services/editor"
+import { insertWorkspaceClient, selectWorkspaceClient, upsertWorkspaceClient } from "@/services/editor/workspace/client"
 
 export type WorkspaceRow = import("@/services/editor").WorkspaceRow
 
@@ -58,8 +55,7 @@ export function ProjectWorkspaceProvider({
     setLoading(true)
     setError("")
     try {
-      const supabase = createSupabaseBrowserClient()
-      const { row: data, error: selErr } = await selectWorkspace(supabase, projectId)
+      const { row: data, error: selErr } = await selectWorkspaceClient(projectId)
       if (selErr) {
         setRow(null)
         setError(selErr)
@@ -68,7 +64,7 @@ export function ProjectWorkspaceProvider({
 
       if (!data) {
         const def = defaultWorkspace(projectId)
-        const { row: ins, error: insErr } = await insertWorkspace(supabase, def)
+        const { row: ins, error: insErr } = await insertWorkspaceClient(def)
         if (insErr || !ins) {
           setRow(null)
           setError(insErr ?? "Failed to create default artboard")
@@ -91,8 +87,7 @@ export function ProjectWorkspaceProvider({
       setSaving(true)
       setError("")
       try {
-        const supabase = createSupabaseBrowserClient()
-        const { row: data, error: upErr } = await upsertWorkspaceRepo(supabase, nextRow)
+        const { row: data, error: upErr } = await upsertWorkspaceClient(nextRow)
         if (upErr || !data) {
           setError(upErr ?? "Failed to save workspace")
           return null
