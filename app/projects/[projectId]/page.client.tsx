@@ -26,6 +26,7 @@ import type { ImageState } from "@/lib/editor/use-image-state"
 import { useImageState } from "@/lib/editor/use-image-state"
 import { computeRenderableGrid } from "@/services/editor/grid/validation"
 import { clampOpacityPercent, normalizeWorkspacePageBg } from "@/services/editor/page-background"
+import { mapSelectedNavIdToRightPanelSection } from "@/services/editor/panel-routing"
 
 export function ProjectDetailPageClient({
   projectId,
@@ -172,7 +173,7 @@ export function ProjectDetailPageClient({
     panelImagePxU,
   })
 
-  const activeRightSection = selectedNavId.startsWith("app/api") ? "image" : "artboard"
+  const activeRightSection = mapSelectedNavIdToRightPanelSection(selectedNavId)
 
   const grid = useMemo(() => {
     return computeRenderableGrid({ row: gridRow, spacingXPx, spacingYPx, lineWidthPx })

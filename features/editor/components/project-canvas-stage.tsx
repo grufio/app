@@ -66,6 +66,16 @@ type Props = {
 }
 
 export type ProjectCanvasStageHandle = {
+  /**
+   * Editor command surface (canonical).
+   *
+   * Invariants:
+   * - All sizes/positions exposed by commands are **µpx** (`bigint`) where 1px = 1_000_000µpx.
+   * - `setImageSize()` must be called with **positive** µpx values (0 or negative is ignored).
+   * - Intrinsic (source) image dimensions must come from persisted metadata (`intrinsicWidthPx`/`intrinsicHeightPx`),
+   *   never from DOM layout, to avoid drift across reloads.
+   * - Persistence is driven via `onImageTransformCommit` and is expected to be RLS-safe and idempotent.
+   */
   fitToView: () => void
   zoomIn: () => void
   zoomOut: () => void

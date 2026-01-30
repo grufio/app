@@ -24,6 +24,8 @@ export * from "./grid/schema-errors"
 export * from "./grid/browser-repo-supabase"
 export * from "./grid/operations"
 
+export * from "./panel-routing"
+
 export * from "./server/schema-errors"
 export * from "./server/master-image"
 export * from "./server/image-state"
