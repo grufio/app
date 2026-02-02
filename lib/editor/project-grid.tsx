@@ -7,7 +7,7 @@
  * - Load and persist grid settings (`project_grid`) for the current project.
  * - Expose derived pixel values for rendering.
  */
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
 
 import { pxUToUnitDisplay, type Unit, unitToPx, unitToPxU } from "@/lib/editor/units"
 import { useProjectWorkspace } from "@/lib/editor/project-workspace"
@@ -51,6 +51,10 @@ export function ProjectGridProvider({
   const [loading, setLoading] = useState(() => !(initialRow?.project_id === projectId))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
+  const savingRef = useRef(false)
+  useEffect(() => {
+    savingRef.current = saving
+  }, [saving])
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -91,7 +95,7 @@ export function ProjectGridProvider({
 
   const upsertGrid = useCallback(
     async (nextRow: ProjectGridRow): Promise<ProjectGridRow | null> => {
-      if (saving) return null
+      if (savingRef.current) return null
       setSaving(true)
       setError("")
       try {
@@ -108,7 +112,7 @@ export function ProjectGridProvider({
         setSaving(false)
       }
     },
-    [saving]
+    []
   )
 
   // Keep grid unit in sync with workspace unit (artboard is the source of truth).
@@ -117,6 +121,7 @@ export function ProjectGridProvider({
     if (!workspaceUnit) return
     if (!workspaceDpi) return
     if (row.unit === workspaceUnit) return
+    if (savingRef.current) return
 
     const dpi = Number(workspaceDpi)
     if (!Number.isFinite(dpi) || dpi <= 0) return

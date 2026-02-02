@@ -7,7 +7,7 @@
  * - Load and persist `project_workspace` (unit, DPI, canonical µpx size, page background).
  * - Expose derived convenience values (px/µpx) for editor components.
  */
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
 
 import type { Unit } from "@/lib/editor/units"
 import {
@@ -50,6 +50,10 @@ export function ProjectWorkspaceProvider({
   const [loading, setLoading] = useState(() => !(initialRow?.project_id === projectId))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
+  const savingRef = useRef(false)
+  useEffect(() => {
+    savingRef.current = saving
+  }, [saving])
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -83,7 +87,7 @@ export function ProjectWorkspaceProvider({
 
   const upsertWorkspace = useCallback(
     async (nextRow: WorkspaceRow): Promise<WorkspaceRow | null> => {
-      if (saving) return null
+      if (savingRef.current) return null
       setSaving(true)
       setError("")
       try {
@@ -99,7 +103,7 @@ export function ProjectWorkspaceProvider({
         setSaving(false)
       }
     },
-    [saving]
+    [savingRef]
   )
 
   useEffect(() => {
@@ -109,7 +113,8 @@ export function ProjectWorkspaceProvider({
   }, [initialRow?.project_id, projectId, refresh])
 
   const value = useMemo<WorkspaceContextValue>(() => {
-    const unit = row ? normalizeWorkspaceRow(row).unit : null
+    // `row` is normalized when stored; avoid re-normalizing on every render.
+    const unit = row ? (row as unknown as { unit?: Unit }).unit ?? null : null
     const dpi = row && Number.isFinite(Number(row.dpi_x)) ? Number(row.dpi_x) : null
     const widthPxU =
       row && typeof (row as unknown as { width_px_u?: unknown })?.width_px_u === "string"

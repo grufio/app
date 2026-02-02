@@ -7,6 +7,7 @@
 import { NextResponse } from "next/server"
 
 import { createSupabaseServerClient } from "@/lib/supabase/server"
+import { safeAppRedirectUrl } from "@/lib/auth/redirect"
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
@@ -28,6 +29,6 @@ export async function GET(request: Request) {
     console.warn("auth.callback: missing code param")
   }
 
-  return NextResponse.redirect(`${origin}/dashboard`)
+  return NextResponse.redirect(safeAppRedirectUrl({ origin, pathname: "/dashboard" }))
 }
 

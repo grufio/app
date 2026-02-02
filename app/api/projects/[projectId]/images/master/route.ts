@@ -61,6 +61,9 @@ export async function GET(
   const cacheKey = `${u.user.id}:${img.storage_path}`
   const cached = signedUrlCache.get(cacheKey)
   if (cached && cached.expiresAtMs - SIGNED_URL_RENEW_BUFFER_MS > now) {
+    // LRU: refresh recency on hit.
+    signedUrlCache.delete(cacheKey)
+    signedUrlCache.set(cacheKey, cached)
     return NextResponse.json({
       exists: true,
       signedUrl: cached.url,

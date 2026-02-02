@@ -15,6 +15,7 @@ import type { MasterImage } from "@/lib/editor/use-master-image"
 import type { Project } from "@/lib/editor/use-project"
 import type { ImageState } from "@/lib/editor/use-image-state"
 import { isUuid } from "@/lib/api/route-guards"
+import { isE2ETestRequest } from "@/lib/e2e"
 import { getImageStateForEditor, getMasterImageForEditor, isSchemaMismatchMessage, normalizeProjectGridRow, schemaMismatchError, selectGrid, selectWorkspace } from "@/services/editor"
 
 import { ProjectDetailPageClient } from "./page.client"
@@ -94,9 +95,7 @@ export default async function ProjectDetailPage({ params }: { params: { projectI
   const projectId = String(resolved?.projectId ?? "")
   if (!isUuid(String(projectId))) notFound()
   const headersList = await headers()
-  const isE2EHeader = headersList.get("x-e2e-test") === "1"
-  const isE2EEnv = process.env.NEXT_PUBLIC_E2E_TEST === "1" || process.env.E2E_TEST === "1"
-  const isE2E = isE2EHeader || isE2EEnv
+  const isE2E = isE2ETestRequest(headersList)
   // E2E runs with mocked browser network and no real Supabase; skip server fetch in that mode.
   const { project, workspace, grid, masterImage, imageState } = isE2E
     ? { project: null, workspace: null, grid: null, masterImage: null, imageState: null }

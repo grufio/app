@@ -9,11 +9,15 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
-import { EditorErrorBoundary, ProjectEditorHeader, type ProjectCanvasStageHandle } from "@/features/editor"
-import { ProjectEditorLayout } from "@/components/project-editor/ProjectEditorLayout"
-import { ProjectEditorLeftPanel } from "@/components/project-editor/ProjectEditorLeftPanel"
-import { ProjectEditorRightPanel } from "@/components/project-editor/ProjectEditorRightPanel"
-import { ProjectEditorStage } from "@/components/project-editor/ProjectEditorStage"
+import {
+  EditorErrorBoundary,
+  ProjectEditorHeader,
+  ProjectEditorLayout,
+  ProjectEditorLeftPanel,
+  ProjectEditorRightPanel,
+  ProjectEditorStage,
+  type ProjectCanvasStageHandle,
+} from "@/features/editor"
 import { computeImagePanelReady, computeWorkspaceReady } from "@/lib/editor/editor-ready"
 import { useFloatingToolbarControls } from "@/lib/editor/floating-toolbar-controls"
 import { type WorkspaceRow, useProjectWorkspace } from "@/lib/editor/project-workspace"
@@ -112,6 +116,15 @@ export function ProjectDetailPageClient({
   const [pageBgColor, setPageBgColor] = useState("#ffffff")
   const [pageBgOpacity, setPageBgOpacity] = useState(50)
 
+  const pageBgRef = useRef<{ enabled: boolean; color: string; opacity: number }>({
+    enabled: pageBgEnabled,
+    color: pageBgColor,
+    opacity: pageBgOpacity,
+  })
+  useEffect(() => {
+    pageBgRef.current = { enabled: pageBgEnabled, color: pageBgColor, opacity: pageBgOpacity }
+  }, [pageBgColor, pageBgEnabled, pageBgOpacity])
+
   const workspaceRowRef = useRef(workspaceRow)
   useEffect(() => {
     workspaceRowRef.current = workspaceRow
@@ -149,6 +162,38 @@ export function ProjectDetailPageClient({
     [upsertWorkspace]
   )
 
+  const handlePageBgEnabledChange = useCallback(
+    (enabled: boolean) => {
+      setPageBgEnabled(enabled)
+      const { color, opacity } = pageBgRef.current
+      scheduleSavePageBg({ enabled, color, opacity })
+    },
+    [scheduleSavePageBg]
+  )
+
+  const handlePageBgColorChange = useCallback(
+    (color: string) => {
+      const enabled = true
+      const { opacity } = pageBgRef.current
+      setPageBgColor(color)
+      setPageBgEnabled(enabled)
+      scheduleSavePageBg({ enabled, color, opacity })
+    },
+    [scheduleSavePageBg]
+  )
+
+  const handlePageBgOpacityChange = useCallback(
+    (opacityPercent: number) => {
+      const enabled = true
+      const clamped = clampOpacityPercent(opacityPercent, 0)
+      const { color } = pageBgRef.current
+      setPageBgOpacity(clamped)
+      setPageBgEnabled(enabled)
+      scheduleSavePageBg({ enabled, color, opacity: clamped })
+    },
+    [scheduleSavePageBg]
+  )
+
   useEffect(() => {
     return () => {
       if (bgSaveTimerRef.current != null) window.clearTimeout(bgSaveTimerRef.current)
@@ -179,12 +224,17 @@ export function ProjectDetailPageClient({
     return computeRenderableGrid({ row: gridRow, spacingXPx, spacingYPx, lineWidthPx })
   }, [gridRow, lineWidthPx, spacingXPx, spacingYPx])
 
+  const handleTitleUpdated = useCallback(
+    (nextTitle: string) => setProject({ id: projectId, name: nextTitle }),
+    [projectId, setProject]
+  )
+
   return (
     <div className="flex min-h-svh w-full flex-col">
       <ProjectEditorHeader
         projectId={projectId}
         initialTitle={project && project.id === projectId ? project.name : "Untitled"}
-        onTitleUpdated={(nextTitle) => setProject({ id: projectId, name: nextTitle })}
+        onTitleUpdated={handleTitleUpdated}
       />
 
       <ProjectEditorLayout>
@@ -228,23 +278,9 @@ export function ProjectDetailPageClient({
             pageBgEnabled={pageBgEnabled}
             pageBgColor={pageBgColor}
             pageBgOpacity={pageBgOpacity}
-            onPageBgEnabledChange={(v) => {
-              setPageBgEnabled(v)
-              scheduleSavePageBg({ enabled: v, color: pageBgColor, opacity: pageBgOpacity })
-            }}
-            onPageBgColorChange={(c) => {
-              const enabled = true
-              setPageBgColor(c)
-              setPageBgEnabled(enabled)
-              scheduleSavePageBg({ enabled, color: c, opacity: pageBgOpacity })
-            }}
-            onPageBgOpacityChange={(o) => {
-              const enabled = true
-              const clamped = clampOpacityPercent(o, 0)
-              setPageBgOpacity(clamped)
-              setPageBgEnabled(enabled)
-              scheduleSavePageBg({ enabled, color: pageBgColor, opacity: clamped })
-            }}
+            onPageBgEnabledChange={handlePageBgEnabledChange}
+            onPageBgColorChange={handlePageBgColorChange}
+            onPageBgOpacityChange={handlePageBgOpacityChange}
             masterImage={masterImage}
             masterImageLoading={masterImageLoading}
             deleteBusy={deleteBusy}

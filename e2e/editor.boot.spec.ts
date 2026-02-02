@@ -142,7 +142,14 @@ test("image size: setting 100mm survives reload (no drift)", async ({ page }) =>
   // Unit toggle should not trigger image-state save.
   await page.getByLabel("Artboard unit").click()
   await page.getByRole("option", { name: "cm" }).click()
-  await page.waitForTimeout(250)
+  await expect(
+    page.waitForRequest(
+      (req) =>
+        req.url().includes(`/api/projects/${PROJECT_ID}/image-state`) &&
+        req.method() === "POST",
+      { timeout: 250 }
+    )
+  ).rejects.toThrow()
   expect(imageStatePosts).toBe(1)
 })
 
@@ -241,7 +248,14 @@ test("image transform chain: resize + rotate + drag persists", async ({ page }) 
     }
   })
   await page.mouse.wheel(30, 20)
-  await page.waitForTimeout(50)
+  await expect.poll(
+    async () =>
+      await page.evaluate(() => {
+        const g = globalThis as { __gruf_editor?: { rafExecuted?: number } }
+        return g.__gruf_editor?.rafExecuted ?? 0
+      }),
+    { timeout: 500 }
+  ).toBeGreaterThan(beforePan.rafExecuted)
   const afterPan = await page.evaluate(() => {
     const g = globalThis as {
       __gruf_editor?: { boundsReads?: number; clientRectReads?: number; rafExecuted?: number }
@@ -306,7 +320,7 @@ test("page background: toggling persists via workspace upsert", async ({ page })
   await toggle.click()
 
   // Debounced save.
-  await page.waitForTimeout(350)
+  await expect.poll(() => workspaceUpserts, { timeout: 1_000 }).toBeGreaterThanOrEqual(1)
   expect(workspaceUpserts).toBeGreaterThanOrEqual(1)
 })
 

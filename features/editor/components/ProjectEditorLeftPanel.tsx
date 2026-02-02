@@ -12,7 +12,7 @@ import * as React from "react"
 import { ProjectSidebar } from "@/components/navigation/ProjectSidebar"
 import { SidebarFrame } from "@/components/navigation/SidebarFrame"
 
-export function ProjectEditorLeftPanel(props: {
+export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel(props: {
   widthRem: number
   minRem: number
   maxRem: number
@@ -68,5 +68,7 @@ export function ProjectEditorLeftPanel(props: {
       />
     </aside>
   )
-}
+})
+
+ProjectEditorLeftPanel.displayName = "ProjectEditorLeftPanel"
 

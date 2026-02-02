@@ -8,6 +8,7 @@
  * - Contextual editor panels (grid, artboard, image actions).
  */
 import * as React from "react"
+import dynamic from "next/dynamic"
 import { EyeOff, Palette, Percent, RotateCcw, Trash2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -19,9 +20,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { ArtboardPanel } from "./artboard-panel"
-import { GridPanel } from "./grid-panel"
-import { ImagePanel } from "./image-panel"
+// Code-split non-canvas panels to reduce initial editor bundle cost.
+const GridPanel = dynamic(() => import("./grid-panel").then((m) => m.GridPanel), {
+  ssr: false,
+  loading: () => null,
+})
+const ArtboardPanel = dynamic(() => import("./artboard-panel").then((m) => m.ArtboardPanel), {
+  ssr: false,
+  loading: () => null,
+})
+const ImagePanel = dynamic(() => import("./image-panel").then((m) => m.ImagePanel), {
+  ssr: false,
+  loading: () => null,
+})
 import type { ProjectCanvasStageHandle } from "./project-canvas-stage"
 import { PanelIconSlot, PanelTwoFieldRow } from "./panel-layout"
 import { IconColorField } from "./fields/icon-color-field"
@@ -29,7 +40,7 @@ import { IconNumericField } from "./fields/icon-numeric-field"
 import { EditorSidebarSection } from "./sidebar/editor-sidebar-section"
 import type { Unit } from "@/lib/editor/units"
 
-export function ProjectEditorRightPanel(props: {
+export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPanel(props: {
   panelWidthRem: number
   minPanelRem: number
   maxPanelRem: number
@@ -279,5 +290,7 @@ export function ProjectEditorRightPanel(props: {
       </Dialog>
     </>
   )
-}
+})
+
+ProjectEditorRightPanel.displayName = "ProjectEditorRightPanel"
 

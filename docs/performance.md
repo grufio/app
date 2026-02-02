@@ -25,7 +25,7 @@ These are “smoke” thresholds, not hard guarantees:
 - **RAF**: \(\le 6\) `rafExecuted` for the drag interaction and \(\le 3\) for a pan tick.
 
 If these regress, investigate:
-- `components/shared/editor/canvas-stage/bounds-controller.ts`
-- `components/shared/editor/canvas-stage/raf-scheduler.ts`
-- `components/shared/editor/project-canvas-stage.tsx`
+- `features/editor/components/canvas-stage/bounds-controller.ts`
+- `features/editor/components/canvas-stage/raf-scheduler.ts`
+- `features/editor/components/project-canvas-stage.tsx`
 
