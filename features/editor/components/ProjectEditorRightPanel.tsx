@@ -142,43 +142,43 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
           onMouseDown={onResizeMouseDown}
         />
         <div className="flex h-full flex-col">
-          <EditorSidebarSection title="Page">
-            <PanelTwoFieldRow>
-              <IconColorField
-                value={pageBgColor}
-                onChange={onPageBgColorChange}
-                ariaLabel="Page background color"
-                inputClassName="cursor-pointer"
-              />
-
-              <IconNumericField
-                value={String(pageBgOpacity)}
-                mode="int"
-                ariaLabel="Page background opacity percent"
-                icon={<Percent aria-hidden="true" />}
-                onValueChange={(next) => {
-                  const n = Number(next)
-                  const clamped = Math.max(0, Math.min(100, Number.isFinite(n) ? n : 0))
-                  onPageBgOpacityChange(clamped)
-                }}
-              />
-
-              <PanelIconSlot>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6"
-                  aria-label="Hide page background"
-                  onClick={() => onPageBgEnabledChange(false)}
-                >
-                  <EyeOff className="size-4" />
-                </Button>
-              </PanelIconSlot>
-            </PanelTwoFieldRow>
-          </EditorSidebarSection>
           {activeSection === "artboard" ? (
             <>
+              <EditorSidebarSection title="Page">
+                <PanelTwoFieldRow>
+                  <IconColorField
+                    value={pageBgColor}
+                    onChange={onPageBgColorChange}
+                    ariaLabel="Page background color"
+                    inputClassName="cursor-pointer"
+                  />
+
+                  <IconNumericField
+                    value={String(pageBgOpacity)}
+                    mode="int"
+                    ariaLabel="Page background opacity percent"
+                    icon={<Percent aria-hidden="true" />}
+                    onValueChange={(next) => {
+                      const n = Number(next)
+                      const clamped = Math.max(0, Math.min(100, Number.isFinite(n) ? n : 0))
+                      onPageBgOpacityChange(clamped)
+                    }}
+                  />
+
+                  <PanelIconSlot>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      aria-label="Hide page background"
+                      onClick={() => onPageBgEnabledChange(false)}
+                    >
+                      <EyeOff className="size-4" />
+                    </Button>
+                  </PanelIconSlot>
+                </PanelTwoFieldRow>
+              </EditorSidebarSection>
               <GridPanel />
               <EditorSidebarSection title="Artboard" testId="editor-artboard-panel">
                 <ArtboardPanel />

@@ -7,6 +7,7 @@ import { ArrowLeft } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { updateProjectTitleClient } from "@/services/projects/client/update-project-title"
 
 type Props = {
@@ -28,6 +29,7 @@ export function ProjectEditorHeader({ projectId, initialTitle, onTitleUpdated }:
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string>("")
+  const [activeTab, setActiveTab] = useState<"image" | "filter" | "colors" | "output">("image")
 
   const inputRef = useRef<HTMLInputElement | null>(null)
   const ignoreNextBlurRef = useRef(false)
@@ -84,7 +86,7 @@ export function ProjectEditorHeader({ projectId, initialTitle, onTitleUpdated }:
   }
 
   return (
-    <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
+    <header className="flex min-h-16 shrink-0 flex-col gap-2 py-3 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:min-h-12 group-has-data-[collapsible=icon]/sidebar-wrapper:py-2">
       <div className="flex items-center gap-2 px-4">
         <Link
           href="/dashboard"
@@ -143,6 +145,25 @@ export function ProjectEditorHeader({ projectId, initialTitle, onTitleUpdated }:
             {error ? <div className="text-xs text-destructive">{error}</div> : null}
           </div>
         )}
+      </div>
+
+      <div className="px-4">
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="gap-0">
+          <TabsList className="h-6 gap-2">
+            <TabsTrigger value="image" className="h-6 text-[12px] leading-[24px]">
+              Image
+            </TabsTrigger>
+            <TabsTrigger value="filter" className="h-6 text-[12px] leading-[24px]">
+              Filter
+            </TabsTrigger>
+            <TabsTrigger value="colors" className="h-6 text-[12px] leading-[24px]">
+              Colors
+            </TabsTrigger>
+            <TabsTrigger value="output" className="h-6 text-[12px] leading-[24px]">
+              Output
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
       </div>
     </header>
   )
