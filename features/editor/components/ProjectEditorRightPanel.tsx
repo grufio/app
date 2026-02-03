@@ -9,7 +9,7 @@
  */
 import * as React from "react"
 import dynamic from "next/dynamic"
-import { EyeOff, Palette, Percent, RotateCcw, Trash2 } from "lucide-react"
+import { EyeOff, Percent, RotateCcw, Trash2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -148,7 +148,6 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
                 value={pageBgColor}
                 onChange={onPageBgColorChange}
                 ariaLabel="Page background color"
-                icon={<Palette aria-hidden="true" />}
                 inputClassName="cursor-pointer"
               />
 

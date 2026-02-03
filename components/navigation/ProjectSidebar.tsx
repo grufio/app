@@ -33,7 +33,6 @@ const data = {
       "app",
       [
         "api",
-        ["hello", ["route.ts"]],
       ],
     ],
   ],

@@ -8,7 +8,7 @@
  * - Persist settings via `project_grid`.
  */
 import { useCallback, useEffect, useRef } from "react"
-import { ArrowLeftRight, ArrowUpDown, Palette, Ruler } from "lucide-react"
+import { ArrowLeftRight, ArrowUpDown, Ruler } from "lucide-react"
 
 import { IconColorField } from "./fields/icon-color-field"
 import { IconNumericField } from "./fields/icon-numeric-field"
@@ -141,7 +141,6 @@ export function GridPanel() {
             }}
             ariaLabel="Grid line color"
             disabled={controlsDisabled}
-            icon={<Palette aria-hidden="true" />}
             inputClassName="cursor-pointer"
           />
 
