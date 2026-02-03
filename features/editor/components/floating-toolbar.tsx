@@ -10,12 +10,13 @@
 import { Hand, Maximize2, MousePointer2, RotateCw, ZoomIn, ZoomOut } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Separator } from "@/components/ui/separator"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import type { EditorTool } from "@/lib/editor/floating-toolbar-controls"
 
 export type FloatingToolbarTool = EditorTool
+
+const TOOLBAR_ICON_STROKE_WIDTH = 1
 
 type Props = {
   tool: FloatingToolbarTool
@@ -81,30 +82,28 @@ export function FloatingToolbar({
         role="toolbar"
         aria-label="Canvas toolbar"
         className={cn(
-          "inline-flex items-center gap-1 rounded-lg border bg-background/90 p-1 shadow-sm backdrop-blur",
+          "inline-flex items-center gap-3 rounded-lg border bg-background/90 px-2 py-1 shadow-sm backdrop-blur",
           className
         )}
       >
         <IconButton label="Select (Move Image)" active={tool === "select"} onClick={() => onToolChange("select")}>
-          <MousePointer2 className="h-[16px] w-[16px]" />
+          <MousePointer2 className="size-6" strokeWidth={TOOLBAR_ICON_STROKE_WIDTH} />
         </IconButton>
         <IconButton label="Hand (Move Artboard)" active={tool === "hand"} onClick={() => onToolChange("hand")}>
-          <Hand className="h-[16px] w-[16px]" />
+          <Hand className="size-6" strokeWidth={TOOLBAR_ICON_STROKE_WIDTH} />
         </IconButton>
-
-        <Separator orientation="vertical" className="mx-1 h-5" />
 
         <IconButton label="Zoom in" onClick={onZoomIn} disabled={actionsDisabled}>
-          <ZoomIn className="h-[16px] w-[16px]" />
+          <ZoomIn className="size-6" strokeWidth={TOOLBAR_ICON_STROKE_WIDTH} />
         </IconButton>
         <IconButton label="Zoom out" onClick={onZoomOut} disabled={actionsDisabled}>
-          <ZoomOut className="h-[16px] w-[16px]" />
+          <ZoomOut className="size-6" strokeWidth={TOOLBAR_ICON_STROKE_WIDTH} />
         </IconButton>
         <IconButton label="Fit to screen" onClick={onFit} disabled={actionsDisabled}>
-          <Maximize2 className="h-[16px] w-[16px]" />
+          <Maximize2 className="size-6" strokeWidth={TOOLBAR_ICON_STROKE_WIDTH} />
         </IconButton>
         <IconButton label="Rotate 90°" onClick={onRotate} disabled={actionsDisabled}>
-          <RotateCw className="h-[16px] w-[16px]" />
+          <RotateCw className="size-6" strokeWidth={TOOLBAR_ICON_STROKE_WIDTH} />
         </IconButton>
       </div>
     </TooltipProvider>
