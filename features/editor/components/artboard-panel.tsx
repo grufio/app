@@ -4,13 +4,14 @@
  * Artboard settings panel.
  *
  * Responsibilities:
- * - Edit workspace unit, DPI, and artboard dimensions.
+ * - Edit workspace unit and artboard dimensions (geometry).
+ * - Edit output DPI (raster/export) separately.
  * - Persist changes via `project_workspace` providers.
  */
 import { useEffect, useRef } from "react"
 import { ArrowLeftRight, ArrowUpDown, Gauge, Link2, Ruler, Unlink2 } from "lucide-react"
 
-import { fmt2, pxUToUnitDisplay, type Unit } from "@/lib/editor/units"
+import { fmt2, pxUToUnitDisplayFixed, type Unit } from "@/lib/editor/units"
 import { parseNumericInput } from "@/lib/editor/numeric"
 import { Button } from "@/components/ui/button"
 import { SelectItem } from "@/components/ui/select"
@@ -46,12 +47,18 @@ export function ArtboardPanel() {
 
   const activeProjectId = row?.project_id ?? null
 
-  const computedDpi = row ? String(row.dpi_x) : ""
   const computedUnit = row ? normalizeUnit((row as unknown as { unit?: unknown })?.unit) : "mm"
+  const computedOutputDpi = row ? Number(row.output_dpi_x ?? row.dpi_x) : 300
   const computedPreset =
-    row ? ((row.raster_effects_preset ?? mapDpiToRasterPreset(Number(row.dpi_x)) ?? "custom") as "high" | "medium" | "low" | "custom") : "high"
+    row
+      ? ((row.raster_effects_preset ?? mapDpiToRasterPreset(Number(row.output_dpi_x ?? row.dpi_x)) ?? "custom") as
+          | "high"
+          | "medium"
+          | "low"
+          | "custom")
+      : "high"
 
-  const { value: draftDpi, setValue: setDraftDpi } = useKeyedDraft(activeProjectId, computedDpi)
+  const { value: draftOutputDpi, setValue: setDraftOutputDpi } = useKeyedDraft(activeProjectId, String(computedOutputDpi))
   const { value: draftUnit, setValue: setDraftUnit } = useKeyedDraft<Unit>(activeProjectId, computedUnit)
   const { value: draftRasterPreset, setValue: setDraftRasterPreset } = useKeyedDraft<"high" | "medium" | "low" | "custom">(
     activeProjectId,
@@ -59,9 +66,8 @@ export function ArtboardPanel() {
   )
   const { value: lockAspect, setValue: setLockAspect } = useKeyedDraft<boolean>(activeProjectId, false)
 
-  const dpiForDisplay = Number(draftDpi) || Number(row?.dpi_x) || 300
   const computedDisplay =
-    row && widthPxU && heightPxU ? computeArtboardSizeDisplay({ widthPxU, heightPxU, unit: draftUnit, dpi: dpiForDisplay }) : null
+    row && widthPxU && heightPxU ? computeArtboardSizeDisplay({ widthPxU, heightPxU, unit: draftUnit }) : null
   const computedWidth = computedDisplay ? computedDisplay.width : row ? String(row.width_value) : ""
   const computedHeight = computedDisplay ? computedDisplay.height : row ? String(row.height_value) : ""
 
@@ -92,13 +98,9 @@ export function ArtboardPanel() {
     if (saving) return
     if (!canonicalW || !canonicalH) return
 
-    const dpi = Number(draftDpi) || Number(row.dpi_x) || 300
-    if (!Number.isFinite(dpi) || dpi <= 0) return
-
     const computed = computeWorkspaceSizeSave({
       base: row,
       unit: draftUnit,
-      dpi,
       draftW: draftWidth,
       draftH: draftHeight,
     })
@@ -116,14 +118,14 @@ export function ArtboardPanel() {
 
     // Reset drafts to canonical display (prevents oscillation).
     const unitNormalized = normalizeUnit((saved as unknown as { unit?: unknown })?.unit)
-    const savedDpi = Number(saved.dpi_x) || dpi
     const wU = BigInt(saved.width_px_u)
     const hU = BigInt(saved.height_px_u)
-    setDraftWidth(pxUToUnitDisplay(wU, unitNormalized, savedDpi))
-    setDraftHeight(pxUToUnitDisplay(hU, unitNormalized, savedDpi))
-    setDraftDpi(String(savedDpi))
+    setDraftWidth(pxUToUnitDisplayFixed(wU, unitNormalized))
+    setDraftHeight(pxUToUnitDisplayFixed(hU, unitNormalized))
     setDraftUnit(unitNormalized)
-    setDraftRasterPreset((saved.raster_effects_preset ?? mapDpiToRasterPreset(savedDpi) ?? "custom") as "high" | "medium" | "low" | "custom")
+    const nextOutput = Number(saved.output_dpi_x ?? saved.dpi_x) || computedOutputDpi
+    setDraftOutputDpi(String(nextOutput))
+    setDraftRasterPreset((saved.raster_effects_preset ?? mapDpiToRasterPreset(nextOutput) ?? "custom") as "high" | "medium" | "low" | "custom")
   }
 
   const saveUnitOnly = async (nextUnit: Unit) => {
@@ -142,12 +144,11 @@ export function ArtboardPanel() {
     if (nextUnit === draftUnitRef.current) return
     unitChangeInFlightRef.current = nextUnit
 
-    const dpi = Number(draftDpi) || Number(row?.dpi_x) || 300
     draftUnitRef.current = nextUnit
     setDraftUnit(nextUnit)
 
     // Display-only: canonical µpx stays unchanged.
-    const display = computeArtboardSizeDisplay({ widthPxU: canonicalW, heightPxU: canonicalH, unit: nextUnit, dpi })
+    const display = computeArtboardSizeDisplay({ widthPxU: canonicalW, heightPxU: canonicalH, unit: nextUnit })
     setDraftWidth(display?.width ?? "")
     setDraftHeight(display?.height ?? "")
 
@@ -164,14 +165,14 @@ export function ArtboardPanel() {
     const preset = next === "high" || next === "medium" || next === "low" ? next : "high"
     const dpi = preset === "high" ? 300 : preset === "medium" ? 150 : 72
     setDraftRasterPreset(preset)
-    setDraftDpi(String(dpi))
+    setDraftOutputDpi(String(dpi))
 
-    // DPI is display metadata; do not change canonical µpx size.
+    // Output DPI only; do not change canonical µpx size.
     setTimeout(() => {
       void upsertWorkspace({
         ...row,
-        dpi_x: dpi,
-        dpi_y: dpi,
+        output_dpi_x: dpi,
+        output_dpi_y: dpi,
         raster_effects_preset: preset,
       })
     }, 0)
@@ -299,7 +300,7 @@ export function ArtboardPanel() {
           <SelectItem value="high">{labelForPreset("high")}</SelectItem>
           <SelectItem value="medium">{labelForPreset("medium")}</SelectItem>
           <SelectItem value="low">{labelForPreset("low")}</SelectItem>
-          {draftRasterPreset === "custom" ? <SelectItem value="custom">{`Custom (${draftDpi || "?"} ppi)`}</SelectItem> : null}
+          {draftRasterPreset === "custom" ? <SelectItem value="custom">{`Custom (${draftOutputDpi || "?"} ppi)`}</SelectItem> : null}
         </IconSelectField>
 
         <IconSelectField

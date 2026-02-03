@@ -7,6 +7,8 @@
  */
 import type { Page } from "@playwright/test"
 
+import { clampPx, pxUToPxNumber, unitToPxUFixed } from "@/lib/editor/units"
+
 // Must match `isUuid()` (UUID v1-5); use a deterministic v4-style UUID for tests.
 export const PROJECT_ID = "00000000-0000-4000-8000-000000000001"
 
@@ -18,6 +20,8 @@ export type SetupMockRoutesOpts = {
     height_value: number
     dpi_x: number
     dpi_y: number
+    output_dpi_x: number
+    output_dpi_y: number
     width_px_u: string
     height_px_u: string
     width_px: number
@@ -46,12 +50,14 @@ export async function setupMockRoutes(page: Page, opts: SetupMockRoutesOpts) {
     height_value: 30,
     dpi_x: 300,
     dpi_y: 300,
+    output_dpi_x: 300,
+    output_dpi_y: 300,
     // canonical µpx (strings)
-    width_px_u: "2362204724",
-    height_px_u: "3543307087",
+    width_px_u: unitToPxUFixed("20", "cm").toString(),
+    height_px_u: unitToPxUFixed("30", "cm").toString(),
     // cached integer px
-    width_px: 2362,
-    height_px: 3543,
+    width_px: clampPx(pxUToPxNumber(unitToPxUFixed("20", "cm"))),
+    height_px: clampPx(pxUToPxNumber(unitToPxUFixed("30", "cm"))),
     raster_effects_preset: "high",
     page_bg_enabled: false,
     page_bg_color: "#ffffff",

@@ -7,7 +7,7 @@
  */
 import { test, expect, type Request } from "@playwright/test"
 
-import { unitToPxU } from "../lib/editor/units"
+import { unitToPxUFixed } from "../lib/editor/units"
 import { PROJECT_ID, setupMockRoutes } from "./_mocks"
 
 async function assertEditorSurfaceVisible(page: import("@playwright/test").Page) {
@@ -80,13 +80,17 @@ test("image size: setting 100mm survives reload (no drift)", async ({ page }) =>
     withImage: true,
     workspace: {
       unit: "mm",
-      // 200mm @300dpi ~= 2362.2047 px (keep existing px so artboard is valid).
+      // 200mm with fixed mapping (1in=25.4mm, 1in=72pt).
       width_value: 200,
       height_value: 200,
       dpi_x: 300,
       dpi_y: 300,
-      width_px: 2362.2047,
-      height_px: 2362.2047,
+      output_dpi_x: 300,
+      output_dpi_y: 300,
+      width_px_u: unitToPxUFixed("200", "mm").toString(),
+      height_px_u: unitToPxUFixed("200", "mm").toString(),
+      width_px: 567,
+      height_px: 567,
       raster_effects_preset: "high",
     },
   })
@@ -96,7 +100,7 @@ test("image size: setting 100mm survives reload (no drift)", async ({ page }) =>
   const w = page.getByLabel("Image width (mm)")
   const h = page.getByLabel("Image height (mm)")
 
-  const expectedPxU = unitToPxU("100", "mm", 300).toString()
+  const expectedPxU = unitToPxUFixed("100", "mm").toString()
 
   const isExpectedImageStateSave = (req: Request) => {
     if (!req.url().includes(`/api/projects/${PROJECT_ID}/image-state`)) return false
@@ -163,8 +167,12 @@ test("image transform chain: resize + rotate + drag persists", async ({ page }) 
       height_value: 200,
       dpi_x: 300,
       dpi_y: 300,
-      width_px: 2362.2047,
-      height_px: 2362.2047,
+      output_dpi_x: 300,
+      output_dpi_y: 300,
+      width_px_u: unitToPxUFixed("200", "mm").toString(),
+      height_px_u: unitToPxUFixed("200", "mm").toString(),
+      width_px: 567,
+      height_px: 567,
       raster_effects_preset: "high",
     },
   })
@@ -177,7 +185,7 @@ test("image transform chain: resize + rotate + drag persists", async ({ page }) 
   await expect(w).toBeEnabled()
   await expect(h).toBeEnabled()
 
-  const expectedPxU = unitToPxU("120", "mm", 300).toString()
+  const expectedPxU = unitToPxUFixed("120", "mm").toString()
   const isSaveWith = (req: Request, opts?: { rotation?: number; requirePosition?: boolean }) => {
     if (!req.url().includes(`/api/projects/${PROJECT_ID}/image-state`)) return false
     if (req.method() !== "POST") return false

@@ -47,7 +47,6 @@ export function ProjectDetailPageClient({
     row: workspaceRow,
     upsertWorkspace,
     unit: workspaceUnit,
-    dpi: workspaceDpi,
     widthPx: artboardWidthPx,
     heightPx: artboardHeightPx,
     loading: workspaceLoading,
@@ -208,7 +207,6 @@ export function ProjectDetailPageClient({
   const workspaceReady = computeWorkspaceReady({
     workspaceLoading,
     workspaceUnit,
-    workspaceDpi,
   })
 
   const imagePanelReady = computeImagePanelReady({
@@ -293,7 +291,6 @@ export function ProjectDetailPageClient({
             handleDeleteMasterImage={handleDeleteMasterImage}
             panelImagePxU={panelImagePxU}
             workspaceUnit={workspaceUnit ?? "cm"}
-            workspaceDpi={workspaceDpi ?? 300}
             workspaceReady={workspaceReady}
             imageStateLoading={imageStateLoading}
             imagePanelReady={imagePanelReady}

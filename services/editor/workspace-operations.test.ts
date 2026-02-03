@@ -33,6 +33,8 @@ describe("workspace-operations", () => {
       height_value: 30,
       dpi_x: 300,
       dpi_y: 300,
+      output_dpi_x: 300,
+      output_dpi_y: 300,
       width_px_u: "0",
       height_px_u: "0",
       width_px: 1,
@@ -40,16 +42,40 @@ describe("workspace-operations", () => {
       raster_effects_preset: "high",
     }
 
-    const r1 = computeWorkspaceSizeSave({ base, unit: "cm", dpi: 300, draftW: "20", draftH: "30" })
+    const r1 = computeWorkspaceSizeSave({ base, unit: "cm", draftW: "20", draftH: "30" })
     if ("error" in r1) throw new Error("expected ok")
-    const r2 = computeWorkspaceSizeSave({ base, unit: "cm", dpi: 300, draftW: "20", draftH: "30" })
+    const r2 = computeWorkspaceSizeSave({ base, unit: "cm", draftW: "20", draftH: "30" })
     if ("error" in r2) throw new Error("expected ok")
 
     expect(r1.signature).toBe(r2.signature)
     expect(r1.next.unit).toBe("cm")
-    expect(r1.next.dpi_x).toBe(300)
     expect(typeof r1.next.width_px_u).toBe("string")
     expect(typeof r1.next.height_px_u).toBe("string")
+  })
+
+  it("computeWorkspaceSizeSave preserves output dpi fields", () => {
+    const base: WorkspaceRow = {
+      project_id: "p",
+      unit: "cm",
+      width_value: 20,
+      height_value: 30,
+      dpi_x: 300,
+      dpi_y: 300,
+      output_dpi_x: 150,
+      output_dpi_y: 150,
+      width_px_u: "0",
+      height_px_u: "0",
+      width_px: 1,
+      height_px: 1,
+      raster_effects_preset: "medium",
+    }
+
+    const out = computeWorkspaceSizeSave({ base, unit: "cm", draftW: "20", draftH: "30" })
+    if ("error" in out) throw new Error("expected ok")
+    expect(out.next.output_dpi_x).toBe(150)
+    expect(out.next.output_dpi_y).toBe(150)
+    expect(out.next.dpi_x).toBe(300)
+    expect(out.next.dpi_y).toBe(300)
   })
 })
 

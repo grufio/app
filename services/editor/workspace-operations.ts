@@ -9,7 +9,7 @@
  * - This module is pure (no React/DOM, no Supabase).
  * - It intentionally mirrors existing UI behavior; changes should be covered by tests.
  */
-import { clampPx, pxUToPxNumber, type Unit, unitToPxU } from "@/lib/editor/units"
+import { clampPx, pxUToPxNumber, type Unit, unitToPxUFixed } from "@/lib/editor/units"
 import type { WorkspaceRow } from "./workspace/types"
 
 export function normalizeUnit(u: unknown): Unit {
@@ -49,12 +49,9 @@ export function computeWorkspaceSizeSave(opts: {
   draftW: string
   draftH: string
   unit: Unit
-  dpi: number
   base: WorkspaceRow
 }): { next: WorkspaceRow; signature: string } | { error: string } {
   const { base, unit } = opts
-  const dpi = Number(opts.dpi)
-  if (!Number.isFinite(dpi) || dpi <= 0) return { error: "Invalid dpi" }
 
   const wStr = String(opts.draftW).trim()
   const hStr = String(opts.draftH).trim()
@@ -63,8 +60,8 @@ export function computeWorkspaceSizeSave(opts: {
   let nextWPxU: bigint
   let nextHPxU: bigint
   try {
-    nextWPxU = unitToPxU(wStr, unit, dpi)
-    nextHPxU = unitToPxU(hStr, unit, dpi)
+    nextWPxU = unitToPxUFixed(wStr, unit)
+    nextHPxU = unitToPxUFixed(hStr, unit)
   } catch {
     return { error: "Invalid size" }
   }
@@ -74,21 +71,17 @@ export function computeWorkspaceSizeSave(opts: {
   const width_px = clampPx(pxUToPxNumber(nextWPxU))
   const height_px = clampPx(pxUToPxNumber(nextHPxU))
 
-  // Preserve the existing UI signature semantics (even though raster preset is computed from dpi).
-  const signature = `${base.project_id}:${unit}:${nextWPxU}:${nextHPxU}:${dpi}:${base.raster_effects_preset ?? ""}`
+  const signature = `${base.project_id}:${unit}:${nextWPxU}:${nextHPxU}`
 
   const next: WorkspaceRow = {
     ...base,
     unit,
-    dpi_x: dpi,
-    dpi_y: dpi,
     width_value: Number(wStr),
     height_value: Number(hStr),
     width_px_u,
     height_px_u,
     width_px,
     height_px,
-    raster_effects_preset: mapDpiToRasterPreset(dpi),
   }
 
   return { next, signature }

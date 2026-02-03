@@ -26,7 +26,7 @@ import { Button } from "@/components/ui/button"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { IconNumericField } from "./fields/icon-numeric-field"
 import { PanelIconSlot, PanelTwoFieldRow } from "./panel-layout"
-import { pxUToUnitDisplay, type Unit } from "@/lib/editor/units"
+import { pxUToUnitDisplayFixed, type Unit } from "@/lib/editor/units"
 import {
   computeLockedAspectOtherDimensionFromHeightInput,
   computeLockedAspectOtherDimensionFromWidthInput,
@@ -73,7 +73,6 @@ function ImageSizeInputs({
   widthPxU,
   heightPxU,
   unit,
-  dpi,
   ready,
   controlsDisabled,
   onCommit,
@@ -81,7 +80,6 @@ function ImageSizeInputs({
   widthPxU?: bigint
   heightPxU?: bigint
   unit: Unit
-  dpi: number
   ready: boolean
   controlsDisabled: boolean
   onCommit: (widthPxU: bigint, heightPxU: bigint) => void
@@ -97,21 +95,21 @@ function ImageSizeInputs({
 
   const computedW = useMemo(() => {
     if (!ready) return ""
-    if (!widthPxU || !Number.isFinite(dpi) || dpi <= 0) return ""
-    return pxUToUnitDisplay(widthPxU, unit, dpi)
-  }, [dpi, ready, unit, widthPxU])
+    if (!widthPxU) return ""
+    return pxUToUnitDisplayFixed(widthPxU, unit)
+  }, [ready, unit, widthPxU])
 
   const computedH = useMemo(() => {
     if (!ready) return ""
-    if (!heightPxU || !Number.isFinite(dpi) || dpi <= 0) return ""
-    return pxUToUnitDisplay(heightPxU, unit, dpi)
-  }, [dpi, heightPxU, ready, unit])
+    if (!heightPxU) return ""
+    return pxUToUnitDisplayFixed(heightPxU, unit)
+  }, [heightPxU, ready, unit])
 
   const commit = () => {
     // Use refs so blur/tab commits always see the latest typed value
     // (React state can be one render behind when events batch).
     // Invariants: docs/specs/sizing-invariants.mdx (round once at input conversion).
-    const parsed = computeImageSizeCommit({ ready, draftW: draftWRef.current, draftH: draftHRef.current, unit, dpi })
+    const parsed = computeImageSizeCommit({ ready, draftW: draftWRef.current, draftH: draftHRef.current, unit })
     if (!parsed) return
     onCommit(parsed.wPxU, parsed.hPxU)
   }
@@ -134,7 +132,6 @@ function ImageSizeInputs({
           const out = computeLockedAspectOtherDimensionFromWidthInput({
             nextWidthInput: next,
             unit,
-            dpi,
             ratio: { wPxU: r.w, hPxU: r.h },
           })
           if (!out) return
@@ -189,7 +186,6 @@ function ImageSizeInputs({
           const out = computeLockedAspectOtherDimensionFromHeightInput({
             nextHeightInput: next,
             unit,
-            dpi,
             ratio: { wPxU: r.w, hPxU: r.h },
           })
           if (!out) return
@@ -264,7 +260,6 @@ type Props = {
   widthPxU?: bigint
   heightPxU?: bigint
   unit: Unit
-  dpi: number
   /**
    * When false, inputs stay empty and commits are ignored.
    * Use this to prevent "flash" / drift while upstream meta/state is still loading.
@@ -278,10 +273,10 @@ type Props = {
 /**
  * Image sizing panel.
  *
- * The UI displays image size in the artboard's *unit + DPI*,
+ * The UI displays image size in the artboard's unit,
  * but commits changes in pixels to the canvas (so scaling remains stable).
  */
-export function ImagePanel({ widthPxU, heightPxU, unit, dpi, ready = true, disabled, onCommit, onAlign }: Props) {
+export function ImagePanel({ widthPxU, heightPxU, unit, ready = true, disabled, onCommit, onAlign }: Props) {
   const controlsDisabled = Boolean(disabled) || !ready
   // Functional button bars (no selected visual state). We keep transient value just to satisfy Radix.
   const [alignXAction, setAlignXAction] = useState<string>("")
@@ -295,7 +290,6 @@ export function ImagePanel({ widthPxU, heightPxU, unit, dpi, ready = true, disab
         widthPxU={widthPxU}
         heightPxU={heightPxU}
         unit={unit}
-        dpi={dpi}
         ready={ready}
         controlsDisabled={controlsDisabled}
         onCommit={onCommit}

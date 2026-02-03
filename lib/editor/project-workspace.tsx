@@ -115,7 +115,10 @@ export function ProjectWorkspaceProvider({
   const value = useMemo<WorkspaceContextValue>(() => {
     // `row` is normalized when stored; avoid re-normalizing on every render.
     const unit = row ? (row as unknown as { unit?: Unit }).unit ?? null : null
-    const dpi = row && Number.isFinite(Number(row.dpi_x)) ? Number(row.dpi_x) : null
+    const dpi =
+      row && Number.isFinite(Number((row as unknown as { output_dpi_x?: unknown })?.output_dpi_x ?? row.dpi_x))
+        ? Number((row as unknown as { output_dpi_x?: unknown })?.output_dpi_x ?? row.dpi_x)
+        : null
     const widthPxU =
       row && typeof (row as unknown as { width_px_u?: unknown })?.width_px_u === "string"
         ? (() => {

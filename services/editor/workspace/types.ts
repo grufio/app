@@ -13,6 +13,8 @@ export type WorkspaceRow = {
   height_value: number
   dpi_x: number
   dpi_y: number
+  output_dpi_x: number
+  output_dpi_y: number
   width_px_u: string
   height_px_u: string
   width_px: number

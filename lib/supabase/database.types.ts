@@ -274,6 +274,8 @@ export type Database = {
           created_at: string
           dpi_x: number
           dpi_y: number
+          output_dpi_x: number
+          output_dpi_y: number
           height_px: number
           height_px_u: string
           height_value: number
@@ -294,6 +296,8 @@ export type Database = {
           created_at?: string
           dpi_x: number
           dpi_y: number
+          output_dpi_x: number
+          output_dpi_y: number
           height_px: number
           height_px_u: string
           height_value: number
@@ -314,6 +318,8 @@ export type Database = {
           created_at?: string
           dpi_x?: number
           dpi_y?: number
+          output_dpi_x?: number
+          output_dpi_y?: number
           height_px?: number
           height_px_u?: string
           height_value?: number

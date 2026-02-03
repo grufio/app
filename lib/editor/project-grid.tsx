@@ -9,7 +9,7 @@
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
 
-import { pxUToUnitDisplay, type Unit, unitToPx, unitToPxU } from "@/lib/editor/units"
+import { pxUToUnitDisplayFixed, type Unit, unitToPxFixed, unitToPxUFixed } from "@/lib/editor/units"
 import { useProjectWorkspace } from "@/lib/editor/project-workspace"
 import {
   defaultGrid,
@@ -46,7 +46,7 @@ export function ProjectGridProvider({
   initialRow?: ProjectGridRow | null
   children: React.ReactNode
 }) {
-  const { unit: workspaceUnit, dpi: workspaceDpi } = useProjectWorkspace()
+  const { unit: workspaceUnit } = useProjectWorkspace()
   const [row, setRow] = useState<ProjectGridRow | null>(() => (initialRow?.project_id === projectId ? initialRow : null))
   const [loading, setLoading] = useState(() => !(initialRow?.project_id === projectId))
   const [saving, setSaving] = useState(false)
@@ -119,21 +119,17 @@ export function ProjectGridProvider({
   useEffect(() => {
     if (!row) return
     if (!workspaceUnit) return
-    if (!workspaceDpi) return
     if (row.unit === workspaceUnit) return
     if (savingRef.current) return
-
-    const dpi = Number(workspaceDpi)
-    if (!Number.isFinite(dpi) || dpi <= 0) return
 
     // Convert via µpx so 10 cm → 100 mm exactly (no float px roundtrip).
     let xPxU: bigint
     let yPxU: bigint
     let lwPxU: bigint
     try {
-      xPxU = unitToPxU(String(row.spacing_x_value), row.unit, dpi)
-      yPxU = unitToPxU(String(row.spacing_y_value), row.unit, dpi)
-      lwPxU = unitToPxU(String(row.line_width_value), row.unit, dpi)
+      xPxU = unitToPxUFixed(String(row.spacing_x_value), row.unit)
+      yPxU = unitToPxUFixed(String(row.spacing_y_value), row.unit)
+      lwPxU = unitToPxUFixed(String(row.line_width_value), row.unit)
     } catch {
       return
     }
@@ -141,25 +137,22 @@ export function ProjectGridProvider({
     const next: ProjectGridRow = {
       ...row,
       unit: workspaceUnit,
-      spacing_x_value: Number(pxUToUnitDisplay(xPxU, workspaceUnit, dpi)),
-      spacing_y_value: Number(pxUToUnitDisplay(yPxU, workspaceUnit, dpi)),
-      line_width_value: Number(pxUToUnitDisplay(lwPxU, workspaceUnit, dpi)),
+      spacing_x_value: Number(pxUToUnitDisplayFixed(xPxU, workspaceUnit)),
+      spacing_y_value: Number(pxUToUnitDisplayFixed(yPxU, workspaceUnit)),
+      line_width_value: Number(pxUToUnitDisplayFixed(lwPxU, workspaceUnit)),
     }
     void upsertGrid(next)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [row?.unit, workspaceUnit, workspaceDpi])
+  }, [row?.unit, workspaceUnit])
 
   const value = useMemo<ProjectGridContextValue>(() => {
     const unit = row ? normalizeGridUnit((row as unknown as { unit?: unknown })?.unit) : null
-    const dpi = Number(workspaceDpi ?? NaN)
-    const canConvert = Boolean(unit && Number.isFinite(dpi) && dpi > 0)
-
     const spacingXPx =
-      row && canConvert ? Number(unitToPx(Number(row.spacing_x_value), unit as Unit, dpi)) : null
+      row && unit ? Number(unitToPxFixed(Number(row.spacing_x_value), unit as Unit)) : null
     const spacingYPx =
-      row && canConvert ? Number(unitToPx(Number(row.spacing_y_value), unit as Unit, dpi)) : null
+      row && unit ? Number(unitToPxFixed(Number(row.spacing_y_value), unit as Unit)) : null
     const lineWidthPx =
-      row && canConvert ? Number(unitToPx(Number(row.line_width_value), unit as Unit, dpi)) : null
+      row && unit ? Number(unitToPxFixed(Number(row.line_width_value), unit as Unit)) : null
 
     return {
       projectId,
@@ -173,7 +166,7 @@ export function ProjectGridProvider({
       spacingYPx,
       lineWidthPx,
     }
-  }, [error, loading, projectId, refresh, row, saving, upsertGrid, workspaceDpi])
+  }, [error, loading, projectId, refresh, row, saving, upsertGrid])
 
   return <ProjectGridContext.Provider value={value}>{children}</ProjectGridContext.Provider>
 }
