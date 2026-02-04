@@ -9,8 +9,9 @@
  */
 import * as React from "react"
 
-import { ProjectSidebar } from "@/components/navigation/ProjectSidebar"
 import { SidebarFrame } from "@/components/navigation/SidebarFrame"
+import { SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel } from "@/components/ui/sidebar"
+import { EditorTreeView, type EditorTreeItem } from "@/features/editor/components/EditorTreeView"
 
 export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel(props: {
   widthRem: number
@@ -22,7 +23,35 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
 }) {
   const { widthRem, minRem, maxRem, onWidthRemChange, selectedId, onSelect } = props
 
+  const [expandedIds, setExpandedIds] = React.useState<string[]>(() => ["app"])
+
+  const onToggleExpanded = React.useCallback((id: string, nextExpanded: boolean) => {
+    setExpandedIds((prev) => {
+      const has = prev.includes(id)
+      if (nextExpanded && has) return prev
+      if (!nextExpanded && !has) return prev
+      return nextExpanded ? [...prev, id] : prev.filter((x) => x !== id)
+    })
+  }, [])
+
   const clamp = (v: number) => Math.max(minRem, Math.min(maxRem, v))
+
+  const items = React.useMemo<EditorTreeItem[]>(() => {
+    // MVP placeholder data wired to the existing right-panel routing rule:
+    // `services/editor/panel-routing.ts` treats `selectedId.startsWith("app/api")` as the image panel.
+    return [
+      {
+        id: "app",
+        label: "Artboard",
+        children: [
+          {
+            id: "app/api",
+            label: "Image",
+          },
+        ],
+      },
+    ]
+  }, [])
 
   const onResizeMouseDown = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -58,7 +87,21 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
       style={{ width: `${clamp(widthRem)}rem` }}
     >
       <SidebarFrame className="block min-h-0 w-full">
-        <ProjectSidebar selectedId={selectedId} onSelect={onSelect} />
+        <SidebarContent>
+          <SidebarGroup>
+            <SidebarGroupLabel>Layers</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <EditorTreeView
+                items={items}
+                selectedId={selectedId}
+                expandedIds={expandedIds}
+                onSelect={onSelect}
+                onToggleExpanded={onToggleExpanded}
+                ariaLabel="Layers"
+              />
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarContent>
       </SidebarFrame>
       {/* Resize handle (use border line; no separate visual handle). */}
       <div
