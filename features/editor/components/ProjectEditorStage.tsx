@@ -86,6 +86,46 @@ export function ProjectEditorStage(props: {
   } = props
 
   const [isUploading, setIsUploading] = React.useState(false)
+  const [overlayVisible, setOverlayVisible] = React.useState(false)
+  const overlayStartMsRef = React.useRef<number | null>(null)
+  const overlayHideTimerRef = React.useRef<number | null>(null)
+
+  const processing = isUploading
+
+  React.useEffect(() => {
+    if (processing) {
+      if (overlayHideTimerRef.current != null) {
+        window.clearTimeout(overlayHideTimerRef.current)
+        overlayHideTimerRef.current = null
+      }
+      if (!overlayVisible) {
+        overlayStartMsRef.current = Date.now()
+        setOverlayVisible(true)
+      }
+      return
+    }
+
+    if (!overlayVisible) return
+
+    const startedAt = overlayStartMsRef.current ?? Date.now()
+    const elapsed = Date.now() - startedAt
+    const remaining = Math.max(0, 2000 - elapsed)
+
+    overlayHideTimerRef.current = window.setTimeout(() => {
+      overlayHideTimerRef.current = null
+      overlayStartMsRef.current = null
+      setOverlayVisible(false)
+    }, remaining)
+  }, [processing, overlayVisible])
+
+  React.useEffect(() => {
+    return () => {
+      if (overlayHideTimerRef.current != null) {
+        window.clearTimeout(overlayHideTimerRef.current)
+        overlayHideTimerRef.current = null
+      }
+    }
+  }, [])
 
   const bgStyle = React.useMemo(() => {
     return computeRgbaBackgroundStyleFromHex({ enabled: pageBgEnabled, hex: pageBgColor, opacityPercent: pageBgOpacity }) as
@@ -152,17 +192,20 @@ export function ProjectEditorStage(props: {
           />
         )}
 
-        {isUploading ? (
-          <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-muted/50">
-            <div className="flex w-full max-w-xs flex-col gap-4 [--radius:1rem]">
-              <Item variant="muted">
-                <ItemMedia>
-                  <Spinner />
-                </ItemMedia>
-                <ItemContent>
-                  <ItemTitle className="line-clamp-1">Loading image...</ItemTitle>
-                </ItemContent>
-              </Item>
+        {overlayVisible ? (
+          <div className="pointer-events-auto fixed inset-0 z-50 isolate">
+            <div className="absolute inset-0 z-0 bg-black/50" aria-hidden="true" />
+            <div className="relative z-10 flex h-full w-full items-center justify-center">
+              <div className="flex w-full max-w-xs flex-col gap-4 [--radius:1rem]">
+                <Item variant="muted" size="sm" className="bg-background">
+                  <ItemMedia>
+                    <Spinner />
+                  </ItemMedia>
+                  <ItemContent>
+                    <ItemTitle className="line-clamp-1">Loading image...</ItemTitle>
+                  </ItemContent>
+                </Item>
+              </div>
             </div>
           </div>
         ) : null}

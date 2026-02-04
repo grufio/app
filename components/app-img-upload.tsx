@@ -35,10 +35,6 @@ export function ProjectImageUploader({
   const [error, setError] = useState<string>("")
 
   useEffect(() => {
-    onUploadingChange?.(isUploading)
-  }, [isUploading, onUploadingChange])
-
-  useEffect(() => {
     let cancelled = false
     setStatus("checking")
     hasMasterImage(projectId).then((exists) => {
@@ -56,6 +52,7 @@ export function ProjectImageUploader({
       setError("")
       setFile(nextFile)
       setIsUploading(true)
+      onUploadingChange?.(true)
       try {
         const { width, height } = await getImageDimensions(nextFile)
         const format = guessImageFormat(nextFile)
@@ -87,9 +84,10 @@ export function ProjectImageUploader({
         onUploaded()
       } finally {
         setIsUploading(false)
+        onUploadingChange?.(false)
       }
     },
-    [isUploading, onUploaded, projectId]
+    [isUploading, onUploaded, onUploadingChange, projectId]
   )
 
   const onDrop = useCallback(
