@@ -11,6 +11,8 @@ import * as React from "react"
 import dynamic from "next/dynamic"
 
 import { ProjectImageUploader } from "@/components/app-img-upload"
+import { Spinner } from "@/components/ui/spinner"
+import { Item, ItemContent, ItemMedia, ItemTitle } from "@/components/ui/item"
 import { computeRgbaBackgroundStyleFromHex } from "@/lib/editor/color"
 import {
   FloatingToolbar,
@@ -83,6 +85,8 @@ export function ProjectEditorStage(props: {
     saveImageState,
   } = props
 
+  const [isUploading, setIsUploading] = React.useState(false)
+
   const bgStyle = React.useMemo(() => {
     return computeRgbaBackgroundStyleFromHex({ enabled: pageBgEnabled, hex: pageBgColor, opacityPercent: pageBgOpacity }) as
       | React.CSSProperties
@@ -104,6 +108,14 @@ export function ProjectEditorStage(props: {
         <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center">
           <div className="pointer-events-auto">
             <FloatingToolbar
+              leftSlot={
+                <ProjectImageUploader
+                  projectId={projectId}
+                  onUploaded={refreshMasterImage}
+                  onUploadingChange={setIsUploading}
+                  variant="toolbar"
+                />
+              }
               tool={toolbar.tool}
               onToolChange={toolbar.setTool}
               onZoomIn={toolbar.actions.zoomIn}
@@ -140,16 +152,21 @@ export function ProjectEditorStage(props: {
           />
         )}
 
-        {!masterImage && !masterImageLoading && !masterImageError ? (
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <div className="pointer-events-auto">
-              <ProjectImageUploader
-                projectId={projectId}
-                onUploaded={refreshMasterImage}
-              />
+        {isUploading ? (
+          <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-muted/50">
+            <div className="flex w-full max-w-xs flex-col gap-4 [--radius:1rem]">
+              <Item variant="muted">
+                <ItemMedia>
+                  <Spinner />
+                </ItemMedia>
+                <ItemContent>
+                  <ItemTitle className="line-clamp-1">Loading image...</ItemTitle>
+                </ItemContent>
+              </Item>
             </div>
           </div>
         ) : null}
+
       </div>
     </div>
   )

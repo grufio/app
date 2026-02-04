@@ -1,13 +1,7 @@
 "use client"
 
-/**
- * Separator UI primitive (Radix).
- *
- * Responsibilities:
- * - Render horizontal/vertical dividers with consistent theme tokens.
- */
 import * as React from "react"
-import * as SeparatorPrimitive from "@radix-ui/react-separator"
+import { Separator as SeparatorPrimitive } from "radix-ui"
 
 import { cn } from "@/lib/utils"
 

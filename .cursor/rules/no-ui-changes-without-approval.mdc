@@ -1,0 +1,19 @@
+---
+description: Do not change UI/behavior without explicit approval
+alwaysApply: true
+---
+
+# No UI Changes Without Approval
+
+- Do not make any UI or UI-behavior changes without explicit user approval.
+- This includes visual changes, layout changes, interactions, and behavioral tweaks.
+- If a UI change is needed, ask for explicit approval before editing.
+- You may edit any relevant files once explicit approval is given.
+
+## Examples
+
+// ❌ BAD (no approval)
+Change button behavior or layout without a user "go".
+
+// ✅ GOOD (with approval)
+"I can change the upload button behavior. Say 'go' to proceed."

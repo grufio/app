@@ -19,6 +19,7 @@ export type FloatingToolbarTool = EditorTool
 const TOOLBAR_ICON_STROKE_WIDTH = 1
 
 type Props = {
+  leftSlot?: React.ReactNode
   tool: FloatingToolbarTool
   onToolChange: (tool: FloatingToolbarTool) => void
   onZoomIn: () => void
@@ -67,6 +68,7 @@ function IconButton({
 }
 
 export function FloatingToolbar({
+  leftSlot,
   tool,
   onToolChange,
   onZoomIn,
@@ -86,6 +88,7 @@ export function FloatingToolbar({
           className
         )}
       >
+        {leftSlot}
         <IconButton label="Select (Move Image)" active={tool === "select"} onClick={() => onToolChange("select")}>
           <MousePointer2 className="size-6" strokeWidth={TOOLBAR_ICON_STROKE_WIDTH} />
         </IconButton>

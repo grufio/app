@@ -9,18 +9,34 @@
  */
 import { useCallback, useEffect, useState } from "react"
 import { useDropzone } from "react-dropzone"
+import { ImagePlus } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { hasMasterImage } from "@/lib/api/project-images"
 import { getImageDimensions } from "@/lib/images/dimensions"
 import { guessImageFormat } from "@/lib/images/format-detection"
 import { formatKbRounded } from "@/lib/utils/file-size"
+import { Button } from "@/components/ui/button"
 
-export function ProjectImageUploader({ projectId, onUploaded }: { projectId: string; onUploaded: () => void }) {
+export function ProjectImageUploader({
+  projectId,
+  onUploaded,
+  onUploadingChange,
+  variant = "panel",
+}: {
+  projectId: string
+  onUploaded: () => void
+  onUploadingChange?: (uploading: boolean) => void
+  variant?: "panel" | "toolbar"
+}) {
   const [status, setStatus] = useState<"checking" | "show" | "hide">("checking")
   const [file, setFile] = useState<File | null>(null)
   const [isUploading, setIsUploading] = useState(false)
   const [error, setError] = useState<string>("")
+
+  useEffect(() => {
+    onUploadingChange?.(isUploading)
+  }, [isUploading, onUploadingChange])
 
   useEffect(() => {
     let cancelled = false
@@ -93,11 +109,28 @@ export function ProjectImageUploader({ projectId, onUploaded }: { projectId: str
     disabled: isUploading,
   })
 
-  if (status === "hide") return null
+  if (variant !== "toolbar" && status === "hide") return null
 
   // Prevent flicker: don't render uploader until we know whether an image already exists.
   if (status === "checking") {
     return null
+  }
+
+  if (variant === "toolbar") {
+    return (
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        disabled={isUploading}
+        aria-label="Add image"
+        title="Add image"
+        {...getRootProps()}
+      >
+        <input {...getInputProps()} />
+        <ImagePlus className="size-6" strokeWidth={1} />
+      </Button>
+    )
   }
 
   return (
