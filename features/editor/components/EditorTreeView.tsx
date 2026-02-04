@@ -366,29 +366,6 @@ export function EditorTreeView(props: EditorTreeViewProps) {
     queueMicrotask(() => itemRefs.current.get(initialId)?.focus())
   }
 
-  const rowBaseStyle: React.CSSProperties = {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    paddingBlock: 6,
-    paddingInlineEnd: 8,
-    borderRadius: 8,
-    userSelect: "none",
-  }
-
-  const caretStyle: React.CSSProperties = {
-    width: 24,
-    height: 24,
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    cursor: "pointer",
-    background: "transparent",
-    border: 0,
-    padding: 0,
-    flex: "0 0 auto",
-  }
-
   const renderNode = (item: EditorTreeItem, depth: number, parentId: string | null) => {
     const children = item.children ?? []
     const hasChildren = children.length > 0
@@ -396,12 +373,14 @@ export function EditorTreeView(props: EditorTreeViewProps) {
     const active = selectedId === item.id
     const focused = focusedId === item.id
 
-    const indentStyle: React.CSSProperties = {
-      paddingInlineStart: 8 + depth * 16,
-    }
+    // Do not inline padding here (it overrides adapter CSS). Provide a variable instead.
+    const indentStyle = {
+      // Base indent per depth (16px steps). Adapter CSS adds the base left padding.
+      ["--editor-tree-indent"]: `${depth * 16}px`,
+    } as React.CSSProperties
 
     return (
-      <div key={item.id} role="none">
+      <div key={item.id} role="none" data-editor-tree="node">
         <div
           ref={setItemRef(item.id)}
           role="treeitem"
@@ -415,16 +394,10 @@ export function EditorTreeView(props: EditorTreeViewProps) {
             if (item.disabled) return
             onSelect(item.id)
           }}
-          style={{
-            ...indentStyle,
-            ...rowBaseStyle,
-            background: active ? "rgba(0,0,0,0.06)" : "transparent",
-            outline: "none",
-            cursor: item.disabled ? "default" : "pointer",
-            opacity: item.disabled ? 0.5 : 1,
-          }}
+          style={indentStyle}
           data-editor-tree-id={item.id}
           data-editor-tree-parent-id={parentId ?? ""}
+          data-editor-tree="row"
         >
           {hasChildren ? (
             <button
@@ -440,23 +413,40 @@ export function EditorTreeView(props: EditorTreeViewProps) {
                 if (item.disabled) return
                 onToggleExpanded(item.id, !isExpanded)
               }}
-              style={caretStyle}
+              data-editor-tree="caret"
+              style={{
+                background: "transparent",
+                border: 0,
+                padding: 0,
+                flex: "0 0 auto",
+              }}
               tabIndex={-1}
             >
-              {isExpanded ? <ChevronDown aria-hidden="true" size={16} /> : <ChevronRight aria-hidden="true" size={16} />}
+              {isExpanded ? (
+                <ChevronDown aria-hidden="true" size={16} strokeWidth={1} />
+              ) : (
+                <ChevronRight aria-hidden="true" size={16} strokeWidth={1} />
+              )}
             </button>
           ) : (
-            <span style={{ width: 24, height: 24, display: "inline-block", flex: "0 0 auto" }} aria-hidden="true" />
+            <span
+              data-editor-tree="caret-spacer"
+              style={{ display: "inline-block", flex: "0 0 auto" }}
+              aria-hidden="true"
+            />
           )}
 
-          {renderIcon ? renderIcon(item) : null}
-          <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {renderIcon ? <span data-editor-tree="icon">{renderIcon(item)}</span> : null}
+          <span
+            data-editor-tree="label"
+            style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+          >
             {item.label}
           </span>
         </div>
 
         {hasChildren && isExpanded ? (
-          <div role="group" aria-label={`${item.label} children`}>
+          <div role="group" aria-label={`${item.label} children`} data-editor-tree="group">
             {children.map((c) => renderNode(c, depth + 1, item.id))}
           </div>
         ) : null}
@@ -471,6 +461,7 @@ export function EditorTreeView(props: EditorTreeViewProps) {
       aria-label={ariaLabel}
       onKeyDown={onKeyDown}
       onFocusCapture={onRootFocusCapture}
+      data-editor-tree="root"
     >
       {items.map((i) => renderNode(i, 0, null))}
     </div>

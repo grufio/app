@@ -8,6 +8,7 @@
  * - Provide a resizable panel width via pointer drag.
  */
 import * as React from "react"
+import { Image as ImageIcon, LayoutGrid } from "lucide-react"
 
 import { SidebarFrame } from "@/components/navigation/SidebarFrame"
 import { SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel } from "@/components/ui/sidebar"
@@ -91,14 +92,21 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
           <SidebarGroup>
             <SidebarGroupLabel>Layers</SidebarGroupLabel>
             <SidebarGroupContent>
-              <EditorTreeView
-                items={items}
-                selectedId={selectedId}
-                expandedIds={expandedIds}
-                onSelect={onSelect}
-                onToggleExpanded={onToggleExpanded}
-                ariaLabel="Layers"
-              />
+              <div className="editor-treeview-adapter">
+                <EditorTreeView
+                  items={items}
+                  selectedId={selectedId}
+                  expandedIds={expandedIds}
+                  onSelect={onSelect}
+                  onToggleExpanded={onToggleExpanded}
+                  ariaLabel="Layers"
+                  renderIcon={(item) => {
+                    if (item.id === "app") return <LayoutGrid aria-hidden="true" size={16} strokeWidth={1} />
+                    if (item.id === "app/api") return <ImageIcon aria-hidden="true" size={16} strokeWidth={1} />
+                    return null
+                  }}
+                />
+              </div>
             </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>

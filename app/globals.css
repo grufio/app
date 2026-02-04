@@ -132,3 +132,99 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer components {
+  /* Dashboard-style adapter for EditorTreeView (scoped). */
+  .editor-treeview-adapter [data-editor-tree="root"],
+  .editor-treeview-adapter [data-editor-tree="group"] {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem; /* matches sidebar menu gap-1 */
+  }
+
+  .editor-treeview-adapter [data-editor-tree="row"] {
+    /* Dashboard-like row layout (SidebarMenuButton), with requested sizing overrides. */
+    display: flex;
+    width: 100%;
+    min-width: 0;
+    align-items: center;
+    gap: 0.5rem;
+    overflow: hidden;
+    border-radius: 0.375rem;
+    height: 1.75rem; /* h-7 = 28px */
+    cursor: pointer;
+    user-select: none;
+    text-align: left;
+    font-size: 12px;
+    line-height: 1;
+    outline: none;
+    transition: width 200ms ease, height 200ms ease, padding 200ms ease,
+      background-color 120ms ease, color 120ms ease;
+
+    padding-inline-end: 0.5rem;
+    padding-block: 0.25rem;
+
+    /* Apply tree indentation while keeping base padding model (px-2). */
+    padding-inline-start: calc(0.5rem + var(--editor-tree-indent, 0px));
+  }
+
+  .editor-treeview-adapter [data-editor-tree="row"]:hover {
+    background: var(--sidebar-accent);
+    color: var(--sidebar-accent-foreground);
+  }
+
+  .editor-treeview-adapter [data-editor-tree="row"]:active {
+    background: var(--sidebar-accent);
+    color: var(--sidebar-accent-foreground);
+  }
+
+  .editor-treeview-adapter [data-editor-tree="row"][aria-selected="true"] {
+    background: var(--sidebar-accent);
+    color: var(--sidebar-accent-foreground);
+  }
+
+  .editor-treeview-adapter [data-editor-tree="row"]:focus-visible {
+    outline: 2px solid var(--sidebar-ring);
+    outline-offset: 2px;
+  }
+
+  .editor-treeview-adapter [data-editor-tree="row"][aria-disabled="true"] {
+    pointer-events: none;
+    opacity: 0.5;
+    cursor: default;
+  }
+
+  .editor-treeview-adapter [data-editor-tree="caret"] {
+    display: inline-flex;
+    width: 1.75rem; /* 28px */
+    height: 1.75rem; /* 28px */
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.375rem;
+    color: var(--sidebar-foreground);
+  }
+
+  .editor-treeview-adapter [data-editor-tree="caret-spacer"] {
+    display: inline-block;
+    width: 1.75rem;
+    height: 1.75rem;
+  }
+
+  .editor-treeview-adapter [data-editor-tree="icon"] svg {
+    width: 1rem; /* 16px */
+    height: 1rem; /* 16px */
+    flex: 0 0 auto;
+    color: var(--sidebar-foreground);
+  }
+
+  .editor-treeview-adapter [data-editor-tree="row"][aria-selected="true"] [data-editor-tree="icon"] svg {
+    color: var(--sidebar-accent-foreground);
+  }
+
+  .editor-treeview-adapter [data-editor-tree="label"] {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
