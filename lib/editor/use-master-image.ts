@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { deleteMasterImage, getMasterImage } from "@/lib/api/project-images"
 
 export type MasterImage = {
+  id: string
   signedUrl: string
   width_px: number
   height_px: number
@@ -49,6 +50,7 @@ export function useMasterImage(projectId: string, initialMasterImage?: MasterIma
       }
       if (mountedRef.current) {
         setMasterImage({
+          id: String((payload as { id?: string }).id ?? ""),
           signedUrl: payload.signedUrl,
           width_px: Number(payload.width_px ?? 0),
           height_px: Number(payload.height_px ?? 0),

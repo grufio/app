@@ -24,6 +24,7 @@ import { type WorkspaceRow, useProjectWorkspace } from "@/lib/editor/project-wor
 import { useProjectGrid } from "@/lib/editor/project-grid"
 import type { MasterImage } from "@/lib/editor/use-master-image"
 import { useMasterImage } from "@/lib/editor/use-master-image"
+import { useProjectImages } from "@/lib/editor/use-project-images"
 import type { Project } from "@/lib/editor/use-project"
 import { useProject } from "@/lib/editor/use-project"
 import type { ImageState } from "@/lib/editor/use-image-state"
@@ -65,6 +66,8 @@ export function ProjectDetailPageClient({
     deleteImage,
   } = useMasterImage(projectId, initialMasterImage)
 
+  const { images: projectImages, refresh: refreshProjectImages, deleteById: deleteImageById } = useProjectImages(projectId)
+
   const [restoreOpen, setRestoreOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const canvasRef = useRef<ProjectCanvasStageHandle | null>(null)
@@ -89,13 +92,6 @@ export function ProjectDetailPageClient({
     })
   }, [])
 
-  const handleDeleteMasterImage = useCallback(async () => {
-    const res = await deleteImage()
-    if (!res.ok) return
-    setDeleteOpen(false)
-    setImagePxU(null)
-  }, [deleteImage])
-
   const toolbar = useFloatingToolbarControls({
     canvasRef,
     hasImage: Boolean(masterImage),
@@ -105,6 +101,26 @@ export function ProjectDetailPageClient({
   })
 
   const [selectedNavId, setSelectedNavId] = useState<string>("app")
+
+  const selectedImageId = useMemo(() => {
+    const prefix = "app/api/"
+    if (!selectedNavId.startsWith(prefix)) return null
+    const id = selectedNavId.slice(prefix.length)
+    return id.length > 0 ? id : null
+  }, [selectedNavId])
+
+  const selectedImage = useMemo(() => {
+    if (!selectedImageId) return null
+    return projectImages.find((img) => img.id === selectedImageId) ?? null
+  }, [projectImages, selectedImageId])
+
+  const handleDeleteMasterImage = useCallback(async () => {
+    const res = selectedImageId ? await deleteImageById(selectedImageId) : await deleteImage()
+    if (!res.ok) return
+    setDeleteOpen(false)
+    setImagePxU(null)
+    void refreshProjectImages()
+  }, [deleteImage, deleteImageById, refreshProjectImages, selectedImageId])
 
   const [leftPanelWidthRem, setLeftPanelWidthRem] = useState(20)
   const [rightPanelWidthRem, setRightPanelWidthRem] = useState(20)
@@ -218,6 +234,25 @@ export function ProjectDetailPageClient({
 
   const activeRightSection = mapSelectedNavIdToRightPanelSection(selectedNavId)
 
+  const panelImageMeta = useMemo(() => {
+    if (!selectedImage) return masterImage
+    return {
+      signedUrl: masterImage?.signedUrl ?? null,
+      name: selectedImage.name ?? "Image",
+    }
+  }, [masterImage, selectedImage])
+
+  useEffect(() => {
+    if (!masterImage?.id) return
+    if (selectedNavId === "app") {
+      setSelectedNavId(`app/api/${masterImage.id}`)
+    }
+  }, [masterImage?.id, selectedNavId])
+
+  useEffect(() => {
+    void refreshProjectImages()
+  }, [masterImage?.signedUrl, refreshProjectImages])
+
   const grid = useMemo(() => {
     return computeRenderableGrid({ row: gridRow, spacingXPx, spacingYPx, lineWidthPx })
   }, [gridRow, lineWidthPx, spacingXPx, spacingYPx])
@@ -245,6 +280,12 @@ export function ProjectDetailPageClient({
               onWidthRemChange={setLeftPanelWidthRem}
               selectedId={selectedNavId}
               onSelect={setSelectedNavId}
+              images={
+                projectImages.map((img) => ({
+                  id: img.id,
+                  label: img.name ?? "Image",
+                }))
+              }
             />
             <ProjectEditorStage
               projectId={projectId}
@@ -279,7 +320,7 @@ export function ProjectDetailPageClient({
             onPageBgEnabledChange={handlePageBgEnabledChange}
             onPageBgColorChange={handlePageBgColorChange}
             onPageBgOpacityChange={handlePageBgOpacityChange}
-            masterImage={masterImage}
+            masterImage={panelImageMeta}
             masterImageLoading={masterImageLoading}
             deleteBusy={deleteBusy}
             deleteError={deleteError}

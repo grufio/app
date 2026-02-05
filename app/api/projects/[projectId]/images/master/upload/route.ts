@@ -30,12 +30,6 @@ function parseAllowedMimeList(value: string | undefined): Set<string> | null {
   return new Set(items)
 }
 
-function sanitizeFilename(name: string): string {
-  const base = typeof name === "string" && name.trim() ? name.trim() : "upload"
-  // Keep Storage paths predictable and avoid control chars / path-like names.
-  return base.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 200)
-}
-
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ projectId: string }> }
@@ -63,11 +57,11 @@ export async function POST(
     })
   }
 
-  // Explicit authed client for Storage + DB (ensures Authorization header is present for RLS).
+  // Explicit authed client for Storage (ensures Authorization header is present).
   const authed = createSupabaseAuthedUserClient(accessToken)
 
   // Verify project is accessible under RLS (owner-only).
-  const { data: projectRow, error: projectErr } = await authed
+  const { data: projectRow, error: projectErr } = await supabase
     .from("projects")
     .select("id")
     .eq("id", projectId)
@@ -132,7 +126,8 @@ export async function POST(
     }
   }
 
-  const objectPath = `projects/${projectId}/master/${crypto.randomUUID()}-${sanitizeFilename(file.name)}`
+  const imageId = crypto.randomUUID()
+  const objectPath = `projects/${projectId}/images/${imageId}`
 
   // Upload to Storage as the authenticated user (Storage RLS enforced).
   const { error: uploadErr } = await authed.storage.from("project_images").upload(objectPath, file, {
@@ -146,21 +141,21 @@ export async function POST(
   }
 
   // Upsert DB record for master image.
-  const { error: dbErr } = await authed
+  const { error: dbErr } = await supabase
     .from("project_images")
-    .upsert(
-      {
-        project_id: projectId,
-        role: "master",
-        name: file.name,
-        format,
-        width_px,
-        height_px,
-        storage_path: objectPath,
-        file_size_bytes: file.size,
-      },
-      { onConflict: "project_id,role" }
-    )
+    .insert({
+      id: imageId,
+      project_id: projectId,
+      role: "master",
+      name: file.name,
+      format,
+      width_px,
+      height_px,
+      storage_bucket: "project_images",
+      storage_path: objectPath,
+      file_size_bytes: file.size,
+      is_active: false,
+    })
 
   if (dbErr) {
     console.warn("master upload: db upsert failed", { projectId, message: dbErr.message, code: (dbErr as unknown as { code?: string })?.code })
@@ -170,6 +165,19 @@ export async function POST(
     })
   }
 
-  return NextResponse.json({ ok: true, storage_path: objectPath })
+  const { error: activeErr } = await supabase.rpc("set_active_master_image", {
+    p_project_id: projectId,
+    p_image_id: imageId,
+  })
+
+  if (activeErr) {
+    console.warn("master upload: active switch failed", { projectId, message: activeErr.message })
+    return jsonError(activeErr.message, 400, {
+      stage: "active_switch",
+      code: (activeErr as unknown as { code?: string })?.code,
+    })
+  }
+
+  return NextResponse.json({ ok: true, id: imageId, storage_path: objectPath })
 }
 

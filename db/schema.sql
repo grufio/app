@@ -477,6 +477,196 @@ alter table public.project_workspace
 -- =========================================================
 
 -- =========================================================
+-- BEGIN db/019_project_images_multi.sql
+-- =========================================================
+-- gruf.io - Support multiple images per project
+-- Adds role expansion, active master, storage metadata, indexes, and optional soft delete.
+
+-- Extend image_role enum (do not remove existing values)
+do $$ begin
+  alter type public.image_role add value 'asset';
+exception when duplicate_object then null; end $$;
+
+-- Allow multiple images per role
+alter table public.project_images
+  drop constraint if exists project_images_one_per_role;
+
+-- Storage metadata
+alter table public.project_images
+  add column if not exists storage_bucket text not null default 'project_images';
+
+-- Active master flag
+alter table public.project_images
+  add column if not exists is_active boolean not null default false;
+
+-- Optional soft delete
+alter table public.project_images
+  add column if not exists deleted_at timestamptz;
+
+-- Backfill active master (latest master per project)
+with ranked as (
+  select
+    id,
+    project_id,
+    row_number() over (partition by project_id order by created_at desc) as rn
+  from public.project_images
+  where role = 'master' and deleted_at is null
+)
+update public.project_images pi
+set is_active = (ranked.rn = 1)
+from ranked
+where pi.id = ranked.id;
+
+-- Indexes
+create index if not exists project_images_project_id_role_created_at_idx
+  on public.project_images (project_id, role, created_at desc);
+
+-- Enforce one active master per project
+create unique index if not exists project_images_one_active_master_idx
+  on public.project_images (project_id)
+  where role = 'master' and is_active is true and deleted_at is null;
+
+-- Helpers to atomically switch active master
+create or replace function public.set_active_master_image(p_project_id uuid, p_image_id uuid)
+returns void
+language plpgsql
+as $$
+begin
+  update public.project_images
+  set is_active = false
+  where project_id = p_project_id
+    and role = 'master'
+    and deleted_at is null;
+
+  update public.project_images
+  set is_active = true
+  where id = p_image_id
+    and project_id = p_project_id
+    and role = 'master'
+    and deleted_at is null;
+end;
+$$;
+
+create or replace function public.set_active_master_latest(p_project_id uuid)
+returns void
+language plpgsql
+as $$
+declare
+  v_image_id uuid;
+begin
+  select id
+  into v_image_id
+  from public.project_images
+  where project_id = p_project_id
+    and role = 'master'
+    and deleted_at is null
+  order by created_at desc
+  limit 1;
+
+  if v_image_id is not null then
+    perform public.set_active_master_image(p_project_id, v_image_id);
+  end if;
+end;
+$$;
+
+-- =========================================================
+-- END db/019_project_images_multi.sql
+-- =========================================================
+
+-- =========================================================
+-- BEGIN db/020_project_images_storage_path.sql
+-- =========================================================
+-- gruf.io - Update storage policies for new image paths
+-- Path convention: projects/<project_id>/images/<image_id>
+
+alter table storage.objects enable row level security;
+
+drop policy if exists project_images_storage_select_owner on storage.objects;
+create policy project_images_storage_select_owner
+on storage.objects for select
+using (
+  bucket_id = 'project_images'
+  and (
+    name ~ '^projects/[0-9a-fA-F-]{36}/images/[0-9a-fA-F-]{36}$'
+    or name ~ '^projects/[0-9a-fA-F-]{36}/(master|working)/'
+  )
+  and exists (
+    select 1
+    from public.projects p
+    where p.id::text = substring(storage.objects.name from '^projects/([0-9a-fA-F-]{36})/')
+      and p.owner_id = auth.uid()
+  )
+);
+
+drop policy if exists project_images_storage_insert_owner on storage.objects;
+create policy project_images_storage_insert_owner
+on storage.objects for insert
+with check (
+  bucket_id = 'project_images'
+  and (
+    name ~ '^projects/[0-9a-fA-F-]{36}/images/[0-9a-fA-F-]{36}$'
+    or name ~ '^projects/[0-9a-fA-F-]{36}/(master|working)/'
+  )
+  and exists (
+    select 1
+    from public.projects p
+    where p.id::text = substring(storage.objects.name from '^projects/([0-9a-fA-F-]{36})/')
+      and p.owner_id = auth.uid()
+  )
+);
+
+drop policy if exists project_images_storage_update_owner on storage.objects;
+create policy project_images_storage_update_owner
+on storage.objects for update
+using (
+  bucket_id = 'project_images'
+  and (
+    name ~ '^projects/[0-9a-fA-F-]{36}/images/[0-9a-fA-F-]{36}$'
+    or name ~ '^projects/[0-9a-fA-F-]{36}/(master|working)/'
+  )
+  and exists (
+    select 1
+    from public.projects p
+    where p.id::text = substring(storage.objects.name from '^projects/([0-9a-fA-F-]{36})/')
+      and p.owner_id = auth.uid()
+  )
+)
+with check (
+  bucket_id = 'project_images'
+  and (
+    name ~ '^projects/[0-9a-fA-F-]{36}/images/[0-9a-fA-F-]{36}$'
+    or name ~ '^projects/[0-9a-fA-F-]{36}/(master|working)/'
+  )
+  and exists (
+    select 1
+    from public.projects p
+    where p.id::text = substring(storage.objects.name from '^projects/([0-9a-fA-F-]{36})/')
+      and p.owner_id = auth.uid()
+  )
+);
+
+drop policy if exists project_images_storage_delete_owner on storage.objects;
+create policy project_images_storage_delete_owner
+on storage.objects for delete
+using (
+  bucket_id = 'project_images'
+  and (
+    name ~ '^projects/[0-9a-fA-F-]{36}/images/[0-9a-fA-F-]{36}$'
+    or name ~ '^projects/[0-9a-fA-F-]{36}/(master|working)/'
+  )
+  and exists (
+    select 1
+    from public.projects p
+    where p.id::text = substring(storage.objects.name from '^projects/([0-9a-fA-F-]{36})/')
+      and p.owner_id = auth.uid()
+  )
+);
+
+-- =========================================================
+-- END db/020_project_images_storage_path.sql
+-- =========================================================
+
+-- =========================================================
 -- BEGIN db/017_schema_migrations.sql
 -- =========================================================
 -- gruf.io - Track applied SQL migrations (optional)

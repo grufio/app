@@ -15,15 +15,18 @@ export async function getMasterImageForEditor(
 ): Promise<{ masterImage: MasterImage | null; error: string | null }> {
   const { data: img, error: imgErr } = await supabase
     .from("project_images")
-    .select("storage_path,name,width_px,height_px,role")
+    .select("id,storage_path,storage_bucket,name,width_px,height_px,role,is_active,deleted_at")
     .eq("project_id", projectId)
     .eq("role", "master")
+    .eq("is_active", true)
+    .is("deleted_at", null)
     .maybeSingle()
 
   if (imgErr) return { masterImage: null, error: imgErr.message }
   if (!img?.storage_path) return { masterImage: null, error: null }
 
-  const { data: signed, error: signedErr } = await supabase.storage.from("project_images").createSignedUrl(img.storage_path, 60 * 10)
+  const bucket = img.storage_bucket ?? "project_images"
+  const { data: signed, error: signedErr } = await supabase.storage.from(bucket).createSignedUrl(img.storage_path, 60 * 10)
   if (signedErr || !signed?.signedUrl) {
     // Signing issues should not prevent editor boot.
     return { masterImage: null, error: null }
@@ -31,6 +34,7 @@ export async function getMasterImageForEditor(
 
   return {
     masterImage: {
+      id: String(img.id ?? ""),
       signedUrl: signed.signedUrl,
       width_px: Number(img.width_px ?? 0),
       height_px: Number(img.height_px ?? 0),

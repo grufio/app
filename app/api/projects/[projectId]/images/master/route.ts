@@ -19,6 +19,7 @@ type Body = {
   width_px: number
   height_px: number
   file_size_bytes: number
+  storage_bucket?: string
 }
 
 // Best-effort in-memory cache to reduce Storage signed URL churn.
@@ -43,9 +44,11 @@ export async function GET(
 
   const { data: img, error: imgErr } = await supabase
     .from("project_images")
-    .select("storage_path,name,format,width_px,height_px,file_size_bytes")
+    .select("id,storage_path,storage_bucket,name,format,width_px,height_px,file_size_bytes,is_active")
     .eq("project_id", projectId)
     .eq("role", "master")
+    .eq("is_active", true)
+    .is("deleted_at", null)
     .maybeSingle()
 
   if (imgErr) {
@@ -58,7 +61,8 @@ export async function GET(
 
   const now = Date.now()
   // Signed URLs are bearer tokens; the cache must be user-scoped.
-  const cacheKey = `${u.user.id}:${img.storage_path}`
+  const bucket = img.storage_bucket ?? "project_images"
+  const cacheKey = `${u.user.id}:${bucket}:${img.storage_path}`
   const cached = signedUrlCache.get(cacheKey)
   if (cached && cached.expiresAtMs - SIGNED_URL_RENEW_BUFFER_MS > now) {
     // LRU: refresh recency on hit.
@@ -66,6 +70,7 @@ export async function GET(
     signedUrlCache.set(cacheKey, cached)
     return NextResponse.json({
       exists: true,
+      id: img.id,
       signedUrl: cached.url,
       storage_path: img.storage_path,
       name: img.name,
@@ -76,9 +81,7 @@ export async function GET(
     })
   }
 
-  const { data: signed, error: signedErr } = await supabase.storage
-    .from("project_images")
-    .createSignedUrl(img.storage_path, SIGNED_URL_TTL_S)
+  const { data: signed, error: signedErr } = await supabase.storage.from(bucket).createSignedUrl(img.storage_path, SIGNED_URL_TTL_S)
 
   if (signedErr || !signed?.signedUrl) {
     return jsonError(signedErr?.message ?? "Failed to create signed URL", 400, { stage: "storage_policy", op: "createSignedUrl" })
@@ -93,6 +96,7 @@ export async function GET(
 
   return NextResponse.json({
     exists: true,
+    id: img.id,
     signedUrl: signed.signedUrl,
     storage_path: img.storage_path,
     name: img.name,
@@ -131,22 +135,21 @@ export async function POST(
     return jsonError("Missing/invalid fields", 400, { stage: "validation", where: "validate" })
   }
 
-  // Upsert master image row; RLS enforces owner-only via projects.owner_id = auth.uid().
-  const { error } = await supabase
-    .from("project_images")
-    .upsert(
-      {
-        project_id: projectId,
-        role: "master",
-        name: body.name,
-        format: body.format,
-        width_px: body.width_px,
-        height_px: body.height_px,
-        storage_path: body.storage_path,
-        file_size_bytes: body.file_size_bytes,
-      },
-      { onConflict: "project_id,role" }
-    )
+  const imageId = crypto.randomUUID()
+
+  const { error } = await supabase.from("project_images").insert({
+    id: imageId,
+    project_id: projectId,
+    role: "master",
+    name: body.name,
+    format: body.format,
+    width_px: body.width_px,
+    height_px: body.height_px,
+    storage_bucket: body.storage_bucket ?? "project_images",
+    storage_path: body.storage_path,
+    file_size_bytes: body.file_size_bytes,
+    is_active: false,
+  })
 
   if (error) {
     return jsonError(error.message, 400, {
@@ -155,7 +158,19 @@ export async function POST(
     })
   }
 
-  return NextResponse.json({ ok: true })
+  const { error: activeErr } = await supabase.rpc("set_active_master_image", {
+    p_project_id: projectId,
+    p_image_id: imageId,
+  })
+
+  if (activeErr) {
+    return jsonError(activeErr.message, 400, {
+      stage: "active_switch",
+      code: (activeErr as unknown as { code?: string })?.code,
+    })
+  }
+
+  return NextResponse.json({ ok: true, id: imageId })
 }
 
 export async function DELETE(
@@ -173,9 +188,11 @@ export async function DELETE(
 
   const { data: img, error: imgErr } = await supabase
     .from("project_images")
-    .select("storage_path")
+    .select("id,storage_path,is_active")
     .eq("project_id", projectId)
     .eq("role", "master")
+    .eq("is_active", true)
+    .is("deleted_at", null)
     .maybeSingle()
 
   if (imgErr) {
@@ -191,14 +208,17 @@ export async function DELETE(
     return jsonError(rmErr.message, 400, { stage: "storage_policy", op: "remove", storage_path: img.storage_path })
   }
 
-  const { error: delErr } = await supabase
-    .from("project_images")
-    .delete()
-    .eq("project_id", projectId)
-    .eq("role", "master")
+  const { error: delErr } = await supabase.from("project_images").delete().eq("id", img.id)
 
   if (delErr) {
     return jsonError(delErr.message, 400, { stage: "db_delete" })
+  }
+
+  const { error: activeErr } = await supabase.rpc("set_active_master_latest", {
+    p_project_id: projectId,
+  })
+  if (activeErr) {
+    return jsonError(activeErr.message, 400, { stage: "active_switch" })
   }
 
   return NextResponse.json({ ok: true, deleted: true })

@@ -30,6 +30,7 @@ export function ProjectEditorHeader({ projectId, initialTitle, onTitleUpdated }:
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string>("")
   const [activeTab, setActiveTab] = useState<"image" | "filter" | "colors" | "output">("image")
+  const [tabsMounted, setTabsMounted] = useState(false)
 
   const inputRef = useRef<HTMLInputElement | null>(null)
   const ignoreNextBlurRef = useRef(false)
@@ -50,6 +51,10 @@ export function ProjectEditorHeader({ projectId, initialTitle, onTitleUpdated }:
       inputRef.current?.select()
     })
   }, [isEditing])
+
+  useEffect(() => {
+    setTabsMounted(true)
+  }, [])
 
   const save = async (nextRaw: string) => {
     const next = nextRaw.trim() || "Untitled"
@@ -148,22 +153,24 @@ export function ProjectEditorHeader({ projectId, initialTitle, onTitleUpdated }:
       </div>
 
       <div className="px-4">
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="gap-0">
-          <TabsList className="h-6 gap-2">
-            <TabsTrigger value="image" className="h-6 text-[12px] leading-[24px]">
-              Image
-            </TabsTrigger>
-            <TabsTrigger value="filter" className="h-6 text-[12px] leading-[24px]">
-              Filter
-            </TabsTrigger>
-            <TabsTrigger value="colors" className="h-6 text-[12px] leading-[24px]">
-              Colors
-            </TabsTrigger>
-            <TabsTrigger value="output" className="h-6 text-[12px] leading-[24px]">
-              Output
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+        {tabsMounted ? (
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="gap-0">
+            <TabsList className="h-6 gap-2">
+              <TabsTrigger value="image" className="h-6 text-[12px] leading-[24px]">
+                Image
+              </TabsTrigger>
+              <TabsTrigger value="filter" className="h-6 text-[12px] leading-[24px]">
+                Filter
+              </TabsTrigger>
+              <TabsTrigger value="colors" className="h-6 text-[12px] leading-[24px]">
+                Colors
+              </TabsTrigger>
+              <TabsTrigger value="output" className="h-6 text-[12px] leading-[24px]">
+                Output
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        ) : null}
       </div>
     </header>
   )

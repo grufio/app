@@ -28,6 +28,7 @@ export function createSupabaseAuthedUserClient(accessToken: string): SupabaseCli
 
   return createClient<Database>(url, anonKey, {
     global: { headers: { Authorization: `Bearer ${accessToken}` } },
+    accessToken: async () => accessToken,
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   })
 }

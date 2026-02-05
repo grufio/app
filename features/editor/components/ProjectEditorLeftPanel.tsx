@@ -19,8 +19,9 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
   onWidthRemChange: (next: number) => void
   selectedId: string
   onSelect: (id: string) => void
+  images: { id: string; label: string }[]
 }) {
-  const { widthRem, minRem, maxRem, onWidthRemChange, selectedId, onSelect } = props
+  const { widthRem, minRem, maxRem, onWidthRemChange, selectedId, onSelect, images } = props
 
   const [expandedIds, setExpandedIds] = React.useState<string[]>(() => ["app"])
 
@@ -38,21 +39,30 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
   const items = React.useMemo<FileNode[]>(() => {
     // MVP placeholder data wired to the existing right-panel routing rule:
     // `services/editor/panel-routing.ts` treats `selectedId.startsWith("app/api")` as the image panel.
+    const imageChildren: FileNode[] =
+      images.length > 0
+        ? [
+            {
+              id: "app/api",
+              label: "Images",
+              type: "folder",
+              children: images.map((img) => ({
+                id: `app/api/${img.id}`,
+                label: img.label,
+                type: "file",
+              })),
+            },
+          ]
+        : []
     return [
       {
         id: "app",
         label: "Artboard",
         type: "folder",
-        children: [
-          {
-            id: "app/api",
-            label: "Image",
-            type: "file",
-          },
-        ],
+        children: imageChildren,
       },
     ]
-  }, [])
+  }, [images])
 
   const onResizeMouseDown = (e: React.MouseEvent) => {
     e.preventDefault()

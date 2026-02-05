@@ -1,8 +1,8 @@
 /**
- * API route: master image existence check.
+ * API route: list master images for a project.
  *
  * Responsibilities:
- * - Return whether a master image exists for a project (owner-only via auth/RLS).
+ * - Return metadata for all master images (no signed URLs).
  */
 import { NextResponse } from "next/server"
 
@@ -26,16 +26,15 @@ export async function GET(
 
   const { data, error } = await supabase
     .from("project_images")
-    .select("id")
+    .select("id,name,format,width_px,height_px,dpi,storage_path,storage_bucket,file_size_bytes,is_active,created_at")
     .eq("project_id", projectId)
     .eq("role", "master")
     .is("deleted_at", null)
-    .limit(1)
+    .order("created_at", { ascending: false })
 
   if (error) {
-    return jsonError(error.message, 400, { stage: "image_exists_query" })
+    return jsonError(error.message, 400, { stage: "list_master" })
   }
 
-  return NextResponse.json({ exists: Array.isArray(data) ? data.length > 0 : Boolean(data?.id) })
+  return NextResponse.json({ items: data ?? [] })
 }
-
