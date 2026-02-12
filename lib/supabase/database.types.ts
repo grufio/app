@@ -397,6 +397,19 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      set_active_master_image: {
+        Args: {
+          p_image_id: string
+          p_project_id: string
+        }
+        Returns: undefined
+      }
+      set_active_master_latest: {
+        Args: {
+          p_project_id: string
+        }
+        Returns: undefined
+      }
       workspace_value_to_px_u: {
         Args: {
           dpi: number
