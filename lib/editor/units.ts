@@ -11,6 +11,7 @@ export const PX_U_SCALE = 1_000_000n // µpx per px
 export const UM_PER_INCH = 25_400n // µm per inch
 export const PT_PER_INCH = 72n
 export const MAX_PX_U = 32_768_000_000n // 32768 px per edge at µpx scale
+export const GEOMETRY_PPI = 72 // Illustrator-style fixed mapping (1px = 1pt)
 
 // Invariants / single source of truth:
 // - Unit conversions are display/input only; canonical persisted truth is µpx (strings/BigInt).
@@ -87,6 +88,16 @@ export function unitToPxU(value: string, unit: Unit, dpi: number): bigint {
   }
 }
 
+/**
+ * Illustrator-style fixed mapping (geometry only):
+ * - 1in = 72pt
+ * - 1in = 25.4mm
+ * - 1px = 1pt
+ */
+export function unitToPxUFixed(value: string, unit: Unit): bigint {
+  return unitToPxU(value, unit, GEOMETRY_PPI)
+}
+
 export function pxUToUnitDisplay(pxU: bigint, unit: Unit, dpi: number): string {
   const dpiInt = BigInt(dpi)
   if (dpiInt <= 0n) throw new Error("dpi must be > 0")
@@ -111,6 +122,10 @@ export function pxUToUnitDisplay(pxU: bigint, unit: Unit, dpi: number): string {
   }
 }
 
+export function pxUToUnitDisplayFixed(pxU: bigint, unit: Unit): string {
+  return pxUToUnitDisplay(pxU, unit, GEOMETRY_PPI)
+}
+
 export function pxUToPxNumber(pxU: bigint): number {
   return Number(pxU) / 1e6
 }
@@ -124,9 +139,18 @@ export function convertUnit(value: string, fromUnit: Unit, toUnit: Unit, dpi: nu
   return pxUToUnitDisplay(pxU, toUnit, dpi)
 }
 
+export function convertUnitFixed(value: string, fromUnit: Unit, toUnit: Unit): string {
+  const pxU = unitToPxUFixed(value.trim() || "0", fromUnit)
+  return pxUToUnitDisplayFixed(pxU, toUnit)
+}
+
 // Legacy numeric helpers for non-image flows (artboard, etc.).
 export function unitToPx(value: number, unit: Unit, dpi: number): number {
   return pxUToPxNumber(unitToPxU(String(value), unit, dpi))
+}
+
+export function unitToPxFixed(value: number, unit: Unit): number {
+  return pxUToPxNumber(unitToPxUFixed(String(value), unit))
 }
 
 export function pxToUnit(px: number, unit: Unit, dpi: number): number {

@@ -26,6 +26,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { deleteProjectClient } from "@/services/projects/client/delete-project"
 
 export function ProjectCardMenu({
   projectId,
@@ -43,11 +44,8 @@ export function ProjectCardMenu({
     if (busy) return
     setBusy(true)
     try {
-      const res = await fetch(`/api/projects/${projectId}`, {
-        method: "DELETE",
-        credentials: "same-origin",
-      })
-      if (!res.ok) return
+      const ok = await deleteProjectClient(projectId)
+      if (!ok) return
       setConfirmOpen(false)
       // MVP: simplest refresh for server-rendered dashboard list
       window.location.reload()

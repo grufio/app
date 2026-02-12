@@ -15,13 +15,18 @@ export default defineConfig({
     },
   },
   test: {
-    include: ["lib/**/*.test.ts", "components/**/*.test.ts"],
+    include: ["lib/**/*.test.ts", "components/**/*.test.ts", "features/**/*.test.ts", "services/**/*.test.ts"],
     exclude: ["e2e/**", "node_modules/**", ".next/**"],
     // CI speed: small suite today, but enable parallel execution as it grows.
     pool: "threads",
     fileParallelism: true,
     maxThreads: 4,
     testTimeout: 10_000,
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "html", "json"],
+      exclude: ["e2e/**", "node_modules/**", ".next/**"],
+    },
   },
 })
 

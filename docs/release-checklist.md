@@ -1,19 +1,36 @@
 ## Release checklist (MVP)
 
-### 1) Database migrations
-
-- Identify new migrations since last release: `db/0xx_*.sql`
-- Apply each new migration in Supabase SQL editor (see `docs/migrations.md`)
-- If using `public.schema_migrations`, insert a row per applied migration (filename + checksum)
-
-### 2) Local verification
-
-Run:
+### 1) MVP release gate (local-only)
 
 ```bash
-npx playwright install
+npm ci
 npm run check
+```
+
+Optional smoke (recommended before demos/releases):
+
+```bash
+npm run test:e2e:install
 npm run test:e2e
+```
+
+Notes:
+- `npm run test:e2e` runs the **single** editor boot smoke (tripwire).
+- Playwright browsers are installed into the repo-local cache (`.playwright-browsers/`) to avoid cross-arch cache issues on macOS.
+
+### 2) Optional: remote verification (use when needed)
+
+If you suspect “works locally, fails in Supabase” (migration/policy drift), use the CLI-first workflow in `docs/migrations.md`:
+
+```bash
+npm run verify:remote-migrations
+npm run verify:remote-rls
+```
+
+If migrations are missing:
+
+```bash
+supabase db push --linked
 ```
 
 ### 3) Manual QA (editor)

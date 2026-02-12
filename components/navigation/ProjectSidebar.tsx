@@ -24,6 +24,7 @@ import {
   SidebarMenuItem,
   SidebarMenuSub,
 } from "@/components/ui/sidebar"
+import { mapSidebarNodeIconKey, mapSidebarNodeLabel } from "@/services/editor/navigation-mapping"
 
 // This is sample data.
 const data = {
@@ -32,7 +33,6 @@ const data = {
       "app",
       [
         "api",
-        ["hello", ["route.ts"]],
       ],
     ],
   ],
@@ -91,7 +91,7 @@ function Tree(props: {
   const { item, parentId, selectedId, onSelect, expandedIds, onToggleExpanded } =
     props
   const [name, ...items] = Array.isArray(item) ? item : [item]
-  const label = name === "app" ? "Artboard" : name === "api" ? "Image" : name
+  const label = mapSidebarNodeLabel(name)
 
   const id = parentId ? `${parentId}/${name}` : String(name)
   const isExpanded = items.length ? expandedIds.has(id) : false
@@ -112,54 +112,50 @@ function Tree(props: {
   return (
     <SidebarMenuItem>
       <Collapsible
-        className="group/collapsible [&[data-state=open]>button>svg:first-child]:rotate-90"
+        className="group/collapsible"
         open={isExpanded}
-        onOpenChange={() => onToggleExpanded(id)}
+        onOpenChange={(open) => {
+          // Controlled: expanded state lives in `expandedIds`.
+          // Keep Radix open state and our state in sync.
+          if (open !== isExpanded) onToggleExpanded(id)
+        }}
       >
-        <SidebarMenuButton
-          asChild
-          isActive={selectedId === id}
-          className="text-xs data-[active=true]:font-normal"
-        >
-          <div>
-            <button
-              type="button"
-              aria-label={isExpanded ? "Collapse" : "Expand"}
-              className="inline-flex"
-              onClick={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                onToggleExpanded(id)
-              }}
-            >
-              <ChevronRight
-                className={
-                  isExpanded
-                    ? "size-4 rotate-90 transition-transform"
-                    : "size-4 transition-transform"
-                }
-              />
-            </button>
-            {name === "app" ? (
-              <LayoutGrid />
-            ) : name === "api" ? (
-              <ImageIcon />
-            ) : (
-              <Folder />
-            )}
-            <button
-              type="button"
-              className="flex-1 text-left"
-              onClick={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                onSelect(id)
-              }}
-            >
-              {label}
-            </button>
-          </div>
-        </SidebarMenuButton>
+        <div className="flex items-center">
+          {/* Caret: toggle only, no hover state, no pointer cursor. */}
+          <button
+            type="button"
+            aria-label={isExpanded ? "Collapse" : "Expand"}
+            className="inline-flex size-6 items-center justify-center cursor-pointer"
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              onToggleExpanded(id)
+            }}
+          >
+            <ChevronRight
+              className={
+                isExpanded
+                  ? "size-4 transition-transform rotate-90"
+                  : "size-4 transition-transform"
+              }
+            />
+          </button>
+
+          {/* Folder row: selectable + hover (like dashboard menu items). */}
+          <SidebarMenuButton
+            isActive={selectedId === id}
+            className="text-xs cursor-pointer data-[active=true]:font-normal flex-1"
+            onClick={() => onSelect(id)}
+          >
+            {(() => {
+              const key = mapSidebarNodeIconKey(name)
+              if (key === "artboard") return <LayoutGrid />
+              if (key === "image") return <ImageIcon />
+              return <Folder />
+            })()}
+            {label}
+          </SidebarMenuButton>
+        </div>
         <CollapsibleContent>
           <SidebarMenuSub>
             {items.map((subItem, index) => (

@@ -9,7 +9,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from "react"
 
-import type { ProjectCanvasStageHandle } from "@/components/shared/editor"
+import type { ProjectCanvasStageHandle } from "@/features/editor"
 
 export type EditorTool = "select" | "hand"
 

@@ -20,6 +20,40 @@ export type ImageState = {
   rotationDeg: number
 }
 
+type Pending<T> = { seq: number; value: T }
+
+/**
+ * A tiny pending-slot helper that is safe against the “set while flushing” race:
+ * it never clears a newer value while completing an older flush.
+ *
+ * Exported for unit testing.
+ */
+export function createPendingSlot<T>() {
+  const seqRef = { current: 0 }
+  const slotRef = { current: null as Pending<T> | null }
+  return {
+    set(value: T) {
+      const seq = ++seqRef.current
+      slotRef.current = { seq, value }
+      return seq
+    },
+    snapshot(): Pending<T> | null {
+      return slotRef.current
+    },
+    clearIfSeq(seq: number) {
+      const cur = slotRef.current
+      if (cur && cur.seq === seq) {
+        slotRef.current = null
+        return true
+      }
+      return false
+    },
+    clearAll() {
+      slotRef.current = null
+    },
+  }
+}
+
 export function useImageState(projectId: string, enabled: boolean, initial?: ImageState | null) {
   const [initialImageTransform, setInitialImageTransform] = useState<ImageState | null>(() => initial ?? null)
   const [imageStateError, setImageStateError] = useState("")
@@ -28,7 +62,8 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
   const logPrefix = useMemo(() => `[image-state:${projectId}]`, [projectId])
 
   const lastSavedSignatureRef = useRef<string | null>(null)
-  const pendingRef = useRef<ImageState | null>(null)
+  const pendingSlotRef = useRef<ReturnType<typeof createPendingSlot<ImageState>> | null>(null)
+  if (!pendingSlotRef.current) pendingSlotRef.current = createPendingSlot<ImageState>()
   const inflightRef = useRef<Promise<void> | null>(null)
   const requestSeqRef = useRef(0)
 
@@ -68,10 +103,8 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
     }
   }, [logPrefix, projectId])
 
-  const flushOnce = useCallback(async (): Promise<void> => {
-    const t = pendingRef.current
-    if (!t) return
-    pendingRef.current = null
+  const flushOnce = useCallback(async (p: Pending<ImageState>): Promise<void> => {
+    const t = p.value
 
     if (!t.widthPxU || !t.heightPxU) return
 
@@ -89,6 +122,8 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
     lastSavedSignatureRef.current = signature
 
     await saveImageStateApi(projectId, payload)
+    // Only clear if this is still the latest pending value.
+    pendingSlotRef.current?.clearIfSeq(p.seq)
   }, [projectId])
 
   const flush = useCallback(async (): Promise<void> => {
@@ -97,9 +132,9 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
       // Coalesce: if new commits arrive while a request is in-flight,
       // run another pass after it finishes.
       for (;;) {
-        const hasPending = Boolean(pendingRef.current)
-        if (!hasPending) return
-        await flushOnce()
+        const snap = pendingSlotRef.current?.snapshot() ?? null
+        if (!snap) return
+        await flushOnce(snap)
       }
     })()
     inflightRef.current = p
@@ -115,7 +150,7 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
       try {
         // Persist immediately. Any debouncing/throttling belongs in the caller
         // (canvas interactions), not in this IO hook.
-        pendingRef.current = t
+        pendingSlotRef.current?.set(t)
         await flush()
         setImageStateError("")
       } catch (e) {
@@ -141,7 +176,7 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
 
   useEffect(() => {
     return () => {
-      pendingRef.current = null
+      pendingSlotRef.current?.clearAll()
     }
   }, [])
 

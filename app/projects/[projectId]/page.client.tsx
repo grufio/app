@@ -9,22 +9,29 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
-import { type ProjectCanvasStageHandle, ProjectEditorHeader } from "@/components/shared/editor"
-import { EditorErrorBoundary } from "@/components/shared/editor/editor-error-boundary"
-import { ProjectEditorLayout } from "@/components/project-editor/ProjectEditorLayout"
-import { ProjectEditorLeftPanel } from "@/components/project-editor/ProjectEditorLeftPanel"
-import { ProjectEditorRightPanel } from "@/components/project-editor/ProjectEditorRightPanel"
-import { ProjectEditorStage } from "@/components/project-editor/ProjectEditorStage"
+import {
+  EditorErrorBoundary,
+  ProjectEditorHeader,
+  ProjectEditorLayout,
+  ProjectEditorLeftPanel,
+  ProjectEditorRightPanel,
+  ProjectEditorStage,
+  type ProjectCanvasStageHandle,
+} from "@/features/editor"
 import { computeImagePanelReady, computeWorkspaceReady } from "@/lib/editor/editor-ready"
 import { useFloatingToolbarControls } from "@/lib/editor/floating-toolbar-controls"
 import { type WorkspaceRow, useProjectWorkspace } from "@/lib/editor/project-workspace"
 import { useProjectGrid } from "@/lib/editor/project-grid"
 import type { MasterImage } from "@/lib/editor/use-master-image"
 import { useMasterImage } from "@/lib/editor/use-master-image"
+import { useProjectImages } from "@/lib/editor/use-project-images"
 import type { Project } from "@/lib/editor/use-project"
 import { useProject } from "@/lib/editor/use-project"
 import type { ImageState } from "@/lib/editor/use-image-state"
 import { useImageState } from "@/lib/editor/use-image-state"
+import { computeRenderableGrid } from "@/services/editor/grid/validation"
+import { clampOpacityPercent, normalizeWorkspacePageBg } from "@/services/editor/page-background"
+import { mapSelectedNavIdToRightPanelSection } from "@/services/editor/panel-routing"
 
 export function ProjectDetailPageClient({
   projectId,
@@ -41,7 +48,6 @@ export function ProjectDetailPageClient({
     row: workspaceRow,
     upsertWorkspace,
     unit: workspaceUnit,
-    dpi: workspaceDpi,
     widthPx: artboardWidthPx,
     heightPx: artboardHeightPx,
     loading: workspaceLoading,
@@ -59,6 +65,8 @@ export function ProjectDetailPageClient({
     setDeleteError,
     deleteImage,
   } = useMasterImage(projectId, initialMasterImage)
+
+  const { images: projectImages, refresh: refreshProjectImages, deleteById: deleteImageById } = useProjectImages(projectId)
 
   const [restoreOpen, setRestoreOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -84,13 +92,6 @@ export function ProjectDetailPageClient({
     })
   }, [])
 
-  const handleDeleteMasterImage = useCallback(async () => {
-    const res = await deleteImage()
-    if (!res.ok) return
-    setDeleteOpen(false)
-    setImagePxU(null)
-  }, [deleteImage])
-
   const toolbar = useFloatingToolbarControls({
     canvasRef,
     hasImage: Boolean(masterImage),
@@ -101,6 +102,26 @@ export function ProjectDetailPageClient({
 
   const [selectedNavId, setSelectedNavId] = useState<string>("app")
 
+  const selectedImageId = useMemo(() => {
+    const prefix = "app/api/"
+    if (!selectedNavId.startsWith(prefix)) return null
+    const id = selectedNavId.slice(prefix.length)
+    return id.length > 0 ? id : null
+  }, [selectedNavId])
+
+  const selectedImage = useMemo(() => {
+    if (!selectedImageId) return null
+    return projectImages.find((img) => img.id === selectedImageId) ?? null
+  }, [projectImages, selectedImageId])
+
+  const handleDeleteMasterImage = useCallback(async () => {
+    const res = selectedImageId ? await deleteImageById(selectedImageId) : await deleteImage()
+    if (!res.ok) return
+    setDeleteOpen(false)
+    setImagePxU(null)
+    void refreshProjectImages()
+  }, [deleteImage, deleteImageById, refreshProjectImages, selectedImageId])
+
   const [leftPanelWidthRem, setLeftPanelWidthRem] = useState(20)
   const [rightPanelWidthRem, setRightPanelWidthRem] = useState(20)
   const minPanelRem = 18
@@ -109,6 +130,15 @@ export function ProjectDetailPageClient({
   const [pageBgEnabled, setPageBgEnabled] = useState(false)
   const [pageBgColor, setPageBgColor] = useState("#ffffff")
   const [pageBgOpacity, setPageBgOpacity] = useState(50)
+
+  const pageBgRef = useRef<{ enabled: boolean; color: string; opacity: number }>({
+    enabled: pageBgEnabled,
+    color: pageBgColor,
+    opacity: pageBgOpacity,
+  })
+  useEffect(() => {
+    pageBgRef.current = { enabled: pageBgEnabled, color: pageBgColor, opacity: pageBgOpacity }
+  }, [pageBgColor, pageBgEnabled, pageBgOpacity])
 
   const workspaceRowRef = useRef(workspaceRow)
   useEffect(() => {
@@ -121,30 +151,62 @@ export function ProjectDetailPageClient({
     // Initialize once per project load (avoid overwriting user edits mid-session).
     if (pageBgInitKeyRef.current === workspaceRow.project_id) return
     pageBgInitKeyRef.current = workspaceRow.project_id
-    setPageBgEnabled(Boolean(workspaceRow.page_bg_enabled ?? false))
-    setPageBgColor(typeof workspaceRow.page_bg_color === "string" ? workspaceRow.page_bg_color : "#ffffff")
-    const op = Number(workspaceRow.page_bg_opacity ?? 50)
-    setPageBgOpacity(Math.max(0, Math.min(100, Number.isFinite(op) ? op : 50)))
+    const normalized = normalizeWorkspacePageBg(workspaceRow)
+    setPageBgEnabled(normalized.enabled)
+    setPageBgColor(normalized.color)
+    setPageBgOpacity(normalized.opacity)
   }, [workspaceRow])
 
   const bgSaveTimerRef = useRef<number | null>(null)
   const scheduleSavePageBg = useCallback(
     (next: { enabled: boolean; color: string; opacity: number }) => {
-      const base = workspaceRowRef.current
-      if (!base) return
-      const merged: WorkspaceRow = {
-        ...base,
-        page_bg_enabled: next.enabled,
-        page_bg_color: next.color,
-        page_bg_opacity: next.opacity,
-      }
       if (bgSaveTimerRef.current != null) window.clearTimeout(bgSaveTimerRef.current)
       bgSaveTimerRef.current = window.setTimeout(() => {
         bgSaveTimerRef.current = null
+        const base = workspaceRowRef.current
+        if (!base) return
+        const merged: WorkspaceRow = {
+          ...base,
+          page_bg_enabled: next.enabled,
+          page_bg_color: next.color,
+          page_bg_opacity: next.opacity,
+        }
         void upsertWorkspace(merged)
       }, 250)
     },
     [upsertWorkspace]
+  )
+
+  const handlePageBgEnabledChange = useCallback(
+    (enabled: boolean) => {
+      setPageBgEnabled(enabled)
+      const { color, opacity } = pageBgRef.current
+      scheduleSavePageBg({ enabled, color, opacity })
+    },
+    [scheduleSavePageBg]
+  )
+
+  const handlePageBgColorChange = useCallback(
+    (color: string) => {
+      const enabled = true
+      const { opacity } = pageBgRef.current
+      setPageBgColor(color)
+      setPageBgEnabled(enabled)
+      scheduleSavePageBg({ enabled, color, opacity })
+    },
+    [scheduleSavePageBg]
+  )
+
+  const handlePageBgOpacityChange = useCallback(
+    (opacityPercent: number) => {
+      const enabled = true
+      const clamped = clampOpacityPercent(opacityPercent, 0)
+      const { color } = pageBgRef.current
+      setPageBgOpacity(clamped)
+      setPageBgEnabled(enabled)
+      scheduleSavePageBg({ enabled, color, opacity: clamped })
+    },
+    [scheduleSavePageBg]
   )
 
   useEffect(() => {
@@ -161,7 +223,6 @@ export function ProjectDetailPageClient({
   const workspaceReady = computeWorkspaceReady({
     workspaceLoading,
     workspaceUnit,
-    workspaceDpi,
   })
 
   const imagePanelReady = computeImagePanelReady({
@@ -171,24 +232,42 @@ export function ProjectDetailPageClient({
     panelImagePxU,
   })
 
-  const activeRightSection = selectedNavId.startsWith("app/api") ? "image" : "artboard"
+  const activeRightSection = mapSelectedNavIdToRightPanelSection(selectedNavId)
+
+  const panelImageMeta = useMemo(() => {
+    if (!selectedImage) return masterImage
+    return {
+      signedUrl: masterImage?.signedUrl ?? null,
+      name: selectedImage.name ?? "Image",
+    }
+  }, [masterImage, selectedImage])
+
+  useEffect(() => {
+    if (!masterImage?.id) return
+    if (selectedNavId === "app") {
+      setSelectedNavId(`app/api/${masterImage.id}`)
+    }
+  }, [masterImage?.id, selectedNavId])
+
+  useEffect(() => {
+    void refreshProjectImages()
+  }, [masterImage?.signedUrl, refreshProjectImages])
 
   const grid = useMemo(() => {
-    if (!gridRow) return null
-    if (!Number.isFinite(spacingXPx ?? NaN) || !Number.isFinite(spacingYPx ?? NaN) || !Number.isFinite(lineWidthPx ?? NaN)) return null
-    const spacingX = Number(spacingXPx)
-    const spacingY = Number(spacingYPx)
-    const lw = Number(lineWidthPx)
-    if (spacingX <= 0 || spacingY <= 0 || lw <= 0) return null
-    return { spacingXPx: spacingX, spacingYPx: spacingY, lineWidthPx: lw, color: gridRow.color }
+    return computeRenderableGrid({ row: gridRow, spacingXPx, spacingYPx, lineWidthPx })
   }, [gridRow, lineWidthPx, spacingXPx, spacingYPx])
+
+  const handleTitleUpdated = useCallback(
+    (nextTitle: string) => setProject({ id: projectId, name: nextTitle }),
+    [projectId, setProject]
+  )
 
   return (
     <div className="flex min-h-svh w-full flex-col">
       <ProjectEditorHeader
         projectId={projectId}
         initialTitle={project && project.id === projectId ? project.name : "Untitled"}
-        onTitleUpdated={(nextTitle) => setProject({ id: projectId, name: nextTitle })}
+        onTitleUpdated={handleTitleUpdated}
       />
 
       <ProjectEditorLayout>
@@ -201,6 +280,12 @@ export function ProjectDetailPageClient({
               onWidthRemChange={setLeftPanelWidthRem}
               selectedId={selectedNavId}
               onSelect={setSelectedNavId}
+              images={
+                projectImages.map((img) => ({
+                  id: img.id,
+                  label: img.name ?? "Image",
+                }))
+              }
             />
             <ProjectEditorStage
               projectId={projectId}
@@ -232,24 +317,10 @@ export function ProjectDetailPageClient({
             pageBgEnabled={pageBgEnabled}
             pageBgColor={pageBgColor}
             pageBgOpacity={pageBgOpacity}
-            onPageBgEnabledChange={(v) => {
-              setPageBgEnabled(v)
-              scheduleSavePageBg({ enabled: v, color: pageBgColor, opacity: pageBgOpacity })
-            }}
-            onPageBgColorChange={(c) => {
-              const enabled = true
-              setPageBgColor(c)
-              setPageBgEnabled(enabled)
-              scheduleSavePageBg({ enabled, color: c, opacity: pageBgOpacity })
-            }}
-            onPageBgOpacityChange={(o) => {
-              const enabled = true
-              const clamped = Math.max(0, Math.min(100, Number.isFinite(o) ? o : 0))
-              setPageBgOpacity(clamped)
-              setPageBgEnabled(enabled)
-              scheduleSavePageBg({ enabled, color: pageBgColor, opacity: clamped })
-            }}
-            masterImage={masterImage}
+            onPageBgEnabledChange={handlePageBgEnabledChange}
+            onPageBgColorChange={handlePageBgColorChange}
+            onPageBgOpacityChange={handlePageBgOpacityChange}
+            masterImage={panelImageMeta}
             masterImageLoading={masterImageLoading}
             deleteBusy={deleteBusy}
             deleteError={deleteError}
@@ -261,7 +332,6 @@ export function ProjectDetailPageClient({
             handleDeleteMasterImage={handleDeleteMasterImage}
             panelImagePxU={panelImagePxU}
             workspaceUnit={workspaceUnit ?? "cm"}
-            workspaceDpi={workspaceDpi ?? 300}
             workspaceReady={workspaceReady}
             imageStateLoading={imageStateLoading}
             imagePanelReady={imagePanelReady}

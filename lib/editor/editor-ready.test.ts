@@ -14,7 +14,6 @@ describe("computeWorkspaceReady", () => {
       computeWorkspaceReady({
         workspaceLoading: true,
         workspaceUnit: "cm",
-        workspaceDpi: 300,
       })
     ).toBe(false)
   })
@@ -24,27 +23,15 @@ describe("computeWorkspaceReady", () => {
       computeWorkspaceReady({
         workspaceLoading: false,
         workspaceUnit: null,
-        workspaceDpi: 300,
       })
     ).toBe(false)
   })
 
-  test("false with invalid dpi", () => {
+  test("true with unit", () => {
     expect(
       computeWorkspaceReady({
         workspaceLoading: false,
         workspaceUnit: "cm",
-        workspaceDpi: "nope",
-      })
-    ).toBe(false)
-  })
-
-  test("true with unit and positive finite dpi", () => {
-    expect(
-      computeWorkspaceReady({
-        workspaceLoading: false,
-        workspaceUnit: "cm",
-        workspaceDpi: 300,
       })
     ).toBe(true)
   })

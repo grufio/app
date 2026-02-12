@@ -8,14 +8,11 @@
 export function computeWorkspaceReady(opts: {
   workspaceLoading: boolean
   workspaceUnit: unknown
-  workspaceDpi: unknown
 }) {
-  const { workspaceLoading, workspaceUnit, workspaceDpi } = opts
+  const { workspaceLoading, workspaceUnit } = opts
   return (
     !workspaceLoading &&
-    Boolean(workspaceUnit) &&
-    Number.isFinite(Number(workspaceDpi)) &&
-    Number(workspaceDpi) > 0
+    Boolean(workspaceUnit)
   )
 }
 

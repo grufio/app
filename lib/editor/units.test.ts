@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from "vitest"
 
-import { convertUnit, pxUToUnitDisplay, unitToPxU } from "./units"
+import { convertUnit, pxUToUnitDisplay, pxUToUnitDisplayFixed, unitToPxU, unitToPxUFixed } from "./units"
 
 describe("units", () => {
   it("convertUnit uses µpx so 10 cm → 100 mm exactly", () => {
@@ -79,6 +79,13 @@ describe("units", () => {
       const display2 = pxUToUnitDisplay(pxU2, unit, dpi)
       expect(display2).toBe(display1)
     }
+  })
+
+  it("fixed mapping: 1in = 72pt, 25.4mm, and 1px = 1pt", () => {
+    const oneInInMm = "25.4"
+    const pxU = unitToPxUFixed(oneInInMm, "mm")
+    expect(pxUToUnitDisplayFixed(pxU, "pt")).toBe("72")
+    expect(pxUToUnitDisplayFixed(pxU, "px")).toBe("72")
   })
 })
 

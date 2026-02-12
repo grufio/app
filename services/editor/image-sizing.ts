@@ -1,0 +1,69 @@
+/**
+ * Editor service: image sizing helpers (UI-agnostic).
+ *
+ * Responsibilities:
+ * - Convert user-entered size values (unit + DPI) into canonical µpx (BigInt).
+ * - Apply proportional scaling policies using canonical µpx ratios.
+ *
+ * Notes:
+ * - This module is intentionally UI-agnostic (no React state, no DOM assumptions).
+ */
+import { divRoundHalfUp, pxUToUnitDisplayFixed, type Unit, unitToPxUFixed } from "@/lib/editor/units"
+
+export type MicroPxRatio = { wPxU: bigint; hPxU: bigint }
+
+export function parseMicroPxFromUnitInput(input: string, unit: Unit): bigint | null {
+  const s = String(input ?? "").trim()
+  if (!s) return null
+  try {
+    const v = unitToPxUFixed(s, unit)
+    if (v <= 0n) return null
+    return v
+  } catch {
+    return null
+  }
+}
+
+export function parseAndClampImageSize(args: {
+  draftW: string
+  draftH: string
+  unit: Unit
+}): { wPxU: bigint; hPxU: bigint } | null {
+  const wPxU = parseMicroPxFromUnitInput(args.draftW, args.unit)
+  const hPxU = parseMicroPxFromUnitInput(args.draftH, args.unit)
+  if (!wPxU || !hPxU) return null
+  return { wPxU, hPxU }
+}
+
+export function computeLockedAspectOtherDimensionFromWidthInput(args: {
+  nextWidthInput: string
+  unit: Unit
+  ratio: MicroPxRatio
+}): { nextHeightPxU: bigint; nextHeightDisplay: string } | null {
+  const { ratio } = args
+  if (ratio.wPxU <= 0n || ratio.hPxU <= 0n) return null
+
+  const wPxU = parseMicroPxFromUnitInput(args.nextWidthInput, args.unit)
+  if (!wPxU) return null
+
+  const nextHPxU = divRoundHalfUp(wPxU * ratio.hPxU, ratio.wPxU)
+  if (nextHPxU <= 0n) return null
+  return { nextHeightPxU: nextHPxU, nextHeightDisplay: pxUToUnitDisplayFixed(nextHPxU, args.unit) }
+}
+
+export function computeLockedAspectOtherDimensionFromHeightInput(args: {
+  nextHeightInput: string
+  unit: Unit
+  ratio: MicroPxRatio
+}): { nextWidthPxU: bigint; nextWidthDisplay: string } | null {
+  const { ratio } = args
+  if (ratio.wPxU <= 0n || ratio.hPxU <= 0n) return null
+
+  const hPxU = parseMicroPxFromUnitInput(args.nextHeightInput, args.unit)
+  if (!hPxU) return null
+
+  const nextWPxU = divRoundHalfUp(hPxU * ratio.wPxU, ratio.hPxU)
+  if (nextWPxU <= 0n) return null
+  return { nextWidthPxU: nextWPxU, nextWidthDisplay: pxUToUnitDisplayFixed(nextWPxU, args.unit) }
+}
+

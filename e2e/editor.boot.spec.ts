@@ -7,33 +7,90 @@
  */
 import { test, expect, type Request } from "@playwright/test"
 
-import { unitToPxU } from "../lib/editor/units"
+import { unitToPxUFixed } from "../lib/editor/units"
 import { PROJECT_ID, setupMockRoutes } from "./_mocks"
 
+async function assertEditorSurfaceVisible(page: import("@playwright/test").Page) {
+  const crashed = page.getByText("Editor crashed")
+  const canvasRoot = page.getByTestId("editor-canvas-root")
+  const artboardPanel = page.getByTestId("editor-artboard-panel")
+
+  // Wait for either the happy path (canvas + at least one panel) or the error boundary.
+  await expect(crashed.or(canvasRoot)).toBeVisible()
+
+  if (await crashed.isVisible()) {
+    const details = await page.locator("pre").first().textContent().catch(() => null)
+    throw new Error(`Editor crashed in E2E.\n\n${details ?? "(no stack available)"}`)
+  }
+
+  // Canvas is present; now ensure the sidebar content is also mounted.
+  await expect(artboardPanel.or(page.getByLabel("Image width (cm)"))).toBeVisible()
+}
+
 test("smoke: /projects/:id loads editor with artboard + canvas", async ({ page }) => {
-  await page.setExtraHTTPHeaders({ "x-e2e-test": "1" })
+  await page.setExtraHTTPHeaders({ "x-e2e-test": "1", "x-e2e-user": "1" })
   await setupMockRoutes(page, { withImage: true })
 
-  await page.goto(`/projects/${PROJECT_ID}`)
-  await expect(page.getByTestId("editor-artboard-panel")).toBeVisible()
-  await expect(page.getByTestId("editor-canvas-root")).toBeVisible()
+  const res = await page.goto(`/projects/${PROJECT_ID}`)
+  expect(res?.ok()).toBe(true)
+  await assertEditorSurfaceVisible(page)
   await expect(page.locator("canvas").first()).toBeVisible()
 })
 
+test("storage: upload → master returns signed URL → editor renders image", async ({ page }) => {
+  await page.setExtraHTTPHeaders({ "x-e2e-test": "1", "x-e2e-user": "1" })
+  await setupMockRoutes(page, { withImage: false })
+
+  const res = await page.goto(`/projects/${PROJECT_ID}`)
+  expect(res?.ok()).toBe(true)
+  await assertEditorSurfaceVisible(page)
+
+  const upload = await page.evaluate(async (projectId: string) => {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10"><rect width="20" height="10" fill="#ff3b30"/></svg>`
+    const file = new File([new Blob([svg], { type: "image/svg+xml" })], "test.svg", { type: "image/svg+xml" })
+    const fd = new FormData()
+    fd.append("file", file)
+    fd.append("width_px", "20")
+    fd.append("height_px", "10")
+    fd.append("format", "svg")
+    const res = await fetch(`/api/projects/${projectId}/images/master/upload`, { method: "POST", body: fd })
+    return { status: res.status, json: await res.json() }
+  }, PROJECT_ID)
+  expect(upload.status).toBe(200)
+  expect(upload.json).toMatchObject({ ok: true })
+
+  const master = await page.evaluate(async (projectId: string) => {
+    const res = await fetch(`/api/projects/${projectId}/images/master`)
+    return (await res.json()) as unknown
+  }, PROJECT_ID)
+  expect(master).toMatchObject({ exists: true })
+  expect((master as { signedUrl?: string }).signedUrl).toContain("data:image/svg+xml")
+
+  await page.reload()
+  await expect(page.getByTestId("editor-canvas-root")).toBeVisible()
+  await expect.poll(async () => {
+    return await page.evaluate(() => Boolean((globalThis as { __gruf_editor?: { image?: unknown } }).__gruf_editor?.image))
+  }).toBe(true)
+})
+
 test("image size: setting 100mm survives reload (no drift)", async ({ page }) => {
-  await page.setExtraHTTPHeaders({ "x-e2e-test": "1" })
+  await page.setExtraHTTPHeaders({ "x-e2e-test": "1", "x-e2e-user": "1" })
   let imageStatePosts = 0
   await setupMockRoutes(page, {
     withImage: true,
     workspace: {
       unit: "mm",
-      // 200mm @300dpi ~= 2362.2047 px (keep existing px so artboard is valid).
+      // 200mm with fixed mapping (1in=25.4mm, 1in=72pt).
       width_value: 200,
       height_value: 200,
       dpi_x: 300,
       dpi_y: 300,
-      width_px: 2362.2047,
-      height_px: 2362.2047,
+      output_dpi_x: 300,
+      output_dpi_y: 300,
+      width_px_u: unitToPxUFixed("200", "mm").toString(),
+      height_px_u: unitToPxUFixed("200", "mm").toString(),
+      width_px: 567,
+      height_px: 567,
       raster_effects_preset: "high",
     },
   })
@@ -43,7 +100,7 @@ test("image size: setting 100mm survives reload (no drift)", async ({ page }) =>
   const w = page.getByLabel("Image width (mm)")
   const h = page.getByLabel("Image height (mm)")
 
-  const expectedPxU = unitToPxU("100", "mm", 300).toString()
+  const expectedPxU = unitToPxUFixed("100", "mm").toString()
 
   const isExpectedImageStateSave = (req: Request) => {
     if (!req.url().includes(`/api/projects/${PROJECT_ID}/image-state`)) return false
@@ -89,12 +146,19 @@ test("image size: setting 100mm survives reload (no drift)", async ({ page }) =>
   // Unit toggle should not trigger image-state save.
   await page.getByLabel("Artboard unit").click()
   await page.getByRole("option", { name: "cm" }).click()
-  await page.waitForTimeout(250)
+  await expect(
+    page.waitForRequest(
+      (req) =>
+        req.url().includes(`/api/projects/${PROJECT_ID}/image-state`) &&
+        req.method() === "POST",
+      { timeout: 250 }
+    )
+  ).rejects.toThrow()
   expect(imageStatePosts).toBe(1)
 })
 
 test("image transform chain: resize + rotate + drag persists", async ({ page }) => {
-  await page.setExtraHTTPHeaders({ "x-e2e-test": "1" })
+  await page.setExtraHTTPHeaders({ "x-e2e-test": "1", "x-e2e-user": "1" })
   await setupMockRoutes(page, {
     withImage: true,
     workspace: {
@@ -103,8 +167,12 @@ test("image transform chain: resize + rotate + drag persists", async ({ page }) 
       height_value: 200,
       dpi_x: 300,
       dpi_y: 300,
-      width_px: 2362.2047,
-      height_px: 2362.2047,
+      output_dpi_x: 300,
+      output_dpi_y: 300,
+      width_px_u: unitToPxUFixed("200", "mm").toString(),
+      height_px_u: unitToPxUFixed("200", "mm").toString(),
+      width_px: 567,
+      height_px: 567,
       raster_effects_preset: "high",
     },
   })
@@ -117,7 +185,7 @@ test("image transform chain: resize + rotate + drag persists", async ({ page }) 
   await expect(w).toBeEnabled()
   await expect(h).toBeEnabled()
 
-  const expectedPxU = unitToPxU("120", "mm", 300).toString()
+  const expectedPxU = unitToPxUFixed("120", "mm").toString()
   const isSaveWith = (req: Request, opts?: { rotation?: number; requirePosition?: boolean }) => {
     if (!req.url().includes(`/api/projects/${PROJECT_ID}/image-state`)) return false
     if (req.method() !== "POST") return false
@@ -143,7 +211,17 @@ test("image transform chain: resize + rotate + drag persists", async ({ page }) 
   const canvas = page.locator("canvas").first()
   const box = await canvas.boundingBox()
   if (!box) throw new Error("canvas not visible for drag")
-  const beforeBoundsReads = await page.evaluate(() => (globalThis as { __gruf_editor?: { boundsReads?: number } }).__gruf_editor?.boundsReads ?? 0)
+  const beforePerf = await page.evaluate(() => {
+    const g = globalThis as {
+      __gruf_editor?: { boundsReads?: number; clientRectReads?: number; rafScheduled?: number; rafExecuted?: number }
+    }
+    return {
+      boundsReads: g.__gruf_editor?.boundsReads ?? 0,
+      clientRectReads: g.__gruf_editor?.clientRectReads ?? 0,
+      rafScheduled: g.__gruf_editor?.rafScheduled ?? 0,
+      rafExecuted: g.__gruf_editor?.rafExecuted ?? 0,
+    }
+  })
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
   await page.mouse.down()
   await page.mouse.move(box.x + box.width / 2 + 60, box.y + box.height / 2 + 30)
@@ -151,15 +229,54 @@ test("image transform chain: resize + rotate + drag persists", async ({ page }) 
 
   const waitDragSave = page.waitForRequest((req) => isSaveWith(req, { rotation: 90, requirePosition: true }))
   await waitDragSave
-  const afterBoundsReads = await page.evaluate(() => (globalThis as { __gruf_editor?: { boundsReads?: number } }).__gruf_editor?.boundsReads ?? 0)
-  expect(afterBoundsReads - beforeBoundsReads).toBeLessThanOrEqual(3)
+  const afterPerf = await page.evaluate(() => {
+    const g = globalThis as {
+      __gruf_editor?: { boundsReads?: number; clientRectReads?: number; rafScheduled?: number; rafExecuted?: number }
+    }
+    return {
+      boundsReads: g.__gruf_editor?.boundsReads ?? 0,
+      clientRectReads: g.__gruf_editor?.clientRectReads ?? 0,
+      rafScheduled: g.__gruf_editor?.rafScheduled ?? 0,
+      rafExecuted: g.__gruf_editor?.rafExecuted ?? 0,
+    }
+  })
+  expect(afterPerf.boundsReads - beforePerf.boundsReads).toBeLessThanOrEqual(3)
+  expect(afterPerf.clientRectReads - beforePerf.clientRectReads).toBeLessThanOrEqual(3)
+  expect(afterPerf.rafExecuted - beforePerf.rafExecuted).toBeLessThanOrEqual(6)
 
   // Pan should not explode bounds reads.
-  const beforePanReads = await page.evaluate(() => (globalThis as { __gruf_editor?: { boundsReads?: number } }).__gruf_editor?.boundsReads ?? 0)
+  const beforePan = await page.evaluate(() => {
+    const g = globalThis as {
+      __gruf_editor?: { boundsReads?: number; clientRectReads?: number; rafExecuted?: number }
+    }
+    return {
+      boundsReads: g.__gruf_editor?.boundsReads ?? 0,
+      clientRectReads: g.__gruf_editor?.clientRectReads ?? 0,
+      rafExecuted: g.__gruf_editor?.rafExecuted ?? 0,
+    }
+  })
   await page.mouse.wheel(30, 20)
-  await page.waitForTimeout(50)
-  const afterPanReads = await page.evaluate(() => (globalThis as { __gruf_editor?: { boundsReads?: number } }).__gruf_editor?.boundsReads ?? 0)
-  expect(afterPanReads - beforePanReads).toBeLessThanOrEqual(2)
+  await expect.poll(
+    async () =>
+      await page.evaluate(() => {
+        const g = globalThis as { __gruf_editor?: { rafExecuted?: number } }
+        return g.__gruf_editor?.rafExecuted ?? 0
+      }),
+    { timeout: 500 }
+  ).toBeGreaterThan(beforePan.rafExecuted)
+  const afterPan = await page.evaluate(() => {
+    const g = globalThis as {
+      __gruf_editor?: { boundsReads?: number; clientRectReads?: number; rafExecuted?: number }
+    }
+    return {
+      boundsReads: g.__gruf_editor?.boundsReads ?? 0,
+      clientRectReads: g.__gruf_editor?.clientRectReads ?? 0,
+      rafExecuted: g.__gruf_editor?.rafExecuted ?? 0,
+    }
+  })
+  expect(afterPan.boundsReads - beforePan.boundsReads).toBeLessThanOrEqual(2)
+  expect(afterPan.clientRectReads - beforePan.clientRectReads).toBeLessThanOrEqual(2)
+  expect(afterPan.rafExecuted - beforePan.rafExecuted).toBeLessThanOrEqual(3)
 
   const [imageStateAfterReload] = await Promise.all([
     page.waitForResponse((res) => res.url().includes(`/api/projects/${PROJECT_ID}/image-state`) && res.request().method() === "GET"),
@@ -180,7 +297,7 @@ test("image transform chain: resize + rotate + drag persists", async ({ page }) 
 })
 
 test("page background: toggling persists via workspace upsert", async ({ page }) => {
-  await page.setExtraHTTPHeaders({ "x-e2e-test": "1" })
+  await page.setExtraHTTPHeaders({ "x-e2e-test": "1", "x-e2e-user": "1" })
   let workspaceUpserts = 0
 
   await setupMockRoutes(page, {
@@ -211,7 +328,7 @@ test("page background: toggling persists via workspace upsert", async ({ page })
   await toggle.click()
 
   // Debounced save.
-  await page.waitForTimeout(350)
+  await expect.poll(() => workspaceUpserts, { timeout: 1_000 }).toBeGreaterThanOrEqual(1)
   expect(workspaceUpserts).toBeGreaterThanOrEqual(1)
 })
 

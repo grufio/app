@@ -23,3 +23,20 @@ If you want something lighter than a full vendor SDK, you can configure an HTTP 
 
 This can be a small serverless function, an internal webhook, or a third-party ingest endpoint.
 
+### Supabase Edge Function option (recommended for CLI-first)
+
+This repo includes a Supabase Edge Function scaffold you can deploy to receive error events:
+
+- Function: `supabase/functions/error-ingest`
+- Deploy:
+
+```bash
+supabase functions deploy error-ingest --project-ref rfaykmiydsvdhrqngjue
+```
+
+- Then set:
+  - `NEXT_PUBLIC_ERROR_INGEST_URL` to `https://rfaykmiydsvdhrqngjue.functions.supabase.co/error-ingest`
+
+Notes:
+- For MVP we simply log events in the function. You can later extend to store in a table or forward to a provider.
+

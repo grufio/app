@@ -20,6 +20,7 @@
 # playwright
 /test-results/
 /playwright-report/
+/.playwright-browsers/
 
 # production
 /build

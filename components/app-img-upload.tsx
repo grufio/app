@@ -9,49 +9,26 @@
  */
 import { useCallback, useEffect, useState } from "react"
 import { useDropzone } from "react-dropzone"
+import { ImagePlus } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { hasMasterImage } from "@/lib/api/project-images"
+import { getImageDimensions } from "@/lib/images/dimensions"
+import { guessImageFormat } from "@/lib/images/format-detection"
+import { formatKbRounded } from "@/lib/utils/file-size"
+import { Button } from "@/components/ui/button"
 
-function guessFormat(file: File): string {
-  const mime = (file.type || "").toLowerCase()
-  if (mime === "image/jpeg") return "jpeg"
-  if (mime === "image/png") return "png"
-  if (mime === "image/webp") return "webp"
-  if (mime === "image/gif") return "gif"
-  if (mime === "image/svg+xml") return "svg"
-
-  const ext = file.name.split(".").pop()?.toLowerCase()
-  if (!ext) return "unknown"
-  if (ext === "jpg") return "jpeg"
-  return ext
-}
-
-async function getImageDimensions(file: File): Promise<{ width: number; height: number }> {
-  // Prefer createImageBitmap when available.
-  if (typeof createImageBitmap === "function") {
-    const bmp = await createImageBitmap(file)
-    const dims = { width: bmp.width, height: bmp.height }
-    bmp.close()
-    return dims
-  }
-
-  // Fallback: <img> + objectURL
-  const objectUrl = URL.createObjectURL(file)
-  try {
-    const img = new Image()
-    await new Promise<void>((resolve, reject) => {
-      img.onload = () => resolve()
-      img.onerror = () => reject(new Error("Failed to load image"))
-      img.src = objectUrl
-    })
-    return { width: img.naturalWidth, height: img.naturalHeight }
-  } finally {
-    URL.revokeObjectURL(objectUrl)
-  }
-}
-
-export function ProjectImageUploader({ projectId, onUploaded }: { projectId: string; onUploaded: () => void }) {
+export function ProjectImageUploader({
+  projectId,
+  onUploaded,
+  onUploadingChange,
+  variant = "panel",
+}: {
+  projectId: string
+  onUploaded: () => void
+  onUploadingChange?: (uploading: boolean) => void
+  variant?: "panel" | "toolbar"
+}) {
   const [status, setStatus] = useState<"checking" | "show" | "hide">("checking")
   const [file, setFile] = useState<File | null>(null)
   const [isUploading, setIsUploading] = useState(false)
@@ -75,9 +52,10 @@ export function ProjectImageUploader({ projectId, onUploaded }: { projectId: str
       setError("")
       setFile(nextFile)
       setIsUploading(true)
+      onUploadingChange?.(true)
       try {
         const { width, height } = await getImageDimensions(nextFile)
-        const format = guessFormat(nextFile)
+        const format = guessImageFormat(nextFile)
         const form = new FormData()
         form.set("file", nextFile)
         form.set("width_px", String(width))
@@ -106,9 +84,10 @@ export function ProjectImageUploader({ projectId, onUploaded }: { projectId: str
         onUploaded()
       } finally {
         setIsUploading(false)
+        onUploadingChange?.(false)
       }
     },
-    [isUploading, onUploaded, projectId]
+    [isUploading, onUploaded, onUploadingChange, projectId]
   )
 
   const onDrop = useCallback(
@@ -128,11 +107,28 @@ export function ProjectImageUploader({ projectId, onUploaded }: { projectId: str
     disabled: isUploading,
   })
 
-  if (status === "hide") return null
+  if (variant !== "toolbar" && status === "hide") return null
 
   // Prevent flicker: don't render uploader until we know whether an image already exists.
   if (status === "checking") {
     return null
+  }
+
+  if (variant === "toolbar") {
+    return (
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        disabled={isUploading}
+        aria-label="Add image"
+        title="Add image"
+        {...getRootProps()}
+      >
+        <input {...getInputProps()} />
+        <ImagePlus className="size-6" strokeWidth={1} />
+      </Button>
+    )
   }
 
   return (
@@ -156,7 +152,7 @@ export function ProjectImageUploader({ projectId, onUploaded }: { projectId: str
             {file ? (
               <div className="mt-3 text-sm">
                 <div className="font-medium">{file.name}</div>
-                <div className="text-muted-foreground">{Math.round(file.size / 1024)} kb</div>
+                <div className="text-muted-foreground">{formatKbRounded(file.size)}</div>
               </div>
             ) : null}
             {error ? <div className="mt-3 text-sm text-destructive">{error}</div> : null}

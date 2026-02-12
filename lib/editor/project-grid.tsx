@@ -7,23 +7,19 @@
  * - Load and persist grid settings (`project_grid`) for the current project.
  * - Expose derived pixel values for rendering.
  */
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
 
-import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
-import { pxUToUnitDisplay, type Unit, unitToPx, unitToPxU } from "@/lib/editor/units"
+import { pxUToUnitDisplayFixed, type Unit, unitToPxFixed, unitToPxUFixed } from "@/lib/editor/units"
 import { useProjectWorkspace } from "@/lib/editor/project-workspace"
+import {
+  defaultGrid,
+  mapGridSchemaError,
+  normalizeProjectGridRow,
+  normalizeUnit as normalizeGridUnit,
+} from "@/services/editor"
+import { insertGridClient, selectGridClient, upsertGridClient } from "@/services/editor/grid/client"
 
-export type ProjectGridRow = {
-  project_id: string
-  color: string
-  unit: Unit
-  // Legacy single-axis spacing column (still NOT NULL in DB).
-  // Keep it in sync with spacing_x_value to satisfy constraints.
-  spacing_value: number
-  spacing_x_value: number
-  spacing_y_value: number
-  line_width_value: number
-}
+export type ProjectGridRow = import("@/services/editor").ProjectGridRow
 
 type ProjectGridContextValue = {
   projectId: string
@@ -41,42 +37,6 @@ type ProjectGridContextValue = {
 
 const ProjectGridContext = createContext<ProjectGridContextValue | null>(null)
 
-function normalizeUnit(u: unknown): Unit {
-  if (u === "mm" || u === "cm" || u === "pt" || u === "px") return u
-  return "cm"
-}
-
-function normalizeHexColor(input: unknown): string {
-  if (typeof input !== "string") return "#000000"
-  const s = input.trim()
-  const m = /^#([0-9a-fA-F]{6})$/.exec(s)
-  if (!m) return "#000000"
-  return `#${m[1].toLowerCase()}`
-}
-
-function defaultGrid(projectId: string, unit: Unit): ProjectGridRow {
-  return {
-    project_id: projectId,
-    unit,
-    color: "#000000",
-    spacing_value: 10,
-    spacing_x_value: 10,
-    spacing_y_value: 10,
-    line_width_value: 0.1,
-  }
-}
-
-function mapGridSchemaError(message: string): string {
-  // Most common local/dev issue: migration not applied to the DB yet.
-  if (
-    /column .*spacing_x_value.* does not exist/i.test(message) ||
-    /column .*spacing_y_value.* does not exist/i.test(message)
-  ) {
-    return 'Grid storage is not ready. Apply migration "db/012_project_grid_xy.sql" to your database.'
-  }
-  return message
-}
-
 export function ProjectGridProvider({
   projectId,
   initialRow = null,
@@ -86,59 +46,42 @@ export function ProjectGridProvider({
   initialRow?: ProjectGridRow | null
   children: React.ReactNode
 }) {
-  const { unit: workspaceUnit, dpi: workspaceDpi } = useProjectWorkspace()
+  const { unit: workspaceUnit } = useProjectWorkspace()
   const [row, setRow] = useState<ProjectGridRow | null>(() => (initialRow?.project_id === projectId ? initialRow : null))
   const [loading, setLoading] = useState(() => !(initialRow?.project_id === projectId))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
+  const savingRef = useRef(false)
+  useEffect(() => {
+    savingRef.current = saving
+  }, [saving])
 
   const refresh = useCallback(async () => {
     setLoading(true)
     setError("")
     try {
-      const supabase = createSupabaseBrowserClient()
-      const { data, error: selErr } = await supabase
-        .from("project_grid")
-        .select("project_id,color,unit,spacing_x_value,spacing_y_value,line_width_value")
-        .eq("project_id", projectId)
-        .maybeSingle()
-
+      const { row: data, error: selErr } = await selectGridClient(projectId)
       if (selErr) {
         setRow(null)
-        setError(mapGridSchemaError(selErr.message))
+        setError(mapGridSchemaError(selErr))
         return
       }
 
       if (!data) {
         const unit = workspaceUnit ?? "cm"
         const def = defaultGrid(projectId, unit)
-        const { data: ins, error: insErr } = await supabase
-          .from("project_grid")
-          .insert(def)
-          .select("project_id,color,unit,spacing_x_value,spacing_y_value,line_width_value")
-          .single()
-
+        const { row: ins, error: insErr } = await insertGridClient(def)
         if (insErr || !ins) {
           setRow(null)
-          setError(mapGridSchemaError(insErr?.message ?? "Failed to create default grid"))
+          setError(mapGridSchemaError(insErr ?? "Failed to create default grid"))
           return
         }
 
-        const r = ins as unknown as ProjectGridRow
-        setRow({
-          ...r,
-          unit: normalizeUnit((r as unknown as { unit?: unknown })?.unit),
-          color: normalizeHexColor((r as unknown as { color?: unknown })?.color),
-        })
+        setRow(normalizeProjectGridRow(ins))
         return
       }
 
-      const r = data as unknown as ProjectGridRow
-      setRow({
-        ...r,
-        unit: normalizeUnit((r as unknown as { unit?: unknown })?.unit),
-        color: normalizeHexColor((r as unknown as { color?: unknown })?.color),
-      })
+      setRow(normalizeProjectGridRow(data))
     } finally {
       setLoading(false)
     }
@@ -152,55 +95,41 @@ export function ProjectGridProvider({
 
   const upsertGrid = useCallback(
     async (nextRow: ProjectGridRow): Promise<ProjectGridRow | null> => {
-      if (saving) return null
+      if (savingRef.current) return null
       setSaving(true)
       setError("")
       try {
-        const supabase = createSupabaseBrowserClient()
-        const { data, error: upErr } = await supabase
-          .from("project_grid")
-          .upsert(nextRow, { onConflict: "project_id" })
-          .select("project_id,color,unit,spacing_x_value,spacing_y_value,line_width_value")
-          .single()
-
+        const { row: data, error: upErr } = await upsertGridClient(nextRow)
         if (upErr || !data) {
-          setError(mapGridSchemaError(upErr?.message ?? "Failed to save grid"))
+          setError(mapGridSchemaError(upErr ?? "Failed to save grid"))
           return null
         }
 
-        const r = data as unknown as ProjectGridRow
-        const normalized = {
-          ...r,
-          unit: normalizeUnit((r as unknown as { unit?: unknown })?.unit),
-          color: normalizeHexColor((r as unknown as { color?: unknown })?.color),
-        }
+        const normalized = normalizeProjectGridRow(data)
         setRow(normalized)
-        return normalized
+        return normalized as unknown as ProjectGridRow
       } finally {
         setSaving(false)
       }
     },
-    [saving]
+    []
   )
 
   // Keep grid unit in sync with workspace unit (artboard is the source of truth).
   useEffect(() => {
     if (!row) return
     if (!workspaceUnit) return
-    if (!workspaceDpi) return
     if (row.unit === workspaceUnit) return
-
-    const dpi = Number(workspaceDpi)
-    if (!Number.isFinite(dpi) || dpi <= 0) return
+    if (savingRef.current) return
 
     // Convert via µpx so 10 cm → 100 mm exactly (no float px roundtrip).
     let xPxU: bigint
     let yPxU: bigint
     let lwPxU: bigint
     try {
-      xPxU = unitToPxU(String(row.spacing_x_value), row.unit, dpi)
-      yPxU = unitToPxU(String(row.spacing_y_value), row.unit, dpi)
-      lwPxU = unitToPxU(String(row.line_width_value), row.unit, dpi)
+      xPxU = unitToPxUFixed(String(row.spacing_x_value), row.unit)
+      yPxU = unitToPxUFixed(String(row.spacing_y_value), row.unit)
+      lwPxU = unitToPxUFixed(String(row.line_width_value), row.unit)
     } catch {
       return
     }
@@ -208,25 +137,22 @@ export function ProjectGridProvider({
     const next: ProjectGridRow = {
       ...row,
       unit: workspaceUnit,
-      spacing_x_value: Number(pxUToUnitDisplay(xPxU, workspaceUnit, dpi)),
-      spacing_y_value: Number(pxUToUnitDisplay(yPxU, workspaceUnit, dpi)),
-      line_width_value: Number(pxUToUnitDisplay(lwPxU, workspaceUnit, dpi)),
+      spacing_x_value: Number(pxUToUnitDisplayFixed(xPxU, workspaceUnit)),
+      spacing_y_value: Number(pxUToUnitDisplayFixed(yPxU, workspaceUnit)),
+      line_width_value: Number(pxUToUnitDisplayFixed(lwPxU, workspaceUnit)),
     }
     void upsertGrid(next)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [row?.unit, workspaceUnit, workspaceDpi])
+  }, [row?.unit, workspaceUnit])
 
   const value = useMemo<ProjectGridContextValue>(() => {
-    const unit = row ? normalizeUnit((row as unknown as { unit?: unknown })?.unit) : null
-    const dpi = Number(workspaceDpi ?? NaN)
-    const canConvert = Boolean(unit && Number.isFinite(dpi) && dpi > 0)
-
+    const unit = row ? normalizeGridUnit((row as unknown as { unit?: unknown })?.unit) : null
     const spacingXPx =
-      row && canConvert ? Number(unitToPx(Number(row.spacing_x_value), unit as Unit, dpi)) : null
+      row && unit ? Number(unitToPxFixed(Number(row.spacing_x_value), unit as Unit)) : null
     const spacingYPx =
-      row && canConvert ? Number(unitToPx(Number(row.spacing_y_value), unit as Unit, dpi)) : null
+      row && unit ? Number(unitToPxFixed(Number(row.spacing_y_value), unit as Unit)) : null
     const lineWidthPx =
-      row && canConvert ? Number(unitToPx(Number(row.line_width_value), unit as Unit, dpi)) : null
+      row && unit ? Number(unitToPxFixed(Number(row.line_width_value), unit as Unit)) : null
 
     return {
       projectId,
@@ -240,7 +166,7 @@ export function ProjectGridProvider({
       spacingYPx,
       lineWidthPx,
     }
-  }, [error, loading, projectId, refresh, row, saving, upsertGrid, workspaceDpi])
+  }, [error, loading, projectId, refresh, row, saving, upsertGrid])
 
   return <ProjectGridContext.Provider value={value}>{children}</ProjectGridContext.Provider>
 }

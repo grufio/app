@@ -10,18 +10,22 @@ The editor’s performance-sensitive paths are concentrated in `ProjectCanvasSta
 
 ### Existing counters / checks
 
-- E2E exposes a counter on `globalThis.__gruf_editor.boundsReads`.
-  - Used by Playwright to ensure drags/pans do not explode bounds reads.
+- E2E exposes counters on `globalThis.__gruf_editor`:
+  - `boundsReads`: increments when bounds are recomputed from nodes.
+  - `clientRectReads`: increments when rotation forces `getClientRect()`-style bounds reads.
+  - `rafScheduled`: increments when a new RAF frame is scheduled (coalesced).
+  - `rafExecuted`: increments when the RAF callback executes.
 
 ### Suggested thresholds (MVP)
 
 These are “smoke” thresholds, not hard guarantees:
 
-- **Drag**: \(\le 3\) bounds reads for a single drag interaction.
-- **Pan wheel**: \(\le 2\) bounds reads for a pan tick.
+- **Drag**: \(\le 3\) `boundsReads` and \(\le 3\) `clientRectReads` for a single drag interaction.
+- **Pan wheel**: \(\le 2\) `boundsReads` and \(\le 2\) `clientRectReads` for a pan tick.
+- **RAF**: \(\le 6\) `rafExecuted` for the drag interaction and \(\le 3\) for a pan tick.
 
 If these regress, investigate:
-- `components/shared/editor/canvas-stage/bounds-controller.ts`
-- `components/shared/editor/canvas-stage/raf-scheduler.ts`
-- `components/shared/editor/project-canvas-stage.tsx`
+- `features/editor/components/canvas-stage/bounds-controller.ts`
+- `features/editor/components/canvas-stage/raf-scheduler.ts`
+- `features/editor/components/project-canvas-stage.tsx`
 

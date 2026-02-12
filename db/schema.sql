@@ -126,9 +126,13 @@ create table if not exists public.project_workspace (
   width_value numeric not null check (width_value > 0),
   height_value numeric not null check (height_value > 0),
 
-  -- resolution stored separately
+  -- resolution stored separately (legacy)
   dpi_x numeric not null check (dpi_x > 0),
   dpi_y numeric not null check (dpi_y > 0),
+
+  -- output/export resolution (Illustrator-style)
+  output_dpi_x numeric not null default 300 check (output_dpi_x > 0),
+  output_dpi_y numeric not null default 300 check (output_dpi_y > 0),
 
   -- canonical µpx size (fixed-point integers stored as strings)
   width_px_u text,
@@ -429,6 +433,237 @@ alter table public.project_workspace
 
 -- =========================================================
 -- END db/016_project_workspace_page_bg.sql
+-- =========================================================
+
+-- =========================================================
+-- BEGIN db/018_project_workspace_output_dpi.sql
+-- =========================================================
+-- gruf.io - Output DPI stored separately from geometry
+--
+-- Purpose:
+-- - Keep artboard geometry stable (Illustrator-style)
+-- - Store output/export DPI separately
+
+alter table public.project_workspace
+  add column if not exists output_dpi_x numeric,
+  add column if not exists output_dpi_y numeric;
+
+-- Backfill existing rows (use current dpi as output reference).
+update public.project_workspace
+set
+  output_dpi_x = coalesce(output_dpi_x, dpi_x, 300),
+  output_dpi_y = coalesce(output_dpi_y, dpi_y, 300)
+where output_dpi_x is null or output_dpi_y is null;
+
+-- Defaults + constraints.
+alter table public.project_workspace
+  alter column output_dpi_x set default 300,
+  alter column output_dpi_y set default 300;
+
+alter table public.project_workspace
+  alter column output_dpi_x set not null,
+  alter column output_dpi_y set not null;
+
+alter table public.project_workspace
+  drop constraint if exists project_workspace_output_dpi_x_positive,
+  drop constraint if exists project_workspace_output_dpi_y_positive;
+
+alter table public.project_workspace
+  add constraint project_workspace_output_dpi_x_positive check (output_dpi_x > 0),
+  add constraint project_workspace_output_dpi_y_positive check (output_dpi_y > 0);
+
+-- =========================================================
+-- END db/018_project_workspace_output_dpi.sql
+-- =========================================================
+
+-- =========================================================
+-- BEGIN db/019_project_images_multi.sql
+-- =========================================================
+-- gruf.io - Support multiple images per project
+-- Adds role expansion, active master, storage metadata, indexes, and optional soft delete.
+
+-- Extend image_role enum (do not remove existing values)
+do $$ begin
+  alter type public.image_role add value 'asset';
+exception when duplicate_object then null; end $$;
+
+-- Allow multiple images per role
+alter table public.project_images
+  drop constraint if exists project_images_one_per_role;
+
+-- Storage metadata
+alter table public.project_images
+  add column if not exists storage_bucket text not null default 'project_images';
+
+-- Active master flag
+alter table public.project_images
+  add column if not exists is_active boolean not null default false;
+
+-- Optional soft delete
+alter table public.project_images
+  add column if not exists deleted_at timestamptz;
+
+-- Backfill active master (latest master per project)
+with ranked as (
+  select
+    id,
+    project_id,
+    row_number() over (partition by project_id order by created_at desc) as rn
+  from public.project_images
+  where role = 'master' and deleted_at is null
+)
+update public.project_images pi
+set is_active = (ranked.rn = 1)
+from ranked
+where pi.id = ranked.id;
+
+-- Indexes
+create index if not exists project_images_project_id_role_created_at_idx
+  on public.project_images (project_id, role, created_at desc);
+
+-- Enforce one active master per project
+create unique index if not exists project_images_one_active_master_idx
+  on public.project_images (project_id)
+  where role = 'master' and is_active is true and deleted_at is null;
+
+-- Helpers to atomically switch active master
+create or replace function public.set_active_master_image(p_project_id uuid, p_image_id uuid)
+returns void
+language plpgsql
+as $$
+begin
+  update public.project_images
+  set is_active = false
+  where project_id = p_project_id
+    and role = 'master'
+    and deleted_at is null;
+
+  update public.project_images
+  set is_active = true
+  where id = p_image_id
+    and project_id = p_project_id
+    and role = 'master'
+    and deleted_at is null;
+end;
+$$;
+
+create or replace function public.set_active_master_latest(p_project_id uuid)
+returns void
+language plpgsql
+as $$
+declare
+  v_image_id uuid;
+begin
+  select id
+  into v_image_id
+  from public.project_images
+  where project_id = p_project_id
+    and role = 'master'
+    and deleted_at is null
+  order by created_at desc
+  limit 1;
+
+  if v_image_id is not null then
+    perform public.set_active_master_image(p_project_id, v_image_id);
+  end if;
+end;
+$$;
+
+-- =========================================================
+-- END db/019_project_images_multi.sql
+-- =========================================================
+
+-- =========================================================
+-- BEGIN db/020_project_images_storage_path.sql
+-- =========================================================
+-- gruf.io - Update storage policies for new image paths
+-- Path convention: projects/<project_id>/images/<image_id>
+
+alter table storage.objects enable row level security;
+
+drop policy if exists project_images_storage_select_owner on storage.objects;
+create policy project_images_storage_select_owner
+on storage.objects for select
+using (
+  bucket_id = 'project_images'
+  and (
+    name ~ '^projects/[0-9a-fA-F-]{36}/images/[0-9a-fA-F-]{36}$'
+    or name ~ '^projects/[0-9a-fA-F-]{36}/(master|working)/'
+  )
+  and exists (
+    select 1
+    from public.projects p
+    where p.id::text = substring(storage.objects.name from '^projects/([0-9a-fA-F-]{36})/')
+      and p.owner_id = auth.uid()
+  )
+);
+
+drop policy if exists project_images_storage_insert_owner on storage.objects;
+create policy project_images_storage_insert_owner
+on storage.objects for insert
+with check (
+  bucket_id = 'project_images'
+  and (
+    name ~ '^projects/[0-9a-fA-F-]{36}/images/[0-9a-fA-F-]{36}$'
+    or name ~ '^projects/[0-9a-fA-F-]{36}/(master|working)/'
+  )
+  and exists (
+    select 1
+    from public.projects p
+    where p.id::text = substring(storage.objects.name from '^projects/([0-9a-fA-F-]{36})/')
+      and p.owner_id = auth.uid()
+  )
+);
+
+drop policy if exists project_images_storage_update_owner on storage.objects;
+create policy project_images_storage_update_owner
+on storage.objects for update
+using (
+  bucket_id = 'project_images'
+  and (
+    name ~ '^projects/[0-9a-fA-F-]{36}/images/[0-9a-fA-F-]{36}$'
+    or name ~ '^projects/[0-9a-fA-F-]{36}/(master|working)/'
+  )
+  and exists (
+    select 1
+    from public.projects p
+    where p.id::text = substring(storage.objects.name from '^projects/([0-9a-fA-F-]{36})/')
+      and p.owner_id = auth.uid()
+  )
+)
+with check (
+  bucket_id = 'project_images'
+  and (
+    name ~ '^projects/[0-9a-fA-F-]{36}/images/[0-9a-fA-F-]{36}$'
+    or name ~ '^projects/[0-9a-fA-F-]{36}/(master|working)/'
+  )
+  and exists (
+    select 1
+    from public.projects p
+    where p.id::text = substring(storage.objects.name from '^projects/([0-9a-fA-F-]{36})/')
+      and p.owner_id = auth.uid()
+  )
+);
+
+drop policy if exists project_images_storage_delete_owner on storage.objects;
+create policy project_images_storage_delete_owner
+on storage.objects for delete
+using (
+  bucket_id = 'project_images'
+  and (
+    name ~ '^projects/[0-9a-fA-F-]{36}/images/[0-9a-fA-F-]{36}$'
+    or name ~ '^projects/[0-9a-fA-F-]{36}/(master|working)/'
+  )
+  and exists (
+    select 1
+    from public.projects p
+    where p.id::text = substring(storage.objects.name from '^projects/([0-9a-fA-F-]{36})/')
+      and p.owner_id = auth.uid()
+  )
+);
+
+-- =========================================================
+-- END db/020_project_images_storage_path.sql
 -- =========================================================
 
 -- =========================================================

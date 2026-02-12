@@ -9,13 +9,15 @@ import { NextResponse } from "next/server"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { isUuid, jsonError, requireUser } from "@/lib/api/route-guards"
 
+export const dynamic = "force-dynamic"
+
 export async function DELETE(_req: Request, { params }: { params: Promise<{ projectId: string }> }) {
   const supabase = await createSupabaseServerClient()
   const u = await requireUser(supabase)
   if (!u.ok) return u.res
 
   const { projectId } = await params
-  if (!isUuid(String(projectId))) return jsonError("Invalid projectId", 400, { stage: "params" })
+  if (!isUuid(String(projectId))) return jsonError("Invalid projectId", 400, { stage: "validation", where: "params" })
 
   const { data, error } = await supabase
     .from("projects")

@@ -7,7 +7,10 @@
  */
 import type { Page } from "@playwright/test"
 
-export const PROJECT_ID = "00000000-0000-0000-0000-000000000001"
+import { clampPx, pxUToPxNumber, unitToPxUFixed } from "@/lib/editor/units"
+
+// Must match `isUuid()` (UUID v1-5); use a deterministic v4-style UUID for tests.
+export const PROJECT_ID = "00000000-0000-4000-8000-000000000001"
 
 export type SetupMockRoutesOpts = {
   withImage: boolean
@@ -17,6 +20,8 @@ export type SetupMockRoutesOpts = {
     height_value: number
     dpi_x: number
     dpi_y: number
+    output_dpi_x: number
+    output_dpi_y: number
     width_px_u: string
     height_px_u: string
     width_px: number
@@ -45,12 +50,14 @@ export async function setupMockRoutes(page: Page, opts: SetupMockRoutesOpts) {
     height_value: 30,
     dpi_x: 300,
     dpi_y: 300,
+    output_dpi_x: 300,
+    output_dpi_y: 300,
     // canonical µpx (strings)
-    width_px_u: "2362204724",
-    height_px_u: "3543307087",
+    width_px_u: unitToPxUFixed("20", "cm").toString(),
+    height_px_u: unitToPxUFixed("30", "cm").toString(),
     // cached integer px
-    width_px: 2362,
-    height_px: 3543,
+    width_px: clampPx(pxUToPxNumber(unitToPxUFixed("20", "cm"))),
+    height_px: clampPx(pxUToPxNumber(unitToPxUFixed("30", "cm"))),
     raster_effects_preset: "high",
     page_bg_enabled: false,
     page_bg_color: "#ffffff",
@@ -62,15 +69,17 @@ export async function setupMockRoutes(page: Page, opts: SetupMockRoutesOpts) {
   const dataImage =
     "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%2220%22%20height%3D%2210%22%3E%3Crect%20width%3D%2220%22%20height%3D%2210%22%20fill%3D%22%23ff3b30%22/%3E%3C/svg%3E"
 
-  const masterImagePayload = opts.withImage
-    ? {
-        exists: true,
-        signedUrl: dataImage,
-        width_px: 20,
-        height_px: 10,
-        name: "test.svg",
-      }
-    : { exists: false }
+  let hasImage = Boolean(opts.withImage)
+  const masterImagePayload = () =>
+    hasImage
+      ? {
+          exists: true,
+          signedUrl: dataImage,
+          width_px: 20,
+          height_px: 10,
+          name: "test.svg",
+        }
+      : { exists: false }
 
   let imageState: ImageStateRow | null = opts.imageState && opts.imageState.exists ? opts.imageState.state : null
 
@@ -100,7 +109,7 @@ export async function setupMockRoutes(page: Page, opts: SetupMockRoutesOpts) {
       return route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify(masterImagePayload),
+        body: JSON.stringify(masterImagePayload()),
       })
     }
 
@@ -108,8 +117,22 @@ export async function setupMockRoutes(page: Page, opts: SetupMockRoutesOpts) {
       return route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ exists: Boolean(opts.withImage) }),
+        body: JSON.stringify({ exists: hasImage }),
       })
+    }
+
+    // Internal API: upload master image (mocked)
+    if (url.includes(`/api/projects/${PROJECT_ID}/images/master/upload`)) {
+      const req = route.request()
+      if (req.method() === "POST") {
+        hasImage = true
+        return route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ ok: true, storage_path: `projects/${PROJECT_ID}/master/mock-upload.svg` }),
+        })
+      }
+      return route.fulfill({ status: 405, contentType: "application/json", body: JSON.stringify({ error: "Method not allowed" }) })
     }
 
     // Internal API: image-state (not needed for MVP smoke)
