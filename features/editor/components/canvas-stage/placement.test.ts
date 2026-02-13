@@ -44,6 +44,8 @@ describe("shouldApplyPersistedTransform", () => {
         src: "s",
         appliedKey: null,
         userChanged: false,
+        activeImageId: "img-1",
+        stateImageId: "img-1",
         initialImageTransform: { widthPxU: 1n, heightPxU: 1n },
       })
     ).toBe(true)
@@ -55,7 +57,35 @@ describe("shouldApplyPersistedTransform", () => {
         src: "s",
         appliedKey: null,
         userChanged: false,
+        activeImageId: "img-1",
+        stateImageId: "img-1",
         initialImageTransform: { widthPxU: undefined, heightPxU: 1n },
+      })
+    ).toBe(false)
+  })
+
+  it("returns false when persisted state is bound to another image", () => {
+    expect(
+      shouldApplyPersistedTransform({
+        src: "s",
+        appliedKey: null,
+        userChanged: false,
+        activeImageId: "img-2",
+        stateImageId: "img-1",
+        initialImageTransform: { widthPxU: 1n, heightPxU: 1n },
+      })
+    ).toBe(false)
+  })
+
+  it("returns false when persisted state has no image binding", () => {
+    expect(
+      shouldApplyPersistedTransform({
+        src: "s",
+        appliedKey: null,
+        userChanged: false,
+        activeImageId: "img-2",
+        stateImageId: null,
+        initialImageTransform: { widthPxU: 1n, heightPxU: 1n },
       })
     ).toBe(false)
   })

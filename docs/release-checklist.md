@@ -25,7 +25,14 @@ If you suspect “works locally, fails in Supabase” (migration/policy drift), 
 ```bash
 npm run verify:remote-migrations
 npm run verify:remote-rls
+SUPABASE_DB_URL="postgresql://..." npm run verify:image-state-binding
 ```
+
+`verify:image-state-binding` is the rollout gate for master image/state consistency. It fails if any of these conditions are detected:
+- more than one active master image in a project
+- active master image without matching `project_image_state.image_id`
+- stale state binding (`image_id` null or mismatched vs active master)
+- state row referencing a missing image id
 
 If migrations are missing:
 

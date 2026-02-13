@@ -20,6 +20,7 @@
     "verify:rls": "node scripts/verify-rls.mjs",
     "verify:remote-migrations": "node scripts/verify-remote-migrations.mjs",
     "verify:remote-rls": "node scripts/verify-remote-rls.mjs",
+    "verify:image-state-binding": "node scripts/verify-image-state-binding.mjs",
     "verify:types-synced": "node scripts/verify-types-synced.mjs",
     "db:pull": "supabase db pull --linked",
     "db:push": "supabase db push --linked",

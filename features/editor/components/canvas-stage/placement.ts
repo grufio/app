@@ -29,12 +29,15 @@ export function shouldApplyPersistedTransform(args: {
   src: string | undefined
   appliedKey: string | null
   userChanged: boolean
+  activeImageId?: string | null
+  stateImageId?: string | null
   initialImageTransform: { widthPxU?: bigint; heightPxU?: bigint } | null | undefined
 }): boolean {
-  const { src, appliedKey, userChanged, initialImageTransform } = args
+  const { src, appliedKey, userChanged, activeImageId, stateImageId, initialImageTransform } = args
   if (!src) return false
   if (userChanged) return false
   if (!initialImageTransform) return false
+  if (!activeImageId || !stateImageId || activeImageId !== stateImageId) return false
   if (appliedKey === src) return false
   return Boolean(initialImageTransform.widthPxU && initialImageTransform.heightPxU)
 }

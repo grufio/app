@@ -23,11 +23,27 @@ export async function GET(_req: Request, { params }: { params: Promise<{ project
   const u = await requireUser(supabase)
   if (!u.ok) return u.res
 
-  const { data, error } = await supabase
-    .from("project_image_state")
-    .select("project_id,role,x_px_u,y_px_u,width_px_u,height_px_u,rotation_deg")
+  const { data: activeMaster, error: activeErr } = await supabase
+    .from("project_images")
+    .select("id")
     .eq("project_id", projectId)
     .eq("role", "master")
+    .eq("is_active", true)
+    .is("deleted_at", null)
+    .maybeSingle()
+  if (activeErr) {
+    return jsonError(activeErr.message, 400, { stage: "active_image_lookup" })
+  }
+  if (!activeMaster?.id) {
+    return NextResponse.json({ exists: false, state: null })
+  }
+
+  const { data, error } = await supabase
+    .from("project_image_state")
+    .select("project_id,role,image_id,x_px_u,y_px_u,width_px_u,height_px_u,rotation_deg")
+    .eq("project_id", projectId)
+    .eq("role", "master")
+    .eq("image_id", activeMaster.id)
     .maybeSingle()
 
   if (error) {
@@ -73,8 +89,26 @@ export async function POST(req: Request, { params }: { params: Promise<{ project
   // µpx schema required.
   const baseRow = {
     project_id: projectId,
+    image_id: "",
     ...validated,
   }
+
+  // Never trust client-provided image identity; bind state to current active master.
+  const { data: activeMaster, error: activeErr } = await supabase
+    .from("project_images")
+    .select("id")
+    .eq("project_id", projectId)
+    .eq("role", "master")
+    .eq("is_active", true)
+    .is("deleted_at", null)
+    .maybeSingle()
+  if (activeErr) {
+    return jsonError(activeErr.message, 400, { stage: "active_image_lookup" })
+  }
+  if (!activeMaster?.id) {
+    return jsonError("No active master image", 409, { stage: "active_image_lookup" })
+  }
+  baseRow.image_id = activeMaster.id
 
   const { error: errV2 } = await supabase.from("project_image_state").upsert(baseRow, { onConflict: "project_id,role" })
 

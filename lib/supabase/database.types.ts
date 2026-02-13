@@ -64,6 +64,7 @@ export type Database = {
           dpi: number | null
           height_px: number | null
           height_px_u: string | null
+          image_id: string | null
           project_id: string
           role: Database["public"]["Enums"]["image_role"]
           rotation_deg: number
@@ -83,6 +84,7 @@ export type Database = {
           dpi?: number | null
           height_px?: number | null
           height_px_u?: string | null
+          image_id?: string | null
           project_id: string
           role: Database["public"]["Enums"]["image_role"]
           rotation_deg?: number
@@ -102,6 +104,7 @@ export type Database = {
           dpi?: number | null
           height_px?: number | null
           height_px_u?: string | null
+          image_id?: string | null
           project_id?: string
           role?: Database["public"]["Enums"]["image_role"]
           rotation_deg?: number
@@ -117,6 +120,13 @@ export type Database = {
           y_px_u?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "project_image_state_image_id_fkey"
+            columns: ["image_id"]
+            isOneToOne: false
+            referencedRelation: "project_images"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "project_image_state_project_id_fkey"
             columns: ["project_id"]
@@ -407,6 +417,15 @@ export type Database = {
       set_active_master_latest: {
         Args: {
           p_project_id: string
+        }
+        Returns: undefined
+      }
+      set_active_master_with_state: {
+        Args: {
+          p_height_px: number
+          p_image_id: string
+          p_project_id: string
+          p_width_px: number
         }
         Returns: undefined
       }

@@ -6,6 +6,7 @@
  * - Keep transport types decoupled from in-memory BigInt types.
  */
 export type ImageStateRow = {
+  image_id?: string | null
   x_px_u?: string | null
   y_px_u?: string | null
   width_px_u: string

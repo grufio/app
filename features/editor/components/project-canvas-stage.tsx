@@ -26,6 +26,7 @@ import { computeSelectionHandleRects, computeWorldSize } from "@/services/editor
 
 type Props = {
   src?: string
+  activeImageId?: string | null
   alt?: string
   className?: string
   panEnabled?: boolean
@@ -50,6 +51,7 @@ type Props = {
   } | null
   onImageSizeChange?: (widthPxU: bigint, heightPxU: bigint) => void
   initialImageTransform?: {
+    imageId?: string
     xPxU?: bigint
     yPxU?: bigint
     widthPxU?: bigint
@@ -222,6 +224,7 @@ const SelectionOverlay = memo(function SelectionOverlay({
 export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(function ProjectCanvasStage(
   {
     src,
+    activeImageId,
     alt,
     className,
     panEnabled = true,
@@ -503,6 +506,8 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
         src,
         appliedKey: appliedInitialTransformKeyRef.current,
         userChanged: userChangedImageTxRef.current,
+        activeImageId,
+        stateImageId: initialImageTransform.imageId,
         initialImageTransform,
       })
     )
@@ -523,7 +528,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
       setImageTx({ xPxU, yPxU, widthPxU: nextWidthPxU, heightPxU: nextHeightPxU })
       scheduleBoundsUpdate()
     })
-  }, [img, initialImageTransform, scheduleBoundsUpdate, src])
+  }, [activeImageId, img, initialImageTransform, scheduleBoundsUpdate, src])
 
   // DPI is metadata-only. Rendering must never use it.
 
@@ -548,7 +553,13 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     // - width/height used ONLY for centering
     // - DO NOT change anything based on DPI
     if (!hasArtboard) return
-    const hasPersistedSize = Boolean(initialImageTransform?.widthPxU && initialImageTransform?.heightPxU)
+    const hasPersistedSize = Boolean(
+      initialImageTransform?.widthPxU &&
+      initialImageTransform?.heightPxU &&
+      initialImageTransform?.imageId &&
+      activeImageId &&
+      initialImageTransform.imageId === activeImageId
+    )
     if (hasPersistedSize) return
     if (appliedInitialTransformKeyRef.current === src) return
 
@@ -570,7 +581,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
         heightPxU: numberToMicroPx(baseH),
       })
     })
-  }, [artH, artW, hasArtboard, img, initialImageTransform, intrinsicHeightPx, intrinsicWidthPx, src])
+  }, [activeImageId, artH, artW, hasArtboard, img, initialImageTransform, intrinsicHeightPx, intrinsicWidthPx, src])
 
   if (!transformControllerRef.current) {
     transformControllerRef.current = createTransformController({

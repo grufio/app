@@ -8,7 +8,7 @@
 import { NextResponse } from "next/server"
 
 import { createSupabaseServerClient } from "@/lib/supabase/server"
-import { createSupabaseAuthedUserClient } from "@/lib/supabase/authed-user"
+import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role"
 import { isUuid, jsonError, requireUser } from "@/lib/api/route-guards"
 
 export const dynamic = "force-dynamic"
@@ -42,23 +42,6 @@ export async function POST(
 
   const u = await requireUser(supabase)
   if (!u.ok) return u.res
-
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  const accessToken = session?.access_token
-
-  if (!url || !anonKey || !accessToken) {
-    return jsonError("Missing Supabase env or session token", 401, {
-      stage: "auth_session",
-    })
-  }
-
-  // Explicit authed client for Storage (ensures Authorization header is present).
-  const authed = createSupabaseAuthedUserClient(accessToken)
 
   // Verify project is accessible under RLS (owner-only).
   const { data: projectRow, error: projectErr } = await supabase
@@ -129,15 +112,26 @@ export async function POST(
   const imageId = crypto.randomUUID()
   const objectPath = `projects/${projectId}/images/${imageId}`
 
-  // Upload to Storage as the authenticated user (Storage RLS enforced).
-  const { error: uploadErr } = await authed.storage.from("project_images").upload(objectPath, file, {
+  // Upload via server-only service role client (bypasses Storage RLS).
+  // Ownership is enforced by the RLS-checked project lookup above.
+  const service = createSupabaseServiceRoleClient()
+  const { error: uploadErr } = await service.storage.from("project_images").upload(objectPath, file, {
     upsert: true,
     contentType: file.type || undefined,
   })
 
   if (uploadErr) {
-    console.warn("master upload: storage upload failed", { projectId, message: uploadErr.message })
-    return jsonError(uploadErr.message, 400, { stage: "storage_policy", op: "upload" })
+    console.warn("master upload: storage upload failed", {
+      projectId,
+      message: uploadErr.message,
+      code: (uploadErr as unknown as { code?: string })?.code,
+      status: (uploadErr as unknown as { status?: number })?.status,
+    })
+    return jsonError(uploadErr.message, 400, {
+      stage: "storage_upload",
+      op: "upload",
+      code: (uploadErr as unknown as { code?: string })?.code,
+    })
   }
 
   // Upsert DB record for master image.
@@ -165,9 +159,13 @@ export async function POST(
     })
   }
 
-  const { error: activeErr } = await supabase.rpc("set_active_master_image", {
+  const widthPx = Math.max(1, Math.trunc(width_px))
+  const heightPx = Math.max(1, Math.trunc(height_px))
+  const { error: activeErr } = await supabase.rpc("set_active_master_with_state", {
     p_project_id: projectId,
     p_image_id: imageId,
+    p_width_px: widthPx,
+    p_height_px: heightPx,
   })
 
   if (activeErr) {

@@ -13,6 +13,7 @@ import { getImageState, saveImageState as saveImageStateApi } from "@/lib/api/im
 import { parseBigIntString, toSaveImageStateBody } from "@/lib/editor/imageState"
 
 export type ImageState = {
+  imageId?: string
   xPxU?: bigint
   yPxU?: bigint
   widthPxU?: bigint
@@ -86,6 +87,7 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
       const xPxU = parseBigIntString(payload.state.x_px_u)
       const yPxU = parseBigIntString(payload.state.y_px_u)
       setInitialImageTransform({
+        imageId: typeof payload.state.image_id === "string" ? payload.state.image_id : undefined,
         xPxU: xPxU ?? undefined,
         yPxU: yPxU ?? undefined,
         widthPxU,

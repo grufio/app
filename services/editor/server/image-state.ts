@@ -12,13 +12,17 @@ import { parseBigIntString } from "@/lib/editor/imageState"
 
 export async function getImageStateForEditor(
   supabase: SupabaseClient,
-  projectId: string
+  projectId: string,
+  activeImageId: string | null
 ): Promise<{ imageState: ImageState | null; error: string | null; unsupported: boolean }> {
+  if (!activeImageId) return { imageState: null, error: null, unsupported: false }
+
   const { data: st, error: stErr } = await supabase
     .from("project_image_state")
-    .select("x_px_u,y_px_u,width_px_u,height_px_u,rotation_deg,role")
+    .select("image_id,x_px_u,y_px_u,width_px_u,height_px_u,rotation_deg,role")
     .eq("project_id", projectId)
     .eq("role", "master")
+    .eq("image_id", activeImageId)
     .maybeSingle()
 
   if (stErr) return { imageState: null, error: stErr.message, unsupported: false }
@@ -34,7 +38,14 @@ export async function getImageStateForEditor(
   const rotationDeg = Number(st.rotation_deg ?? 0)
 
   return {
-    imageState: { xPxU: xPxU ?? undefined, yPxU: yPxU ?? undefined, widthPxU, heightPxU, rotationDeg },
+    imageState: {
+      imageId: typeof st.image_id === "string" ? st.image_id : undefined,
+      xPxU: xPxU ?? undefined,
+      yPxU: yPxU ?? undefined,
+      widthPxU,
+      heightPxU,
+      rotationDeg,
+    },
     error: null,
     unsupported: false,
   }

@@ -39,14 +39,13 @@ async function getInitialProjectData(projectId: string): Promise<{
   const { data: p, error: pErr } = await supabase.from("projects").select("id,name").eq("id", projectId).maybeSingle()
   if (pErr || !p?.id) notFound()
 
-  // Fetch non-critical editor data in parallel.
-  const [{ row: ws, error: wsErr }, { row: grid, error: gridErr }, { masterImage, error: imgErr }, stRes] =
-    await Promise.all([
-      selectWorkspace(supabase, projectId),
-      selectGrid(supabase, projectId),
-      getMasterImageForEditor(supabase, projectId),
-      getImageStateForEditor(supabase, projectId),
-    ])
+  // Fetch non-critical editor data in parallel where possible.
+  const [{ row: ws, error: wsErr }, { row: grid, error: gridErr }, { masterImage, error: imgErr }] = await Promise.all([
+    selectWorkspace(supabase, projectId),
+    selectGrid(supabase, projectId),
+    getMasterImageForEditor(supabase, projectId),
+  ])
+  const stRes = await getImageStateForEditor(supabase, projectId, masterImage?.id ?? null)
 
   // Workspace is effectively required; surface schema mismatch explicitly.
   if (wsErr) {

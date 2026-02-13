@@ -31,7 +31,7 @@ type CanvasTransformCommit = React.ComponentProps<typeof ProjectCanvasStage>["on
 
 export function ProjectEditorStage(props: {
   projectId: string
-  masterImage: { signedUrl?: string | null; name?: string | null; width_px?: number | null; height_px?: number | null } | null
+  masterImage: { id?: string | null; signedUrl?: string | null; name?: string | null; width_px?: number | null; height_px?: number | null } | null
   masterImageLoading: boolean
   masterImageError: string
   refreshMasterImage: () => void | Promise<void>
@@ -68,7 +68,7 @@ export function ProjectEditorStage(props: {
   const {
     projectId,
     masterImage,
-    masterImageLoading,
+    masterImageLoading: _masterImageLoading,
     masterImageError,
     refreshMasterImage,
     imageStateLoading,
@@ -84,6 +84,8 @@ export function ProjectEditorStage(props: {
     initialImageTransform,
     saveImageState,
   } = props
+
+  void _masterImageLoading
 
   const [isUploading, setIsUploading] = React.useState(false)
   const [overlayVisible, setOverlayVisible] = React.useState(false)
@@ -173,6 +175,7 @@ export function ProjectEditorStage(props: {
           <ProjectCanvasStage
             ref={canvasRef}
             src={masterImage?.signedUrl}
+            activeImageId={masterImage?.id ?? null}
             alt={masterImage?.name}
             className="h-full w-full"
             panEnabled={toolbar.panEnabled}

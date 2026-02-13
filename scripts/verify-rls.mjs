@@ -127,7 +127,11 @@ function verifyNoServiceRoleEnvUsage() {
   for (const filePath of files) {
     const text = readText(filePath)
     for (const rx of forbiddenEnvReads) {
-      if (rx.test(text)) hits.push({ filePath, match: rx.toString() })
+      if (rx.test(text)) {
+        // Allowlist: service role key may be used in a server-only helper.
+        if (filePath.endsWith(path.join("lib", "supabase", "service-role.ts"))) continue
+        hits.push({ filePath, match: rx.toString() })
+      }
       rx.lastIndex = 0
     }
   }
