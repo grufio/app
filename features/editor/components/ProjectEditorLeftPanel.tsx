@@ -9,10 +9,15 @@
  */
 import * as React from "react"
 import { SidebarFrame } from "@/components/navigation/SidebarFrame"
-import { SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel } from "@/components/ui/sidebar"
+import { SidebarContent } from "@/components/ui/sidebar"
 import { FileTreeView, type FileNode } from "@/components/FileTreeView"
+import { ProjectTitleEditor } from "./project-title-editor"
+import { EditorSidebarSection } from "./sidebar/editor-sidebar-section"
 
 export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel(props: {
+  projectId: string
+  initialTitle?: string
+  onTitleUpdated?: (nextTitle: string) => void
   widthRem: number
   minRem: number
   maxRem: number
@@ -21,7 +26,7 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
   onSelect: (id: string) => void
   images: { id: string; label: string }[]
 }) {
-  const { widthRem, minRem, maxRem, onWidthRemChange, selectedId, onSelect, images } = props
+  const { projectId, initialTitle, onTitleUpdated, widthRem, minRem, maxRem, onWidthRemChange, selectedId, onSelect, images } = props
 
   const [expandedIds, setExpandedIds] = React.useState<string[]>(() => ["app"])
 
@@ -98,19 +103,19 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
       style={{ width: `${clamp(widthRem)}rem` }}
     >
       <SidebarFrame className="block min-h-0 w-full">
-        <SidebarContent>
-          <SidebarGroup>
-            <SidebarGroupLabel>Layers</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <FileTreeView
-                data={items}
-                expandedIds={expandedIds}
-                onExpandedIdsChange={setExpandedIds}
-                onSelect={(node) => onSelect(node.id)}
-                height="100%"
-              />
-            </SidebarGroupContent>
-          </SidebarGroup>
+        <SidebarContent className="gap-0">
+          <EditorSidebarSection title="Title">
+            <ProjectTitleEditor projectId={projectId} initialTitle={initialTitle} onTitleUpdated={onTitleUpdated} />
+          </EditorSidebarSection>
+          <EditorSidebarSection title="Layers">
+            <FileTreeView
+              data={items}
+              expandedIds={expandedIds}
+              onExpandedIdsChange={setExpandedIds}
+              onSelect={(node) => onSelect(node.id)}
+              height="100%"
+            />
+          </EditorSidebarSection>
         </SidebarContent>
       </SidebarFrame>
       {/* Resize handle (use border line; no separate visual handle). */}
