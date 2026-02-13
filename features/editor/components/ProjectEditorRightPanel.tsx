@@ -11,6 +11,7 @@ import * as React from "react"
 import dynamic from "next/dynamic"
 import { EyeOff, Percent, RotateCcw, Trash2 } from "lucide-react"
 
+import { SidebarFrame } from "@/components/navigation/SidebarFrame"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -20,6 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { SidebarContent } from "@/components/ui/sidebar"
 // Code-split non-canvas panels to reduce initial editor bundle cost.
 const GridPanel = dynamic(() => import("./grid-panel").then((m) => m.GridPanel), {
   ssr: false,
@@ -139,99 +141,101 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
           className="absolute inset-y-0 -left-1 z-20 w-2 cursor-col-resize"
           onMouseDown={onResizeMouseDown}
         />
-        <div className="flex h-full flex-col">
-          {activeSection === "artboard" ? (
-            <>
-              <EditorSidebarSection title="Page">
-                <PanelTwoFieldRow>
-                  <IconColorField
-                    value={pageBgColor}
-                    onChange={onPageBgColorChange}
-                    ariaLabel="Page background color"
-                    inputClassName="cursor-pointer"
-                  />
+        <SidebarFrame className="block h-full min-h-0 w-full">
+          <SidebarContent className="gap-0">
+            {activeSection === "artboard" ? (
+              <>
+                <EditorSidebarSection title="Page">
+                  <PanelTwoFieldRow>
+                    <IconColorField
+                      value={pageBgColor}
+                      onChange={onPageBgColorChange}
+                      ariaLabel="Page background color"
+                      inputClassName="cursor-pointer"
+                    />
 
-                  <IconNumericField
-                    value={String(pageBgOpacity)}
-                    mode="int"
-                    ariaLabel="Page background opacity percent"
-                    icon={<Percent aria-hidden="true" />}
-                    onValueChange={(next) => {
-                      const n = Number(next)
-                      const clamped = Math.max(0, Math.min(100, Number.isFinite(n) ? n : 0))
-                      onPageBgOpacityChange(clamped)
-                    }}
-                  />
+                    <IconNumericField
+                      value={String(pageBgOpacity)}
+                      mode="int"
+                      ariaLabel="Page background opacity percent"
+                      icon={<Percent aria-hidden="true" />}
+                      onValueChange={(next) => {
+                        const n = Number(next)
+                        const clamped = Math.max(0, Math.min(100, Number.isFinite(n) ? n : 0))
+                        onPageBgOpacityChange(clamped)
+                      }}
+                    />
 
-                  <PanelIconSlot>
+                    <PanelIconSlot>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        aria-label="Hide page background"
+                        onClick={() => onPageBgEnabledChange(false)}
+                      >
+                        <EyeOff className="size-4" />
+                      </Button>
+                    </PanelIconSlot>
+                  </PanelTwoFieldRow>
+                </EditorSidebarSection>
+                <GridPanel />
+                <EditorSidebarSection title="Artboard" testId="editor-artboard-panel">
+                  <ArtboardPanel />
+                </EditorSidebarSection>
+              </>
+            ) : null}
+            {activeSection === "image" ? (
+              <EditorSidebarSection
+                title="Image"
+                headerActions={
+                  <>
                     <Button
                       type="button"
                       variant="ghost"
                       size="icon"
                       className="h-6 w-6"
-                      aria-label="Hide page background"
-                      onClick={() => onPageBgEnabledChange(false)}
+                      disabled={!masterImage || masterImageLoading || deleteBusy}
+                      aria-label="Restore image"
+                      onClick={() => setRestoreOpen(true)}
                     >
-                      <EyeOff className="size-4" />
+                      <RotateCcw className="size-4" />
                     </Button>
-                  </PanelIconSlot>
-                </PanelTwoFieldRow>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      disabled={!masterImage || masterImageLoading || deleteBusy}
+                      aria-label="Delete image"
+                      onClick={() => {
+                        setDeleteError("")
+                        setDeleteOpen(true)
+                      }}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </>
+                }
+              >
+                <ImagePanel
+                  widthPxU={panelImagePxU?.w}
+                  heightPxU={panelImagePxU?.h}
+                  unit={workspaceUnit}
+                  ready={imagePanelReady}
+                  disabled={!masterImage || imageStateLoading || !workspaceReady}
+                  onCommit={(w, h) => canvasRef.current?.setImageSize(w, h)}
+                  onAlign={(opts) => canvasRef.current?.alignImage(opts)}
+                />
               </EditorSidebarSection>
-              <GridPanel />
-              <EditorSidebarSection title="Artboard" testId="editor-artboard-panel">
-                <ArtboardPanel />
-              </EditorSidebarSection>
-            </>
-          ) : null}
-          {activeSection === "image" ? (
-            <EditorSidebarSection
-              title="Image"
-              headerActions={
-                <>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    disabled={!masterImage || masterImageLoading || deleteBusy}
-                    aria-label="Restore image"
-                    onClick={() => setRestoreOpen(true)}
-                  >
-                    <RotateCcw className="size-4" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    disabled={!masterImage || masterImageLoading || deleteBusy}
-                    aria-label="Delete image"
-                    onClick={() => {
-                      setDeleteError("")
-                      setDeleteOpen(true)
-                    }}
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
-                </>
-              }
-            >
-              <ImagePanel
-                widthPxU={panelImagePxU?.w}
-                heightPxU={panelImagePxU?.h}
-                unit={workspaceUnit}
-                ready={imagePanelReady}
-                disabled={!masterImage || imageStateLoading || !workspaceReady}
-                onCommit={(w, h) => canvasRef.current?.setImageSize(w, h)}
-                onAlign={(opts) => canvasRef.current?.alignImage(opts)}
-              />
-            </EditorSidebarSection>
-          ) : null}
+            ) : null}
 
-          <div className="flex-1 overflow-auto p-4">
-            {/* reserved for future controls */}
-          </div>
-        </div>
+            <div className="flex-1 overflow-auto p-4">
+              {/* reserved for future controls */}
+            </div>
+          </SidebarContent>
+        </SidebarFrame>
       </aside>
 
       {/* Restore confirmation dialog */}
