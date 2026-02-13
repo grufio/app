@@ -4,7 +4,6 @@ import Link from "next/link"
 import { useEffect, useState } from "react"
 import { ArrowLeft } from "lucide-react"
 
-import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 /**
@@ -23,7 +22,7 @@ export function ProjectEditorHeader() {
   }, [])
 
   return (
-    <header className="flex min-h-16 shrink-0 flex-col gap-2 py-3 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:min-h-12 group-has-data-[collapsible=icon]/sidebar-wrapper:py-2">
+    <header className="flex shrink-0 items-center py-1 transition-[width,height] ease-linear">
       <div className="flex items-center gap-2 px-4">
         <Link
           href="/dashboard"
@@ -32,11 +31,6 @@ export function ProjectEditorHeader() {
         >
           <ArrowLeft className="h-[16px] w-[16px]" />
         </Link>
-
-        <Separator orientation="vertical" className="mr-2 data-[orientation=vertical]:h-4" />
-      </div>
-
-      <div className="px-4">
         {tabsMounted ? (
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="gap-0">
             <TabsList className="h-6 gap-2">
