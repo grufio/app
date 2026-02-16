@@ -20,6 +20,7 @@ type Body = {
   width_px: number
   height_px: number
   file_size_bytes: number
+  dpi?: number | null
   storage_bucket?: string
 }
 
@@ -45,7 +46,7 @@ export async function GET(
 
   const { data: img, error: imgErr } = await supabase
     .from("project_images")
-    .select("id,storage_path,storage_bucket,name,format,width_px,height_px,file_size_bytes,is_active")
+    .select("id,storage_path,storage_bucket,name,format,width_px,height_px,dpi,file_size_bytes,is_active")
     .eq("project_id", projectId)
     .eq("role", "master")
     .eq("is_active", true)
@@ -78,6 +79,7 @@ export async function GET(
       format: img.format,
       width_px: img.width_px,
       height_px: img.height_px,
+      dpi: img.dpi,
       file_size_bytes: img.file_size_bytes,
     })
   }
@@ -104,6 +106,7 @@ export async function GET(
     format: img.format,
     width_px: img.width_px,
     height_px: img.height_px,
+    dpi: img.dpi,
     file_size_bytes: img.file_size_bytes,
   })
 }
@@ -137,6 +140,8 @@ export async function POST(
   }
 
   const imageId = crypto.randomUUID()
+  const dpi =
+    typeof body.dpi === "number" && Number.isFinite(body.dpi) && body.dpi > 0 ? Math.round(body.dpi) : null
 
   const { error } = await supabase.from("project_images").insert({
     id: imageId,
@@ -146,6 +151,7 @@ export async function POST(
     format: body.format,
     width_px: body.width_px,
     height_px: body.height_px,
+    dpi,
     storage_bucket: body.storage_bucket ?? "project_images",
     storage_path: body.storage_path,
     file_size_bytes: body.file_size_bytes,

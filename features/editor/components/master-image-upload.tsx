@@ -1,7 +1,7 @@
 "use client"
 
 /**
- * Image upload widget (master image).
+ * Master image upload widget (editor feature).
  *
  * Responsibilities:
  * - Provide drag-and-drop upload UI for the project's master image.
@@ -13,12 +13,21 @@ import { ImagePlus } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { hasMasterImage } from "@/lib/api/project-images"
-import { getImageDimensions } from "@/lib/images/dimensions"
-import { guessImageFormat } from "@/lib/images/format-detection"
+import { uploadMasterImage } from "@/lib/editor/upload-master-image"
 import { formatKbRounded } from "@/lib/utils/file-size"
 import { Button } from "@/components/ui/button"
 
-export function ProjectImageUploader({
+export function shouldRenderMasterImageUpload(args: {
+  status: "checking" | "show" | "hide"
+  variant: "panel" | "toolbar"
+}): boolean {
+  const { status, variant } = args
+  if (status === "checking") return false
+  if (variant !== "toolbar" && status === "hide") return false
+  return true
+}
+
+export function MasterImageUpload({
   projectId,
   onUploaded,
   onUploadingChange,
@@ -54,29 +63,9 @@ export function ProjectImageUploader({
       setIsUploading(true)
       onUploadingChange?.(true)
       try {
-        const { width, height } = await getImageDimensions(nextFile)
-        const format = guessImageFormat(nextFile)
-        const form = new FormData()
-        form.set("file", nextFile)
-        form.set("width_px", String(width))
-        form.set("height_px", String(height))
-        form.set("format", format)
-
-        const res = await fetch(`/api/projects/${projectId}/images/master/upload`, {
-          method: "POST",
-          credentials: "same-origin",
-          body: form,
-        })
-        if (!res.ok) {
-          const payload = (await res.json().catch(() => null)) as Record<string, unknown> | null
-          const stage = typeof payload?.stage === "string" ? ` (${payload.stage})` : ""
-          const msg =
-            typeof payload?.error === "string"
-              ? payload.error
-              : payload
-                ? JSON.stringify(payload)
-                : "No JSON error body returned"
-          setError(`Upload failed (HTTP ${res.status})${stage}: ${msg}`)
+        const out = await uploadMasterImage({ projectId, file: nextFile })
+        if (!out.ok) {
+          setError(out.error)
           return
         }
 
@@ -107,10 +96,7 @@ export function ProjectImageUploader({
     disabled: isUploading,
   })
 
-  if (variant !== "toolbar" && status === "hide") return null
-
-  // Prevent flicker: don't render uploader until we know whether an image already exists.
-  if (status === "checking") {
+  if (!shouldRenderMasterImageUpload({ status, variant })) {
     return null
   }
 
@@ -170,4 +156,3 @@ export function ProjectImageUploader({
     </div>
   )
 }
-

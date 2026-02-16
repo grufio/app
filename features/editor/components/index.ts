@@ -19,6 +19,7 @@ export * from "./layers-menu"
 export * from "./artboard-panel"
 export * from "./grid-panel"
 export * from "./image-panel"
+export * from "./master-image-upload"
 
 export * from "./panel-layout"
 export * from "./sidebar/editor-sidebar-section"

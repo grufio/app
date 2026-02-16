@@ -10,10 +10,10 @@
 import * as React from "react"
 import dynamic from "next/dynamic"
 
-import { ProjectImageUploader } from "@/components/app-img-upload"
 import { Spinner } from "@/components/ui/spinner"
 import { Item, ItemContent, ItemMedia, ItemTitle } from "@/components/ui/item"
 import { computeRgbaBackgroundStyleFromHex } from "@/lib/editor/color"
+import { MasterImageUpload } from "./master-image-upload"
 import {
   FloatingToolbar,
   type FloatingToolbarTool,
@@ -151,7 +151,7 @@ export function ProjectEditorStage(props: {
           <div className="pointer-events-auto">
             <FloatingToolbar
               leftSlot={
-                <ProjectImageUploader
+                <MasterImageUpload
                   projectId={projectId}
                   onUploaded={refreshMasterImage}
                   onUploadingChange={setIsUploading}
