@@ -9,6 +9,7 @@ import { NextResponse } from "next/server"
 
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role"
+import { activateMasterWithState } from "@/lib/supabase/project-images"
 import { isUuid, jsonError, requireUser } from "@/lib/api/route-guards"
 
 export const dynamic = "force-dynamic"
@@ -159,20 +160,18 @@ export async function POST(
     })
   }
 
-  const widthPx = Math.max(1, Math.trunc(width_px))
-  const heightPx = Math.max(1, Math.trunc(height_px))
-  const { error: activeErr } = await supabase.rpc("set_active_master_with_state", {
-    p_project_id: projectId,
-    p_image_id: imageId,
-    p_width_px: widthPx,
-    p_height_px: heightPx,
+  const activation = await activateMasterWithState({
+    supabase,
+    projectId,
+    imageId,
+    widthPx: width_px,
+    heightPx: height_px,
   })
-
-  if (activeErr) {
-    console.warn("master upload: active switch failed", { projectId, message: activeErr.message })
-    return jsonError(activeErr.message, 400, {
+  if (!activation.ok) {
+    console.warn("master upload: active switch failed", { projectId, message: activation.reason })
+    return jsonError(activation.reason, 400, {
       stage: "active_switch",
-      code: (activeErr as unknown as { code?: string })?.code,
+      code: activation.code,
     })
   }
 

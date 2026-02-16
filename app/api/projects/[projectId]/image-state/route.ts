@@ -8,6 +8,8 @@
 import { NextResponse } from "next/server"
 
 import { createSupabaseServerClient } from "@/lib/supabase/server"
+import { getActiveMasterImageId } from "@/lib/supabase/project-images"
+import { loadBoundImageState, upsertBoundImageState } from "@/lib/supabase/image-state"
 import { isUuid, jsonError, readJson, requireUser } from "@/lib/api/route-guards"
 import { validateIncomingImageStateUpsert, type IncomingImageStatePayload } from "@/lib/editor/imageState"
 
@@ -23,34 +25,15 @@ export async function GET(_req: Request, { params }: { params: Promise<{ project
   const u = await requireUser(supabase)
   if (!u.ok) return u.res
 
-  const { data: activeMaster, error: activeErr } = await supabase
-    .from("project_images")
-    .select("id")
-    .eq("project_id", projectId)
-    .eq("role", "master")
-    .eq("is_active", true)
-    .is("deleted_at", null)
-    .maybeSingle()
-  if (activeErr) {
-    return jsonError(activeErr.message, 400, { stage: "active_image_lookup" })
-  }
-  if (!activeMaster?.id) {
+  const { imageId: activeImageId, error: activeErr } = await getActiveMasterImageId(supabase, projectId)
+  if (activeErr) return jsonError(activeErr, 400, { stage: "active_image_lookup" })
+  if (!activeImageId) {
     return NextResponse.json({ exists: false, state: null })
   }
 
-  const { data, error } = await supabase
-    .from("project_image_state")
-    .select("project_id,role,image_id,x_px_u,y_px_u,width_px_u,height_px_u,rotation_deg")
-    .eq("project_id", projectId)
-    .eq("role", "master")
-    .eq("image_id", activeMaster.id)
-    .maybeSingle()
-
-  if (error) {
-    return jsonError(error.message, 400, { stage: "select_state" })
-  }
-
-  if (data && (!data.width_px_u || !data.height_px_u)) {
+  const { row: data, error: readErr, unsupported } = await loadBoundImageState(supabase, projectId, activeImageId)
+  if (readErr) return jsonError(readErr, 400, { stage: "select_state" })
+  if (unsupported) {
     return jsonError("Unsupported image state: missing width_px_u/height_px_u", 400, { stage: "schema_missing", where: "validate_state" })
   }
 
@@ -94,26 +77,25 @@ export async function POST(req: Request, { params }: { params: Promise<{ project
   }
 
   // Never trust client-provided image identity; bind state to current active master.
-  const { data: activeMaster, error: activeErr } = await supabase
-    .from("project_images")
-    .select("id")
-    .eq("project_id", projectId)
-    .eq("role", "master")
-    .eq("is_active", true)
-    .is("deleted_at", null)
-    .maybeSingle()
-  if (activeErr) {
-    return jsonError(activeErr.message, 400, { stage: "active_image_lookup" })
-  }
-  if (!activeMaster?.id) {
+  const { imageId: activeImageIdForWrite, error: activeErr } = await getActiveMasterImageId(supabase, projectId)
+  if (activeErr) return jsonError(activeErr, 400, { stage: "active_image_lookup" })
+  if (!activeImageIdForWrite) {
     return jsonError("No active master image", 409, { stage: "active_image_lookup" })
   }
-  baseRow.image_id = activeMaster.id
+  baseRow.image_id = activeImageIdForWrite
 
-  const { error: errV2 } = await supabase.from("project_image_state").upsert(baseRow, { onConflict: "project_id,role" })
-
-  if (errV2) {
-    return jsonError(errV2.message, 400, { stage: "upsert" })
+  const upsert = await upsertBoundImageState(supabase, {
+    project_id: baseRow.project_id,
+    image_id: baseRow.image_id,
+    role: baseRow.role,
+    x_px_u: baseRow.x_px_u,
+    y_px_u: baseRow.y_px_u,
+    width_px_u: baseRow.width_px_u,
+    height_px_u: baseRow.height_px_u,
+    rotation_deg: baseRow.rotation_deg,
+  })
+  if (!upsert.ok) {
+    return jsonError(upsert.error, 400, { stage: "upsert" })
   }
 
   return NextResponse.json({ ok: true })

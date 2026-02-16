@@ -75,7 +75,7 @@ export function ProjectDetailPageClient({
 
   // Load image-state independent of masterImage loading, so reloads can apply persisted size immediately.
   // Persist is still gated by `masterImage` when wiring `onImageTransformCommit` (see ProjectEditorStage props).
-  const { initialImageTransform, imageStateLoading, saveImageState } = useImageState(projectId, true, initialImageState)
+  const { initialImageTransform, imageStateLoading, loadImageState, saveImageState } = useImageState(projectId, true, initialImageState)
 
   const initialImagePxU = useMemo(() => {
     if (!masterImage || !initialImageTransform) return null
@@ -252,6 +252,11 @@ export function ProjectDetailPageClient({
   useEffect(() => {
     void refreshProjectImages()
   }, [masterImage?.signedUrl, refreshProjectImages])
+
+  useEffect(() => {
+    if (!masterImage?.id) return
+    void loadImageState()
+  }, [masterImage?.id, loadImageState])
 
   const grid = useMemo(() => {
     return computeRenderableGrid({ row: gridRow, spacingXPx, spacingYPx, lineWidthPx })

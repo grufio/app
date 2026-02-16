@@ -29,6 +29,7 @@ export async function GET(
     .select("id")
     .eq("project_id", projectId)
     .eq("role", "master")
+    .eq("is_active", true)
     .is("deleted_at", null)
     .limit(1)
 

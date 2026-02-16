@@ -9,23 +9,16 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { ImageState } from "@/lib/editor/use-image-state"
 import { parseBigIntString } from "@/lib/editor/imageState"
+import { loadBoundImageState } from "@/lib/supabase/image-state"
 
 export async function getImageStateForEditor(
   supabase: SupabaseClient,
   projectId: string,
   activeImageId: string | null
 ): Promise<{ imageState: ImageState | null; error: string | null; unsupported: boolean }> {
-  if (!activeImageId) return { imageState: null, error: null, unsupported: false }
-
-  const { data: st, error: stErr } = await supabase
-    .from("project_image_state")
-    .select("image_id,x_px_u,y_px_u,width_px_u,height_px_u,rotation_deg,role")
-    .eq("project_id", projectId)
-    .eq("role", "master")
-    .eq("image_id", activeImageId)
-    .maybeSingle()
-
-  if (stErr) return { imageState: null, error: stErr.message, unsupported: false }
+  const { row: st, error: stErr, unsupported } = await loadBoundImageState(supabase, projectId, activeImageId)
+  if (stErr) return { imageState: null, error: stErr, unsupported: false }
+  if (unsupported) return { imageState: null, error: null, unsupported: true }
   if (!st) return { imageState: null, error: null, unsupported: false }
 
   const widthPxU = parseBigIntString(st.width_px_u)
