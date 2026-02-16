@@ -8,21 +8,11 @@ import { buildNavId } from "@/features/editor/navigation/nav-id"
 type EditorNavImage = { id: string; label: string }
 
 export function buildEditorNavTreeData(images: EditorNavImage[]): FileNode[] {
-  const imageChildren: FileNode[] =
-    images.length > 0
-      ? [
-          {
-            id: buildNavId({ kind: "imagesFolder" }),
-            label: "Images",
-            type: "folder",
-            children: images.map((img) => ({
-              id: buildNavId({ kind: "image", imageId: img.id }),
-              label: img.label,
-              type: "file",
-            })),
-          },
-        ]
-      : []
+  const imageChildren: FileNode[] = images.map((img) => ({
+    id: buildNavId({ kind: "image", imageId: img.id }),
+    label: img.label,
+    type: "file",
+  }))
 
   return [
     {

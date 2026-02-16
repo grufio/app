@@ -103,6 +103,7 @@ export function ProjectDetailPageClient({
   })
 
   const [selectedNavId, setSelectedNavId] = useState<string>(buildNavId({ kind: "artboard" }))
+  const autoSelectMasterIdRef = useRef<string | null>(null)
 
   const selectedImageId = useMemo(() => {
     const selection = parseNavId(selectedNavId)
@@ -244,11 +245,17 @@ export function ProjectDetailPageClient({
   }, [masterImage, selectedImage])
 
   useEffect(() => {
-    if (!masterImage?.id) return
-    if (selectedNavId === buildNavId({ kind: "artboard" })) {
-      setSelectedNavId(buildNavId({ kind: "image", imageId: masterImage.id }))
+    if (!masterImage?.id) {
+      autoSelectMasterIdRef.current = null
+      return
     }
-  }, [masterImage?.id, selectedNavId])
+    if (autoSelectMasterIdRef.current === masterImage.id) return
+    autoSelectMasterIdRef.current = masterImage.id
+
+    setSelectedNavId((prev) =>
+      prev === buildNavId({ kind: "artboard" }) ? buildNavId({ kind: "image", imageId: masterImage.id }) : prev
+    )
+  }, [masterImage?.id])
 
   useEffect(() => {
     setSelectedNavId((prev) =>
