@@ -32,6 +32,8 @@ import { useImageState } from "@/lib/editor/use-image-state"
 import { computeRenderableGrid } from "@/services/editor/grid/validation"
 import { clampOpacityPercent, normalizeWorkspacePageBg } from "@/services/editor/page-background"
 import { mapSelectedNavIdToRightPanelSection } from "@/services/editor/panel-routing"
+import { buildNavId, parseNavId } from "@/features/editor/navigation/nav-id"
+import { recoverSelectedNavId } from "@/features/editor/navigation/selection-recovery"
 
 export function ProjectDetailPageClient({
   projectId,
@@ -100,13 +102,12 @@ export function ProjectDetailPageClient({
     enableShortcuts: true,
   })
 
-  const [selectedNavId, setSelectedNavId] = useState<string>("app")
+  const [selectedNavId, setSelectedNavId] = useState<string>(buildNavId({ kind: "artboard" }))
 
   const selectedImageId = useMemo(() => {
-    const prefix = "app/api/"
-    if (!selectedNavId.startsWith(prefix)) return null
-    const id = selectedNavId.slice(prefix.length)
-    return id.length > 0 ? id : null
+    const selection = parseNavId(selectedNavId)
+    if (selection.kind !== "image") return null
+    return selection.imageId
   }, [selectedNavId])
 
   const selectedImage = useMemo(() => {
@@ -244,10 +245,20 @@ export function ProjectDetailPageClient({
 
   useEffect(() => {
     if (!masterImage?.id) return
-    if (selectedNavId === "app") {
-      setSelectedNavId(`app/api/${masterImage.id}`)
+    if (selectedNavId === buildNavId({ kind: "artboard" })) {
+      setSelectedNavId(buildNavId({ kind: "image", imageId: masterImage.id }))
     }
   }, [masterImage?.id, selectedNavId])
+
+  useEffect(() => {
+    setSelectedNavId((prev) =>
+      recoverSelectedNavId({
+        selectedNavId: prev,
+        images: projectImages,
+        activeMasterImageId: masterImage?.id ?? null,
+      })
+    )
+  }, [masterImage?.id, projectImages])
 
   useEffect(() => {
     void refreshProjectImages()

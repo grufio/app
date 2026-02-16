@@ -19,6 +19,7 @@ export type FileTreeViewProps = {
   data: FileNode[]
   expandedIds: string[]
   onExpandedIdsChange: (ids: string[]) => void
+  selectedItemId?: string | null
   onSelect: (node: FileNode) => void
   height?: number | string
 }
@@ -53,7 +54,6 @@ function renderNode(
   setHoverId: React.Dispatch<React.SetStateAction<string | null>>
 ): React.ReactNode {
   const isFolder = node.type === "folder"
-  const isExpanded = expandedIds.includes(node.id)
   const isLocked = Boolean(lockedById[node.id])
 
   const handleSelect = (event: React.MouseEvent) => {
@@ -135,7 +135,7 @@ function renderNode(
 }
 
 export function FileTreeView(props: FileTreeViewProps) {
-  const { data, expandedIds, onExpandedIdsChange, onSelect, height = 280 } = props
+  const { data, expandedIds, onExpandedIdsChange, selectedItemId, onSelect, height = 280 } = props
   const [hoverId, setHoverId] = React.useState<string | null>(null)
   const [lockedById, setLockedById] = React.useState<Record<string, boolean>>(() => {
     const acc: Record<string, boolean> = {}
@@ -156,10 +156,29 @@ export function FileTreeView(props: FileTreeViewProps) {
     [data, expandedIds, onSelect, lockedById, hoverId]
   )
 
+  const nodeById = React.useMemo(() => {
+    const map = new Map<string, FileNode>()
+    const stack = [...data]
+    while (stack.length > 0) {
+      const node = stack.pop()
+      if (!node) continue
+      map.set(node.id, node)
+      if (node.children) stack.push(...node.children)
+    }
+    return map
+  }, [data])
+
   return (
     <Box sx={{ height, overflowY: "auto" }}>
       <SimpleTreeView
         expandedItems={expandedIds}
+        selectedItems={selectedItemId ?? undefined}
+        onSelectedItemsChange={(_event, itemId) => {
+          if (Array.isArray(itemId)) return
+          if (!itemId) return
+          const node = nodeById.get(itemId)
+          if (node) onSelect(node)
+        }}
         onExpandedItemsChange={(_event, ids) => onExpandedIdsChange(ids as string[])}
         expansionTrigger="iconContainer"
         slots={{
