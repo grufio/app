@@ -10,9 +10,9 @@
 import * as React from "react"
 import { SidebarFrame } from "@/components/navigation/SidebarFrame"
 import { SidebarContent } from "@/components/ui/sidebar"
-import { FileTreeView, type FileNode } from "@/components/FileTreeView"
 import { ProjectTitleEditor } from "./project-title-editor"
 import { EditorSidebarSection } from "./sidebar/editor-sidebar-section"
+import { EditorNavTree } from "./editor-nav-tree"
 
 export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel(props: {
   projectId: string
@@ -28,46 +28,7 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
 }) {
   const { projectId, initialTitle, onTitleUpdated, widthRem, minRem, maxRem, onWidthRemChange, selectedId, onSelect, images } = props
 
-  const [expandedIds, setExpandedIds] = React.useState<string[]>(() => ["app"])
-
-  const onToggleExpanded = React.useCallback((id: string, nextExpanded: boolean) => {
-    setExpandedIds((prev) => {
-      const has = prev.includes(id)
-      if (nextExpanded && has) return prev
-      if (!nextExpanded && !has) return prev
-      return nextExpanded ? [...prev, id] : prev.filter((x) => x !== id)
-    })
-  }, [])
-
   const clamp = (v: number) => Math.max(minRem, Math.min(maxRem, v))
-
-  const items = React.useMemo<FileNode[]>(() => {
-    // MVP placeholder data wired to the existing right-panel routing rule:
-    // `services/editor/panel-routing.ts` treats `selectedId.startsWith("app/api")` as the image panel.
-    const imageChildren: FileNode[] =
-      images.length > 0
-        ? [
-            {
-              id: "app/api",
-              label: "Images",
-              type: "folder",
-              children: images.map((img) => ({
-                id: `app/api/${img.id}`,
-                label: img.label,
-                type: "file",
-              })),
-            },
-          ]
-        : []
-    return [
-      {
-        id: "app",
-        label: "Artboard",
-        type: "folder",
-        children: imageChildren,
-      },
-    ]
-  }, [images])
 
   const onResizeMouseDown = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -108,13 +69,7 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
             <ProjectTitleEditor projectId={projectId} initialTitle={initialTitle} onTitleUpdated={onTitleUpdated} />
           </EditorSidebarSection>
           <EditorSidebarSection title="Layers">
-            <FileTreeView
-              data={items}
-              expandedIds={expandedIds}
-              onExpandedIdsChange={setExpandedIds}
-              onSelect={(node) => onSelect(node.id)}
-              height="100%"
-            />
+            <EditorNavTree selectedId={selectedId} onSelect={onSelect} images={images} />
           </EditorSidebarSection>
         </SidebarContent>
       </SidebarFrame>
