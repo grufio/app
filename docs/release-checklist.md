@@ -18,9 +18,9 @@ Notes:
 - `npm run test:e2e` runs the **single** editor boot smoke (tripwire).
 - Playwright browsers are installed into the repo-local cache (`.playwright-browsers/`) to avoid cross-arch cache issues on macOS.
 
-### 2) Optional: remote verification (use when needed)
+### 2) Remote verification
 
-If you suspect “works locally, fails in Supabase” (migration/policy drift), use the CLI-first workflow in `docs/migrations.md`:
+For pre-release/public rollout, run remote verification gates (CLI-first workflow from `docs/migrations.md`):
 
 ```bash
 npm run verify:remote-migrations
@@ -33,6 +33,10 @@ SUPABASE_DB_URL="postgresql://..." npm run verify:image-state-binding
 - active master image without matching `project_image_state.image_id`
 - stale state binding (`image_id` null or mismatched vs active master)
 - state row referencing a missing image id
+
+Notes:
+- In CI pre-release workflow, `SUPABASE_DB_PASSWORD` and `SUPABASE_DB_URL` are required secrets.
+- If you run locally, export these env vars before executing the commands.
 
 If migrations are missing:
 

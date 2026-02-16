@@ -8,6 +8,7 @@
 import { NextResponse } from "next/server"
 
 import { createSupabaseServerClient } from "@/lib/supabase/server"
+import { activateMasterWithState } from "@/lib/supabase/project-images"
 import { isUuid, jsonError, readJson, requireUser } from "@/lib/api/route-guards"
 
 export const dynamic = "force-dynamic"
@@ -158,15 +159,17 @@ export async function POST(
     })
   }
 
-  const { error: activeErr } = await supabase.rpc("set_active_master_image", {
-    p_project_id: projectId,
-    p_image_id: imageId,
+  const activation = await activateMasterWithState({
+    supabase,
+    projectId,
+    imageId,
+    widthPx: body.width_px,
+    heightPx: body.height_px,
   })
-
-  if (activeErr) {
-    return jsonError(activeErr.message, 400, {
+  if (!activation.ok) {
+    return jsonError(activation.reason, 400, {
       stage: "active_switch",
-      code: (activeErr as unknown as { code?: string })?.code,
+      code: activation.code,
     })
   }
 

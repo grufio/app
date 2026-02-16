@@ -2,7 +2,7 @@
 #
 # Responsibilities:
 # - Provide a manually triggered, deterministic “release gate” for hosted Supabase state.
-# - Enforce remote verification (migrations + storage/RLS) before public beta releases.
+# - Enforce remote verification (migrations + storage/RLS + image/state binding) before public beta releases.
 name: Pre-release gates
 
 on:
@@ -24,12 +24,17 @@ jobs:
       - name: Install
         run: npm ci
 
-      - name: Require Supabase DB password secret
+      - name: Require Supabase DB secrets
         env:
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
           if [ -z "$SUPABASE_DB_PASSWORD" ]; then
             echo "Missing required secret: SUPABASE_DB_PASSWORD"
+            exit 1
+          fi
+          if [ -z "$SUPABASE_DB_URL" ]; then
+            echo "Missing required secret: SUPABASE_DB_URL"
             exit 1
           fi
 
@@ -45,4 +50,9 @@ jobs:
         env:
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: npm run verify:remote-rls
+
+      - name: Verify image-state binding rollout gate (required)
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: npm run verify:image-state-binding
 
