@@ -11,6 +11,12 @@ import { useCallback, useEffect, useRef, useState } from "react"
 
 import { deleteMasterImageById, listMasterImages, type ProjectImageItem } from "@/lib/api/project-images"
 
+function imageListSignature(projectId: string, items: ProjectImageItem[]): string {
+  return `${projectId}::${items
+    .map((img) => `${img.id}|${img.is_active ? 1 : 0}|${img.name ?? ""}|${img.created_at ?? ""}`)
+    .join("::")}`
+}
+
 export function useProjectImages(projectId: string) {
   const [images, setImages] = useState<ProjectImageItem[]>([])
   const [loading, setLoading] = useState(false)
@@ -18,6 +24,7 @@ export function useProjectImages(projectId: string) {
 
   const mountedRef = useRef(true)
   const inflightRef = useRef<Promise<void> | null>(null)
+  const lastSignatureRef = useRef<string>("")
   useEffect(() => {
     mountedRef.current = true
     return () => {
@@ -33,9 +40,16 @@ export function useProjectImages(projectId: string) {
       setLoading(true)
       try {
         const items = await listMasterImages(projectId)
-        if (mountedRef.current) setImages(items)
+        if (mountedRef.current) {
+          const nextSig = imageListSignature(projectId, items)
+          if (nextSig !== lastSignatureRef.current) {
+            lastSignatureRef.current = nextSig
+            setImages(items)
+          }
+        }
       } catch (e) {
         if (mountedRef.current) {
+          lastSignatureRef.current = ""
           setImages([])
           setError(e instanceof Error ? e.message : "Failed to load images")
         }

@@ -35,6 +35,32 @@ import { mapSelectedNavIdToRightPanelSection } from "@/services/editor/panel-rou
 import { buildNavId, parseNavId } from "@/features/editor/navigation/nav-id"
 import { recoverSelectedNavId } from "@/features/editor/navigation/selection-recovery"
 
+function useMasterImageLoadOrchestration({
+  masterImageId,
+  refreshProjectImages,
+  loadImageState,
+}: {
+  masterImageId: string | null
+  refreshProjectImages: () => Promise<void>
+  loadImageState: () => Promise<void>
+}) {
+  const loadedImageStateForImageIdRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    void refreshProjectImages()
+  }, [masterImageId, refreshProjectImages])
+
+  useEffect(() => {
+    if (!masterImageId) {
+      loadedImageStateForImageIdRef.current = null
+      return
+    }
+    if (loadedImageStateForImageIdRef.current === masterImageId) return
+    loadedImageStateForImageIdRef.current = masterImageId
+    void loadImageState()
+  }, [loadImageState, masterImageId])
+}
+
 export function ProjectDetailPageClient({
   projectId,
   initialProject,
@@ -110,7 +136,6 @@ export function ProjectDetailPageClient({
 
   const [selectedNavId, setSelectedNavId] = useState<string>(buildNavId({ kind: "artboard" }))
   const autoSelectMasterIdRef = useRef<string | null>(null)
-  const loadedImageStateForImageIdRef = useRef<string | null>(null)
 
   const selectedImageId = useMemo(() => {
     const selection = parseNavId(selectedNavId)
@@ -283,19 +308,11 @@ export function ProjectDetailPageClient({
     )
   }, [masterImage?.id, projectImages])
 
-  useEffect(() => {
-    void refreshProjectImages()
-  }, [masterImage?.id, refreshProjectImages])
-
-  useEffect(() => {
-    if (!masterImage?.id) {
-      loadedImageStateForImageIdRef.current = null
-      return
-    }
-    if (loadedImageStateForImageIdRef.current === masterImage.id) return
-    loadedImageStateForImageIdRef.current = masterImage.id
-    void loadImageState()
-  }, [masterImage?.id, loadImageState])
+  useMasterImageLoadOrchestration({
+    masterImageId: masterImage?.id ?? null,
+    refreshProjectImages,
+    loadImageState,
+  })
 
   const grid = useMemo(() => {
     return computeRenderableGrid({ row: gridRow, spacingXPx, spacingYPx, lineWidthPx })

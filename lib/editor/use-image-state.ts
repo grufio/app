@@ -63,12 +63,16 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
   const logPrefix = useMemo(() => `[image-state:${projectId}]`, [projectId])
 
   const lastSavedSignatureRef = useRef<string | null>(null)
+  const lastLoadedSignatureRef = useRef<string | null>(null)
   const pendingSlotRef = useRef<ReturnType<typeof createPendingSlot<ImageState>> | null>(null)
   if (!pendingSlotRef.current) pendingSlotRef.current = createPendingSlot<ImageState>()
   const inflightRef = useRef<Promise<void> | null>(null)
+  const loadInflightRef = useRef<Promise<void> | null>(null)
   const requestSeqRef = useRef(0)
 
   const loadImageState = useCallback(async () => {
+    if (loadInflightRef.current) return await loadInflightRef.current
+    const p = (async () => {
     const seq = ++requestSeqRef.current
     setImageStateError("")
     setImageStateLoading(true)
@@ -76,6 +80,8 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
       const payload = await getImageState(projectId)
       if (seq !== requestSeqRef.current) return
       if (!payload?.exists) {
+        if (lastLoadedSignatureRef.current === "__missing__") return
+        lastLoadedSignatureRef.current = "__missing__"
         setInitialImageTransform(null)
         return
       }
@@ -86,6 +92,9 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
       }
       const xPxU = parseBigIntString(payload.state.x_px_u)
       const yPxU = parseBigIntString(payload.state.y_px_u)
+      const nextSig = `${payload.state.image_id ?? ""}|${payload.state.x_px_u ?? ""}|${payload.state.y_px_u ?? ""}|${payload.state.width_px_u}|${payload.state.height_px_u}|${payload.state.rotation_deg}`
+      if (lastLoadedSignatureRef.current === nextSig) return
+      lastLoadedSignatureRef.current = nextSig
       setInitialImageTransform({
         imageId: typeof payload.state.image_id === "string" ? payload.state.image_id : undefined,
         xPxU: xPxU ?? undefined,
@@ -98,10 +107,18 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
       if (seq !== requestSeqRef.current) return
       console.error(`${logPrefix} load failed`, e)
       setImageStateError(e instanceof Error ? e.message : "Failed to load image state.")
+      lastLoadedSignatureRef.current = null
       setInitialImageTransform(null)
     } finally {
       if (seq !== requestSeqRef.current) return
       setImageStateLoading(false)
+    }
+    })()
+    loadInflightRef.current = p
+    try {
+      await p
+    } finally {
+      loadInflightRef.current = null
     }
   }, [logPrefix, projectId])
 
@@ -166,6 +183,8 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
   useEffect(() => {
     if (!enabled) {
       requestSeqRef.current++
+      loadInflightRef.current = null
+      lastLoadedSignatureRef.current = null
       setInitialImageTransform(null)
       setImageStateError("")
       setImageStateLoading(false)
