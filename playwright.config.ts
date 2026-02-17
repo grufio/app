@@ -6,7 +6,7 @@
  */
 import { defineConfig, devices } from "@playwright/test"
 
-const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3000"
+const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3100"
 const shouldStartWebServer = !process.env.PLAYWRIGHT_BASE_URL
 
 export default defineConfig({
@@ -32,8 +32,10 @@ export default defineConfig({
         // set `PLAYWRIGHT_BASE_URL` to reuse it.
         command: "npm run dev:e2e",
         url: baseURL,
-        // Reuse if something is already listening on baseURL (avoids `.next/dev/lock` conflicts).
-        reuseExistingServer: true,
+        // Deterministic E2E env: always start the configured `dev:e2e` server
+        // so `E2E_TEST=1` and related env gates are guaranteed.
+        // If another local dev server is running on the same port, stop it first.
+        reuseExistingServer: false,
         timeout: 120_000,
         env: {
           // Dummy values; tests mock network calls so no real Supabase is required.

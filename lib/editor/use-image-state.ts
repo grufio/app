@@ -74,7 +74,7 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
     if (loadInflightRef.current) return await loadInflightRef.current
     const p = (async () => {
     const seq = ++requestSeqRef.current
-    setImageStateError("")
+    setImageStateError((prev) => (prev === "" ? prev : ""))
     setImageStateLoading(true)
     try {
       const payload = await getImageState(projectId)
@@ -171,7 +171,7 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
         // (canvas interactions), not in this IO hook.
         pendingSlotRef.current?.set(t)
         await flush()
-        setImageStateError("")
+        setImageStateError((prev) => (prev === "" ? prev : ""))
       } catch (e) {
         console.error(`${logPrefix} save failed`, e)
         setImageStateError(e instanceof Error ? e.message : "Failed to save image state.")
@@ -186,7 +186,7 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
       loadInflightRef.current = null
       lastLoadedSignatureRef.current = null
       setInitialImageTransform(null)
-      setImageStateError("")
+      setImageStateError((prev) => (prev === "" ? prev : ""))
       setImageStateLoading(false)
       return
     }

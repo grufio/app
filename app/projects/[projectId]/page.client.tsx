@@ -286,26 +286,24 @@ export function ProjectDetailPageClient({
   }, [masterImage, selectedImage])
 
   useEffect(() => {
-    if (!masterImage?.id) {
-      autoSelectMasterIdRef.current = null
-      return
-    }
-    if (autoSelectMasterIdRef.current === masterImage.id) return
-    autoSelectMasterIdRef.current = masterImage.id
-
-    setSelectedNavId((prev) =>
-      prev === buildNavId({ kind: "artboard" }) ? buildNavId({ kind: "image", imageId: masterImage.id }) : prev
-    )
-  }, [masterImage?.id])
-
-  useEffect(() => {
-    setSelectedNavId((prev) =>
-      recoverSelectedNavId({
-        selectedNavId: prev,
+    const masterImageId = masterImage?.id ?? null
+    setSelectedNavId((prev) => {
+      let next = prev
+      if (!masterImageId) {
+        autoSelectMasterIdRef.current = null
+      } else if (autoSelectMasterIdRef.current !== masterImageId) {
+        autoSelectMasterIdRef.current = masterImageId
+        const artboardId = buildNavId({ kind: "artboard" })
+        if (next === artboardId) {
+          next = buildNavId({ kind: "image", imageId: masterImageId })
+        }
+      }
+      return recoverSelectedNavId({
+        selectedNavId: next,
         images: projectImages,
-        activeMasterImageId: masterImage?.id ?? null,
+        activeMasterImageId: masterImageId,
       })
-    )
+    })
   }, [masterImage?.id, projectImages])
 
   useMasterImageLoadOrchestration({

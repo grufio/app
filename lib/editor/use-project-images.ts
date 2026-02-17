@@ -36,7 +36,7 @@ export function useProjectImages(projectId: string) {
     if (inflightRef.current) return await inflightRef.current
     if (!mountedRef.current) return
     const p = (async () => {
-      setError("")
+      setError((prev) => (prev === "" ? prev : ""))
       setLoading(true)
       try {
         const items = await listMasterImages(projectId)

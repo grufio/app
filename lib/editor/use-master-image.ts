@@ -20,6 +20,29 @@ export type MasterImage = {
   name: string
 }
 
+function toMasterImage(payload: {
+  id?: unknown
+  signedUrl?: unknown
+  width_px?: unknown
+  height_px?: unknown
+  dpi?: unknown
+  name?: unknown
+}): MasterImage {
+  return {
+    id: String(payload.id ?? ""),
+    signedUrl: String(payload.signedUrl ?? ""),
+    width_px: Number(payload.width_px ?? 0),
+    height_px: Number(payload.height_px ?? 0),
+    dpi: payload.dpi == null ? null : Number(payload.dpi),
+    name: String(payload.name ?? "master image"),
+  }
+}
+
+function masterImageSignature(img: MasterImage | null): string {
+  if (!img) return "__missing__"
+  return `${img.id}|${img.signedUrl}|${img.width_px}|${img.height_px}|${img.dpi ?? ""}|${img.name}`
+}
+
 export function useMasterImage(projectId: string, initialMasterImage?: MasterImage | null) {
   const [masterImage, setMasterImage] = useState<MasterImage | null>(() =>
     initialMasterImage?.signedUrl ? initialMasterImage : null
@@ -31,6 +54,8 @@ export function useMasterImage(projectId: string, initialMasterImage?: MasterIma
   const [deleteError, setDeleteError] = useState("")
 
   const mountedRef = useRef(true)
+  const refreshInflightRef = useRef<Promise<void> | null>(null)
+  const lastLoadedSignatureRef = useRef<string>(masterImageSignature(initialMasterImage?.signedUrl ? initialMasterImage : null))
   useEffect(() => {
     mountedRef.current = true
     return () => {
@@ -39,32 +64,42 @@ export function useMasterImage(projectId: string, initialMasterImage?: MasterIma
   }, [])
 
   const refreshMasterImage = useCallback(async () => {
+    if (refreshInflightRef.current) return await refreshInflightRef.current
     if (!mountedRef.current) return
-    setMasterImageError("")
-    setMasterImageLoading(true)
+    const p = (async () => {
+      setMasterImageError((prev) => (prev === "" ? prev : ""))
+      setMasterImageLoading(true)
+      try {
+        const payload = await getMasterImage(projectId)
+        if (!payload?.exists) {
+          const nextSig = "__missing__"
+          if (mountedRef.current && lastLoadedSignatureRef.current !== nextSig) {
+            lastLoadedSignatureRef.current = nextSig
+            setMasterImage(null)
+          }
+          return
+        }
+        const nextImage = toMasterImage(payload)
+        const nextSig = masterImageSignature(nextImage)
+        if (mountedRef.current && lastLoadedSignatureRef.current !== nextSig) {
+          lastLoadedSignatureRef.current = nextSig
+          setMasterImage(nextImage)
+        }
+      } catch (e) {
+        if (mountedRef.current) {
+          lastLoadedSignatureRef.current = "__missing__"
+          setMasterImage(null)
+          setMasterImageError(e instanceof Error ? e.message : "Failed to load image")
+        }
+      } finally {
+        if (mountedRef.current) setMasterImageLoading(false)
+      }
+    })()
+    refreshInflightRef.current = p
     try {
-      const payload = await getMasterImage(projectId)
-      if (!payload?.exists) {
-        if (mountedRef.current) setMasterImage(null)
-        return
-      }
-      if (mountedRef.current) {
-        setMasterImage({
-          id: String((payload as { id?: string }).id ?? ""),
-          signedUrl: payload.signedUrl,
-          width_px: Number(payload.width_px ?? 0),
-          height_px: Number(payload.height_px ?? 0),
-          dpi: payload.dpi == null ? null : Number(payload.dpi),
-          name: String(payload.name ?? "master image"),
-        })
-      }
-    } catch (e) {
-      if (mountedRef.current) {
-        setMasterImage(null)
-        setMasterImageError(e instanceof Error ? e.message : "Failed to load image")
-      }
+      await p
     } finally {
-      if (mountedRef.current) setMasterImageLoading(false)
+      refreshInflightRef.current = null
     }
   }, [projectId])
 
