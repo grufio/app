@@ -279,13 +279,10 @@ export type Database = {
       }
       project_workspace: {
         Row: {
+          artboard_dpi: number
           background_color: string
           background_opacity: number
           created_at: string
-          dpi_x: number
-          dpi_y: number
-          output_dpi_x: number
-          output_dpi_y: number
           height_px: number
           height_px_u: string
           height_value: number
@@ -301,13 +298,10 @@ export type Database = {
           width_value: number
         }
         Insert: {
+          artboard_dpi?: number
           background_color?: string
           background_opacity?: number
           created_at?: string
-          dpi_x: number
-          dpi_y: number
-          output_dpi_x: number
-          output_dpi_y: number
           height_px: number
           height_px_u: string
           height_value: number
@@ -323,13 +317,10 @@ export type Database = {
           width_value: number
         }
         Update: {
+          artboard_dpi?: number
           background_color?: string
           background_opacity?: number
           created_at?: string
-          dpi_x?: number
-          dpi_y?: number
-          output_dpi_x?: number
-          output_dpi_y?: number
           height_px?: number
           height_px_u?: string
           height_value?: number

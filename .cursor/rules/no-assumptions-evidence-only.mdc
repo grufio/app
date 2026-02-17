@@ -1,0 +1,25 @@
+---
+description: No assumptions; only evidence-based statements and decisions
+alwaysApply: true
+---
+
+# No Assumptions, Evidence Only
+
+## Rule
+
+- Do **not** make assumptions about schema, field names, runtime behavior, control flow, or system state.
+- Every factual statement about the current state must be backed by direct evidence from code, schema, query output, logs, test results, or API responses.
+- If evidence is missing, explicitly state: **"not verified"**.
+
+## Required behavior
+
+- Before proposing a fix, verify the relevant current-state facts.
+- Mark unknowns as unknowns; do not infer them.
+- Use precise wording tied to evidence; avoid probabilistic language as a decision basis.
+
+## Forbidden behavior
+
+- No "probably", "likely", "should", or "must be" claims without proof.
+- No planning or implementation steps based on unverified assumptions.
+- No treating inferred context as confirmed state.
+

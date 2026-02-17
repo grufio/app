@@ -5,18 +5,19 @@
  * - Convert canonical µpx dimensions into display strings for a given unit + DPI.
  * - Keep policies for display formatting centralized and testable.
  */
-import { pxUToUnitDisplayFixed, type Unit } from "@/lib/editor/units"
+import { pxUToUnitDisplay, type Unit } from "@/lib/editor/units"
 
 export function computeArtboardSizeDisplay(args: {
   widthPxU: bigint
   heightPxU: bigint
   unit: Unit
+  dpi: number
 }): { width: string; height: string } | null {
-  const { widthPxU, heightPxU, unit } = args
+  const { widthPxU, heightPxU, unit, dpi } = args
   if (widthPxU <= 0n || heightPxU <= 0n) return null
   return {
-    width: pxUToUnitDisplayFixed(widthPxU, unit),
-    height: pxUToUnitDisplayFixed(heightPxU, unit),
+    width: pxUToUnitDisplay(widthPxU, unit, dpi),
+    height: pxUToUnitDisplay(heightPxU, unit, dpi),
   }
 }
 

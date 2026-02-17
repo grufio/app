@@ -31,10 +31,7 @@ describe("workspace-operations", () => {
       unit: "cm",
       width_value: 20,
       height_value: 30,
-      dpi_x: 300,
-      dpi_y: 300,
-      output_dpi_x: 300,
-      output_dpi_y: 300,
+      artboard_dpi: 300,
       width_px_u: "0",
       height_px_u: "0",
       width_px: 1,
@@ -53,16 +50,13 @@ describe("workspace-operations", () => {
     expect(typeof r1.next.height_px_u).toBe("string")
   })
 
-  it("computeWorkspaceSizeSave preserves output dpi fields", () => {
+  it("computeWorkspaceSizeSave preserves artboard dpi field", () => {
     const base: WorkspaceRow = {
       project_id: "p",
       unit: "cm",
       width_value: 20,
       height_value: 30,
-      dpi_x: 300,
-      dpi_y: 300,
-      output_dpi_x: 150,
-      output_dpi_y: 150,
+      artboard_dpi: 150,
       width_px_u: "0",
       height_px_u: "0",
       width_px: 1,
@@ -72,10 +66,7 @@ describe("workspace-operations", () => {
 
     const out = computeWorkspaceSizeSave({ base, unit: "cm", draftW: "20", draftH: "30" })
     if ("error" in out) throw new Error("expected ok")
-    expect(out.next.output_dpi_x).toBe(150)
-    expect(out.next.output_dpi_y).toBe(150)
-    expect(out.next.dpi_x).toBe(300)
-    expect(out.next.dpi_y).toBe(300)
+    expect(out.next.artboard_dpi).toBe(150)
   })
 })
 

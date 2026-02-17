@@ -50,6 +50,7 @@ export function ProjectDetailPageClient({
     row: workspaceRow,
     upsertWorkspace,
     unit: workspaceUnit,
+    dpi: workspaceDpi,
     widthPx: artboardWidthPx,
     heightPx: artboardHeightPx,
     loading: workspaceLoading,
@@ -320,6 +321,7 @@ export function ProjectDetailPageClient({
               canvasRef={canvasRef}
               artboardWidthPx={artboardWidthPx ?? undefined}
               artboardHeightPx={artboardHeightPx ?? undefined}
+              artboardDpi={workspaceDpi ?? undefined}
               grid={grid}
               handleImagePxChange={handleImagePxChange}
               initialImageTransform={initialImageTransform}

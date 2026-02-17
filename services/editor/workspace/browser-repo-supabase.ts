@@ -10,7 +10,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { WorkspaceRow } from "./types"
 
 const SELECT_WORKSPACE =
-  "project_id,unit,width_value,height_value,dpi_x,dpi_y,output_dpi_x,output_dpi_y,width_px_u,height_px_u,width_px,height_px,raster_effects_preset,page_bg_enabled,page_bg_color,page_bg_opacity"
+  "project_id,unit,width_value,height_value,artboard_dpi,width_px_u,height_px_u,width_px,height_px,raster_effects_preset,page_bg_enabled,page_bg_color,page_bg_opacity"
 
 export async function selectWorkspace(
   supabase: SupabaseClient,

@@ -71,11 +71,32 @@ describe("master-image-upload service", () => {
       widthPx: 10,
       heightPx: 10,
       format: "png",
+      dpi: 300,
     })
     expect(out.ok).toBe(false)
     if (!out.ok) {
       expect(out.stage).toBe("upload_limits")
       expect(out.status).toBe(413)
+    }
+  })
+
+  it("rejects missing dpi with validation stage", async () => {
+    const supabase = makeSupabase({ error: null }, {})
+    const file = new File([new Uint8Array([1])], "x.png", { type: "image/png" })
+    const out = await uploadMasterImage({
+      supabase: supabase as never,
+      projectId: "p1",
+      file,
+      widthPx: 10,
+      heightPx: 10,
+      format: "png",
+      dpi: null,
+    })
+
+    expect(out.ok).toBe(false)
+    if (!out.ok) {
+      expect(out.stage).toBe("validation")
+      expect(out.reason).toBe("Missing/invalid dpi")
     }
   })
 

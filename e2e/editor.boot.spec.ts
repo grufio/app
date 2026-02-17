@@ -7,7 +7,7 @@
  */
 import { test, expect, type Request } from "@playwright/test"
 
-import { unitToPxUFixed } from "../lib/editor/units"
+import { unitToPxU } from "../lib/editor/units"
 import { PROJECT_ID, setupMockRoutes } from "./_mocks"
 
 async function assertEditorSurfaceVisible(page: import("@playwright/test").Page) {
@@ -80,17 +80,14 @@ test("image size: setting 100mm survives reload (no drift)", async ({ page }) =>
     withImage: true,
     workspace: {
       unit: "mm",
-      // 200mm with fixed mapping (1in=25.4mm, 1in=72pt).
+      // 200mm at artboard DPI.
       width_value: 200,
       height_value: 200,
-      dpi_x: 300,
-      dpi_y: 300,
-      output_dpi_x: 300,
-      output_dpi_y: 300,
-      width_px_u: unitToPxUFixed("200", "mm").toString(),
-      height_px_u: unitToPxUFixed("200", "mm").toString(),
-      width_px: 567,
-      height_px: 567,
+      artboard_dpi: 300,
+      width_px_u: unitToPxU("200", "mm", 300).toString(),
+      height_px_u: unitToPxU("200", "mm", 300).toString(),
+      width_px: 2362,
+      height_px: 2362,
       raster_effects_preset: "high",
     },
   })
@@ -100,7 +97,7 @@ test("image size: setting 100mm survives reload (no drift)", async ({ page }) =>
   const w = page.getByLabel("Image width (mm)")
   const h = page.getByLabel("Image height (mm)")
 
-  const expectedPxU = unitToPxUFixed("100", "mm").toString()
+  const expectedPxU = unitToPxU("100", "mm", 300).toString()
 
   const isExpectedImageStateSave = (req: Request) => {
     if (!req.url().includes(`/api/projects/${PROJECT_ID}/image-state`)) return false
@@ -165,14 +162,11 @@ test("image transform chain: resize + rotate + drag persists", async ({ page }) 
       unit: "mm",
       width_value: 200,
       height_value: 200,
-      dpi_x: 300,
-      dpi_y: 300,
-      output_dpi_x: 300,
-      output_dpi_y: 300,
-      width_px_u: unitToPxUFixed("200", "mm").toString(),
-      height_px_u: unitToPxUFixed("200", "mm").toString(),
-      width_px: 567,
-      height_px: 567,
+      artboard_dpi: 300,
+      width_px_u: unitToPxU("200", "mm", 300).toString(),
+      height_px_u: unitToPxU("200", "mm", 300).toString(),
+      width_px: 2362,
+      height_px: 2362,
       raster_effects_preset: "high",
     },
   })
@@ -185,7 +179,7 @@ test("image transform chain: resize + rotate + drag persists", async ({ page }) 
   await expect(w).toBeEnabled()
   await expect(h).toBeEnabled()
 
-  const expectedPxU = unitToPxUFixed("120", "mm").toString()
+  const expectedPxU = unitToPxU("120", "mm", 300).toString()
   const isSaveWith = (req: Request, opts?: { rotation?: number; requirePosition?: boolean }) => {
     if (!req.url().includes(`/api/projects/${PROJECT_ID}/image-state`)) return false
     if (req.method() !== "POST") return false
@@ -306,8 +300,7 @@ test("page background: toggling persists via workspace upsert", async ({ page })
       unit: "mm",
       width_value: 200,
       height_value: 200,
-      dpi_x: 300,
-      dpi_y: 300,
+      artboard_dpi: 300,
       width_px: 2362.2047,
       height_px: 2362.2047,
       raster_effects_preset: "high",

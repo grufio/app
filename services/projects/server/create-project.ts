@@ -11,7 +11,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
 
-import { clampPx, pxUToPxNumber, type Unit, unitToPxUFixed } from "@/lib/editor/units"
+import { clampPx, pxUToPxNumber, type Unit, unitToPxU } from "@/lib/editor/units"
 
 type RasterPreset = "high" | "medium" | "low"
 
@@ -47,12 +47,9 @@ export async function createProjectWithWorkspace(
 
   const name = typeof input.name === "string" && input.name.trim() ? input.name.trim() : "Untitled"
 
-  const dpi_x = dpi
-  const dpi_y = dpi
-  const output_dpi_x = dpi
-  const output_dpi_y = dpi
-  const widthPxU = unitToPxUFixed(String(width_value), unit)
-  const heightPxU = unitToPxUFixed(String(height_value), unit)
+  const artboard_dpi = dpi
+  const widthPxU = unitToPxU(String(width_value), unit, artboard_dpi)
+  const heightPxU = unitToPxU(String(height_value), unit, artboard_dpi)
   const width_px_u = widthPxU.toString()
   const height_px_u = heightPxU.toString()
   const width_px = clampPx(pxUToPxNumber(widthPxU))
@@ -73,10 +70,7 @@ export async function createProjectWithWorkspace(
     unit,
     width_value,
     height_value,
-    dpi_x,
-    dpi_y,
-    output_dpi_x,
-    output_dpi_y,
+    artboard_dpi,
     raster_effects_preset: rasterPresetForDpi(dpi),
     width_px_u,
     height_px_u,

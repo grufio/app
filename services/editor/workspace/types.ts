@@ -11,10 +11,7 @@ export type WorkspaceRow = {
   unit: Unit
   width_value: number
   height_value: number
-  dpi_x: number
-  dpi_y: number
-  output_dpi_x: number
-  output_dpi_y: number
+  artboard_dpi: number
   width_px_u: string
   height_px_u: string
   width_px: number

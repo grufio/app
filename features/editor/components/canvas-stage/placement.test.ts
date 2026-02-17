@@ -7,6 +7,7 @@
 import { describe, expect, it } from "vitest"
 
 import { pickIntrinsicSize, shouldApplyPersistedTransform } from "./placement"
+import { computeIllustratorPlacementSize } from "../project-canvas-stage"
 
 describe("pickIntrinsicSize", () => {
   it("prefers DB intrinsic size when present", () => {
@@ -88,6 +89,38 @@ describe("shouldApplyPersistedTransform", () => {
         initialImageTransform: { widthPxU: 1n, heightPxU: 1n },
       })
     ).toBe(false)
+  })
+})
+
+describe("computeIllustratorPlacementSize", () => {
+  it("applies pixels / actualPPI * documentDPI for document pixel size", () => {
+    const out = computeIllustratorPlacementSize({
+      widthPx: 600,
+      heightPx: 300,
+      actualDpi: 300,
+      documentDpi: 300,
+    })
+    expect(out).toEqual({ width: 600, height: 300 })
+  })
+
+  it("returns null for invalid dpi", () => {
+    const out = computeIllustratorPlacementSize({
+      widthPx: 600,
+      heightPx: 300,
+      actualDpi: 0,
+      documentDpi: 300,
+    })
+    expect(out).toBeNull()
+  })
+
+  it("returns scaled size when actualPPI differs from document DPI", () => {
+    const out = computeIllustratorPlacementSize({
+      widthPx: 600,
+      heightPx: 300,
+      actualDpi: 150,
+      documentDpi: 300,
+    })
+    expect(out).toEqual({ width: 1200, height: 600 })
   })
 })
 

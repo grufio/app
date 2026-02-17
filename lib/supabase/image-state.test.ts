@@ -10,7 +10,7 @@ function makeSupabase(result: QueryResult, calls: Array<{ method: "eq"; key: str
     from: (table: string) => {
       expect(table).toBe("project_image_state")
       return {
-        select: (_fields: string) => ({
+        select: () => ({
           eq: (key1: string, value1: unknown) => {
             calls.push({ method: "eq", key: key1, value: value1 })
             return {
