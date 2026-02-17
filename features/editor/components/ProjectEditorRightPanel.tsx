@@ -66,6 +66,7 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
   handleDeleteMasterImage: () => void | Promise<void>
   panelImagePxU: { w: bigint; h: bigint } | null
   workspaceUnit: Unit
+  workspaceDpi: number
   workspaceReady: boolean
   imageStateLoading: boolean
   imagePanelReady: boolean
@@ -94,6 +95,7 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
     handleDeleteMasterImage,
     panelImagePxU,
     workspaceUnit,
+    workspaceDpi,
     workspaceReady,
     imageStateLoading,
     imagePanelReady,
@@ -223,6 +225,7 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
                   widthPxU={panelImagePxU?.w}
                   heightPxU={panelImagePxU?.h}
                   unit={workspaceUnit}
+                  dpi={workspaceDpi}
                   ready={imagePanelReady}
                   disabled={!masterImage || imageStateLoading || !workspaceReady}
                   onCommit={(w, h) => canvasRef.current?.setImageSize(w, h)}

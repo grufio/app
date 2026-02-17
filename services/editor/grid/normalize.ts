@@ -1,13 +1,10 @@
 /**
  * Editor grid normalization helpers.
  */
-import type { Unit } from "@/lib/editor/units"
+import { normalizeUnit } from "@/services/editor/normalize-unit"
 import type { ProjectGridRow } from "./types"
 
-export function normalizeUnit(u: unknown): Unit {
-  if (u === "mm" || u === "cm" || u === "pt" || u === "px") return u
-  return "cm"
-}
+export { normalizeUnit }
 
 export function normalizeHexColor(input: unknown): string {
   if (typeof input !== "string") return "#000000"

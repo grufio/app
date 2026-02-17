@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import { uploadMasterImage } from "./upload-master-image"
+import { uploadMasterImageClient } from "./upload-master-image"
 
 vi.mock("@/lib/images/dimensions", () => ({
   getImageDimensions: async () => ({ width: 640, height: 480 }),
@@ -20,7 +20,7 @@ describe("upload-master-image", () => {
       return new Response(JSON.stringify({ ok: true }), { status: 200 })
     }) as unknown as typeof fetch
 
-    const out = await uploadMasterImage({ projectId: "p1", file, fetchImpl })
+    const out = await uploadMasterImageClient({ projectId: "p1", file, fetchImpl })
     expect(out).toEqual({ ok: true })
     expect(capturedBody?.get("width_px")).toBe("640")
     expect(capturedBody?.get("height_px")).toBe("480")
@@ -33,7 +33,7 @@ describe("upload-master-image", () => {
       return new Response(JSON.stringify({ error: "Forbidden", stage: "rls_denied" }), { status: 403 })
     }) as unknown as typeof fetch
 
-    const out = await uploadMasterImage({ projectId: "p1", file, fetchImpl })
+    const out = await uploadMasterImageClient({ projectId: "p1", file, fetchImpl })
     expect(out.ok).toBe(false)
     if (!out.ok) {
       expect(out.error).toContain("Upload failed (HTTP 403)")

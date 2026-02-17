@@ -21,7 +21,7 @@ function formatUploadError(status: number, payload: Record<string, unknown> | nu
   return `Upload failed (HTTP ${status})${stage}: ${msg}`
 }
 
-export async function uploadMasterImage(args: {
+export async function uploadMasterImageClient(args: {
   projectId: string
   file: File
   fetchImpl?: typeof fetch
@@ -49,3 +49,6 @@ export async function uploadMasterImage(args: {
 
   return { ok: true }
 }
+
+// Backward-compatible alias during migration to explicit client/server naming.
+export const uploadMasterImage = uploadMasterImageClient
