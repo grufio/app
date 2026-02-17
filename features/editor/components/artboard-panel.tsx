@@ -11,7 +11,7 @@
 import { useEffect, useRef } from "react"
 import { ArrowLeftRight, ArrowUpDown, Gauge, Link2, Ruler, Unlink2 } from "lucide-react"
 
-import { fmt2, pxUToUnitDisplayFixed, type Unit } from "@/lib/editor/units"
+import { fmt2, pxUToUnitDisplay, type Unit } from "@/lib/editor/units"
 import { parseNumericInput } from "@/lib/editor/numeric"
 import { Button } from "@/components/ui/button"
 import { SelectItem } from "@/components/ui/select"
@@ -67,7 +67,9 @@ export function ArtboardPanel() {
   const { value: lockAspect, setValue: setLockAspect } = useKeyedDraft<boolean>(activeProjectId, false)
 
   const computedDisplay =
-    row && widthPxU && heightPxU ? computeArtboardSizeDisplay({ widthPxU, heightPxU, unit: draftUnit }) : null
+    row && widthPxU && heightPxU
+      ? computeArtboardSizeDisplay({ widthPxU, heightPxU, unit: draftUnit, dpi: Number(row.artboard_dpi) })
+      : null
   const computedWidth = computedDisplay ? computedDisplay.width : row ? String(row.width_value) : ""
   const computedHeight = computedDisplay ? computedDisplay.height : row ? String(row.height_value) : ""
 
@@ -120,10 +122,10 @@ export function ArtboardPanel() {
     const unitNormalized = normalizeUnit((saved as unknown as { unit?: unknown })?.unit)
     const wU = BigInt(saved.width_px_u)
     const hU = BigInt(saved.height_px_u)
-    setDraftWidth(pxUToUnitDisplayFixed(wU, unitNormalized))
-    setDraftHeight(pxUToUnitDisplayFixed(hU, unitNormalized))
-    setDraftUnit(unitNormalized)
     const nextOutput = Number(saved.artboard_dpi) || computedOutputDpi
+    setDraftWidth(pxUToUnitDisplay(wU, unitNormalized, nextOutput))
+    setDraftHeight(pxUToUnitDisplay(hU, unitNormalized, nextOutput))
+    setDraftUnit(unitNormalized)
     setDraftOutputDpi(String(nextOutput))
     setDraftRasterPreset((saved.raster_effects_preset ?? mapDpiToRasterPreset(nextOutput) ?? "custom") as "high" | "medium" | "low" | "custom")
   }
@@ -148,7 +150,12 @@ export function ArtboardPanel() {
     setDraftUnit(nextUnit)
 
     // Display-only: canonical µpx stays unchanged.
-    const display = computeArtboardSizeDisplay({ widthPxU: canonicalW, heightPxU: canonicalH, unit: nextUnit })
+    const display = computeArtboardSizeDisplay({
+      widthPxU: canonicalW,
+      heightPxU: canonicalH,
+      unit: nextUnit,
+      dpi: Number(row?.artboard_dpi),
+    })
     setDraftWidth(display?.width ?? "")
     setDraftHeight(display?.height ?? "")
 
@@ -205,7 +212,7 @@ export function ArtboardPanel() {
             if (nextH == null) return
             setDraftHeight(fmt2(nextH))
           }}
-          mode="float"
+          mode="decimal"
           ariaLabel="Artboard width"
           disabled={controlsDisabled}
           icon={<ArrowLeftRight aria-hidden="true" />}
@@ -238,7 +245,7 @@ export function ArtboardPanel() {
             if (nextW == null) return
             setDraftWidth(fmt2(nextW))
           }}
-          mode="float"
+          mode="decimal"
           ariaLabel="Artboard height"
           disabled={controlsDisabled}
           icon={<ArrowUpDown aria-hidden="true" />}

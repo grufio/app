@@ -1420,3 +1420,170 @@ $$;
 -- END db/021_project_image_state_image_id.sql
 -- =========================================================
 
+-- =========================================================
+-- BEGIN db/022_project_images_require_dpi.sql
+-- =========================================================
+-- gruf.io - enforce strict actual DPI for project images
+-- Block migration when legacy rows still violate the strict contract.
+do $$
+declare
+  invalid_count bigint;
+begin
+  select count(*)
+    into invalid_count
+  from public.project_images
+  where dpi is null or dpi <= 0;
+
+  if invalid_count > 0 then
+    raise exception using
+      message = format(
+        'blocked: %s rows in public.project_images have invalid dpi (dpi is null or <= 0)',
+        invalid_count
+      ),
+      hint = 'Run preflight remediation before applying db/022_project_images_require_dpi.sql.';
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'project_images_dpi_gt_zero'
+      and conrelid = 'public.project_images'::regclass
+  ) then
+    alter table public.project_images
+      add constraint project_images_dpi_gt_zero
+      check (dpi > 0);
+  end if;
+end $$;
+
+alter table public.project_images
+  alter column dpi set not null;
+-- =========================================================
+-- END db/022_project_images_require_dpi.sql
+-- =========================================================
+
+-- =========================================================
+-- BEGIN db/023_project_workspace_artboard_dpi.sql
+-- =========================================================
+-- gruf.io - Consolidate workspace DPI to a single artboard value
+--
+-- Goal:
+-- - introduce one authoritative DPI field for workspace/artboard: `artboard_dpi`
+-- - migrate existing values from legacy columns
+-- - remove redundant legacy columns: dpi_x/dpi_y/output_dpi_x/output_dpi_y
+
+alter table public.project_workspace
+  add column if not exists artboard_dpi numeric;
+
+update public.project_workspace
+set artboard_dpi = coalesce(artboard_dpi, output_dpi_x, dpi_x, output_dpi_y, dpi_y, 300)
+where artboard_dpi is null;
+
+-- Ensure canonical/cached pixel fields are consistent with the new single DPI source.
+update public.project_workspace
+set
+  width_px_u = public.workspace_value_to_px_u(width_value, unit, artboard_dpi)::text,
+  height_px_u = public.workspace_value_to_px_u(height_value, unit, artboard_dpi)::text;
+
+update public.project_workspace
+set
+  width_px = greatest(1, (((width_px_u::bigint) + 500000) / 1000000)::int),
+  height_px = greatest(1, (((height_px_u::bigint) + 500000) / 1000000)::int);
+
+alter table public.project_workspace
+  alter column artboard_dpi set default 300;
+
+alter table public.project_workspace
+  alter column artboard_dpi set not null;
+
+alter table public.project_workspace
+  drop constraint if exists project_workspace_artboard_dpi_positive;
+
+alter table public.project_workspace
+  add constraint project_workspace_artboard_dpi_positive check (artboard_dpi > 0);
+
+create or replace function public.project_workspace_sync_px_cache()
+returns trigger
+language plpgsql
+as $$
+declare
+  w_u bigint;
+  h_u bigint;
+  w_px int;
+  h_px int;
+begin
+  new.width_px_u := public.workspace_value_to_px_u(new.width_value, new.unit, new.artboard_dpi)::text;
+  new.height_px_u := public.workspace_value_to_px_u(new.height_value, new.unit, new.artboard_dpi)::text;
+
+  w_u := new.width_px_u::bigint;
+  h_u := new.height_px_u::bigint;
+
+  w_px := greatest(1, ((w_u + 500000) / 1000000)::int);
+  h_px := greatest(1, ((h_u + 500000) / 1000000)::int);
+
+  new.width_px := w_px;
+  new.height_px := h_px;
+  return new;
+end
+$$;
+
+alter table public.project_workspace
+  drop column if exists dpi_x,
+  drop column if exists dpi_y,
+  drop column if exists output_dpi_x,
+  drop column if exists output_dpi_y;
+-- =========================================================
+-- END db/023_project_workspace_artboard_dpi.sql
+-- =========================================================
+
+-- =========================================================
+-- BEGIN db/024_project_workspace_recompute_px_from_artboard_dpi.sql
+-- =========================================================
+-- gruf.io - Recompute workspace px cache from artboard_dpi
+--
+-- Goal:
+-- - enforce one canonical source for workspace geometry:
+--   width_value/height_value + unit + artboard_dpi
+-- - repair existing rows that still carry legacy 72-ppi derived px values
+-- - keep trigger behavior deterministic on every insert/update
+
+update public.project_workspace
+set
+  width_px_u = public.workspace_value_to_px_u(width_value, unit, artboard_dpi)::text,
+  height_px_u = public.workspace_value_to_px_u(height_value, unit, artboard_dpi)::text;
+
+update public.project_workspace
+set
+  width_px = greatest(1, (((width_px_u::bigint) + 500000) / 1000000)::int),
+  height_px = greatest(1, (((height_px_u::bigint) + 500000) / 1000000)::int);
+
+create or replace function public.project_workspace_sync_px_cache()
+returns trigger
+language plpgsql
+as $$
+declare
+  w_u bigint;
+  h_u bigint;
+  w_px int;
+  h_px int;
+begin
+  new.width_px_u := public.workspace_value_to_px_u(new.width_value, new.unit, new.artboard_dpi)::text;
+  new.height_px_u := public.workspace_value_to_px_u(new.height_value, new.unit, new.artboard_dpi)::text;
+
+  w_u := new.width_px_u::bigint;
+  h_u := new.height_px_u::bigint;
+
+  w_px := greatest(1, ((w_u + 500000) / 1000000)::int);
+  h_px := greatest(1, ((h_u + 500000) / 1000000)::int);
+
+  new.width_px := w_px;
+  new.height_px := h_px;
+  return new;
+end
+$$;
+-- =========================================================
+-- END db/024_project_workspace_recompute_px_from_artboard_dpi.sql
+-- =========================================================
+

@@ -9,7 +9,7 @@
  * - This module is pure (no React/DOM, no Supabase).
  * - It intentionally mirrors existing UI behavior; changes should be covered by tests.
  */
-import { clampPx, pxUToPxNumber, type Unit, unitToPxUFixed } from "@/lib/editor/units"
+import { clampPx, pxUToPxNumber, type Unit, unitToPxU } from "@/lib/editor/units"
 import type { WorkspaceRow } from "./workspace/types"
 
 export function normalizeUnit(u: unknown): Unit {
@@ -60,8 +60,8 @@ export function computeWorkspaceSizeSave(opts: {
   let nextWPxU: bigint
   let nextHPxU: bigint
   try {
-    nextWPxU = unitToPxUFixed(wStr, unit)
-    nextHPxU = unitToPxUFixed(hStr, unit)
+    nextWPxU = unitToPxU(wStr, unit, base.artboard_dpi)
+    nextHPxU = unitToPxU(hStr, unit, base.artboard_dpi)
   } catch {
     return { error: "Invalid size" }
   }

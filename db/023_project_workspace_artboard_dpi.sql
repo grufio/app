@@ -15,8 +15,8 @@ where artboard_dpi is null;
 -- Ensure canonical/cached pixel fields are consistent with the new single DPI source.
 update public.project_workspace
 set
-  width_px_u = coalesce(width_px_u, public.workspace_value_to_px_u(width_value, unit, artboard_dpi)::text),
-  height_px_u = coalesce(height_px_u, public.workspace_value_to_px_u(height_value, unit, artboard_dpi)::text);
+  width_px_u = public.workspace_value_to_px_u(width_value, unit, artboard_dpi)::text,
+  height_px_u = public.workspace_value_to_px_u(height_value, unit, artboard_dpi)::text;
 
 update public.project_workspace
 set
@@ -45,12 +45,8 @@ declare
   w_px int;
   h_px int;
 begin
-  if new.width_px_u is null then
-    new.width_px_u := public.workspace_value_to_px_u(new.width_value, new.unit, new.artboard_dpi)::text;
-  end if;
-  if new.height_px_u is null then
-    new.height_px_u := public.workspace_value_to_px_u(new.height_value, new.unit, new.artboard_dpi)::text;
-  end if;
+  new.width_px_u := public.workspace_value_to_px_u(new.width_value, new.unit, new.artboard_dpi)::text;
+  new.height_px_u := public.workspace_value_to_px_u(new.height_value, new.unit, new.artboard_dpi)::text;
 
   w_u := new.width_px_u::bigint;
   h_u := new.height_px_u::bigint;

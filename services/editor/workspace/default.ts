@@ -4,7 +4,7 @@
  * Responsibilities:
  * - Produce a deterministic default `project_workspace` row when none exists.
  */
-import { clampPx, pxUToPxNumber, type Unit, unitToPxUFixed } from "@/lib/editor/units"
+import { clampPx, pxUToPxNumber, type Unit, unitToPxU } from "@/lib/editor/units"
 import type { WorkspaceRow } from "./types"
 
 export function defaultWorkspace(projectId: string): WorkspaceRow {
@@ -13,8 +13,8 @@ export function defaultWorkspace(projectId: string): WorkspaceRow {
   const width_value = 20
   const height_value = 30
   const artboard_dpi = 300
-  const widthPxU = unitToPxUFixed(String(width_value), unit)
-  const heightPxU = unitToPxUFixed(String(height_value), unit)
+  const widthPxU = unitToPxU(String(width_value), unit, artboard_dpi)
+  const heightPxU = unitToPxU(String(height_value), unit, artboard_dpi)
   return {
     project_id: projectId,
     unit,

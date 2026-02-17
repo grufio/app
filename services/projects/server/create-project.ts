@@ -11,7 +11,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
 
-import { clampPx, pxUToPxNumber, type Unit, unitToPxUFixed } from "@/lib/editor/units"
+import { clampPx, pxUToPxNumber, type Unit, unitToPxU } from "@/lib/editor/units"
 
 type RasterPreset = "high" | "medium" | "low"
 
@@ -48,8 +48,8 @@ export async function createProjectWithWorkspace(
   const name = typeof input.name === "string" && input.name.trim() ? input.name.trim() : "Untitled"
 
   const artboard_dpi = dpi
-  const widthPxU = unitToPxUFixed(String(width_value), unit)
-  const heightPxU = unitToPxUFixed(String(height_value), unit)
+  const widthPxU = unitToPxU(String(width_value), unit, artboard_dpi)
+  const heightPxU = unitToPxU(String(height_value), unit, artboard_dpi)
   const width_px_u = widthPxU.toString()
   const height_px_u = heightPxU.toString()
   const width_px = clampPx(pxUToPxNumber(widthPxU))
