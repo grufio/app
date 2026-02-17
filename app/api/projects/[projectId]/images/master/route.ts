@@ -8,21 +8,9 @@
 import { NextResponse } from "next/server"
 
 import { createSupabaseServerClient } from "@/lib/supabase/server"
-import { activateMasterWithState } from "@/lib/supabase/project-images"
-import { isUuid, jsonError, readJson, requireUser } from "@/lib/api/route-guards"
+import { isUuid, jsonError, requireUser } from "@/lib/api/route-guards"
 
 export const dynamic = "force-dynamic"
-
-type Body = {
-  storage_path: string
-  name: string
-  format: string
-  width_px: number
-  height_px: number
-  file_size_bytes: number
-  dpi?: number | null
-  storage_bucket?: string
-}
 
 // Best-effort in-memory cache to reduce Storage signed URL churn.
 // This is per server process (works well in dev / long-lived runtimes).
@@ -60,6 +48,11 @@ export async function GET(
   if (!img?.storage_path) {
     return NextResponse.json({ exists: false })
   }
+  const dpiRaw = Number(img.dpi)
+  const dpi = Number.isFinite(dpiRaw) && dpiRaw > 0 ? Math.round(dpiRaw) : null
+  if (!dpi) {
+    return jsonError("Invalid master image metadata: dpi", 500, { stage: "image_query", where: "dpi" })
+  }
 
   const now = Date.now()
   // Signed URLs are bearer tokens; the cache must be user-scoped.
@@ -79,7 +72,7 @@ export async function GET(
       format: img.format,
       width_px: img.width_px,
       height_px: img.height_px,
-      dpi: img.dpi,
+      dpi,
       file_size_bytes: img.file_size_bytes,
     })
   }
@@ -106,80 +99,9 @@ export async function GET(
     format: img.format,
     width_px: img.width_px,
     height_px: img.height_px,
-    dpi: img.dpi,
+    dpi,
     file_size_bytes: img.file_size_bytes,
   })
-}
-
-export async function POST(
-  req: Request,
-  { params }: { params: Promise<{ projectId: string }> }
-) {
-  const { projectId } = await params
-  if (!isUuid(String(projectId))) {
-    return jsonError("Invalid projectId", 400, { stage: "validation", where: "params" })
-  }
-  const supabase = await createSupabaseServerClient()
-
-  const u = await requireUser(supabase)
-  if (!u.ok) return u.res
-
-  const parsed = await readJson<Body>(req, { stage: "validation" })
-  if (!parsed.ok) return parsed.res
-  const body = parsed.value
-
-  if (
-    !body?.storage_path ||
-    !body?.name ||
-    !body?.format ||
-    !Number.isFinite(body.width_px) ||
-    !Number.isFinite(body.height_px) ||
-    !Number.isFinite(body.file_size_bytes)
-  ) {
-    return jsonError("Missing/invalid fields", 400, { stage: "validation", where: "validate" })
-  }
-
-  const imageId = crypto.randomUUID()
-  const dpi =
-    typeof body.dpi === "number" && Number.isFinite(body.dpi) && body.dpi > 0 ? Math.round(body.dpi) : null
-
-  const { error } = await supabase.from("project_images").insert({
-    id: imageId,
-    project_id: projectId,
-    role: "master",
-    name: body.name,
-    format: body.format,
-    width_px: body.width_px,
-    height_px: body.height_px,
-    dpi,
-    storage_bucket: body.storage_bucket ?? "project_images",
-    storage_path: body.storage_path,
-    file_size_bytes: body.file_size_bytes,
-    is_active: false,
-  })
-
-  if (error) {
-    return jsonError(error.message, 400, {
-      stage: "upsert",
-      code: (error as unknown as { code?: string })?.code,
-    })
-  }
-
-  const activation = await activateMasterWithState({
-    supabase,
-    projectId,
-    imageId,
-    widthPx: body.width_px,
-    heightPx: body.height_px,
-  })
-  if (!activation.ok) {
-    return jsonError(activation.reason, 400, {
-      stage: "active_switch",
-      code: activation.code,
-    })
-  }
-
-  return NextResponse.json({ ok: true, id: imageId })
 }
 
 export async function DELETE(

@@ -12,10 +12,7 @@ export function defaultWorkspace(projectId: string): WorkspaceRow {
   const unit: Unit = "cm"
   const width_value = 20
   const height_value = 30
-  const dpi_x = 300
-  const dpi_y = 300
-  const output_dpi_x = 300
-  const output_dpi_y = 300
+  const artboard_dpi = 300
   const widthPxU = unitToPxUFixed(String(width_value), unit)
   const heightPxU = unitToPxUFixed(String(height_value), unit)
   return {
@@ -23,10 +20,7 @@ export function defaultWorkspace(projectId: string): WorkspaceRow {
     unit,
     width_value,
     height_value,
-    dpi_x,
-    dpi_y,
-    output_dpi_x,
-    output_dpi_y,
+    artboard_dpi,
     raster_effects_preset: "high",
     width_px_u: widthPxU.toString(),
     height_px_u: heightPxU.toString(),

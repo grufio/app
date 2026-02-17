@@ -1,0 +1,27 @@
+---
+description: Do not solve problems by guessing, trial/error, or assumptions
+alwaysApply: true
+---
+
+# No guessing, trial/error, or assumptions
+
+## Rule
+
+- Do **not** solve bugs or behavior issues by guessing.
+- Do **not** rely on trial/error as the primary approach.
+- Do **not** proceed based on unstated assumptions.
+- Base every fix on observable evidence (logs, query output, failing tests, reproducible steps, or code-path verification).
+
+## Required working mode
+
+- First isolate the failure point using concrete evidence.
+- State the verified cause in precise terms before changing code.
+- Apply the smallest deterministic change that addresses the verified cause.
+- Verify with targeted tests/checks and report the result.
+
+## Forbidden patterns
+
+- "Probably/maybe" fixes without proof.
+- Multiple speculative changes in one step.
+- Declaring success without a concrete verification result.
+

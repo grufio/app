@@ -18,10 +18,7 @@ export type SetupMockRoutesOpts = {
     unit: "mm" | "cm" | "pt" | "px"
     width_value: number
     height_value: number
-    dpi_x: number
-    dpi_y: number
-    output_dpi_x: number
-    output_dpi_y: number
+    artboard_dpi: number
     width_px_u: string
     height_px_u: string
     width_px: number
@@ -48,10 +45,7 @@ export async function setupMockRoutes(page: Page, opts: SetupMockRoutesOpts) {
     unit: "cm",
     width_value: 20,
     height_value: 30,
-    dpi_x: 300,
-    dpi_y: 300,
-    output_dpi_x: 300,
-    output_dpi_y: 300,
+    artboard_dpi: 300,
     // canonical µpx (strings)
     width_px_u: unitToPxUFixed("20", "cm").toString(),
     height_px_u: unitToPxUFixed("30", "cm").toString(),

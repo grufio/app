@@ -47,10 +47,7 @@ export async function createProjectWithWorkspace(
 
   const name = typeof input.name === "string" && input.name.trim() ? input.name.trim() : "Untitled"
 
-  const dpi_x = dpi
-  const dpi_y = dpi
-  const output_dpi_x = dpi
-  const output_dpi_y = dpi
+  const artboard_dpi = dpi
   const widthPxU = unitToPxUFixed(String(width_value), unit)
   const heightPxU = unitToPxUFixed(String(height_value), unit)
   const width_px_u = widthPxU.toString()
@@ -73,10 +70,7 @@ export async function createProjectWithWorkspace(
     unit,
     width_value,
     height_value,
-    dpi_x,
-    dpi_y,
-    output_dpi_x,
-    output_dpi_y,
+    artboard_dpi,
     raster_effects_preset: rasterPresetForDpi(dpi),
     width_px_u,
     height_px_u,

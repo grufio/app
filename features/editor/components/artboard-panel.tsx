@@ -5,7 +5,7 @@
  *
  * Responsibilities:
  * - Edit workspace unit and artboard dimensions (geometry).
- * - Edit output DPI (raster/export) separately.
+ * - Edit artboard DPI.
  * - Persist changes via `project_workspace` providers.
  */
 import { useEffect, useRef } from "react"
@@ -48,10 +48,10 @@ export function ArtboardPanel() {
   const activeProjectId = row?.project_id ?? null
 
   const computedUnit = row ? normalizeUnit((row as unknown as { unit?: unknown })?.unit) : "mm"
-  const computedOutputDpi = row ? Number(row.output_dpi_x ?? row.dpi_x) : 300
+  const computedOutputDpi = row ? Number(row.artboard_dpi) : 300
   const computedPreset =
     row
-      ? ((row.raster_effects_preset ?? mapDpiToRasterPreset(Number(row.output_dpi_x ?? row.dpi_x)) ?? "custom") as
+      ? ((row.raster_effects_preset ?? mapDpiToRasterPreset(Number(row.artboard_dpi)) ?? "custom") as
           | "high"
           | "medium"
           | "low"
@@ -123,7 +123,7 @@ export function ArtboardPanel() {
     setDraftWidth(pxUToUnitDisplayFixed(wU, unitNormalized))
     setDraftHeight(pxUToUnitDisplayFixed(hU, unitNormalized))
     setDraftUnit(unitNormalized)
-    const nextOutput = Number(saved.output_dpi_x ?? saved.dpi_x) || computedOutputDpi
+    const nextOutput = Number(saved.artboard_dpi) || computedOutputDpi
     setDraftOutputDpi(String(nextOutput))
     setDraftRasterPreset((saved.raster_effects_preset ?? mapDpiToRasterPreset(nextOutput) ?? "custom") as "high" | "medium" | "low" | "custom")
   }
@@ -167,12 +167,11 @@ export function ArtboardPanel() {
     setDraftRasterPreset(preset)
     setDraftOutputDpi(String(dpi))
 
-    // Output DPI only; do not change canonical µpx size.
+    // Artboard DPI only; do not change canonical µpx size.
     setTimeout(() => {
       void upsertWorkspace({
         ...row,
-        output_dpi_x: dpi,
-        output_dpi_y: dpi,
+        artboard_dpi: dpi,
         raster_effects_preset: preset,
       })
     }, 0)

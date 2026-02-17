@@ -54,7 +54,7 @@ function normalizePositiveInt(n: number): number | null {
   return v
 }
 
-function normalizeOptionalDpi(n: number | null | undefined): number | null {
+function normalizeRequiredDpi(n: number | null | undefined): number | null {
   if (n == null) return null
   if (!Number.isFinite(n)) return null
   const v = Math.round(n)
@@ -82,7 +82,15 @@ export async function uploadMasterImage(args: {
       reason: "Missing/invalid width_px/height_px",
     }
   }
-  const dpi = normalizeOptionalDpi(args.dpi)
+  const dpi = normalizeRequiredDpi(args.dpi)
+  if (!dpi) {
+    return {
+      ok: false,
+      status: 400,
+      stage: "validation",
+      reason: "Missing/invalid dpi",
+    }
+  }
 
   const maxUploadBytes = parseOptionalPositiveInt(process.env.USER_MAX_UPLOAD_BYTES)
   if (maxUploadBytes != null && file.size > maxUploadBytes) {
