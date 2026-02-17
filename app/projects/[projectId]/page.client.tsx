@@ -356,6 +356,7 @@ export function ProjectDetailPageClient({
             handleDeleteMasterImage={handleDeleteMasterImage}
             panelImagePxU={panelImagePxU}
             workspaceUnit={workspaceUnit ?? "cm"}
+            workspaceDpi={workspaceDpi ?? 300}
             workspaceReady={workspaceReady}
             imageStateLoading={imageStateLoading}
             imagePanelReady={imagePanelReady}

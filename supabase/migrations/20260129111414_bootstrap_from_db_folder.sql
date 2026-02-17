@@ -882,3 +882,499 @@ create table if not exists public.schema_migrations (
   constraint schema_migrations_filename_unique unique (filename)
 );
 
+-- =========================================================
+-- db/018_project_workspace_output_dpi.sql
+-- =========================================================
+-- gruf.io - Output DPI stored separately from geometry
+--
+-- Purpose:
+-- - Keep artboard geometry stable (Illustrator-style)
+-- - Store output/export DPI separately
+
+alter table public.project_workspace
+  add column if not exists output_dpi_x numeric,
+  add column if not exists output_dpi_y numeric;
+
+-- Backfill existing rows (use current dpi as output reference).
+update public.project_workspace
+set
+  output_dpi_x = coalesce(output_dpi_x, dpi_x, 300),
+  output_dpi_y = coalesce(output_dpi_y, dpi_y, 300)
+where output_dpi_x is null or output_dpi_y is null;
+
+-- Defaults + constraints.
+alter table public.project_workspace
+  alter column output_dpi_x set default 300,
+  alter column output_dpi_y set default 300;
+
+alter table public.project_workspace
+  alter column output_dpi_x set not null,
+  alter column output_dpi_y set not null;
+
+alter table public.project_workspace
+  drop constraint if exists project_workspace_output_dpi_x_positive,
+  drop constraint if exists project_workspace_output_dpi_y_positive;
+
+alter table public.project_workspace
+  add constraint project_workspace_output_dpi_x_positive check (output_dpi_x > 0),
+  add constraint project_workspace_output_dpi_y_positive check (output_dpi_y > 0);
+
+-- =========================================================
+-- db/019_project_images_multi.sql
+-- =========================================================
+-- gruf.io - Support multiple images per project
+-- Adds role expansion, active master, storage metadata, indexes, and optional soft delete.
+
+-- Extend image_role enum (do not remove existing values)
+do $$ begin
+  alter type public.image_role add value 'asset';
+exception when duplicate_object then null; end $$;
+
+-- Allow multiple images per role
+alter table public.project_images
+  drop constraint if exists project_images_one_per_role;
+
+-- Storage metadata
+alter table public.project_images
+  add column if not exists storage_bucket text not null default 'project_images';
+
+-- Active master flag
+alter table public.project_images
+  add column if not exists is_active boolean not null default false;
+
+-- Optional soft delete
+alter table public.project_images
+  add column if not exists deleted_at timestamptz;
+
+-- Backfill active master (latest master per project)
+with ranked as (
+  select
+    id,
+    project_id,
+    row_number() over (partition by project_id order by created_at desc) as rn
+  from public.project_images
+  where role = 'master' and deleted_at is null
+)
+update public.project_images pi
+set is_active = (ranked.rn = 1)
+from ranked
+where pi.id = ranked.id;
+
+-- Indexes
+create index if not exists project_images_project_id_role_created_at_idx
+  on public.project_images (project_id, role, created_at desc);
+
+-- Enforce one active master per project
+create unique index if not exists project_images_one_active_master_idx
+  on public.project_images (project_id)
+  where role = 'master' and is_active is true and deleted_at is null;
+
+-- Helpers to atomically switch active master
+create or replace function public.set_active_master_image(p_project_id uuid, p_image_id uuid)
+returns void
+language plpgsql
+as $$
+begin
+  update public.project_images
+  set is_active = false
+  where project_id = p_project_id
+    and role = 'master'
+    and deleted_at is null;
+
+  update public.project_images
+  set is_active = true
+  where id = p_image_id
+    and project_id = p_project_id
+    and role = 'master'
+    and deleted_at is null;
+end;
+$$;
+
+create or replace function public.set_active_master_latest(p_project_id uuid)
+returns void
+language plpgsql
+as $$
+declare
+  v_image_id uuid;
+begin
+  select id
+  into v_image_id
+  from public.project_images
+  where project_id = p_project_id
+    and role = 'master'
+    and deleted_at is null
+  order by created_at desc
+  limit 1;
+
+  if v_image_id is not null then
+    perform public.set_active_master_image(p_project_id, v_image_id);
+  end if;
+end;
+$$;
+
+-- =========================================================
+-- db/020_project_images_storage_path.sql
+-- =========================================================
+-- NOTE:
+-- Storage policy changes in db/020 require elevated privileges on storage.objects.
+-- Apply db/020_project_images_storage_path.sql manually in the Supabase SQL editor.
+
+-- =========================================================
+-- db/021_project_image_state_image_id.sql
+-- =========================================================
+-- gruf.io - Bind persisted master transform state to active image id
+
+alter table public.project_image_state
+  add column if not exists image_id uuid;
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'project_image_state_image_id_fkey'
+      and conrelid = 'public.project_image_state'::regclass
+  ) then
+    alter table public.project_image_state
+      add constraint project_image_state_image_id_fkey
+      foreign key (image_id)
+      references public.project_images(id)
+      on delete set null;
+  end if;
+end $$;
+
+create index if not exists project_image_state_project_role_image_idx
+  on public.project_image_state (project_id, role, image_id);
+
+-- Backfill existing master-state rows to current active master image.
+with active_master as (
+  select distinct on (project_id)
+    project_id,
+    id as image_id
+  from public.project_images
+  where role = 'master'
+    and is_active is true
+    and deleted_at is null
+  order by project_id, created_at desc
+)
+update public.project_image_state pis
+set image_id = am.image_id
+from active_master am
+where pis.project_id = am.project_id
+  and pis.role = 'master'
+  and pis.image_id is null;
+
+create or replace function public.set_active_master_with_state(
+  p_project_id uuid,
+  p_image_id uuid,
+  p_width_px integer,
+  p_height_px integer
+)
+returns void
+language plpgsql
+as $$
+declare
+  v_w_u bigint;
+  v_h_u bigint;
+  v_artboard_w_u bigint;
+  v_artboard_h_u bigint;
+begin
+  v_w_u := greatest(1, p_width_px)::bigint * 1000000;
+  v_h_u := greatest(1, p_height_px)::bigint * 1000000;
+
+  update public.project_images
+  set is_active = false
+  where project_id = p_project_id
+    and role = 'master'
+    and deleted_at is null;
+
+  update public.project_images
+  set is_active = true
+  where id = p_image_id
+    and project_id = p_project_id
+    and role = 'master'
+    and deleted_at is null;
+
+  select
+    case
+      when pw.width_px_u is not null then pw.width_px_u::bigint
+      else greatest(1, pw.width_px)::bigint * 1000000
+    end,
+    case
+      when pw.height_px_u is not null then pw.height_px_u::bigint
+      else greatest(1, pw.height_px)::bigint * 1000000
+    end
+  into v_artboard_w_u, v_artboard_h_u
+  from public.project_workspace pw
+  where pw.project_id = p_project_id;
+
+  if v_artboard_w_u is null then v_artboard_w_u := v_w_u; end if;
+  if v_artboard_h_u is null then v_artboard_h_u := v_h_u; end if;
+
+  insert into public.project_image_state (
+    project_id,
+    role,
+    image_id,
+    x_px_u,
+    y_px_u,
+    width_px_u,
+    height_px_u,
+    rotation_deg
+  ) values (
+    p_project_id,
+    'master',
+    p_image_id,
+    (v_artboard_w_u / 2)::text,
+    (v_artboard_h_u / 2)::text,
+    v_w_u::text,
+    v_h_u::text,
+    0
+  )
+  on conflict (project_id, role)
+  do update
+    set image_id = excluded.image_id,
+        x_px_u = excluded.x_px_u,
+        y_px_u = excluded.y_px_u,
+        width_px_u = excluded.width_px_u,
+        height_px_u = excluded.height_px_u,
+        rotation_deg = excluded.rotation_deg;
+end;
+$$;
+
+-- =========================================================
+-- db/022_project_images_require_dpi.sql
+-- =========================================================
+-- gruf.io - enforce strict actual DPI for project images
+-- Block migration when legacy rows still violate the strict contract.
+do $$
+declare
+  invalid_count bigint;
+begin
+  select count(*)
+    into invalid_count
+  from public.project_images
+  where dpi is null or dpi <= 0;
+
+  if invalid_count > 0 then
+    raise exception using
+      message = format(
+        'blocked: %s rows in public.project_images have invalid dpi (dpi is null or <= 0)',
+        invalid_count
+      ),
+      hint = 'Run preflight remediation before applying db/022_project_images_require_dpi.sql.';
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'project_images_dpi_gt_zero'
+      and conrelid = 'public.project_images'::regclass
+  ) then
+    alter table public.project_images
+      add constraint project_images_dpi_gt_zero
+      check (dpi > 0);
+  end if;
+end $$;
+
+alter table public.project_images
+  alter column dpi set not null;
+
+-- =========================================================
+-- db/023_project_workspace_artboard_dpi.sql
+-- =========================================================
+-- gruf.io - Consolidate workspace DPI to a single artboard value
+--
+-- Goal:
+-- - introduce one authoritative DPI field for workspace/artboard: `artboard_dpi`
+-- - migrate existing values from legacy columns
+-- - remove redundant legacy columns: dpi_x/dpi_y/output_dpi_x/output_dpi_y
+
+alter table public.project_workspace
+  add column if not exists artboard_dpi numeric;
+
+update public.project_workspace
+set artboard_dpi = coalesce(artboard_dpi, output_dpi_x, dpi_x, output_dpi_y, dpi_y, 300)
+where artboard_dpi is null;
+
+-- Ensure canonical/cached pixel fields are consistent with the new single DPI source.
+update public.project_workspace
+set
+  width_px_u = public.workspace_value_to_px_u(width_value, unit, artboard_dpi)::text,
+  height_px_u = public.workspace_value_to_px_u(height_value, unit, artboard_dpi)::text;
+
+update public.project_workspace
+set
+  width_px = greatest(1, (((width_px_u::bigint) + 500000) / 1000000)::int),
+  height_px = greatest(1, (((height_px_u::bigint) + 500000) / 1000000)::int);
+
+-- =========================================================
+-- db/025_set_active_master_with_state_dpi_aligned.sql
+-- =========================================================
+-- gruf.io - Align active-master seeded image-state with placement DPI semantics
+--
+-- Purpose:
+-- - Keep server-seeded persisted size aligned with client placement formula:
+--   size_px = (pixels / image_dpi) * artboard_dpi
+-- - Prevent first-load/reload size jumps when image DPI differs from artboard DPI.
+
+create or replace function public.set_active_master_with_state(
+  p_project_id uuid,
+  p_image_id uuid,
+  p_width_px integer,
+  p_height_px integer
+)
+returns void
+language plpgsql
+as $$
+declare
+  v_w_u bigint;
+  v_h_u bigint;
+  v_artboard_w_u bigint;
+  v_artboard_h_u bigint;
+  v_artboard_dpi numeric;
+  v_image_dpi numeric;
+begin
+  -- Default to raw pixel size (current behavior) and override when both DPI values are valid.
+  v_w_u := greatest(1, p_width_px)::bigint * 1000000;
+  v_h_u := greatest(1, p_height_px)::bigint * 1000000;
+
+  update public.project_images
+  set is_active = false
+  where project_id = p_project_id
+    and role = 'master'
+    and deleted_at is null;
+
+  update public.project_images
+  set is_active = true
+  where id = p_image_id
+    and project_id = p_project_id
+    and role = 'master'
+    and deleted_at is null;
+
+  select
+    case
+      when pw.width_px_u is not null then pw.width_px_u::bigint
+      else greatest(1, pw.width_px)::bigint * 1000000
+    end,
+    case
+      when pw.height_px_u is not null then pw.height_px_u::bigint
+      else greatest(1, pw.height_px)::bigint * 1000000
+    end,
+    pw.artboard_dpi,
+    pi.dpi
+  into v_artboard_w_u, v_artboard_h_u, v_artboard_dpi, v_image_dpi
+  from public.project_workspace pw
+  left join public.project_images pi on pi.id = p_image_id
+  where pw.project_id = p_project_id;
+
+  if v_artboard_w_u is null then v_artboard_w_u := v_w_u; end if;
+  if v_artboard_h_u is null then v_artboard_h_u := v_h_u; end if;
+
+  if v_artboard_dpi is not null and v_artboard_dpi > 0 and v_image_dpi is not null and v_image_dpi > 0 then
+    v_w_u := greatest(
+      1000000::bigint,
+      round(((greatest(1, p_width_px)::numeric / v_image_dpi) * v_artboard_dpi) * 1000000)::bigint
+    );
+    v_h_u := greatest(
+      1000000::bigint,
+      round(((greatest(1, p_height_px)::numeric / v_image_dpi) * v_artboard_dpi) * 1000000)::bigint
+    );
+  end if;
+
+  insert into public.project_image_state (
+    project_id,
+    role,
+    image_id,
+    x_px_u,
+    y_px_u,
+    width_px_u,
+    height_px_u,
+    rotation_deg
+  ) values (
+    p_project_id,
+    'master',
+    p_image_id,
+    (v_artboard_w_u / 2)::text,
+    (v_artboard_h_u / 2)::text,
+    v_w_u::text,
+    v_h_u::text,
+    0
+  )
+  on conflict (project_id, role)
+  do update
+    set image_id = excluded.image_id,
+        x_px_u = excluded.x_px_u,
+        y_px_u = excluded.y_px_u,
+        width_px_u = excluded.width_px_u,
+        height_px_u = excluded.height_px_u,
+        rotation_deg = excluded.rotation_deg;
+end;
+$$;
+
+alter table public.project_workspace
+  alter column artboard_dpi set default 300;
+
+alter table public.project_workspace
+  alter column artboard_dpi set not null;
+
+alter table public.project_workspace
+  drop constraint if exists project_workspace_artboard_dpi_positive;
+
+alter table public.project_workspace
+  add constraint project_workspace_artboard_dpi_positive check (artboard_dpi > 0);
+
+create or replace function public.project_workspace_sync_px_cache()
+returns trigger
+language plpgsql
+as $$
+declare
+  w_u bigint;
+  h_u bigint;
+  w_px int;
+  h_px int;
+begin
+  new.width_px_u := public.workspace_value_to_px_u(new.width_value, new.unit, new.artboard_dpi)::text;
+  new.height_px_u := public.workspace_value_to_px_u(new.height_value, new.unit, new.artboard_dpi)::text;
+
+  w_u := new.width_px_u::bigint;
+  h_u := new.height_px_u::bigint;
+
+  w_px := greatest(1, ((w_u + 500000) / 1000000)::int);
+  h_px := greatest(1, ((h_u + 500000) / 1000000)::int);
+
+  new.width_px := w_px;
+  new.height_px := h_px;
+  return new;
+end
+$$;
+
+alter table public.project_workspace
+  drop column if exists dpi_x,
+  drop column if exists dpi_y,
+  drop column if exists output_dpi_x,
+  drop column if exists output_dpi_y;
+
+-- =========================================================
+-- db/024_project_workspace_recompute_px_from_artboard_dpi.sql
+-- =========================================================
+-- gruf.io - Recompute workspace px cache from artboard_dpi
+--
+-- Goal:
+-- - enforce one canonical source for workspace geometry:
+--   width_value/height_value + unit + artboard_dpi
+-- - repair existing rows that still carry legacy 72-ppi derived px values
+-- - keep this migration as data-repair only (trigger semantics are owned by db/023)
+
+update public.project_workspace
+set
+  width_px_u = public.workspace_value_to_px_u(width_value, unit, artboard_dpi)::text,
+  height_px_u = public.workspace_value_to_px_u(height_value, unit, artboard_dpi)::text;
+
+update public.project_workspace
+set
+  width_px = greatest(1, (((width_px_u::bigint) + 500000) / 1000000)::int),
+  height_px = greatest(1, (((height_px_u::bigint) + 500000) / 1000000)::int);
+

@@ -80,15 +80,15 @@ test("image size: setting 100mm survives reload (no drift)", async ({ page }) =>
     withImage: true,
     workspace: {
       unit: "mm",
-      // 200mm at artboard DPI.
+      // Non-300 DPI regression guard: 200mm at 150 dpi.
       width_value: 200,
       height_value: 200,
-      artboard_dpi: 300,
-      width_px_u: unitToPxU("200", "mm", 300).toString(),
-      height_px_u: unitToPxU("200", "mm", 300).toString(),
-      width_px: 2362,
-      height_px: 2362,
-      raster_effects_preset: "high",
+      artboard_dpi: 150,
+      width_px_u: unitToPxU("200", "mm", 150).toString(),
+      height_px_u: unitToPxU("200", "mm", 150).toString(),
+      width_px: 1181,
+      height_px: 1181,
+      raster_effects_preset: "medium",
     },
   })
 
@@ -97,7 +97,7 @@ test("image size: setting 100mm survives reload (no drift)", async ({ page }) =>
   const w = page.getByLabel("Image width (mm)")
   const h = page.getByLabel("Image height (mm)")
 
-  const expectedPxU = unitToPxU("100", "mm", 300).toString()
+  const expectedPxU = unitToPxU("100", "mm", 150).toString()
 
   const isExpectedImageStateSave = (req: Request) => {
     if (!req.url().includes(`/api/projects/${PROJECT_ID}/image-state`)) return false

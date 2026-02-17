@@ -13,7 +13,7 @@ import { ImagePlus } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { hasMasterImage } from "@/lib/api/project-images"
-import { uploadMasterImage } from "@/lib/editor/upload-master-image"
+import { uploadMasterImageClient } from "@/lib/editor/upload-master-image"
 import { formatKbRounded } from "@/lib/utils/file-size"
 import { Button } from "@/components/ui/button"
 
@@ -63,7 +63,7 @@ export function MasterImageUpload({
       setIsUploading(true)
       onUploadingChange?.(true)
       try {
-        const out = await uploadMasterImage({ projectId, file: nextFile })
+        const out = await uploadMasterImageClient({ projectId, file: nextFile })
         if (!out.ok) {
           setError(out.error)
           return

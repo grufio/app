@@ -10,12 +10,10 @@
  * - It intentionally mirrors existing UI behavior; changes should be covered by tests.
  */
 import { clampPx, pxUToPxNumber, type Unit, unitToPxU } from "@/lib/editor/units"
+import { normalizeUnit } from "./normalize-unit"
 import type { WorkspaceRow } from "./workspace/types"
 
-export function normalizeUnit(u: unknown): Unit {
-  if (u === "mm" || u === "cm" || u === "pt" || u === "px") return u
-  return "cm"
-}
+export { normalizeUnit }
 
 export type RasterPreset = "high" | "medium" | "low"
 

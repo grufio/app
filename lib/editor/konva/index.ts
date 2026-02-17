@@ -9,7 +9,6 @@ export {
   applyMicroPxPositionToNode,
   applyMicroPxToNode,
   bakeInSizeToMicroPx,
-  clampMicroPx,
   numberToMicroPx,
   readMicroPxPositionFromNode,
 } from "@/lib/editor/konva/bakein"

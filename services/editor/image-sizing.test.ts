@@ -4,7 +4,7 @@
 import { describe, expect, it } from "vitest"
 
 import type { Unit } from "@/lib/editor/units"
-import { divRoundHalfUp, unitToPxUFixed } from "@/lib/editor/units"
+import { divRoundHalfUp, unitToPxU } from "@/lib/editor/units"
 import {
   computeLockedAspectOtherDimensionFromHeightInput,
   computeLockedAspectOtherDimensionFromWidthInput,
@@ -14,27 +14,30 @@ import {
 describe("services/editor/image-sizing", () => {
   it("parseAndClampImageSize converts both inputs to µpx", () => {
     const unit: Unit = "mm"
-    const out = parseAndClampImageSize({ draftW: "100", draftH: "50", unit })
-    expect(out?.wPxU).toBe(unitToPxUFixed("100", unit))
-    expect(out?.hPxU).toBe(unitToPxUFixed("50", unit))
+    const dpi = 300
+    const out = parseAndClampImageSize({ draftW: "100", draftH: "50", unit, dpi })
+    expect(out?.wPxU).toBe(unitToPxU("100", unit, dpi))
+    expect(out?.hPxU).toBe(unitToPxU("50", unit, dpi))
   })
 
   it("locked aspect: width input derives height by ratio", () => {
     const unit: Unit = "mm"
-    const ratio = { wPxU: unitToPxUFixed("200", unit), hPxU: unitToPxUFixed("100", unit) } // 2:1
+    const dpi = 300
+    const ratio = { wPxU: unitToPxU("200", unit, dpi), hPxU: unitToPxU("100", unit, dpi) } // 2:1
 
-    const out = computeLockedAspectOtherDimensionFromWidthInput({ nextWidthInput: "50", unit, ratio })
+    const out = computeLockedAspectOtherDimensionFromWidthInput({ nextWidthInput: "50", unit, dpi, ratio })
     expect(out).not.toBeNull()
-    expect(out!.nextHeightPxU).toBe(unitToPxUFixed("25", unit))
+    expect(out!.nextHeightPxU).toBe(unitToPxU("25", unit, dpi))
   })
 
   it("locked aspect: height input derives width by ratio", () => {
     const unit: Unit = "mm"
-    const ratio = { wPxU: unitToPxUFixed("200", unit), hPxU: unitToPxUFixed("100", unit) } // 2:1
+    const dpi = 300
+    const ratio = { wPxU: unitToPxU("200", unit, dpi), hPxU: unitToPxU("100", unit, dpi) } // 2:1
 
-    const out = computeLockedAspectOtherDimensionFromHeightInput({ nextHeightInput: "10", unit, ratio })
+    const out = computeLockedAspectOtherDimensionFromHeightInput({ nextHeightInput: "10", unit, dpi, ratio })
     expect(out).not.toBeNull()
-    const expected = divRoundHalfUp(unitToPxUFixed("10", unit) * ratio.wPxU, ratio.hPxU)
+    const expected = divRoundHalfUp(unitToPxU("10", unit, dpi) * ratio.wPxU, ratio.hPxU)
     expect(out!.nextWidthPxU).toBe(expected)
   })
 })
