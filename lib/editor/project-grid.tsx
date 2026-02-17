@@ -37,6 +37,20 @@ type ProjectGridContextValue = {
 
 const ProjectGridContext = createContext<ProjectGridContextValue | null>(null)
 
+function gridRowSignature(row: ProjectGridRow | null): string {
+  if (!row) return "null"
+  return [
+    row.project_id,
+    row.unit,
+    row.spacing_x_value,
+    row.spacing_y_value,
+    row.line_width_value,
+    row.color,
+    row.opacity_pct,
+    row.visible,
+  ].join("|")
+}
+
 export function ProjectGridProvider({
   projectId,
   initialRow = null,
@@ -52,9 +66,13 @@ export function ProjectGridProvider({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
   const savingRef = useRef(false)
+  const rowRef = useRef<ProjectGridRow | null>(row)
   useEffect(() => {
     savingRef.current = saving
   }, [saving])
+  useEffect(() => {
+    rowRef.current = row
+  }, [row])
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -96,6 +114,9 @@ export function ProjectGridProvider({
   const upsertGrid = useCallback(
     async (nextRow: ProjectGridRow): Promise<ProjectGridRow | null> => {
       if (savingRef.current) return null
+      if (gridRowSignature(nextRow) === gridRowSignature(rowRef.current)) {
+        return rowRef.current
+      }
       setSaving(true)
       setError("")
       try {
@@ -141,6 +162,7 @@ export function ProjectGridProvider({
       spacing_y_value: Number(pxUToUnitDisplayFixed(yPxU, workspaceUnit)),
       line_width_value: Number(pxUToUnitDisplayFixed(lwPxU, workspaceUnit)),
     }
+    if (gridRowSignature(next) === gridRowSignature(row)) return
     void upsertGrid(next)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [row?.unit, workspaceUnit])

@@ -18,7 +18,7 @@ import { createBoundsController } from "./canvas-stage/bounds-controller"
 import { computeGridLines } from "./canvas-stage/grid-lines"
 import { pickIntrinsicSize, shouldApplyPersistedTransform } from "./canvas-stage/placement"
 import { snapWorldToDeviceHalfPixel as snapHalfPixel } from "./canvas-stage/pixel-snap"
-import { createRafScheduler, RAF_BOUNDS, RAF_DRAG_BOUNDS, RAF_PAN } from "./canvas-stage/raf-scheduler"
+import { createRafScheduler, RAF_BOUNDS, RAF_DRAG_BOUNDS, RAF_PAN, RAF_ZOOM } from "./canvas-stage/raf-scheduler"
 import { createTransformController } from "./canvas-stage/transform-controller"
 import type { BoundsRect, ViewState } from "./canvas-stage/types"
 import { useHtmlImage } from "./canvas-stage/use-html-image"
@@ -312,6 +312,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
 
   // Single RAF scheduler to batch pan/bounds work per frame.
   const panDeltaRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 })
+  const zoomRef = useRef<{ factor: number; x: number; y: number } | null>(null)
   const onImageSizeChangeRef = useRef<Props["onImageSizeChange"]>(onImageSizeChange)
   const dragPosRef = useRef<{ x: number; y: number } | null>(null)
 
@@ -473,6 +474,13 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
         const { dx, dy } = panDeltaRef.current
         panDeltaRef.current = { dx: 0, dy: 0 }
         if (dx !== 0 || dy !== 0) setView((v) => panBy(v, dx, dy))
+      },
+      onZoom: () => {
+        const zoom = zoomRef.current
+        zoomRef.current = null
+        if (!zoom) return
+        if (!Number.isFinite(zoom.factor) || zoom.factor === 1) return
+        setView((v) => zoomAround(v, { x: zoom.x, y: zoom.y }, zoom.factor, 0.05, 8))
       },
       onDragBounds: () => {
         boundsControllerRef.current?.flushDragBounds()
@@ -699,7 +707,9 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
         const pos = stage.getPointerPosition()
         if (!pos) return
         const factor = Math.pow(1.0015, -e.evt.deltaY)
-        setView((v) => zoomAround(v, { x: pos.x, y: pos.y }, factor, 0.05, 8))
+        const prev = zoomRef.current
+        zoomRef.current = prev ? { factor: prev.factor * factor, x: pos.x, y: pos.y } : { factor, x: pos.x, y: pos.y }
+        scheduleRaf(RAF_ZOOM)
         return
       }
 

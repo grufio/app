@@ -29,7 +29,7 @@ const ProjectCanvasStage = dynamic(
 type CanvasInitialImageTransform = React.ComponentProps<typeof ProjectCanvasStage>["initialImageTransform"]
 type CanvasTransformCommit = React.ComponentProps<typeof ProjectCanvasStage>["onImageTransformCommit"]
 
-export function ProjectEditorStage(props: {
+export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: {
   projectId: string
   masterImage: {
     id?: string | null
@@ -227,5 +227,5 @@ export function ProjectEditorStage(props: {
       </div>
     </div>
   )
-}
+})
 

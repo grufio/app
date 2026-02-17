@@ -78,7 +78,12 @@ export function ProjectDetailPageClient({
 
   // Load image-state independent of masterImage loading, so reloads can apply persisted size immediately.
   // Persist is still gated by `masterImage` when wiring `onImageTransformCommit` (see ProjectEditorStage props).
-  const { initialImageTransform, imageStateLoading, loadImageState, saveImageState } = useImageState(projectId, true, initialImageState)
+  const { initialImageTransform, imageStateLoading, loadImageState, saveImageState } = useImageState(
+    projectId,
+    true,
+    initialImageState,
+    false
+  )
 
   const initialImagePxU = useMemo(() => {
     if (!masterImage || !initialImageTransform) return null
@@ -105,6 +110,7 @@ export function ProjectDetailPageClient({
 
   const [selectedNavId, setSelectedNavId] = useState<string>(buildNavId({ kind: "artboard" }))
   const autoSelectMasterIdRef = useRef<string | null>(null)
+  const loadedImageStateForImageIdRef = useRef<string | null>(null)
 
   const selectedImageId = useMemo(() => {
     const selection = parseNavId(selectedNavId)
@@ -116,6 +122,15 @@ export function ProjectDetailPageClient({
     if (!selectedImageId) return null
     return projectImages.find((img) => img.id === selectedImageId) ?? null
   }, [projectImages, selectedImageId])
+
+  const leftPanelImages = useMemo(
+    () =>
+      projectImages.map((img) => ({
+        id: img.id,
+        label: img.name ?? "Image",
+      })),
+    [projectImages]
+  )
 
   const handleDeleteMasterImage = useCallback(async () => {
     const res = selectedImageId ? await deleteImageById(selectedImageId) : await deleteImage()
@@ -270,10 +285,15 @@ export function ProjectDetailPageClient({
 
   useEffect(() => {
     void refreshProjectImages()
-  }, [masterImage?.signedUrl, refreshProjectImages])
+  }, [masterImage?.id, refreshProjectImages])
 
   useEffect(() => {
-    if (!masterImage?.id) return
+    if (!masterImage?.id) {
+      loadedImageStateForImageIdRef.current = null
+      return
+    }
+    if (loadedImageStateForImageIdRef.current === masterImage.id) return
+    loadedImageStateForImageIdRef.current = masterImage.id
     void loadImageState()
   }, [masterImage?.id, loadImageState])
 
@@ -303,12 +323,7 @@ export function ProjectDetailPageClient({
               onWidthRemChange={setLeftPanelWidthRem}
               selectedId={selectedNavId}
               onSelect={setSelectedNavId}
-              images={
-                projectImages.map((img) => ({
-                  id: img.id,
-                  label: img.name ?? "Image",
-                }))
-              }
+              images={leftPanelImages}
             />
             <ProjectEditorStage
               projectId={projectId}

@@ -37,6 +37,24 @@ type WorkspaceContextValue = {
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null)
 
+function workspaceRowSignature(row: WorkspaceRow | null): string {
+  if (!row) return "null"
+  return [
+    row.project_id,
+    row.unit,
+    row.width_value,
+    row.height_value,
+    row.width_px,
+    row.height_px,
+    row.width_px_u,
+    row.height_px_u,
+    row.artboard_dpi,
+    row.page_bg_enabled,
+    row.page_bg_color,
+    row.page_bg_opacity,
+  ].join("|")
+}
+
 export function ProjectWorkspaceProvider({
   projectId,
   initialRow = null,
@@ -51,9 +69,13 @@ export function ProjectWorkspaceProvider({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
   const savingRef = useRef(false)
+  const rowRef = useRef<WorkspaceRow | null>(row)
   useEffect(() => {
     savingRef.current = saving
   }, [saving])
+  useEffect(() => {
+    rowRef.current = row
+  }, [row])
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -88,6 +110,9 @@ export function ProjectWorkspaceProvider({
   const upsertWorkspace = useCallback(
     async (nextRow: WorkspaceRow): Promise<WorkspaceRow | null> => {
       if (savingRef.current) return null
+      if (workspaceRowSignature(nextRow) === workspaceRowSignature(rowRef.current)) {
+        return rowRef.current
+      }
       setSaving(true)
       setError("")
       try {

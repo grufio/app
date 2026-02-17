@@ -8,9 +8,11 @@
 export const RAF_PAN = 1
 export const RAF_BOUNDS = 2
 export const RAF_DRAG_BOUNDS = 4
+export const RAF_ZOOM = 8
 
 export type RafSchedulerHandlers = {
   onPan: () => void
+  onZoom: () => void
   onDragBounds: () => void
   onBounds: () => void
   /**
@@ -49,6 +51,7 @@ export function createRafScheduler(handlers: RafSchedulerHandlers): RafScheduler
       flags = 0
 
       if (f & RAF_PAN) handlers.onPan()
+      if (f & RAF_ZOOM) handlers.onZoom()
       if (f & RAF_DRAG_BOUNDS) handlers.onDragBounds()
       if (f & RAF_BOUNDS) handlers.onBounds()
     })

@@ -55,7 +55,7 @@ export function createPendingSlot<T>() {
   }
 }
 
-export function useImageState(projectId: string, enabled: boolean, initial?: ImageState | null) {
+export function useImageState(projectId: string, enabled: boolean, initial?: ImageState | null, autoLoad = true) {
   const [initialImageTransform, setInitialImageTransform] = useState<ImageState | null>(() => initial ?? null)
   const [imageStateError, setImageStateError] = useState("")
   const [imageStateLoading, setImageStateLoading] = useState(false)
@@ -172,9 +172,9 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
       return
     }
     // If server already provided the state, skip initial fetch.
-    if (initial) return
+    if (initial || !autoLoad) return
     void loadImageState()
-  }, [enabled, initial, loadImageState])
+  }, [autoLoad, enabled, initial, loadImageState])
 
   useEffect(() => {
     return () => {

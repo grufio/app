@@ -6,7 +6,7 @@
  */
 import { describe, expect, it, vi } from "vitest"
 
-import { createRafScheduler, RAF_BOUNDS, RAF_DRAG_BOUNDS, RAF_PAN } from "./raf-scheduler"
+import { createRafScheduler, RAF_BOUNDS, RAF_DRAG_BOUNDS, RAF_PAN, RAF_ZOOM } from "./raf-scheduler"
 
 describe("createRafScheduler", () => {
   it("coalesces multiple schedule calls into one frame", () => {
@@ -20,17 +20,19 @@ describe("createRafScheduler", () => {
     const calls: string[] = []
     const s = createRafScheduler({
       onPan: () => calls.push("pan"),
+      onZoom: () => calls.push("zoom"),
       onDragBounds: () => calls.push("drag"),
       onBounds: () => calls.push("bounds"),
     })
 
     s.schedule(RAF_PAN)
+    s.schedule(RAF_ZOOM)
     s.schedule(RAF_BOUNDS)
     s.schedule(RAF_DRAG_BOUNDS)
     expect(rafQueue.length).toBe(1)
 
     rafQueue[0](0)
-    expect(calls).toEqual(["pan", "drag", "bounds"])
+    expect(calls).toEqual(["pan", "zoom", "drag", "bounds"])
 
     vi.unstubAllGlobals()
   })
@@ -45,7 +47,7 @@ describe("createRafScheduler", () => {
     vi.stubGlobal("requestAnimationFrame", req)
     vi.stubGlobal("cancelAnimationFrame", cancel)
 
-    const s = createRafScheduler({ onPan: () => {}, onDragBounds: () => {}, onBounds: () => {} })
+    const s = createRafScheduler({ onPan: () => {}, onZoom: () => {}, onDragBounds: () => {}, onBounds: () => {} })
     s.schedule(RAF_PAN)
     s.dispose()
     expect(cancel).toHaveBeenCalledWith(123)

@@ -17,6 +17,7 @@ export function useProjectImages(projectId: string) {
   const [error, setError] = useState("")
 
   const mountedRef = useRef(true)
+  const inflightRef = useRef<Promise<void> | null>(null)
   useEffect(() => {
     mountedRef.current = true
     return () => {
@@ -25,19 +26,28 @@ export function useProjectImages(projectId: string) {
   }, [])
 
   const refresh = useCallback(async () => {
+    if (inflightRef.current) return await inflightRef.current
     if (!mountedRef.current) return
-    setError("")
-    setLoading(true)
-    try {
-      const items = await listMasterImages(projectId)
-      if (mountedRef.current) setImages(items)
-    } catch (e) {
-      if (mountedRef.current) {
-        setImages([])
-        setError(e instanceof Error ? e.message : "Failed to load images")
+    const p = (async () => {
+      setError("")
+      setLoading(true)
+      try {
+        const items = await listMasterImages(projectId)
+        if (mountedRef.current) setImages(items)
+      } catch (e) {
+        if (mountedRef.current) {
+          setImages([])
+          setError(e instanceof Error ? e.message : "Failed to load images")
+        }
+      } finally {
+        if (mountedRef.current) setLoading(false)
       }
+    })()
+    inflightRef.current = p
+    try {
+      await p
     } finally {
-      if (mountedRef.current) setLoading(false)
+      inflightRef.current = null
     }
   }, [projectId])
 
@@ -47,7 +57,7 @@ export function useProjectImages(projectId: string) {
       setError("")
       try {
         await deleteMasterImageById(projectId, imageId)
-        void refresh()
+        await refresh()
         return { ok: true as const }
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Failed to delete image"
@@ -60,7 +70,7 @@ export function useProjectImages(projectId: string) {
 
   useEffect(() => {
     void refresh()
-  }, [refresh])
+  }, [projectId, refresh])
 
   return {
     images,
