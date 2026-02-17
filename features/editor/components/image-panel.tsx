@@ -113,6 +113,7 @@ function ImageSizeInputs({
     // Invariants: docs/specs/sizing-invariants.mdx (round once at input conversion).
     const parsed = computeImageSizeCommit({ ready, draftW: draftWRef.current, draftH: draftHRef.current, unit, dpi })
     if (!parsed) return
+    if (widthPxU && heightPxU && parsed.wPxU === widthPxU && parsed.hPxU === heightPxU) return
     onCommit(parsed.wPxU, parsed.hPxU)
   }
 
