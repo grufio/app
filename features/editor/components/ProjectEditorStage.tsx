@@ -156,26 +156,25 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
       {/* Workspace */}
       <div className="relative min-h-0 flex-1" style={bgStyle}>
         {/* Floating toolbar overlay (Figma-like) */}
-        <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center">
-          <div className="pointer-events-auto">
-            <FloatingToolbar
-              leftSlot={
-                <MasterImageUpload
-                  projectId={projectId}
-                  onUploaded={refreshMasterImage}
-                  onUploadingChange={setIsUploading}
-                  variant="toolbar"
-                />
-              }
-              tool={toolbar.tool}
-              onToolChange={toolbar.setTool}
-              onZoomIn={toolbar.actions.zoomIn}
-              onZoomOut={toolbar.actions.zoomOut}
-              onFit={toolbar.actions.fit}
-              onRotate={toolbar.actions.rotate}
-              actionsDisabled={toolbar.actionsDisabled}
-            />
-          </div>
+        <div className="absolute bottom-4 left-1/2 z-10 w-max -translate-x-1/2">
+          <FloatingToolbar
+            className="pointer-events-auto"
+            leftSlot={
+              <MasterImageUpload
+                projectId={projectId}
+                onUploaded={refreshMasterImage}
+                onUploadingChange={setIsUploading}
+                variant="toolbar"
+              />
+            }
+            tool={toolbar.tool}
+            onToolChange={toolbar.setTool}
+            onZoomIn={toolbar.actions.zoomIn}
+            onZoomOut={toolbar.actions.zoomOut}
+            onFit={toolbar.actions.fit}
+            onRotate={toolbar.actions.rotate}
+            actionsDisabled={toolbar.actionsDisabled}
+          />
         </div>
         {masterImage && imageStateLoading ? (
           // Keep layout stable without "Loading…" text (per UX requirement).

@@ -143,6 +143,14 @@ export function ProjectDetailPageClient({
     return selection.imageId
   }, [selectedNavId])
 
+  useEffect(() => {
+    // Keep left-panel image selection and toolbar "select" mode in sync:
+    // selecting an image in the tree should immediately show selection frame.
+    if (!selectedImageId) return
+    if (toolbar.tool === "select") return
+    toolbar.setTool("select")
+  }, [selectedImageId, toolbar])
+
   const selectedImage = useMemo(() => {
     if (!selectedImageId) return null
     return projectImages.find((img) => img.id === selectedImageId) ?? null
