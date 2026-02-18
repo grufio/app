@@ -1686,3 +1686,12 @@ create index if not exists project_images_master_list_active_idx
 -- END db/026_project_images_master_list_idx.sql
 -- =========================================================
 
+-- =========================================================
+-- BEGIN db/027_schema_migrations_enable_rls.sql
+-- =========================================================
+-- gruf.io - Enable RLS on schema_migrations table
+alter table if exists public.schema_migrations enable row level security;
+-- =========================================================
+-- END db/027_schema_migrations_enable_rls.sql
+-- =========================================================
+

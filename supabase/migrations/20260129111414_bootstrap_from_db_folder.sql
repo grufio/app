@@ -1225,6 +1225,12 @@ set
   height_px = greatest(1, (((height_px_u::bigint) + 500000) / 1000000)::int);
 
 -- =========================================================
+-- db/027_schema_migrations_enable_rls.sql
+-- =========================================================
+-- gruf.io - Enable RLS on schema_migrations table
+alter table if exists public.schema_migrations enable row level security;
+
+-- =========================================================
 -- db/025_set_active_master_with_state_dpi_aligned.sql
 -- =========================================================
 -- gruf.io - Align active-master seeded image-state with placement DPI semantics
