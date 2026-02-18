@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils"
 import { hasMasterImage } from "@/lib/api/project-images"
 import { uploadMasterImageClient } from "@/lib/editor/upload-master-image"
 import { formatKbRounded } from "@/lib/utils/file-size"
-import { Button } from "@/components/ui/button"
+import { ToolbarIconButton } from "./toolbar-icon-button"
 
 export function shouldRenderMasterImageUpload(args: {
   status: "checking" | "show" | "hide"
@@ -102,18 +102,14 @@ export function MasterImageUpload({
 
   if (variant === "toolbar") {
     return (
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
+      <ToolbarIconButton
+        label="Add image"
         disabled={isUploading}
-        aria-label="Add image"
-        title="Add image"
         {...getRootProps()}
       >
         <input {...getInputProps()} />
         <ImagePlus className="size-6" strokeWidth={1} />
-      </Button>
+      </ToolbarIconButton>
     )
   }
 

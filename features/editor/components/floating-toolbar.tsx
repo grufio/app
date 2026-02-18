@@ -9,10 +9,10 @@
  */
 import { Hand, Maximize2, MousePointer2, RotateCw, ZoomIn, ZoomOut } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import type { EditorTool } from "@/lib/editor/floating-toolbar-controls"
+import { ToolbarIconButton } from "./toolbar-icon-button"
 
 export type FloatingToolbarTool = EditorTool
 
@@ -47,18 +47,14 @@ function IconButton({
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button
-          type="button"
-          variant={active ? "secondary" : "ghost"}
-          size="icon"
-          onClick={onClick}
-          aria-label={label}
-          aria-pressed={Boolean(active)}
-          title={label}
+        <ToolbarIconButton
+          label={label}
+          active={active}
           disabled={disabled}
+          onClick={onClick}
         >
           {children}
-        </Button>
+        </ToolbarIconButton>
       </TooltipTrigger>
       <TooltipContent side="bottom" align="center">
         {label}
