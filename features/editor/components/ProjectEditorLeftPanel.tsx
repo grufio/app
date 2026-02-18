@@ -26,7 +26,8 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
   onSelect: (id: string) => void
   images: { id: string; label: string }[]
 }) {
-  const { projectId, initialTitle, onTitleUpdated, widthRem, minRem, maxRem, onWidthRemChange, selectedId, onSelect, images } = props
+  const { projectId, initialTitle, onTitleUpdated, widthRem, minRem, maxRem, onWidthRemChange, selectedId, onSelect, images } =
+    props
 
   const clamp = (v: number) => Math.max(minRem, Math.min(maxRem, v))
 
@@ -68,7 +69,7 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
           <EditorSidebarSection title="Title">
             <ProjectTitleEditor projectId={projectId} initialTitle={initialTitle} onTitleUpdated={onTitleUpdated} />
           </EditorSidebarSection>
-          <EditorSidebarSection title="Layers">
+          <EditorSidebarSection title="Projekt">
             <EditorNavTree selectedId={selectedId} onSelect={onSelect} images={images} />
           </EditorSidebarSection>
         </SidebarContent>
