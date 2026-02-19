@@ -49,5 +49,4 @@ next-env.d.ts
 supabase/.temp/
 
 # cursor
-.cursor/*.mdx
-!.cursor/rules.mdx
+.cursor/
