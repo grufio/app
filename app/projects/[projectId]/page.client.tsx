@@ -99,6 +99,7 @@ export function ProjectDetailPageClient({
 
   const [restoreOpen, setRestoreOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [gridVisible, setGridVisible] = useState(true)
   const canvasRef = useRef<ProjectCanvasStageHandle | null>(null)
   const [imagePxU, setImagePxU] = useState<{ w: bigint; h: bigint } | null>(null)
 
@@ -353,8 +354,9 @@ export function ProjectDetailPageClient({
   })
 
   const grid = useMemo(() => {
+    if (!gridVisible) return null
     return computeRenderableGrid({ row: gridRow, spacingXPx, spacingYPx, lineWidthPx })
-  }, [gridRow, lineWidthPx, spacingXPx, spacingYPx])
+  }, [gridRow, gridVisible, lineWidthPx, spacingXPx, spacingYPx])
 
   const handleTitleUpdated = useCallback(
     (nextTitle: string) => setProject({ id: projectId, name: nextTitle }),
@@ -435,6 +437,8 @@ export function ProjectDetailPageClient({
             workspaceReady={workspaceReady}
             imageStateLoading={imageStateLoading}
             imagePanelReady={imagePanelReady}
+            gridVisible={gridVisible}
+            onGridVisibleChange={setGridVisible}
             canvasRef={canvasRef}
           />
         </EditorErrorBoundary>

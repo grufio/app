@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest"
+import fs from "node:fs"
+import path from "node:path"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { activateMasterWithState, getActiveMasterImage, getActiveMasterImageId, PROJECT_IMAGES_BUCKET } from "@/lib/supabase/project-images"
@@ -194,6 +196,17 @@ describe("getActiveMasterImage", () => {
       reason: "rpc failed",
       code: "P0001",
     })
+  })
+})
+
+describe("db contract: pixel-only seeding", () => {
+  it("set_active_master_with_state SQL does not use DPI scaling", () => {
+    const sqlPath = path.join(process.cwd(), "db/025_set_active_master_with_state_dpi_aligned.sql")
+    const sql = fs.readFileSync(sqlPath, "utf8")
+
+    expect(sql).not.toMatch(/\bartboard_dpi\b/)
+    expect(sql).not.toMatch(/\bimage_dpi\b/)
+    expect(sql).not.toMatch(/\bpi\.dpi\b/)
   })
 })
 

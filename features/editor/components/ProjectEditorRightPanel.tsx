@@ -71,6 +71,8 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
   workspaceReady: boolean
   imageStateLoading: boolean
   imagePanelReady: boolean
+  gridVisible: boolean
+  onGridVisibleChange: (v: boolean) => void
   canvasRef: React.RefObject<ProjectCanvasStageHandle | null>
 }) {
   const {
@@ -101,6 +103,8 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
     workspaceReady,
     imageStateLoading,
     imagePanelReady,
+    gridVisible,
+    onGridVisibleChange,
     canvasRef,
   } = props
 
@@ -189,7 +193,9 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
                 </EditorSidebarSection>
               </>
             ) : null}
-            {activeSection === "grid" ? <GridPanel /> : null}
+            {activeSection === "grid" ? (
+              <GridPanel gridVisible={gridVisible} onGridVisibleChange={onGridVisibleChange} />
+            ) : null}
             {activeSection === "image" ? (
               <EditorSidebarSection
                 title="Image"

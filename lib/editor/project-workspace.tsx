@@ -48,7 +48,8 @@ function workspaceRowSignature(row: WorkspaceRow | null): string {
     row.height_px,
     row.width_px_u,
     row.height_px_u,
-    row.artboard_dpi,
+    (row as unknown as { output_dpi?: unknown; artboard_dpi?: unknown }).output_dpi ??
+      (row as unknown as { artboard_dpi?: unknown }).artboard_dpi,
     row.page_bg_enabled,
     row.page_bg_color,
     row.page_bg_opacity,
@@ -140,7 +141,9 @@ export function ProjectWorkspaceProvider({
   const value = useMemo<WorkspaceContextValue>(() => {
     // `row` is normalized when stored; avoid re-normalizing on every render.
     const unit = row ? (row as unknown as { unit?: Unit }).unit ?? null : null
-    const dpi = row && Number.isFinite(Number(row.artboard_dpi)) ? Number(row.artboard_dpi) : null
+    const dpiRaw =
+      row != null ? ((row as unknown as { output_dpi?: unknown; artboard_dpi?: unknown }).output_dpi ?? row.artboard_dpi) : null
+    const dpi = dpiRaw != null && Number.isFinite(Number(dpiRaw)) ? Number(dpiRaw) : null
     const widthPxU =
       row && typeof (row as unknown as { width_px_u?: unknown })?.width_px_u === "string"
         ? (() => {

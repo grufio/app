@@ -56,17 +56,6 @@ export async function POST(
     return jsonError("Missing/invalid width_px/height_px", 400, { stage: "validation", where: "validate" })
   }
 
-  const { data: workspaceRow, error: workspaceErr } = await supabase
-    .from("project_workspace")
-    .select("artboard_dpi")
-    .eq("project_id", projectId)
-    .single()
-
-  const artboardDpi = Number((workspaceRow as { artboard_dpi?: unknown } | null)?.artboard_dpi)
-  if (workspaceErr || !Number.isFinite(artboardDpi) || artboardDpi <= 0) {
-    return jsonError("Invalid workspace artboard_dpi", 500, { stage: "validation", where: "workspace_artboard_dpi" })
-  }
-
   const result = await uploadMasterImage({
     supabase,
     projectId,
@@ -74,7 +63,6 @@ export async function POST(
     widthPx: width_px,
     heightPx: height_px,
     format,
-    dpi: artboardDpi,
   })
   if (!result.ok) {
     return jsonError(result.reason, result.status, {

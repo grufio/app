@@ -50,9 +50,6 @@ export async function GET(
   }
   const dpiRaw = Number(img.dpi)
   const dpi = Number.isFinite(dpiRaw) && dpiRaw > 0 ? Math.round(dpiRaw) : null
-  if (!dpi) {
-    return jsonError("Invalid master image metadata: dpi", 500, { stage: "image_query", where: "dpi" })
-  }
 
   const now = Date.now()
   // Signed URLs are bearer tokens; the cache must be user-scoped.

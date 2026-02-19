@@ -1,9 +1,8 @@
--- gruf.io - Align active-master seeded image-state with placement DPI semantics
+-- gruf.io - Seed active-master image-state (pixel-only)
 --
 -- Purpose:
--- - Keep server-seeded persisted size aligned with client placement formula:
---   size_px = (pixels / image_dpi) * artboard_dpi
--- - Prevent first-load/reload size jumps when image DPI differs from artboard DPI.
+-- - Seed persisted size directly from image pixel dimensions (µpx = px * 1_000_000)
+-- - Keep editor geometry pixel-only; DPI is output-only (PDF/export)
 
 create or replace function public.set_active_master_with_state(
   p_project_id uuid,
@@ -19,10 +18,8 @@ declare
   v_h_u bigint;
   v_artboard_w_u bigint;
   v_artboard_h_u bigint;
-  v_artboard_dpi numeric;
-  v_image_dpi numeric;
 begin
-  -- Default to raw pixel size (current behavior) and override when both DPI values are valid.
+  -- Pixel-only size (µpx).
   v_w_u := greatest(1, p_width_px)::bigint * 1000000;
   v_h_u := greatest(1, p_height_px)::bigint * 1000000;
 
@@ -47,27 +44,13 @@ begin
     case
       when pw.height_px_u is not null then pw.height_px_u::bigint
       else greatest(1, pw.height_px)::bigint * 1000000
-    end,
-    pw.artboard_dpi,
-    pi.dpi
-  into v_artboard_w_u, v_artboard_h_u, v_artboard_dpi, v_image_dpi
+    end
+  into v_artboard_w_u, v_artboard_h_u
   from public.project_workspace pw
-  left join public.project_images pi on pi.id = p_image_id
   where pw.project_id = p_project_id;
 
   if v_artboard_w_u is null then v_artboard_w_u := v_w_u; end if;
   if v_artboard_h_u is null then v_artboard_h_u := v_h_u; end if;
-
-  if v_artboard_dpi is not null and v_artboard_dpi > 0 and v_image_dpi is not null and v_image_dpi > 0 then
-    v_w_u := greatest(
-      1000000::bigint,
-      round(((greatest(1, p_width_px)::numeric / v_image_dpi) * v_artboard_dpi) * 1000000)::bigint
-    );
-    v_h_u := greatest(
-      1000000::bigint,
-      round(((greatest(1, p_height_px)::numeric / v_image_dpi) * v_artboard_dpi) * 1000000)::bigint
-    );
-  end if;
 
   insert into public.project_image_state (
     project_id,

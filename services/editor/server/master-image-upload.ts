@@ -54,13 +54,6 @@ function normalizePositiveInt(n: number): number | null {
   return v
 }
 
-function normalizeRequiredDpi(n: number | null | undefined): number | null {
-  if (n == null) return null
-  if (!Number.isFinite(n)) return null
-  const v = Math.round(n)
-  return v > 0 ? v : null
-}
-
 export async function uploadMasterImage(args: {
   supabase: SupabaseClient<Database>
   projectId: string
@@ -68,7 +61,6 @@ export async function uploadMasterImage(args: {
   widthPx: number
   heightPx: number
   format: string
-  dpi?: number | null
 }): Promise<UploadMasterImageResult> {
   const { supabase, projectId, file, format } = args
 
@@ -80,15 +72,6 @@ export async function uploadMasterImage(args: {
       status: 400,
       stage: "validation",
       reason: "Missing/invalid width_px/height_px",
-    }
-  }
-  const dpi = normalizeRequiredDpi(args.dpi)
-  if (!dpi) {
-    return {
-      ok: false,
-      status: 400,
-      stage: "validation",
-      reason: "Missing/invalid dpi",
     }
   }
 
@@ -167,7 +150,6 @@ export async function uploadMasterImage(args: {
     format,
     width_px: widthPx,
     height_px: heightPx,
-    dpi,
     storage_bucket: "project_images",
     storage_path: objectPath,
     file_size_bytes: file.size,

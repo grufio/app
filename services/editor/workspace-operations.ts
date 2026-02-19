@@ -9,7 +9,7 @@
  * - This module is pure (no React/DOM, no Supabase).
  * - It intentionally mirrors existing UI behavior; changes should be covered by tests.
  */
-import { clampPx, pxUToPxNumber, type Unit, unitToPxU } from "@/lib/editor/units"
+import { clampPx, pxToUnit, type Unit } from "@/lib/editor/units"
 import { normalizeUnit } from "./normalize-unit"
 import type { WorkspaceRow } from "./workspace/types"
 
@@ -46,36 +46,33 @@ export function computeLockedDimension(opts: {
 export function computeWorkspaceSizeSave(opts: {
   draftW: string
   draftH: string
-  unit: Unit
   base: WorkspaceRow
 }): { next: WorkspaceRow; signature: string } | { error: string } {
-  const { base, unit } = opts
+  const { base } = opts
 
   const wStr = String(opts.draftW).trim()
   const hStr = String(opts.draftH).trim()
   if (!wStr || !hStr) return { error: "Missing size" }
 
-  let nextWPxU: bigint
-  let nextHPxU: bigint
-  try {
-    nextWPxU = unitToPxU(wStr, unit, base.artboard_dpi)
-    nextHPxU = unitToPxU(hStr, unit, base.artboard_dpi)
-  } catch {
-    return { error: "Invalid size" }
-  }
+  const wNum = Number(wStr)
+  const hNum = Number(hStr)
+  if (!Number.isFinite(wNum) || !Number.isFinite(hNum)) return { error: "Invalid size" }
+
+  const width_px = clampPx(wNum)
+  const height_px = clampPx(hNum)
+  const nextWPxU = BigInt(width_px) * 1_000_000n
+  const nextHPxU = BigInt(height_px) * 1_000_000n
 
   const width_px_u = nextWPxU.toString()
   const height_px_u = nextHPxU.toString()
-  const width_px = clampPx(pxUToPxNumber(nextWPxU))
-  const height_px = clampPx(pxUToPxNumber(nextHPxU))
 
-  const signature = `${base.project_id}:${unit}:${nextWPxU}:${nextHPxU}`
+  const signature = `${base.project_id}:px:${width_px}:${height_px}`
 
   const next: WorkspaceRow = {
     ...base,
-    unit,
-    width_value: Number(wStr),
-    height_value: Number(hStr),
+    // Output/display meta derived from canonical pixel geometry.
+    width_value: pxToUnit(width_px, base.unit, base.output_dpi),
+    height_value: pxToUnit(height_px, base.unit, base.output_dpi),
     width_px_u,
     height_px_u,
     width_px,
@@ -91,8 +88,36 @@ export function computeWorkspaceUnitChange(opts: {
 }): { next: WorkspaceRow; signature: string } {
   const { base, nextUnit } = opts
   return {
-    next: { ...base, unit: nextUnit },
+    next: {
+      ...base,
+      unit: nextUnit,
+      // Output/display meta derived from canonical pixel geometry.
+      width_value: pxToUnit(base.width_px, nextUnit, base.output_dpi),
+      height_value: pxToUnit(base.height_px, nextUnit, base.output_dpi),
+    },
     signature: `${base.project_id}:unit:${nextUnit}`,
+  }
+}
+
+export function computeWorkspaceDpiChange(opts: {
+  nextDpi: number
+  nextPreset: WorkspaceRow["raster_effects_preset"]
+  base: WorkspaceRow
+}): { next: WorkspaceRow; signature: string } {
+  const { base, nextDpi, nextPreset } = opts
+  return {
+    // Intentional DPI-only update: geometry fields are preserved.
+    next: {
+      ...base,
+      output_dpi: nextDpi,
+      // Deprecated bridge: keep DB `artboard_dpi` in sync until removed.
+      artboard_dpi: nextDpi,
+      // Output/display meta derived from canonical pixel geometry.
+      width_value: pxToUnit(base.width_px, base.unit, nextDpi),
+      height_value: pxToUnit(base.height_px, base.unit, nextDpi),
+      raster_effects_preset: nextPreset ?? null,
+    },
+    signature: `${base.project_id}:dpi:${nextDpi}:${nextPreset ?? "custom"}`,
   }
 }
 

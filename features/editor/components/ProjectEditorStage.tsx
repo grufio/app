@@ -82,7 +82,6 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
     canvasRef,
     artboardWidthPx,
     artboardHeightPx,
-    artboardDpi,
     grid,
     handleImagePxChange,
     initialImageTransform,
@@ -135,14 +134,12 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
             imageDraggable={Boolean(masterImage) && toolbar.imageDraggable}
             artboardWidthPx={artboardWidthPx ?? undefined}
             artboardHeightPx={artboardHeightPx ?? undefined}
-            artboardDpi={artboardDpi ?? undefined}
             intrinsicWidthPx={
               typeof masterImage?.width_px === "number" && Number.isFinite(masterImage.width_px) ? masterImage.width_px : undefined
             }
             intrinsicHeightPx={
               typeof masterImage?.height_px === "number" && Number.isFinite(masterImage.height_px) ? masterImage.height_px : undefined
             }
-            intrinsicDpi={typeof masterImage?.dpi === "number" && Number.isFinite(masterImage.dpi) ? masterImage.dpi : undefined}
             grid={grid ?? null}
             onImageSizeChange={handleImagePxChange}
             initialImageTransform={masterImage ? initialImageTransform : null}

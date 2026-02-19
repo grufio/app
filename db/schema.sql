@@ -334,43 +334,103 @@ alter table public.project_workspace
   add column if not exists width_px_u text,
   add column if not exists height_px_u text;
 
-update public.project_workspace
-set
-  width_px_u = coalesce(width_px_u, public.workspace_value_to_px_u(width_value, unit, dpi_x)::text),
-  height_px_u = coalesce(height_px_u, public.workspace_value_to_px_u(height_value, unit, dpi_y)::text)
-where width_px_u is null or height_px_u is null;
+do $$
+begin
+  -- Idempotency guard:
+  -- `dpi_x/dpi_y` are dropped later by db/023. If this schema is re-run against an already-migrated DB,
+  -- referencing them would error. In that case, keep existing canonical µpx values as-is.
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'project_workspace'
+      and column_name = 'dpi_x'
+  ) then
+    update public.project_workspace
+    set
+      width_px_u = coalesce(width_px_u, public.workspace_value_to_px_u(width_value, unit, dpi_x)::text),
+      height_px_u = coalesce(height_px_u, public.workspace_value_to_px_u(height_value, unit, dpi_y)::text)
+    where width_px_u is null or height_px_u is null;
+  end if;
+end $$;
 
 alter table public.project_workspace
   drop constraint if exists workspace_px_consistency;
 
-create or replace function public.project_workspace_sync_px_cache()
-returns trigger
-language plpgsql
-as $$
-declare
-  w_u bigint;
-  h_u bigint;
-  w_px int;
-  h_px int;
+do $workspace_sync_px_cache$
 begin
-  if new.width_px_u is null then
-    new.width_px_u := public.workspace_value_to_px_u(new.width_value, new.unit, new.dpi_x)::text;
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'project_workspace'
+      and column_name = 'dpi_x'
+  ) then
+    execute $fn$
+      create or replace function public.project_workspace_sync_px_cache()
+      returns trigger
+      language plpgsql
+      as $$
+      declare
+        w_u bigint;
+        h_u bigint;
+        w_px int;
+        h_px int;
+      begin
+        if new.width_px_u is null then
+          new.width_px_u := public.workspace_value_to_px_u(new.width_value, new.unit, new.dpi_x)::text;
+        end if;
+        if new.height_px_u is null then
+          new.height_px_u := public.workspace_value_to_px_u(new.height_value, new.unit, new.dpi_y)::text;
+        end if;
+
+        w_u := new.width_px_u::bigint;
+        h_u := new.height_px_u::bigint;
+
+        w_px := greatest(1, ((w_u + 500000) / 1000000)::int);
+        h_px := greatest(1, ((h_u + 500000) / 1000000)::int);
+
+        new.width_px := w_px;
+        new.height_px := h_px;
+        return new;
+      end
+      $$;
+    $fn$;
+  else
+    -- Already-migrated DB: keep canonical µpx stable; derive cached px from it.
+    execute $fn$
+      create or replace function public.project_workspace_sync_px_cache()
+      returns trigger
+      language plpgsql
+      as $$
+      declare
+        w_u bigint;
+        h_u bigint;
+        w_px int;
+        h_px int;
+      begin
+        if tg_op = 'UPDATE' then
+          if new.width_px_u is null then new.width_px_u := old.width_px_u; end if;
+          if new.height_px_u is null then new.height_px_u := old.height_px_u; end if;
+        else
+          if new.width_px_u is null then new.width_px_u := (greatest(1, new.width_px)::bigint * 1000000)::text; end if;
+          if new.height_px_u is null then new.height_px_u := (greatest(1, new.height_px)::bigint * 1000000)::text; end if;
+        end if;
+
+        w_u := new.width_px_u::bigint;
+        h_u := new.height_px_u::bigint;
+
+        w_px := greatest(1, ((w_u + 500000) / 1000000)::int);
+        h_px := greatest(1, ((h_u + 500000) / 1000000)::int);
+
+        new.width_px := w_px;
+        new.height_px := h_px;
+        return new;
+      end
+      $$;
+    $fn$;
   end if;
-  if new.height_px_u is null then
-    new.height_px_u := public.workspace_value_to_px_u(new.height_value, new.unit, new.dpi_y)::text;
-  end if;
-
-  w_u := new.width_px_u::bigint;
-  h_u := new.height_px_u::bigint;
-
-  w_px := greatest(1, ((w_u + 500000) / 1000000)::int);
-  h_px := greatest(1, ((h_u + 500000) / 1000000)::int);
-
-  new.width_px := w_px;
-  new.height_px := h_px;
-  return new;
-end
-$$;
+end $workspace_sync_px_cache$;
 
 drop trigger if exists trg_project_workspace_sync_px_cache on public.project_workspace;
 create trigger trg_project_workspace_sync_px_cache
@@ -449,11 +509,63 @@ alter table public.project_workspace
   add column if not exists output_dpi_y numeric;
 
 -- Backfill existing rows (use current dpi as output reference).
-update public.project_workspace
-set
-  output_dpi_x = coalesce(output_dpi_x, dpi_x, 300),
-  output_dpi_y = coalesce(output_dpi_y, dpi_y, 300)
-where output_dpi_x is null or output_dpi_y is null;
+do $backfill_output_dpi_xy$
+begin
+  -- This schema may be re-run against a DB where legacy columns were already dropped.
+  -- Avoid hard references to columns that might not exist.
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'project_workspace'
+      and column_name = 'dpi_x'
+  ) then
+    execute '
+      update public.project_workspace
+      set
+        output_dpi_x = coalesce(output_dpi_x, dpi_x, 300),
+        output_dpi_y = coalesce(output_dpi_y, dpi_y, 300)
+      where output_dpi_x is null or output_dpi_y is null
+    ';
+  elsif exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'project_workspace'
+      and column_name = 'output_dpi'
+  ) then
+    execute '
+      update public.project_workspace
+      set
+        output_dpi_x = coalesce(output_dpi_x, output_dpi, 300),
+        output_dpi_y = coalesce(output_dpi_y, output_dpi, 300)
+      where output_dpi_x is null or output_dpi_y is null
+    ';
+  elsif exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'project_workspace'
+      and column_name = 'artboard_dpi'
+  ) then
+    execute '
+      update public.project_workspace
+      set
+        output_dpi_x = coalesce(output_dpi_x, artboard_dpi, 300),
+        output_dpi_y = coalesce(output_dpi_y, artboard_dpi, 300)
+      where output_dpi_x is null or output_dpi_y is null
+    ';
+  else
+    execute '
+      update public.project_workspace
+      set
+        output_dpi_x = coalesce(output_dpi_x, 300),
+        output_dpi_y = coalesce(output_dpi_y, 300)
+      where output_dpi_x is null or output_dpi_y is null
+    ';
+  end if;
+end
+$backfill_output_dpi_xy$;
 
 -- Defaults + constraints.
 alter table public.project_workspace
@@ -1477,15 +1589,61 @@ alter table public.project_images
 alter table public.project_workspace
   add column if not exists artboard_dpi numeric;
 
-update public.project_workspace
-set artboard_dpi = coalesce(artboard_dpi, output_dpi_x, dpi_x, output_dpi_y, dpi_y, 300)
-where artboard_dpi is null;
+do $backfill_artboard_dpi$
+begin
+  -- Avoid hard references to legacy columns (`dpi_x/dpi_y/output_dpi_x/output_dpi_y`) which may already be dropped.
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'project_workspace'
+      and column_name = 'output_dpi'
+  ) then
+    execute '
+      update public.project_workspace
+      set artboard_dpi = coalesce(artboard_dpi, output_dpi, 300)
+      where artboard_dpi is null
+    ';
+  elsif exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'project_workspace'
+      and column_name = 'output_dpi_x'
+  ) then
+    execute '
+      update public.project_workspace
+      set artboard_dpi = coalesce(artboard_dpi, output_dpi_x, output_dpi_y, 300)
+      where artboard_dpi is null
+    ';
+  elsif exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'project_workspace'
+      and column_name = 'dpi_x'
+  ) then
+    execute '
+      update public.project_workspace
+      set artboard_dpi = coalesce(artboard_dpi, dpi_x, dpi_y, 300)
+      where artboard_dpi is null
+    ';
+  else
+    execute '
+      update public.project_workspace
+      set artboard_dpi = coalesce(artboard_dpi, 300)
+      where artboard_dpi is null
+    ';
+  end if;
+end
+$backfill_artboard_dpi$;
 
 -- Ensure canonical/cached pixel fields are consistent with the new single DPI source.
 update public.project_workspace
 set
   width_px_u = public.workspace_value_to_px_u(width_value, unit, artboard_dpi)::text,
-  height_px_u = public.workspace_value_to_px_u(height_value, unit, artboard_dpi)::text;
+  height_px_u = public.workspace_value_to_px_u(height_value, unit, artboard_dpi)::text
+where width_px_u is null or height_px_u is null;
 
 update public.project_workspace
 set
@@ -1565,12 +1723,11 @@ set
 -- =========================================================
 -- BEGIN db/025_set_active_master_with_state_dpi_aligned.sql
 -- =========================================================
--- gruf.io - Align active-master seeded image-state with placement DPI semantics
+-- gruf.io - Seed active-master image-state (pixel-only)
 --
 -- Purpose:
--- - Keep server-seeded persisted size aligned with client placement formula:
---   size_px = (pixels / image_dpi) * artboard_dpi
--- - Prevent first-load/reload size jumps when image DPI differs from artboard DPI.
+-- - Seed persisted size directly from image pixel dimensions (µpx = px * 1_000_000)
+-- - Keep editor geometry pixel-only; DPI is output-only (PDF/export)
 
 create or replace function public.set_active_master_with_state(
   p_project_id uuid,
@@ -1586,10 +1743,8 @@ declare
   v_h_u bigint;
   v_artboard_w_u bigint;
   v_artboard_h_u bigint;
-  v_artboard_dpi numeric;
-  v_image_dpi numeric;
 begin
-  -- Default to raw pixel size (current behavior) and override when both DPI values are valid.
+  -- Pixel-only size (µpx).
   v_w_u := greatest(1, p_width_px)::bigint * 1000000;
   v_h_u := greatest(1, p_height_px)::bigint * 1000000;
 
@@ -1614,27 +1769,13 @@ begin
     case
       when pw.height_px_u is not null then pw.height_px_u::bigint
       else greatest(1, pw.height_px)::bigint * 1000000
-    end,
-    pw.artboard_dpi,
-    pi.dpi
-  into v_artboard_w_u, v_artboard_h_u, v_artboard_dpi, v_image_dpi
+    end
+  into v_artboard_w_u, v_artboard_h_u
   from public.project_workspace pw
-  left join public.project_images pi on pi.id = p_image_id
   where pw.project_id = p_project_id;
 
   if v_artboard_w_u is null then v_artboard_w_u := v_w_u; end if;
   if v_artboard_h_u is null then v_artboard_h_u := v_h_u; end if;
-
-  if v_artboard_dpi is not null and v_artboard_dpi > 0 and v_image_dpi is not null and v_image_dpi > 0 then
-    v_w_u := greatest(
-      1000000::bigint,
-      round(((greatest(1, p_width_px)::numeric / v_image_dpi) * v_artboard_dpi) * 1000000)::bigint
-    );
-    v_h_u := greatest(
-      1000000::bigint,
-      round(((greatest(1, p_height_px)::numeric / v_image_dpi) * v_artboard_dpi) * 1000000)::bigint
-    );
-  end if;
 
   insert into public.project_image_state (
     project_id,
@@ -1693,5 +1834,167 @@ create index if not exists project_images_master_list_active_idx
 alter table if exists public.schema_migrations enable row level security;
 -- =========================================================
 -- END db/027_schema_migrations_enable_rls.sql
+-- =========================================================
+
+-- =========================================================
+-- BEGIN db/028_project_workspace_decouple_dpi_geometry.sql
+-- =========================================================
+-- gruf.io - Decouple artboard geometry from DPI-only updates
+--
+-- Goal:
+-- - keep canonical geometry (`width_px_u`/`height_px_u`) stable on DPI-only updates
+-- - recompute canonical geometry only when width/height values are explicitly edited
+-- - keep integer px cache (`width_px`/`height_px`) derived from canonical geometry
+
+create or replace function public.project_workspace_sync_px_cache()
+returns trigger
+language plpgsql
+as $$
+declare
+  w_u bigint;
+  h_u bigint;
+  w_px int;
+  h_px int;
+begin
+  if tg_op = 'UPDATE' then
+    if new.width_value is distinct from old.width_value
+       or new.height_value is distinct from old.height_value then
+      -- Explicit geometry edit: recompute canonical geometry from value+unit+dpi.
+      new.width_px_u := public.workspace_value_to_px_u(new.width_value, new.unit, new.artboard_dpi)::text;
+      new.height_px_u := public.workspace_value_to_px_u(new.height_value, new.unit, new.artboard_dpi)::text;
+    else
+      -- DPI-only / unit-only / preset-only update: keep canonical geometry unchanged.
+      new.width_px_u := old.width_px_u;
+      new.height_px_u := old.height_px_u;
+    end if;
+  else
+    -- INSERT path keeps existing deterministic bootstrap behavior.
+    new.width_px_u := public.workspace_value_to_px_u(new.width_value, new.unit, new.artboard_dpi)::text;
+    new.height_px_u := public.workspace_value_to_px_u(new.height_value, new.unit, new.artboard_dpi)::text;
+  end if;
+
+  w_u := new.width_px_u::bigint;
+  h_u := new.height_px_u::bigint;
+
+  w_px := greatest(1, ((w_u + 500000) / 1000000)::int);
+  h_px := greatest(1, ((h_u + 500000) / 1000000)::int);
+
+  new.width_px := w_px;
+  new.height_px := h_px;
+  return new;
+end
+$$;
+
+drop trigger if exists trg_project_workspace_sync_px_cache on public.project_workspace;
+create trigger trg_project_workspace_sync_px_cache
+before insert or update on public.project_workspace
+for each row execute function public.project_workspace_sync_px_cache();
+-- =========================================================
+-- END db/028_project_workspace_decouple_dpi_geometry.sql
+-- =========================================================
+
+-- =========================================================
+-- BEGIN db/029_project_images_dpi_optional.sql
+-- =========================================================
+-- gruf.io - Make project_images.dpi optional (output-only)
+--
+-- Goal:
+-- - DPI must not be required for editor geometry (pixel-only editor)
+-- - Allow uploads/seeding without a DPI value
+
+alter table public.project_images
+  drop constraint if exists project_images_dpi_gt_zero;
+
+alter table public.project_images
+  alter column dpi drop not null;
+
+-- =========================================================
+-- END db/029_project_images_dpi_optional.sql
+-- =========================================================
+
+-- =========================================================
+-- BEGIN db/030_project_workspace_output_dpi.sql
+-- =========================================================
+-- gruf.io - Output-only DPI (separate from editor geometry)
+--
+-- Goal:
+-- - Introduce `output_dpi` as the single output/export DPI (PDF/print)
+-- - Keep editor geometry pixel-only (no DPI involvement)
+-- - Bridge from legacy `artboard_dpi` during transition
+
+alter table public.project_workspace
+  add column if not exists output_dpi numeric;
+
+update public.project_workspace
+set output_dpi = coalesce(output_dpi, artboard_dpi, 300)
+where output_dpi is null;
+
+alter table public.project_workspace
+  alter column output_dpi set default 300;
+
+alter table public.project_workspace
+  alter column output_dpi set not null;
+
+alter table public.project_workspace
+  drop constraint if exists project_workspace_output_dpi_positive;
+
+alter table public.project_workspace
+  add constraint project_workspace_output_dpi_positive check (output_dpi > 0);
+
+-- =========================================================
+-- END db/030_project_workspace_output_dpi.sql
+-- =========================================================
+
+-- =========================================================
+-- BEGIN db/031_project_workspace_px_u_canonical.sql
+-- =========================================================
+-- gruf.io - Canonical workspace geometry is width_px_u/height_px_u (pixel-only)
+--
+-- Goal:
+-- - On UPDATE: never recompute `width_px_u/height_px_u` from width_value/unit/DPI
+-- - Always derive cached integer px (`width_px/height_px`) from canonical µpx
+-- - Keep INSERT backward-compatible: if µpx is missing, fall back to legacy value+unit+DPI bootstrap
+
+create or replace function public.project_workspace_sync_px_cache()
+returns trigger
+language plpgsql
+as $$
+declare
+  w_u bigint;
+  h_u bigint;
+  w_px int;
+  h_px int;
+begin
+  if tg_op = 'UPDATE' then
+    if new.width_px_u is null then new.width_px_u := old.width_px_u; end if;
+    if new.height_px_u is null then new.height_px_u := old.height_px_u; end if;
+  else
+    if new.width_px_u is null then
+      new.width_px_u := public.workspace_value_to_px_u(new.width_value, new.unit, new.artboard_dpi)::text;
+    end if;
+    if new.height_px_u is null then
+      new.height_px_u := public.workspace_value_to_px_u(new.height_value, new.unit, new.artboard_dpi)::text;
+    end if;
+  end if;
+
+  w_u := new.width_px_u::bigint;
+  h_u := new.height_px_u::bigint;
+
+  w_px := greatest(1, ((w_u + 500000) / 1000000)::int);
+  h_px := greatest(1, ((h_u + 500000) / 1000000)::int);
+
+  new.width_px := w_px;
+  new.height_px := h_px;
+  return new;
+end
+$$;
+
+drop trigger if exists trg_project_workspace_sync_px_cache on public.project_workspace;
+create trigger trg_project_workspace_sync_px_cache
+before insert or update on public.project_workspace
+for each row execute function public.project_workspace_sync_px_cache();
+
+-- =========================================================
+-- END db/031_project_workspace_px_u_canonical.sql
 -- =========================================================
 

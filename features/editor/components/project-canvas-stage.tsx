@@ -37,14 +37,12 @@ type Props = {
   renderArtboard?: boolean
   artboardWidthPx?: number
   artboardHeightPx?: number
-  artboardDpi?: number
   /**
    * Intrinsic (source) image pixel dimensions from persisted metadata (DB).
    * This must be the canonical source of truth for initial sizing (not DOM layout).
    */
   intrinsicWidthPx?: number
   intrinsicHeightPx?: number
-  intrinsicDpi?: number
   grid?: {
     spacingXPx: number
     spacingYPx: number
@@ -67,23 +65,6 @@ type Props = {
     heightPxU: bigint
     rotationDeg: number
   }) => void
-}
-
-export function computeIllustratorPlacementSize(args: {
-  widthPx: number
-  heightPx: number
-  actualDpi: number
-  documentDpi: number
-}): { width: number; height: number } | null {
-  const { widthPx, heightPx, actualDpi, documentDpi } = args
-  if (!Number.isFinite(widthPx) || widthPx <= 0) return null
-  if (!Number.isFinite(heightPx) || heightPx <= 0) return null
-  if (!Number.isFinite(actualDpi) || actualDpi <= 0) return null
-  if (!Number.isFinite(documentDpi) || documentDpi <= 0) return null
-  return {
-    width: (widthPx / actualDpi) * documentDpi,
-    height: (heightPx / actualDpi) * documentDpi,
-  }
 }
 
 export type ProjectCanvasStageHandle = {
@@ -252,10 +233,8 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     renderArtboard = true,
     artboardWidthPx,
     artboardHeightPx,
-    artboardDpi,
     intrinsicWidthPx,
     intrinsicHeightPx,
-    intrinsicDpi,
     grid = null,
     onImageSizeChange,
     initialImageTransform,
@@ -559,8 +538,6 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     })
   }, [activeImageId, img, initialImageTransform, scheduleBoundsUpdate, src])
 
-  // Placement size depends on Actual PPI and document DPI.
-
   // Compute selection bounds (axis-aligned) for the image node.
   // Shown by default when the Select tool is active (`imageDraggable === true`).
   useEffect(() => {
@@ -598,15 +575,8 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
 
     const intrinsic = pickIntrinsicSize({ intrinsicWidthPx, intrinsicHeightPx, img })
     if (!intrinsic) return
-    const placement = computeIllustratorPlacementSize({
-      widthPx: intrinsic.w,
-      heightPx: intrinsic.h,
-      actualDpi: Number(intrinsicDpi),
-      documentDpi: Number(artboardDpi),
-    })
-    if (!placement) return
-    const baseW = placement.width
-    const baseH = placement.height
+    const baseW = intrinsic.w
+    const baseH = intrinsic.h
 
     queueMicrotask(() => {
       setRotation(0)
@@ -617,7 +587,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
         heightPxU: numberToMicroPx(baseH),
       })
     })
-  }, [activeImageId, artH, artW, artboardDpi, hasArtboard, img, initialImageTransform, intrinsicDpi, intrinsicHeightPx, intrinsicWidthPx, src])
+  }, [activeImageId, artH, artW, hasArtboard, img, initialImageTransform, intrinsicHeightPx, intrinsicWidthPx, src])
 
   if (!transformControllerRef.current) {
     transformControllerRef.current = createTransformController({
@@ -661,22 +631,15 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     if (!img) return
     const intrinsic = pickIntrinsicSize({ intrinsicWidthPx, intrinsicHeightPx, img })
     if (!intrinsic) return
-    const placement = computeIllustratorPlacementSize({
-      widthPx: intrinsic.w,
-      heightPx: intrinsic.h,
-      actualDpi: Number(intrinsicDpi),
-      documentDpi: Number(artboardDpi),
-    })
-    if (!placement) return
     transformControllerRef.current?.restoreImage({
       artW,
       artH,
-      baseW: placement.width,
-      baseH: placement.height,
+      baseW: intrinsic.w,
+      baseH: intrinsic.h,
       initialImageTransform,
     })
     scheduleBoundsUpdate()
-  }, [artH, artW, artboardDpi, img, initialImageTransform, intrinsicDpi, intrinsicHeightPx, intrinsicWidthPx, scheduleBoundsUpdate])
+  }, [artH, artW, img, initialImageTransform, intrinsicHeightPx, intrinsicWidthPx, scheduleBoundsUpdate])
 
   const alignImage = useCallback(
     (opts: { x?: "left" | "center" | "right"; y?: "top" | "center" | "bottom" }) => {

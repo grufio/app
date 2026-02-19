@@ -47,9 +47,9 @@ export async function createProjectWithWorkspace(
 
   const name = typeof input.name === "string" && input.name.trim() ? input.name.trim() : "Untitled"
 
-  const artboard_dpi = dpi
-  const widthPxU = unitToPxU(String(width_value), unit, artboard_dpi)
-  const heightPxU = unitToPxU(String(height_value), unit, artboard_dpi)
+  const output_dpi = dpi
+  const widthPxU = unitToPxU(String(width_value), unit, output_dpi)
+  const heightPxU = unitToPxU(String(height_value), unit, output_dpi)
   const width_px_u = widthPxU.toString()
   const height_px_u = heightPxU.toString()
   const width_px = clampPx(pxUToPxNumber(widthPxU))
@@ -70,7 +70,9 @@ export async function createProjectWithWorkspace(
     unit,
     width_value,
     height_value,
-    artboard_dpi,
+    output_dpi,
+    // Deprecated bridge: keep DB `artboard_dpi` in sync until removed.
+    artboard_dpi: output_dpi,
     raster_effects_preset: rasterPresetForDpi(dpi),
     width_px_u,
     height_px_u,

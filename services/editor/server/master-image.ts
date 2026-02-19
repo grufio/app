@@ -34,9 +34,6 @@ export async function getMasterImageForEditor(
 
   const dpiRaw = Number(img.dpi)
   const dpi = Number.isFinite(dpiRaw) && dpiRaw > 0 ? Math.round(dpiRaw) : null
-  if (!dpi) {
-    return { masterImage: null, error: "Invalid master image metadata: dpi" }
-  }
 
   return {
     masterImage: {

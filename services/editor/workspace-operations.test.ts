@@ -4,7 +4,14 @@
 import { describe, expect, it } from "vitest"
 
 import type { WorkspaceRow } from "./workspace/types"
-import { computeLockedDimension, computeWorkspaceSizeSave, mapDpiToRasterPreset, normalizeUnit } from "./workspace-operations"
+import {
+  computeLockedDimension,
+  computeWorkspaceDpiChange,
+  computeWorkspaceSizeSave,
+  computeWorkspaceUnitChange,
+  mapDpiToRasterPreset,
+  normalizeUnit,
+} from "./workspace-operations"
 
 describe("workspace-operations", () => {
   it("normalizeUnit falls back to cm", () => {
@@ -31,6 +38,7 @@ describe("workspace-operations", () => {
       unit: "cm",
       width_value: 20,
       height_value: 30,
+      output_dpi: 300,
       artboard_dpi: 300,
       width_px_u: "0",
       height_px_u: "0",
@@ -39,23 +47,25 @@ describe("workspace-operations", () => {
       raster_effects_preset: "high",
     }
 
-    const r1 = computeWorkspaceSizeSave({ base, unit: "cm", draftW: "20", draftH: "30" })
+    const r1 = computeWorkspaceSizeSave({ base, draftW: "200", draftH: "300" })
     if ("error" in r1) throw new Error("expected ok")
-    const r2 = computeWorkspaceSizeSave({ base, unit: "cm", draftW: "20", draftH: "30" })
+    const r2 = computeWorkspaceSizeSave({ base, draftW: "200", draftH: "300" })
     if ("error" in r2) throw new Error("expected ok")
 
     expect(r1.signature).toBe(r2.signature)
-    expect(r1.next.unit).toBe("cm")
     expect(typeof r1.next.width_px_u).toBe("string")
     expect(typeof r1.next.height_px_u).toBe("string")
+    expect(r1.next.width_px).toBe(200)
+    expect(r1.next.height_px).toBe(300)
   })
 
-  it("computeWorkspaceSizeSave preserves artboard dpi field", () => {
+  it("computeWorkspaceSizeSave preserves output dpi field", () => {
     const base: WorkspaceRow = {
       project_id: "p",
       unit: "cm",
       width_value: 20,
       height_value: 30,
+      output_dpi: 150,
       artboard_dpi: 150,
       width_px_u: "0",
       height_px_u: "0",
@@ -64,9 +74,53 @@ describe("workspace-operations", () => {
       raster_effects_preset: "medium",
     }
 
-    const out = computeWorkspaceSizeSave({ base, unit: "cm", draftW: "20", draftH: "30" })
+    const out = computeWorkspaceSizeSave({ base, draftW: "20", draftH: "30" })
     if ("error" in out) throw new Error("expected ok")
-    expect(out.next.artboard_dpi).toBe(150)
+    expect(out.next.output_dpi).toBe(150)
+  })
+
+  it("computeWorkspaceUnitChange preserves canonical geometry", () => {
+    const base: WorkspaceRow = {
+      project_id: "p",
+      unit: "mm",
+      width_value: 200,
+      height_value: 100,
+      output_dpi: 150,
+      artboard_dpi: 150,
+      width_px_u: "11811023622",
+      height_px_u: "5905511811",
+      width_px: 1181,
+      height_px: 591,
+      raster_effects_preset: "medium",
+    }
+
+    const out = computeWorkspaceUnitChange({ base, nextUnit: "cm" })
+    expect(out.next.unit).toBe("cm")
+    expect(out.next.width_px_u).toBe(base.width_px_u)
+    expect(out.next.height_px_u).toBe(base.height_px_u)
+    expect(out.next.output_dpi).toBe(base.output_dpi)
+  })
+
+  it("computeWorkspaceDpiChange preserves canonical geometry", () => {
+    const base: WorkspaceRow = {
+      project_id: "p",
+      unit: "mm",
+      width_value: 200,
+      height_value: 100,
+      output_dpi: 150,
+      artboard_dpi: 150,
+      width_px_u: "11811023622",
+      height_px_u: "5905511811",
+      width_px: 1181,
+      height_px: 591,
+      raster_effects_preset: "medium",
+    }
+
+    const out = computeWorkspaceDpiChange({ base, nextDpi: 300, nextPreset: "high" })
+    expect(out.next.output_dpi).toBe(300)
+    expect(out.next.raster_effects_preset).toBe("high")
+    expect(out.next.width_px_u).toBe(base.width_px_u)
+    expect(out.next.height_px_u).toBe(base.height_px_u)
   })
 })
 

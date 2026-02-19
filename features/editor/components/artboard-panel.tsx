@@ -11,7 +11,7 @@
 import { useEffect, useRef } from "react"
 import { ArrowLeftRight, ArrowUpDown, Gauge, Link2, Ruler, Unlink2 } from "lucide-react"
 
-import { fmt2, pxUToUnitDisplay, type Unit } from "@/lib/editor/units"
+import { fmt2, type Unit } from "@/lib/editor/units"
 import { parseNumericInput } from "@/lib/editor/numeric"
 import { Button } from "@/components/ui/button"
 import { SelectItem } from "@/components/ui/select"
@@ -19,8 +19,8 @@ import { IconNumericField } from "./fields/icon-numeric-field"
 import { IconSelectField } from "./fields/icon-select-field"
 import { PanelIconSlot, PanelTwoFieldRow } from "./panel-layout"
 import { useProjectWorkspace } from "@/lib/editor/project-workspace"
-import { computeArtboardSizeDisplay } from "@/services/editor/artboard-display"
 import {
+  computeWorkspaceDpiChange,
   computeLockedDimension,
   computeWorkspaceSizeSave,
   computeWorkspaceUnitChange,
@@ -48,10 +48,10 @@ export function ArtboardPanel() {
   const activeProjectId = row?.project_id ?? null
 
   const computedUnit = row ? normalizeUnit((row as unknown as { unit?: unknown })?.unit) : "mm"
-  const computedOutputDpi = row ? Number(row.artboard_dpi) : 300
+  const computedOutputDpi = row ? Number((row as unknown as { output_dpi?: unknown; artboard_dpi?: unknown }).output_dpi ?? row.artboard_dpi) : 300
   const computedPreset =
     row
-      ? ((row.raster_effects_preset ?? mapDpiToRasterPreset(Number(row.artboard_dpi)) ?? "custom") as
+      ? ((row.raster_effects_preset ?? mapDpiToRasterPreset(Number((row as unknown as { output_dpi?: unknown; artboard_dpi?: unknown }).output_dpi ?? row.artboard_dpi)) ?? "custom") as
           | "high"
           | "medium"
           | "low"
@@ -66,12 +66,9 @@ export function ArtboardPanel() {
   )
   const { value: lockAspect, setValue: setLockAspect } = useKeyedDraft<boolean>(activeProjectId, false)
 
-  const computedDisplay =
-    row && widthPxU && heightPxU
-      ? computeArtboardSizeDisplay({ widthPxU, heightPxU, unit: draftUnit, dpi: Number(row.artboard_dpi) })
-      : null
-  const computedWidth = computedDisplay ? computedDisplay.width : row ? String(row.width_value) : ""
-  const computedHeight = computedDisplay ? computedDisplay.height : row ? String(row.height_value) : ""
+  // Editor geometry is pixel-only: size inputs are px.
+  const computedWidth = row ? String(row.width_px) : ""
+  const computedHeight = row ? String(row.height_px) : ""
 
   const { value: draftWidth, setValue: setDraftWidth } = useKeyedDraft(activeProjectId, computedWidth)
   const { value: draftHeight, setValue: setDraftHeight } = useKeyedDraft(activeProjectId, computedHeight)
@@ -102,7 +99,6 @@ export function ArtboardPanel() {
 
     const computed = computeWorkspaceSizeSave({
       base: row,
-      unit: draftUnit,
       draftW: draftWidth,
       draftH: draftHeight,
     })
@@ -120,11 +116,10 @@ export function ArtboardPanel() {
 
     // Reset drafts to canonical display (prevents oscillation).
     const unitNormalized = normalizeUnit((saved as unknown as { unit?: unknown })?.unit)
-    const wU = BigInt(saved.width_px_u)
-    const hU = BigInt(saved.height_px_u)
-    const nextOutput = Number(saved.artboard_dpi) || computedOutputDpi
-    setDraftWidth(pxUToUnitDisplay(wU, unitNormalized, nextOutput))
-    setDraftHeight(pxUToUnitDisplay(hU, unitNormalized, nextOutput))
+    const nextOutput =
+      Number((saved as unknown as { output_dpi?: unknown; artboard_dpi?: unknown }).output_dpi ?? saved.artboard_dpi) || computedOutputDpi
+    setDraftWidth(String(saved.width_px))
+    setDraftHeight(String(saved.height_px))
     setDraftUnit(unitNormalized)
     setDraftOutputDpi(String(nextOutput))
     setDraftRasterPreset((saved.raster_effects_preset ?? mapDpiToRasterPreset(nextOutput) ?? "custom") as "high" | "medium" | "low" | "custom")
@@ -149,16 +144,6 @@ export function ArtboardPanel() {
     draftUnitRef.current = nextUnit
     setDraftUnit(nextUnit)
 
-    // Display-only: canonical µpx stays unchanged.
-    const display = computeArtboardSizeDisplay({
-      widthPxU: canonicalW,
-      heightPxU: canonicalH,
-      unit: nextUnit,
-      dpi: Number(row?.artboard_dpi),
-    })
-    setDraftWidth(display?.width ?? "")
-    setDraftHeight(display?.height ?? "")
-
     setTimeout(() => {
       void saveUnitOnly(nextUnit)
       unitChangeInFlightRef.current = null
@@ -174,13 +159,10 @@ export function ArtboardPanel() {
     setDraftRasterPreset(preset)
     setDraftOutputDpi(String(dpi))
 
-    // Artboard DPI only; do not change canonical µpx size.
+    // Output DPI only; do not change canonical µpx size.
     setTimeout(() => {
-      void upsertWorkspace({
-        ...row,
-        artboard_dpi: dpi,
-        raster_effects_preset: preset,
-      })
+      const computed = computeWorkspaceDpiChange({ base: row, nextDpi: dpi, nextPreset: preset })
+      void upsertWorkspace(computed.next)
     }, 0)
   }
 

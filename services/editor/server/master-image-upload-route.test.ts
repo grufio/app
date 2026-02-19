@@ -12,7 +12,6 @@ const { uploadMasterImageMock, makeSupabaseMock } = vi.hoisted(() => ({
         eq: () => ({
           single: async () => {
             if (table === "projects") return { data: { id: VALID_UUID }, error: null }
-            if (table === "project_workspace") return { data: { artboard_dpi: 300 }, error: null }
             return { data: null, error: { message: "unexpected table" } }
           },
         }),
@@ -56,7 +55,7 @@ describe("master upload route delegation", () => {
     expect(body.stage).toBe("upload_limits")
   })
 
-  it("uses workspace artboard_dpi and delegates without body dpi", async () => {
+  it("delegates without workspace dpi", async () => {
     vi.resetModules()
     uploadMasterImageMock.mockReset()
     uploadMasterImageMock.mockResolvedValueOnce({
@@ -84,7 +83,7 @@ describe("master upload route delegation", () => {
       params: Promise.resolve({ projectId: VALID_UUID }),
     })
     expect(uploadMasterImageMock).toHaveBeenCalledTimes(1)
-    expect(uploadMasterImageMock.mock.calls[0]?.[0]).toMatchObject({ dpi: 300 })
+    expect(uploadMasterImageMock.mock.calls[0]?.[0]).not.toHaveProperty("dpi")
   })
 
   it("keeps single upload write route by removing master POST export", async () => {

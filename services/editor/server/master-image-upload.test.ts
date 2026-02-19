@@ -71,7 +71,6 @@ describe("master-image-upload service", () => {
       widthPx: 10,
       heightPx: 10,
       format: "png",
-      dpi: 300,
     })
     expect(out.ok).toBe(false)
     if (!out.ok) {
@@ -80,27 +79,7 @@ describe("master-image-upload service", () => {
     }
   })
 
-  it("rejects missing dpi with validation stage", async () => {
-    const supabase = makeSupabase({ error: null }, {})
-    const file = new File([new Uint8Array([1])], "x.png", { type: "image/png" })
-    const out = await uploadMasterImage({
-      supabase: supabase as never,
-      projectId: "p1",
-      file,
-      widthPx: 10,
-      heightPx: 10,
-      format: "png",
-      dpi: null,
-    })
-
-    expect(out.ok).toBe(false)
-    if (!out.ok) {
-      expect(out.stage).toBe("validation")
-      expect(out.reason).toBe("Missing/invalid dpi")
-    }
-  })
-
-  it("uploads, inserts with dpi, and activates", async () => {
+  it("uploads, inserts, and activates", async () => {
     const capture: { insert?: InsertPayload } = {}
     const supabase = makeSupabase({ error: null }, capture)
     uploadSpy.mockResolvedValueOnce({ error: null })
@@ -114,12 +93,11 @@ describe("master-image-upload service", () => {
       widthPx: 400.9,
       heightPx: 200.1,
       format: "png",
-      dpi: 300.4,
     })
 
     expect(out.ok).toBe(true)
     expect(uploadSpy).toHaveBeenCalledTimes(1)
-    expect(capture.insert?.dpi).toBe(300)
+    expect(capture.insert).not.toHaveProperty("dpi")
     expect(capture.insert?.width_px).toBe(400)
     expect(capture.insert?.height_px).toBe(200)
     expect(activateSpy).toHaveBeenCalledTimes(1)

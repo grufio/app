@@ -12,15 +12,17 @@ export function defaultWorkspace(projectId: string): WorkspaceRow {
   const unit: Unit = "cm"
   const width_value = 20
   const height_value = 30
-  const artboard_dpi = 300
-  const widthPxU = unitToPxU(String(width_value), unit, artboard_dpi)
-  const heightPxU = unitToPxU(String(height_value), unit, artboard_dpi)
+  const output_dpi = 300
+  const widthPxU = unitToPxU(String(width_value), unit, output_dpi)
+  const heightPxU = unitToPxU(String(height_value), unit, output_dpi)
   return {
     project_id: projectId,
     unit,
     width_value,
     height_value,
-    artboard_dpi,
+    output_dpi,
+    // Deprecated bridge: keep DB `artboard_dpi` in sync until removed.
+    artboard_dpi: output_dpi,
     raster_effects_preset: "high",
     width_px_u: widthPxU.toString(),
     height_px_u: heightPxU.toString(),

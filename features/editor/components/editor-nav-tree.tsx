@@ -15,6 +15,28 @@ import { buildNavId, parseNavId } from "@/features/editor/navigation/nav-id"
 
 type EditorNavImage = { id: string; label: string }
 
+export type EditorNavTreeData = {
+  validIds: Set<string>
+}
+
+export function buildEditorNavTreeData(images: EditorNavImage[]): EditorNavTreeData {
+  const ids = new Set<string>()
+  ids.add(buildNavId({ kind: "artboard" }))
+  ids.add(buildNavId({ kind: "imagesFolder" }))
+  ids.add(buildNavId({ kind: "grid" }))
+  for (const img of images) {
+    if (!img?.id) continue
+    ids.add(buildNavId({ kind: "image", imageId: img.id }))
+  }
+  return { validIds: ids }
+}
+
+export function resolveEditorNavSelectedItemId(selectedId: string, data: EditorNavTreeData): string | null {
+  if (!selectedId) return null
+  if (!data?.validIds) return null
+  return data.validIds.has(selectedId) ? selectedId : null
+}
+
 export function EditorNavTree(props: {
   projectId: string
   selectedId: string

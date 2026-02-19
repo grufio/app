@@ -286,6 +286,7 @@ export type Database = {
           height_px: number
           height_px_u: string
           height_value: number
+          output_dpi: number
           page_bg_color: string
           page_bg_enabled: boolean
           page_bg_opacity: number
@@ -305,6 +306,7 @@ export type Database = {
           height_px: number
           height_px_u: string
           height_value: number
+          output_dpi?: number
           page_bg_color?: string
           page_bg_enabled?: boolean
           page_bg_opacity?: number
@@ -324,6 +326,7 @@ export type Database = {
           height_px?: number
           height_px_u?: string
           height_value?: number
+          output_dpi?: number
           page_bg_color?: string
           page_bg_enabled?: boolean
           page_bg_opacity?: number
