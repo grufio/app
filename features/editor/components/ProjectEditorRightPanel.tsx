@@ -47,7 +47,7 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
   minPanelRem: number
   maxPanelRem: number
   onPanelWidthRemChange: (next: number) => void
-  activeSection: "artboard" | "image"
+  activeSection: "artboard" | "image" | "grid"
   pageBgEnabled: boolean
   pageBgColor: string
   pageBgOpacity: number
@@ -184,12 +184,12 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
                     </PanelIconSlot>
                   </PanelTwoFieldRow>
                 </EditorSidebarSection>
-                <GridPanel />
                 <EditorSidebarSection title="Artboard" testId="editor-artboard-panel">
                   <ArtboardPanel />
                 </EditorSidebarSection>
               </>
             ) : null}
+            {activeSection === "grid" ? <GridPanel /> : null}
             {activeSection === "image" ? (
               <EditorSidebarSection
                 title="Image"

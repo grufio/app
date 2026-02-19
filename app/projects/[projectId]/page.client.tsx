@@ -81,7 +81,7 @@ export function ProjectDetailPageClient({
     heightPx: artboardHeightPx,
     loading: workspaceLoading,
   } = useProjectWorkspace()
-  const { row: gridRow, spacingXPx, spacingYPx, lineWidthPx } = useProjectGrid()
+  const { row: gridRow, hasGrid, createGrid, deleteGrid, spacingXPx, spacingYPx, lineWidthPx } = useProjectGrid()
 
   const { project, setProject } = useProject(projectId, initialProject)
   const {
@@ -165,6 +165,11 @@ export function ProjectDetailPageClient({
     [projectImages]
   )
 
+  const firstImageNavId = useMemo(
+    () => (projectImages.length > 0 ? buildNavId({ kind: "image", imageId: projectImages[0].id }) : buildNavId({ kind: "artboard" })),
+    [projectImages]
+  )
+
   const handleDeleteMasterImage = useCallback(async () => {
     const res = selectedImageId ? await deleteImageById(selectedImageId) : await deleteImage()
     if (!res.ok) return
@@ -187,6 +192,18 @@ export function ProjectDetailPageClient({
     setDeleteError("")
     setDeleteOpen(true)
   }, [setDeleteError])
+
+  const requestCreateGrid = useCallback(async () => {
+    const out = await createGrid()
+    if (!out) return
+    setSelectedNavId(buildNavId({ kind: "grid" }))
+  }, [createGrid])
+
+  const requestDeleteGrid = useCallback(async () => {
+    const ok = await deleteGrid()
+    if (!ok) return
+    setSelectedNavId(firstImageNavId)
+  }, [deleteGrid, firstImageNavId])
 
   const [leftPanelWidthRem, setLeftPanelWidthRem] = useState(20)
   const [rightPanelWidthRem, setRightPanelWidthRem] = useState(20)
@@ -364,8 +381,11 @@ export function ProjectDetailPageClient({
               selectedId={selectedNavId}
               onSelect={setSelectedNavId}
               images={leftPanelImages}
+              hasGrid={hasGrid}
               onImageUploaded={refreshMasterImage}
               onImageDeleteRequested={requestDeleteImage}
+              onGridCreateRequested={requestCreateGrid}
+              onGridDeleteRequested={requestDeleteGrid}
             />
             <ProjectEditorStage
               projectId={projectId}

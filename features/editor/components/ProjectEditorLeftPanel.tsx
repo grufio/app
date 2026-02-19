@@ -22,8 +22,11 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
   selectedId: string
   onSelect: (id: string) => void
   images: { id: string; label: string }[]
+  hasGrid: boolean
   onImageUploaded: () => void | Promise<void>
   onImageDeleteRequested: (imageId: string) => void | Promise<void>
+  onGridCreateRequested: () => void | Promise<void>
+  onGridDeleteRequested: () => void | Promise<void>
 }) {
   const {
     projectId,
@@ -34,8 +37,11 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
     selectedId,
     onSelect,
     images,
+    hasGrid,
     onImageUploaded,
     onImageDeleteRequested,
+    onGridCreateRequested,
+    onGridDeleteRequested,
   } = props
 
   const clamp = (v: number) => Math.max(minRem, Math.min(maxRem, v))
@@ -81,8 +87,11 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
               selectedId={selectedId}
               onSelect={onSelect}
               images={images}
+              hasGrid={hasGrid}
               onImageUploaded={onImageUploaded}
               onImageDeleteRequested={onImageDeleteRequested}
+              onGridCreateRequested={onGridCreateRequested}
+              onGridDeleteRequested={onGridDeleteRequested}
             />
           </EditorSidebarSection>
         </SidebarContent>

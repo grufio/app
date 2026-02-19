@@ -38,3 +38,12 @@ export async function upsertGrid(
   return { row: (data as unknown as ProjectGridRow) ?? null, error: null }
 }
 
+export async function deleteGrid(
+  supabase: SupabaseClient,
+  projectId: string
+): Promise<{ ok: true; error: null } | { ok: false; error: string }> {
+  const { error } = await supabase.from("project_grid").delete().eq("project_id", projectId)
+  if (error) return { ok: false, error: error.message }
+  return { ok: true, error: null }
+}
+

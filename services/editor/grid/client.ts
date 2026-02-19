@@ -7,7 +7,7 @@
  */
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import type { ProjectGridRow } from "./types"
-import { insertGrid, selectGrid, upsertGrid } from "./browser-repo-supabase"
+import { deleteGrid, insertGrid, selectGrid, upsertGrid } from "./browser-repo-supabase"
 
 export function selectGridClient(projectId: string) {
   const supabase = createSupabaseBrowserClient()
@@ -22,5 +22,10 @@ export function insertGridClient(row: ProjectGridRow) {
 export function upsertGridClient(row: ProjectGridRow) {
   const supabase = createSupabaseBrowserClient()
   return upsertGrid(supabase, row)
+}
+
+export function deleteGridClient(projectId: string) {
+  const supabase = createSupabaseBrowserClient()
+  return deleteGrid(supabase, projectId)
 }
 

@@ -17,17 +17,20 @@ import {
   normalizeProjectGridRow,
   normalizeUnit as normalizeGridUnit,
 } from "@/services/editor"
-import { insertGridClient, selectGridClient, upsertGridClient } from "@/services/editor/grid/client"
+import { deleteGridClient, insertGridClient, selectGridClient, upsertGridClient } from "@/services/editor/grid/client"
 
 export type ProjectGridRow = import("@/services/editor").ProjectGridRow
 
 type ProjectGridContextValue = {
   projectId: string
   row: ProjectGridRow | null
+  hasGrid: boolean
   loading: boolean
   saving: boolean
   error: string
   refresh: () => Promise<void>
+  createGrid: () => Promise<ProjectGridRow | null>
+  deleteGrid: () => Promise<boolean>
   upsertGrid: (nextRow: ProjectGridRow) => Promise<ProjectGridRow | null>
   // convenience for rendering
   spacingXPx: number | null
@@ -86,16 +89,7 @@ export function ProjectGridProvider({
       }
 
       if (!data) {
-        const unit = workspaceUnit ?? "cm"
-        const def = defaultGrid(projectId, unit)
-        const { row: ins, error: insErr } = await insertGridClient(def)
-        if (insErr || !ins) {
-          setRow(null)
-          setError(mapGridSchemaError(insErr ?? "Failed to create default grid"))
-          return
-        }
-
-        setRow(normalizeProjectGridRow(ins))
+        setRow(null)
         return
       }
 
@@ -135,6 +129,45 @@ export function ProjectGridProvider({
     },
     []
   )
+
+  const createGrid = useCallback(async (): Promise<ProjectGridRow | null> => {
+    if (savingRef.current) return null
+    if (rowRef.current) return rowRef.current
+    setSaving(true)
+    setError("")
+    try {
+      const unit = workspaceUnit ?? "cm"
+      const def = defaultGrid(projectId, unit)
+      const { row: ins, error: insErr } = await insertGridClient(def)
+      if (insErr || !ins) {
+        setError(mapGridSchemaError(insErr ?? "Failed to create default grid"))
+        return null
+      }
+      const normalized = normalizeProjectGridRow(ins)
+      setRow(normalized)
+      return normalized as unknown as ProjectGridRow
+    } finally {
+      setSaving(false)
+    }
+  }, [projectId, workspaceUnit])
+
+  const deleteGrid = useCallback(async (): Promise<boolean> => {
+    if (savingRef.current) return false
+    if (!rowRef.current) return true
+    setSaving(true)
+    setError("")
+    try {
+      const out = await deleteGridClient(projectId)
+      if (!out.ok) {
+        setError(mapGridSchemaError(out.error))
+        return false
+      }
+      setRow(null)
+      return true
+    } finally {
+      setSaving(false)
+    }
+  }, [projectId])
 
   // Keep grid unit in sync with workspace unit (artboard is the source of truth).
   useEffect(() => {
@@ -179,16 +212,19 @@ export function ProjectGridProvider({
     return {
       projectId,
       row,
+      hasGrid: Boolean(row),
       loading,
       saving,
       error,
       refresh,
+      createGrid,
+      deleteGrid,
       upsertGrid,
       spacingXPx,
       spacingYPx,
       lineWidthPx,
     }
-  }, [error, loading, projectId, refresh, row, saving, upsertGrid])
+  }, [createGrid, deleteGrid, error, loading, projectId, refresh, row, saving, upsertGrid])
 
   return <ProjectGridContext.Provider value={value}>{children}</ProjectGridContext.Provider>
 }

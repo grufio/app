@@ -11,4 +11,8 @@ describe("panel-routing", () => {
     expect(mapSelectedNavIdToRightPanelSection("app/api")).toBe("image")
     expect(mapSelectedNavIdToRightPanelSection("app/api/img-1")).toBe("image")
   })
+
+  it("routes grid selection to grid panel", () => {
+    expect(mapSelectedNavIdToRightPanelSection("app/api/grid")).toBe("grid")
+  })
 })

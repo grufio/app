@@ -7,10 +7,11 @@
  */
 import { parseNavId } from "@/features/editor/navigation/nav-id"
 
-export type EditorRightPanelSection = "artboard" | "image"
+export type EditorRightPanelSection = "artboard" | "image" | "grid"
 
 export function mapSelectedNavIdToRightPanelSection(selectedNavId: string): EditorRightPanelSection {
   const selection = parseNavId(selectedNavId)
+  if (selection.kind === "grid") return "grid"
   return selection.kind === "image" || selection.kind === "imagesFolder" ? "image" : "artboard"
 }
 
