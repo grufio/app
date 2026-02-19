@@ -1,19 +1,24 @@
 "use client"
 
 import * as React from "react"
-import { Image as ImageIcon, LayoutGrid, Plus } from "lucide-react"
+import { Image as ImageIcon, LayoutGrid } from "lucide-react"
 
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar"
+import { AddImageMenuAction } from "./add-image-menu-button"
+import { DeleteImageMenuAction } from "./delete-image-menu-action"
 import { buildNavId, parseNavId } from "@/features/editor/navigation/nav-id"
 
 type EditorNavImage = { id: string; label: string }
 
 export function EditorNavTree(props: {
+  projectId: string
   selectedId: string
   onSelect: (id: string) => void
   images: EditorNavImage[]
+  onImageUploaded: () => void | Promise<void>
+  onImageDeleteRequested: (imageId: string) => void | Promise<void>
 }) {
-  const { selectedId, onSelect, images } = props
+  const { projectId, selectedId, onSelect, images, onImageUploaded, onImageDeleteRequested } = props
 
   const artboardNavId = React.useMemo(() => buildNavId({ kind: "artboard" }), [])
   const firstImageNavId = React.useMemo(
@@ -22,6 +27,11 @@ export function EditorNavTree(props: {
   )
   const selectedKind = React.useMemo(() => parseNavId(selectedId).kind, [selectedId])
   const imageTargetNavId = selectedKind === "image" ? selectedId : firstImageNavId
+  const imageTargetImageId = React.useMemo(() => {
+    if (!imageTargetNavId) return null
+    const parsed = parseNavId(imageTargetNavId)
+    return parsed.kind === "image" ? parsed.imageId : null
+  }, [imageTargetNavId])
 
   return (
     <SidebarMenu>
@@ -37,13 +47,17 @@ export function EditorNavTree(props: {
             <ImageIcon />
             <span>Image</span>
           </SidebarMenuButton>
+          {imageTargetImageId ? (
+            <DeleteImageMenuAction imageId={imageTargetImageId} onDeleteRequest={onImageDeleteRequested} />
+          ) : null}
         </SidebarMenuItem>
       ) : (
         <SidebarMenuItem>
-          <SidebarMenuButton className="text-xs">
-            <Plus />
-            <span>Add Image</span>
+          <SidebarMenuButton className="text-xs" disabled>
+            <ImageIcon />
+            <span>Image</span>
           </SidebarMenuButton>
+          <AddImageMenuAction projectId={projectId} onUploaded={onImageUploaded} />
         </SidebarMenuItem>
       )}
     </SidebarMenu>

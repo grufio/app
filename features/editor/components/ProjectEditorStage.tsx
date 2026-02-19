@@ -10,10 +10,7 @@
 import * as React from "react"
 import dynamic from "next/dynamic"
 
-import { Spinner } from "@/components/ui/spinner"
-import { Item, ItemContent, ItemMedia, ItemTitle } from "@/components/ui/item"
 import { computeRgbaBackgroundStyleFromHex } from "@/lib/editor/color"
-import { MasterImageUpload } from "./master-image-upload"
 import {
   FloatingToolbar,
   type FloatingToolbarTool,
@@ -41,7 +38,6 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
   } | null
   masterImageLoading: boolean
   masterImageError: string
-  refreshMasterImage: () => void | Promise<void>
   imageStateLoading: boolean
   pageBgEnabled: boolean
   pageBgColor: string
@@ -78,7 +74,6 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
     masterImage,
     masterImageLoading: _masterImageLoading,
     masterImageError,
-    refreshMasterImage,
     imageStateLoading,
     pageBgEnabled,
     pageBgColor,
@@ -95,48 +90,6 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
   } = props
 
   void _masterImageLoading
-
-  const [isUploading, setIsUploading] = React.useState(false)
-  const [overlayVisible, setOverlayVisible] = React.useState(false)
-  const overlayStartMsRef = React.useRef<number | null>(null)
-  const overlayHideTimerRef = React.useRef<number | null>(null)
-
-  const processing = isUploading
-
-  React.useEffect(() => {
-    if (processing) {
-      if (overlayHideTimerRef.current != null) {
-        window.clearTimeout(overlayHideTimerRef.current)
-        overlayHideTimerRef.current = null
-      }
-      if (!overlayVisible) {
-        overlayStartMsRef.current = Date.now()
-        setOverlayVisible(true)
-      }
-      return
-    }
-
-    if (!overlayVisible) return
-
-    const startedAt = overlayStartMsRef.current ?? Date.now()
-    const elapsed = Date.now() - startedAt
-    const remaining = Math.max(0, 2000 - elapsed)
-
-    overlayHideTimerRef.current = window.setTimeout(() => {
-      overlayHideTimerRef.current = null
-      overlayStartMsRef.current = null
-      setOverlayVisible(false)
-    }, remaining)
-  }, [processing, overlayVisible])
-
-  React.useEffect(() => {
-    return () => {
-      if (overlayHideTimerRef.current != null) {
-        window.clearTimeout(overlayHideTimerRef.current)
-        overlayHideTimerRef.current = null
-      }
-    }
-  }, [])
 
   const bgStyle = React.useMemo(() => {
     return computeRgbaBackgroundStyleFromHex({ enabled: pageBgEnabled, hex: pageBgColor, opacityPercent: pageBgOpacity }) as
@@ -159,14 +112,6 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
         <div className="absolute bottom-4 left-1/2 z-10 w-max -translate-x-1/2">
           <FloatingToolbar
             className="pointer-events-auto"
-            leftSlot={
-              <MasterImageUpload
-                projectId={projectId}
-                onUploaded={refreshMasterImage}
-                onUploadingChange={setIsUploading}
-                variant="toolbar"
-              />
-            }
             tool={toolbar.tool}
             onToolChange={toolbar.setTool}
             onZoomIn={toolbar.actions.zoomIn}
@@ -204,24 +149,6 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
             onImageTransformCommit={masterImage ? saveImageState : undefined}
           />
         )}
-
-        {overlayVisible ? (
-          <div className="pointer-events-auto fixed inset-0 z-50 isolate">
-            <div className="absolute inset-0 z-0 bg-black/50" aria-hidden="true" />
-            <div className="relative z-10 flex h-full w-full items-center justify-center">
-              <div className="flex w-full max-w-xs flex-col gap-4 [--radius:1rem]">
-                <Item variant="muted" size="sm" className="bg-background">
-                  <ItemMedia>
-                    <Spinner />
-                  </ItemMedia>
-                  <ItemContent>
-                    <ItemTitle className="line-clamp-1">Loading image...</ItemTitle>
-                  </ItemContent>
-                </Item>
-              </div>
-            </div>
-          </div>
-        ) : null}
 
       </div>
     </div>

@@ -25,9 +25,23 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
   selectedId: string
   onSelect: (id: string) => void
   images: { id: string; label: string }[]
+  onImageUploaded: () => void | Promise<void>
+  onImageDeleteRequested: (imageId: string) => void | Promise<void>
 }) {
-  const { projectId, initialTitle, onTitleUpdated, widthRem, minRem, maxRem, onWidthRemChange, selectedId, onSelect, images } =
-    props
+  const {
+    projectId,
+    initialTitle,
+    onTitleUpdated,
+    widthRem,
+    minRem,
+    maxRem,
+    onWidthRemChange,
+    selectedId,
+    onSelect,
+    images,
+    onImageUploaded,
+    onImageDeleteRequested,
+  } = props
 
   const clamp = (v: number) => Math.max(minRem, Math.min(maxRem, v))
 
@@ -70,7 +84,14 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
             <ProjectTitleEditor projectId={projectId} initialTitle={initialTitle} onTitleUpdated={onTitleUpdated} />
           </EditorSidebarSection>
           <EditorSidebarSection title="Projekt">
-            <EditorNavTree selectedId={selectedId} onSelect={onSelect} images={images} />
+            <EditorNavTree
+              projectId={projectId}
+              selectedId={selectedId}
+              onSelect={onSelect}
+              images={images}
+              onImageUploaded={onImageUploaded}
+              onImageDeleteRequested={onImageDeleteRequested}
+            />
           </EditorSidebarSection>
         </SidebarContent>
       </SidebarFrame>

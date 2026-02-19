@@ -171,7 +171,22 @@ export function ProjectDetailPageClient({
     setDeleteOpen(false)
     setImagePxU(null)
     void refreshProjectImages()
-  }, [deleteImage, deleteImageById, refreshProjectImages, selectedImageId])
+    void refreshMasterImage()
+  }, [deleteImage, deleteImageById, refreshMasterImage, refreshProjectImages, selectedImageId])
+
+  const requestDeleteImage = useCallback(
+    async (imageId: string) => {
+      setDeleteError("")
+      setSelectedNavId(buildNavId({ kind: "image", imageId }))
+      setDeleteOpen(true)
+    },
+    [setDeleteError]
+  )
+
+  const requestDeleteSelectedImage = useCallback(() => {
+    setDeleteError("")
+    setDeleteOpen(true)
+  }, [setDeleteError])
 
   const [leftPanelWidthRem, setLeftPanelWidthRem] = useState(20)
   const [rightPanelWidthRem, setRightPanelWidthRem] = useState(20)
@@ -347,13 +362,14 @@ export function ProjectDetailPageClient({
               selectedId={selectedNavId}
               onSelect={setSelectedNavId}
               images={leftPanelImages}
+              onImageUploaded={refreshMasterImage}
+              onImageDeleteRequested={requestDeleteImage}
             />
             <ProjectEditorStage
               projectId={projectId}
               masterImage={masterImage}
               masterImageLoading={masterImageLoading}
               masterImageError={masterImageError}
-              refreshMasterImage={refreshMasterImage}
               imageStateLoading={imageStateLoading}
               toolbar={toolbar}
               canvasRef={canvasRef}
@@ -392,6 +408,7 @@ export function ProjectDetailPageClient({
             deleteOpen={deleteOpen}
             setDeleteOpen={setDeleteOpen}
             handleDeleteMasterImage={handleDeleteMasterImage}
+            onRequestDeleteImage={requestDeleteSelectedImage}
             panelImagePxU={panelImagePxU}
             workspaceUnit={workspaceUnit ?? "cm"}
             workspaceDpi={workspaceDpi ?? 300}
