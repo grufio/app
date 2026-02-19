@@ -8,9 +8,6 @@ import {
   SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
 } from "@/components/ui/sidebar"
 import { AddImageMenuAction } from "./add-image-menu-button"
 import { DeleteImageMenuAction } from "./delete-image-menu-action"
@@ -64,42 +61,40 @@ export function EditorNavTree(props: {
         </SidebarMenuButton>
       </SidebarMenuItem>
       {imageTargetNavId ? (
-        <SidebarMenuItem>
-          <SidebarMenuButton isActive={selectedKind === "image"} className="text-xs" onClick={() => onSelect(imageTargetNavId)}>
-            <ImageIcon />
-            <span>Image</span>
-          </SidebarMenuButton>
-          {imageTargetImageId ? <DeleteImageMenuAction imageId={imageTargetImageId} onDeleteRequest={onImageDeleteRequested} /> : null}
-          <SidebarMenuSub>
-            <SidebarMenuSubItem>
-              <SidebarMenuSubButton
-                size="sm"
-                className="h-8 text-xs"
-                isActive={selectedKind === "grid" && hasGrid}
-                aria-disabled={!hasGrid}
-                onClick={(event) => {
-                  if (!hasGrid) {
-                    event.preventDefault()
-                    return
-                  }
-                  onSelect(gridNavId)
-                }}
-              >
-                <Grid3x3 />
-                <span>Grid</span>
-              </SidebarMenuSubButton>
-              {hasGrid ? (
-                <SidebarMenuAction className="top-1.5" aria-label="Delete Grid" onClick={() => void onGridDeleteRequested()}>
-                  <Trash2 />
-                </SidebarMenuAction>
-              ) : (
-                <SidebarMenuAction className="top-1.5" aria-label="Add Grid" onClick={() => void onGridCreateRequested()}>
-                  <Plus />
-                </SidebarMenuAction>
-              )}
-            </SidebarMenuSubItem>
-          </SidebarMenuSub>
-        </SidebarMenuItem>
+        <>
+          <SidebarMenuItem>
+            <SidebarMenuButton isActive={selectedKind === "image"} className="text-xs" onClick={() => onSelect(imageTargetNavId)}>
+              <ImageIcon />
+              <span>Image</span>
+            </SidebarMenuButton>
+            {imageTargetImageId ? (
+              <DeleteImageMenuAction imageId={imageTargetImageId} onDeleteRequest={onImageDeleteRequested} />
+            ) : null}
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              isActive={selectedKind === "grid" && hasGrid}
+              className="text-xs"
+              aria-disabled={!hasGrid}
+              onClick={() => {
+                if (!hasGrid) return
+                onSelect(gridNavId)
+              }}
+            >
+              <Grid3x3 />
+              <span>Grid</span>
+            </SidebarMenuButton>
+            {hasGrid ? (
+              <SidebarMenuAction aria-label="Delete Grid" onClick={() => void onGridDeleteRequested()}>
+                <Trash2 />
+              </SidebarMenuAction>
+            ) : (
+              <SidebarMenuAction aria-label="Add Grid" onClick={() => void onGridCreateRequested()}>
+                <Plus />
+              </SidebarMenuAction>
+            )}
+          </SidebarMenuItem>
+        </>
       ) : (
         <SidebarMenuItem>
           <SidebarMenuButton className="text-xs" disabled>
