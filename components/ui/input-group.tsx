@@ -29,10 +29,9 @@ function InputGroup({ className, ...props }: React.ComponentProps<"div">) {
         // Chrome (match Input tokens)
         "dark:bg-input/30 border-input bg-transparent rounded-md border shadow-xs transition-[color,box-shadow] outline-none",
         "hover:border-muted-foreground/30",
-        // Focus handling via the control slot
-        "has-[[data-slot=input-group-control]:focus-visible]:border-ring has-[[data-slot=select-trigger]:focus-visible]:border-ring",
-        "has-[[data-slot=input-group-control]:focus-visible]:ring-[3px] has-[[data-slot=input-group-control]:focus-visible]:ring-ring/50",
-        "has-[[data-slot=select-trigger]:focus-visible]:ring-[3px] has-[[data-slot=select-trigger]:focus-visible]:ring-ring/50",
+        // Focus handling via the control slot (explicit purple border on click + keyboard, no glow ring)
+        "has-[[data-slot=input-group-control]:focus]:border-[#7C5CFF] has-[[data-slot=select-trigger]:focus]:border-[#7C5CFF]",
+        "has-[[data-slot=input-group-control]:focus-visible]:border-[#7C5CFF] has-[[data-slot=select-trigger]:focus-visible]:border-[#7C5CFF]",
         // Invalid
         "has-[[data-slot=input-group-control][aria-invalid=true]]:border-destructive has-[[data-slot=select-trigger][aria-invalid=true]]:border-destructive",
         // Ensure inner controls don't create double-rounded corners

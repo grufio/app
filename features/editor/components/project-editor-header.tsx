@@ -1,10 +1,9 @@
 "use client"
 
 import Link from "next/link"
-import { useState } from "react"
 import { ArrowLeft } from "lucide-react"
 
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ProjectTitleEditor } from "./project-title-editor"
 
 /**
  * Header for the project editor page.
@@ -13,9 +12,15 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
  * - Back link to the dashboard
  * - Section tabs for right-panel context
  */
-export function ProjectEditorHeader() {
-  const [activeTab, setActiveTab] = useState<"image" | "filter" | "colors" | "output">("image")
-
+export function ProjectEditorHeader({
+  projectId,
+  initialTitle,
+  onTitleUpdated,
+}: {
+  projectId: string
+  initialTitle?: string
+  onTitleUpdated?: (nextTitle: string) => void
+}) {
   return (
     <header className="flex shrink-0 items-center py-1 transition-[width,height] ease-linear">
       <div className="flex items-center gap-2 px-4">
@@ -26,22 +31,9 @@ export function ProjectEditorHeader() {
         >
           <ArrowLeft className="h-[16px] w-[16px]" />
         </Link>
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="gap-0">
-          <TabsList className="h-6 gap-2">
-            <TabsTrigger value="image" className="h-6 text-[12px] leading-[24px]">
-              Image
-            </TabsTrigger>
-            <TabsTrigger value="filter" className="h-6 text-[12px] leading-[24px]">
-              Filter
-            </TabsTrigger>
-            <TabsTrigger value="colors" className="h-6 text-[12px] leading-[24px]">
-              Colors
-            </TabsTrigger>
-            <TabsTrigger value="output" className="h-6 text-[12px] leading-[24px]">
-              Output
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <div className="min-w-0 w-56">
+          <ProjectTitleEditor projectId={projectId} initialTitle={initialTitle} onTitleUpdated={onTitleUpdated} />
+        </div>
       </div>
     </header>
   )

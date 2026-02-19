@@ -10,14 +10,11 @@
 import * as React from "react"
 import { SidebarFrame } from "@/components/navigation/SidebarFrame"
 import { SidebarContent } from "@/components/ui/sidebar"
-import { ProjectTitleEditor } from "./project-title-editor"
 import { EditorSidebarSection } from "./sidebar/editor-sidebar-section"
 import { EditorNavTree } from "./editor-nav-tree"
 
 export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel(props: {
   projectId: string
-  initialTitle?: string
-  onTitleUpdated?: (nextTitle: string) => void
   widthRem: number
   minRem: number
   maxRem: number
@@ -30,8 +27,6 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
 }) {
   const {
     projectId,
-    initialTitle,
-    onTitleUpdated,
     widthRem,
     minRem,
     maxRem,
@@ -80,9 +75,6 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
     >
       <SidebarFrame className="block min-h-0 w-full">
         <SidebarContent className="gap-0">
-          <EditorSidebarSection title="Title">
-            <ProjectTitleEditor projectId={projectId} initialTitle={initialTitle} onTitleUpdated={onTitleUpdated} />
-          </EditorSidebarSection>
           <EditorSidebarSection title="Projekt">
             <EditorNavTree
               projectId={projectId}

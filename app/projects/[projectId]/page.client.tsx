@@ -346,15 +346,17 @@ export function ProjectDetailPageClient({
 
   return (
     <div className="flex min-h-svh w-full flex-col">
-      <ProjectEditorHeader />
+      <ProjectEditorHeader
+        projectId={projectId}
+        initialTitle={project && project.id === projectId ? project.name : "Untitled"}
+        onTitleUpdated={handleTitleUpdated}
+      />
 
       <ProjectEditorLayout>
         <EditorErrorBoundary resetKey={`${projectId}:${masterImage?.signedUrl ?? "no-image"}`}>
           <main className="flex min-w-0 flex-1">
             <ProjectEditorLeftPanel
               projectId={projectId}
-              initialTitle={project && project.id === projectId ? project.name : "Untitled"}
-              onTitleUpdated={handleTitleUpdated}
               widthRem={leftPanelWidthRem}
               minRem={minPanelRem}
               maxRem={maxPanelRem}

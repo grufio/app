@@ -71,7 +71,7 @@ export function ProjectTitleEditor({ projectId, initialTitle, onTitleUpdated }: 
   }
 
   return (
-    <div className="space-y-1">
+    <div>
       {!isEditing ? (
         <button
           type="button"
@@ -115,8 +115,6 @@ export function ProjectTitleEditor({ projectId, initialTitle, onTitleUpdated }: 
           />
         </InputGroup>
       )}
-      {isSaving ? <div className="text-xs text-muted-foreground">Saving…</div> : null}
-      {error ? <div className="text-xs text-destructive">{error}</div> : null}
     </div>
   )
 }
