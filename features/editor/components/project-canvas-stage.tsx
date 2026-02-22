@@ -122,9 +122,10 @@ const SelectionOverlay = memo(function SelectionOverlay({
     snapWorldToDeviceHalfPixel,
   })
   const { x1, y1, x2, y2 } = rects.outline
-  const { tl, tr, br, bl } = rects.handles
+  const { tl, tm, tr, rm, br, bm, bl, lm } = rects.handles
   const handleW = rects.handleSize.w
   const handleH = rects.handleSize.h
+  const handleRects = [tl, tm, tr, rm, br, bm, bl, lm]
 
   return (
     <>
@@ -161,51 +162,20 @@ const SelectionOverlay = memo(function SelectionOverlay({
         listening={false}
       />
 
-      {/* Corner handles */}
-      <Rect
-        x={tl.x}
-        y={tl.y}
-        width={handleW}
-        height={handleH}
-        fill="#ffffff"
-        stroke={selectionColor}
-        strokeWidth={1}
-        strokeScaleEnabled={false}
-        listening={false}
-      />
-      <Rect
-        x={tr.x}
-        y={tr.y}
-        width={handleW}
-        height={handleH}
-        fill="#ffffff"
-        stroke={selectionColor}
-        strokeWidth={1}
-        strokeScaleEnabled={false}
-        listening={false}
-      />
-      <Rect
-        x={br.x}
-        y={br.y}
-        width={handleW}
-        height={handleH}
-        fill="#ffffff"
-        stroke={selectionColor}
-        strokeWidth={1}
-        strokeScaleEnabled={false}
-        listening={false}
-      />
-      <Rect
-        x={bl.x}
-        y={bl.y}
-        width={handleW}
-        height={handleH}
-        fill="#ffffff"
-        stroke={selectionColor}
-        strokeWidth={1}
-        strokeScaleEnabled={false}
-        listening={false}
-      />
+      {handleRects.map((h, idx) => (
+        <Rect
+          key={`selection-handle-${idx}`}
+          x={h.x}
+          y={h.y}
+          width={handleW}
+          height={handleH}
+          fill="#ffffff"
+          stroke={selectionColor}
+          strokeWidth={1}
+          strokeScaleEnabled={false}
+          listening={false}
+        />
+      ))}
     </>
   )
 })
