@@ -15,7 +15,16 @@ export function computeSelectionHandleRects(opts: {
   snapWorldToDeviceHalfPixel: (worldCoord: number, axis: "x" | "y") => number
 }): {
   outline: { x1: number; y1: number; x2: number; y2: number }
-  handles: { tl: { x: number; y: number }; tr: { x: number; y: number }; br: { x: number; y: number }; bl: { x: number; y: number } }
+  handles: {
+    tl: { x: number; y: number }
+    tm: { x: number; y: number }
+    tr: { x: number; y: number }
+    rm: { x: number; y: number }
+    br: { x: number; y: number }
+    bm: { x: number; y: number }
+    bl: { x: number; y: number }
+    lm: { x: number; y: number }
+  }
   handleSize: { w: number; h: number }
 } {
   const { bounds, view, handlePx, snapWorldToDeviceHalfPixel } = opts
@@ -23,33 +32,29 @@ export function computeSelectionHandleRects(opts: {
   const y1 = snapWorldToDeviceHalfPixel(bounds.y, "y")
   const x2 = snapWorldToDeviceHalfPixel(bounds.x + bounds.w, "x")
   const y2 = snapWorldToDeviceHalfPixel(bounds.y + bounds.h, "y")
+  const xMid = (x1 + x2) / 2
+  const yMid = (y1 + y2) / 2
+  const scale = Math.max(0.000001, Math.abs(view.scale || 1))
+  // Keep handles device-size stable across zoom by converting px -> world units.
+  const handleWorld = handlePx / scale
 
-  const toWorldFromScreen = (screen: number, axis: "x" | "y") => {
-    const offset = axis === "x" ? view.x : view.y
-    const scale = view.scale || 1
-    return (screen - offset) / scale
+  const handleAt = (centerX: number, centerY: number) => {
+    return { x: centerX - handleWorld / 2, y: centerY - handleWorld / 2 }
   }
-
-  const handleAt = (screenX: number, screenY: number) => {
-    const left = Math.round(screenX - handlePx / 2)
-    const top = Math.round(screenY - handlePx / 2)
-    return { x: toWorldFromScreen(left, "x"), y: toWorldFromScreen(top, "y") }
-  }
-
-  const cornerTL = { x: view.x + x1 * view.scale, y: view.y + y1 * view.scale }
-  const cornerTR = { x: view.x + x2 * view.scale, y: view.y + y1 * view.scale }
-  const cornerBR = { x: view.x + x2 * view.scale, y: view.y + y2 * view.scale }
-  const cornerBL = { x: view.x + x1 * view.scale, y: view.y + y2 * view.scale }
 
   return {
     outline: { x1, y1, x2, y2 },
     handles: {
-      tl: handleAt(cornerTL.x, cornerTL.y),
-      tr: handleAt(cornerTR.x, cornerTR.y),
-      br: handleAt(cornerBR.x, cornerBR.y),
-      bl: handleAt(cornerBL.x, cornerBL.y),
+      tl: handleAt(x1, y1),
+      tm: handleAt(xMid, y1),
+      tr: handleAt(x2, y1),
+      rm: handleAt(x2, yMid),
+      br: handleAt(x2, y2),
+      bm: handleAt(xMid, y2),
+      bl: handleAt(x1, y2),
+      lm: handleAt(x1, yMid),
     },
-    handleSize: { w: handlePx, h: handlePx },
+    handleSize: { w: handleWorld, h: handleWorld },
   }
 }
 
