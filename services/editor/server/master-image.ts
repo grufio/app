@@ -2,7 +2,7 @@
  * Server-side master image fetch helper.
  *
  * Responsibilities:
- * - Fetch master image metadata from DB and create a short-lived signed URL.
+ * - Fetch active image metadata from DB and create a short-lived signed URL.
  * - Prefer partial boot: if signing fails, return null (editor can still render).
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
@@ -17,7 +17,6 @@ export async function getMasterImageForEditor(
     .from("project_images")
     .select("id,storage_path,storage_bucket,name,width_px,height_px,dpi,role,is_active,deleted_at")
     .eq("project_id", projectId)
-    .eq("role", "master")
     .eq("is_active", true)
     .is("deleted_at", null)
     .maybeSingle()

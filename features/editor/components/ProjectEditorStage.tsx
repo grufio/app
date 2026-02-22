@@ -54,6 +54,8 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
     actionsDisabled: boolean
     panEnabled: boolean
     imageDraggable: boolean
+    cropEnabled?: boolean
+    cropBusy?: boolean
   }
   canvasRef: React.RefObject<ProjectCanvasStageHandle | null>
   artboardWidthPx?: number
@@ -132,6 +134,8 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
             className="h-full w-full"
             panEnabled={toolbar.panEnabled}
             imageDraggable={Boolean(masterImage) && toolbar.imageDraggable}
+            cropEnabled={Boolean(masterImage) && Boolean(toolbar.cropEnabled)}
+            cropBusy={Boolean(toolbar.cropBusy)}
             artboardWidthPx={artboardWidthPx ?? undefined}
             artboardHeightPx={artboardHeightPx ?? undefined}
             intrinsicWidthPx={

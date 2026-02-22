@@ -58,6 +58,7 @@
     "react-dom": "19.2.3",
     "react-dropzone": "^14.3.8",
     "react-konva": "^19.2.1",
+    "sharp": "^0.34.5",
     "tailwind-merge": "^3.4.0"
   },
   "devDependencies": {

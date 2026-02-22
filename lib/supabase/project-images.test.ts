@@ -15,19 +15,25 @@ function makeSupabase(result: QueryResult, calls: Array<{ method: "eq" | "is"; k
         select: () => ({
           eq: (key1: string, value1: unknown) => {
             calls.push({ method: "eq", key: key1, value: value1 })
+            const withMaybe = {
+              maybeSingle: async () => result,
+            }
+            const withIs = {
+              ...withMaybe,
+              is: (key: string, value: unknown) => {
+                calls.push({ method: "is", key, value })
+                return withMaybe
+              },
+            }
             return {
               eq: (key2: string, value2: unknown) => {
                 calls.push({ method: "eq", key: key2, value: value2 })
                 return {
+                  ...withIs,
                   eq: (key3: string, value3: unknown) => {
                     calls.push({ method: "eq", key: key3, value: value3 })
                     return {
-                      is: (key4: string, value4: unknown) => {
-                        calls.push({ method: "is", key: key4, value: value4 })
-                        return {
-                          maybeSingle: async () => result,
-                        }
-                      },
+                      ...withIs,
                     }
                   },
                 }
@@ -59,7 +65,6 @@ describe("getActiveMasterImage", () => {
     expect(out).toEqual({ image: null, error: "boom" })
     expect(calls).toEqual([
       { method: "eq", key: "project_id", value: "proj-1" },
-      { method: "eq", key: "role", value: "master" },
       { method: "eq", key: "is_active", value: true },
       { method: "is", key: "deleted_at", value: null },
     ])

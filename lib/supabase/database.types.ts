@@ -139,45 +139,60 @@ export type Database = {
       project_images: {
         Row: {
           bit_depth: number | null
+          crop_rect_px: Json | null
           created_at: string
+          deleted_at: string | null
           dpi: number | null
           file_size_bytes: number
           format: string
           height_px: number
           id: string
+          is_active: boolean
           name: string
           project_id: string
           role: Database["public"]["Enums"]["image_role"]
+          source_image_id: string | null
+          storage_bucket: string
           storage_path: string
           updated_at: string
           width_px: number
         }
         Insert: {
           bit_depth?: number | null
+          crop_rect_px?: Json | null
           created_at?: string
+          deleted_at?: string | null
           dpi?: number | null
           file_size_bytes?: number
           format: string
           height_px: number
           id?: string
+          is_active?: boolean
           name: string
           project_id: string
           role: Database["public"]["Enums"]["image_role"]
+          source_image_id?: string | null
+          storage_bucket?: string
           storage_path: string
           updated_at?: string
           width_px: number
         }
         Update: {
           bit_depth?: number | null
+          crop_rect_px?: Json | null
           created_at?: string
+          deleted_at?: string | null
           dpi?: number | null
           file_size_bytes?: number
           format?: string
           height_px?: number
           id?: string
+          is_active?: boolean
           name?: string
           project_id?: string
           role?: Database["public"]["Enums"]["image_role"]
+          source_image_id?: string | null
+          storage_bucket?: string
           storage_path?: string
           updated_at?: string
           width_px?: number
@@ -433,7 +448,7 @@ export type Database = {
       }
     }
     Enums: {
-      image_role: "master" | "working"
+      image_role: "master" | "working" | "asset"
       measure_unit: "mm" | "cm" | "pt" | "px"
       project_status: "in_progress" | "completed" | "archived"
     }
@@ -563,7 +578,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      image_role: ["master", "working"],
+      image_role: ["master", "working", "asset"],
       measure_unit: ["mm", "cm", "pt", "px"],
       project_status: ["in_progress", "completed", "archived"],
     },

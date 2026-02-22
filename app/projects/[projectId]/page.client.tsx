@@ -25,6 +25,7 @@ import { useProjectGrid } from "@/lib/editor/project-grid"
 import type { MasterImage } from "@/lib/editor/use-master-image"
 import { useMasterImage } from "@/lib/editor/use-master-image"
 import { useProjectImages } from "@/lib/editor/use-project-images"
+import { cropImageVariant } from "@/lib/api/project-images"
 import type { Project } from "@/lib/editor/use-project"
 import { useProject } from "@/lib/editor/use-project"
 import type { ImageState } from "@/lib/editor/use-image-state"
@@ -102,6 +103,7 @@ export function ProjectDetailPageClient({
   const [gridVisible, setGridVisible] = useState(true)
   const canvasRef = useRef<ProjectCanvasStageHandle | null>(null)
   const [imagePxU, setImagePxU] = useState<{ w: bigint; h: bigint } | null>(null)
+  const [cropBusy, setCropBusy] = useState(false)
 
   // Load image-state independent of masterImage loading, so reloads can apply persisted size immediately.
   // Persist is still gated by `masterImage` when wiring `onImageTransformCommit` (see ProjectEditorStage props).
@@ -134,6 +136,54 @@ export function ProjectDetailPageClient({
     imageStateLoading,
     enableShortcuts: true,
   })
+  const stageToolbar = useMemo(
+    () => ({
+      ...toolbar,
+      cropEnabled: toolbar.tool === "crop",
+      cropBusy,
+      imageDraggable: toolbar.tool === "select",
+      panEnabled: toolbar.tool === "hand",
+    }),
+    [cropBusy, toolbar]
+  )
+
+  useEffect(() => {
+    const onKeyDown = async (e: KeyboardEvent) => {
+      if (toolbar.tool !== "crop") return
+      if (cropBusy) return
+      if (e.key === "Escape") {
+        e.preventDefault()
+        canvasRef.current?.resetCropSelection()
+        toolbar.setTool("select")
+        return
+      }
+      if (e.key !== "Enter") return
+      e.preventDefault()
+      const sourceImageId = masterImage?.id ?? null
+      if (!sourceImageId) return
+      const rect = canvasRef.current?.getCropSelectionPx()
+      if (!rect) return
+      setCropBusy(true)
+      try {
+        await cropImageVariant({
+          projectId,
+          sourceImageId,
+          x: rect.x,
+          y: rect.y,
+          w: rect.w,
+          h: rect.h,
+        })
+        toolbar.setTool("select")
+        await refreshMasterImage()
+        await refreshProjectImages()
+        await loadImageState()
+      } finally {
+        setCropBusy(false)
+      }
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [cropBusy, loadImageState, masterImage?.id, projectId, refreshMasterImage, refreshProjectImages, toolbar])
 
   const [selectedNavId, setSelectedNavId] = useState<string>(buildNavId({ kind: "artboard" }))
   const autoSelectMasterIdRef = useRef<string | null>(null)
@@ -393,7 +443,7 @@ export function ProjectDetailPageClient({
               masterImageLoading={masterImageLoading}
               masterImageError={masterImageError}
               imageStateLoading={imageStateLoading}
-              toolbar={toolbar}
+              toolbar={stageToolbar}
               canvasRef={canvasRef}
               artboardWidthPx={artboardWidthPx ?? undefined}
               artboardHeightPx={artboardHeightPx ?? undefined}

@@ -11,7 +11,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 
 import type { ProjectCanvasStageHandle } from "@/features/editor"
 
-export type EditorTool = "select" | "hand"
+export type EditorTool = "select" | "hand" | "crop"
 
 export type FloatingToolbarActions = {
   zoomIn: () => void
@@ -72,6 +72,11 @@ export function useFloatingToolbarControls(opts: {
       if (k === "h") {
         e.preventDefault()
         setTool("hand")
+        return
+      }
+      if (k === "c") {
+        e.preventDefault()
+        setTool("crop")
         return
       }
       if (actionsDisabled) return

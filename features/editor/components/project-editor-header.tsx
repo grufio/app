@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { cn } from "@/lib/utils"
 
 /**
  * Header for the project editor page.
@@ -14,6 +14,12 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
  */
 export function ProjectEditorHeader() {
   const [activeTab, setActiveTab] = useState<"image" | "filter" | "colors" | "output">("image")
+  const tabs: Array<{ key: typeof activeTab; label: string }> = [
+    { key: "image", label: "Image" },
+    { key: "filter", label: "Filter" },
+    { key: "colors", label: "Colors" },
+    { key: "output", label: "Output" },
+  ]
 
   return (
     <header className="flex shrink-0 items-center py-1 transition-[width,height] ease-linear">
@@ -25,22 +31,26 @@ export function ProjectEditorHeader() {
         >
           <ArrowLeft className="h-[16px] w-[16px]" />
         </Link>
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="gap-0">
-          <TabsList>
-            <TabsTrigger value="image" className="h-6 text-[12px] leading-[24px]">
-              Image
-            </TabsTrigger>
-            <TabsTrigger value="filter" className="h-6 text-[12px] leading-[24px]">
-              Filter
-            </TabsTrigger>
-            <TabsTrigger value="colors" className="h-6 text-[12px] leading-[24px]">
-              Colors
-            </TabsTrigger>
-            <TabsTrigger value="output" className="h-6 text-[12px] leading-[24px]">
-              Output
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <div role="tablist" aria-label="Editor sections" className="inline-grid h-7 w-fit grid-flow-col auto-cols-max items-center gap-[12px] p-0">
+          {tabs.map((tab) => {
+            const active = activeTab === tab.key
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => setActiveTab(tab.key)}
+                className={cn(
+                  "inline-flex h-7 items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-[12px] leading-[24px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+                  active ? "bg-black text-white" : "bg-muted text-foreground hover:bg-muted/80"
+                )}
+              >
+                {tab.label}
+              </button>
+            )
+          })}
+        </div>
       </div>
     </header>
   )

@@ -2,7 +2,7 @@
  * API route: master image metadata and signed URL.
  *
  * Responsibilities:
- * - Return master image metadata and a short-lived signed URL for download.
+ * - Return active image metadata and a short-lived signed URL for download.
  * - Support deletion of the master image (and associated state) via Supabase.
  */
 import { NextResponse } from "next/server"
@@ -36,7 +36,6 @@ export async function GET(
     .from("project_images")
     .select("id,storage_path,storage_bucket,name,format,width_px,height_px,dpi,file_size_bytes,is_active")
     .eq("project_id", projectId)
-    .eq("role", "master")
     .eq("is_active", true)
     .is("deleted_at", null)
     .maybeSingle()

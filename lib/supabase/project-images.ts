@@ -2,8 +2,8 @@
  * Project image repository helpers.
  *
  * Responsibilities:
- * - Provide a single query helper for the active master image row.
- * - Keep active-master filter semantics consistent across callsites.
+ * - Provide a single query helper for the active image row.
+ * - Keep active-image filter semantics consistent across callsites.
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
 
@@ -26,7 +26,6 @@ export async function getActiveMasterImageId(
     .from("project_images")
     .select("id")
     .eq("project_id", projectId)
-    .eq("role", "master")
     .eq("is_active", true)
     .is("deleted_at", null)
     .maybeSingle()
@@ -69,7 +68,6 @@ export async function getActiveMasterImage(
     .from("project_images")
     .select("id,storage_path,storage_bucket,name,width_px,height_px,role,is_active,deleted_at")
     .eq("project_id", projectId)
-    .eq("role", "master")
     .eq("is_active", true)
     .is("deleted_at", null)
     .maybeSingle()
