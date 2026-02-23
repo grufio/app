@@ -27,7 +27,7 @@ export async function DELETE(
 
   const { data: img, error: imgErr } = await supabase
     .from("project_images")
-    .select("id,storage_bucket,storage_path,is_active")
+    .select("id,storage_bucket,storage_path,is_active,is_locked")
     .eq("project_id", projectId)
     .eq("role", "master")
     .eq("id", imageId)
@@ -40,6 +40,9 @@ export async function DELETE(
 
   if (!img?.storage_path) {
     return NextResponse.json({ ok: true, deleted: false })
+  }
+  if (img.is_locked) {
+    return jsonError("Image is locked", 409, { stage: "lock_conflict", reason: "image_locked" })
   }
 
   const bucket = img.storage_bucket || "project_images"

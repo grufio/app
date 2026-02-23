@@ -102,4 +102,35 @@ describe("master-image-upload service", () => {
     expect(capture.insert?.height_px).toBe(200)
     expect(activateSpy).toHaveBeenCalledTimes(1)
   })
+
+  it("maps lock_conflict from active switch as 409", async () => {
+    const capture: { insert?: InsertPayload } = {}
+    const supabase = makeSupabase({ error: null }, capture)
+    uploadSpy.mockResolvedValueOnce({ error: null })
+    activateSpy.mockResolvedValueOnce({
+      ok: false,
+      status: 409,
+      stage: "lock_conflict",
+      reason: "Active image is locked",
+      code: "image_locked",
+    })
+    const file = new File([new Uint8Array([1])], "x.png", { type: "image/png" })
+
+    const out = await uploadMasterImage({
+      supabase: supabase as never,
+      projectId: "p1",
+      file,
+      widthPx: 200,
+      heightPx: 100,
+      format: "png",
+    })
+
+    expect(out).toEqual({
+      ok: false,
+      status: 409,
+      stage: "lock_conflict",
+      reason: "Active image is locked",
+      code: "image_locked",
+    })
+  })
 })

@@ -1,0 +1,173 @@
+import { describe, expect, it, vi } from "vitest"
+
+const VALID_UUID = "c104be01-d7b0-4af4-a446-8326cd47a282"
+const IMAGE_UUID = "2e306bed-0f1a-4124-a1c7-2702d85c21e7"
+const { getActiveMasterImageIdMock, upsertBoundImageStateMock } = vi.hoisted(() => ({
+  getActiveMasterImageIdMock: vi.fn(),
+  upsertBoundImageStateMock: vi.fn(),
+}))
+
+function makeLockRouteSupabase(args: { projectAccessible: boolean; imageExists: boolean }) {
+  const { projectAccessible, imageExists } = args
+  return {
+    auth: {
+      getUser: async () => ({ data: { user: { id: "u1" } } }),
+    },
+    from: (table: string) => {
+      if (table === "projects") {
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: async () => ({
+                data: projectAccessible ? { id: VALID_UUID } : null,
+                error: null,
+              }),
+            }),
+          }),
+        }
+      }
+      if (table === "project_images") {
+        return {
+          select: () => ({
+            eq: () => ({
+              eq: () => ({
+                eq: () => ({
+                  is: () => ({
+                    maybeSingle: async () => ({
+                      data: imageExists ? { id: IMAGE_UUID } : null,
+                      error: null,
+                    }),
+                  }),
+                }),
+              }),
+            }),
+          }),
+          update: () => ({
+            eq: () => ({
+              eq: () => ({
+                eq: () => ({
+                  is: async () => ({ error: null }),
+                }),
+              }),
+            }),
+          }),
+        }
+      }
+      throw new Error(`unexpected table: ${table}`)
+    },
+  }
+}
+
+function makeImageStateSupabaseLocked() {
+  return {
+    auth: {
+      getUser: async () => ({ data: { user: { id: "u1" } } }),
+    },
+    from: (table: string) => {
+      if (table === "projects") {
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: async () => ({ data: { id: VALID_UUID }, error: null }),
+            }),
+          }),
+        }
+      }
+      if (table === "project_images") {
+        return {
+          select: () => ({
+            eq: () => ({
+              eq: () => ({
+                is: () => ({
+                  maybeSingle: async () => ({ data: { is_locked: true }, error: null }),
+                }),
+              }),
+            }),
+          }),
+        }
+      }
+      throw new Error(`unexpected table: ${table}`)
+    },
+  }
+}
+
+describe("lock guard route contracts", () => {
+  it("lock route returns project_access denial when project is not accessible", async () => {
+    vi.resetModules()
+    vi.doMock("@/lib/supabase/server", () => ({
+      createSupabaseServerClient: async () => makeLockRouteSupabase({ projectAccessible: false, imageExists: true }),
+    }))
+
+    const mod = await import("@/app/api/projects/[projectId]/images/master/[imageId]/lock/route")
+    const req = new Request("http://test.local", {
+      method: "PATCH",
+      body: JSON.stringify({ is_locked: true }),
+      headers: { "content-type": "application/json" },
+    })
+    const res = await mod.PATCH(req, { params: Promise.resolve({ projectId: VALID_UUID, imageId: IMAGE_UUID }) })
+    expect(res.status).toBe(403)
+    const body = await res.json()
+    expect(body.stage).toBe("rls_denied")
+    expect(body.where).toBe("project_access")
+  })
+
+  it("lock route returns resource_missing when image does not exist", async () => {
+    vi.resetModules()
+    vi.doMock("@/lib/supabase/server", () => ({
+      createSupabaseServerClient: async () => makeLockRouteSupabase({ projectAccessible: true, imageExists: false }),
+    }))
+
+    const mod = await import("@/app/api/projects/[projectId]/images/master/[imageId]/lock/route")
+    const req = new Request("http://test.local", {
+      method: "PATCH",
+      body: JSON.stringify({ is_locked: true }),
+      headers: { "content-type": "application/json" },
+    })
+    const res = await mod.PATCH(req, { params: Promise.resolve({ projectId: VALID_UUID, imageId: IMAGE_UUID }) })
+    expect(res.status).toBe(404)
+    const body = await res.json()
+    expect(body.stage).toBe("lock_query")
+  })
+
+  it("image-state route returns lock_conflict 409 when active image is locked", async () => {
+    vi.resetModules()
+    getActiveMasterImageIdMock.mockReset()
+    upsertBoundImageStateMock.mockReset()
+    getActiveMasterImageIdMock.mockResolvedValue({ imageId: "img-1", error: null })
+
+    vi.doMock("@/lib/supabase/project-images", () => ({
+      getActiveMasterImageId: (...args: unknown[]) => getActiveMasterImageIdMock(...args),
+    }))
+    vi.doMock("@/lib/supabase/image-state", () => ({
+      loadBoundImageState: vi.fn(),
+      upsertBoundImageState: (...args: unknown[]) => upsertBoundImageStateMock(...args),
+    }))
+    vi.doMock("@/lib/editor/imageState", () => ({
+      validateIncomingImageStateUpsert: vi.fn(() => ({
+        role: "master",
+        x_px_u: "0",
+        y_px_u: "0",
+        width_px_u: "1000000",
+        height_px_u: "1000000",
+        rotation_deg: 0,
+      })),
+    }))
+    vi.doMock("@/lib/supabase/server", () => ({
+      createSupabaseServerClient: async () => makeImageStateSupabaseLocked(),
+    }))
+
+    const mod = await import("@/app/api/projects/[projectId]/image-state/route")
+    const req = new Request("http://test.local", {
+      method: "POST",
+      body: JSON.stringify({}),
+      headers: { "content-type": "application/json" },
+    })
+    const res = await mod.POST(req, { params: Promise.resolve({ projectId: VALID_UUID }) })
+
+    expect(res.status).toBe(409)
+    const body = await res.json()
+    expect(body.stage).toBe("lock_conflict")
+    expect(body.reason).toBe("image_locked")
+    expect(upsertBoundImageStateMock).not.toHaveBeenCalled()
+  })
+})

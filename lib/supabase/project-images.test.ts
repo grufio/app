@@ -46,8 +46,27 @@ function makeSupabase(result: QueryResult, calls: Array<{ method: "eq" | "is"; k
   } as unknown as SupabaseClient
 }
 
-function makeSupabaseRpc(result: { error: { message: string; code?: string } | null }, calls: Array<{ fn: string; args: Record<string, unknown> }>) {
+function makeSupabaseRpc(
+  result: { error: { message: string; code?: string } | null },
+  calls: Array<{ fn: string; args: Record<string, unknown> }>,
+  activeRow: { id?: string; is_locked?: boolean } | null = null,
+  activeError: { message: string; code?: string } | null = null
+) {
   return {
+    from: (table: string) => {
+      expect(table).toBe("project_images")
+      return {
+        select: () => ({
+          eq: () => ({
+            eq: () => ({
+              is: () => ({
+                maybeSingle: async () => ({ data: activeRow, error: activeError }),
+              }),
+            }),
+          }),
+        }),
+      }
+    },
     rpc: async (fn: string, args: Record<string, unknown>) => {
       calls.push({ fn, args })
       return result
@@ -197,10 +216,31 @@ describe("getActiveMasterImage", () => {
 
     expect(out).toEqual({
       ok: false,
+      status: 400,
       stage: "active_switch",
       reason: "rpc failed",
       code: "P0001",
     })
+  })
+
+  it("returns lock_conflict when active image is locked", async () => {
+    const calls: Array<{ fn: string; args: Record<string, unknown> }> = []
+    const supabase = makeSupabaseRpc({ error: null }, calls, { id: "active-1", is_locked: true })
+    const out = await activateMasterWithState({
+      supabase,
+      projectId: "proj-1",
+      imageId: "img-2",
+      widthPx: 20,
+      heightPx: 20,
+    })
+    expect(out).toEqual({
+      ok: false,
+      status: 409,
+      stage: "lock_conflict",
+      reason: "Active image is locked",
+      code: "image_locked",
+    })
+    expect(calls).toEqual([])
   })
 })
 

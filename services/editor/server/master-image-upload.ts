@@ -11,7 +11,7 @@ import { activateMasterWithState } from "@/lib/supabase/project-images"
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role"
 import type { Database } from "@/lib/supabase/database.types"
 
-type UploadFailStage = "validation" | "upload_limits" | "storage_upload" | "db_upsert" | "active_switch"
+type UploadFailStage = "validation" | "upload_limits" | "storage_upload" | "db_upsert" | "active_switch" | "lock_conflict"
 
 export type UploadMasterImageFailure = {
   ok: false
@@ -175,8 +175,8 @@ export async function uploadMasterImage(args: {
   if (!activation.ok) {
     return {
       ok: false,
-      status: 400,
-      stage: "active_switch",
+      status: activation.status,
+      stage: activation.stage,
       reason: activation.reason,
       code: activation.code,
     }

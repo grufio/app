@@ -41,8 +41,34 @@ export async function activateMasterWithState(args: {
   imageId: string
   widthPx: number
   heightPx: number
-}): Promise<{ ok: true } | { ok: false; stage: "active_switch"; reason: string; code?: string }> {
+}): Promise<{ ok: true } | { ok: false; status: number; stage: "active_switch" | "lock_conflict"; reason: string; code?: string }> {
   const { supabase, projectId, imageId, widthPx, heightPx } = args
+  const { data: activeRow, error: activeErr } = await supabase
+    .from("project_images")
+    .select("id,is_locked")
+    .eq("project_id", projectId)
+    .eq("is_active", true)
+    .is("deleted_at", null)
+    .maybeSingle()
+  if (activeErr) {
+    return {
+      ok: false,
+      status: 400,
+      stage: "active_switch",
+      reason: activeErr.message,
+      code: (activeErr as unknown as { code?: string })?.code,
+    }
+  }
+  if (activeRow?.is_locked && String(activeRow.id) !== imageId) {
+    return {
+      ok: false,
+      status: 409,
+      stage: "lock_conflict",
+      reason: "Active image is locked",
+      code: "image_locked",
+    }
+  }
+
   const { error } = await supabase.rpc("set_active_master_with_state", {
     p_project_id: projectId,
     p_image_id: imageId,
@@ -52,6 +78,7 @@ export async function activateMasterWithState(args: {
   if (error) {
     return {
       ok: false,
+      status: 400,
       stage: "active_switch",
       reason: error.message,
       code: (error as unknown as { code?: string })?.code,
