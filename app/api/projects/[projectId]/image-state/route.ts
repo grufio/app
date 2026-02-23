@@ -82,6 +82,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ project
   if (!activeImageIdForWrite) {
     return jsonError("No active master image", 409, { stage: "active_image_lookup" })
   }
+  const { data: activeImageRow, error: activeImageErr } = await supabase
+    .from("project_images")
+    .select("is_locked")
+    .eq("project_id", projectId)
+    .eq("id", activeImageIdForWrite)
+    .is("deleted_at", null)
+    .maybeSingle()
+  if (activeImageErr) return jsonError(activeImageErr.message, 400, { stage: "lock_guard_query" })
+  if (activeImageRow?.is_locked) {
+    return jsonError("Active image is locked", 409, { stage: "lock_conflict", reason: "image_locked" })
+  }
   baseRow.image_id = activeImageIdForWrite
 
   const upsert = await upsertBoundImageState(supabase, {

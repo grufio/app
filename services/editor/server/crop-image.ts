@@ -10,6 +10,7 @@ import { activateMasterWithState } from "@/lib/supabase/project-images"
 type CropFailStage =
   | "validation"
   | "source_lookup"
+  | "lock_conflict"
   | "source_download"
   | "crop_process"
   | "storage_upload"
@@ -78,7 +79,7 @@ export async function cropImageAndActivate(args: {
 
   const { data: src, error: srcErr } = await supabase
     .from("project_images")
-    .select("id,project_id,name,format,width_px,height_px,storage_bucket,storage_path,deleted_at")
+    .select("id,project_id,name,format,width_px,height_px,storage_bucket,storage_path,deleted_at,is_locked")
     .eq("project_id", projectId)
     .eq("id", sourceImageId)
     .is("deleted_at", null)
@@ -89,6 +90,9 @@ export async function cropImageAndActivate(args: {
   }
   if (!src?.storage_path) {
     return { ok: false, status: 404, stage: "source_lookup", reason: "Source image not found" }
+  }
+  if (src.is_locked) {
+    return { ok: false, status: 409, stage: "lock_conflict", reason: "Source image is locked", code: "image_locked" }
   }
 
   if (x + w > src.width_px || y + h > src.height_px) {
@@ -158,7 +162,7 @@ export async function cropImageAndActivate(args: {
   if (!activation.ok) {
     await supabase.from("project_images").delete().eq("id", imageId)
     await service.storage.from("project_images").remove([objectPath])
-    return { ok: false, status: 400, stage: "active_switch", reason: activation.reason, code: activation.code }
+    return { ok: false, status: activation.status, stage: activation.stage, reason: activation.reason, code: activation.code }
   }
 
   return { ok: true, id: imageId, storagePath: objectPath, widthPx: w, heightPx: h }

@@ -23,6 +23,7 @@ import { createRafScheduler, RAF_BOUNDS, RAF_DRAG_BOUNDS, RAF_PAN, RAF_ZOOM } fr
 import { useRestoreImageController, type RestoreBaseSpec, type RestoreImageResult } from "./canvas-stage/restore-controller"
 import { useCropController, type CropRectWorld } from "./canvas-stage/crop-controller"
 import { useSelectResizeController, type ResizeHandle } from "./canvas-stage/select-controller"
+import { useResizeListenerLifecycle, useWheelZoomGuard } from "./canvas-stage/stage-lifecycle-controller"
 import { createTransformController } from "./canvas-stage/transform-controller"
 import type { BoundsRect, ViewState } from "./canvas-stage/types"
 import { useHtmlImage } from "./canvas-stage/use-html-image"
@@ -323,15 +324,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   }, [restoreBaseHeightPx, restoreBaseImageId, restoreBaseWidthPx])
 
   // Prevent browser page zoom / scroll stealing (Cmd/Ctrl + wheel / trackpad pinch).
-  useEffect(() => {
-    const el = containerRef.current
-    if (!el) return
-    const handler = (evt: WheelEvent) => {
-      if (evt.ctrlKey || evt.metaKey) evt.preventDefault()
-    }
-    el.addEventListener("wheel", handler, { passive: false })
-    return () => el.removeEventListener("wheel", handler)
-  }, [])
+  useWheelZoomGuard(containerRef)
 
   useEffect(() => {
     const el = containerRef.current
@@ -701,11 +694,14 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     rotation,
     })
 
-  useEffect(() => {
-    // Any mode switch (select <-> crop <-> hand) must hard-stop active resize listeners.
-    stopSelectResize()
-    stopCropResize()
-  }, [cropBusy, cropEnabled, imageDraggable, panEnabled, stopCropResize, stopSelectResize])
+  useResizeListenerLifecycle({
+    cropBusy,
+    cropEnabled,
+    imageDraggable,
+    panEnabled,
+    stopSelectResize,
+    stopCropResize,
+  })
 
   const cropRects = useMemo(() => {
     if (!cropRect) return null

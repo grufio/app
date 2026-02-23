@@ -25,6 +25,20 @@ export async function POST(
   const u = await requireUser(supabase)
   if (!u.ok) return u.res
 
+  const { data: activeImageRow, error: activeImageErr } = await supabase
+    .from("project_images")
+    .select("id,is_locked")
+    .eq("project_id", projectId)
+    .eq("is_active", true)
+    .is("deleted_at", null)
+    .maybeSingle()
+  if (activeImageErr) {
+    return jsonError(activeImageErr.message, 400, { stage: "lock_guard_query" })
+  }
+  if (activeImageRow?.is_locked) {
+    return jsonError("Active image is locked", 409, { stage: "lock_conflict", reason: "image_locked" })
+  }
+
   const { data: baseMaster, error: baseErr } = await supabase
     .from("project_images")
     .select("id,width_px,height_px")
