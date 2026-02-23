@@ -24,6 +24,38 @@ import {
 import { createSerialWriteChannel } from "@/lib/utils/serial-write-channel"
 
 export type WorkspaceRow = import("@/services/editor").WorkspaceRow
+const MIN_WORKSPACE_PX_U = 1_000_000n
+const MAX_WORKSPACE_PX_U = 32_768_000_000n
+
+function parsePxUOrNull(raw: unknown): bigint | null {
+  if (typeof raw !== "string") return null
+  try {
+    const parsed = BigInt(raw)
+    if (parsed < MIN_WORKSPACE_PX_U || parsed > MAX_WORKSPACE_PX_U) return null
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+function pxFromPxU(pxU: bigint): number {
+  return Number((pxU + 500_000n) / 1_000_000n)
+}
+
+function mapWorkspacePersistError(raw: string | null | undefined): string {
+  const msg = String(raw ?? "").toLowerCase()
+  if (!msg) return "Failed to save workspace"
+  if (msg.includes("project_workspace_width_px_u_positive") || msg.includes("project_workspace_height_px_u_positive")) {
+    return "Artboard size is out of supported range."
+  }
+  if (msg.includes("project_workspace_px_cache_consistency")) {
+    return "Workspace size payload was inconsistent. Please try again."
+  }
+  if (msg.includes("requires width_px_u and height_px_u")) {
+    return "Canonical artboard size is missing (width_px_u/height_px_u)."
+  }
+  return raw ?? "Failed to save workspace"
+}
 
 type WorkspaceContextValue = {
   projectId: string
@@ -76,6 +108,19 @@ export function ProjectWorkspaceProvider({
     rowRef.current = row
   }, [row])
 
+  useEffect(() => {
+    if (!row) return
+    const widthOk = parsePxUOrNull((row as unknown as { width_px_u?: unknown }).width_px_u)
+    const heightOk = parsePxUOrNull((row as unknown as { height_px_u?: unknown }).height_px_u)
+    if (widthOk && heightOk) return
+    console.error("[workspace] invalid canonical µpx detected", {
+      projectId: row.project_id,
+      width_px_u: (row as unknown as { width_px_u?: unknown }).width_px_u,
+      height_px_u: (row as unknown as { height_px_u?: unknown }).height_px_u,
+    })
+    setError((prev) => (prev === "Invalid canonical workspace size (µpx)." ? prev : "Invalid canonical workspace size (µpx)."))
+  }, [row])
+
   const refresh = useCallback(async () => {
     setLoading(true)
     setError("")
@@ -122,7 +167,7 @@ export function ProjectWorkspaceProvider({
             rasterEffectsPreset: args.rasterEffectsPreset,
           })
           if (upErr || !data) {
-            setError(upErr ?? "Failed to save workspace")
+            setError(mapWorkspacePersistError(upErr))
             return null
           }
           const normalized = normalizeWorkspaceRow(data)
@@ -151,18 +196,30 @@ export function ProjectWorkspaceProvider({
         setSaving(true)
         setError("")
         try {
+          const widthPxU = parsePxUOrNull(args.widthPxU)
+          const heightPxU = parsePxUOrNull(args.heightPxU)
+          if (!widthPxU || !heightPxU) {
+            setError("Artboard size is out of supported range.")
+            return null
+          }
+          const derivedWidthPx = Math.max(1, pxFromPxU(widthPxU))
+          const derivedHeightPx = Math.max(1, pxFromPxU(heightPxU))
+          if (derivedWidthPx !== args.widthPx || derivedHeightPx !== args.heightPx) {
+            setError("Workspace size payload was inconsistent. Please try again.")
+            return null
+          }
           const { row: data, error: upErr } = await updateWorkspaceGeometryClient({
             projectId: rowRef.current!.project_id,
             unit: args.unit,
             widthValue: args.widthValue,
             heightValue: args.heightValue,
-            widthPxU: args.widthPxU,
-            heightPxU: args.heightPxU,
-            widthPx: args.widthPx,
-            heightPx: args.heightPx,
+            widthPxU: widthPxU.toString(),
+            heightPxU: heightPxU.toString(),
+            widthPx: derivedWidthPx,
+            heightPx: derivedHeightPx,
           })
           if (upErr || !data) {
-            setError(upErr ?? "Failed to save workspace")
+            setError(mapWorkspacePersistError(upErr))
             return null
           }
           const normalized = normalizeWorkspaceRow(data)
@@ -190,7 +247,7 @@ export function ProjectWorkspaceProvider({
             opacity: args.opacity,
           })
           if (upErr || !data) {
-            setError(upErr ?? "Failed to save workspace")
+            setError(mapWorkspacePersistError(upErr))
             return null
           }
           const normalized = normalizeWorkspaceRow(data)
@@ -215,26 +272,8 @@ export function ProjectWorkspaceProvider({
     const unit = row ? (row as unknown as { unit?: Unit }).unit ?? null : null
     const dpiRaw = row != null ? (row as unknown as { output_dpi?: unknown }).output_dpi : null
     const dpi = dpiRaw != null && Number.isFinite(Number(dpiRaw)) ? Number(dpiRaw) : null
-    const widthPxU =
-      row && typeof (row as unknown as { width_px_u?: unknown })?.width_px_u === "string"
-        ? (() => {
-            try {
-              return BigInt((row as unknown as { width_px_u: string }).width_px_u)
-            } catch {
-              return null
-            }
-          })()
-        : null
-    const heightPxU =
-      row && typeof (row as unknown as { height_px_u?: unknown })?.height_px_u === "string"
-        ? (() => {
-            try {
-              return BigInt((row as unknown as { height_px_u: string }).height_px_u)
-            } catch {
-              return null
-            }
-          })()
-        : null
+    const widthPxU = row ? parsePxUOrNull((row as unknown as { width_px_u?: unknown }).width_px_u) : null
+    const heightPxU = row ? parsePxUOrNull((row as unknown as { height_px_u?: unknown }).height_px_u) : null
     const widthPx = row && Number.isFinite(Number(row.width_px)) ? Number(row.width_px) : null
     const heightPx = row && Number.isFinite(Number(row.height_px)) ? Number(row.height_px) : null
     return {

@@ -21,6 +21,7 @@ import { useProjectGrid, type ProjectGridRow } from "@/lib/editor/project-grid"
 import { useProjectWorkspace } from "@/lib/editor/project-workspace"
 import { computeGridUpsert } from "@/services/editor"
 import { useKeyedDraft } from "@/lib/editor/use-keyed-draft"
+import { fmt2 } from "@/lib/editor/units"
 
 function GridSizeField({
   value,
@@ -74,9 +75,9 @@ export function GridPanel({
 
   const effectiveUnit = workspaceUnit ?? row?.unit ?? "cm"
 
-  const computedW = row ? String(row.spacing_x_value) : ""
-  const computedH = row ? String(row.spacing_y_value) : ""
-  const computedLineWidth = row ? String(row.line_width_value) : ""
+  const computedW = row ? fmt2(Number(row.spacing_x_value)) : ""
+  const computedH = row ? fmt2(Number(row.spacing_y_value)) : ""
+  const computedLineWidth = row ? fmt2(Number(row.line_width_value)) : ""
 
   const { value: draftW, setValue: setDraftW } = useKeyedDraft(projectId ?? null, computedW)
   const { value: draftH, setValue: setDraftH } = useKeyedDraft(projectId ?? null, computedH)

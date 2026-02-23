@@ -81,7 +81,10 @@ export function createTransformController(deps: TransformControllerDeps): Transf
   const scheduleCommit = (commitPosition: boolean, delayMs = 150) => {
     // Merge flags: never lose a previously requested position commit.
     pending = pending ? { commitPosition: pending.commitPosition || commitPosition } : { commitPosition }
-    if (commitTimer != null) return
+    if (commitTimer != null) {
+      globalThis.clearTimeout(commitTimer)
+      commitTimer = null
+    }
     commitTimer = globalThis.setTimeout(() => {
       commitTimer = null
       const p = pending

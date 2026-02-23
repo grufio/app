@@ -8,7 +8,7 @@
  * Notes:
  * - This module is intentionally UI-agnostic (no React state, no DOM assumptions).
  */
-import { divRoundHalfUp, pxUToUnitDisplayFixed, type Unit, unitToPxUFixed } from "@/lib/editor/units"
+import { divRoundHalfUp, pxUToUnitDisplayUiFixed, type Unit, unitToPxUFixed } from "@/lib/editor/units"
 
 export type MicroPxRatio = { wPxU: bigint; hPxU: bigint }
 
@@ -48,7 +48,7 @@ export function computeLockedAspectOtherDimensionFromWidthInput(args: {
 
   const nextHPxU = divRoundHalfUp(wPxU * ratio.hPxU, ratio.wPxU)
   if (nextHPxU <= 0n) return null
-  return { nextHeightPxU: nextHPxU, nextHeightDisplay: pxUToUnitDisplayFixed(nextHPxU, args.unit) }
+  return { nextHeightPxU: nextHPxU, nextHeightDisplay: pxUToUnitDisplayUiFixed(nextHPxU, args.unit) }
 }
 
 export function computeLockedAspectOtherDimensionFromHeightInput(args: {
@@ -64,6 +64,6 @@ export function computeLockedAspectOtherDimensionFromHeightInput(args: {
 
   const nextWPxU = divRoundHalfUp(hPxU * ratio.wPxU, ratio.hPxU)
   if (nextWPxU <= 0n) return null
-  return { nextWidthPxU: nextWPxU, nextWidthDisplay: pxUToUnitDisplayFixed(nextWPxU, args.unit) }
+  return { nextWidthPxU: nextWPxU, nextWidthDisplay: pxUToUnitDisplayUiFixed(nextWPxU, args.unit) }
 }
 

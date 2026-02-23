@@ -260,6 +260,8 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   const appliedInitialTransformKeyRef = useRef<string | null>(null)
   const userInteractedRef = useRef(false)
   const userChangedImageTxRef = useRef(false)
+  const userMutationSeqRef = useRef(0)
+  const pendingInitialTransformSeqRef = useRef(0)
   const autoFitKeyRef = useRef<string | null>(null)
   const transformControllerRef = useRef<ReturnType<typeof createTransformController> | null>(null)
   const imageDraggableRef = useRef(Boolean(imageDraggable))
@@ -311,22 +313,29 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     onImageTransformCommitRef.current = onImageTransformCommit
   }, [onImageTransformCommit])
 
+  const markUserChanged = useCallback(() => {
+    userChangedImageTxRef.current = true
+    userMutationSeqRef.current += 1
+  }, [])
+
   useEffect(() => {
     const imageId = restoreBaseImageId ?? null
     const widthPx = typeof restoreBaseWidthPx === "number" && Number.isFinite(restoreBaseWidthPx) ? restoreBaseWidthPx : 0
     const heightPx = typeof restoreBaseHeightPx === "number" && Number.isFinite(restoreBaseHeightPx) ? restoreBaseHeightPx : 0
-    if (imageId && widthPx > 0 && heightPx > 0) {
-      restoreBaseSpecRef.current = { imageId, widthPx, heightPx }
-      return
-    }
+    const current = restoreBaseSpecRef.current
     if (!imageId) {
       restoreBaseSpecRef.current = null
       return
     }
-    // Keep prior base spec for the same image during transient loading gaps.
-    if (restoreBaseSpecRef.current?.imageId !== imageId) {
+    if (current?.imageId && current.imageId !== imageId) {
       restoreBaseSpecRef.current = null
     }
+    if (!(widthPx > 0 && heightPx > 0)) {
+      // Never keep stale dimensions for an image id.
+      restoreBaseSpecRef.current = null
+      return
+    }
+    restoreBaseSpecRef.current = { imageId, widthPx, heightPx }
   }, [restoreBaseHeightPx, restoreBaseImageId, restoreBaseWidthPx])
 
   // Prevent browser page zoom / scroll stealing (Cmd/Ctrl + wheel / trackpad pinch).
@@ -540,8 +549,12 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     const xPxU = initialImageTransform.xPxU ?? 0n
     const yPxU = initialImageTransform.yPxU ?? 0n
 
+    const scheduleSeq = ++pendingInitialTransformSeqRef.current
+    const userSeqAtSchedule = userMutationSeqRef.current
     appliedInitialTransformKeyRef.current = src
     queueMicrotask(() => {
+      if (scheduleSeq !== pendingInitialTransformSeqRef.current) return
+      if (userMutationSeqRef.current !== userSeqAtSchedule) return
       setRotation(Number.isFinite(rotationDeg) ? rotationDeg : 0)
       setImageTx({ xPxU, yPxU, widthPxU: nextWidthPxU, heightPxU: nextHeightPxU })
       scheduleBoundsUpdate()
@@ -607,9 +620,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
       setRotationDeg: (deg) => setRotation(deg),
       getImageTx: () => imageTxRef.current,
       setImageTx: (next) => setImageTx(next),
-      markUserChanged: () => {
-        userChangedImageTxRef.current = true
-      },
+      markUserChanged,
       onCommit: (t) => onImageTransformCommitRef.current?.(t),
     })
   }
@@ -643,6 +654,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     artW,
     artH,
     restoreBaseSpecRef,
+    activeImageId,
     initialImageTransform,
     transformControllerRef,
     scheduleBoundsUpdate,
@@ -692,9 +704,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     containerRef,
     view,
     setImageTx,
-    markUserChanged: () => {
-      userChangedImageTxRef.current = true
-    },
+    markUserChanged,
     scheduleBoundsUpdate,
     scheduleCommitTransform,
   })
@@ -881,7 +891,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
                 userInteractedRef.current = true
                 // Mark as user-changed immediately, so a late `initialImageTransform`
                 // cannot override state mid-drag.
-                userChangedImageTxRef.current = true
+                markUserChanged()
                 const node = imageNodeRef.current
                 dragPosRef.current = node ? { x: node.x(), y: node.y() } : null
                 setIsDraggingImage(true)
@@ -891,7 +901,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
                 updateBoundsDuringDragMove()
               }}
               onDragEnd={() => {
-                userChangedImageTxRef.current = true
+                markUserChanged()
                 scheduleCommitTransform(true, 0)
                 dragPosRef.current = null
                 setIsDraggingImage(false)

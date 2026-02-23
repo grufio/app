@@ -29,5 +29,15 @@ describe("resolveRestoreImageRequest", () => {
     })
     expect(out).toEqual({ ok: false, reason: "missing_base_spec" })
   })
+
+  it("returns stale_base_spec when active image does not match base image", () => {
+    const out = resolveRestoreImageRequest({
+      artW: 1200,
+      artH: 800,
+      activeImageId: "img-2",
+      baseSpec: { imageId: "img-1", widthPx: 640, heightPx: 480 },
+    })
+    expect(out).toEqual({ ok: false, reason: "stale_base_spec" })
+  })
 })
 

@@ -16,12 +16,22 @@ import type { WorkspaceRow } from "./workspace/types"
 export { normalizeUnit }
 
 export type RasterPreset = "high" | "medium" | "low"
+export const WORKSPACE_MIN_PX_U = 1_000_000n
+export const WORKSPACE_MAX_PX_U = 32_768_000_000n
+
+export function pxFromPxU(pxU: bigint): number {
+  return Number((pxU + 500_000n) / 1_000_000n)
+}
+
+export function isValidWorkspacePxU(pxU: bigint): boolean {
+  return pxU >= WORKSPACE_MIN_PX_U && pxU <= WORKSPACE_MAX_PX_U
+}
 
 function canonicalPxUFromRow(rawPxU: string | undefined, fallbackPx: number): bigint {
   if (typeof rawPxU === "string") {
     try {
       const parsed = BigInt(rawPxU)
-      if (parsed > 0n) return parsed
+      if (isValidWorkspacePxU(parsed)) return parsed
     } catch {
       // fall back below
     }
@@ -74,21 +84,24 @@ export function computeWorkspaceSizeSave(opts: {
   const height_px = clampPx(hNum)
   const nextWPxU = BigInt(width_px) * 1_000_000n
   const nextHPxU = BigInt(height_px) * 1_000_000n
+  if (!isValidWorkspacePxU(nextWPxU) || !isValidWorkspacePxU(nextHPxU)) {
+    return { error: "Size out of supported range" }
+  }
 
   const width_px_u = nextWPxU.toString()
   const height_px_u = nextHPxU.toString()
 
-  const signature = `${base.project_id}:px:${width_px}:${height_px}`
+  const signature = `${base.project_id}:px:${width_px_u}:${height_px_u}`
 
   const next: WorkspaceRow = {
     ...base,
     // Artboard display values must remain DPI-independent.
-    width_value: Number(pxUToUnitDisplayFixed(BigInt(width_px) * PX_U_SCALE, base.unit)),
-    height_value: Number(pxUToUnitDisplayFixed(BigInt(height_px) * PX_U_SCALE, base.unit)),
+    width_value: Number(pxUToUnitDisplayFixed(nextWPxU, base.unit)),
+    height_value: Number(pxUToUnitDisplayFixed(nextHPxU, base.unit)),
     width_px_u,
     height_px_u,
-    width_px,
-    height_px,
+    width_px: clampPx(pxFromPxU(nextWPxU)),
+    height_px: clampPx(pxFromPxU(nextHPxU)),
   }
 
   return { next, signature }

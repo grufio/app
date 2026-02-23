@@ -54,6 +54,9 @@ export async function DELETE(
   if (!img?.storage_path) {
     return NextResponse.json({ ok: true, deleted: false })
   }
+  if (!img.is_active) {
+    return jsonError("Image is not active", 409, { stage: "active_conflict", reason: "image_not_active" })
+  }
   if (img.is_locked) {
     return jsonError("Image is locked", 409, { stage: "lock_conflict", reason: "image_locked" })
   }
@@ -69,13 +72,11 @@ export async function DELETE(
     return jsonError(delErr.message, 400, { stage: "db_delete" })
   }
 
-  if (img.is_active) {
-    const { error: activeErr } = await supabase.rpc("set_active_master_latest", {
-      p_project_id: projectId,
-    })
-    if (activeErr) {
-      return jsonError(activeErr.message, 400, { stage: "active_switch" })
-    }
+  const { error: activeErr } = await supabase.rpc("set_active_master_latest", {
+    p_project_id: projectId,
+  })
+  if (activeErr) {
+    return jsonError(activeErr.message, 400, { stage: "active_switch" })
   }
 
   return NextResponse.json({ ok: true, deleted: true })

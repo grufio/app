@@ -68,11 +68,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ project
   if (!validated) {
     return jsonError("Invalid fields", 400, { stage: "validation", where: "validate" })
   }
+  if (!isUuid(validated.image_id)) {
+    return jsonError("Invalid image_id", 400, { stage: "validation", where: "image_id" })
+  }
 
   // µpx schema required.
   const baseRow = {
     project_id: projectId,
-    image_id: "",
+    image_id: validated.image_id,
     ...validated,
   }
 
@@ -81,6 +84,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ project
   if (activeErr) return jsonError(activeErr, 400, { stage: "active_image_lookup" })
   if (!activeImageIdForWrite) {
     return jsonError("No active master image", 409, { stage: "active_image_lookup" })
+  }
+  if (baseRow.image_id !== activeImageIdForWrite) {
+    return jsonError("Image state target is not the active image", 409, {
+      stage: "active_image_mismatch",
+      expected_image_id: activeImageIdForWrite,
+    })
   }
   const { data: activeImageRow, error: activeImageErr } = await supabase
     .from("project_images")
@@ -93,8 +102,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ project
   if (activeImageRow?.is_locked) {
     return jsonError("Active image is locked", 409, { stage: "lock_conflict", reason: "image_locked" })
   }
-  baseRow.image_id = activeImageIdForWrite
-
   const upsert = await upsertBoundImageState(supabase, {
     project_id: baseRow.project_id,
     image_id: baseRow.image_id,

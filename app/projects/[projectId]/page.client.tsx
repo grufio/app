@@ -164,6 +164,14 @@ export function ProjectDetailPageClient({
     initialImageState,
     false
   )
+  const saveImageStateBound = useCallback(
+    async (t: { xPxU?: bigint; yPxU?: bigint; widthPxU: bigint; heightPxU: bigint; rotationDeg: number }) => {
+      const imageId = masterImage?.id
+      if (!imageId) return
+      await saveImageState({ ...t, imageId })
+    },
+    [masterImage?.id, saveImageState]
+  )
 
   const initialImagePxU = useMemo(() => {
     if (!masterImage || !initialImageTransform) return null
@@ -582,7 +590,7 @@ export function ProjectDetailPageClient({
               grid={grid}
               handleImagePxChange={handleImagePxChange}
               initialImageTransform={initialImageTransform}
-              saveImageState={saveImageState}
+              saveImageState={saveImageStateBound}
               pageBgEnabled={pageBgEnabled}
               pageBgColor={pageBgColor}
               pageBgOpacity={pageBgOpacity}

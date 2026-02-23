@@ -9,6 +9,7 @@ import { MAX_PX_U, MIN_PX_U, parseBigIntString } from "@/lib/editor/imageState"
 
 export type IncomingImageStatePayload = {
   role?: "master" | "working"
+  image_id?: unknown
   x_px_u?: unknown
   y_px_u?: unknown
   width_px_u?: unknown
@@ -18,6 +19,7 @@ export type IncomingImageStatePayload = {
 
 export type ValidatedImageStateUpsert = {
   role: "master" | "working"
+  image_id: string
   x_px_u: string | null
   y_px_u: string | null
   width_px_u: string
@@ -27,6 +29,7 @@ export type ValidatedImageStateUpsert = {
 
 export function validateIncomingImageStateUpsert(body: IncomingImageStatePayload): ValidatedImageStateUpsert | null {
   const role = body.role === "working" ? "working" : "master"
+  const imageId = typeof body.image_id === "string" ? body.image_id.trim() : ""
   const rotation_deg = Number(body.rotation_deg)
 
   const widthPxU = parseBigIntString(body.width_px_u)
@@ -35,6 +38,7 @@ export function validateIncomingImageStateUpsert(body: IncomingImageStatePayload
   const yPxU = body.y_px_u == null ? null : parseBigIntString(body.y_px_u)
 
   if (
+    !imageId ||
     !widthPxU ||
     !heightPxU ||
     widthPxU < MIN_PX_U ||
@@ -50,6 +54,7 @@ export function validateIncomingImageStateUpsert(body: IncomingImageStatePayload
 
   return {
     role,
+    image_id: imageId,
     x_px_u: xPxU == null ? null : xPxU.toString(),
     y_px_u: yPxU == null ? null : yPxU.toString(),
     width_px_u: widthPxU.toString(),
