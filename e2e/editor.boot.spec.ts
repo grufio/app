@@ -10,6 +10,11 @@ import { test, expect, type Request } from "@playwright/test"
 import { clampPx, pxUToPxNumber, unitToPxU } from "../lib/editor/units"
 import { PROJECT_ID, setupMockRoutes } from "./_mocks"
 
+async function selectLayerNavItem(page: import("@playwright/test").Page, label: "Artboard" | "Image" | "Grid") {
+  const layers = page.getByLabel("Layers")
+  await layers.getByRole("button", { name: label, exact: true }).click()
+}
+
 async function assertEditorSurfaceVisible(page: import("@playwright/test").Page) {
   const crashed = page.getByText("Editor crashed")
   const canvasRoot = page.getByTestId("editor-canvas-root")
@@ -84,7 +89,6 @@ test("image size: setting 100mm survives reload (no drift)", async ({ page }) =>
       width_value: 200,
       height_value: 200,
       output_dpi: 150,
-      artboard_dpi: 150,
       width_px_u: unitToPxU("200", "mm", 150).toString(),
       height_px_u: unitToPxU("200", "mm", 150).toString(),
       width_px: 1181,
@@ -94,6 +98,7 @@ test("image size: setting 100mm survives reload (no drift)", async ({ page }) =>
   })
 
   await page.goto(`/projects/${PROJECT_ID}`)
+  await selectLayerNavItem(page, "Image")
 
   const w = page.getByLabel("Image width (mm)")
   const h = page.getByLabel("Image height (mm)")
@@ -164,7 +169,6 @@ test("image transform chain: resize + rotate + drag persists", async ({ page }) 
       width_value: 200,
       height_value: 200,
       output_dpi: 300,
-      artboard_dpi: 300,
       width_px_u: unitToPxU("200", "mm", 300).toString(),
       height_px_u: unitToPxU("200", "mm", 300).toString(),
       width_px: 2362,
@@ -174,6 +178,7 @@ test("image transform chain: resize + rotate + drag persists", async ({ page }) 
   })
 
   await page.goto(`/projects/${PROJECT_ID}`)
+  await selectLayerNavItem(page, "Image")
 
   const w = page.getByLabel("Image width (mm)")
   const h = page.getByLabel("Image height (mm)")
@@ -302,7 +307,6 @@ test("workspace: DPI-only save keeps canonical artboard geometry stable", async 
       width_value: 200,
       height_value: 200,
       output_dpi: 150,
-      artboard_dpi: 150,
       width_px_u: unitToPxU("200", "mm", 150).toString(),
       height_px_u: unitToPxU("200", "mm", 150).toString(),
       width_px: 1181,
@@ -317,7 +321,6 @@ test("workspace: DPI-only save keeps canonical artboard geometry stable", async 
     width_value: 200,
     height_value: 200,
     output_dpi: 150,
-    artboard_dpi: 150,
     width_px_u: unitToPxU("200", "mm", 150).toString(),
     height_px_u: unitToPxU("200", "mm", 150).toString(),
     width_px: 1181,
@@ -327,6 +330,7 @@ test("workspace: DPI-only save keeps canonical artboard geometry stable", async 
     page_bg_color: "#ffffff",
     page_bg_opacity: 50,
   }
+  let lastDpiWriteKeys: string[] = []
 
   // Stateful workspace mock with trigger-like semantics for project_workspace upserts.
   await page.route("**/rest/v1/project_workspace**", async (route) => {
@@ -336,12 +340,16 @@ test("workspace: DPI-only save keeps canonical artboard geometry stable", async 
     }
     if (req.method() === "POST") {
       const body = (await req.postDataJSON()) as Partial<typeof workspaceRow>
+      const bodyKeys = Object.keys(body)
+      if (bodyKeys.includes("output_dpi")) {
+        lastDpiWriteKeys = bodyKeys
+      }
       const prev = workspaceRow
       const next = { ...workspaceRow, ...body }
 
       if (next.width_value !== prev.width_value || next.height_value !== prev.height_value) {
-        next.width_px_u = unitToPxU(String(next.width_value), next.unit, next.artboard_dpi).toString()
-        next.height_px_u = unitToPxU(String(next.height_value), next.unit, next.artboard_dpi).toString()
+        next.width_px_u = unitToPxU(String(next.width_value), next.unit, next.output_dpi).toString()
+        next.height_px_u = unitToPxU(String(next.height_value), next.unit, next.output_dpi).toString()
       } else {
         next.width_px_u = prev.width_px_u
         next.height_px_u = prev.height_px_u
@@ -359,6 +367,8 @@ test("workspace: DPI-only save keeps canonical artboard geometry stable", async 
 
   const beforeWidthPxU = workspaceRow.width_px_u
   const beforeHeightPxU = workspaceRow.height_px_u
+  const beforeWidthValue = workspaceRow.width_value
+  const beforeHeightValue = workspaceRow.height_value
 
   await page.getByLabel("Raster effects resolution").click()
   await page.getByRole("option", { name: "High (300 ppi)" }).click()
@@ -366,6 +376,9 @@ test("workspace: DPI-only save keeps canonical artboard geometry stable", async 
   await expect.poll(() => workspaceRow.output_dpi).toBe(300)
   await expect.poll(() => workspaceRow.width_px_u).toBe(beforeWidthPxU)
   await expect.poll(() => workspaceRow.height_px_u).toBe(beforeHeightPxU)
+  await expect.poll(() => workspaceRow.width_value).toBe(beforeWidthValue)
+  await expect.poll(() => workspaceRow.height_value).toBe(beforeHeightValue)
+  expect(lastDpiWriteKeys.sort()).toEqual(["output_dpi", "raster_effects_preset"])
 })
 
 test("page background: toggling persists via workspace upsert", async ({ page }) => {
@@ -379,11 +392,10 @@ test("page background: toggling persists via workspace upsert", async ({ page })
       width_value: 200,
       height_value: 200,
       output_dpi: 300,
-      artboard_dpi: 300,
       width_px: 2362.2047,
       height_px: 2362.2047,
       raster_effects_preset: "high",
-      page_bg_enabled: false,
+      page_bg_enabled: true,
       page_bg_color: "#ffffff",
       page_bg_opacity: 50,
     },
@@ -394,8 +406,9 @@ test("page background: toggling persists via workspace upsert", async ({ page })
   })
 
   await page.goto(`/projects/${PROJECT_ID}`)
+  await selectLayerNavItem(page, "Artboard")
 
-  const toggle = page.getByLabel("Page background enabled")
+  const toggle = page.getByLabel("Hide page background")
   await expect(toggle).toBeEnabled()
   await toggle.click()
 
@@ -405,11 +418,20 @@ test("page background: toggling persists via workspace upsert", async ({ page })
 })
 
 test("auth redirects: protected pages require auth (E2E simulated)", async ({ page }) => {
-  // In E2E dev server mode, proxy.ts avoids Supabase network and simulates auth via headers.
-  await page.goto("/dashboard")
-  await expect(page).toHaveURL(/\/login$/)
+  // Assert proxy redirects without following to server-rendered pages.
+  const unauthRes = await page.request.get("/dashboard", {
+    headers: { "x-e2e-test": "1" },
+    maxRedirects: 0,
+  })
+  expect(unauthRes.status()).toBeGreaterThanOrEqual(300)
+  expect(unauthRes.status()).toBeLessThan(400)
+  expect(unauthRes.headers()["location"]).toContain("/login")
 
-  await page.setExtraHTTPHeaders({ "x-e2e-user": "1" })
-  await page.goto("/login")
-  await expect(page).toHaveURL(/\/dashboard$/)
+  const authedRes = await page.request.get("/login", {
+    headers: { "x-e2e-test": "1", "x-e2e-user": "1" },
+    maxRedirects: 0,
+  })
+  expect(authedRes.status()).toBeGreaterThanOrEqual(300)
+  expect(authedRes.status()).toBeLessThan(400)
+  expect(authedRes.headers()["location"]).toContain("/dashboard")
 })

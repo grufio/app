@@ -4,7 +4,7 @@ import path from "node:path"
 
 describe("db contract: workspace geometry is canonical µpx", () => {
   it("workspace trigger UPDATE path does not recompute geometry from unit/value/dpi", () => {
-    const sqlPath = path.join(process.cwd(), "db/031_project_workspace_px_u_canonical.sql")
+    const sqlPath = path.join(process.cwd(), "db/035_remove_artboard_dpi_and_harden_workspace_insert.sql")
     const sql = fs.readFileSync(sqlPath, "utf8")
 
     const updateIdx = sql.indexOf("if tg_op = 'UPDATE'")
@@ -20,6 +20,22 @@ describe("db contract: workspace geometry is canonical µpx", () => {
     expect(updateBranch).not.toMatch(/\bunit\b/)
     expect(updateBranch).not.toMatch(/\bartboard_dpi\b/)
     expect(updateBranch).not.toMatch(/\boutput_dpi\b/)
+  })
+
+  it("workspace trigger INSERT path requires canonical µpx fields (no dpi fallback)", () => {
+    const sqlPath = path.join(process.cwd(), "db/035_remove_artboard_dpi_and_harden_workspace_insert.sql")
+    const sql = fs.readFileSync(sqlPath, "utf8")
+
+    const elseIdx = sql.indexOf("\n  else")
+    expect(elseIdx).toBeGreaterThanOrEqual(0)
+    const endIfIdx = sql.indexOf("\n  end if;", elseIdx)
+    expect(endIfIdx).toBeGreaterThan(elseIdx)
+
+    const insertBranch = sql.slice(elseIdx, endIfIdx)
+    expect(insertBranch).not.toMatch(/workspace_value_to_px_u/)
+    expect(insertBranch).not.toMatch(/\bartboard_dpi\b/)
+    expect(insertBranch).not.toMatch(/\boutput_dpi\b/)
+    expect(insertBranch).toMatch(/raise exception/)
   })
 })
 

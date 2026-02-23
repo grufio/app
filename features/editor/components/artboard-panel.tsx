@@ -26,7 +26,7 @@ import {
   mapDpiToRasterPreset,
   normalizeUnit,
 } from "@/services/editor/workspace-operations"
-import { computeWorkspaceSizeSaveFromDisplay, getDisplaySizeDraft } from "@/services/editor/workspace-unit-controller"
+import { computeWorkspaceSizeSaveFromDisplay } from "@/services/editor/workspace-unit-controller"
 import { useKeyedDraft } from "@/lib/editor/use-keyed-draft"
 
 function labelForPreset(p: "high" | "medium" | "low"): string {
@@ -43,15 +43,15 @@ function labelForPreset(p: "high" | "medium" | "low"): string {
  * - unit + dpi to other panels (e.g. image sizing panel)
  */
 export function ArtboardPanel() {
-  const { row, loading, saving, upsertWorkspace, widthPxU, heightPxU } = useProjectWorkspace()
+  const { row, loading, saving, upsertWorkspace, updateWorkspaceDpi, widthPxU, heightPxU } = useProjectWorkspace()
 
   const activeProjectId = row?.project_id ?? null
 
   const computedUnit = row ? normalizeUnit((row as unknown as { unit?: unknown })?.unit) : "mm"
-  const computedOutputDpi = row ? Number((row as unknown as { output_dpi?: unknown; artboard_dpi?: unknown }).output_dpi ?? row.artboard_dpi) : 300
+  const computedOutputDpi = row ? Number((row as unknown as { output_dpi?: unknown }).output_dpi) : 300
   const computedPreset =
     row
-      ? ((row.raster_effects_preset ?? mapDpiToRasterPreset(Number((row as unknown as { output_dpi?: unknown; artboard_dpi?: unknown }).output_dpi ?? row.artboard_dpi)) ?? "custom") as
+      ? ((row.raster_effects_preset ?? mapDpiToRasterPreset(Number((row as unknown as { output_dpi?: unknown }).output_dpi)) ?? "custom") as
           | "high"
           | "medium"
           | "low"
@@ -66,24 +66,15 @@ export function ArtboardPanel() {
   )
   const { value: lockAspect, setValue: setLockAspect } = useKeyedDraft<boolean>(activeProjectId, false)
 
-  const displayDraft = row
-    ? getDisplaySizeDraft({
-        widthPxU,
-        heightPxU,
-        widthPx: row.width_px,
-        heightPx: row.height_px,
-        unit: computedUnit,
-        dpi: computedOutputDpi,
-      })
-    : { widthDraft: "", heightDraft: "" }
-  const computedWidth = displayDraft.widthDraft
-  const computedHeight = displayDraft.heightDraft
+  const computedWidth = row ? fmt2(Number(row.width_value)) : ""
+  const computedHeight = row ? fmt2(Number(row.height_value)) : ""
 
   const { value: draftWidth, setValue: setDraftWidth } = useKeyedDraft(activeProjectId, computedWidth)
   const { value: draftHeight, setValue: setDraftHeight } = useKeyedDraft(activeProjectId, computedHeight)
 
   const lastSubmitRef = useRef<string | null>(null)
   const ignoreNextBlurSaveRef = useRef(false)
+  const geometryDirtyRef = useRef(false)
   const draftUnitRef = useRef<Unit>("mm")
   const unitChangeInFlightRef = useRef<Unit | null>(null)
   const lockRatioRef = useRef<number | null>(null)
@@ -95,6 +86,7 @@ export function ArtboardPanel() {
   useEffect(() => {
     // Reset lock ratio when switching projects (no setState to satisfy lint rule).
     lockRatioRef.current = null
+    geometryDirtyRef.current = false
   }, [activeProjectId])
 
   // Canonical size for conversions is µpx (BigInt), not integer px.
@@ -105,14 +97,14 @@ export function ArtboardPanel() {
     if (!row) return
     if (saving) return
     if (!canonicalW || !canonicalH) return
-
-    const effectiveDpi = Number.parseInt(draftOutputDpi, 10)
+    if (!geometryDirtyRef.current) return
     const computed = computeWorkspaceSizeSaveFromDisplay({
       base: row,
       draftW: draftWidth,
       draftH: draftHeight,
       unit: draftUnitRef.current,
-      dpi: Number.isFinite(effectiveDpi) && effectiveDpi > 0 ? effectiveDpi : computedOutputDpi,
+      // Geometry save must use persisted DPI only; never draft DPI.
+      dpi: computedOutputDpi,
     })
     if ("error" in computed) return
 
@@ -126,23 +118,15 @@ export function ArtboardPanel() {
       return
     }
 
-    // Reset drafts to canonical display (prevents oscillation).
+    // Reset drafts from persisted workspace values.
     const unitNormalized = normalizeUnit((saved as unknown as { unit?: unknown })?.unit)
-    const nextOutput =
-      Number((saved as unknown as { output_dpi?: unknown; artboard_dpi?: unknown }).output_dpi ?? saved.artboard_dpi) || computedOutputDpi
-    const display = getDisplaySizeDraft({
-      widthPxU: BigInt(saved.width_px_u),
-      heightPxU: BigInt(saved.height_px_u),
-      widthPx: saved.width_px,
-      heightPx: saved.height_px,
-      unit: unitNormalized,
-      dpi: nextOutput,
-    })
-    setDraftWidth(display.widthDraft)
-    setDraftHeight(display.heightDraft)
+    const nextOutput = Number((saved as unknown as { output_dpi?: unknown }).output_dpi) || computedOutputDpi
+    setDraftWidth(fmt2(Number(saved.width_value)))
+    setDraftHeight(fmt2(Number(saved.height_value)))
     setDraftUnit(unitNormalized)
     setDraftOutputDpi(String(nextOutput))
     setDraftRasterPreset((saved.raster_effects_preset ?? mapDpiToRasterPreset(nextOutput) ?? "custom") as "high" | "medium" | "low" | "custom")
+    geometryDirtyRef.current = false
   }
 
   const saveUnitOnly = async (nextUnit: Unit) => {
@@ -151,19 +135,10 @@ export function ArtboardPanel() {
     const computed = computeWorkspaceUnitChange({ base: row, nextUnit })
     const saved = await upsertWorkspace(computed.next)
     if (!saved) return
-    const effectiveOutput =
-      Number((saved as unknown as { output_dpi?: unknown; artboard_dpi?: unknown }).output_dpi ?? saved.artboard_dpi) || computedOutputDpi
-    const display = getDisplaySizeDraft({
-      widthPxU: BigInt(saved.width_px_u),
-      heightPxU: BigInt(saved.height_px_u),
-      widthPx: saved.width_px,
-      heightPx: saved.height_px,
-      unit: nextUnit,
-      dpi: effectiveOutput,
-    })
-    setDraftWidth(display.widthDraft)
-    setDraftHeight(display.heightDraft)
+    setDraftWidth(fmt2(Number(saved.width_value)))
+    setDraftHeight(fmt2(Number(saved.height_value)))
     setDraftUnit(nextUnit)
+    geometryDirtyRef.current = false
   }
 
   const onUnitChange = (nextUnit: Unit) => {
@@ -194,23 +169,18 @@ export function ArtboardPanel() {
     // Output DPI only; do not change canonical µpx size.
     setTimeout(() => {
       const computed = computeWorkspaceDpiChange({ base: row, nextDpi: dpi, nextPreset: preset })
-      void upsertWorkspace(computed.next).then((saved) => {
+      void updateWorkspaceDpi({
+        outputDpi: computed.next.output_dpi,
+        rasterEffectsPreset: computed.next.raster_effects_preset ?? null,
+      }).then((saved) => {
         if (!saved) return
-        const display = getDisplaySizeDraft({
-          widthPxU: BigInt(saved.width_px_u),
-          heightPxU: BigInt(saved.height_px_u),
-          widthPx: saved.width_px,
-          heightPx: saved.height_px,
-          unit: draftUnitRef.current,
-          dpi,
-        })
-        setDraftWidth(display.widthDraft)
-        setDraftHeight(display.heightDraft)
+        geometryDirtyRef.current = false
       })
     }, 0)
   }
 
   const controlsDisabled = loading || !row || saving || !canonicalW || !canonicalH
+  const sizeControlsDisabled = loading || !row || !canonicalW || !canonicalH
   const ratio = lockRatioRef.current
   const ensureRatio = () => {
     const w = parseNumericInput(draftWidth)
@@ -228,6 +198,7 @@ export function ArtboardPanel() {
           value={draftWidth}
           onValueChange={(next) => {
             setDraftWidth(next)
+            geometryDirtyRef.current = true
             if (!lockAspect) return
             const r = ratio ?? ensureRatio()
             if (!r) return
@@ -240,7 +211,7 @@ export function ArtboardPanel() {
           }}
           mode="decimal"
           ariaLabel="Artboard width"
-          disabled={controlsDisabled}
+          disabled={sizeControlsDisabled}
           icon={<ArrowLeftRight aria-hidden="true" />}
           numericProps={{
             id: "artboard-width",
@@ -261,6 +232,7 @@ export function ArtboardPanel() {
           value={draftHeight}
           onValueChange={(next) => {
             setDraftHeight(next)
+            geometryDirtyRef.current = true
             if (!lockAspect) return
             const r = ratio ?? ensureRatio()
             if (!r) return
@@ -273,7 +245,7 @@ export function ArtboardPanel() {
           }}
           mode="decimal"
           ariaLabel="Artboard height"
-          disabled={controlsDisabled}
+          disabled={sizeControlsDisabled}
           icon={<ArrowUpDown aria-hidden="true" />}
           numericProps={{
             id: "artboard-height",
@@ -297,7 +269,7 @@ export function ArtboardPanel() {
             variant="ghost"
             aria-label={lockAspect ? "Unlock proportional scaling" : "Lock proportional scaling"}
             aria-pressed={lockAspect}
-            disabled={controlsDisabled}
+            disabled={sizeControlsDisabled}
             className={
               lockAspect ? "bg-black text-white hover:bg-black/90 hover:text-white" : "!bg-muted text-foreground hover:!bg-muted-foreground/10"
             }

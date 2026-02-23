@@ -19,7 +19,6 @@ export type SetupMockRoutesOpts = {
     width_value: number
     height_value: number
     output_dpi: number
-    artboard_dpi: number
     width_px_u: string
     height_px_u: string
     width_px: number
@@ -47,8 +46,6 @@ export async function setupMockRoutes(page: Page, opts: SetupMockRoutesOpts) {
     width_value: 20,
     height_value: 30,
     output_dpi: 300,
-    // Deprecated bridge: still present until removed.
-    artboard_dpi: 300,
     // canonical µpx (strings)
     width_px_u: unitToPxU("20", "cm", 300).toString(),
     height_px_u: unitToPxU("30", "cm", 300).toString(),

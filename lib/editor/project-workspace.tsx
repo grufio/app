@@ -14,7 +14,7 @@ import {
   defaultWorkspace,
   normalizeWorkspaceRow,
 } from "@/services/editor"
-import { insertWorkspaceClient, selectWorkspaceClient, upsertWorkspaceClient } from "@/services/editor/workspace/client"
+import { insertWorkspaceClient, selectWorkspaceClient, updateWorkspaceDpiClient, upsertWorkspaceClient } from "@/services/editor/workspace/client"
 
 export type WorkspaceRow = import("@/services/editor").WorkspaceRow
 
@@ -26,6 +26,10 @@ type WorkspaceContextValue = {
   error: string
   refresh: () => Promise<void>
   upsertWorkspace: (nextRow: WorkspaceRow) => Promise<WorkspaceRow | null>
+  updateWorkspaceDpi: (args: {
+    outputDpi: number
+    rasterEffectsPreset: WorkspaceRow["raster_effects_preset"]
+  }) => Promise<WorkspaceRow | null>
   // convenience
   unit: Unit | null
   dpi: number | null
@@ -48,8 +52,7 @@ function workspaceRowSignature(row: WorkspaceRow | null): string {
     row.height_px,
     row.width_px_u,
     row.height_px_u,
-    (row as unknown as { output_dpi?: unknown; artboard_dpi?: unknown }).output_dpi ??
-      (row as unknown as { artboard_dpi?: unknown }).artboard_dpi,
+    (row as unknown as { output_dpi?: unknown }).output_dpi,
     row.page_bg_enabled,
     row.page_bg_color,
     row.page_bg_opacity,
@@ -132,6 +135,35 @@ export function ProjectWorkspaceProvider({
     [savingRef]
   )
 
+  const updateWorkspaceDpi = useCallback(
+    async (args: {
+      outputDpi: number
+      rasterEffectsPreset: WorkspaceRow["raster_effects_preset"]
+    }): Promise<WorkspaceRow | null> => {
+      if (savingRef.current) return null
+      if (!rowRef.current?.project_id) return null
+      setSaving(true)
+      setError("")
+      try {
+        const { row: data, error: upErr } = await updateWorkspaceDpiClient({
+          projectId: rowRef.current.project_id,
+          outputDpi: args.outputDpi,
+          rasterEffectsPreset: args.rasterEffectsPreset,
+        })
+        if (upErr || !data) {
+          setError(upErr ?? "Failed to save workspace")
+          return null
+        }
+        const normalized = normalizeWorkspaceRow(data)
+        setRow(normalized)
+        return normalized as unknown as WorkspaceRow
+      } finally {
+        setSaving(false)
+      }
+    },
+    [savingRef]
+  )
+
   useEffect(() => {
     // If server provided initial data, don't refetch on mount.
     if (initialRow?.project_id === projectId) return
@@ -141,8 +173,7 @@ export function ProjectWorkspaceProvider({
   const value = useMemo<WorkspaceContextValue>(() => {
     // `row` is normalized when stored; avoid re-normalizing on every render.
     const unit = row ? (row as unknown as { unit?: Unit }).unit ?? null : null
-    const dpiRaw =
-      row != null ? ((row as unknown as { output_dpi?: unknown; artboard_dpi?: unknown }).output_dpi ?? row.artboard_dpi) : null
+    const dpiRaw = row != null ? (row as unknown as { output_dpi?: unknown }).output_dpi : null
     const dpi = dpiRaw != null && Number.isFinite(Number(dpiRaw)) ? Number(dpiRaw) : null
     const widthPxU =
       row && typeof (row as unknown as { width_px_u?: unknown })?.width_px_u === "string"
@@ -174,6 +205,7 @@ export function ProjectWorkspaceProvider({
       error,
       refresh,
       upsertWorkspace,
+      updateWorkspaceDpi,
       unit,
       dpi,
       widthPxU,
@@ -181,7 +213,7 @@ export function ProjectWorkspaceProvider({
       widthPx,
       heightPx,
     }
-  }, [error, loading, projectId, refresh, row, saving, upsertWorkspace])
+  }, [error, loading, projectId, refresh, row, saving, upsertWorkspace, updateWorkspaceDpi])
 
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>
 }

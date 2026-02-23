@@ -119,18 +119,11 @@ export function computeWorkspaceDpiChange(opts: {
   base: WorkspaceRow
 }): { next: WorkspaceRow; signature: string } {
   const { base, nextDpi, nextPreset } = opts
-  const wPxU = canonicalPxUFromRow(base.width_px_u, base.width_px)
-  const hPxU = canonicalPxUFromRow(base.height_px_u, base.height_px)
   return {
-    // Intentional DPI-only update: geometry fields are preserved.
+    // Intentional DPI-only update: keep geometry and displayed size stable.
     next: {
       ...base,
       output_dpi: nextDpi,
-      // Deprecated bridge: keep DB `artboard_dpi` in sync until removed.
-      artboard_dpi: nextDpi,
-      // Output/display meta must always derive from canonical µpx geometry.
-      width_value: Number(pxUToUnitDisplay(wPxU, base.unit, nextDpi)),
-      height_value: Number(pxUToUnitDisplay(hPxU, base.unit, nextDpi)),
       raster_effects_preset: nextPreset ?? null,
     },
     signature: `${base.project_id}:dpi:${nextDpi}:${nextPreset ?? "custom"}`,

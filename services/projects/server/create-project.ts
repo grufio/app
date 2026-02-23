@@ -71,8 +71,6 @@ export async function createProjectWithWorkspace(
     width_value,
     height_value,
     output_dpi,
-    // Deprecated bridge: keep DB `artboard_dpi` in sync until removed.
-    artboard_dpi: output_dpi,
     raster_effects_preset: rasterPresetForDpi(dpi),
     width_px_u,
     height_px_u,

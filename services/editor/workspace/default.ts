@@ -21,8 +21,6 @@ export function defaultWorkspace(projectId: string): WorkspaceRow {
     width_value,
     height_value,
     output_dpi,
-    // Deprecated bridge: keep DB `artboard_dpi` in sync until removed.
-    artboard_dpi: output_dpi,
     raster_effects_preset: "high",
     width_px_u: widthPxU.toString(),
     height_px_u: heightPxU.toString(),
