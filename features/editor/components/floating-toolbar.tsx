@@ -30,6 +30,8 @@ type Props = {
   onRotate: () => void
   /** Disables non-tool actions (zoom/fit/rotate). */
   actionsDisabled?: boolean
+  /** Disables rotate action specifically. */
+  rotateDisabled?: boolean
   className?: string
 }
 
@@ -76,6 +78,7 @@ export function FloatingToolbar({
   onFit,
   onRotate,
   actionsDisabled = false,
+  rotateDisabled = false,
   className,
 }: Props) {
   return (
@@ -113,7 +116,7 @@ export function FloatingToolbar({
         <IconButton label="Fit to screen" onClick={onFit} disabled={actionsDisabled}>
           <Maximize2 className="size-6" strokeWidth={TOOLBAR_ICON_STROKE_WIDTH} />
         </IconButton>
-        <IconButton label="Rotate 90°" onClick={onRotate} disabled={actionsDisabled}>
+        <IconButton label="Rotate 90°" onClick={onRotate} disabled={actionsDisabled || rotateDisabled}>
           <RotateCw className="size-6" strokeWidth={TOOLBAR_ICON_STROKE_WIDTH} />
         </IconButton>
       </div>

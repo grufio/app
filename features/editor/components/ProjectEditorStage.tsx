@@ -59,6 +59,7 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
       rotate: () => void
     }
     actionsDisabled: boolean
+    rotateDisabled?: boolean
     panEnabled: boolean
     imageDraggable: boolean
     cropEnabled?: boolean
@@ -129,6 +130,7 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
             onFit={toolbar.actions.fit}
             onRotate={toolbar.actions.rotate}
             actionsDisabled={toolbar.actionsDisabled}
+            rotateDisabled={Boolean(toolbar.rotateDisabled)}
           />
         </div>
         {masterImage && imageStateLoading ? (
@@ -146,6 +148,7 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
             imageDraggable={Boolean(masterImage) && toolbar.imageDraggable}
             cropEnabled={Boolean(masterImage) && Boolean(toolbar.cropEnabled)}
             cropBusy={Boolean(toolbar.cropBusy)}
+            rotateEnabled={!Boolean(toolbar.rotateDisabled)}
             artboardWidthPx={artboardWidthPx ?? undefined}
             artboardHeightPx={artboardHeightPx ?? undefined}
             intrinsicWidthPx={

@@ -270,6 +270,18 @@ export function ProjectDetailPageClient({
   )
 
   useEffect(() => {
+    const onKeyDownCapture = (e: KeyboardEvent) => {
+      if (!toolbarImageLocked) return
+      if (e.key.toLowerCase() !== "r") return
+      // Block rotate shortcut while selected image is locked.
+      e.preventDefault()
+      e.stopPropagation()
+    }
+    window.addEventListener("keydown", onKeyDownCapture, true)
+    return () => window.removeEventListener("keydown", onKeyDownCapture, true)
+  }, [toolbarImageLocked])
+
+  useEffect(() => {
     if (!toolbarImageLocked) return
     if (toolbar.tool !== "select" && toolbar.tool !== "crop") return
     toolbar.setTool("hand")
@@ -290,6 +302,7 @@ export function ProjectDetailPageClient({
       setTool: handleToolbarToolChange,
       selectDisabled: toolbarImageLocked,
       cropDisabled: toolbarImageLocked,
+      rotateDisabled: toolbarImageLocked,
       cropEnabled: toolbar.tool === "crop",
       cropBusy,
       imageDraggable: toolbar.tool === "select",

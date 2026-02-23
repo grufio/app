@@ -76,6 +76,8 @@ type Props = {
   }) => void
   cropEnabled?: boolean
   cropBusy?: boolean
+  /** Global guard for rotate mutations (e.g. locked image). */
+  rotateEnabled?: boolean
 }
 
 export type ProjectCanvasStageHandle = {
@@ -232,6 +234,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     onImageTransformCommit,
     cropEnabled = false,
     cropBusy = false,
+    rotateEnabled = true,
   },
   ref
 ) {
@@ -620,8 +623,9 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   }, [])
 
   const rotate90 = useCallback(() => {
+    if (!rotateEnabled) return
     transformControllerRef.current?.rotate90()
-  }, [])
+  }, [rotateEnabled])
 
   const setImageSize = useCallback(
     (widthPxU: bigint, heightPxU: bigint) => {
