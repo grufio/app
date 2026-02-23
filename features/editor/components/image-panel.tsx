@@ -23,8 +23,9 @@ import type { KeyboardEventHandler, ReactNode } from "react"
 import { useMemo, useRef, useState } from "react"
 
 import { Button } from "@/components/ui/button"
+import { InputGroup, InputGroupAddon, InputGroupText } from "@/components/ui/input-group"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { IconNumericField } from "./fields/icon-numeric-field"
+import { NumericInput } from "./numeric-input"
 import { PanelIconSlot, PanelTwoFieldRow } from "./panel-layout"
 import { pxUToUnitDisplayFixed, type Unit } from "@/lib/editor/units"
 import {
@@ -42,6 +43,7 @@ function SizeField({
   onKeyDown,
   onBlur,
   addon,
+  unit,
 }: {
   value: string
   onValueChange: (next: string) => void
@@ -51,21 +53,27 @@ function SizeField({
   onKeyDown: KeyboardEventHandler<HTMLInputElement>
   onBlur: () => void
   addon: ReactNode
+  unit: Unit
 }) {
   return (
-    <IconNumericField
-      value={value}
-      onValueChange={onValueChange}
-      disabled={disabled}
-      ariaLabel={ariaLabel}
-      icon={addon}
-      mode="decimal"
-      numericProps={{
-        onFocus,
-        onKeyDown,
-        onBlur,
-      }}
-    />
+    <InputGroup>
+      <NumericInput
+        value={value}
+        onValueChange={onValueChange}
+        disabled={disabled}
+        aria-label={ariaLabel}
+        mode="decimal"
+        onFocus={onFocus}
+        onKeyDown={onKeyDown}
+        onBlur={onBlur}
+      />
+      <InputGroupAddon align="inline-start" aria-hidden="true">
+        {addon}
+      </InputGroupAddon>
+      <InputGroupAddon align="inline-end" className="pointer-events-none" aria-hidden="true">
+        <InputGroupText>{unit}</InputGroupText>
+      </InputGroupAddon>
+    </InputGroup>
   )
 }
 
@@ -132,6 +140,7 @@ function ImageSizeInputs({
         disabled={controlsDisabled}
         ariaLabel={`Image width (${unit})`}
         addon={<ArrowLeftRight aria-hidden="true" />}
+        unit={unit}
         onValueChange={(next) => {
           beginEditSession()
           setDirty(true)
@@ -181,6 +190,7 @@ function ImageSizeInputs({
         disabled={controlsDisabled}
         ariaLabel={`Image height (${unit})`}
         addon={<ArrowUpDown aria-hidden="true" />}
+        unit={unit}
         onValueChange={(next) => {
           beginEditSession()
           setDirty(true)
