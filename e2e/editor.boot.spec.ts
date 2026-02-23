@@ -7,7 +7,7 @@
  */
 import { test, expect, type Request } from "@playwright/test"
 
-import { clampPx, pxUToPxNumber, unitToPxU } from "../lib/editor/units"
+import { clampPx, pxUToPxNumber, unitToPxUFixed } from "../lib/editor/units"
 import { PROJECT_ID, setupMockRoutes } from "./_mocks"
 
 async function selectLayerNavItem(page: import("@playwright/test").Page, label: "Artboard" | "Image" | "Grid") {
@@ -89,10 +89,10 @@ test("image size: setting 100mm survives reload (no drift)", async ({ page }) =>
       width_value: 200,
       height_value: 200,
       output_dpi: 150,
-      width_px_u: unitToPxU("200", "mm", 150).toString(),
-      height_px_u: unitToPxU("200", "mm", 150).toString(),
-      width_px: 1181,
-      height_px: 1181,
+      width_px_u: unitToPxUFixed("200", "mm").toString(),
+      height_px_u: unitToPxUFixed("200", "mm").toString(),
+      width_px: clampPx(pxUToPxNumber(unitToPxUFixed("200", "mm"))),
+      height_px: clampPx(pxUToPxNumber(unitToPxUFixed("200", "mm"))),
       raster_effects_preset: "medium",
     },
   })
@@ -103,7 +103,7 @@ test("image size: setting 100mm survives reload (no drift)", async ({ page }) =>
   const w = page.getByLabel("Image width (mm)")
   const h = page.getByLabel("Image height (mm)")
 
-  const expectedPxU = unitToPxU("100", "mm", 150).toString()
+  const expectedPxU = unitToPxUFixed("100", "mm").toString()
 
   const isExpectedImageStateSave = (req: Request) => {
     if (!req.url().includes(`/api/projects/${PROJECT_ID}/image-state`)) return false
@@ -143,12 +143,33 @@ test("image size: setting 100mm survives reload (no drift)", async ({ page }) =>
   expect(state?.width_px_u).toBe(expectedPxU)
   expect(state?.height_px_u).toBe(expectedPxU)
 
+  await selectLayerNavItem(page, "Image")
   await expect(page.getByLabel("Image width (mm)")).toHaveValue("100")
   await expect(page.getByLabel("Image height (mm)")).toHaveValue("100")
 
   // Unit toggle should not trigger image-state save.
+  await selectLayerNavItem(page, "Artboard")
   await page.getByLabel("Artboard unit").click()
   await page.getByRole("option", { name: "cm" }).click()
+  await expect(
+    page.waitForRequest(
+      (req) =>
+        req.url().includes(`/api/projects/${PROJECT_ID}/image-state`) &&
+        req.method() === "POST",
+      { timeout: 250 }
+    )
+  ).rejects.toThrow()
+  expect(imageStatePosts).toBe(1)
+
+  // DPI-only workspace change must not trigger image-state writes.
+  await selectLayerNavItem(page, "Artboard")
+  await page.getByLabel("Raster effects resolution").click()
+  await page.getByRole("option", { name: "High (300 ppi)" }).click()
+
+  // After DPI change, changing unit in the image panel still must not persist image geometry.
+  await selectLayerNavItem(page, "Artboard")
+  await page.getByLabel("Artboard unit").click()
+  await page.getByRole("option", { name: "px" }).click()
   await expect(
     page.waitForRequest(
       (req) =>
@@ -169,10 +190,10 @@ test("image transform chain: resize + rotate + drag persists", async ({ page }) 
       width_value: 200,
       height_value: 200,
       output_dpi: 300,
-      width_px_u: unitToPxU("200", "mm", 300).toString(),
-      height_px_u: unitToPxU("200", "mm", 300).toString(),
-      width_px: 2362,
-      height_px: 2362,
+      width_px_u: unitToPxUFixed("200", "mm").toString(),
+      height_px_u: unitToPxUFixed("200", "mm").toString(),
+      width_px: clampPx(pxUToPxNumber(unitToPxUFixed("200", "mm"))),
+      height_px: clampPx(pxUToPxNumber(unitToPxUFixed("200", "mm"))),
       raster_effects_preset: "high",
     },
   })
@@ -186,7 +207,7 @@ test("image transform chain: resize + rotate + drag persists", async ({ page }) 
   await expect(w).toBeEnabled()
   await expect(h).toBeEnabled()
 
-  const expectedPxU = unitToPxU("120", "mm", 300).toString()
+  const expectedPxU = unitToPxUFixed("120", "mm").toString()
   const isSaveWith = (req: Request, opts?: { rotation?: number; requirePosition?: boolean }) => {
     if (!req.url().includes(`/api/projects/${PROJECT_ID}/image-state`)) return false
     if (req.method() !== "POST") return false
@@ -224,11 +245,11 @@ test("image transform chain: resize + rotate + drag persists", async ({ page }) 
     }
   })
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  const waitDragSave = page.waitForRequest((req) => isSaveWith(req, { rotation: 90, requirePosition: true }))
   await page.mouse.down()
   await page.mouse.move(box.x + box.width / 2 + 60, box.y + box.height / 2 + 30)
   await page.mouse.up()
 
-  const waitDragSave = page.waitForRequest((req) => isSaveWith(req, { rotation: 90, requirePosition: true }))
   await waitDragSave
   const afterPerf = await page.evaluate(() => {
     const g = globalThis as {
@@ -293,6 +314,7 @@ test("image transform chain: resize + rotate + drag persists", async ({ page }) 
   expect(imageStateJson.state?.x_px_u).toBeTruthy()
   expect(imageStateJson.state?.y_px_u).toBeTruthy()
 
+  await selectLayerNavItem(page, "Image")
   await expect(page.getByLabel("Image width (mm)")).toHaveValue("120")
   await expect(page.getByLabel("Image height (mm)")).toHaveValue("120")
 })
@@ -307,10 +329,10 @@ test("workspace: DPI-only save keeps canonical artboard geometry stable", async 
       width_value: 200,
       height_value: 200,
       output_dpi: 150,
-      width_px_u: unitToPxU("200", "mm", 150).toString(),
-      height_px_u: unitToPxU("200", "mm", 150).toString(),
-      width_px: 1181,
-      height_px: 1181,
+      width_px_u: unitToPxUFixed("200", "mm").toString(),
+      height_px_u: unitToPxUFixed("200", "mm").toString(),
+      width_px: clampPx(pxUToPxNumber(unitToPxUFixed("200", "mm"))),
+      height_px: clampPx(pxUToPxNumber(unitToPxUFixed("200", "mm"))),
       raster_effects_preset: "medium",
     },
   })
@@ -321,10 +343,10 @@ test("workspace: DPI-only save keeps canonical artboard geometry stable", async 
     width_value: 200,
     height_value: 200,
     output_dpi: 150,
-    width_px_u: unitToPxU("200", "mm", 150).toString(),
-    height_px_u: unitToPxU("200", "mm", 150).toString(),
-    width_px: 1181,
-    height_px: 1181,
+    width_px_u: unitToPxUFixed("200", "mm").toString(),
+    height_px_u: unitToPxUFixed("200", "mm").toString(),
+    width_px: clampPx(pxUToPxNumber(unitToPxUFixed("200", "mm"))),
+    height_px: clampPx(pxUToPxNumber(unitToPxUFixed("200", "mm"))),
     raster_effects_preset: "medium" as "medium" | "high" | "low" | "custom",
     page_bg_enabled: false,
     page_bg_color: "#ffffff",
@@ -338,7 +360,7 @@ test("workspace: DPI-only save keeps canonical artboard geometry stable", async 
     if (req.method() === "GET") {
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(workspaceRow) })
     }
-    if (req.method() === "POST") {
+    if (req.method() === "POST" || req.method() === "PATCH") {
       const body = (await req.postDataJSON()) as Partial<typeof workspaceRow>
       const bodyKeys = Object.keys(body)
       if (bodyKeys.includes("output_dpi")) {
@@ -348,8 +370,8 @@ test("workspace: DPI-only save keeps canonical artboard geometry stable", async 
       const next = { ...workspaceRow, ...body }
 
       if (next.width_value !== prev.width_value || next.height_value !== prev.height_value) {
-        next.width_px_u = unitToPxU(String(next.width_value), next.unit, next.output_dpi).toString()
-        next.height_px_u = unitToPxU(String(next.height_value), next.unit, next.output_dpi).toString()
+        next.width_px_u = unitToPxUFixed(String(next.width_value), next.unit).toString()
+        next.height_px_u = unitToPxUFixed(String(next.height_value), next.unit).toString()
       } else {
         next.width_px_u = prev.width_px_u
         next.height_px_u = prev.height_px_u
@@ -402,7 +424,9 @@ test("page background: toggling persists via workspace upsert", async ({ page })
   })
 
   page.on("request", (req) => {
-    if (req.url().includes("/rest/v1/project_workspace") && req.method() === "POST") workspaceUpserts += 1
+    if (req.url().includes("/rest/v1/project_workspace") && (req.method() === "POST" || req.method() === "PATCH")) {
+      workspaceUpserts += 1
+    }
   })
 
   await page.goto(`/projects/${PROJECT_ID}`)
@@ -419,16 +443,13 @@ test("page background: toggling persists via workspace upsert", async ({ page })
 
 test("auth redirects: protected pages require auth (E2E simulated)", async ({ page }) => {
   // Assert proxy redirects without following to server-rendered pages.
-  const unauthRes = await page.request.get("/dashboard", {
-    headers: { "x-e2e-test": "1" },
-    maxRedirects: 0,
-  })
+  const unauthRes = await page.request.get("/dashboard", { maxRedirects: 0 })
   expect(unauthRes.status()).toBeGreaterThanOrEqual(300)
   expect(unauthRes.status()).toBeLessThan(400)
   expect(unauthRes.headers()["location"]).toContain("/login")
 
   const authedRes = await page.request.get("/login", {
-    headers: { "x-e2e-test": "1", "x-e2e-user": "1" },
+    headers: { "x-e2e-user": "1" },
     maxRedirects: 0,
   })
   expect(authedRes.status()).toBeGreaterThanOrEqual(300)
