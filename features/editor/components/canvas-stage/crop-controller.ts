@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react"
 
+import { clientToWorldPoint } from "./coords"
+import { applyResizeHandle, type ResizeHandle } from "./resize-handle"
 import type { ViewState } from "./types"
-import type { ResizeHandle } from "./select-controller"
 
 export type CropRectWorld = { x: number; y: number; w: number; h: number }
 export type CropSelectionPx = { x: number; y: number; w: number; h: number }
@@ -81,42 +82,15 @@ export function useCropController(opts: {
       const prev = cropRectRef.current
       if (!prev) return
       setCropRect(() => {
-        const left = prev.x
-        const right = prev.x + prev.w
-        const top = prev.y
-        const bottom = prev.y + prev.h
-        let nLeft = left
-        let nRight = right
-        let nTop = top
-        let nBottom = bottom
-
-        if (handle === "tl" || handle === "lm" || handle === "bl") nLeft = pointerX
-        if (handle === "tr" || handle === "rm" || handle === "br") nRight = pointerX
-        if (handle === "tl" || handle === "tm" || handle === "tr") nTop = pointerY
-        if (handle === "bl" || handle === "bm" || handle === "br") nBottom = pointerY
-
-        if (nRight - nLeft < cropMinSize) {
-          if (handle === "tl" || handle === "lm" || handle === "bl") nLeft = nRight - cropMinSize
-          else nRight = nLeft + cropMinSize
-        }
-        if (nBottom - nTop < cropMinSize) {
-          if (handle === "tl" || handle === "tm" || handle === "tr") nTop = nBottom - cropMinSize
-          else nBottom = nTop + cropMinSize
-        }
-
-        let next = clampCropRect({ x: nLeft, y: nTop, w: nRight - nLeft, h: nBottom - nTop }, cropLimitFrame, cropMinSize)
-        if (keepAspect) {
-          const aspect = prev.w / Math.max(1e-6, prev.h)
-          const byW = { ...next, h: Math.max(cropMinSize, next.w / aspect) }
-          const byH = { ...next, w: Math.max(cropMinSize, next.h * aspect) }
-          const dW = Math.abs(byW.h - next.h)
-          const dH = Math.abs(byH.w - next.w)
-          next = dW <= dH ? byW : byH
-          if (handle === "tl" || handle === "tm" || handle === "tr") next.y = nBottom - next.h
-          if (handle === "tl" || handle === "lm" || handle === "bl") next.x = nRight - next.w
-          next = clampCropRect(next, cropLimitFrame, cropMinSize)
-        }
-        return next
+        return applyResizeHandle({
+          prev,
+          handle,
+          pointerX,
+          pointerY,
+          minSize: cropMinSize,
+          keepAspect,
+          clamp: (next) => clampCropRect(next, cropLimitFrame, cropMinSize),
+        })
       })
     },
     [cropLimitFrame, cropMinSize]
@@ -125,14 +99,16 @@ export function useCropController(opts: {
   const beginCropResize = useCallback(
     (handle: ResizeHandle, keepAspectInitial: boolean) => {
       stopCropResize()
+      const root = containerRef.current
+      if (!root) return
+      const containerRect = root.getBoundingClientRect()
       const onMove = (evt: MouseEvent) => {
-        const root = containerRef.current
-        if (!root) return
-        const rect = root.getBoundingClientRect()
-        const stageX = evt.clientX - rect.left
-        const stageY = evt.clientY - rect.top
-        const worldX = (stageX - view.x) / Math.max(1e-6, view.scale)
-        const worldY = (stageY - view.y) / Math.max(1e-6, view.scale)
+        const { worldX, worldY } = clientToWorldPoint({
+          clientX: evt.clientX,
+          clientY: evt.clientY,
+          containerRect,
+          view,
+        })
         applyCropResize(handle, worldX, worldY, keepAspectInitial || evt.shiftKey)
       }
       const onUp = () => stopCropResize()

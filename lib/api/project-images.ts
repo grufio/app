@@ -42,6 +42,12 @@ export type ProjectImageItem = {
   created_at: string
 }
 
+export type SetProjectImageLockedResponse = {
+  ok: true
+  id: string
+  is_locked: boolean
+}
+
 export async function getMasterImage(projectId: string): Promise<MasterImageResponse> {
   const res = await fetchJson<MasterImageResponse>(`/api/projects/${projectId}/images/master`, {
     method: "GET",
@@ -97,8 +103,12 @@ export async function deleteMasterImageById(projectId: string, imageId: string):
   }
 }
 
-export async function setProjectImageLocked(projectId: string, imageId: string, isLocked: boolean): Promise<void> {
-  const res = await fetchJson<unknown>(`/api/projects/${projectId}/images/master/${imageId}/lock`, {
+export async function setProjectImageLocked(
+  projectId: string,
+  imageId: string,
+  isLocked: boolean
+): Promise<SetProjectImageLockedResponse> {
+  const res = await fetchJson<SetProjectImageLockedResponse>(`/api/projects/${projectId}/images/master/${imageId}/lock`, {
     method: "PATCH",
     credentials: "same-origin",
     headers: { "Content-Type": "application/json" },
@@ -110,6 +120,14 @@ export async function setProjectImageLocked(projectId: string, imageId: string, 
   }
   invalidateFetchJsonGetCache(`/api/projects/${projectId}/images/master/list`)
   invalidateFetchJsonGetCache(`/api/projects/${projectId}/images/master`)
+  if (!res.data?.ok || !res.data?.id) {
+    throw new Error("Failed to update image lock (invalid response)")
+  }
+  return {
+    ok: true,
+    id: String(res.data.id),
+    is_locked: Boolean(res.data.is_locked),
+  }
 }
 
 export async function cropImageVariant(args: {

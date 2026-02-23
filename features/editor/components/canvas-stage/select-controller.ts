@@ -4,11 +4,13 @@ import { useCallback, useEffect, useRef, type RefObject } from "react"
 
 import { numberToMicroPx } from "@/lib/editor/konva"
 import { pxUToPxNumber } from "@/lib/editor/units"
+import { clientToWorldPoint } from "./coords"
+import { applyResizeHandle, type FrameRect, type ResizeHandle } from "./resize-handle"
 import type { ViewState } from "./types"
 
-export type ResizeHandle = "tl" | "tm" | "tr" | "rm" | "br" | "bm" | "bl" | "lm"
+export type { ResizeHandle } from "./resize-handle"
+
 type ImageTx = { xPxU: bigint; yPxU: bigint; widthPxU: bigint; heightPxU: bigint }
-type FrameRect = { x: number; y: number; w: number; h: number }
 
 function frameRectToImageTx(rect: FrameRect): ImageTx {
   return {
@@ -45,40 +47,14 @@ export function useSelectResizeController(opts: {
           w: pxUToPxNumber(prevTx.widthPxU),
           h: pxUToPxNumber(prevTx.heightPxU),
         }
-        const left = prevFrame.x
-        const right = prevFrame.x + prevFrame.w
-        const top = prevFrame.y
-        const bottom = prevFrame.y + prevFrame.h
-        let nLeft = left
-        let nRight = right
-        let nTop = top
-        let nBottom = bottom
-
-        if (handle === "tl" || handle === "lm" || handle === "bl") nLeft = pointerX
-        if (handle === "tr" || handle === "rm" || handle === "br") nRight = pointerX
-        if (handle === "tl" || handle === "tm" || handle === "tr") nTop = pointerY
-        if (handle === "bl" || handle === "bm" || handle === "br") nBottom = pointerY
-
-        if (nRight - nLeft < 1) {
-          if (handle === "tl" || handle === "lm" || handle === "bl") nLeft = nRight - 1
-          else nRight = nLeft + 1
-        }
-        if (nBottom - nTop < 1) {
-          if (handle === "tl" || handle === "tm" || handle === "tr") nTop = nBottom - 1
-          else nBottom = nTop + 1
-        }
-
-        let next: FrameRect = { x: nLeft, y: nTop, w: nRight - nLeft, h: nBottom - nTop }
-        if (keepAspect) {
-          const aspect = prevFrame.w / Math.max(1e-6, prevFrame.h)
-          const byW = { ...next, h: Math.max(1, next.w / aspect) }
-          const byH = { ...next, w: Math.max(1, next.h * aspect) }
-          const dW = Math.abs(byW.h - next.h)
-          const dH = Math.abs(byH.w - next.w)
-          next = dW <= dH ? byW : byH
-          if (handle === "tl" || handle === "tm" || handle === "tr") next.y = nBottom - next.h
-          if (handle === "tl" || handle === "lm" || handle === "bl") next.x = nRight - next.w
-        }
+        const next = applyResizeHandle({
+          prev: prevFrame,
+          handle,
+          pointerX,
+          pointerY,
+          minSize: 1,
+          keepAspect,
+        })
 
         markUserChanged()
         return frameRectToImageTx(next)
@@ -91,14 +67,16 @@ export function useSelectResizeController(opts: {
   const begin = useCallback(
     (handle: ResizeHandle, keepAspectInitial: boolean) => {
       stop()
+      const root = containerRef.current
+      if (!root) return
+      const containerRect = root.getBoundingClientRect()
       const onMove = (evt: MouseEvent) => {
-        const root = containerRef.current
-        if (!root) return
-        const rect = root.getBoundingClientRect()
-        const stageX = evt.clientX - rect.left
-        const stageY = evt.clientY - rect.top
-        const worldX = (stageX - view.x) / Math.max(1e-6, view.scale)
-        const worldY = (stageY - view.y) / Math.max(1e-6, view.scale)
+        const { worldX, worldY } = clientToWorldPoint({
+          clientX: evt.clientX,
+          clientY: evt.clientY,
+          containerRect,
+          view,
+        })
         applySelectResize(handle, worldX, worldY, keepAspectInitial || evt.shiftKey)
       }
       const onUp = () => {
