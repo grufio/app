@@ -22,11 +22,11 @@ import { useProjectWorkspace } from "@/lib/editor/project-workspace"
 import {
   computeWorkspaceDpiChange,
   computeLockedDimension,
-  computeWorkspaceSizeSave,
   computeWorkspaceUnitChange,
   mapDpiToRasterPreset,
   normalizeUnit,
 } from "@/services/editor/workspace-operations"
+import { computeWorkspaceSizeSaveFromDisplay, getDisplaySizeDraft } from "@/services/editor/workspace-unit-controller"
 import { useKeyedDraft } from "@/lib/editor/use-keyed-draft"
 
 function labelForPreset(p: "high" | "medium" | "low"): string {
@@ -66,9 +66,18 @@ export function ArtboardPanel() {
   )
   const { value: lockAspect, setValue: setLockAspect } = useKeyedDraft<boolean>(activeProjectId, false)
 
-  // Editor geometry is pixel-only: size inputs are px.
-  const computedWidth = row ? String(row.width_px) : ""
-  const computedHeight = row ? String(row.height_px) : ""
+  const displayDraft = row
+    ? getDisplaySizeDraft({
+        widthPxU,
+        heightPxU,
+        widthPx: row.width_px,
+        heightPx: row.height_px,
+        unit: computedUnit,
+        dpi: computedOutputDpi,
+      })
+    : { widthDraft: "", heightDraft: "" }
+  const computedWidth = displayDraft.widthDraft
+  const computedHeight = displayDraft.heightDraft
 
   const { value: draftWidth, setValue: setDraftWidth } = useKeyedDraft(activeProjectId, computedWidth)
   const { value: draftHeight, setValue: setDraftHeight } = useKeyedDraft(activeProjectId, computedHeight)
@@ -97,10 +106,13 @@ export function ArtboardPanel() {
     if (saving) return
     if (!canonicalW || !canonicalH) return
 
-    const computed = computeWorkspaceSizeSave({
+    const effectiveDpi = Number.parseInt(draftOutputDpi, 10)
+    const computed = computeWorkspaceSizeSaveFromDisplay({
       base: row,
       draftW: draftWidth,
       draftH: draftHeight,
+      unit: draftUnitRef.current,
+      dpi: Number.isFinite(effectiveDpi) && effectiveDpi > 0 ? effectiveDpi : computedOutputDpi,
     })
     if ("error" in computed) return
 
@@ -118,8 +130,16 @@ export function ArtboardPanel() {
     const unitNormalized = normalizeUnit((saved as unknown as { unit?: unknown })?.unit)
     const nextOutput =
       Number((saved as unknown as { output_dpi?: unknown; artboard_dpi?: unknown }).output_dpi ?? saved.artboard_dpi) || computedOutputDpi
-    setDraftWidth(String(saved.width_px))
-    setDraftHeight(String(saved.height_px))
+    const display = getDisplaySizeDraft({
+      widthPxU: BigInt(saved.width_px_u),
+      heightPxU: BigInt(saved.height_px_u),
+      widthPx: saved.width_px,
+      heightPx: saved.height_px,
+      unit: unitNormalized,
+      dpi: nextOutput,
+    })
+    setDraftWidth(display.widthDraft)
+    setDraftHeight(display.heightDraft)
     setDraftUnit(unitNormalized)
     setDraftOutputDpi(String(nextOutput))
     setDraftRasterPreset((saved.raster_effects_preset ?? mapDpiToRasterPreset(nextOutput) ?? "custom") as "high" | "medium" | "low" | "custom")
@@ -131,6 +151,18 @@ export function ArtboardPanel() {
     const computed = computeWorkspaceUnitChange({ base: row, nextUnit })
     const saved = await upsertWorkspace(computed.next)
     if (!saved) return
+    const effectiveOutput =
+      Number((saved as unknown as { output_dpi?: unknown; artboard_dpi?: unknown }).output_dpi ?? saved.artboard_dpi) || computedOutputDpi
+    const display = getDisplaySizeDraft({
+      widthPxU: BigInt(saved.width_px_u),
+      heightPxU: BigInt(saved.height_px_u),
+      widthPx: saved.width_px,
+      heightPx: saved.height_px,
+      unit: nextUnit,
+      dpi: effectiveOutput,
+    })
+    setDraftWidth(display.widthDraft)
+    setDraftHeight(display.heightDraft)
     setDraftUnit(nextUnit)
   }
 
@@ -162,7 +194,19 @@ export function ArtboardPanel() {
     // Output DPI only; do not change canonical µpx size.
     setTimeout(() => {
       const computed = computeWorkspaceDpiChange({ base: row, nextDpi: dpi, nextPreset: preset })
-      void upsertWorkspace(computed.next)
+      void upsertWorkspace(computed.next).then((saved) => {
+        if (!saved) return
+        const display = getDisplaySizeDraft({
+          widthPxU: BigInt(saved.width_px_u),
+          heightPxU: BigInt(saved.height_px_u),
+          widthPx: saved.width_px,
+          heightPx: saved.height_px,
+          unit: draftUnitRef.current,
+          dpi,
+        })
+        setDraftWidth(display.widthDraft)
+        setDraftHeight(display.heightDraft)
+      })
     }, 0)
   }
 

@@ -61,6 +61,9 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
   setDeleteError: (v: string) => void
   restoreOpen: boolean
   setRestoreOpen: (v: boolean) => void
+  restoreBusy: boolean
+  restoreError: string
+  onRestoreImage: () => void | Promise<void>
   deleteOpen: boolean
   setDeleteOpen: (v: boolean) => void
   handleDeleteMasterImage: () => void | Promise<void>
@@ -93,6 +96,9 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
     setDeleteError,
     restoreOpen,
     setRestoreOpen,
+    restoreBusy,
+    restoreError,
+    onRestoreImage,
     deleteOpen,
     setDeleteOpen,
     handleDeleteMasterImage,
@@ -206,7 +212,7 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
                       variant="ghost"
                       size="icon"
                       className="h-6 w-6"
-                      disabled={!masterImage || masterImageLoading || deleteBusy}
+                      disabled={!masterImage || masterImageLoading || deleteBusy || restoreBusy}
                       aria-label="Restore image"
                       onClick={() => setRestoreOpen(true)}
                     >
@@ -258,23 +264,18 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
           </DialogHeader>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setRestoreOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setRestoreOpen(false)} disabled={restoreBusy}>
               Cancel
             </Button>
             <Button
               type="button"
-              onClick={() => {
-                const result = canvasRef.current?.restoreImage()
-                if (result && !result.ok) {
-                  console.warn("Restore image skipped", { reason: result.reason })
-                  return
-                }
-                setRestoreOpen(false)
-              }}
+              onClick={onRestoreImage}
+              disabled={restoreBusy}
             >
-              Restore
+              {restoreBusy ? "Restoring…" : "Restore"}
             </Button>
           </DialogFooter>
+          {restoreError ? <div className="text-sm text-destructive">{restoreError}</div> : null}
         </DialogContent>
       </Dialog>
 

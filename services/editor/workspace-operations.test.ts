@@ -12,6 +12,7 @@ import {
   mapDpiToRasterPreset,
   normalizeUnit,
 } from "./workspace-operations"
+import { unitToPxU } from "@/lib/editor/units"
 
 describe("workspace-operations", () => {
   it("normalizeUnit falls back to cm", () => {
@@ -99,6 +100,28 @@ describe("workspace-operations", () => {
     expect(out.next.width_px_u).toBe(base.width_px_u)
     expect(out.next.height_px_u).toBe(base.height_px_u)
     expect(out.next.output_dpi).toBe(base.output_dpi)
+  })
+
+  it("computeWorkspaceUnitChange derives display values from canonical px_u (no cumulative drift)", () => {
+    const widthPxU = unitToPxU("200", "mm", 150) // not an integer px boundary
+    const heightPxU = unitToPxU("100", "mm", 150)
+    const base: WorkspaceRow = {
+      project_id: "p",
+      unit: "mm",
+      width_value: 200,
+      height_value: 100,
+      output_dpi: 150,
+      artboard_dpi: 150,
+      width_px_u: widthPxU.toString(),
+      height_px_u: heightPxU.toString(),
+      width_px: 1181,
+      height_px: 591,
+      raster_effects_preset: "medium",
+    }
+    const toCm = computeWorkspaceUnitChange({ base, nextUnit: "cm" })
+    const backToMm = computeWorkspaceUnitChange({ base: { ...toCm.next, unit: "cm" }, nextUnit: "mm" })
+    expect(String(backToMm.next.width_value)).toBe("200")
+    expect(String(backToMm.next.height_value)).toBe("100")
   })
 
   it("computeWorkspaceDpiChange preserves canonical geometry", () => {

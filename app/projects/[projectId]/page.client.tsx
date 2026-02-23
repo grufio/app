@@ -25,7 +25,7 @@ import { useProjectGrid } from "@/lib/editor/project-grid"
 import type { MasterImage } from "@/lib/editor/use-master-image"
 import { useMasterImage } from "@/lib/editor/use-master-image"
 import { useProjectImages } from "@/lib/editor/use-project-images"
-import { cropImageVariant } from "@/lib/api/project-images"
+import { cropImageVariant, restoreInitialMasterImage } from "@/lib/api/project-images"
 import type { Project } from "@/lib/editor/use-project"
 import { useProject } from "@/lib/editor/use-project"
 import type { ImageState } from "@/lib/editor/use-image-state"
@@ -142,6 +142,8 @@ export function ProjectDetailPageClient({
   const { images: projectImages, refresh: refreshProjectImages, deleteById: deleteImageById } = useProjectImages(projectId)
 
   const [restoreOpen, setRestoreOpen] = useState(false)
+  const [restoreBusy, setRestoreBusy] = useState(false)
+  const [restoreError, setRestoreError] = useState("")
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [gridVisible, setGridVisible] = useState(true)
   const [selectedNavId, setSelectedNavId] = useState<string>(buildNavId({ kind: "artboard" }))
@@ -280,6 +282,24 @@ export function ProjectDetailPageClient({
     void refreshProjectImages()
     void refreshMasterImage()
   }, [deleteImage, deleteImageById, refreshMasterImage, refreshProjectImages, selectedImageId])
+
+  const handleRestoreInitialImage = useCallback(async () => {
+    if (restoreBusy) return
+    setRestoreError("")
+    setRestoreBusy(true)
+    try {
+      await restoreInitialMasterImage(projectId)
+      setRestoreOpen(false)
+      toolbar.setTool("select")
+      await refreshMasterImage()
+      await refreshProjectImages()
+      await loadImageState()
+    } catch (e) {
+      setRestoreError(e instanceof Error ? e.message : "Failed to restore initial image")
+    } finally {
+      setRestoreBusy(false)
+    }
+  }, [loadImageState, projectId, refreshMasterImage, refreshProjectImages, restoreBusy, toolbar])
 
   const requestDeleteImage = useCallback(
     async (imageId: string) => {
@@ -528,6 +548,9 @@ export function ProjectDetailPageClient({
             setDeleteError={setDeleteError}
             restoreOpen={restoreOpen}
             setRestoreOpen={setRestoreOpen}
+            restoreBusy={restoreBusy}
+            restoreError={restoreError}
+            onRestoreImage={handleRestoreInitialImage}
             deleteOpen={deleteOpen}
             setDeleteOpen={setDeleteOpen}
             handleDeleteMasterImage={handleDeleteMasterImage}

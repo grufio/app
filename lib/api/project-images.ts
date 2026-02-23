@@ -5,7 +5,7 @@
  * - Fetch metadata and signed URLs for the master image.
  * - Perform existence checks and deletion via API routes.
  */
-import { fetchJson } from "@/lib/api/http"
+import { fetchJson, invalidateFetchJsonGetCache } from "@/lib/api/http"
 
 export type MasterImageResponse =
   | { exists: false }
@@ -127,9 +127,28 @@ export async function cropImageVariant(args: {
   if (!res.data?.id) {
     throw new Error("Failed to crop image (missing id)")
   }
+  invalidateFetchJsonGetCache(`/api/projects/${projectId}/images/master`)
+  invalidateFetchJsonGetCache(`/api/projects/${projectId}/images/master/list`)
   return {
     id: String(res.data.id),
     width_px: Number(res.data.width_px ?? 0),
     height_px: Number(res.data.height_px ?? 0),
   }
+}
+
+export async function restoreInitialMasterImage(projectId: string): Promise<{ image_id: string }> {
+  const res = await fetchJson<{ ok?: boolean; image_id?: string }>(`/api/projects/${projectId}/images/master/restore`, {
+    method: "POST",
+    credentials: "same-origin",
+  })
+  if (!res.ok) {
+    const msg = `Failed to restore initial image (HTTP ${res.status})` + (res.error ? ` ${JSON.stringify(res.error)}` : "")
+    throw new Error(msg)
+  }
+  if (!res.data?.image_id) {
+    throw new Error("Failed to restore initial image (missing image_id)")
+  }
+  invalidateFetchJsonGetCache(`/api/projects/${projectId}/images/master`)
+  invalidateFetchJsonGetCache(`/api/projects/${projectId}/images/master/list`)
+  return { image_id: String(res.data.image_id) }
 }
