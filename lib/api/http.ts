@@ -70,3 +70,19 @@ export async function fetchJson<T>(input: RequestInfo | URL, init?: RequestInit)
   return out as FetchJsonResult<T>
 }
 
+export function invalidateFetchJsonGetCache(match?: string | RegExp): void {
+  if (!match) {
+    cache.clear()
+    inflight.clear()
+    return
+  }
+  for (const key of cache.keys()) {
+    const hit = typeof match === "string" ? key.includes(match) : match.test(key)
+    if (hit) cache.delete(key)
+  }
+  for (const key of inflight.keys()) {
+    const hit = typeof match === "string" ? key.includes(match) : match.test(key)
+    if (hit) inflight.delete(key)
+  }
+}
+

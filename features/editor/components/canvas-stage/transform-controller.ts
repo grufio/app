@@ -152,16 +152,16 @@ export function createTransformController(deps: TransformControllerDeps): Transf
     baseH: number
     initialImageTransform?: { xPxU?: MicroPx; yPxU?: MicroPx; widthPxU?: MicroPx; heightPxU?: MicroPx; rotationDeg: number } | null
   }) => {
-    const t = opts.initialImageTransform ?? null
-    const nextWidthPxU = t?.widthPxU ?? numberToMicroPx(opts.baseW)
-    const nextHeightPxU = t?.heightPxU ?? numberToMicroPx(opts.baseH)
-    const nextX = t?.xPxU ?? numberToMicroPx(opts.artW / 2)
-    const nextY = t?.yPxU ?? numberToMicroPx(opts.artH / 2)
+    // Restore must reset to the default placement in the current artboard,
+    // not to the latest persisted transform.
+    const nextWidthPxU = numberToMicroPx(opts.baseW)
+    const nextHeightPxU = numberToMicroPx(opts.baseH)
+    const nextX = numberToMicroPx(opts.artW / 2)
+    const nextY = numberToMicroPx(opts.artH / 2)
 
     const next: ImageTx = { xPxU: nextX, yPxU: nextY, widthPxU: nextWidthPxU, heightPxU: nextHeightPxU }
 
-    const nextRotation = t ? Number(t.rotationDeg) : 0
-    const rot = Number.isFinite(nextRotation) ? nextRotation : 0
+    const rot = 0
     deps.setRotationDeg(rot)
 
     const node = deps.getImageNode()

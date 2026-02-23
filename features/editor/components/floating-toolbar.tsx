@@ -7,7 +7,7 @@
  * - Provide tool selection (select/hand) and view actions (zoom/fit/rotate).
  * - Stay visually lightweight and keyboard-friendly.
  */
-import { Hand, Maximize2, MousePointer2, RotateCw, ZoomIn, ZoomOut } from "lucide-react"
+import { Crop, Hand, Maximize2, MousePointer2, RotateCw, ZoomIn, ZoomOut } from "lucide-react"
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
@@ -90,6 +90,9 @@ export function FloatingToolbar({
         </IconButton>
         <IconButton label="Hand (Move Artboard)" active={tool === "hand"} onClick={() => onToolChange("hand")}>
           <Hand className="size-6" strokeWidth={TOOLBAR_ICON_STROKE_WIDTH} />
+        </IconButton>
+        <IconButton label="Crop" active={tool === "crop"} onClick={() => onToolChange("crop")}>
+          <Crop className="size-6" strokeWidth={TOOLBAR_ICON_STROKE_WIDTH} />
         </IconButton>
 
         <IconButton label="Zoom in" onClick={onZoomIn} disabled={actionsDisabled}>

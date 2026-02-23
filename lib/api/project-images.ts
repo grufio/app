@@ -5,7 +5,7 @@
  * - Fetch metadata and signed URLs for the master image.
  * - Perform existence checks and deletion via API routes.
  */
-import { fetchJson } from "@/lib/api/http"
+import { fetchJson, invalidateFetchJsonGetCache } from "@/lib/api/http"
 
 export type MasterImageResponse =
   | { exists: false }
@@ -20,6 +20,11 @@ export type MasterImageResponse =
       storage_path?: string
       format?: string
       file_size_bytes?: number
+      restore_base?: {
+        id: string
+        width_px: number
+        height_px: number
+      } | null
     }
 
 export type ProjectImageItem = {
@@ -89,4 +94,61 @@ export async function deleteMasterImageById(projectId: string, imageId: string):
     const msg = `Failed to delete image (HTTP ${res.status})` + (res.error ? ` ${JSON.stringify(res.error)}` : "")
     throw new Error(msg)
   }
+}
+
+export async function cropImageVariant(args: {
+  projectId: string
+  sourceImageId: string
+  x: number
+  y: number
+  w: number
+  h: number
+}): Promise<{ id: string; width_px: number; height_px: number }> {
+  const { projectId, sourceImageId, x, y, w, h } = args
+  const res = await fetchJson<{ ok?: boolean; id?: string; width_px?: number; height_px?: number }>(
+    `/api/projects/${projectId}/images/crop`,
+    {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        source_image_id: sourceImageId,
+        x,
+        y,
+        w,
+        h,
+      }),
+    }
+  )
+  if (!res.ok) {
+    const msg = `Failed to crop image (HTTP ${res.status})` + (res.error ? ` ${JSON.stringify(res.error)}` : "")
+    throw new Error(msg)
+  }
+  if (!res.data?.id) {
+    throw new Error("Failed to crop image (missing id)")
+  }
+  invalidateFetchJsonGetCache(`/api/projects/${projectId}/images/master`)
+  invalidateFetchJsonGetCache(`/api/projects/${projectId}/images/master/list`)
+  return {
+    id: String(res.data.id),
+    width_px: Number(res.data.width_px ?? 0),
+    height_px: Number(res.data.height_px ?? 0),
+  }
+}
+
+export async function restoreInitialMasterImage(projectId: string): Promise<{ image_id: string }> {
+  const res = await fetchJson<{ ok?: boolean; image_id?: string }>(`/api/projects/${projectId}/images/master/restore`, {
+    method: "POST",
+    credentials: "same-origin",
+  })
+  if (!res.ok) {
+    const msg = `Failed to restore initial image (HTTP ${res.status})` + (res.error ? ` ${JSON.stringify(res.error)}` : "")
+    throw new Error(msg)
+  }
+  if (!res.data?.image_id) {
+    throw new Error("Failed to restore initial image (missing image_id)")
+  }
+  invalidateFetchJsonGetCache(`/api/projects/${projectId}/images/master`)
+  invalidateFetchJsonGetCache(`/api/projects/${projectId}/images/master/list`)
+  return { image_id: String(res.data.image_id) }
 }

@@ -2,7 +2,7 @@
  * API route: master image metadata and signed URL.
  *
  * Responsibilities:
- * - Return master image metadata and a short-lived signed URL for download.
+ * - Return active image metadata and a short-lived signed URL for download.
  * - Support deletion of the master image (and associated state) via Supabase.
  */
 import { NextResponse } from "next/server"
@@ -36,7 +36,6 @@ export async function GET(
     .from("project_images")
     .select("id,storage_path,storage_bucket,name,format,width_px,height_px,dpi,file_size_bytes,is_active")
     .eq("project_id", projectId)
-    .eq("role", "master")
     .eq("is_active", true)
     .is("deleted_at", null)
     .maybeSingle()
@@ -48,6 +47,28 @@ export async function GET(
   if (!img?.storage_path) {
     return NextResponse.json({ exists: false })
   }
+
+  const { data: restoreBase, error: restoreBaseErr } = await supabase
+    .from("project_images")
+    .select("id,width_px,height_px")
+    .eq("project_id", projectId)
+    .eq("role", "master")
+    .is("deleted_at", null)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle()
+  if (restoreBaseErr) {
+    return jsonError(restoreBaseErr.message, 400, { stage: "restore_base_query" })
+  }
+
+  const restoreBasePayload =
+    restoreBase && Number(restoreBase.width_px) > 0 && Number(restoreBase.height_px) > 0
+      ? {
+          id: String(restoreBase.id),
+          width_px: Number(restoreBase.width_px),
+          height_px: Number(restoreBase.height_px),
+        }
+      : null
   const dpiRaw = Number(img.dpi)
   const dpi = Number.isFinite(dpiRaw) && dpiRaw > 0 ? Math.round(dpiRaw) : null
 
@@ -71,6 +92,7 @@ export async function GET(
       height_px: img.height_px,
       dpi,
       file_size_bytes: img.file_size_bytes,
+      restore_base: restoreBasePayload,
     })
   }
 
@@ -98,6 +120,7 @@ export async function GET(
     height_px: img.height_px,
     dpi,
     file_size_bytes: img.file_size_bytes,
+    restore_base: restoreBasePayload,
   })
 }
 

@@ -2,7 +2,7 @@
  * Server-side master image fetch helper.
  *
  * Responsibilities:
- * - Fetch master image metadata from DB and create a short-lived signed URL.
+ * - Fetch active image metadata from DB and create a short-lived signed URL.
  * - Prefer partial boot: if signing fails, return null (editor can still render).
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
@@ -17,13 +17,23 @@ export async function getMasterImageForEditor(
     .from("project_images")
     .select("id,storage_path,storage_bucket,name,width_px,height_px,dpi,role,is_active,deleted_at")
     .eq("project_id", projectId)
-    .eq("role", "master")
     .eq("is_active", true)
     .is("deleted_at", null)
     .maybeSingle()
 
   if (imgErr) return { masterImage: null, error: imgErr.message }
   if (!img?.storage_path) return { masterImage: null, error: null }
+
+  const { data: restoreBase, error: restoreBaseErr } = await supabase
+    .from("project_images")
+    .select("id,width_px,height_px")
+    .eq("project_id", projectId)
+    .eq("role", "master")
+    .is("deleted_at", null)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle()
+  if (restoreBaseErr) return { masterImage: null, error: restoreBaseErr.message }
 
   const bucket = img.storage_bucket ?? "project_images"
   const { data: signed, error: signedErr } = await supabase.storage.from(bucket).createSignedUrl(img.storage_path, 60 * 10)
@@ -43,6 +53,14 @@ export async function getMasterImageForEditor(
       height_px: Number(img.height_px ?? 0),
       dpi,
       name: img.name ?? "master image",
+      restore_base:
+        restoreBase && Number(restoreBase.width_px) > 0 && Number(restoreBase.height_px) > 0
+          ? {
+              id: String(restoreBase.id),
+              width_px: Number(restoreBase.width_px),
+              height_px: Number(restoreBase.height_px),
+            }
+          : null,
     },
     error: null,
   }

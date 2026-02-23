@@ -19,6 +19,9 @@ import { computeGridLines } from "./canvas-stage/grid-lines"
 import { pickIntrinsicSize, shouldApplyPersistedTransform } from "./canvas-stage/placement"
 import { snapWorldToDeviceHalfPixel as snapHalfPixel } from "./canvas-stage/pixel-snap"
 import { createRafScheduler, RAF_BOUNDS, RAF_DRAG_BOUNDS, RAF_PAN, RAF_ZOOM } from "./canvas-stage/raf-scheduler"
+import { useRestoreImageController, type RestoreBaseSpec, type RestoreImageResult } from "./canvas-stage/restore-controller"
+import { useCropController, type CropRectWorld } from "./canvas-stage/crop-controller"
+import { useSelectResizeController, type ResizeHandle } from "./canvas-stage/select-controller"
 import { createTransformController } from "./canvas-stage/transform-controller"
 import type { BoundsRect, ViewState } from "./canvas-stage/types"
 import { useHtmlImage } from "./canvas-stage/use-html-image"
@@ -43,6 +46,10 @@ type Props = {
    */
   intrinsicWidthPx?: number
   intrinsicHeightPx?: number
+  /** Canonical restore baseline from initial upload master image. */
+  restoreBaseImageId?: string | null
+  restoreBaseWidthPx?: number
+  restoreBaseHeightPx?: number
   grid?: {
     spacingXPx: number
     spacingYPx: number
@@ -65,6 +72,8 @@ type Props = {
     heightPxU: bigint
     rotationDeg: number
   }) => void
+  cropEnabled?: boolean
+  cropBusy?: boolean
 }
 
 export type ProjectCanvasStageHandle = {
@@ -96,7 +105,14 @@ export type ProjectCanvasStageHandle = {
    * Restore the "working copy" state of the image back to its original placement.
    * This resets rotation and re-fits the image into the current artboard.
    */
-  restoreImage: () => void
+  restoreImage: () => RestoreImageResult
+  getCropSelection: () =>
+    | { ok: true; rect: { x: number; y: number; w: number; h: number } }
+    | { ok: false; reason: "crop_disabled" | "not_ready" | "rotated" | "invalid_intrinsic" }
+  /** Returns current crop selection in source-image pixels. */
+  getCropSelectionPx: () => { x: number; y: number; w: number; h: number } | null
+  /** Resets in-canvas crop selection to full current image bounds. */
+  resetCropSelection: () => void
 }
 
 const SelectionOverlay = memo(function SelectionOverlay({
@@ -205,10 +221,15 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     artboardHeightPx,
     intrinsicWidthPx,
     intrinsicHeightPx,
+    restoreBaseImageId,
+    restoreBaseWidthPx,
+    restoreBaseHeightPx,
     grid = null,
     onImageSizeChange,
     initialImageTransform,
     onImageTransformCommit,
+    cropEnabled = false,
+    cropBusy = false,
   },
   ref
 ) {
@@ -236,6 +257,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   const imageDraggableRef = useRef(Boolean(imageDraggable))
   const isE2ERef = useRef(Boolean(isE2E))
   const onImageTransformCommitRef = useRef<Props["onImageTransformCommit"]>(onImageTransformCommit)
+  const restoreBaseSpecRef = useRef<RestoreBaseSpec | null>(null)
 
   const [imageTx, setImageTx] = useState<{
     xPxU: bigint
@@ -280,6 +302,24 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   useEffect(() => {
     onImageTransformCommitRef.current = onImageTransformCommit
   }, [onImageTransformCommit])
+
+  useEffect(() => {
+    const imageId = restoreBaseImageId ?? null
+    const widthPx = typeof restoreBaseWidthPx === "number" && Number.isFinite(restoreBaseWidthPx) ? restoreBaseWidthPx : 0
+    const heightPx = typeof restoreBaseHeightPx === "number" && Number.isFinite(restoreBaseHeightPx) ? restoreBaseHeightPx : 0
+    if (imageId && widthPx > 0 && heightPx > 0) {
+      restoreBaseSpecRef.current = { imageId, widthPx, heightPx }
+      return
+    }
+    if (!imageId) {
+      restoreBaseSpecRef.current = null
+      return
+    }
+    // Keep prior base spec for the same image during transient loading gaps.
+    if (restoreBaseSpecRef.current?.imageId !== imageId) {
+      restoreBaseSpecRef.current = null
+    }
+  }, [restoreBaseHeightPx, restoreBaseImageId, restoreBaseWidthPx])
 
   // Prevent browser page zoom / scroll stealing (Cmd/Ctrl + wheel / trackpad pinch).
   useEffect(() => {
@@ -597,19 +637,14 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     [artW, artH, hasArtboard]
   )
 
-  const restoreImage = useCallback(() => {
-    if (!img) return
-    const intrinsic = pickIntrinsicSize({ intrinsicWidthPx, intrinsicHeightPx, img })
-    if (!intrinsic) return
-    transformControllerRef.current?.restoreImage({
-      artW,
-      artH,
-      baseW: intrinsic.w,
-      baseH: intrinsic.h,
-      initialImageTransform,
-    })
-    scheduleBoundsUpdate()
-  }, [artH, artW, img, initialImageTransform, intrinsicHeightPx, intrinsicWidthPx, scheduleBoundsUpdate])
+  const restoreImage = useRestoreImageController({
+    artW,
+    artH,
+    restoreBaseSpecRef,
+    initialImageTransform,
+    transformControllerRef,
+    scheduleBoundsUpdate,
+  })
 
   const alignImage = useCallback(
     (opts: { x?: "left" | "center" | "right"; y?: "top" | "center" | "bottom" }) => {
@@ -620,10 +655,93 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     [artH, artW, hasArtboard, scheduleBoundsUpdate]
   )
 
+  const imageRender = useMemo(() => {
+    if (!img || !imageTx) return null
+    const width = pxUToPxNumber(imageTx.widthPxU)
+    const height = pxUToPxNumber(imageTx.heightPxU)
+    const x = pxUToPxNumber(imageTx.xPxU)
+    const y = pxUToPxNumber(imageTx.yPxU)
+    return { width, height, x, y }
+  }, [img, imageTx])
+
+  const imageFrame = useMemo<CropRectWorld | null>(() => {
+    if (!imageRender) return null
+    return {
+      x: imageRender.x - imageRender.width / 2,
+      y: imageRender.y - imageRender.height / 2,
+      w: imageRender.width,
+      h: imageRender.height,
+    }
+  }, [imageRender])
+
+  const cropMinSize = 10
+  const cropLimitFrame = imageFrame
+  const { beginSelectResize, stopSelectResize } = useSelectResizeController({
+    containerRef,
+    view,
+    setImageTx,
+    markUserChanged: () => {
+      userChangedImageTxRef.current = true
+    },
+    scheduleBoundsUpdate,
+    scheduleCommitTransform,
+  })
+
+  const { cropRect, applyCropMove, beginCropResize, getCropSelection, getCropSelectionPx, resetCropSelection, stopCropResize } =
+    useCropController({
+    cropEnabled,
+    view,
+    containerRef,
+    imageFrame,
+    cropMinSize,
+    cropLimitFrame,
+    intrinsicWidthPx,
+    intrinsicHeightPx,
+    imageRender: imageRender ? { w: imageRender.width, h: imageRender.height } : null,
+    rotation,
+    })
+
+  useEffect(() => {
+    // Any mode switch (select <-> crop <-> hand) must hard-stop active resize listeners.
+    stopSelectResize()
+    stopCropResize()
+  }, [cropBusy, cropEnabled, imageDraggable, panEnabled, stopCropResize, stopSelectResize])
+
+  const cropRects = useMemo(() => {
+    if (!cropRect) return null
+    return computeSelectionHandleRects({
+      bounds: { x: cropRect.x, y: cropRect.y, w: cropRect.w, h: cropRect.h },
+      view: { x: view.x, y: view.y, scale: view.scale },
+      handlePx: selectionHandlePx,
+      snapWorldToDeviceHalfPixel,
+    })
+  }, [cropRect, selectionHandlePx, snapWorldToDeviceHalfPixel, view.scale, view.x, view.y])
+
+  const selectRects = useMemo(() => {
+    if (!imageFrame) return null
+    return computeSelectionHandleRects({
+      bounds: { x: imageFrame.x, y: imageFrame.y, w: imageFrame.w, h: imageFrame.h },
+      view: { x: view.x, y: view.y, scale: view.scale },
+      handlePx: selectionHandlePx,
+      snapWorldToDeviceHalfPixel,
+    })
+  }, [imageFrame, selectionHandlePx, snapWorldToDeviceHalfPixel, view.scale, view.x, view.y])
+
   useImperativeHandle(
     ref,
-    () => ({ fitToView, zoomIn, zoomOut, rotate90, setImageSize, alignImage, restoreImage }),
-    [alignImage, fitToView, restoreImage, rotate90, setImageSize, zoomIn, zoomOut]
+    () => ({
+      fitToView,
+      zoomIn,
+      zoomOut,
+      rotate90,
+      setImageSize,
+      alignImage,
+      restoreImage,
+      getCropSelection,
+      getCropSelectionPx,
+      resetCropSelection,
+    }),
+    [alignImage, fitToView, getCropSelection, getCropSelectionPx, resetCropSelection, restoreImage, rotate90, setImageSize, zoomIn, zoomOut]
   )
 
   const onWheel = useCallback(
@@ -684,15 +802,6 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
       rafExecuted: 0,
     }
   }, [isE2E])
-
-  const imageRender = useMemo(() => {
-    if (!img || !imageTx) return null
-    const width = pxUToPxNumber(imageTx.widthPxU)
-    const height = pxUToPxNumber(imageTx.heightPxU)
-    const x = pxUToPxNumber(imageTx.xPxU)
-    const y = pxUToPxNumber(imageTx.yPxU)
-    return { width, height, x, y }
-  }, [img, imageTx])
 
   return (
     <div
@@ -793,15 +902,102 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
           ) : null}
 
           {/* Default selection frame (shown when the Select tool is active) */}
-          {renderArtboard && imageDraggable && !isDraggingImage ? (
-            <SelectionOverlay
-              imageBounds={imageBounds}
-              view={view}
-              selectionHandlePx={selectionHandlePx}
-              selectionColor={selectionColor}
-              selectionDash={selectionDash}
-              snapWorldToDeviceHalfPixel={snapWorldToDeviceHalfPixel}
-            />
+          {renderArtboard && imageDraggable && !cropEnabled && !isDraggingImage ? (
+            <>
+              <SelectionOverlay
+                imageBounds={imageBounds}
+                view={view}
+                selectionHandlePx={selectionHandlePx}
+                selectionColor={selectionColor}
+                selectionDash={selectionDash}
+                snapWorldToDeviceHalfPixel={snapWorldToDeviceHalfPixel}
+              />
+              {selectRects
+                ? (
+                    [
+                      { key: "tl", pt: selectRects.handles.tl },
+                      { key: "tm", pt: selectRects.handles.tm },
+                      { key: "tr", pt: selectRects.handles.tr },
+                      { key: "rm", pt: selectRects.handles.rm },
+                      { key: "br", pt: selectRects.handles.br },
+                      { key: "bm", pt: selectRects.handles.bm },
+                      { key: "bl", pt: selectRects.handles.bl },
+                      { key: "lm", pt: selectRects.handles.lm },
+                    ] as Array<{ key: ResizeHandle; pt: { x: number; y: number } }>
+                  ).map((h) => (
+                    <Rect
+                      key={`select-hit-${h.key}`}
+                      x={h.pt.x}
+                      y={h.pt.y}
+                      width={selectRects.handleSize.w}
+                      height={selectRects.handleSize.h}
+                      fill="rgba(0,0,0,0)"
+                      strokeScaleEnabled={false}
+                      listening
+                      onMouseDown={(e) => {
+                        e.cancelBubble = true
+                        e.evt.preventDefault()
+                        beginSelectResize(h.key, Boolean(e.evt.shiftKey))
+                      }}
+                    />
+                  ))
+                : null}
+            </>
+          ) : null}
+
+          {/* Crop overlay (interactive while crop tool is active). */}
+          {renderArtboard && cropEnabled && cropRect && cropRects ? (
+            <>
+              {/* Crop uses its own dashed inner frame within image bounds. */}
+              <SelectionOverlay
+                imageBounds={{ x: cropRect.x, y: cropRect.y, w: cropRect.w, h: cropRect.h }}
+                view={view}
+                selectionHandlePx={selectionHandlePx}
+                selectionColor={selectionColor}
+                selectionDash={[4, 4]}
+                snapWorldToDeviceHalfPixel={snapWorldToDeviceHalfPixel}
+              />
+              <Rect
+                x={cropRect.x}
+                y={cropRect.y}
+                width={cropRect.w}
+                height={cropRect.h}
+                fill="rgba(0,0,0,0)"
+                draggable={!cropBusy}
+                onDragStart={(e) => {
+                  e.cancelBubble = true
+                }}
+                onDragMove={(e) => applyCropMove(e.target.x(), e.target.y())}
+              />
+              {(
+                [
+                  { key: "tl", pt: cropRects.handles.tl },
+                  { key: "tm", pt: cropRects.handles.tm },
+                  { key: "tr", pt: cropRects.handles.tr },
+                  { key: "rm", pt: cropRects.handles.rm },
+                  { key: "br", pt: cropRects.handles.br },
+                  { key: "bm", pt: cropRects.handles.bm },
+                  { key: "bl", pt: cropRects.handles.bl },
+                  { key: "lm", pt: cropRects.handles.lm },
+                ] as Array<{ key: ResizeHandle; pt: { x: number; y: number } }>
+              ).map((h) => (
+                <Rect
+                  key={`crop-hit-${h.key}`}
+                  x={h.pt.x}
+                  y={h.pt.y}
+                  width={cropRects.handleSize.w}
+                  height={cropRects.handleSize.h}
+                  fill="rgba(0,0,0,0)"
+                  strokeScaleEnabled={false}
+                  listening={!cropBusy}
+                  onMouseDown={(e) => {
+                    e.cancelBubble = true
+                    e.evt.preventDefault()
+                    beginCropResize(h.key, Boolean(e.evt.shiftKey))
+                  }}
+                />
+              ))}
+            </>
           ) : null}
 
           {drawArtboard ? (

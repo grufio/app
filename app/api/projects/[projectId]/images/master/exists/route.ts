@@ -2,7 +2,7 @@
  * API route: master image existence check.
  *
  * Responsibilities:
- * - Return whether a master image exists for a project (owner-only via auth/RLS).
+ * - Return whether an active image exists for a project (owner-only via auth/RLS).
  */
 import { NextResponse } from "next/server"
 
@@ -28,7 +28,6 @@ export async function GET(
     .from("project_images")
     .select("id")
     .eq("project_id", projectId)
-    .eq("role", "master")
     .eq("is_active", true)
     .is("deleted_at", null)
     .limit(1)

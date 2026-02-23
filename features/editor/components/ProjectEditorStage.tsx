@@ -35,6 +35,11 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
     width_px?: number | null
     height_px?: number | null
     dpi?: number | null
+    restore_base?: {
+      id: string
+      width_px: number
+      height_px: number
+    } | null
   } | null
   masterImageLoading: boolean
   masterImageError: string
@@ -54,6 +59,8 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
     actionsDisabled: boolean
     panEnabled: boolean
     imageDraggable: boolean
+    cropEnabled?: boolean
+    cropBusy?: boolean
   }
   canvasRef: React.RefObject<ProjectCanvasStageHandle | null>
   artboardWidthPx?: number
@@ -126,12 +133,15 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
         ) : (
           <ProjectCanvasStage
             ref={canvasRef}
-            src={masterImage?.signedUrl}
+            src={masterImage?.signedUrl ?? undefined}
             activeImageId={masterImage?.id ?? null}
-            alt={masterImage?.name}
+            restoreBaseImageId={masterImage?.restore_base?.id ?? undefined}
+            alt={masterImage?.name ?? undefined}
             className="h-full w-full"
             panEnabled={toolbar.panEnabled}
             imageDraggable={Boolean(masterImage) && toolbar.imageDraggable}
+            cropEnabled={Boolean(masterImage) && Boolean(toolbar.cropEnabled)}
+            cropBusy={Boolean(toolbar.cropBusy)}
             artboardWidthPx={artboardWidthPx ?? undefined}
             artboardHeightPx={artboardHeightPx ?? undefined}
             intrinsicWidthPx={
@@ -139,6 +149,16 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
             }
             intrinsicHeightPx={
               typeof masterImage?.height_px === "number" && Number.isFinite(masterImage.height_px) ? masterImage.height_px : undefined
+            }
+            restoreBaseWidthPx={
+              typeof masterImage?.restore_base?.width_px === "number" && Number.isFinite(masterImage.restore_base.width_px)
+                ? masterImage.restore_base.width_px
+                : undefined
+            }
+            restoreBaseHeightPx={
+              typeof masterImage?.restore_base?.height_px === "number" && Number.isFinite(masterImage.restore_base.height_px)
+                ? masterImage.restore_base.height_px
+                : undefined
             }
             grid={grid ?? null}
             onImageSizeChange={handleImagePxChange}
