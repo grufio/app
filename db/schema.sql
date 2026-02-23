@@ -1699,18 +1699,11 @@ alter table public.project_workspace
 -- =========================================================
 -- BEGIN db/024_project_workspace_recompute_px_from_artboard_dpi.sql
 -- =========================================================
--- gruf.io - Recompute workspace px cache from artboard_dpi
+-- gruf.io - Recompute workspace px cache from canonical µpx
 --
 -- Goal:
--- - enforce one canonical source for workspace geometry:
---   width_value/height_value + unit + artboard_dpi
--- - repair existing rows that still carry legacy 72-ppi derived px values
--- - keep this migration as data-repair only (trigger semantics are owned by db/023)
-
-update public.project_workspace
-set
-  width_px_u = public.workspace_value_to_px_u(width_value, unit, artboard_dpi)::text,
-  height_px_u = public.workspace_value_to_px_u(height_value, unit, artboard_dpi)::text;
+-- - derive cached integer px from canonical `width_px_u` / `height_px_u`
+-- - no DPI-based geometry recompute
 
 update public.project_workspace
 set
@@ -1885,6 +1878,9 @@ begin
 end
 $$;
 
+alter function public.project_workspace_sync_px_cache()
+  set search_path = public, pg_temp;
+
 drop trigger if exists trg_project_workspace_sync_px_cache on public.project_workspace;
 create trigger trg_project_workspace_sync_px_cache
 before insert or update on public.project_workspace
@@ -1996,5 +1992,418 @@ for each row execute function public.project_workspace_sync_px_cache();
 
 -- =========================================================
 -- END db/031_project_workspace_px_u_canonical.sql
+-- =========================================================
+
+-- =========================================================
+-- BEGIN db/032_project_images_active_variant_contract.sql
+-- =========================================================
+-- gruf.io - Active-image contract + variant lineage fields
+--
+-- Purpose:
+-- - Keep the initial master immutable (`role='master'`).
+-- - Allow derived variants (`role='asset'`) to become the active working image.
+-- - Add generic lineage (`source_image_id`) and crop metadata (`crop_rect_px`).
+-- - Replace "one active master" with "one active image" per project.
+
+alter table public.project_images
+  add column if not exists source_image_id uuid,
+  add column if not exists crop_rect_px jsonb;
+
+-- Remove legacy uniqueness that allowed only one image per role.
+-- Required for multiple derived variants (role='asset').
+alter table public.project_images
+  drop constraint if exists project_images_one_per_role,
+  drop constraint if exists project_images_project_id_role_uidx,
+  drop constraint if exists project_images_project_id_role_key;
+
+drop index if exists public.project_images_project_id_role_uidx;
+drop index if exists public.project_images_project_id_role_key;
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'project_images_source_image_id_fkey'
+      and conrelid = 'public.project_images'::regclass
+  ) then
+    alter table public.project_images
+      add constraint project_images_source_image_id_fkey
+      foreign key (source_image_id)
+      references public.project_images(id)
+      on delete restrict;
+  end if;
+end $$;
+
+alter table public.project_images
+  drop constraint if exists project_images_crop_rect_shape_ck,
+  drop constraint if exists project_images_crop_rect_number_int_ck,
+  drop constraint if exists project_images_crop_rect_value_ck,
+  drop constraint if exists project_images_crop_rect_requires_source_ck,
+  drop constraint if exists project_images_derived_role_ck;
+
+alter table public.project_images
+  add constraint project_images_crop_rect_shape_ck check (
+    crop_rect_px is null
+    or (
+      jsonb_typeof(crop_rect_px) = 'object'
+      and crop_rect_px ?& array['x', 'y', 'w', 'h']
+      and (crop_rect_px - 'x' - 'y' - 'w' - 'h') = '{}'::jsonb
+    )
+  ),
+  add constraint project_images_crop_rect_number_int_ck check (
+    crop_rect_px is null
+    or (
+      jsonb_typeof(crop_rect_px->'x') = 'number'
+      and jsonb_typeof(crop_rect_px->'y') = 'number'
+      and jsonb_typeof(crop_rect_px->'w') = 'number'
+      and jsonb_typeof(crop_rect_px->'h') = 'number'
+      and ((crop_rect_px->>'x')::numeric % 1) = 0
+      and ((crop_rect_px->>'y')::numeric % 1) = 0
+      and ((crop_rect_px->>'w')::numeric % 1) = 0
+      and ((crop_rect_px->>'h')::numeric % 1) = 0
+    )
+  ),
+  add constraint project_images_crop_rect_value_ck check (
+    crop_rect_px is null
+    or (
+      (crop_rect_px->>'x')::integer >= 0
+      and (crop_rect_px->>'y')::integer >= 0
+      and (crop_rect_px->>'w')::integer >= 10
+      and (crop_rect_px->>'h')::integer >= 10
+    )
+  ),
+  add constraint project_images_crop_rect_requires_source_ck check (
+    crop_rect_px is null or source_image_id is not null
+  ),
+  add constraint project_images_derived_role_ck check (
+    source_image_id is null or role = 'asset'
+  );
+
+drop index if exists project_images_one_active_master_idx;
+
+create unique index if not exists project_images_one_active_image_idx
+  on public.project_images (project_id)
+  where is_active is true and deleted_at is null;
+
+create or replace function public.set_active_image(
+  p_project_id uuid,
+  p_image_id uuid
+)
+returns void
+language plpgsql
+as $$
+begin
+  update public.project_images
+  set is_active = false
+  where project_id = p_project_id
+    and deleted_at is null;
+
+  update public.project_images
+  set is_active = true
+  where id = p_image_id
+    and project_id = p_project_id
+    and deleted_at is null;
+end;
+$$;
+
+create or replace function public.set_active_master_image(p_project_id uuid, p_image_id uuid)
+returns void
+language plpgsql
+as $$
+begin
+  perform public.set_active_image(p_project_id, p_image_id);
+end;
+$$;
+
+create or replace function public.set_active_master_latest(p_project_id uuid)
+returns void
+language plpgsql
+as $$
+declare
+  v_image_id uuid;
+begin
+  select id
+  into v_image_id
+  from public.project_images
+  where project_id = p_project_id
+    and deleted_at is null
+  order by created_at desc
+  limit 1;
+
+  if v_image_id is not null then
+    perform public.set_active_image(p_project_id, v_image_id);
+  end if;
+end;
+$$;
+
+create or replace function public.set_active_master_with_state(
+  p_project_id uuid,
+  p_image_id uuid,
+  p_width_px integer,
+  p_height_px integer
+)
+returns void
+language plpgsql
+as $$
+declare
+  v_w_u bigint;
+  v_h_u bigint;
+  v_artboard_w_u bigint;
+  v_artboard_h_u bigint;
+begin
+  v_w_u := greatest(1, p_width_px)::bigint * 1000000;
+  v_h_u := greatest(1, p_height_px)::bigint * 1000000;
+
+  perform public.set_active_image(p_project_id, p_image_id);
+
+  select
+    case
+      when pw.width_px_u is not null then pw.width_px_u::bigint
+      else greatest(1, pw.width_px)::bigint * 1000000
+    end,
+    case
+      when pw.height_px_u is not null then pw.height_px_u::bigint
+      else greatest(1, pw.height_px)::bigint * 1000000
+    end
+  into v_artboard_w_u, v_artboard_h_u
+  from public.project_workspace pw
+  where pw.project_id = p_project_id;
+
+  if v_artboard_w_u is null then v_artboard_w_u := v_w_u; end if;
+  if v_artboard_h_u is null then v_artboard_h_u := v_h_u; end if;
+
+  insert into public.project_image_state (
+    project_id,
+    role,
+    image_id,
+    x_px_u,
+    y_px_u,
+    width_px_u,
+    height_px_u,
+    rotation_deg
+  ) values (
+    p_project_id,
+    'master',
+    p_image_id,
+    (v_artboard_w_u / 2)::text,
+    (v_artboard_h_u / 2)::text,
+    v_w_u::text,
+    v_h_u::text,
+    0
+  )
+  on conflict (project_id, role)
+  do update
+    set image_id = excluded.image_id,
+        x_px_u = excluded.x_px_u,
+        y_px_u = excluded.y_px_u,
+        width_px_u = excluded.width_px_u,
+        height_px_u = excluded.height_px_u,
+        rotation_deg = excluded.rotation_deg;
+end;
+$$;
+-- =========================================================
+-- END db/032_project_images_active_variant_contract.sql
+-- =========================================================
+
+-- =========================================================
+-- BEGIN db/033_project_images_lock_state.sql
+-- =========================================================
+-- gruf.io - Persisted lock state for project images
+--
+-- Purpose:
+-- - Persist the editor lock/unlock state per image in DB.
+-- - Enable consistent lock behavior across sessions/devices.
+
+alter table public.project_images
+  add column if not exists is_locked boolean not null default false;
+-- =========================================================
+-- END db/033_project_images_lock_state.sql
+-- =========================================================
+
+-- =========================================================
+-- BEGIN db/034_function_search_path_hardening.sql
+-- =========================================================
+-- gruf.io - Harden function search_path for security lint 0011
+--
+-- Purpose:
+-- - Prevent mutable role-dependent name resolution inside SQL/plpgsql functions.
+-- - Keep behavior unchanged; only pin schema lookup path.
+
+alter function public.set_active_image(uuid, uuid)
+  set search_path = public, pg_temp;
+
+alter function public.set_active_master_image(uuid, uuid)
+  set search_path = public, pg_temp;
+
+alter function public.set_active_master_latest(uuid)
+  set search_path = public, pg_temp;
+
+alter function public.set_active_master_with_state(uuid, uuid, integer, integer)
+  set search_path = public, pg_temp;
+
+alter function public.project_workspace_sync_px_cache()
+  set search_path = public, pg_temp;
+-- =========================================================
+-- END db/034_function_search_path_hardening.sql
+-- =========================================================
+
+-- =========================================================
+-- BEGIN db/035_remove_artboard_dpi_and_harden_workspace_insert.sql
+-- =========================================================
+-- gruf.io - Remove artboard_dpi and harden workspace INSERT contract
+--
+-- Goal:
+-- - remove legacy `artboard_dpi` from runtime schema
+-- - enforce canonical geometry on INSERT (`width_px_u`/`height_px_u` required)
+-- - keep UPDATE path geometry-stable (no DPI/value/unit recompute)
+
+alter table public.project_workspace
+  add column if not exists output_dpi numeric;
+
+update public.project_workspace
+set output_dpi = coalesce(output_dpi, 300)
+where output_dpi is null;
+
+alter table public.project_workspace
+  alter column output_dpi set default 300;
+
+alter table public.project_workspace
+  alter column output_dpi set not null;
+
+alter table public.project_workspace
+  drop constraint if exists project_workspace_output_dpi_positive;
+
+alter table public.project_workspace
+  add constraint project_workspace_output_dpi_positive check (output_dpi > 0);
+
+create or replace function public.project_workspace_sync_px_cache()
+returns trigger
+language plpgsql
+as $$
+declare
+  w_u bigint;
+  h_u bigint;
+begin
+  if tg_op = 'UPDATE' then
+    if new.width_px_u is null then new.width_px_u := old.width_px_u; end if;
+    if new.height_px_u is null then new.height_px_u := old.height_px_u; end if;
+  else
+    if new.width_px_u is null or new.height_px_u is null then
+      raise exception using
+        message = 'project_workspace INSERT requires width_px_u and height_px_u',
+        hint = 'Provide canonical micro-pixel geometry explicitly.';
+    end if;
+  end if;
+
+  w_u := new.width_px_u::bigint;
+  h_u := new.height_px_u::bigint;
+
+  new.width_px := greatest(1, ((w_u + 500000) / 1000000)::int);
+  new.height_px := greatest(1, ((h_u + 500000) / 1000000)::int);
+  return new;
+end
+$$;
+
+alter function public.project_workspace_sync_px_cache()
+  set search_path = public, pg_temp;
+
+drop trigger if exists trg_project_workspace_sync_px_cache on public.project_workspace;
+create trigger trg_project_workspace_sync_px_cache
+before insert or update on public.project_workspace
+for each row execute function public.project_workspace_sync_px_cache();
+
+alter table public.project_workspace
+  alter column width_px_u set not null,
+  alter column height_px_u set not null;
+
+alter table public.project_workspace
+  drop constraint if exists project_workspace_width_px_u_positive,
+  drop constraint if exists project_workspace_height_px_u_positive,
+  drop constraint if exists project_workspace_px_cache_consistency;
+
+alter table public.project_workspace
+  add constraint project_workspace_width_px_u_positive check ((width_px_u::bigint) >= 1000000 and (width_px_u::bigint) <= 32768000000),
+  add constraint project_workspace_height_px_u_positive check ((height_px_u::bigint) >= 1000000 and (height_px_u::bigint) <= 32768000000),
+  add constraint project_workspace_px_cache_consistency check (
+    width_px = greatest(1, (((width_px_u::bigint) + 500000) / 1000000)::int) and
+    height_px = greatest(1, (((height_px_u::bigint) + 500000) / 1000000)::int)
+  );
+
+alter table public.project_workspace
+  drop constraint if exists project_workspace_artboard_dpi_positive;
+
+alter table public.project_workspace
+  drop column if exists artboard_dpi;
+-- =========================================================
+-- END db/035_remove_artboard_dpi_and_harden_workspace_insert.sql
+-- =========================================================
+
+-- =========================================================
+-- BEGIN db/036_set_active_image_hardening.sql
+-- =========================================================
+-- gruf.io - Harden active-image mutation functions
+--
+-- Goal:
+-- - Ensure active-image switch fails loudly for invalid targets.
+-- - Keep exactly one active non-deleted image per project.
+-- - Pin function search_path for security linting.
+
+create or replace function public.set_active_image(
+  p_project_id uuid,
+  p_image_id uuid
+)
+returns void
+language plpgsql
+as $$
+declare
+  v_target_exists boolean;
+begin
+  select exists (
+    select 1
+    from public.project_images pi
+    where pi.id = p_image_id
+      and pi.project_id = p_project_id
+      and pi.deleted_at is null
+  )
+  into v_target_exists;
+
+  if not v_target_exists then
+    raise exception using
+      message = 'set_active_image target not found',
+      detail = format('project_id=%s image_id=%s', p_project_id, p_image_id),
+      hint = 'Ensure the image belongs to the project and is not deleted.';
+  end if;
+
+  update public.project_images
+  set is_active = false
+  where project_id = p_project_id
+    and deleted_at is null;
+
+  update public.project_images
+  set is_active = true
+  where id = p_image_id
+    and project_id = p_project_id
+    and deleted_at is null;
+end;
+$$;
+
+alter function public.set_active_image(uuid, uuid)
+  set search_path = public, pg_temp;
+
+-- Keep compatibility wrappers aligned with the hardened behavior.
+create or replace function public.set_active_master_image(p_project_id uuid, p_image_id uuid)
+returns void
+language plpgsql
+as $$
+begin
+  perform public.set_active_image(p_project_id, p_image_id);
+end;
+$$;
+
+alter function public.set_active_master_image(uuid, uuid)
+  set search_path = public, pg_temp;
+-- =========================================================
+-- END db/036_set_active_image_hardening.sql
 -- =========================================================
 

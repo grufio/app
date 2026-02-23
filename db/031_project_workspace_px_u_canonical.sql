@@ -3,7 +3,7 @@
 -- Goal:
 -- - On UPDATE: never recompute `width_px_u/height_px_u` from width_value/unit/DPI
 -- - Always derive cached integer px (`width_px/height_px`) from canonical µpx
--- - Keep INSERT backward-compatible: if µpx is missing, fall back to legacy value+unit+DPI bootstrap
+-- - Require canonical µpx on INSERT (no value/unit/DPI fallback)
 
 create or replace function public.project_workspace_sync_px_cache()
 returns trigger
@@ -19,11 +19,10 @@ begin
     if new.width_px_u is null then new.width_px_u := old.width_px_u; end if;
     if new.height_px_u is null then new.height_px_u := old.height_px_u; end if;
   else
-    if new.width_px_u is null then
-      new.width_px_u := public.workspace_value_to_px_u(new.width_value, new.unit, new.artboard_dpi)::text;
-    end if;
-    if new.height_px_u is null then
-      new.height_px_u := public.workspace_value_to_px_u(new.height_value, new.unit, new.artboard_dpi)::text;
+    if new.width_px_u is null or new.height_px_u is null then
+      raise exception using
+        message = 'project_workspace INSERT requires width_px_u and height_px_u',
+        hint = 'Provide canonical micro-pixel geometry explicitly.';
     end if;
   end if;
 

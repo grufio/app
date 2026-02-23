@@ -3,13 +3,13 @@
 -- Goal:
 -- - Introduce `output_dpi` as the single output/export DPI (PDF/print)
 -- - Keep editor geometry pixel-only (no DPI involvement)
--- - Bridge from legacy `artboard_dpi` during transition
+-- - Keep migration idempotent without any artboard-dpi dependency
 
 alter table public.project_workspace
   add column if not exists output_dpi numeric;
 
 update public.project_workspace
-set output_dpi = coalesce(output_dpi, artboard_dpi, 300)
+set output_dpi = coalesce(output_dpi, 300)
 where output_dpi is null;
 
 alter table public.project_workspace

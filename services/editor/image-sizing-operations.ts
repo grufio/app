@@ -22,9 +22,8 @@ export function computeImageSizeCommit(args: {
   draftW: string
   draftH: string
   unit: Unit
-  dpi: number
 }): { wPxU: bigint; hPxU: bigint } | null {
   if (!args.ready) return null
-  return parseAndClampImageSize({ draftW: args.draftW, draftH: args.draftH, unit: args.unit, dpi: args.dpi })
+  return parseAndClampImageSize({ draftW: args.draftW, draftH: args.draftH, unit: args.unit })
 }
 

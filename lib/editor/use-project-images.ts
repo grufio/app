@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 
 import { deleteMasterImageById, listMasterImages, setProjectImageLocked, type ProjectImageItem } from "@/lib/api/project-images"
+import { createSerialWriteChannel } from "@/lib/utils/serial-write-channel"
 
 function imageListSignature(projectId: string, items: ProjectImageItem[]): string {
   return `${projectId}::${items
@@ -25,6 +26,7 @@ export function useProjectImages(projectId: string) {
   const mountedRef = useRef(true)
   const inflightRef = useRef<Promise<void> | null>(null)
   const lastSignatureRef = useRef<string>("")
+  const mutationChannelRef = useRef(createSerialWriteChannel())
   useEffect(() => {
     mountedRef.current = true
     return () => {
@@ -68,16 +70,18 @@ export function useProjectImages(projectId: string) {
   const deleteById = useCallback(
     async (imageId: string) => {
       if (!mountedRef.current) return { ok: false as const, error: "Unmounted" }
-      setError("")
-      try {
-        await deleteMasterImageById(projectId, imageId)
-        await refresh()
-        return { ok: true as const }
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : "Failed to delete image"
-        if (mountedRef.current) setError(msg)
-        return { ok: false as const, error: msg }
-      }
+      return mutationChannelRef.current.enqueueLatest(async () => {
+        setError("")
+        try {
+          await deleteMasterImageById(projectId, imageId)
+          await refresh()
+          return { ok: true as const }
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : "Failed to delete image"
+          if (mountedRef.current) setError(msg)
+          return { ok: false as const, error: msg }
+        }
+      })
     },
     [projectId, refresh]
   )
@@ -85,23 +89,25 @@ export function useProjectImages(projectId: string) {
   const setLockedById = useCallback(
     async (imageId: string, isLocked: boolean) => {
       if (!mountedRef.current) return { ok: false as const, error: "Unmounted" }
-      setError("")
-      const prevImages = images
-      if (mountedRef.current) {
-        setImages((prev) => prev.map((img) => (img.id === imageId ? { ...img, is_locked: isLocked } : img)))
-      }
-      try {
-        await setProjectImageLocked(projectId, imageId, isLocked)
-        return { ok: true as const }
-      } catch (e) {
+      return mutationChannelRef.current.enqueueLatest(async () => {
+        setError("")
+        const prevImages = images
         if (mountedRef.current) {
-          setImages(prevImages)
+          setImages((prev) => prev.map((img) => (img.id === imageId ? { ...img, is_locked: isLocked } : img)))
         }
-        void refresh()
-        const msg = e instanceof Error ? e.message : "Failed to update image lock"
-        if (mountedRef.current) setError(msg)
-        return { ok: false as const, error: msg }
-      }
+        try {
+          await setProjectImageLocked(projectId, imageId, isLocked)
+          return { ok: true as const }
+        } catch (e) {
+          if (mountedRef.current) {
+            setImages(prevImages)
+          }
+          await refresh()
+          const msg = e instanceof Error ? e.message : "Failed to update image lock"
+          if (mountedRef.current) setError(msg)
+          return { ok: false as const, error: msg }
+        }
+      })
     },
     [images, projectId, refresh]
   )

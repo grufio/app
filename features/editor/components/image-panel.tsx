@@ -23,10 +23,11 @@ import type { KeyboardEventHandler, ReactNode } from "react"
 import { useMemo, useRef, useState } from "react"
 
 import { Button } from "@/components/ui/button"
+import { InputGroup, InputGroupAddon, InputGroupText } from "@/components/ui/input-group"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { IconNumericField } from "./fields/icon-numeric-field"
+import { NumericInput } from "./numeric-input"
 import { PanelIconSlot, PanelTwoFieldRow } from "./panel-layout"
-import { pxUToUnitDisplay, type Unit } from "@/lib/editor/units"
+import { pxUToUnitDisplayFixed, type Unit } from "@/lib/editor/units"
 import {
   computeLockedAspectOtherDimensionFromHeightInput,
   computeLockedAspectOtherDimensionFromWidthInput,
@@ -42,6 +43,7 @@ function SizeField({
   onKeyDown,
   onBlur,
   addon,
+  unit,
 }: {
   value: string
   onValueChange: (next: string) => void
@@ -51,21 +53,27 @@ function SizeField({
   onKeyDown: KeyboardEventHandler<HTMLInputElement>
   onBlur: () => void
   addon: ReactNode
+  unit: Unit
 }) {
   return (
-    <IconNumericField
-      value={value}
-      onValueChange={onValueChange}
-      disabled={disabled}
-      ariaLabel={ariaLabel}
-      icon={addon}
-      mode="decimal"
-      numericProps={{
-        onFocus,
-        onKeyDown,
-        onBlur,
-      }}
-    />
+    <InputGroup>
+      <NumericInput
+        value={value}
+        onValueChange={onValueChange}
+        disabled={disabled}
+        aria-label={ariaLabel}
+        mode="decimal"
+        onFocus={onFocus}
+        onKeyDown={onKeyDown}
+        onBlur={onBlur}
+      />
+      <InputGroupAddon align="inline-start" aria-hidden="true">
+        {addon}
+      </InputGroupAddon>
+      <InputGroupAddon align="inline-end" className="pointer-events-none" aria-hidden="true">
+        <InputGroupText>{unit}</InputGroupText>
+      </InputGroupAddon>
+    </InputGroup>
   )
 }
 
@@ -73,7 +81,6 @@ function ImageSizeInputs({
   widthPxU,
   heightPxU,
   unit,
-  dpi,
   ready,
   controlsDisabled,
   onCommit,
@@ -81,7 +88,6 @@ function ImageSizeInputs({
   widthPxU?: bigint
   heightPxU?: bigint
   unit: Unit
-  dpi: number
   ready: boolean
   controlsDisabled: boolean
   onCommit: (widthPxU: bigint, heightPxU: bigint) => void
@@ -98,20 +104,30 @@ function ImageSizeInputs({
   const computedW = useMemo(() => {
     if (!ready) return ""
     if (!widthPxU) return ""
-    return pxUToUnitDisplay(widthPxU, unit, dpi)
-  }, [dpi, ready, unit, widthPxU])
+    return pxUToUnitDisplayFixed(widthPxU, unit)
+  }, [ready, unit, widthPxU])
 
   const computedH = useMemo(() => {
     if (!ready) return ""
     if (!heightPxU) return ""
-    return pxUToUnitDisplay(heightPxU, unit, dpi)
-  }, [dpi, heightPxU, ready, unit])
+    return pxUToUnitDisplayFixed(heightPxU, unit)
+  }, [heightPxU, ready, unit])
+
+  const beginEditSession = () => {
+    if (!ready) return
+    if (dirty) return
+    draftWRef.current = computedW
+    draftHRef.current = computedH
+    setDraftW(computedW)
+    setDraftH(computedH)
+  }
 
   const commit = () => {
+    if (!dirty) return
     // Use refs so blur/tab commits always see the latest typed value
     // (React state can be one render behind when events batch).
     // Invariants: docs/specs/sizing-invariants.mdx (round once at input conversion).
-    const parsed = computeImageSizeCommit({ ready, draftW: draftWRef.current, draftH: draftHRef.current, unit, dpi })
+    const parsed = computeImageSizeCommit({ ready, draftW: draftWRef.current, draftH: draftHRef.current, unit })
     if (!parsed) return
     if (widthPxU && heightPxU && parsed.wPxU === widthPxU && parsed.hPxU === heightPxU) return
     onCommit(parsed.wPxU, parsed.hPxU)
@@ -124,7 +140,9 @@ function ImageSizeInputs({
         disabled={controlsDisabled}
         ariaLabel={`Image width (${unit})`}
         addon={<ArrowLeftRight aria-hidden="true" />}
+        unit={unit}
         onValueChange={(next) => {
+          beginEditSession()
           setDirty(true)
           draftWRef.current = next
           setDraftW(next)
@@ -135,7 +153,6 @@ function ImageSizeInputs({
           const out = computeLockedAspectOtherDimensionFromWidthInput({
             nextWidthInput: next,
             unit,
-            dpi,
             ratio: { wPxU: r.w, hPxU: r.h },
           })
           if (!out) return
@@ -143,13 +160,7 @@ function ImageSizeInputs({
           setDraftH(out.nextHeightDisplay)
         }}
         onFocus={() => {
-          if (!ready) return
-          if (dirty) return
-          setDirty(true)
-          draftWRef.current = computedW
-          draftHRef.current = computedH
-          setDraftW(computedW)
-          setDraftH(computedH)
+          beginEditSession()
         }}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
@@ -179,7 +190,9 @@ function ImageSizeInputs({
         disabled={controlsDisabled}
         ariaLabel={`Image height (${unit})`}
         addon={<ArrowUpDown aria-hidden="true" />}
+        unit={unit}
         onValueChange={(next) => {
+          beginEditSession()
           setDirty(true)
           draftHRef.current = next
           setDraftH(next)
@@ -190,7 +203,6 @@ function ImageSizeInputs({
           const out = computeLockedAspectOtherDimensionFromHeightInput({
             nextHeightInput: next,
             unit,
-            dpi,
             ratio: { wPxU: r.w, hPxU: r.h },
           })
           if (!out) return
@@ -198,13 +210,7 @@ function ImageSizeInputs({
           setDraftW(out.nextWidthDisplay)
         }}
         onFocus={() => {
-          if (!ready) return
-          if (dirty) return
-          setDirty(true)
-          draftWRef.current = computedW
-          draftHRef.current = computedH
-          setDraftW(computedW)
-          setDraftH(computedH)
+          beginEditSession()
         }}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
@@ -265,7 +271,6 @@ type Props = {
   widthPxU?: bigint
   heightPxU?: bigint
   unit: Unit
-  dpi: number
   /**
    * When false, inputs stay empty and commits are ignored.
    * Use this to prevent "flash" / drift while upstream meta/state is still loading.
@@ -282,7 +287,7 @@ type Props = {
  * The UI displays image size in the artboard's unit,
  * but commits changes in pixels to the canvas (so scaling remains stable).
  */
-export function ImagePanel({ widthPxU, heightPxU, unit, dpi, ready = true, disabled, onCommit, onAlign }: Props) {
+export function ImagePanel({ widthPxU, heightPxU, unit, ready = true, disabled, onCommit, onAlign }: Props) {
   const controlsDisabled = Boolean(disabled) || !ready
   // Functional button bars (no selected visual state). We keep transient value just to satisfy Radix.
   const [alignXAction, setAlignXAction] = useState<string>("")
@@ -296,7 +301,6 @@ export function ImagePanel({ widthPxU, heightPxU, unit, dpi, ready = true, disab
         widthPxU={widthPxU}
         heightPxU={heightPxU}
         unit={unit}
-        dpi={dpi}
         ready={ready}
         controlsDisabled={controlsDisabled}
         onCommit={onCommit}

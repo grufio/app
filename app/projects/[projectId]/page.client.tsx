@@ -118,7 +118,7 @@ export function ProjectDetailPageClient({
 }) {
   const {
     row: workspaceRow,
-    upsertWorkspace,
+    updateWorkspacePageBg,
     unit: workspaceUnit,
     dpi: workspaceDpi,
     widthPx: artboardWidthPx,
@@ -430,16 +430,14 @@ export function ProjectDetailPageClient({
         bgSaveTimerRef.current = null
         const base = workspaceRowRef.current
         if (!base) return
-        const merged: WorkspaceRow = {
-          ...base,
-          page_bg_enabled: next.enabled,
-          page_bg_color: next.color,
-          page_bg_opacity: next.opacity,
-        }
-        void upsertWorkspace(merged)
+        void updateWorkspacePageBg({
+          enabled: next.enabled,
+          color: next.color,
+          opacity: next.opacity,
+        })
       }, 250)
     },
-    [upsertWorkspace]
+    [updateWorkspacePageBg]
   )
 
   const handlePageBgEnabledChange = useCallback(
@@ -619,7 +617,6 @@ export function ProjectDetailPageClient({
             onRequestDeleteImage={requestDeleteSelectedImage}
             panelImagePxU={panelImagePxU}
             workspaceUnit={workspaceUnit ?? "cm"}
-            workspaceDpi={workspaceDpi ?? 300}
             workspaceReady={workspaceReady}
             imageStateLoading={imageStateLoading}
             imagePanelReady={imagePanelReady}

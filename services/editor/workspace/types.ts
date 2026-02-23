@@ -13,8 +13,6 @@ export type WorkspaceRow = {
   height_value: number
   /** Output-only DPI (PDF/export). */
   output_dpi: number
-  /** Deprecated bridge: kept until `artboard_dpi` is removed from DB. */
-  artboard_dpi?: number
   width_px_u: string
   height_px_u: string
   width_px: number

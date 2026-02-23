@@ -14,7 +14,14 @@ import {
   defaultWorkspace,
   normalizeWorkspaceRow,
 } from "@/services/editor"
-import { insertWorkspaceClient, selectWorkspaceClient, upsertWorkspaceClient } from "@/services/editor/workspace/client"
+import {
+  insertWorkspaceClient,
+  selectWorkspaceClient,
+  updateWorkspaceDpiClient,
+  updateWorkspaceGeometryClient,
+  updateWorkspacePageBgClient,
+} from "@/services/editor/workspace/client"
+import { createSerialWriteChannel } from "@/lib/utils/serial-write-channel"
 
 export type WorkspaceRow = import("@/services/editor").WorkspaceRow
 
@@ -25,7 +32,20 @@ type WorkspaceContextValue = {
   saving: boolean
   error: string
   refresh: () => Promise<void>
-  upsertWorkspace: (nextRow: WorkspaceRow) => Promise<WorkspaceRow | null>
+  updateWorkspaceDpi: (args: {
+    outputDpi: number
+    rasterEffectsPreset: WorkspaceRow["raster_effects_preset"]
+  }) => Promise<WorkspaceRow | null>
+  updateWorkspaceGeometry: (args: {
+    unit: WorkspaceRow["unit"]
+    widthValue: number
+    heightValue: number
+    widthPxU: string
+    heightPxU: string
+    widthPx: number
+    heightPx: number
+  }) => Promise<WorkspaceRow | null>
+  updateWorkspacePageBg: (args: { enabled: boolean; color: string; opacity: number }) => Promise<WorkspaceRow | null>
   // convenience
   unit: Unit | null
   dpi: number | null
@@ -36,25 +56,6 @@ type WorkspaceContextValue = {
 }
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null)
-
-function workspaceRowSignature(row: WorkspaceRow | null): string {
-  if (!row) return "null"
-  return [
-    row.project_id,
-    row.unit,
-    row.width_value,
-    row.height_value,
-    row.width_px,
-    row.height_px,
-    row.width_px_u,
-    row.height_px_u,
-    (row as unknown as { output_dpi?: unknown; artboard_dpi?: unknown }).output_dpi ??
-      (row as unknown as { artboard_dpi?: unknown }).artboard_dpi,
-    row.page_bg_enabled,
-    row.page_bg_color,
-    row.page_bg_opacity,
-  ].join("|")
-}
 
 export function ProjectWorkspaceProvider({
   projectId,
@@ -69,11 +70,8 @@ export function ProjectWorkspaceProvider({
   const [loading, setLoading] = useState(() => !(initialRow?.project_id === projectId))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
-  const savingRef = useRef(false)
   const rowRef = useRef<WorkspaceRow | null>(row)
-  useEffect(() => {
-    savingRef.current = saving
-  }, [saving])
+  const writeChannelRef = useRef(createSerialWriteChannel())
   useEffect(() => {
     rowRef.current = row
   }, [row])
@@ -108,28 +106,102 @@ export function ProjectWorkspaceProvider({
     }
   }, [projectId])
 
-  const upsertWorkspace = useCallback(
-    async (nextRow: WorkspaceRow): Promise<WorkspaceRow | null> => {
-      if (savingRef.current) return null
-      if (workspaceRowSignature(nextRow) === workspaceRowSignature(rowRef.current)) {
-        return rowRef.current
-      }
-      setSaving(true)
-      setError("")
-      try {
-        const { row: data, error: upErr } = await upsertWorkspaceClient(nextRow)
-        if (upErr || !data) {
-          setError(upErr ?? "Failed to save workspace")
-          return null
+  const updateWorkspaceDpi = useCallback(
+    async (args: {
+      outputDpi: number
+      rasterEffectsPreset: WorkspaceRow["raster_effects_preset"]
+    }): Promise<WorkspaceRow | null> => {
+      if (!rowRef.current?.project_id) return null
+      return writeChannelRef.current.enqueueLatest(async () => {
+        setSaving(true)
+        setError("")
+        try {
+          const { row: data, error: upErr } = await updateWorkspaceDpiClient({
+            projectId: rowRef.current!.project_id,
+            outputDpi: args.outputDpi,
+            rasterEffectsPreset: args.rasterEffectsPreset,
+          })
+          if (upErr || !data) {
+            setError(upErr ?? "Failed to save workspace")
+            return null
+          }
+          const normalized = normalizeWorkspaceRow(data)
+          setRow(normalized)
+          return normalized as unknown as WorkspaceRow
+        } finally {
+          setSaving(false)
         }
-        const normalized = normalizeWorkspaceRow(data)
-        setRow(normalized)
-        return normalized as unknown as WorkspaceRow
-      } finally {
-        setSaving(false)
-      }
+      })
     },
-    [savingRef]
+    []
+  )
+
+  const updateWorkspaceGeometry = useCallback(
+    async (args: {
+      unit: WorkspaceRow["unit"]
+      widthValue: number
+      heightValue: number
+      widthPxU: string
+      heightPxU: string
+      widthPx: number
+      heightPx: number
+    }): Promise<WorkspaceRow | null> => {
+      if (!rowRef.current?.project_id) return null
+      return writeChannelRef.current.enqueueLatest(async () => {
+        setSaving(true)
+        setError("")
+        try {
+          const { row: data, error: upErr } = await updateWorkspaceGeometryClient({
+            projectId: rowRef.current!.project_id,
+            unit: args.unit,
+            widthValue: args.widthValue,
+            heightValue: args.heightValue,
+            widthPxU: args.widthPxU,
+            heightPxU: args.heightPxU,
+            widthPx: args.widthPx,
+            heightPx: args.heightPx,
+          })
+          if (upErr || !data) {
+            setError(upErr ?? "Failed to save workspace")
+            return null
+          }
+          const normalized = normalizeWorkspaceRow(data)
+          setRow(normalized)
+          return normalized as unknown as WorkspaceRow
+        } finally {
+          setSaving(false)
+        }
+      })
+    },
+    []
+  )
+
+  const updateWorkspacePageBg = useCallback(
+    async (args: { enabled: boolean; color: string; opacity: number }): Promise<WorkspaceRow | null> => {
+      if (!rowRef.current?.project_id) return null
+      return writeChannelRef.current.enqueueLatest(async () => {
+        setSaving(true)
+        setError("")
+        try {
+          const { row: data, error: upErr } = await updateWorkspacePageBgClient({
+            projectId: rowRef.current!.project_id,
+            enabled: args.enabled,
+            color: args.color,
+            opacity: args.opacity,
+          })
+          if (upErr || !data) {
+            setError(upErr ?? "Failed to save workspace")
+            return null
+          }
+          const normalized = normalizeWorkspaceRow(data)
+          setRow(normalized)
+          return normalized as unknown as WorkspaceRow
+        } finally {
+          setSaving(false)
+        }
+      })
+    },
+    []
   )
 
   useEffect(() => {
@@ -141,8 +213,7 @@ export function ProjectWorkspaceProvider({
   const value = useMemo<WorkspaceContextValue>(() => {
     // `row` is normalized when stored; avoid re-normalizing on every render.
     const unit = row ? (row as unknown as { unit?: Unit }).unit ?? null : null
-    const dpiRaw =
-      row != null ? ((row as unknown as { output_dpi?: unknown; artboard_dpi?: unknown }).output_dpi ?? row.artboard_dpi) : null
+    const dpiRaw = row != null ? (row as unknown as { output_dpi?: unknown }).output_dpi : null
     const dpi = dpiRaw != null && Number.isFinite(Number(dpiRaw)) ? Number(dpiRaw) : null
     const widthPxU =
       row && typeof (row as unknown as { width_px_u?: unknown })?.width_px_u === "string"
@@ -173,7 +244,9 @@ export function ProjectWorkspaceProvider({
       saving,
       error,
       refresh,
-      upsertWorkspace,
+      updateWorkspaceDpi,
+      updateWorkspaceGeometry,
+      updateWorkspacePageBg,
       unit,
       dpi,
       widthPxU,
@@ -181,7 +254,7 @@ export function ProjectWorkspaceProvider({
       widthPx,
       heightPx,
     }
-  }, [error, loading, projectId, refresh, row, saving, upsertWorkspace])
+  }, [error, loading, projectId, refresh, row, saving, updateWorkspaceDpi, updateWorkspaceGeometry, updateWorkspacePageBg])
 
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>
 }

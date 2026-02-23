@@ -1,4 +1,4 @@
-import { PX_U_SCALE, clampPx, pxUToPxNumber, pxUToUnitDisplay, type Unit, unitToPxU } from "@/lib/editor/units"
+import { PX_U_SCALE, clampPx, pxUToPxNumber, pxUToUnitDisplayFixed, type Unit, unitToPxUFixed } from "@/lib/editor/units"
 import type { WorkspaceRow } from "./workspace/types"
 
 function toCanonicalPxU(rawPxU: bigint | null | undefined, fallbackPx: number): bigint {
@@ -12,14 +12,13 @@ export function getDisplaySizeDraft(args: {
   widthPx: number
   heightPx: number
   unit: Unit
-  dpi: number
 }): { widthDraft: string; heightDraft: string } {
-  const { widthPxU, heightPxU, widthPx, heightPx, unit, dpi } = args
+  const { widthPxU, heightPxU, widthPx, heightPx, unit } = args
   const wU = toCanonicalPxU(widthPxU, widthPx)
   const hU = toCanonicalPxU(heightPxU, heightPx)
   return {
-    widthDraft: pxUToUnitDisplay(wU, unit, dpi),
-    heightDraft: pxUToUnitDisplay(hU, unit, dpi),
+    widthDraft: pxUToUnitDisplayFixed(wU, unit),
+    heightDraft: pxUToUnitDisplayFixed(hU, unit),
   }
 }
 
@@ -28,12 +27,11 @@ export function computeWorkspaceSizeSaveFromDisplay(args: {
   draftW: string
   draftH: string
   unit: Unit
-  dpi: number
 }): { next: WorkspaceRow; signature: string } | { error: string } {
-  const { base, draftW, draftH, unit, dpi } = args
+  const { base, draftW, draftH, unit } = args
   try {
-    const wU = unitToPxU(String(draftW).trim(), unit, dpi)
-    const hU = unitToPxU(String(draftH).trim(), unit, dpi)
+    const wU = unitToPxUFixed(String(draftW).trim(), unit)
+    const hU = unitToPxUFixed(String(draftH).trim(), unit)
     const widthPx = clampPx(pxUToPxNumber(wU))
     const heightPx = clampPx(pxUToPxNumber(hU))
     const width_px_u = wU.toString()
@@ -41,8 +39,8 @@ export function computeWorkspaceSizeSaveFromDisplay(args: {
     return {
       next: {
         ...base,
-        width_value: Number(pxUToUnitDisplay(wU, base.unit, base.output_dpi)),
-        height_value: Number(pxUToUnitDisplay(hU, base.unit, base.output_dpi)),
+        width_value: Number(pxUToUnitDisplayFixed(wU, base.unit)),
+        height_value: Number(pxUToUnitDisplayFixed(hU, base.unit)),
         width_px_u,
         height_px_u,
         width_px: widthPx,

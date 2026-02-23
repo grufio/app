@@ -19,7 +19,6 @@ export type SetupMockRoutesOpts = {
     width_value: number
     height_value: number
     output_dpi: number
-    artboard_dpi: number
     width_px_u: string
     height_px_u: string
     width_px: number
@@ -33,6 +32,7 @@ export type SetupMockRoutesOpts = {
 }
 
 type ImageStateRow = {
+  image_id?: string | null
   x_px_u?: string | null
   y_px_u?: string | null
   width_px_u?: string | null
@@ -47,8 +47,6 @@ export async function setupMockRoutes(page: Page, opts: SetupMockRoutesOpts) {
     width_value: 20,
     height_value: 30,
     output_dpi: 300,
-    // Deprecated bridge: still present until removed.
-    artboard_dpi: 300,
     // canonical µpx (strings)
     width_px_u: unitToPxU("20", "cm", 300).toString(),
     height_px_u: unitToPxU("30", "cm", 300).toString(),
@@ -67,10 +65,12 @@ export async function setupMockRoutes(page: Page, opts: SetupMockRoutesOpts) {
     "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%2220%22%20height%3D%2210%22%3E%3Crect%20width%3D%2220%22%20height%3D%2210%22%20fill%3D%22%23ff3b30%22/%3E%3C/svg%3E"
 
   let hasImage = Boolean(opts.withImage)
+  const activeImageId = "11111111-1111-4111-8111-111111111111"
   const masterImagePayload = () =>
     hasImage
       ? {
           exists: true,
+          id: activeImageId,
           signedUrl: dataImage,
           width_px: 20,
           height_px: 10,
@@ -101,8 +101,36 @@ export async function setupMockRoutes(page: Page, opts: SetupMockRoutesOpts) {
       })
     }
 
+    // Internal API: list project images (used by tree + lock state).
+    if (url.includes(`/api/projects/${PROJECT_ID}/images/master/list`)) {
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          items: hasImage
+            ? [
+                {
+                  id: activeImageId,
+                  name: "test.svg",
+                  format: "svg",
+                  width_px: 20,
+                  height_px: 10,
+                  dpi: 300,
+                  storage_path: `projects/${PROJECT_ID}/master/mock-upload.svg`,
+                  storage_bucket: "project-images",
+                  file_size_bytes: 128,
+                  is_active: true,
+                  is_locked: false,
+                  created_at: "2026-01-01T00:00:00.000Z",
+                },
+              ]
+            : [],
+        }),
+      })
+    }
+
     // Internal API: master image exists + signed URL
-    if (url.includes(`/api/projects/${PROJECT_ID}/images/master`) && !url.includes("/exists") && !url.includes("/upload")) {
+    if (url.includes(`/api/projects/${PROJECT_ID}/images/master`) && !url.includes("/exists") && !url.includes("/upload") && !url.includes("/list")) {
       return route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -139,6 +167,7 @@ export async function setupMockRoutes(page: Page, opts: SetupMockRoutesOpts) {
         try {
           const body = (await req.postDataJSON()) as Partial<ImageStateRow>
           imageState = {
+            image_id: hasImage ? activeImageId : null,
             x_px_u: body.x_px_u ?? null,
             y_px_u: body.y_px_u ?? null,
             width_px_u: body.width_px_u ?? null,
@@ -154,7 +183,17 @@ export async function setupMockRoutes(page: Page, opts: SetupMockRoutesOpts) {
       return route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify(imageState ? { exists: true, state: imageState } : { exists: false }),
+        body: JSON.stringify(
+          imageState
+            ? {
+                exists: true,
+                state: {
+                  ...imageState,
+                  image_id: imageState.image_id ?? (hasImage ? activeImageId : null),
+                },
+              }
+            : { exists: false }
+        ),
       })
     }
 

@@ -9,7 +9,7 @@
  * - This module is pure (no React/DOM, no Supabase).
  * - It intentionally mirrors existing UI behavior; changes should be covered by tests.
  */
-import { clampPx, pxToUnit, pxUToPxNumber, pxUToUnitDisplay, PX_U_SCALE, type Unit } from "@/lib/editor/units"
+import { clampPx, pxUToPxNumber, pxUToUnitDisplayFixed, PX_U_SCALE, type Unit } from "@/lib/editor/units"
 import { normalizeUnit } from "./normalize-unit"
 import type { WorkspaceRow } from "./workspace/types"
 
@@ -82,9 +82,9 @@ export function computeWorkspaceSizeSave(opts: {
 
   const next: WorkspaceRow = {
     ...base,
-    // Output/display meta derived from canonical pixel geometry.
-    width_value: pxToUnit(width_px, base.unit, base.output_dpi),
-    height_value: pxToUnit(height_px, base.unit, base.output_dpi),
+    // Artboard display values must remain DPI-independent.
+    width_value: Number(pxUToUnitDisplayFixed(BigInt(width_px) * PX_U_SCALE, base.unit)),
+    height_value: Number(pxUToUnitDisplayFixed(BigInt(height_px) * PX_U_SCALE, base.unit)),
     width_px_u,
     height_px_u,
     width_px,
@@ -105,9 +105,9 @@ export function computeWorkspaceUnitChange(opts: {
     next: {
       ...base,
       unit: nextUnit,
-      // Output/display meta must always derive from canonical µpx geometry.
-      width_value: Number(pxUToUnitDisplay(wPxU, nextUnit, base.output_dpi)),
-      height_value: Number(pxUToUnitDisplay(hPxU, nextUnit, base.output_dpi)),
+      // Artboard display values must always derive from canonical µpx geometry (DPI-independent).
+      width_value: Number(pxUToUnitDisplayFixed(wPxU, nextUnit)),
+      height_value: Number(pxUToUnitDisplayFixed(hPxU, nextUnit)),
     },
     signature: `${base.project_id}:unit:${nextUnit}`,
   }
@@ -119,18 +119,11 @@ export function computeWorkspaceDpiChange(opts: {
   base: WorkspaceRow
 }): { next: WorkspaceRow; signature: string } {
   const { base, nextDpi, nextPreset } = opts
-  const wPxU = canonicalPxUFromRow(base.width_px_u, base.width_px)
-  const hPxU = canonicalPxUFromRow(base.height_px_u, base.height_px)
   return {
-    // Intentional DPI-only update: geometry fields are preserved.
+    // Intentional DPI-only update: keep geometry and displayed size stable.
     next: {
       ...base,
       output_dpi: nextDpi,
-      // Deprecated bridge: keep DB `artboard_dpi` in sync until removed.
-      artboard_dpi: nextDpi,
-      // Output/display meta must always derive from canonical µpx geometry.
-      width_value: Number(pxUToUnitDisplay(wPxU, base.unit, nextDpi)),
-      height_value: Number(pxUToUnitDisplay(hPxU, base.unit, nextDpi)),
       raster_effects_preset: nextPreset ?? null,
     },
     signature: `${base.project_id}:dpi:${nextDpi}:${nextPreset ?? "custom"}`,

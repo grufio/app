@@ -12,7 +12,7 @@ import {
   mapDpiToRasterPreset,
   normalizeUnit,
 } from "./workspace-operations"
-import { unitToPxU } from "@/lib/editor/units"
+import { unitToPxUFixed } from "@/lib/editor/units"
 
 describe("workspace-operations", () => {
   it("normalizeUnit falls back to cm", () => {
@@ -40,7 +40,6 @@ describe("workspace-operations", () => {
       width_value: 20,
       height_value: 30,
       output_dpi: 300,
-      artboard_dpi: 300,
       width_px_u: "0",
       height_px_u: "0",
       width_px: 1,
@@ -67,7 +66,6 @@ describe("workspace-operations", () => {
       width_value: 20,
       height_value: 30,
       output_dpi: 150,
-      artboard_dpi: 150,
       width_px_u: "0",
       height_px_u: "0",
       width_px: 1,
@@ -87,7 +85,6 @@ describe("workspace-operations", () => {
       width_value: 200,
       height_value: 100,
       output_dpi: 150,
-      artboard_dpi: 150,
       width_px_u: "11811023622",
       height_px_u: "5905511811",
       width_px: 1181,
@@ -103,15 +100,14 @@ describe("workspace-operations", () => {
   })
 
   it("computeWorkspaceUnitChange derives display values from canonical px_u (no cumulative drift)", () => {
-    const widthPxU = unitToPxU("200", "mm", 150) // not an integer px boundary
-    const heightPxU = unitToPxU("100", "mm", 150)
+    const widthPxU = unitToPxUFixed("200", "mm")
+    const heightPxU = unitToPxUFixed("100", "mm")
     const base: WorkspaceRow = {
       project_id: "p",
       unit: "mm",
       width_value: 200,
       height_value: 100,
       output_dpi: 150,
-      artboard_dpi: 150,
       width_px_u: widthPxU.toString(),
       height_px_u: heightPxU.toString(),
       width_px: 1181,
@@ -131,7 +127,6 @@ describe("workspace-operations", () => {
       width_value: 200,
       height_value: 100,
       output_dpi: 150,
-      artboard_dpi: 150,
       width_px_u: "11811023622",
       height_px_u: "5905511811",
       width_px: 1181,
@@ -144,6 +139,10 @@ describe("workspace-operations", () => {
     expect(out.next.raster_effects_preset).toBe("high")
     expect(out.next.width_px_u).toBe(base.width_px_u)
     expect(out.next.height_px_u).toBe(base.height_px_u)
+    expect(out.next.width_px).toBe(base.width_px)
+    expect(out.next.height_px).toBe(base.height_px)
+    expect(out.next.width_value).toBe(base.width_value)
+    expect(out.next.height_value).toBe(base.height_value)
   })
 })
 
