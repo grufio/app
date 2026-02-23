@@ -73,5 +73,27 @@ describe("workspace-unit-controller", () => {
     expect(mm.widthDraft).toBe("210")
     expect(mm.heightDraft).toBe("297")
   })
+
+  it("rejects out-of-range converted display values", () => {
+    const base: WorkspaceRow = {
+      project_id: "p",
+      unit: "px",
+      width_value: 1,
+      height_value: 1,
+      output_dpi: 150,
+      width_px_u: "1000000",
+      height_px_u: "1000000",
+      width_px: 1,
+      height_px: 1,
+      raster_effects_preset: "medium",
+    }
+    const out = computeWorkspaceSizeSaveFromDisplay({
+      base,
+      draftW: "999999",
+      draftH: "1",
+      unit: "px",
+    })
+    expect("error" in out ? out.error : "").toBe("Size out of supported range")
+  })
 })
 

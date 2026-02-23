@@ -18,6 +18,7 @@ export type GetImageStateResponse = { exists: false } | { exists: true; state: I
 
 export type SaveImageStateBody = {
   role: "master"
+  image_id: string
   x_px_u?: string
   y_px_u?: string
   width_px_u: string

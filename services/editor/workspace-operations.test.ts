@@ -78,6 +78,23 @@ describe("workspace-operations", () => {
     expect(out.next.output_dpi).toBe(150)
   })
 
+  it("computeWorkspaceSizeSave rejects out-of-range geometry", () => {
+    const base: WorkspaceRow = {
+      project_id: "p",
+      unit: "px",
+      width_value: 20,
+      height_value: 30,
+      output_dpi: 150,
+      width_px_u: "0",
+      height_px_u: "0",
+      width_px: 1,
+      height_px: 1,
+      raster_effects_preset: "medium",
+    }
+    const out = computeWorkspaceSizeSave({ base, draftW: "40000", draftH: "300" })
+    expect("error" in out ? out.error : "").toBe("Size out of supported range")
+  })
+
   it("computeWorkspaceUnitChange preserves canonical geometry", () => {
     const base: WorkspaceRow = {
       project_id: "p",

@@ -1,5 +1,6 @@
-import { PX_U_SCALE, clampPx, pxUToPxNumber, pxUToUnitDisplayFixed, type Unit, unitToPxUFixed } from "@/lib/editor/units"
+import { PX_U_SCALE, clampPx, pxUToUnitDisplayFixed, type Unit, unitToPxUFixed } from "@/lib/editor/units"
 import type { WorkspaceRow } from "./workspace/types"
+import { isValidWorkspacePxU, pxFromPxU } from "./workspace-operations"
 
 function toCanonicalPxU(rawPxU: bigint | null | undefined, fallbackPx: number): bigint {
   if (typeof rawPxU === "bigint" && rawPxU > 0n) return rawPxU
@@ -32,8 +33,11 @@ export function computeWorkspaceSizeSaveFromDisplay(args: {
   try {
     const wU = unitToPxUFixed(String(draftW).trim(), unit)
     const hU = unitToPxUFixed(String(draftH).trim(), unit)
-    const widthPx = clampPx(pxUToPxNumber(wU))
-    const heightPx = clampPx(pxUToPxNumber(hU))
+    if (!isValidWorkspacePxU(wU) || !isValidWorkspacePxU(hU)) {
+      return { error: "Size out of supported range" }
+    }
+    const widthPx = clampPx(pxFromPxU(wU))
+    const heightPx = clampPx(pxFromPxU(hU))
     const width_px_u = wU.toString()
     const height_px_u = hU.toString()
     return {

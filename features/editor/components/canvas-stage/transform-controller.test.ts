@@ -86,5 +86,43 @@ describe("createTransformController", () => {
       vi.useRealTimers()
     }
   })
+
+  it("scheduleCommit keeps latest delay while preserving commitPosition intent", async () => {
+    vi.useFakeTimers()
+    try {
+      const commits: Array<{ xPxU?: bigint; yPxU?: bigint }> = []
+      const nodeStub = {
+        width: () => 3,
+        height: () => 4,
+        scaleX: () => 1,
+        scaleY: () => 1,
+        x: () => 10,
+        y: () => 20,
+        rotation: () => 0,
+      } as unknown as Konva.Image
+      const c = createTransformController({
+        getImageNode: () => nodeStub,
+        getLayer: () => null,
+        getRotationDeg: () => 0,
+        setRotationDeg: () => {},
+        getImageTx: () => ({ xPxU: 1n, yPxU: 2n, widthPxU: 3_000_000n, heightPxU: 4_000_000n }),
+        setImageTx: () => {},
+        markUserChanged: () => {},
+        onCommit: (t) => commits.push({ xPxU: t.xPxU, yPxU: t.yPxU }),
+      })
+
+      c.scheduleCommit(true, 200)
+      await vi.advanceTimersByTimeAsync(100)
+      c.scheduleCommit(false, 10)
+      await vi.advanceTimersByTimeAsync(20)
+
+      expect(commits.length).toBe(1)
+      // commitPosition=true from the first call must not be lost.
+      expect(typeof commits[0].xPxU).toBe("bigint")
+      expect(typeof commits[0].yPxU).toBe("bigint")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })
 

@@ -12,6 +12,20 @@ import type { WorkspaceRow } from "./types"
 const SELECT_WORKSPACE =
   "project_id,unit,width_value,height_value,output_dpi,width_px_u,height_px_u,width_px,height_px,raster_effects_preset,page_bg_enabled,page_bg_color,page_bg_opacity"
 
+function mapWorkspaceDbError(message: string, stage: "select" | "insert" | "update"): string {
+  const lower = message.toLowerCase()
+  if (lower.includes("project_workspace_width_px_u_positive") || lower.includes("project_workspace_height_px_u_positive")) {
+    return `[${stage}] workspace_size_out_of_range: ${message}`
+  }
+  if (lower.includes("project_workspace_px_cache_consistency")) {
+    return `[${stage}] workspace_px_cache_mismatch: ${message}`
+  }
+  if (lower.includes("requires width_px_u and height_px_u")) {
+    return `[${stage}] workspace_missing_canonical_px_u: ${message}`
+  }
+  return `[${stage}] ${message}`
+}
+
 export async function selectWorkspace(
   supabase: SupabaseClient,
   projectId: string
@@ -21,7 +35,7 @@ export async function selectWorkspace(
     .select(SELECT_WORKSPACE)
     .eq("project_id", projectId)
     .maybeSingle()
-  if (error) return { row: null, error: error.message }
+  if (error) return { row: null, error: mapWorkspaceDbError(error.message, "select") }
   return { row: (data as unknown as WorkspaceRow) ?? null, error: null }
 }
 
@@ -30,7 +44,7 @@ export async function insertWorkspace(
   row: WorkspaceRow
 ): Promise<{ row: WorkspaceRow | null; error: string | null }> {
   const { data, error } = await supabase.from("project_workspace").insert(row).select(SELECT_WORKSPACE).single()
-  if (error) return { row: null, error: error.message }
+  if (error) return { row: null, error: mapWorkspaceDbError(error.message, "insert") }
   return { row: (data as unknown as WorkspaceRow) ?? null, error: null }
 }
 
@@ -52,7 +66,7 @@ export async function updateWorkspaceDpi(
     .eq("project_id", projectId)
     .select(SELECT_WORKSPACE)
     .single()
-  if (error) return { row: null, error: error.message }
+  if (error) return { row: null, error: mapWorkspaceDbError(error.message, "update") }
   return { row: (data as unknown as WorkspaceRow) ?? null, error: null }
 }
 
@@ -84,7 +98,7 @@ export async function updateWorkspaceGeometry(
     .eq("project_id", projectId)
     .select(SELECT_WORKSPACE)
     .single()
-  if (error) return { row: null, error: error.message }
+  if (error) return { row: null, error: mapWorkspaceDbError(error.message, "update") }
   return { row: (data as unknown as WorkspaceRow) ?? null, error: null }
 }
 
@@ -108,7 +122,7 @@ export async function updateWorkspacePageBg(
     .eq("project_id", projectId)
     .select(SELECT_WORKSPACE)
     .single()
-  if (error) return { row: null, error: error.message }
+  if (error) return { row: null, error: mapWorkspaceDbError(error.message, "update") }
   return { row: (data as unknown as WorkspaceRow) ?? null, error: null }
 }
 

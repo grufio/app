@@ -125,13 +125,14 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
   const flushOnce = useCallback(async (p: Pending<ImageState>): Promise<void> => {
     const t = p.value
 
-    if (!t.widthPxU || !t.heightPxU) {
+    if (!t.imageId || !t.widthPxU || !t.heightPxU) {
       // Drop invalid pending entries so the flush loop can terminate.
       pendingSlotRef.current?.clearIfSeq(p.seq)
       return
     }
 
     const payload = toSaveImageStateBody({
+      imageId: t.imageId,
       xPxU: t.xPxU,
       yPxU: t.yPxU,
       widthPxU: t.widthPxU,

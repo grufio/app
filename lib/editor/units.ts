@@ -15,8 +15,11 @@ export const GEOMETRY_PPI = 72 // Illustrator-style fixed mapping (1px = 1pt)
 
 // Invariants / single source of truth:
 // - Unit conversions are display/input only; canonical persisted truth is µpx (strings/BigInt).
-// - Display formatting: up to 4dp, trim trailing zeros.
+// - Display formatting: core converters use up to 4dp for stable roundtrips.
+// - UI formatting uses 2dp from a single central function.
 // See docs/specs/sizing-invariants.mdx
+const CORE_DISPLAY_DECIMALS = 4
+export const UI_DISPLAY_DECIMALS = 2
 
 function pow10(n: number): bigint {
   return 10n ** BigInt(n)
@@ -104,18 +107,18 @@ export function pxUToUnitDisplay(pxU: bigint, unit: Unit, dpi: number): string {
 
   switch (unit) {
     case "px":
-      return formatScaledInt(pxU, 6, 4)
+      return formatScaledInt(pxU, 6, CORE_DISPLAY_DECIMALS)
     case "mm": {
       const um = divRoundHalfUp(pxU * UM_PER_INCH, dpiInt * PX_U_SCALE)
-      return formatScaledInt(um, 3, 4)
+      return formatScaledInt(um, 3, CORE_DISPLAY_DECIMALS)
     }
     case "cm": {
       const um = divRoundHalfUp(pxU * UM_PER_INCH, dpiInt * PX_U_SCALE)
-      return formatScaledInt(um, 4, 4)
+      return formatScaledInt(um, 4, CORE_DISPLAY_DECIMALS)
     }
     case "pt": {
       const ptU = divRoundHalfUp(pxU * PT_PER_INCH * 1_000_000n, dpiInt * PX_U_SCALE)
-      return formatScaledInt(ptU, 6, 4)
+      return formatScaledInt(ptU, 6, CORE_DISPLAY_DECIMALS)
     }
     default:
       throw new Error(`unsupported unit: ${unit}`)
@@ -124,6 +127,16 @@ export function pxUToUnitDisplay(pxU: bigint, unit: Unit, dpi: number): string {
 
 export function pxUToUnitDisplayFixed(pxU: bigint, unit: Unit): string {
   return pxUToUnitDisplay(pxU, unit, GEOMETRY_PPI)
+}
+
+export function pxUToUnitDisplayUi(pxU: bigint, unit: Unit, dpi: number): string {
+  const raw = pxUToUnitDisplay(pxU, unit, dpi)
+  return fmt2(Number(raw))
+}
+
+export function pxUToUnitDisplayUiFixed(pxU: bigint, unit: Unit): string {
+  const raw = pxUToUnitDisplayFixed(pxU, unit)
+  return fmt2(Number(raw))
 }
 
 export function pxUToPxNumber(pxU: bigint): number {
@@ -170,6 +183,6 @@ export function clampPxFloat(px: number): number {
 
 export function fmt2(n: number): string {
   if (!Number.isFinite(n)) return ""
-  return n.toFixed(2).replace(/\.?0+$/, "")
+  return n.toFixed(UI_DISPLAY_DECIMALS).replace(/\.?0+$/, "")
 }
 

@@ -12,6 +12,7 @@ describe("validateIncomingImageStateUpsert", () => {
   it("accepts a valid µpx payload", () => {
     const res = validateIncomingImageStateUpsert({
       role: "master",
+      image_id: "2e306bed-0f1a-4124-a1c7-2702d85c21e7",
       x_px_u: "0",
       y_px_u: "0",
       width_px_u: "1000000",
@@ -27,6 +28,7 @@ describe("validateIncomingImageStateUpsert", () => {
   it("rejects payloads missing required size fields", () => {
     const res = validateIncomingImageStateUpsert({
       role: "master",
+      image_id: "2e306bed-0f1a-4124-a1c7-2702d85c21e7",
       rotation_deg: 0,
     })
     expect(res).toBeNull()
@@ -35,7 +37,18 @@ describe("validateIncomingImageStateUpsert", () => {
   it("rejects payloads below minimum size (must be >= 1px = 1_000_000µpx)", () => {
     const res = validateIncomingImageStateUpsert({
       role: "master",
+      image_id: "2e306bed-0f1a-4124-a1c7-2702d85c21e7",
       width_px_u: "999999",
+      height_px_u: "1000000",
+      rotation_deg: 0,
+    })
+    expect(res).toBeNull()
+  })
+
+  it("rejects payloads missing image binding", () => {
+    const res = validateIncomingImageStateUpsert({
+      role: "master",
+      width_px_u: "1000000",
       height_px_u: "1000000",
       rotation_deg: 0,
     })

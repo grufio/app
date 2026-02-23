@@ -27,7 +27,7 @@ import { InputGroup, InputGroupAddon, InputGroupText } from "@/components/ui/inp
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { NumericInput } from "./numeric-input"
 import { PanelIconSlot, PanelTwoFieldRow } from "./panel-layout"
-import { pxUToUnitDisplayFixed, type Unit } from "@/lib/editor/units"
+import { pxUToUnitDisplayUiFixed, type Unit } from "@/lib/editor/units"
 import {
   computeLockedAspectOtherDimensionFromHeightInput,
   computeLockedAspectOtherDimensionFromWidthInput,
@@ -104,13 +104,13 @@ function ImageSizeInputs({
   const computedW = useMemo(() => {
     if (!ready) return ""
     if (!widthPxU) return ""
-    return pxUToUnitDisplayFixed(widthPxU, unit)
+    return pxUToUnitDisplayUiFixed(widthPxU, unit)
   }, [ready, unit, widthPxU])
 
   const computedH = useMemo(() => {
     if (!ready) return ""
     if (!heightPxU) return ""
-    return pxUToUnitDisplayFixed(heightPxU, unit)
+    return pxUToUnitDisplayUiFixed(heightPxU, unit)
   }, [heightPxU, ready, unit])
 
   const beginEditSession = () => {
