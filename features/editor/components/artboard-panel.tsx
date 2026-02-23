@@ -43,7 +43,7 @@ function labelForPreset(p: "high" | "medium" | "low"): string {
  * - unit + dpi to other panels (e.g. image sizing panel)
  */
 export function ArtboardPanel() {
-  const { row, loading, saving, upsertWorkspace, updateWorkspaceDpi, widthPxU, heightPxU } = useProjectWorkspace()
+  const { row, loading, saving, updateWorkspaceDpi, updateWorkspaceGeometry, widthPxU, heightPxU } = useProjectWorkspace()
 
   const activeProjectId = row?.project_id ?? null
 
@@ -103,8 +103,6 @@ export function ArtboardPanel() {
       draftW: draftWidth,
       draftH: draftHeight,
       unit: draftUnitRef.current,
-      // Geometry save must use persisted DPI only; never draft DPI.
-      dpi: computedOutputDpi,
     })
     if ("error" in computed) return
 
@@ -112,7 +110,15 @@ export function ArtboardPanel() {
     if (lastSubmitRef.current === signature) return
     lastSubmitRef.current = signature
 
-    const saved = await upsertWorkspace(computed.next)
+    const saved = await updateWorkspaceGeometry({
+      unit: computed.next.unit,
+      widthValue: computed.next.width_value,
+      heightValue: computed.next.height_value,
+      widthPxU: computed.next.width_px_u,
+      heightPxU: computed.next.height_px_u,
+      widthPx: computed.next.width_px,
+      heightPx: computed.next.height_px,
+    })
     if (!saved) {
       lastSubmitRef.current = null
       return
@@ -133,7 +139,15 @@ export function ArtboardPanel() {
     if (!row) return
     if (saving) return
     const computed = computeWorkspaceUnitChange({ base: row, nextUnit })
-    const saved = await upsertWorkspace(computed.next)
+    const saved = await updateWorkspaceGeometry({
+      unit: computed.next.unit,
+      widthValue: computed.next.width_value,
+      heightValue: computed.next.height_value,
+      widthPxU: computed.next.width_px_u,
+      heightPxU: computed.next.height_px_u,
+      widthPx: computed.next.width_px,
+      heightPx: computed.next.height_px,
+    })
     if (!saved) return
     setDraftWidth(fmt2(Number(saved.width_value)))
     setDraftHeight(fmt2(Number(saved.height_value)))

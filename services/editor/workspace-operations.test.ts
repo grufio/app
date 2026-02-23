@@ -12,7 +12,7 @@ import {
   mapDpiToRasterPreset,
   normalizeUnit,
 } from "./workspace-operations"
-import { unitToPxU } from "@/lib/editor/units"
+import { unitToPxUFixed } from "@/lib/editor/units"
 
 describe("workspace-operations", () => {
   it("normalizeUnit falls back to cm", () => {
@@ -100,8 +100,8 @@ describe("workspace-operations", () => {
   })
 
   it("computeWorkspaceUnitChange derives display values from canonical px_u (no cumulative drift)", () => {
-    const widthPxU = unitToPxU("200", "mm", 150) // not an integer px boundary
-    const heightPxU = unitToPxU("100", "mm", 150)
+    const widthPxU = unitToPxUFixed("200", "mm")
+    const heightPxU = unitToPxUFixed("100", "mm")
     const base: WorkspaceRow = {
       project_id: "p",
       unit: "mm",

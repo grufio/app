@@ -34,19 +34,6 @@ export async function insertWorkspace(
   return { row: (data as unknown as WorkspaceRow) ?? null, error: null }
 }
 
-export async function upsertWorkspace(
-  supabase: SupabaseClient,
-  row: WorkspaceRow
-): Promise<{ row: WorkspaceRow | null; error: string | null }> {
-  const { data, error } = await supabase
-    .from("project_workspace")
-    .upsert(row, { onConflict: "project_id" })
-    .select(SELECT_WORKSPACE)
-    .single()
-  if (error) return { row: null, error: error.message }
-  return { row: (data as unknown as WorkspaceRow) ?? null, error: null }
-}
-
 export async function updateWorkspaceDpi(
   supabase: SupabaseClient,
   args: {
@@ -61,6 +48,62 @@ export async function updateWorkspaceDpi(
     .update({
       output_dpi: outputDpi,
       raster_effects_preset: rasterEffectsPreset ?? null,
+    })
+    .eq("project_id", projectId)
+    .select(SELECT_WORKSPACE)
+    .single()
+  if (error) return { row: null, error: error.message }
+  return { row: (data as unknown as WorkspaceRow) ?? null, error: null }
+}
+
+export async function updateWorkspaceGeometry(
+  supabase: SupabaseClient,
+  args: {
+    projectId: string
+    unit: WorkspaceRow["unit"]
+    widthValue: number
+    heightValue: number
+    widthPxU: string
+    heightPxU: string
+    widthPx: number
+    heightPx: number
+  }
+): Promise<{ row: WorkspaceRow | null; error: string | null }> {
+  const { projectId, unit, widthValue, heightValue, widthPxU, heightPxU, widthPx, heightPx } = args
+  const { data, error } = await supabase
+    .from("project_workspace")
+    .update({
+      unit,
+      width_value: widthValue,
+      height_value: heightValue,
+      width_px_u: widthPxU,
+      height_px_u: heightPxU,
+      width_px: widthPx,
+      height_px: heightPx,
+    })
+    .eq("project_id", projectId)
+    .select(SELECT_WORKSPACE)
+    .single()
+  if (error) return { row: null, error: error.message }
+  return { row: (data as unknown as WorkspaceRow) ?? null, error: null }
+}
+
+export async function updateWorkspacePageBg(
+  supabase: SupabaseClient,
+  args: {
+    projectId: string
+    enabled: boolean
+    color: string
+    opacity: number
+  }
+): Promise<{ row: WorkspaceRow | null; error: string | null }> {
+  const { projectId, enabled, color, opacity } = args
+  const { data, error } = await supabase
+    .from("project_workspace")
+    .update({
+      page_bg_enabled: enabled,
+      page_bg_color: color,
+      page_bg_opacity: opacity,
     })
     .eq("project_id", projectId)
     .select(SELECT_WORKSPACE)

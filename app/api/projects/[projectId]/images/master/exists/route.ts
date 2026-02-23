@@ -24,6 +24,19 @@ export async function GET(
   const u = await requireUser(supabase)
   if (!u.ok) return u.res
 
+  // Explicit access check for clearer staged errors (RLS still enforces).
+  const { data: projectRow, error: projectErr } = await supabase
+    .from("projects")
+    .select("id")
+    .eq("id", projectId)
+    .maybeSingle()
+  if (projectErr) {
+    return jsonError("Failed to verify project access", 400, { stage: "project_access" })
+  }
+  if (!projectRow?.id) {
+    return jsonError("Forbidden (project not accessible)", 403, { stage: "rls_denied", where: "project_access" })
+  }
+
   const { data, error } = await supabase
     .from("project_images")
     .select("id")

@@ -65,6 +65,19 @@ alter table public.project_workspace
   alter column height_px_u set not null;
 
 alter table public.project_workspace
+  drop constraint if exists project_workspace_width_px_u_positive,
+  drop constraint if exists project_workspace_height_px_u_positive,
+  drop constraint if exists project_workspace_px_cache_consistency;
+
+alter table public.project_workspace
+  add constraint project_workspace_width_px_u_positive check ((width_px_u::bigint) >= 1000000 and (width_px_u::bigint) <= 32768000000),
+  add constraint project_workspace_height_px_u_positive check ((height_px_u::bigint) >= 1000000 and (height_px_u::bigint) <= 32768000000),
+  add constraint project_workspace_px_cache_consistency check (
+    width_px = greatest(1, (((width_px_u::bigint) + 500000) / 1000000)::int) and
+    height_px = greatest(1, (((height_px_u::bigint) + 500000) / 1000000)::int)
+  );
+
+alter table public.project_workspace
   drop constraint if exists project_workspace_artboard_dpi_positive;
 
 alter table public.project_workspace

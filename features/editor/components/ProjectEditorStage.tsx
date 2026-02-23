@@ -149,6 +149,7 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
             cropEnabled={Boolean(masterImage) && Boolean(toolbar.cropEnabled)}
             cropBusy={Boolean(toolbar.cropBusy)}
             rotateEnabled={!Boolean(toolbar.rotateDisabled)}
+            mutationsEnabled={!Boolean(toolbar.selectDisabled || toolbar.cropDisabled || toolbar.rotateDisabled)}
             artboardWidthPx={artboardWidthPx ?? undefined}
             artboardHeightPx={artboardHeightPx ?? undefined}
             intrinsicWidthPx={

@@ -2,19 +2,21 @@ import { describe, expect, it } from "vitest"
 
 import type { WorkspaceRow } from "./workspace/types"
 import { computeWorkspaceSizeSaveFromDisplay, getDisplaySizeDraft } from "./workspace-unit-controller"
+import { clampPx, pxUToPxNumber, unitToPxUFixed } from "@/lib/editor/units"
 
 describe("workspace-unit-controller", () => {
   it("renders canonical px_u as unit display drafts", () => {
+    const widthPxU = unitToPxUFixed("200", "mm")
+    const heightPxU = unitToPxUFixed("100", "mm")
     const out = getDisplaySizeDraft({
-      widthPxU: 11_811_023_622n,
-      heightPxU: 5_905_511_811n,
+      widthPxU,
+      heightPxU,
       widthPx: 1,
       heightPx: 1,
       unit: "cm",
-      dpi: 150,
     })
-    expect(out.widthDraft).toBe("200")
-    expect(out.heightDraft).toBe("100")
+    expect(out.widthDraft).toBe("20")
+    expect(out.heightDraft).toBe("10")
   })
 
   it("converts display unit input back to px geometry", () => {
@@ -35,11 +37,10 @@ describe("workspace-unit-controller", () => {
       draftW: "20",
       draftH: "10",
       unit: "cm",
-      dpi: 150,
     })
     if ("error" in out) throw new Error("expected valid conversion")
-    expect(out.next.width_px).toBe(1181)
-    expect(out.next.height_px).toBe(591)
+    expect(out.next.width_px).toBe(clampPx(pxUToPxNumber(unitToPxUFixed("20", "cm"))))
+    expect(out.next.height_px).toBe(clampPx(pxUToPxNumber(unitToPxUFixed("10", "cm"))))
   })
 
   it("preserves canonical value for repeated unit display conversions (A4 @300dpi)", () => {
@@ -60,7 +61,6 @@ describe("workspace-unit-controller", () => {
       draftW: "21",
       draftH: "29.7",
       unit: "cm",
-      dpi: 300,
     })
     if ("error" in saved) throw new Error("expected valid conversion")
     const mm = getDisplaySizeDraft({
@@ -69,7 +69,6 @@ describe("workspace-unit-controller", () => {
       widthPx: saved.next.width_px,
       heightPx: saved.next.height_px,
       unit: "mm",
-      dpi: 300,
     })
     expect(mm.widthDraft).toBe("210")
     expect(mm.heightDraft).toBe("297")

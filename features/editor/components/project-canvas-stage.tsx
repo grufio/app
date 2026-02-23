@@ -78,6 +78,8 @@ type Props = {
   cropBusy?: boolean
   /** Global guard for rotate mutations (e.g. locked image). */
   rotateEnabled?: boolean
+  /** Global guard for all image mutations (resize/align/restore/rotate). */
+  mutationsEnabled?: boolean
 }
 
 export type ProjectCanvasStageHandle = {
@@ -235,6 +237,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     cropEnabled = false,
     cropBusy = false,
     rotateEnabled = true,
+    mutationsEnabled = true,
   },
   ref
 ) {
@@ -623,19 +626,20 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   }, [])
 
   const rotate90 = useCallback(() => {
-    if (!rotateEnabled) return
+    if (!mutationsEnabled || !rotateEnabled) return
     transformControllerRef.current?.rotate90()
-  }, [rotateEnabled])
+  }, [mutationsEnabled, rotateEnabled])
 
   const setImageSize = useCallback(
     (widthPxU: bigint, heightPxU: bigint) => {
+      if (!mutationsEnabled) return
       const center = hasArtboard ? { x: artW / 2, y: artH / 2 } : null
       transformControllerRef.current?.setImageSize(widthPxU, heightPxU, center)
     },
-    [artW, artH, hasArtboard]
+    [artW, artH, hasArtboard, mutationsEnabled]
   )
 
-  const restoreImage = useRestoreImageController({
+  const restoreImageRaw = useRestoreImageController({
     artW,
     artH,
     restoreBaseSpecRef,
@@ -643,14 +647,25 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     transformControllerRef,
     scheduleBoundsUpdate,
   })
+  const restoreImage = useCallback(() => {
+    if (!mutationsEnabled) return { ok: false as const, reason: "not_ready" as const }
+    return restoreImageRaw()
+  }, [mutationsEnabled, restoreImageRaw])
 
-  const alignImage = useAlignImageController({
+  const alignImageRaw = useAlignImageController({
     artW,
     artH,
     hasArtboard,
     transformControllerRef,
     scheduleBoundsUpdate,
   })
+  const alignImage = useCallback(
+    (opts: AlignImageOptions) => {
+      if (!mutationsEnabled) return
+      alignImageRaw(opts)
+    },
+    [alignImageRaw, mutationsEnabled]
+  )
 
   const imageRender = useMemo(() => {
     if (!img || !imageTx) return null

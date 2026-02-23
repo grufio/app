@@ -70,7 +70,6 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
   onRequestDeleteImage: () => void
   panelImagePxU: { w: bigint; h: bigint } | null
   workspaceUnit: Unit
-  workspaceDpi: number
   workspaceReady: boolean
   imageStateLoading: boolean
   imagePanelReady: boolean
@@ -106,7 +105,6 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
     onRequestDeleteImage,
     panelImagePxU,
     workspaceUnit,
-    workspaceDpi,
     workspaceReady,
     imageStateLoading,
     imagePanelReady,
@@ -238,7 +236,6 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
                   widthPxU={panelImagePxU?.w}
                   heightPxU={panelImagePxU?.h}
                   unit={workspaceUnit}
-                  dpi={workspaceDpi}
                   ready={imagePanelReady}
                   disabled={!masterImage || imageStateLoading || !workspaceReady || imagePanelLocked}
                   onCommit={(w, h) => canvasRef.current?.setImageSize(w, h)}
