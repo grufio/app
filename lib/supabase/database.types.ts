@@ -148,6 +148,7 @@ export type Database = {
           height_px: number
           id: string
           is_active: boolean
+          is_locked: boolean
           name: string
           project_id: string
           role: Database["public"]["Enums"]["image_role"]
@@ -168,6 +169,7 @@ export type Database = {
           height_px: number
           id?: string
           is_active?: boolean
+          is_locked?: boolean
           name: string
           project_id: string
           role: Database["public"]["Enums"]["image_role"]
@@ -188,6 +190,7 @@ export type Database = {
           height_px?: number
           id?: string
           is_active?: boolean
+          is_locked?: boolean
           name?: string
           project_id?: string
           role?: Database["public"]["Enums"]["image_role"]

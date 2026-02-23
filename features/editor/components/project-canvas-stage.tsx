@@ -14,6 +14,7 @@ import type Konva from "konva"
 import { fitToWorld, panBy, zoomAround } from "@/lib/editor/canvas-model"
 import { pxUToPxNumber } from "@/lib/editor/units"
 import { numberToMicroPx } from "@/lib/editor/konva"
+import { useAlignImageController, type AlignImageOptions } from "./canvas-stage/align-controller"
 import { createBoundsController } from "./canvas-stage/bounds-controller"
 import { computeGridLines } from "./canvas-stage/grid-lines"
 import { pickIntrinsicSize, shouldApplyPersistedTransform } from "./canvas-stage/placement"
@@ -100,7 +101,7 @@ export type ProjectCanvasStageHandle = {
    * Align the image position relative to the artboard.
    * Uses the image node's axis-aligned bounding box (includes rotation).
    */
-  alignImage: (opts: { x?: "left" | "center" | "right"; y?: "top" | "center" | "bottom" }) => void
+  alignImage: (opts: AlignImageOptions) => void
   /**
    * Restore the "working copy" state of the image back to its original placement.
    * This resets rotation and re-fits the image into the current artboard.
@@ -646,14 +647,13 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     scheduleBoundsUpdate,
   })
 
-  const alignImage = useCallback(
-    (opts: { x?: "left" | "center" | "right"; y?: "top" | "center" | "bottom" }) => {
-      if (!hasArtboard) return
-      transformControllerRef.current?.alignImage({ artW, artH, ...opts })
-      scheduleBoundsUpdate()
-    },
-    [artH, artW, hasArtboard, scheduleBoundsUpdate]
-  )
+  const alignImage = useAlignImageController({
+    artW,
+    artH,
+    hasArtboard,
+    transformControllerRef,
+    scheduleBoundsUpdate,
+  })
 
   const imageRender = useMemo(() => {
     if (!img || !imageTx) return null

@@ -26,7 +26,7 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
   onSelect: (id: string) => void
   images: { id: string; label: string }[]
   lockedById: Record<string, boolean>
-  onToggleImageLocked: (imageId: string, nextLocked: boolean) => void
+  onToggleImageLocked: (imageId: string, nextLocked: boolean) => { ok: true } | { ok: false; reason?: string } | Promise<{ ok: true } | { ok: false; reason?: string }>
   hasGrid: boolean
   onImageUploaded: () => void | Promise<void>
   onImageDeleteRequested: (imageId: string) => void | Promise<void>

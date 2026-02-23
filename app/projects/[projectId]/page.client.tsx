@@ -139,7 +139,12 @@ export function ProjectDetailPageClient({
     deleteImage,
   } = useMasterImage(projectId, initialMasterImage)
 
-  const { images: projectImages, refresh: refreshProjectImages, deleteById: deleteImageById } = useProjectImages(projectId)
+  const {
+    images: projectImages,
+    refresh: refreshProjectImages,
+    deleteById: deleteImageById,
+    setLockedById: setImageLockedById,
+  } = useProjectImages(projectId)
 
   const [restoreOpen, setRestoreOpen] = useState(false)
   const [restoreBusy, setRestoreBusy] = useState(false)
@@ -147,7 +152,6 @@ export function ProjectDetailPageClient({
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [gridVisible, setGridVisible] = useState(true)
   const [selectedNavId, setSelectedNavId] = useState<string>(buildNavId({ kind: "artboard" }))
-  const [lockedImageById, setLockedImageById] = useState<Record<string, boolean>>({})
   const canvasRef = useRef<ProjectCanvasStageHandle | null>(null)
   const [imagePxU, setImagePxU] = useState<{ w: bigint; h: bigint } | null>(null)
   const [cropBusy, setCropBusy] = useState(false)
@@ -236,18 +240,26 @@ export function ProjectDetailPageClient({
     return selection.imageId
   }, [selectedNavId])
 
+  const lockedImageById = useMemo<Record<string, boolean>>(() => {
+    const out: Record<string, boolean> = {}
+    for (const img of projectImages) out[img.id] = Boolean(img.is_locked)
+    return out
+  }, [projectImages])
+
   const toolbarLockImageId = useMemo(() => selectedImageId ?? projectImages[0]?.id ?? null, [projectImages, selectedImageId])
   const toolbarImageLocked = useMemo(
     () => (toolbarLockImageId ? Boolean(lockedImageById[toolbarLockImageId]) : false),
     [lockedImageById, toolbarLockImageId]
   )
 
-  const handleToggleImageLocked = useCallback((imageId: string, nextLocked: boolean) => {
-    setLockedImageById((prev) => {
-      if (Boolean(prev[imageId]) === nextLocked) return prev
-      return { ...prev, [imageId]: nextLocked }
-    })
-  }, [])
+  const handleToggleImageLocked = useCallback(
+    async (imageId: string, nextLocked: boolean) => {
+      const out = await setImageLockedById(imageId, nextLocked)
+      if (!out.ok) return { ok: false as const, reason: out.error }
+      return { ok: true as const }
+    },
+    [setImageLockedById]
+  )
 
   const handleToolbarToolChange = useCallback(
     (tool: typeof toolbar.tool) => {
@@ -290,6 +302,10 @@ export function ProjectDetailPageClient({
     if (!selectedImageId) return null
     return projectImages.find((img) => img.id === selectedImageId) ?? null
   }, [projectImages, selectedImageId])
+  const imagePanelLocked = useMemo(
+    () => (selectedImageId ? Boolean(lockedImageById[selectedImageId]) : false),
+    [lockedImageById, selectedImageId]
+  )
 
   const leftPanelImages = useMemo(
     () =>
@@ -594,6 +610,7 @@ export function ProjectDetailPageClient({
             workspaceReady={workspaceReady}
             imageStateLoading={imageStateLoading}
             imagePanelReady={imagePanelReady}
+            imagePanelLocked={imagePanelLocked}
             gridVisible={gridVisible}
             onGridVisibleChange={setGridVisible}
             canvasRef={canvasRef}
