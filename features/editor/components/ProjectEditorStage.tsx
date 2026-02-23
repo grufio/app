@@ -50,6 +50,8 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
   toolbar: {
     tool: FloatingToolbarTool
     setTool: (t: FloatingToolbarTool) => void
+    selectDisabled?: boolean
+    cropDisabled?: boolean
     actions: {
       zoomIn: () => void
       zoomOut: () => void
@@ -120,6 +122,8 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
             className="pointer-events-auto"
             tool={toolbar.tool}
             onToolChange={toolbar.setTool}
+            selectDisabled={Boolean(toolbar.selectDisabled)}
+            cropDisabled={Boolean(toolbar.cropDisabled)}
             onZoomIn={toolbar.actions.zoomIn}
             onZoomOut={toolbar.actions.zoomOut}
             onFit={toolbar.actions.fit}

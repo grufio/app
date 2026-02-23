@@ -147,6 +147,7 @@ export function ProjectDetailPageClient({
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [gridVisible, setGridVisible] = useState(true)
   const [selectedNavId, setSelectedNavId] = useState<string>(buildNavId({ kind: "artboard" }))
+  const [lockedImageById, setLockedImageById] = useState<Record<string, boolean>>({})
   const canvasRef = useRef<ProjectCanvasStageHandle | null>(null)
   const [imagePxU, setImagePxU] = useState<{ w: bigint; h: bigint } | null>(null)
   const [cropBusy, setCropBusy] = useState(false)
@@ -182,17 +183,6 @@ export function ProjectDetailPageClient({
     imageStateLoading,
     enableShortcuts: true,
   })
-  const stageToolbar = useMemo(
-    () => ({
-      ...toolbar,
-      cropEnabled: toolbar.tool === "crop",
-      cropBusy,
-      imageDraggable: toolbar.tool === "select",
-      panEnabled: toolbar.tool === "hand",
-    }),
-    [cropBusy, toolbar]
-  )
-
   useEffect(() => {
     const onKeyDown = async (e: KeyboardEvent) => {
       if (toolbar.tool !== "crop") return
@@ -246,14 +236,55 @@ export function ProjectDetailPageClient({
     return selection.imageId
   }, [selectedNavId])
 
+  const toolbarLockImageId = useMemo(() => selectedImageId ?? projectImages[0]?.id ?? null, [projectImages, selectedImageId])
+  const toolbarImageLocked = useMemo(
+    () => (toolbarLockImageId ? Boolean(lockedImageById[toolbarLockImageId]) : false),
+    [lockedImageById, toolbarLockImageId]
+  )
+
+  const handleToggleImageLocked = useCallback((imageId: string, nextLocked: boolean) => {
+    setLockedImageById((prev) => {
+      if (Boolean(prev[imageId]) === nextLocked) return prev
+      return { ...prev, [imageId]: nextLocked }
+    })
+  }, [])
+
+  const handleToolbarToolChange = useCallback(
+    (tool: typeof toolbar.tool) => {
+      if (toolbarImageLocked && (tool === "select" || tool === "crop")) return
+      toolbar.setTool(tool)
+    },
+    [toolbar, toolbarImageLocked]
+  )
+
+  useEffect(() => {
+    if (!toolbarImageLocked) return
+    if (toolbar.tool !== "select" && toolbar.tool !== "crop") return
+    toolbar.setTool("hand")
+  }, [toolbar, toolbarImageLocked])
+
   useEditorInteractionController({
     tool: toolbar.tool,
-    setTool: toolbar.setTool,
+    setTool: handleToolbarToolChange,
     selectedNavId,
     setSelectedNavId,
     masterImageId: masterImage?.id ?? null,
     cropBusy,
   })
+
+  const stageToolbar = useMemo(
+    () => ({
+      ...toolbar,
+      setTool: handleToolbarToolChange,
+      selectDisabled: toolbarImageLocked,
+      cropDisabled: toolbarImageLocked,
+      cropEnabled: toolbar.tool === "crop",
+      cropBusy,
+      imageDraggable: toolbar.tool === "select",
+      panEnabled: toolbar.tool === "hand",
+    }),
+    [cropBusy, handleToolbarToolChange, toolbar, toolbarImageLocked]
+  )
 
   const selectedImage = useMemo(() => {
     if (!selectedImageId) return null
@@ -502,6 +533,8 @@ export function ProjectDetailPageClient({
               selectedId={selectedNavId}
               onSelect={setSelectedNavId}
               images={leftPanelImages}
+              lockedById={lockedImageById}
+              onToggleImageLocked={handleToggleImageLocked}
               hasGrid={hasGrid}
               onImageUploaded={refreshMasterImage}
               onImageDeleteRequested={requestDeleteImage}
