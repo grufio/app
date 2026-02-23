@@ -136,6 +136,64 @@ export type Database = {
           },
         ]
       }
+      project_image_filters: {
+        Row: {
+          created_at: string
+          filter_params: Json
+          filter_type: string
+          id: string
+          input_image_id: string
+          output_image_id: string
+          project_id: string
+          stack_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          filter_params?: Json
+          filter_type: string
+          id?: string
+          input_image_id: string
+          output_image_id: string
+          project_id: string
+          stack_order: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          filter_params?: Json
+          filter_type?: string
+          id?: string
+          input_image_id?: string
+          output_image_id?: string
+          project_id?: string
+          stack_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_image_filters_input_image_id_fkey"
+            columns: ["input_image_id"]
+            isOneToOne: false
+            referencedRelation: "project_images"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_image_filters_output_image_id_fkey"
+            columns: ["output_image_id"]
+            isOneToOne: false
+            referencedRelation: "project_images"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_image_filters_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_images: {
         Row: {
           bit_depth: number | null
@@ -206,6 +264,13 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_images_source_image_id_fkey"
+            columns: ["source_image_id"]
+            isOneToOne: false
+            referencedRelation: "project_images"
             referencedColumns: ["id"]
           },
         ]

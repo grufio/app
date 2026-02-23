@@ -38,46 +38,8 @@ export async function DELETE(
     return jsonError("Forbidden (project not accessible)", 403, { stage: "rls_denied", where: "project_access" })
   }
 
-  const { data: img, error: imgErr } = await supabase
-    .from("project_images")
-    .select("id,storage_bucket,storage_path,is_active,is_locked")
-    .eq("project_id", projectId)
-    .eq("role", "master")
-    .eq("id", imageId)
-    .is("deleted_at", null)
-    .maybeSingle()
-
-  if (imgErr) {
-    return jsonError(imgErr.message, 400, { stage: "image_query" })
-  }
-
-  if (!img?.storage_path) {
-    return NextResponse.json({ ok: true, deleted: false })
-  }
-  if (!img.is_active) {
-    return jsonError("Image is not active", 409, { stage: "active_conflict", reason: "image_not_active" })
-  }
-  if (img.is_locked) {
-    return jsonError("Image is locked", 409, { stage: "lock_conflict", reason: "image_locked" })
-  }
-
-  const bucket = img.storage_bucket || "project_images"
-  const { error: rmErr } = await supabase.storage.from(bucket).remove([img.storage_path])
-  if (rmErr) {
-    return jsonError(rmErr.message, 400, { stage: "storage_policy", op: "remove", storage_path: img.storage_path })
-  }
-
-  const { error: delErr } = await supabase.from("project_images").delete().eq("id", img.id)
-  if (delErr) {
-    return jsonError(delErr.message, 400, { stage: "db_delete" })
-  }
-
-  const { error: activeErr } = await supabase.rpc("set_active_master_latest", {
-    p_project_id: projectId,
+  return jsonError("Master image is immutable. Deletion is not allowed.", 409, {
+    stage: "master_immutable",
+    reason: "master_delete_forbidden",
   })
-  if (activeErr) {
-    return jsonError(activeErr.message, 400, { stage: "active_switch" })
-  }
-
-  return NextResponse.json({ ok: true, deleted: true })
 }
