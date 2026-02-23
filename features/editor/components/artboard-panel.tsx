@@ -8,15 +8,16 @@
  * - Edit artboard DPI.
  * - Persist changes via `project_workspace` providers.
  */
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, type KeyboardEventHandler, type ReactNode } from "react"
 import { ArrowLeftRight, ArrowUpDown, Gauge, Link2, Ruler, Unlink2 } from "lucide-react"
 
 import { fmt2, type Unit } from "@/lib/editor/units"
 import { parseNumericInput } from "@/lib/editor/numeric"
 import { Button } from "@/components/ui/button"
+import { InputGroup, InputGroupAddon, InputGroupText } from "@/components/ui/input-group"
 import { SelectItem } from "@/components/ui/select"
-import { IconNumericField } from "./fields/icon-numeric-field"
 import { IconSelectField } from "./fields/icon-select-field"
+import { NumericInput } from "./numeric-input"
 import { PanelIconSlot, PanelTwoFieldRow } from "./panel-layout"
 import { useProjectWorkspace } from "@/lib/editor/project-workspace"
 import {
@@ -33,6 +34,49 @@ function labelForPreset(p: "high" | "medium" | "low"): string {
   if (p === "high") return "High (300 ppi)"
   if (p === "medium") return "Medium (150 ppi)"
   return "Low (72 ppi)"
+}
+
+function ArtboardSizeField({
+  value,
+  onValueChange,
+  ariaLabel,
+  disabled,
+  icon,
+  unit,
+  inputId,
+  onKeyDown,
+  onBlur,
+}: {
+  value: string
+  onValueChange: (next: string) => void
+  ariaLabel: string
+  disabled: boolean
+  icon: ReactNode
+  unit: Unit
+  inputId: string
+  onKeyDown: KeyboardEventHandler<HTMLInputElement>
+  onBlur: () => void
+}) {
+  return (
+    <InputGroup>
+      <NumericInput
+        id={inputId}
+        value={value}
+        onValueChange={onValueChange}
+        aria-label={ariaLabel}
+        disabled={disabled}
+        mode="decimal"
+        onKeyDown={onKeyDown}
+        onBlur={onBlur}
+      />
+      <InputGroupAddon align="inline-start" aria-hidden="true">
+        {icon}
+      </InputGroupAddon>
+      <InputGroupAddon align="inline-end" className="pointer-events-none" aria-hidden="true">
+        <InputGroupText>{unit}</InputGroupText>
+      </InputGroupAddon>
+    </InputGroup>
+  )
 }
 
 /**
@@ -208,7 +252,7 @@ export function ArtboardPanel() {
       {/* Rows follow a consistent layout:
           [field | field | icon-slot] so the UI stays aligned across rows. */}
       <PanelTwoFieldRow>
-        <IconNumericField
+        <ArtboardSizeField
           value={draftWidth}
           onValueChange={(next) => {
             setDraftWidth(next)
@@ -223,26 +267,24 @@ export function ArtboardPanel() {
             if (nextH == null) return
             setDraftHeight(fmt2(nextH))
           }}
-          mode="decimal"
           ariaLabel="Artboard width"
           disabled={sizeControlsDisabled}
           icon={<ArrowLeftRight aria-hidden="true" />}
-          numericProps={{
-            id: "artboard-width",
-            onKeyDown: (e) => {
-              if (e.key === "Enter") void saveSize()
-            },
-            onBlur: () => {
-              if (ignoreNextBlurSaveRef.current) {
-                ignoreNextBlurSaveRef.current = false
-                return
-              }
-              void saveSize()
-            },
+          unit={draftUnit}
+          inputId="artboard-width"
+          onKeyDown={(e) => {
+            if (e.key === "Enter") void saveSize()
+          }}
+          onBlur={() => {
+            if (ignoreNextBlurSaveRef.current) {
+              ignoreNextBlurSaveRef.current = false
+              return
+            }
+            void saveSize()
           }}
         />
 
-        <IconNumericField
+        <ArtboardSizeField
           value={draftHeight}
           onValueChange={(next) => {
             setDraftHeight(next)
@@ -257,22 +299,20 @@ export function ArtboardPanel() {
             if (nextW == null) return
             setDraftWidth(fmt2(nextW))
           }}
-          mode="decimal"
           ariaLabel="Artboard height"
           disabled={sizeControlsDisabled}
           icon={<ArrowUpDown aria-hidden="true" />}
-          numericProps={{
-            id: "artboard-height",
-            onKeyDown: (e) => {
-              if (e.key === "Enter") void saveSize()
-            },
-            onBlur: () => {
-              if (ignoreNextBlurSaveRef.current) {
-                ignoreNextBlurSaveRef.current = false
-                return
-              }
-              void saveSize()
-            },
+          unit={draftUnit}
+          inputId="artboard-height"
+          onKeyDown={(e) => {
+            if (e.key === "Enter") void saveSize()
+          }}
+          onBlur={() => {
+            if (ignoreNextBlurSaveRef.current) {
+              ignoreNextBlurSaveRef.current = false
+              return
+            }
+            void saveSize()
           }}
         />
 

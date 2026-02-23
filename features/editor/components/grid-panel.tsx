@@ -7,18 +7,60 @@
  * - Configure grid spacing and line style for the editor artboard.
  * - Persist settings via `project_grid`.
  */
-import { useCallback, useEffect, useRef } from "react"
+import { useCallback, useEffect, useRef, type KeyboardEventHandler, type ReactNode } from "react"
 import { ArrowLeftRight, ArrowUpDown, Eye, EyeOff, Ruler } from "lucide-react"
 
 import { IconColorField } from "./fields/icon-color-field"
 import { IconNumericField } from "./fields/icon-numeric-field"
+import { NumericInput } from "./numeric-input"
 import { PanelIconSlot, PanelTwoFieldRow } from "./panel-layout"
 import { EditorSidebarSection } from "./sidebar/editor-sidebar-section"
 import { Button } from "@/components/ui/button"
+import { InputGroup, InputGroupAddon, InputGroupText } from "@/components/ui/input-group"
 import { useProjectGrid, type ProjectGridRow } from "@/lib/editor/project-grid"
 import { useProjectWorkspace } from "@/lib/editor/project-workspace"
 import { computeGridUpsert } from "@/services/editor"
 import { useKeyedDraft } from "@/lib/editor/use-keyed-draft"
+
+function GridSizeField({
+  value,
+  ariaLabel,
+  disabled,
+  icon,
+  unit,
+  onValueChange,
+  onBlur,
+  onKeyDown,
+}: {
+  value: string
+  ariaLabel: string
+  disabled: boolean
+  icon: ReactNode
+  unit: string
+  onValueChange: (next: string) => void
+  onBlur: () => void
+  onKeyDown: KeyboardEventHandler<HTMLInputElement>
+}) {
+  return (
+    <InputGroup>
+      <NumericInput
+        value={value}
+        onValueChange={onValueChange}
+        aria-label={ariaLabel}
+        disabled={disabled}
+        mode="decimal"
+        onKeyDown={onKeyDown}
+        onBlur={onBlur}
+      />
+      <InputGroupAddon align="inline-start" aria-hidden="true">
+        {icon}
+      </InputGroupAddon>
+      <InputGroupAddon align="inline-end" className="pointer-events-none" aria-hidden="true">
+        <InputGroupText>{unit}</InputGroupText>
+      </InputGroupAddon>
+    </InputGroup>
+  )
+}
 
 export function GridPanel({
   gridVisible,
@@ -105,45 +147,41 @@ export function GridPanel({
       ) : null}
       <div className="space-y-4">
         <PanelTwoFieldRow>
-          <IconNumericField
+          <GridSizeField
             value={draftW}
-            mode="float"
             ariaLabel={`Grid width (${effectiveUnit})`}
             disabled={controlsDisabled}
             icon={<ArrowLeftRight aria-hidden="true" />}
+            unit={effectiveUnit}
             onValueChange={(next) => setDraftW(next)}
-            numericProps={{
-              onKeyDown: (e) => {
-                if (e.key === "Enter") void save()
-              },
-              onBlur: () => {
-                if (ignoreNextBlurSaveRef.current) {
-                  ignoreNextBlurSaveRef.current = false
-                  return
-                }
-                void save()
-              },
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void save()
+            }}
+            onBlur={() => {
+              if (ignoreNextBlurSaveRef.current) {
+                ignoreNextBlurSaveRef.current = false
+                return
+              }
+              void save()
             }}
           />
 
-          <IconNumericField
+          <GridSizeField
             value={draftH}
-            mode="float"
             ariaLabel={`Grid height (${effectiveUnit})`}
             disabled={controlsDisabled}
             icon={<ArrowUpDown aria-hidden="true" />}
+            unit={effectiveUnit}
             onValueChange={(next) => setDraftH(next)}
-            numericProps={{
-              onKeyDown: (e) => {
-                if (e.key === "Enter") void save()
-              },
-              onBlur: () => {
-                if (ignoreNextBlurSaveRef.current) {
-                  ignoreNextBlurSaveRef.current = false
-                  return
-                }
-                void save()
-              },
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void save()
+            }}
+            onBlur={() => {
+              if (ignoreNextBlurSaveRef.current) {
+                ignoreNextBlurSaveRef.current = false
+                return
+              }
+              void save()
             }}
           />
 
