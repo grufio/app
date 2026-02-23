@@ -12,10 +12,11 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./", import.meta.url)),
+      "server-only": fileURLToPath(new URL("./lib/test/shims/server-only.ts", import.meta.url)),
     },
   },
   test: {
-    include: ["lib/**/*.test.ts", "components/**/*.test.ts", "features/**/*.test.ts", "services/**/*.test.ts"],
+    include: ["lib/**/*.test.ts", "components/**/*.test.ts", "features/**/*.test.ts", "services/**/*.test.ts", "app/**/*.test.ts"],
     exclude: ["e2e/**", "node_modules/**", ".next/**"],
     // CI speed: small suite today, but enable parallel execution as it grows.
     pool: "threads",

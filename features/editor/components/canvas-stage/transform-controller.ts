@@ -52,6 +52,14 @@ export function createTransformController(deps: TransformControllerDeps): Transf
   let commitTimer: number | null = null
   let pending: { commitPosition: boolean } | null = null
 
+  const cancelScheduledCommit = () => {
+    if (commitTimer != null) {
+      globalThis.clearTimeout(commitTimer)
+      commitTimer = null
+    }
+    pending = null
+  }
+
   const commitFromNode = (commitPosition: boolean) => {
     const node = deps.getImageNode()
     if (!node) return
@@ -95,14 +103,11 @@ export function createTransformController(deps: TransformControllerDeps): Transf
   }
 
   const dispose = () => {
-    if (commitTimer != null) {
-      globalThis.clearTimeout(commitTimer)
-      commitTimer = null
-    }
-    pending = null
+    cancelScheduledCommit()
   }
 
   const rotate90 = () => {
+    cancelScheduledCommit()
     const next = (deps.getRotationDeg() + 90) % 360
     deps.setRotationDeg(next)
     const prev = deps.getImageTx()
@@ -112,6 +117,7 @@ export function createTransformController(deps: TransformControllerDeps): Transf
   }
 
   const setImageSize = (widthPxU: MicroPx, heightPxU: MicroPx, fallbackCenterPx?: { x: number; y: number } | null) => {
+    cancelScheduledCommit()
     if (widthPxU <= 0n || heightPxU <= 0n) return
     const prev = deps.getImageTx()
     const baseX = prev?.xPxU ?? (fallbackCenterPx ? numberToMicroPx(fallbackCenterPx.x) : (0n as MicroPx))
@@ -125,6 +131,7 @@ export function createTransformController(deps: TransformControllerDeps): Transf
   }
 
   const alignImage = (opts: { artW: number; artH: number; x?: "left" | "center" | "right"; y?: "top" | "center" | "bottom" }) => {
+    cancelScheduledCommit()
     const layer = deps.getLayer()
     const node = deps.getImageNode()
     if (!layer || !node) return
@@ -155,6 +162,7 @@ export function createTransformController(deps: TransformControllerDeps): Transf
     baseH: number
     initialImageTransform?: { xPxU?: MicroPx; yPxU?: MicroPx; widthPxU?: MicroPx; heightPxU?: MicroPx; rotationDeg: number } | null
   }) => {
+    cancelScheduledCommit()
     // Restore must reset to the default placement in the current artboard,
     // not to the latest persisted transform.
     const nextWidthPxU = numberToMicroPx(opts.baseW)

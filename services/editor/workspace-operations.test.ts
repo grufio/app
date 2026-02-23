@@ -11,6 +11,7 @@ import {
   computeWorkspaceUnitChange,
   mapDpiToRasterPreset,
   normalizeUnit,
+  pxFromPxU,
 } from "./workspace-operations"
 import { unitToPxUFixed } from "@/lib/editor/units"
 
@@ -31,6 +32,13 @@ describe("workspace-operations", () => {
   it("computeLockedDimension uses ratio w/h", () => {
     expect(computeLockedDimension({ changedValue: 10, ratio: 2, changedAxis: "w" })).toBe(5)
     expect(computeLockedDimension({ changedValue: 10, ratio: 2, changedAxis: "h" })).toBe(20)
+  })
+
+  it("pxFromPxU matches DB rounding ((u+500000)/1e6)", () => {
+    expect(pxFromPxU(1_000_000n)).toBe(1)
+    expect(pxFromPxU(1_499_999n)).toBe(1)
+    expect(pxFromPxU(1_500_000n)).toBe(2)
+    expect(pxFromPxU(1_999_999n)).toBe(2)
   })
 
   it("computeWorkspaceSizeSave returns next row + stable signature", () => {

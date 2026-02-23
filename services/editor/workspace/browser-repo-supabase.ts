@@ -12,6 +12,17 @@ import type { WorkspaceRow } from "./types"
 const SELECT_WORKSPACE =
   "project_id,unit,width_value,height_value,output_dpi,width_px_u,height_px_u,width_px,height_px,raster_effects_preset,page_bg_enabled,page_bg_color,page_bg_opacity"
 
+function hasOwn(o: unknown, key: string): boolean {
+  return Boolean(o) && typeof o === "object" && Object.prototype.hasOwnProperty.call(o, key)
+}
+
+function findForbiddenKey(o: unknown, keys: readonly string[]): string | null {
+  for (const k of keys) {
+    if (hasOwn(o, k)) return k
+  }
+  return null
+}
+
 function mapWorkspaceDbError(message: string, stage: "select" | "insert" | "update"): string {
   const lower = message.toLowerCase()
   if (lower.includes("project_workspace_width_px_u_positive") || lower.includes("project_workspace_height_px_u_positive")) {
@@ -56,6 +67,25 @@ export async function updateWorkspaceDpi(
     rasterEffectsPreset: WorkspaceRow["raster_effects_preset"]
   }
 ): Promise<{ row: WorkspaceRow | null; error: string | null }> {
+  const forbidden = findForbiddenKey(args, [
+    // canonical geometry
+    "widthPxU",
+    "heightPxU",
+    "width_px_u",
+    "height_px_u",
+    "widthPx",
+    "heightPx",
+    "width_px",
+    "height_px",
+    // display geometry
+    "unit",
+    "widthValue",
+    "heightValue",
+    "width_value",
+    "height_value",
+  ])
+  if (forbidden) return { row: null, error: `[update] invalid_payload_for_dpi_update: contains ${forbidden}` }
+
   const { projectId, outputDpi, rasterEffectsPreset } = args
   const { data, error } = await supabase
     .from("project_workspace")
@@ -83,6 +113,15 @@ export async function updateWorkspaceGeometry(
     heightPx: number
   }
 ): Promise<{ row: WorkspaceRow | null; error: string | null }> {
+  const forbidden = findForbiddenKey(args, [
+    // dpi/output-only fields
+    "outputDpi",
+    "rasterEffectsPreset",
+    "output_dpi",
+    "raster_effects_preset",
+  ])
+  if (forbidden) return { row: null, error: `[update] invalid_payload_for_geometry_update: contains ${forbidden}` }
+
   const { projectId, unit, widthValue, heightValue, widthPxU, heightPxU, widthPx, heightPx } = args
   const { data, error } = await supabase
     .from("project_workspace")

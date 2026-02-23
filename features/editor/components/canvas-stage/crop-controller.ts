@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from "react"
 import { clientToWorldPoint } from "./coords"
 import { applyResizeHandle, type ResizeHandle } from "./resize-handle"
 import type { ViewState } from "./types"
+import { attachWindowMouseDragSession } from "./window-mouse-session"
 
 export type CropRectWorld = { x: number; y: number; w: number; h: number }
 export type CropSelectionPx = { x: number; y: number; w: number; h: number }
@@ -112,12 +113,11 @@ export function useCropController(opts: {
         applyCropResize(handle, worldX, worldY, keepAspectInitial || evt.shiftKey)
       }
       const onUp = () => stopCropResize()
-      window.addEventListener("mousemove", onMove)
-      window.addEventListener("mouseup", onUp)
-      cleanupRef.current = () => {
-        window.removeEventListener("mousemove", onMove)
-        window.removeEventListener("mouseup", onUp)
-      }
+      cleanupRef.current = attachWindowMouseDragSession({
+        win: window,
+        onMove,
+        onUp: () => onUp(),
+      })
     },
     [applyCropResize, containerRef, stopCropResize, view.x, view.scale, view.y]
   )

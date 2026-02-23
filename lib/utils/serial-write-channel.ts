@@ -7,6 +7,7 @@
 export function createSerialWriteChannel() {
   let running = false
   let pending: (() => Promise<void>) | null = null
+  let latestToken = 0
 
   const runLoop = async () => {
     if (running) return
@@ -31,6 +32,28 @@ export function createSerialWriteChannel() {
             resolve(out)
           } catch (e) {
             reject(e)
+          }
+        }
+      })
+      void runLoop()
+      return out
+    },
+    /**
+     * Like `enqueueLatest`, but callers can safely treat superseded writes as "aborted":
+     * - When a newer task is enqueued, older in-flight tasks still run, but their results/errors are ignored.
+     * - The returned promise resolves to `null` when the task became stale.
+     */
+    enqueueLatestDropStale<T>(task: (isStale: () => boolean) => Promise<T>): Promise<T | null> {
+      const token = ++latestToken
+      const isStale = () => token !== latestToken
+      const out = new Promise<T | null>((resolve, reject) => {
+        pending = async () => {
+          try {
+            const out = await task(isStale)
+            resolve(isStale() ? null : out)
+          } catch (e) {
+            if (isStale()) resolve(null)
+            else reject(e)
           }
         }
       })
