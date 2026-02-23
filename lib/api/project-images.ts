@@ -20,6 +20,11 @@ export type MasterImageResponse =
       storage_path?: string
       format?: string
       file_size_bytes?: number
+      restore_base?: {
+        id: string
+        width_px: number
+        height_px: number
+      } | null
     }
 
 export type ProjectImageItem = {

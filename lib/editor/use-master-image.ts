@@ -18,6 +18,11 @@ export type MasterImage = {
   height_px: number
   dpi: number | null
   name: string
+  restore_base?: {
+    id: string
+    width_px: number
+    height_px: number
+  } | null
 }
 
 function toMasterImage(payload: {
@@ -27,7 +32,12 @@ function toMasterImage(payload: {
   height_px?: unknown
   dpi?: unknown
   name?: unknown
+  restore_base?: unknown
 }): MasterImage {
+  const base = payload.restore_base as
+    | { id?: unknown; width_px?: unknown; height_px?: unknown }
+    | null
+    | undefined
   return {
     id: String(payload.id ?? ""),
     signedUrl: String(payload.signedUrl ?? ""),
@@ -35,12 +45,20 @@ function toMasterImage(payload: {
     height_px: Number(payload.height_px ?? 0),
     dpi: payload.dpi == null ? null : Number(payload.dpi),
     name: String(payload.name ?? "master image"),
+    restore_base:
+      base && base.id != null
+        ? {
+            id: String(base.id),
+            width_px: Number(base.width_px ?? 0),
+            height_px: Number(base.height_px ?? 0),
+          }
+        : null,
   }
 }
 
 function masterImageSignature(img: MasterImage | null): string {
   if (!img) return "__missing__"
-  return `${img.id}|${img.signedUrl}|${img.width_px}|${img.height_px}|${img.dpi ?? ""}|${img.name}`
+  return `${img.id}|${img.signedUrl}|${img.width_px}|${img.height_px}|${img.dpi ?? ""}|${img.name}|${img.restore_base?.id ?? ""}|${img.restore_base?.width_px ?? ""}|${img.restore_base?.height_px ?? ""}`
 }
 
 export function useMasterImage(projectId: string, initialMasterImage?: MasterImage | null) {

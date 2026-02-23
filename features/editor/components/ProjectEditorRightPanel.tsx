@@ -264,7 +264,11 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
             <Button
               type="button"
               onClick={() => {
-                canvasRef.current?.restoreImage()
+                const result = canvasRef.current?.restoreImage()
+                if (result && !result.ok) {
+                  console.warn("Restore image skipped", { reason: result.reason })
+                  return
+                }
                 setRestoreOpen(false)
               }}
             >

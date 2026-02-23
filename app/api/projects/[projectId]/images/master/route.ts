@@ -47,6 +47,28 @@ export async function GET(
   if (!img?.storage_path) {
     return NextResponse.json({ exists: false })
   }
+
+  const { data: restoreBase, error: restoreBaseErr } = await supabase
+    .from("project_images")
+    .select("id,width_px,height_px")
+    .eq("project_id", projectId)
+    .eq("role", "master")
+    .is("deleted_at", null)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle()
+  if (restoreBaseErr) {
+    return jsonError(restoreBaseErr.message, 400, { stage: "restore_base_query" })
+  }
+
+  const restoreBasePayload =
+    restoreBase && Number(restoreBase.width_px) > 0 && Number(restoreBase.height_px) > 0
+      ? {
+          id: String(restoreBase.id),
+          width_px: Number(restoreBase.width_px),
+          height_px: Number(restoreBase.height_px),
+        }
+      : null
   const dpiRaw = Number(img.dpi)
   const dpi = Number.isFinite(dpiRaw) && dpiRaw > 0 ? Math.round(dpiRaw) : null
 
@@ -70,6 +92,7 @@ export async function GET(
       height_px: img.height_px,
       dpi,
       file_size_bytes: img.file_size_bytes,
+      restore_base: restoreBasePayload,
     })
   }
 
@@ -97,6 +120,7 @@ export async function GET(
     height_px: img.height_px,
     dpi,
     file_size_bytes: img.file_size_bytes,
+    restore_base: restoreBasePayload,
   })
 }
 

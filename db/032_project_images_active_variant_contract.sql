@@ -10,6 +10,16 @@ alter table public.project_images
   add column if not exists source_image_id uuid,
   add column if not exists crop_rect_px jsonb;
 
+-- Remove legacy uniqueness that allowed only one image per role.
+-- Required for multiple derived variants (role='asset').
+alter table public.project_images
+  drop constraint if exists project_images_one_per_role,
+  drop constraint if exists project_images_project_id_role_uidx,
+  drop constraint if exists project_images_project_id_role_key;
+
+drop index if exists public.project_images_project_id_role_uidx;
+drop index if exists public.project_images_project_id_role_key;
+
 do $$
 begin
   if not exists (

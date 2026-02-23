@@ -62,6 +62,49 @@ function useMasterImageLoadOrchestration({
   }, [loadImageState, masterImageId])
 }
 
+function useEditorInteractionController(args: {
+  tool: "select" | "hand" | "crop"
+  setTool: (tool: "select" | "hand" | "crop") => void
+  selectedNavId: string
+  setSelectedNavId: (next: string) => void
+  masterImageId: string | null
+  cropBusy: boolean
+}) {
+  const { tool, setTool, selectedNavId, setSelectedNavId, masterImageId, cropBusy } = args
+  const prevToolRef = useRef(tool)
+  const prevNavIdRef = useRef(selectedNavId)
+
+  useEffect(() => {
+    const prevTool = prevToolRef.current
+    const prevNavId = prevNavIdRef.current
+    const toolChanged = prevTool !== tool
+    const navChanged = prevNavId !== selectedNavId
+    prevToolRef.current = tool
+    prevNavIdRef.current = selectedNavId
+
+    if (tool !== "crop" || cropBusy) return
+
+    const selection = parseNavId(selectedNavId)
+    if (selection.kind === "image") return
+
+    // If user changed tree selection away from image while crop is active,
+    // leave tree selection as-is and exit crop mode.
+    if (navChanged && !toolChanged) {
+      setTool("select")
+      return
+    }
+
+    // If crop tool was explicitly activated from toolbar/shortcut and no image
+    // is selected, focus current image automatically.
+    if (masterImageId) {
+      setSelectedNavId(buildNavId({ kind: "image", imageId: masterImageId }))
+      return
+    }
+
+    setTool("select")
+  }, [cropBusy, masterImageId, selectedNavId, setSelectedNavId, setTool, tool])
+}
+
 export function ProjectDetailPageClient({
   projectId,
   initialProject,
@@ -101,6 +144,7 @@ export function ProjectDetailPageClient({
   const [restoreOpen, setRestoreOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [gridVisible, setGridVisible] = useState(true)
+  const [selectedNavId, setSelectedNavId] = useState<string>(buildNavId({ kind: "artboard" }))
   const canvasRef = useRef<ProjectCanvasStageHandle | null>(null)
   const [imagePxU, setImagePxU] = useState<{ w: bigint; h: bigint } | null>(null)
   const [cropBusy, setCropBusy] = useState(false)
@@ -160,9 +204,16 @@ export function ProjectDetailPageClient({
       if (e.key !== "Enter") return
       e.preventDefault()
       const sourceImageId = masterImage?.id ?? null
-      if (!sourceImageId) return
-      const rect = canvasRef.current?.getCropSelectionPx()
-      if (!rect) return
+      if (!sourceImageId) {
+        console.warn("Crop apply blocked: missing source image id")
+        return
+      }
+      const selection = canvasRef.current?.getCropSelection()
+      if (!selection?.ok) {
+        console.warn("Crop apply blocked", { reason: selection?.reason ?? "not_ready" })
+        return
+      }
+      const rect = selection.rect
       setCropBusy(true)
       try {
         await cropImageVariant({
@@ -185,7 +236,6 @@ export function ProjectDetailPageClient({
     return () => window.removeEventListener("keydown", onKeyDown)
   }, [cropBusy, loadImageState, masterImage?.id, projectId, refreshMasterImage, refreshProjectImages, toolbar])
 
-  const [selectedNavId, setSelectedNavId] = useState<string>(buildNavId({ kind: "artboard" }))
   const autoSelectMasterIdRef = useRef<string | null>(null)
 
   const selectedImageId = useMemo(() => {
@@ -194,13 +244,14 @@ export function ProjectDetailPageClient({
     return selection.imageId
   }, [selectedNavId])
 
-  useEffect(() => {
-    // Keep left-panel image selection and toolbar "select" mode in sync:
-    // selecting an image in the tree should immediately show selection frame.
-    if (!selectedImageId) return
-    if (toolbar.tool === "select") return
-    toolbar.setTool("select")
-  }, [selectedImageId, toolbar])
+  useEditorInteractionController({
+    tool: toolbar.tool,
+    setTool: toolbar.setTool,
+    selectedNavId,
+    setSelectedNavId,
+    masterImageId: masterImage?.id ?? null,
+    cropBusy,
+  })
 
   const selectedImage = useMemo(() => {
     if (!selectedImageId) return null
