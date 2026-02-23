@@ -124,5 +124,55 @@ describe("createTransformController", () => {
       vi.useRealTimers()
     }
   })
+
+  it("restoreImage cancels any pending scheduled commits", async () => {
+    vi.useFakeTimers()
+    try {
+      const commits: Array<{ widthPxU: bigint; heightPxU: bigint }> = []
+      const nodeStub = {
+        width: () => 3,
+        height: () => 4,
+        scaleX: () => 1,
+        scaleY: () => 1,
+        x: () => 10,
+        y: () => 20,
+        rotation: () => 0,
+      } as unknown as Konva.Image
+
+      let rot = 0
+      let tx: { xPxU: bigint; yPxU: bigint; widthPxU: bigint; heightPxU: bigint } | null = {
+        xPxU: 1n,
+        yPxU: 2n,
+        widthPxU: 3_000_000n,
+        heightPxU: 4_000_000n,
+      }
+
+      const c = createTransformController({
+        getImageNode: () => nodeStub,
+        getLayer: () => null,
+        getRotationDeg: () => rot,
+        setRotationDeg: (d) => {
+          rot = d
+        },
+        getImageTx: () => tx,
+        setImageTx: (n) => {
+          tx = n
+        },
+        markUserChanged: () => {},
+        onCommit: (t) => commits.push({ widthPxU: t.widthPxU, heightPxU: t.heightPxU }),
+      })
+
+      c.scheduleCommit(true, 200)
+      c.restoreImage({ artW: 1000, artH: 800, baseW: 640, baseH: 480, initialImageTransform: null })
+
+      await vi.advanceTimersByTimeAsync(250)
+
+      expect(commits.length).toBe(1)
+      expect(commits[0].widthPxU).toBe(640_000_000n)
+      expect(commits[0].heightPxU).toBe(480_000_000n)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })
 

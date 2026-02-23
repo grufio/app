@@ -14,6 +14,7 @@ import {
   defaultWorkspace,
   normalizeWorkspaceRow,
 } from "@/services/editor"
+import { pxFromPxU } from "@/services/editor/workspace-operations"
 import {
   insertWorkspaceClient,
   selectWorkspaceClient,
@@ -36,10 +37,6 @@ function parsePxUOrNull(raw: unknown): bigint | null {
   } catch {
     return null
   }
-}
-
-function pxFromPxU(pxU: bigint): number {
-  return Number((pxU + 500_000n) / 1_000_000n)
 }
 
 function mapWorkspacePersistError(raw: string | null | undefined): string {
@@ -102,6 +99,7 @@ export function ProjectWorkspaceProvider({
   const [loading, setLoading] = useState(() => !(initialRow?.project_id === projectId))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
+  const logPrefix = useMemo(() => `[workspace:${projectId}]`, [projectId])
   const rowRef = useRef<WorkspaceRow | null>(row)
   const writeChannelRef = useRef(createSerialWriteChannel())
   useEffect(() => {
@@ -127,6 +125,7 @@ export function ProjectWorkspaceProvider({
     try {
       const { row: data, error: selErr } = await selectWorkspaceClient(projectId)
       if (selErr) {
+        console.warn(`${logPrefix} load failed`, { stage: "select", error: selErr })
         setRow(null)
         setError(selErr)
         return
@@ -136,6 +135,7 @@ export function ProjectWorkspaceProvider({
         const def = defaultWorkspace(projectId)
         const { row: ins, error: insErr } = await insertWorkspaceClient(def)
         if (insErr || !ins) {
+          console.warn(`${logPrefix} default insert failed`, { stage: "insert", error: insErr })
           setRow(null)
           setError(insErr ?? "Failed to create default artboard")
           return
@@ -149,7 +149,7 @@ export function ProjectWorkspaceProvider({
     } finally {
       setLoading(false)
     }
-  }, [projectId])
+  }, [logPrefix, projectId])
 
   const updateWorkspaceDpi = useCallback(
     async (args: {
@@ -157,7 +157,7 @@ export function ProjectWorkspaceProvider({
       rasterEffectsPreset: WorkspaceRow["raster_effects_preset"]
     }): Promise<WorkspaceRow | null> => {
       if (!rowRef.current?.project_id) return null
-      return writeChannelRef.current.enqueueLatest(async () => {
+      return writeChannelRef.current.enqueueLatestDropStale(async (isStale) => {
         setSaving(true)
         setError("")
         try {
@@ -167,18 +167,19 @@ export function ProjectWorkspaceProvider({
             rasterEffectsPreset: args.rasterEffectsPreset,
           })
           if (upErr || !data) {
-            setError(mapWorkspacePersistError(upErr))
+            if (!isStale()) console.warn(`${logPrefix} save failed`, { op: "dpi", error: upErr })
+            if (!isStale()) setError(mapWorkspacePersistError(upErr))
             return null
           }
           const normalized = normalizeWorkspaceRow(data)
-          setRow(normalized)
+          if (!isStale()) setRow(normalized)
           return normalized as unknown as WorkspaceRow
         } finally {
           setSaving(false)
         }
       })
     },
-    []
+    [logPrefix]
   )
 
   const updateWorkspaceGeometry = useCallback(
@@ -192,20 +193,28 @@ export function ProjectWorkspaceProvider({
       heightPx: number
     }): Promise<WorkspaceRow | null> => {
       if (!rowRef.current?.project_id) return null
-      return writeChannelRef.current.enqueueLatest(async () => {
+      return writeChannelRef.current.enqueueLatestDropStale(async (isStale) => {
         setSaving(true)
         setError("")
         try {
           const widthPxU = parsePxUOrNull(args.widthPxU)
           const heightPxU = parsePxUOrNull(args.heightPxU)
           if (!widthPxU || !heightPxU) {
-            setError("Artboard size is out of supported range.")
+            if (!isStale()) console.warn(`${logPrefix} save rejected`, { op: "geometry", reason: "invalid_px_u", widthPxU: args.widthPxU, heightPxU: args.heightPxU })
+            if (!isStale()) setError("Artboard size is out of supported range.")
             return null
           }
           const derivedWidthPx = Math.max(1, pxFromPxU(widthPxU))
           const derivedHeightPx = Math.max(1, pxFromPxU(heightPxU))
           if (derivedWidthPx !== args.widthPx || derivedHeightPx !== args.heightPx) {
-            setError("Workspace size payload was inconsistent. Please try again.")
+            if (!isStale())
+              console.warn(`${logPrefix} save rejected`, {
+                op: "geometry",
+                reason: "px_cache_mismatch",
+                expected: { widthPx: derivedWidthPx, heightPx: derivedHeightPx },
+                got: { widthPx: args.widthPx, heightPx: args.heightPx },
+              })
+            if (!isStale()) setError("Workspace size payload was inconsistent. Please try again.")
             return null
           }
           const { row: data, error: upErr } = await updateWorkspaceGeometryClient({
@@ -219,24 +228,25 @@ export function ProjectWorkspaceProvider({
             heightPx: derivedHeightPx,
           })
           if (upErr || !data) {
-            setError(mapWorkspacePersistError(upErr))
+            if (!isStale()) console.warn(`${logPrefix} save failed`, { op: "geometry", error: upErr })
+            if (!isStale()) setError(mapWorkspacePersistError(upErr))
             return null
           }
           const normalized = normalizeWorkspaceRow(data)
-          setRow(normalized)
+          if (!isStale()) setRow(normalized)
           return normalized as unknown as WorkspaceRow
         } finally {
           setSaving(false)
         }
       })
     },
-    []
+    [logPrefix]
   )
 
   const updateWorkspacePageBg = useCallback(
     async (args: { enabled: boolean; color: string; opacity: number }): Promise<WorkspaceRow | null> => {
       if (!rowRef.current?.project_id) return null
-      return writeChannelRef.current.enqueueLatest(async () => {
+      return writeChannelRef.current.enqueueLatestDropStale(async (isStale) => {
         setSaving(true)
         setError("")
         try {
@@ -247,18 +257,19 @@ export function ProjectWorkspaceProvider({
             opacity: args.opacity,
           })
           if (upErr || !data) {
-            setError(mapWorkspacePersistError(upErr))
+            if (!isStale()) console.warn(`${logPrefix} save failed`, { op: "page_bg", error: upErr })
+            if (!isStale()) setError(mapWorkspacePersistError(upErr))
             return null
           }
           const normalized = normalizeWorkspaceRow(data)
-          setRow(normalized)
+          if (!isStale()) setRow(normalized)
           return normalized as unknown as WorkspaceRow
         } finally {
           setSaving(false)
         }
       })
     },
-    []
+    [logPrefix]
   )
 
   useEffect(() => {

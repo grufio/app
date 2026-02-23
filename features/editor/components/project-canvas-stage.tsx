@@ -18,6 +18,7 @@ import { useAlignImageController, type AlignImageOptions } from "./canvas-stage/
 import { createBoundsController } from "./canvas-stage/bounds-controller"
 import { computeGridLines } from "./canvas-stage/grid-lines"
 import { pickIntrinsicSize, shouldApplyPersistedTransform } from "./canvas-stage/placement"
+import { createStateSyncGuard } from "./canvas-stage/state-sync-guard"
 import { snapWorldToDeviceHalfPixel as snapHalfPixel } from "./canvas-stage/pixel-snap"
 import { createRafScheduler, RAF_BOUNDS, RAF_DRAG_BOUNDS, RAF_PAN, RAF_ZOOM } from "./canvas-stage/raf-scheduler"
 import { useRestoreImageController, type RestoreBaseSpec, type RestoreImageResult } from "./canvas-stage/restore-controller"
@@ -257,11 +258,8 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
 
   // Used to avoid re-running initial placement/fit logic unnecessarily.
   const placedKeyRef = useRef<string | null>(null)
-  const appliedInitialTransformKeyRef = useRef<string | null>(null)
   const userInteractedRef = useRef(false)
-  const userChangedImageTxRef = useRef(false)
-  const userMutationSeqRef = useRef(0)
-  const pendingInitialTransformSeqRef = useRef(0)
+  const stateSyncGuardRef = useRef(createStateSyncGuard())
   const autoFitKeyRef = useRef<string | null>(null)
   const transformControllerRef = useRef<ReturnType<typeof createTransformController> | null>(null)
   const imageDraggableRef = useRef(Boolean(imageDraggable))
@@ -314,9 +312,14 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   }, [onImageTransformCommit])
 
   const markUserChanged = useCallback(() => {
-    userChangedImageTxRef.current = true
-    userMutationSeqRef.current += 1
+    stateSyncGuardRef.current.markUserChanged()
   }, [])
+
+  useEffect(() => {
+    // New active image => persisted placement/transform may apply again.
+    // Clear "user changed" gating so previous image edits never block the next image.
+    stateSyncGuardRef.current.resetForNewImage()
+  }, [activeImageId])
 
   useEffect(() => {
     const imageId = restoreBaseImageId ?? null
@@ -531,8 +534,8 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     if (
       !shouldApplyPersistedTransform({
         src,
-        appliedKey: appliedInitialTransformKeyRef.current,
-        userChanged: userChangedImageTxRef.current,
+        appliedKey: stateSyncGuardRef.current.getAppliedKey(),
+        userChanged: stateSyncGuardRef.current.hasUserChanged(),
         activeImageId,
         stateImageId: initialImageTransform.imageId,
         initialImageTransform,
@@ -549,12 +552,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     const xPxU = initialImageTransform.xPxU ?? 0n
     const yPxU = initialImageTransform.yPxU ?? 0n
 
-    const scheduleSeq = ++pendingInitialTransformSeqRef.current
-    const userSeqAtSchedule = userMutationSeqRef.current
-    appliedInitialTransformKeyRef.current = src
-    queueMicrotask(() => {
-      if (scheduleSeq !== pendingInitialTransformSeqRef.current) return
-      if (userMutationSeqRef.current !== userSeqAtSchedule) return
+    stateSyncGuardRef.current.scheduleApply(src, () => {
       setRotation(Number.isFinite(rotationDeg) ? rotationDeg : 0)
       setImageTx({ xPxU, yPxU, widthPxU: nextWidthPxU, heightPxU: nextHeightPxU })
       scheduleBoundsUpdate()
@@ -576,7 +574,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   useEffect(() => {
     if (!src) return
     if (!img) return
-    if (userChangedImageTxRef.current) return
+    if (stateSyncGuardRef.current.hasUserChanged()) return
     // Initial placement:
     // - wait until artboardWidthPx and artboardHeightPx are known
     // - convert source pixel size to document pixels using Actual PPI and document DPI
@@ -590,7 +588,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
       initialImageTransform.imageId === activeImageId
     )
     if (hasPersistedSize) return
-    if (appliedInitialTransformKeyRef.current === src) return
+    if (stateSyncGuardRef.current.getAppliedKey() === src) return
 
     const key = `${src}:${artW}x${artH}`
     if (placedKeyRef.current === key) return

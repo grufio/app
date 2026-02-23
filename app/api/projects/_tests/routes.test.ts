@@ -40,30 +40,58 @@ describe("API routes", () => {
     let currentUserId = "userA"
     const signedCalls: Array<{ userId: string }> = []
 
-    vi.mock("@/lib/supabase/server", () => {
+    vi.doMock("@/lib/supabase/server", () => {
       const makeSupabase = () => ({
         auth: {
           getUser: async () => ({ data: { user: { id: currentUserId } } }),
         },
-        from: () => ({
-          select: () => ({
-            eq: () => ({
+        from: (table: string) => {
+          if (table === "projects") {
+            return {
+              select: () => ({
+                eq: () => ({
+                  maybeSingle: async () => ({ data: { id: VALID_UUID }, error: null }),
+                }),
+              }),
+            }
+          }
+          return {
+            select: () => ({
               eq: () => ({
-                maybeSingle: async () => ({
-                  data: {
-                    storage_path: "projects/shared/master/file.png",
-                    name: "file.png",
-                    format: "png",
-                    width_px: 10,
-                    height_px: 10,
-                    file_size_bytes: 1,
-                  },
-                  error: null,
+                eq: () => ({
+                  is: () => ({
+                    maybeSingle: async () => ({
+                      data: {
+                        storage_path: "projects/shared/master/file.png",
+                        name: "file.png",
+                        format: "png",
+                        width_px: 10,
+                        height_px: 10,
+                        file_size_bytes: 1,
+                      },
+                      error: null,
+                    }),
+                    order: () => ({
+                      limit: () => ({
+                        maybeSingle: async () => ({
+                          data: {
+                            storage_path: "projects/shared/master/file.png",
+                            name: "file.png",
+                            format: "png",
+                            width_px: 10,
+                            height_px: 10,
+                            file_size_bytes: 1,
+                          },
+                          error: null,
+                        }),
+                      }),
+                    }),
+                  }),
                 }),
               }),
             }),
-          }),
-        }),
+          }
+        },
         storage: {
           from: () => ({
             createSignedUrl: async () => {

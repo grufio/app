@@ -7,6 +7,7 @@ import { pxUToPxNumber } from "@/lib/editor/units"
 import { clientToWorldPoint } from "./coords"
 import { applyResizeHandle, type FrameRect, type ResizeHandle } from "./resize-handle"
 import type { ViewState } from "./types"
+import { attachWindowMouseDragSession } from "./window-mouse-session"
 
 export type { ResizeHandle } from "./resize-handle"
 
@@ -83,12 +84,11 @@ export function useSelectResizeController(opts: {
         stop()
         scheduleCommitTransform(true, 0)
       }
-      window.addEventListener("mousemove", onMove)
-      window.addEventListener("mouseup", onUp)
-      cleanupRef.current = () => {
-        window.removeEventListener("mousemove", onMove)
-        window.removeEventListener("mouseup", onUp)
-      }
+      cleanupRef.current = attachWindowMouseDragSession({
+        win: window,
+        onMove,
+        onUp: () => onUp(),
+      })
     },
     [applySelectResize, containerRef, scheduleCommitTransform, stop, view.x, view.scale, view.y]
   )

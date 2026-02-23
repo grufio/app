@@ -7,6 +7,7 @@
  * - Fetch and save the editor image transform state via `/api/projects/:id/image-state`.
  */
 import { fetchJson } from "@/lib/api/http"
+import { ApiError } from "@/lib/api/api-error"
 
 export type { GetImageStateResponse, ImageStateRow, SaveImageStateBody } from "@/lib/editor/imageState"
 
@@ -16,8 +17,7 @@ export async function getImageState(projectId: string): Promise<GetImageStateRes
     credentials: "same-origin",
   })
   if (!res.ok) {
-    const msg = `Failed to load image state (HTTP ${res.status})` + (res.error ? ` ${JSON.stringify(res.error)}` : "")
-    throw new Error(msg)
+    throw new ApiError({ prefix: "image_state", action: "load", status: res.status, payload: res.error })
   }
   return res.data
 }
@@ -30,8 +30,7 @@ export async function saveImageState(projectId: string, body: SaveImageStateBody
     body: JSON.stringify(body),
   })
   if (!res.ok) {
-    const msg = `Failed to save image state (HTTP ${res.status})` + (res.error ? ` ${JSON.stringify(res.error)}` : "")
-    throw new Error(msg)
+    throw new ApiError({ prefix: "image_state", action: "save", status: res.status, payload: res.error })
   }
 }
 
