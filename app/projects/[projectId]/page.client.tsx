@@ -139,7 +139,12 @@ export function ProjectDetailPageClient({
     deleteImage,
   } = useMasterImage(projectId, initialMasterImage)
 
-  const { images: projectImages, refresh: refreshProjectImages, deleteById: deleteImageById } = useProjectImages(projectId)
+  const {
+    images: projectImages,
+    refresh: refreshProjectImages,
+    deleteById: deleteImageById,
+    setLockedById: setImageLockedById,
+  } = useProjectImages(projectId)
 
   const [restoreOpen, setRestoreOpen] = useState(false)
   const [restoreBusy, setRestoreBusy] = useState(false)
@@ -182,17 +187,6 @@ export function ProjectDetailPageClient({
     imageStateLoading,
     enableShortcuts: true,
   })
-  const stageToolbar = useMemo(
-    () => ({
-      ...toolbar,
-      cropEnabled: toolbar.tool === "crop",
-      cropBusy,
-      imageDraggable: toolbar.tool === "select",
-      panEnabled: toolbar.tool === "hand",
-    }),
-    [cropBusy, toolbar]
-  )
-
   useEffect(() => {
     const onKeyDown = async (e: KeyboardEvent) => {
       if (toolbar.tool !== "crop") return
@@ -246,19 +240,72 @@ export function ProjectDetailPageClient({
     return selection.imageId
   }, [selectedNavId])
 
+  const lockedImageById = useMemo<Record<string, boolean>>(() => {
+    const out: Record<string, boolean> = {}
+    for (const img of projectImages) out[img.id] = Boolean(img.is_locked)
+    return out
+  }, [projectImages])
+
+  const toolbarLockImageId = useMemo(() => selectedImageId ?? projectImages[0]?.id ?? null, [projectImages, selectedImageId])
+  const toolbarImageLocked = useMemo(
+    () => (toolbarLockImageId ? Boolean(lockedImageById[toolbarLockImageId]) : false),
+    [lockedImageById, toolbarLockImageId]
+  )
+
+  const handleToggleImageLocked = useCallback(
+    async (imageId: string, nextLocked: boolean) => {
+      const out = await setImageLockedById(imageId, nextLocked)
+      if (!out.ok) return { ok: false as const, reason: out.error }
+      return { ok: true as const }
+    },
+    [setImageLockedById]
+  )
+
+  const handleToolbarToolChange = useCallback(
+    (tool: typeof toolbar.tool) => {
+      if (toolbarImageLocked && (tool === "select" || tool === "crop")) return
+      toolbar.setTool(tool)
+    },
+    [toolbar, toolbarImageLocked]
+  )
+
+  useEffect(() => {
+    if (!toolbarImageLocked) return
+    if (toolbar.tool !== "select" && toolbar.tool !== "crop") return
+    toolbar.setTool("hand")
+  }, [toolbar, toolbarImageLocked])
+
   useEditorInteractionController({
     tool: toolbar.tool,
-    setTool: toolbar.setTool,
+    setTool: handleToolbarToolChange,
     selectedNavId,
     setSelectedNavId,
     masterImageId: masterImage?.id ?? null,
     cropBusy,
   })
 
+  const stageToolbar = useMemo(
+    () => ({
+      ...toolbar,
+      setTool: handleToolbarToolChange,
+      selectDisabled: toolbarImageLocked,
+      cropDisabled: toolbarImageLocked,
+      cropEnabled: toolbar.tool === "crop",
+      cropBusy,
+      imageDraggable: toolbar.tool === "select",
+      panEnabled: toolbar.tool === "hand",
+    }),
+    [cropBusy, handleToolbarToolChange, toolbar, toolbarImageLocked]
+  )
+
   const selectedImage = useMemo(() => {
     if (!selectedImageId) return null
     return projectImages.find((img) => img.id === selectedImageId) ?? null
   }, [projectImages, selectedImageId])
+  const imagePanelLocked = useMemo(
+    () => (selectedImageId ? Boolean(lockedImageById[selectedImageId]) : false),
+    [lockedImageById, selectedImageId]
+  )
 
   const leftPanelImages = useMemo(
     () =>
@@ -502,6 +549,8 @@ export function ProjectDetailPageClient({
               selectedId={selectedNavId}
               onSelect={setSelectedNavId}
               images={leftPanelImages}
+              lockedById={lockedImageById}
+              onToggleImageLocked={handleToggleImageLocked}
               hasGrid={hasGrid}
               onImageUploaded={refreshMasterImage}
               onImageDeleteRequested={requestDeleteImage}
@@ -561,6 +610,7 @@ export function ProjectDetailPageClient({
             workspaceReady={workspaceReady}
             imageStateLoading={imageStateLoading}
             imagePanelReady={imagePanelReady}
+            imagePanelLocked={imagePanelLocked}
             gridVisible={gridVisible}
             onGridVisibleChange={setGridVisible}
             canvasRef={canvasRef}

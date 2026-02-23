@@ -10,7 +10,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import { AddImageMenuAction } from "./add-image-menu-button"
-import { DeleteImageMenuAction } from "./delete-image-menu-action"
+import { LockNavTreeActions, type MenuActionResult } from "./lock-nav-tree-actions"
 import { buildNavId, parseNavId } from "@/features/editor/navigation/nav-id"
 
 type EditorNavImage = { id: string; label: string }
@@ -42,6 +42,8 @@ export function EditorNavTree(props: {
   selectedId: string
   onSelect: (id: string) => void
   images: EditorNavImage[]
+  lockedById: Record<string, boolean>
+  onToggleImageLocked: (imageId: string, nextLocked: boolean) => MenuActionResult | Promise<MenuActionResult>
   hasGrid: boolean
   onImageUploaded: () => void | Promise<void>
   onImageDeleteRequested: (imageId: string) => void | Promise<void>
@@ -53,6 +55,8 @@ export function EditorNavTree(props: {
     selectedId,
     onSelect,
     images,
+    lockedById,
+    onToggleImageLocked,
     hasGrid,
     onImageUploaded,
     onImageDeleteRequested,
@@ -73,6 +77,24 @@ export function EditorNavTree(props: {
     const parsed = parseNavId(imageTargetNavId)
     return parsed.kind === "image" ? parsed.imageId : null
   }, [imageTargetNavId])
+  const imageLocked = imageTargetImageId ? Boolean(lockedById[imageTargetImageId]) : false
+  const [actionError, setActionError] = React.useState("")
+  const handleToggleImageLocked = React.useCallback((imageId: string, nextLocked: boolean): MenuActionResult | Promise<MenuActionResult> => {
+    setActionError("")
+    return onToggleImageLocked(imageId, nextLocked)
+  }, [onToggleImageLocked])
+  const handleDeleteImage = React.useCallback(
+    async (imageId: string): Promise<MenuActionResult> => {
+      try {
+        await onImageDeleteRequested(imageId)
+        setActionError("")
+        return { ok: true }
+      } catch (e) {
+        return { ok: false, reason: e instanceof Error ? e.message : "Delete failed" }
+      }
+    },
+    [onImageDeleteRequested]
+  )
 
   return (
     <SidebarMenu>
@@ -85,14 +107,25 @@ export function EditorNavTree(props: {
       {imageTargetNavId ? (
         <>
           <SidebarMenuItem>
-            <SidebarMenuButton isActive={selectedKind === "image"} className="text-xs" onClick={() => onSelect(imageTargetNavId)}>
+            <SidebarMenuButton
+              isActive={selectedKind === "image"}
+              className="text-xs"
+              onClick={() => onSelect(imageTargetNavId)}
+            >
               <ImageIcon />
               <span>Image</span>
             </SidebarMenuButton>
             {imageTargetImageId ? (
-              <DeleteImageMenuAction imageId={imageTargetImageId} onDeleteRequest={onImageDeleteRequested} />
+              <LockNavTreeActions
+                imageId={imageTargetImageId}
+                locked={imageLocked}
+                onToggleLocked={handleToggleImageLocked}
+                onDeleteRequest={handleDeleteImage}
+                onActionError={setActionError}
+              />
             ) : null}
           </SidebarMenuItem>
+          {actionError ? <div className="px-2 text-[11px] text-destructive">{actionError}</div> : null}
           <SidebarMenuItem>
             <SidebarMenuButton
               isActive={selectedKind === "grid" && hasGrid}
@@ -107,7 +140,7 @@ export function EditorNavTree(props: {
               <span>Grid</span>
             </SidebarMenuButton>
             {hasGrid ? (
-              <SidebarMenuAction aria-label="Delete Grid" onClick={() => void onGridDeleteRequested()}>
+              <SidebarMenuAction showOnHover aria-label="Delete Grid" onClick={() => void onGridDeleteRequested()}>
                 <Trash2 />
               </SidebarMenuAction>
             ) : (

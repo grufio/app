@@ -22,6 +22,8 @@ type Props = {
   leftSlot?: React.ReactNode
   tool: FloatingToolbarTool
   onToolChange: (tool: FloatingToolbarTool) => void
+  selectDisabled?: boolean
+  cropDisabled?: boolean
   onZoomIn: () => void
   onZoomOut: () => void
   onFit: () => void
@@ -67,6 +69,8 @@ export function FloatingToolbar({
   leftSlot,
   tool,
   onToolChange,
+  selectDisabled = false,
+  cropDisabled = false,
   onZoomIn,
   onZoomOut,
   onFit,
@@ -85,13 +89,18 @@ export function FloatingToolbar({
         )}
       >
         {leftSlot}
-        <IconButton label="Select (Move Image)" active={tool === "select"} onClick={() => onToolChange("select")}>
+        <IconButton
+          label="Select (Move Image)"
+          active={tool === "select"}
+          disabled={selectDisabled}
+          onClick={() => onToolChange("select")}
+        >
           <MousePointer2 className="size-6" strokeWidth={TOOLBAR_ICON_STROKE_WIDTH} />
         </IconButton>
         <IconButton label="Hand (Move Artboard)" active={tool === "hand"} onClick={() => onToolChange("hand")}>
           <Hand className="size-6" strokeWidth={TOOLBAR_ICON_STROKE_WIDTH} />
         </IconButton>
-        <IconButton label="Crop" active={tool === "crop"} onClick={() => onToolChange("crop")}>
+        <IconButton label="Crop" active={tool === "crop"} disabled={cropDisabled} onClick={() => onToolChange("crop")}>
           <Crop className="size-6" strokeWidth={TOOLBAR_ICON_STROKE_WIDTH} />
         </IconButton>
 

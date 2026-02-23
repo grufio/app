@@ -38,6 +38,7 @@ export type ProjectImageItem = {
   storage_bucket: string | null
   file_size_bytes: number | null
   is_active: boolean
+  is_locked: boolean
   created_at: string
 }
 
@@ -94,6 +95,21 @@ export async function deleteMasterImageById(projectId: string, imageId: string):
     const msg = `Failed to delete image (HTTP ${res.status})` + (res.error ? ` ${JSON.stringify(res.error)}` : "")
     throw new Error(msg)
   }
+}
+
+export async function setProjectImageLocked(projectId: string, imageId: string, isLocked: boolean): Promise<void> {
+  const res = await fetchJson<unknown>(`/api/projects/${projectId}/images/master/${imageId}/lock`, {
+    method: "PATCH",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ is_locked: isLocked }),
+  })
+  if (!res.ok) {
+    const msg = `Failed to update image lock (HTTP ${res.status})` + (res.error ? ` ${JSON.stringify(res.error)}` : "")
+    throw new Error(msg)
+  }
+  invalidateFetchJsonGetCache(`/api/projects/${projectId}/images/master/list`)
+  invalidateFetchJsonGetCache(`/api/projects/${projectId}/images/master`)
 }
 
 export async function cropImageVariant(args: {
