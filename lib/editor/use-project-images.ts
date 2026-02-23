@@ -86,17 +86,24 @@ export function useProjectImages(projectId: string) {
     async (imageId: string, isLocked: boolean) => {
       if (!mountedRef.current) return { ok: false as const, error: "Unmounted" }
       setError("")
+      const prevImages = images
+      if (mountedRef.current) {
+        setImages((prev) => prev.map((img) => (img.id === imageId ? { ...img, is_locked: isLocked } : img)))
+      }
       try {
         await setProjectImageLocked(projectId, imageId, isLocked)
-        await refresh()
         return { ok: true as const }
       } catch (e) {
+        if (mountedRef.current) {
+          setImages(prevImages)
+        }
+        void refresh()
         const msg = e instanceof Error ? e.message : "Failed to update image lock"
         if (mountedRef.current) setError(msg)
         return { ok: false as const, error: msg }
       }
     },
-    [projectId, refresh]
+    [images, projectId, refresh]
   )
 
   useEffect(() => {

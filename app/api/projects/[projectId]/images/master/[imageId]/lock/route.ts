@@ -29,6 +29,19 @@ export async function PATCH(
   const u = await requireUser(supabase)
   if (!u.ok) return u.res
 
+  // Explicit access check for clearer error staging (RLS still enforces owner-only).
+  const { data: projectRow, error: projectErr } = await supabase
+    .from("projects")
+    .select("id")
+    .eq("id", projectId)
+    .maybeSingle()
+  if (projectErr) {
+    return jsonError("Failed to verify project access", 400, { stage: "project_access" })
+  }
+  if (!projectRow?.id) {
+    return jsonError("Forbidden (project not accessible)", 403, { stage: "rls_denied", where: "project_access" })
+  }
+
   const { data: row, error: queryErr } = await supabase
     .from("project_images")
     .select("id")
