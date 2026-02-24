@@ -12,9 +12,10 @@
  */
 import dynamic from "next/dynamic"
 import { Hand, Maximize2, Plus, SlidersHorizontal, Trash2, ZoomIn, ZoomOut } from "lucide-react"
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 
 import { SidebarFrame } from "@/components/navigation/SidebarFrame"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { SidebarContent, SidebarMenu, SidebarMenuAction, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { EditorSidebarSection } from "@/features/editor/components/sidebar/editor-sidebar-section"
@@ -115,6 +116,7 @@ export function ProjectFilterPageClient(props: { projectId: string }) {
   const { initialImageTransform, imageStateLoading, loadImageState } = useImageState(props.projectId, true, null, false)
   const canvasRef = useRef<ProjectCanvasStageHandle | null>(null)
   const filters = useProjectImageFilters(props.projectId)
+  const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false)
 
   useLoadImageStateOnActiveImageChange({ masterImageId: masterImage?.id ?? null, loadImageState })
   const toolbar = useFloatingToolbarControls({
@@ -124,13 +126,6 @@ export function ProjectFilterPageClient(props: { projectId: string }) {
     imageStateLoading,
     enableShortcuts: false,
   })
-
-  const handleAddFilter = async () => {
-    const out = await filters.apply("invert")
-    if (!out.ok) return
-    await refreshMasterImage()
-    await loadImageState()
-  }
 
   const handleRemoveFilter = async (filterId: string) => {
     const out = await filters.remove(filterId)
@@ -159,7 +154,7 @@ export function ProjectFilterPageClient(props: { projectId: string }) {
                       <SidebarMenuAction
                         aria-label="Add filter"
                         disabled={filters.loading || masterImageLoading || imageStateLoading || !masterImage}
-                        onClick={() => void handleAddFilter()}
+                        onClick={() => setIsFilterDialogOpen(true)}
                       >
                         <Plus />
                       </SidebarMenuAction>
@@ -257,6 +252,13 @@ export function ProjectFilterPageClient(props: { projectId: string }) {
           </aside>
         </main>
       </ProjectEditorLayout>
+      <Dialog open={isFilterDialogOpen} onOpenChange={setIsFilterDialogOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Filter</DialogTitle>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
