@@ -7,7 +7,7 @@ import type { Database } from "@/lib/supabase/database.types"
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role"
 import { activateMasterWithState } from "@/lib/supabase/project-images"
 
-export type SupportedFilterType = "grayscale" | "invert" | "blur" | "brightness"
+export type SupportedFilterType = "invert" | "blur" | "brightness"
 
 export type FilterOpFailure = {
   ok: false
@@ -52,7 +52,7 @@ export type FilterRemoveSuccess = {
 
 function parseFilterType(value: unknown): SupportedFilterType | null {
   const v = String(value ?? "").trim().toLowerCase()
-  if (v === "grayscale" || v === "invert" || v === "blur" || v === "brightness") return v
+  if (v === "invert" || v === "blur" || v === "brightness") return v
   return null
 }
 
@@ -79,7 +79,6 @@ async function applyFilterToBuffer(args: {
   const { input, format, filterType, params } = args
   const outFormat: "jpeg" | "png" | "webp" = format === "jpg" || format === "jpeg" ? "jpeg" : format === "webp" ? "webp" : "png"
   let pipeline = sharp(input)
-  if (filterType === "grayscale") pipeline = pipeline.grayscale()
   if (filterType === "invert") pipeline = pipeline.negate()
   if (filterType === "blur") pipeline = pipeline.blur(Number(params.sigma ?? 1))
   if (filterType === "brightness") pipeline = pipeline.modulate({ brightness: Number(params.value ?? 1.1) })
@@ -207,15 +206,22 @@ export async function listProjectImageFilters(args: {
     .eq("project_id", projectId)
     .order("stack_order", { ascending: true })
   if (error) return { ok: false, status: 400, stage: "filter_lookup", reason: error.message, code: (error as { code?: string }).code }
-  const items: FilterStackItem[] = (data ?? []).map((row) => ({
-    id: String(row.id),
-    input_image_id: String(row.input_image_id),
-    output_image_id: String(row.output_image_id),
-    filter_type: parseFilterType(row.filter_type) ?? "grayscale",
-    filter_params: (row.filter_params as Record<string, unknown> | null) ?? {},
-    stack_order: Number(row.stack_order),
-    created_at: String(row.created_at),
-  }))
+  const items: FilterStackItem[] = []
+  for (const row of data ?? []) {
+    const filterType = parseFilterType(row.filter_type)
+    if (!filterType) {
+      return { ok: false, status: 400, stage: "filter_lookup", reason: "Unsupported filter type in stored stack" }
+    }
+    items.push({
+      id: String(row.id),
+      input_image_id: String(row.input_image_id),
+      output_image_id: String(row.output_image_id),
+      filter_type: filterType,
+      filter_params: (row.filter_params as Record<string, unknown> | null) ?? {},
+      stack_order: Number(row.stack_order),
+      created_at: String(row.created_at),
+    })
+  }
   return { ok: true, items }
 }
 
@@ -298,7 +304,7 @@ export async function applyProjectImageFilter(args: {
       id: String(inserted.id),
       input_image_id: String(inserted.input_image_id),
       output_image_id: String(inserted.output_image_id),
-      filter_type: parseFilterType(inserted.filter_type) ?? "grayscale",
+      filter_type: filterType,
       filter_params: (inserted.filter_params as Record<string, unknown> | null) ?? {},
       stack_order: Number(inserted.stack_order),
       created_at: String(inserted.created_at),

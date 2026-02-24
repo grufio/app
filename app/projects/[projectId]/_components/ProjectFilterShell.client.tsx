@@ -126,7 +126,7 @@ export function ProjectFilterPageClient(props: { projectId: string }) {
   })
 
   const handleAddFilter = async () => {
-    const out = await filters.apply("grayscale")
+    const out = await filters.apply("invert")
     if (!out.ok) return
     await refreshMasterImage()
     await loadImageState()
@@ -157,7 +157,7 @@ export function ProjectFilterPageClient(props: { projectId: string }) {
                         <span>Neuer Filter</span>
                       </SidebarMenuButton>
                       <SidebarMenuAction
-                        aria-label="Add filter (grayscale)"
+                        aria-label="Add filter"
                         disabled={filters.loading || masterImageLoading || imageStateLoading || !masterImage}
                         onClick={() => void handleAddFilter()}
                       >

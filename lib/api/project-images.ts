@@ -48,7 +48,7 @@ export type SetProjectImageLockedResponse = {
   is_locked: boolean
 }
 
-export type FilterType = "grayscale" | "invert" | "blur" | "brightness"
+export type FilterType = "invert" | "blur" | "brightness"
 
 export type ProjectImageFilterItem = {
   id: string
