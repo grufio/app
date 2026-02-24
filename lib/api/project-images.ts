@@ -48,6 +48,18 @@ export type SetProjectImageLockedResponse = {
   is_locked: boolean
 }
 
+export type FilterType = "invert" | "blur" | "brightness"
+
+export type ProjectImageFilterItem = {
+  id: string
+  input_image_id: string
+  output_image_id: string
+  filter_type: FilterType
+  filter_params: Record<string, unknown>
+  stack_order: number
+  created_at: string
+}
+
 export async function getMasterImage(projectId: string): Promise<MasterImageResponse> {
   const res = await fetchJson<MasterImageResponse>(`/api/projects/${projectId}/images/master`, {
     method: "GET",
@@ -185,4 +197,77 @@ export async function restoreInitialMasterImage(projectId: string): Promise<{ im
   invalidateFetchJsonGetCache(`/api/projects/${projectId}/images/master`)
   invalidateFetchJsonGetCache(`/api/projects/${projectId}/images/master/list`)
   return { image_id: String(res.data.image_id) }
+}
+
+export async function listProjectImageFilters(projectId: string): Promise<ProjectImageFilterItem[]> {
+  const res = await fetchJson<{ items?: ProjectImageFilterItem[] }>(`/api/projects/${projectId}/images/filters`, {
+    method: "GET",
+    credentials: "same-origin",
+  })
+  if (!res.ok) {
+    const msg = `Failed to load filters (HTTP ${res.status})` + (res.error ? ` ${JSON.stringify(res.error)}` : "")
+    throw new Error(msg)
+  }
+  return Array.isArray(res.data?.items) ? res.data.items : []
+}
+
+export async function applyProjectImageFilter(args: {
+  projectId: string
+  filterType: FilterType
+  filterParams?: Record<string, unknown>
+}): Promise<{ item: ProjectImageFilterItem; image_id: string; width_px: number; height_px: number }> {
+  const { projectId, filterType, filterParams } = args
+  const res = await fetchJson<{
+    ok?: boolean
+    item?: ProjectImageFilterItem
+    image_id?: string
+    width_px?: number
+    height_px?: number
+  }>(`/api/projects/${projectId}/images/filters`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      filter_type: filterType,
+      filter_params: filterParams ?? {},
+    }),
+  })
+  if (!res.ok) {
+    const msg = `Failed to apply filter (HTTP ${res.status})` + (res.error ? ` ${JSON.stringify(res.error)}` : "")
+    throw new Error(msg)
+  }
+  if (!res.data?.item || !res.data.image_id) {
+    throw new Error("Failed to apply filter (invalid response)")
+  }
+  invalidateFetchJsonGetCache(`/api/projects/${projectId}/images/master`)
+  invalidateFetchJsonGetCache(`/api/projects/${projectId}/images/master/list`)
+  invalidateFetchJsonGetCache(`/api/projects/${projectId}/images/filters`)
+  return {
+    item: res.data.item,
+    image_id: String(res.data.image_id),
+    width_px: Number(res.data.width_px ?? 0),
+    height_px: Number(res.data.height_px ?? 0),
+  }
+}
+
+export async function removeProjectImageFilter(args: {
+  projectId: string
+  filterId: string
+}): Promise<{ active_image_id: string }> {
+  const { projectId, filterId } = args
+  const res = await fetchJson<{ ok?: boolean; active_image_id?: string }>(`/api/projects/${projectId}/images/filters/${filterId}`, {
+    method: "DELETE",
+    credentials: "same-origin",
+  })
+  if (!res.ok) {
+    const msg = `Failed to remove filter (HTTP ${res.status})` + (res.error ? ` ${JSON.stringify(res.error)}` : "")
+    throw new Error(msg)
+  }
+  if (!res.data?.active_image_id) {
+    throw new Error("Failed to remove filter (invalid response)")
+  }
+  invalidateFetchJsonGetCache(`/api/projects/${projectId}/images/master`)
+  invalidateFetchJsonGetCache(`/api/projects/${projectId}/images/master/list`)
+  invalidateFetchJsonGetCache(`/api/projects/${projectId}/images/filters`)
+  return { active_image_id: String(res.data.active_image_id) }
 }
