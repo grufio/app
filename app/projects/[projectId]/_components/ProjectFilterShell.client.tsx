@@ -15,24 +15,12 @@ import { Hand, Maximize2, Plus, SlidersHorizontal, Trash2, ZoomIn, ZoomOut } fro
 import { useEffect, useRef, useState } from "react"
 
 import { SidebarFrame } from "@/components/navigation/SidebarFrame"
-import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Field, FieldGroup } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { SidebarContent, SidebarMenu, SidebarMenuAction, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { EditorSidebarSection } from "@/features/editor/components/sidebar/editor-sidebar-section"
-import { FilterTypeCards } from "@/features/editor/components/filter-type-cards"
-import { PixelateForm, type PixelateFormData } from "@/features/editor/components/pixelate-form"
+import { FilterSelectionController } from "@/features/editor/components/FilterSelectionController"
+import { PixelateFilterController } from "@/features/editor/components/PixelateFilterController"
+import { LineArtFilterController } from "@/features/editor/components/LineArtFilterController"
 import { ToolbarIconButton } from "@/features/editor/components/toolbar-icon-button"
 import { ProjectEditorHeader, ProjectEditorLayout } from "@/features/editor"
 import type { ProjectCanvasStageHandle } from "@/features/editor/components/project-canvas-stage"
@@ -40,7 +28,7 @@ import { useFloatingToolbarControls } from "@/lib/editor/floating-toolbar-contro
 import { useProjectWorkspace } from "@/lib/editor/project-workspace"
 import { useImageState } from "@/lib/editor/use-image-state"
 import { useFilterWorkingImage } from "@/lib/editor/use-filter-working-image"
-import { applyPixelateFilter, removeActiveFilter } from "@/lib/api/project-images"
+import { removeActiveFilter } from "@/lib/api/project-images"
 
 const ProjectCanvasStage = dynamic(
   () => import("@/features/editor/components/project-canvas-stage").then((m) => m.ProjectCanvasStage),
@@ -129,14 +117,9 @@ export function ProjectFilterPageClient(props: { projectId: string }) {
   const { image: workingImage, loading: workingImageLoading, error: workingImageError, refresh: refreshWorkingImage } = useFilterWorkingImage(props.projectId)
   const { initialImageTransform, imageStateLoading, loadImageState } = useImageState(props.projectId, true, null, false)
   const canvasRef = useRef<ProjectCanvasStageHandle | null>(null)
-  const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false)
-  const [selectedFilterCardId, setSelectedFilterCardId] = useState<string | null>(null)
-  const [selectedFilterType, setSelectedFilterType] = useState<string | null>(null)
-  const [pixelateBusy, setPixelateBusy] = useState(false)
+  const [activeFilterType, setActiveFilterType] = useState<"pixelate" | "lineart" | null>(null)
+  const [showFilterSelection, setShowFilterSelection] = useState(false)
   const [removingFilter, setRemovingFilter] = useState(false)
-  const FILTER_CARD_ITEMS = [
-    { id: "pixelate", label: "Pixelate", thumbUrl: workingImage?.signedUrl ?? null },
-  ] as const
 
   useLoadImageStateOnActiveImageChange({ masterImageId: workingImage?.id ?? null, loadImageState })
   const toolbar = useFloatingToolbarControls({
@@ -177,50 +160,17 @@ export function ProjectFilterPageClient(props: { projectId: string }) {
     }
   }
 
-  const handleFilterDialogOpenChange = (open: boolean) => {
-    setIsFilterDialogOpen(open)
-    if (!open) {
-      setSelectedFilterCardId(null)
-      setSelectedFilterType(null)
-    }
+  const handleFilterSuccess = async () => {
+    await refreshWorkingImage()
   }
 
-  const handleSelectFilterCard = () => {
-    if (!selectedFilterCardId) return
-    // Map card ID to filter type
-    if (selectedFilterCardId === "pixelate") {
-      setSelectedFilterType("pixelate")
-      setSelectedFilterCardId(null)
-    }
+  const handleFilterSelect = (filterType: "pixelate" | "lineart") => {
+    setShowFilterSelection(false)
+    setActiveFilterType(filterType)
   }
 
-  const handleCancelPixelate = () => {
-    setSelectedFilterType(null)
-    setSelectedFilterCardId(null)
-  }
-
-  const handleApplyPixelate = async (data: PixelateFormData) => {
-    if (!workingImage || pixelateBusy) return
-    setPixelateBusy(true)
-    try {
-      await applyPixelateFilter({
-        projectId: props.projectId,
-        sourceImageId: workingImage.id,
-        superpixelWidth: data.superpixelWidth,
-        superpixelHeight: data.superpixelHeight,
-        colorMode: data.colorMode,
-        numColors: data.numColors,
-      })
-      // Refresh to show the filter result
-      await refreshWorkingImage()
-      setIsFilterDialogOpen(false)
-      setSelectedFilterType(null)
-    } catch (e) {
-      console.error("Failed to apply pixelate filter:", e)
-      alert(e instanceof Error ? e.message : "Failed to apply filter")
-    } finally {
-      setPixelateBusy(false)
-    }
+  const handleCloseActiveFilter = () => {
+    setActiveFilterType(null)
   }
 
   return (
@@ -252,7 +202,7 @@ export function ProjectFilterPageClient(props: { projectId: string }) {
                         <SidebarMenuAction
                           aria-label="Add filter"
                           disabled={workingImageLoading || imageStateLoading || !workingImage}
-                          onClick={() => setIsFilterDialogOpen(true)}
+                          onClick={() => setShowFilterSelection(true)}
                         >
                           <Plus />
                         </SidebarMenuAction>
@@ -326,47 +276,32 @@ export function ProjectFilterPageClient(props: { projectId: string }) {
           </aside>
         </main>
       </ProjectEditorLayout>
-      <Dialog open={isFilterDialogOpen} onOpenChange={handleFilterDialogOpenChange}>
-        <DialogContent>
-          {!selectedFilterType ? (
-            <>
-              <DialogHeader>
-                <DialogTitle>Filter</DialogTitle>
-                <DialogDescription>Select a card.</DialogDescription>
-              </DialogHeader>
-              <FilterTypeCards
-                items={[...FILTER_CARD_ITEMS]}
-                selectedId={selectedFilterCardId}
-                onSelect={setSelectedFilterCardId}
-              />
-              <DialogFooter>
-                <DialogClose asChild>
-                  <Button variant="outline">Cancel</Button>
-                </DialogClose>
-                <Button onClick={handleSelectFilterCard} disabled={!selectedFilterCardId}>
-                  Select
-                </Button>
-              </DialogFooter>
-            </>
-          ) : selectedFilterType === "pixelate" ? (
-            <>
-              <DialogHeader>
-                <DialogTitle>Pixelate</DialogTitle>
-                <DialogDescription>Configure pixelate filter settings.</DialogDescription>
-              </DialogHeader>
-              {workingImage ? (
-                <PixelateForm
-                  imageWidth={workingImage.width_px}
-                  imageHeight={workingImage.height_px}
-                  onCancel={handleCancelPixelate}
-                  onApply={handleApplyPixelate}
-                  busy={pixelateBusy}
-                />
-              ) : null}
-            </>
-          ) : null}
-        </DialogContent>
-      </Dialog>
+      <FilterSelectionController
+        workingImageUrl={workingImage?.signedUrl ?? null}
+        open={showFilterSelection}
+        onClose={() => setShowFilterSelection(false)}
+        onSelect={handleFilterSelect}
+      />
+      {workingImage && (
+        <>
+          <PixelateFilterController
+            projectId={props.projectId}
+            workingImageId={workingImage.id}
+            workingImageWidth={workingImage.width_px}
+            workingImageHeight={workingImage.height_px}
+            open={activeFilterType === "pixelate"}
+            onClose={handleCloseActiveFilter}
+            onSuccess={handleFilterSuccess}
+          />
+          <LineArtFilterController
+            projectId={props.projectId}
+            workingImageId={workingImage.id}
+            open={activeFilterType === "lineart"}
+            onClose={handleCloseActiveFilter}
+            onSuccess={handleFilterSuccess}
+          />
+        </>
+      )}
     </div>
   )
 }
