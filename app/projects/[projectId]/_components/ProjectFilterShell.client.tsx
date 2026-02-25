@@ -170,6 +170,7 @@ export function ProjectFilterPageClient(props: { projectId: string }) {
 
   const handleFilterSuccess = async () => {
     await refreshWorkingImage()
+    await filterStack.refresh()
   }
 
   const handleFilterSelect = (filterType: "pixelate" | "lineart") => {
