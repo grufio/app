@@ -161,7 +161,7 @@ export async function lineArtImageAndActivate(args: {
       id: imageId,
       project_id: projectId,
       role: "asset",
-      name: `${src.name} (line art)`,
+      name: `${src.name.replace(" (filter working)", "")} (line art)`,
       format: outputFormat,
       width_px: origWidth,
       height_px: origHeight,
