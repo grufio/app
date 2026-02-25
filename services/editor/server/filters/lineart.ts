@@ -111,7 +111,7 @@ export async function lineArtImageAndActivate(args: {
   const srcBuffer = Buffer.from(await srcBlob.arrayBuffer())
 
   // Line art always outputs PNG (grayscale/binary)
-  const outputFormat = "png"
+  const outputFormat = "svg"
 
   try {
     // Call Python service for line art
@@ -149,7 +149,7 @@ export async function lineArtImageAndActivate(args: {
     const { error: uploadErr } = await supabase.storage
       .from("project_images")
       .upload(objectPath, outputBuffer, {
-        contentType: contentTypeFor(outputFormat),
+        contentType: "image/svg+xml",
         upsert: false,
       })
 
@@ -162,7 +162,7 @@ export async function lineArtImageAndActivate(args: {
       project_id: projectId,
       role: "asset",
       name: `${src.name.replace(" (filter working)", "")} (line art)`,
-      format: outputFormat,
+      format: "svg",
       width_px: origWidth,
       height_px: origHeight,
       storage_bucket: "project_images",

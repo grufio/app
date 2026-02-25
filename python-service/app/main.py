@@ -125,13 +125,13 @@ async def pixelate_filter(request: PixelateRequest):
 @app.post("/filters/lineart")
 async def lineart_filter(request: LineArtRequest):
     """
-    Apply line art filter with closed contours for coloring.
+    Apply line art filter with closed contours exported as SVG vectors.
     
     Algorithm:
     1. Canny edge detection
     2. Close gaps with morphological operations
-    3. Find and draw closed contours
-    4. Result: Black lines with closed regions ready for coloring
+    3. Find closed contours
+    4. Export contours as SVG paths (vectors)
     """
     if request.threshold1 < 0 or request.threshold2 < 0:
         raise HTTPException(status_code=400, detail="Thresholds must be >= 0")
@@ -152,6 +152,8 @@ async def lineart_filter(request: LineArtRequest):
         else:
             gray = img_array
         
+        height, width = gray.shape
+        
         # Apply Canny edge detection
         edges = cv2.Canny(gray, request.threshold1, request.threshold2)
         
@@ -163,27 +165,37 @@ async def lineart_filter(request: LineArtRequest):
         # Find contours
         contours, _ = cv2.findContours(closed, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         
-        # Create white background
-        result = np.ones_like(gray) * 255
+        # Convert contours to SVG paths
+        svg_paths = []
+        for contour in contours:
+            if len(contour) < 3:  # Skip tiny contours
+                continue
+            
+            # Build SVG path data
+            path_data = []
+            for i, point in enumerate(contour):
+                x, y = point[0]
+                if i == 0:
+                    path_data.append(f"M {x} {y}")  # Move to start
+                else:
+                    path_data.append(f"L {x} {y}")  # Line to point
+            path_data.append("Z")  # Close path
+            
+            svg_paths.append(f'<path d="{" ".join(path_data)}" fill="none" stroke="black" stroke-width="{request.line_thickness}" stroke-linecap="round" stroke-linejoin="round"/>')
         
-        # Draw contours with specified thickness
-        cv2.drawContours(result, contours, -1, (0), thickness=request.line_thickness)
+        # Create SVG document
+        svg_content = f'''<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
+  <rect width="{width}" height="{height}" fill="{"white" if request.invert else "black"}"/>
+  <g>
+    {chr(10).join(svg_paths)}
+  </g>
+</svg>'''
         
-        # Invert if requested (white lines on black)
-        if not request.invert:
-            result = cv2.bitwise_not(result)
-        
-        # Convert back to PIL
-        result_img = Image.fromarray(result)
-        
-        # Save as PNG
-        output = io.BytesIO()
-        result_img.save(output, format="PNG", optimize=True)
-        output.seek(0)
-        
-        return Response(content=output.getvalue(), media_type="image/png")
+        return Response(content=svg_content, media_type="image/svg+xml")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Image processing failed: {str(e)}")
+
 
 if __name__ == "__main__":
     import uvicorn
