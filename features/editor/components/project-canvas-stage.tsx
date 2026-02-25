@@ -8,7 +8,7 @@
  * - Delegate RAF/bounds/transform persistence to controller modules.
  */
 import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react"
-import { Image as KonvaImage, Layer, Line, Rect, Stage } from "react-konva"
+import { Group, Image as KonvaImage, Layer, Line, Rect, Stage } from "react-konva"
 import type Konva from "konva"
 
 import { fitToWorld, panBy, zoomAround } from "@/lib/editor/canvas-model"
@@ -81,6 +81,8 @@ type Props = {
   rotateEnabled?: boolean
   /** Global guard for all image mutations (resize/align/restore/rotate). */
   mutationsEnabled?: boolean
+  /** Clip image/overlays to artboard bounds. */
+  clipToArtboard?: boolean
 }
 
 export type ProjectCanvasStageHandle = {
@@ -239,6 +241,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     cropBusy = false,
     rotateEnabled = true,
     mutationsEnabled = true,
+    clipToArtboard = false,
   },
   ref
 ) {
@@ -375,6 +378,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   const hasArtboard = Boolean((artboardWidthPx ?? 0) > 0 && (artboardHeightPx ?? 0) > 0)
   // `drawArtboard` controls only whether the artboard visuals are rendered.
   const drawArtboard = renderArtboard && hasArtboard
+  const shouldClipToArtboard = clipToArtboard && hasArtboard
   const artW = world?.w ?? 0
   const artH = world?.h ?? 0
   const borderColor = "#000000"
@@ -868,160 +872,167 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
         >
           {drawArtboard ? <Rect x={0} y={0} width={artW} height={artH} fill="#ffffff" listening={false} /> : null}
 
-          {img && imageTx && imageRender ? (
-            <KonvaImage
-              ref={(n) => {
-                imageNodeRef.current = n
-              }}
-              image={img}
-              listening={imageDraggable}
-              rotation={rotation}
-              width={imageRender.width}
-              height={imageRender.height}
-              scaleX={1}
-              scaleY={1}
-              offsetX={imageRender.width / 2}
-              offsetY={imageRender.height / 2}
-              x={imageRender.x}
-              y={imageRender.y}
-              draggable={imageDraggable}
-              onDragStart={() => {
-                userInteractedRef.current = true
-                // Mark as user-changed immediately, so a late `initialImageTransform`
-                // cannot override state mid-drag.
-                markUserChanged()
-                const node = imageNodeRef.current
-                dragPosRef.current = node ? { x: node.x(), y: node.y() } : null
-                setIsDraggingImage(true)
-                scheduleBoundsUpdate()
-              }}
-              onDragMove={() => {
-                updateBoundsDuringDragMove()
-              }}
-              onDragEnd={() => {
-                markUserChanged()
-                scheduleCommitTransform(true, 0)
-                dragPosRef.current = null
-                setIsDraggingImage(false)
-                scheduleBoundsUpdate()
-              }}
-            />
-          ) : null}
-
-          {/* Grid overlay (under selection frame). */}
-          {gridLines && gridLines.lines.length ? (
-            <>
-              {gridLines.lines.map((l) => (
-                <Line
-                  key={l.key}
-                  points={l.points}
-                  stroke={gridLines.stroke}
-                  strokeWidth={gridLines.strokeWidth}
-                  strokeScaleEnabled={false}
-                  listening={false}
-                />
-              ))}
-            </>
-          ) : null}
-
-          {/* Default selection frame (shown when the Select tool is active) */}
-          {renderArtboard && imageDraggable && !cropEnabled && !isDraggingImage ? (
-            <>
-              <SelectionOverlay
-                imageBounds={imageBounds}
-                view={view}
-                selectionHandlePx={selectionHandlePx}
-                selectionColor={selectionColor}
-                selectionDash={selectionDash}
-                snapWorldToDeviceHalfPixel={snapWorldToDeviceHalfPixel}
-              />
-              {selectRects
-                ? (
-                    [
-                      { key: "tl", pt: selectRects.handles.tl },
-                      { key: "tm", pt: selectRects.handles.tm },
-                      { key: "tr", pt: selectRects.handles.tr },
-                      { key: "rm", pt: selectRects.handles.rm },
-                      { key: "br", pt: selectRects.handles.br },
-                      { key: "bm", pt: selectRects.handles.bm },
-                      { key: "bl", pt: selectRects.handles.bl },
-                      { key: "lm", pt: selectRects.handles.lm },
-                    ] as Array<{ key: ResizeHandle; pt: { x: number; y: number } }>
-                  ).map((h) => (
-                    <Rect
-                      key={`select-hit-${h.key}`}
-                      x={h.pt.x}
-                      y={h.pt.y}
-                      width={selectRects.handleSize.w}
-                      height={selectRects.handleSize.h}
-                      fill="rgba(0,0,0,0)"
-                      strokeScaleEnabled={false}
-                      listening
-                      onMouseDown={(e) => {
-                        e.cancelBubble = true
-                        e.evt.preventDefault()
-                        beginSelectResize(h.key, Boolean(e.evt.shiftKey))
-                      }}
-                    />
-                  ))
-                : null}
-            </>
-          ) : null}
-
-          {/* Crop overlay (interactive while crop tool is active). */}
-          {renderArtboard && cropEnabled && cropRect && cropRects ? (
-            <>
-              {/* Crop uses its own dashed inner frame within image bounds. */}
-              <SelectionOverlay
-                imageBounds={{ x: cropRect.x, y: cropRect.y, w: cropRect.w, h: cropRect.h }}
-                view={view}
-                selectionHandlePx={selectionHandlePx}
-                selectionColor={selectionColor}
-                selectionDash={[4, 4]}
-                snapWorldToDeviceHalfPixel={snapWorldToDeviceHalfPixel}
-              />
-              <Rect
-                x={cropRect.x}
-                y={cropRect.y}
-                width={cropRect.w}
-                height={cropRect.h}
-                fill="rgba(0,0,0,0)"
-                draggable={!cropBusy}
-                onDragStart={(e) => {
-                  e.cancelBubble = true
+          <Group
+            clipX={shouldClipToArtboard ? 0 : undefined}
+            clipY={shouldClipToArtboard ? 0 : undefined}
+            clipWidth={shouldClipToArtboard ? artW : undefined}
+            clipHeight={shouldClipToArtboard ? artH : undefined}
+          >
+            {img && imageTx && imageRender ? (
+              <KonvaImage
+                ref={(n) => {
+                  imageNodeRef.current = n
                 }}
-                onDragMove={(e) => applyCropMove(e.target.x(), e.target.y())}
+                image={img}
+                listening={imageDraggable}
+                rotation={rotation}
+                width={imageRender.width}
+                height={imageRender.height}
+                scaleX={1}
+                scaleY={1}
+                offsetX={imageRender.width / 2}
+                offsetY={imageRender.height / 2}
+                x={imageRender.x}
+                y={imageRender.y}
+                draggable={imageDraggable}
+                onDragStart={() => {
+                  userInteractedRef.current = true
+                  // Mark as user-changed immediately, so a late `initialImageTransform`
+                  // cannot override state mid-drag.
+                  markUserChanged()
+                  const node = imageNodeRef.current
+                  dragPosRef.current = node ? { x: node.x(), y: node.y() } : null
+                  setIsDraggingImage(true)
+                  scheduleBoundsUpdate()
+                }}
+                onDragMove={() => {
+                  updateBoundsDuringDragMove()
+                }}
+                onDragEnd={() => {
+                  markUserChanged()
+                  scheduleCommitTransform(true, 0)
+                  dragPosRef.current = null
+                  setIsDraggingImage(false)
+                  scheduleBoundsUpdate()
+                }}
               />
-              {(
-                [
-                  { key: "tl", pt: cropRects.handles.tl },
-                  { key: "tm", pt: cropRects.handles.tm },
-                  { key: "tr", pt: cropRects.handles.tr },
-                  { key: "rm", pt: cropRects.handles.rm },
-                  { key: "br", pt: cropRects.handles.br },
-                  { key: "bm", pt: cropRects.handles.bm },
-                  { key: "bl", pt: cropRects.handles.bl },
-                  { key: "lm", pt: cropRects.handles.lm },
-                ] as Array<{ key: ResizeHandle; pt: { x: number; y: number } }>
-              ).map((h) => (
-                <Rect
-                  key={`crop-hit-${h.key}`}
-                  x={h.pt.x}
-                  y={h.pt.y}
-                  width={cropRects.handleSize.w}
-                  height={cropRects.handleSize.h}
-                  fill="rgba(0,0,0,0)"
-                  strokeScaleEnabled={false}
-                  listening={!cropBusy}
-                  onMouseDown={(e) => {
-                    e.cancelBubble = true
-                    e.evt.preventDefault()
-                    beginCropResize(h.key, Boolean(e.evt.shiftKey))
-                  }}
+            ) : null}
+
+            {/* Grid overlay (under selection frame). */}
+            {gridLines && gridLines.lines.length ? (
+              <>
+                {gridLines.lines.map((l) => (
+                  <Line
+                    key={l.key}
+                    points={l.points}
+                    stroke={gridLines.stroke}
+                    strokeWidth={gridLines.strokeWidth}
+                    strokeScaleEnabled={false}
+                    listening={false}
+                  />
+                ))}
+              </>
+            ) : null}
+
+            {/* Default selection frame (shown when the Select tool is active) */}
+            {renderArtboard && imageDraggable && !cropEnabled && !isDraggingImage ? (
+              <>
+                <SelectionOverlay
+                  imageBounds={imageBounds}
+                  view={view}
+                  selectionHandlePx={selectionHandlePx}
+                  selectionColor={selectionColor}
+                  selectionDash={selectionDash}
+                  snapWorldToDeviceHalfPixel={snapWorldToDeviceHalfPixel}
                 />
-              ))}
-            </>
-          ) : null}
+                {selectRects
+                  ? (
+                      [
+                        { key: "tl", pt: selectRects.handles.tl },
+                        { key: "tm", pt: selectRects.handles.tm },
+                        { key: "tr", pt: selectRects.handles.tr },
+                        { key: "rm", pt: selectRects.handles.rm },
+                        { key: "br", pt: selectRects.handles.br },
+                        { key: "bm", pt: selectRects.handles.bm },
+                        { key: "bl", pt: selectRects.handles.bl },
+                        { key: "lm", pt: selectRects.handles.lm },
+                      ] as Array<{ key: ResizeHandle; pt: { x: number; y: number } }>
+                    ).map((h) => (
+                      <Rect
+                        key={`select-hit-${h.key}`}
+                        x={h.pt.x}
+                        y={h.pt.y}
+                        width={selectRects.handleSize.w}
+                        height={selectRects.handleSize.h}
+                        fill="rgba(0,0,0,0)"
+                        strokeScaleEnabled={false}
+                        listening
+                        onMouseDown={(e) => {
+                          e.cancelBubble = true
+                          e.evt.preventDefault()
+                          beginSelectResize(h.key, Boolean(e.evt.shiftKey))
+                        }}
+                      />
+                    ))
+                  : null}
+              </>
+            ) : null}
+
+            {/* Crop overlay (interactive while crop tool is active). */}
+            {renderArtboard && cropEnabled && cropRect && cropRects ? (
+              <>
+                {/* Crop uses its own dashed inner frame within image bounds. */}
+                <SelectionOverlay
+                  imageBounds={{ x: cropRect.x, y: cropRect.y, w: cropRect.w, h: cropRect.h }}
+                  view={view}
+                  selectionHandlePx={selectionHandlePx}
+                  selectionColor={selectionColor}
+                  selectionDash={[4, 4]}
+                  snapWorldToDeviceHalfPixel={snapWorldToDeviceHalfPixel}
+                />
+                <Rect
+                  x={cropRect.x}
+                  y={cropRect.y}
+                  width={cropRect.w}
+                  height={cropRect.h}
+                  fill="rgba(0,0,0,0)"
+                  draggable={!cropBusy}
+                  onDragStart={(e) => {
+                    e.cancelBubble = true
+                  }}
+                  onDragMove={(e) => applyCropMove(e.target.x(), e.target.y())}
+                />
+                {(
+                  [
+                    { key: "tl", pt: cropRects.handles.tl },
+                    { key: "tm", pt: cropRects.handles.tm },
+                    { key: "tr", pt: cropRects.handles.tr },
+                    { key: "rm", pt: cropRects.handles.rm },
+                    { key: "br", pt: cropRects.handles.br },
+                    { key: "bm", pt: cropRects.handles.bm },
+                    { key: "bl", pt: cropRects.handles.bl },
+                    { key: "lm", pt: cropRects.handles.lm },
+                  ] as Array<{ key: ResizeHandle; pt: { x: number; y: number } }>
+                ).map((h) => (
+                  <Rect
+                    key={`crop-hit-${h.key}`}
+                    x={h.pt.x}
+                    y={h.pt.y}
+                    width={cropRects.handleSize.w}
+                    height={cropRects.handleSize.h}
+                    fill="rgba(0,0,0,0)"
+                    strokeScaleEnabled={false}
+                    listening={!cropBusy}
+                    onMouseDown={(e) => {
+                      e.cancelBubble = true
+                      e.evt.preventDefault()
+                      beginCropResize(h.key, Boolean(e.evt.shiftKey))
+                    }}
+                  />
+                ))}
+              </>
+            ) : null}
+          </Group>
 
           {drawArtboard ? (
             <>

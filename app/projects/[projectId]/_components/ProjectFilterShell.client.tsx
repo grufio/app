@@ -31,6 +31,7 @@ import { Label } from "@/components/ui/label"
 import { SidebarContent, SidebarMenu, SidebarMenuAction, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { EditorSidebarSection } from "@/features/editor/components/sidebar/editor-sidebar-section"
+import { FilterTypeCards } from "@/features/editor/components/filter-type-cards"
 import { ToolbarIconButton } from "@/features/editor/components/toolbar-icon-button"
 import { ProjectEditorHeader, ProjectEditorLayout } from "@/features/editor"
 import type { ProjectCanvasStageHandle } from "@/features/editor/components/project-canvas-stage"
@@ -129,6 +130,11 @@ export function ProjectFilterPageClient(props: { projectId: string }) {
   const canvasRef = useRef<ProjectCanvasStageHandle | null>(null)
   const filters = useProjectImageFilters(props.projectId)
   const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false)
+  const [selectedFilterCardId, setSelectedFilterCardId] = useState<string | null>(null)
+  const FILTER_CARD_ITEMS = [
+    { id: "new-filter-card", label: "Filter Card", thumbUrl: masterImage?.signedUrl ?? null },
+    { id: "new-filter-card-2", label: "Filter Card 2", thumbUrl: masterImage?.signedUrl ?? null },
+  ] as const
 
   useLoadImageStateOnActiveImageChange({ masterImageId: masterImage?.id ?? null, loadImageState })
   const toolbar = useFloatingToolbarControls({
@@ -144,6 +150,17 @@ export function ProjectFilterPageClient(props: { projectId: string }) {
     if (!out.ok) return
     await refreshMasterImage()
     await loadImageState()
+  }
+
+  const handleFilterDialogOpenChange = (open: boolean) => {
+    setIsFilterDialogOpen(open)
+    if (!open) setSelectedFilterCardId(null)
+  }
+
+  const handleSelectFilterCard = () => {
+    if (!selectedFilterCardId) return
+    setIsFilterDialogOpen(false)
+    setSelectedFilterCardId(null)
   }
 
   return (
@@ -247,6 +264,7 @@ export function ProjectFilterPageClient(props: { projectId: string }) {
                   cropEnabled={false}
                   rotateEnabled={false}
                   mutationsEnabled={false}
+                  clipToArtboard={true}
                 />
               )}
             </div>
@@ -264,34 +282,26 @@ export function ProjectFilterPageClient(props: { projectId: string }) {
           </aside>
         </main>
       </ProjectEditorLayout>
-      <Dialog open={isFilterDialogOpen} onOpenChange={setIsFilterDialogOpen}>
-        <form>
-          <DialogContent className="sm:max-w-sm">
-            <DialogHeader>
-              <DialogTitle>Edit profile</DialogTitle>
-              <DialogDescription>
-                Make changes to your profile here. Click save when you&apos;re
-                done.
-              </DialogDescription>
-            </DialogHeader>
-            <FieldGroup>
-              <Field>
-                <Label htmlFor="name-1">Name</Label>
-                <Input id="name-1" name="name" defaultValue="Pedro Duarte" />
-              </Field>
-              <Field>
-                <Label htmlFor="username-1">Username</Label>
-                <Input id="username-1" name="username" defaultValue="@peduarte" />
-              </Field>
-            </FieldGroup>
-            <DialogFooter>
-              <DialogClose asChild>
-                <Button variant="outline">Cancel</Button>
-              </DialogClose>
-              <Button type="submit">Save changes</Button>
-            </DialogFooter>
-          </DialogContent>
-        </form>
+      <Dialog open={isFilterDialogOpen} onOpenChange={handleFilterDialogOpenChange}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Filter</DialogTitle>
+            <DialogDescription>Select a card.</DialogDescription>
+          </DialogHeader>
+          <FilterTypeCards
+            items={[...FILTER_CARD_ITEMS]}
+            selectedId={selectedFilterCardId}
+            onSelect={setSelectedFilterCardId}
+          />
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline">Cancel</Button>
+            </DialogClose>
+            <Button onClick={handleSelectFilterCard} disabled={!selectedFilterCardId}>
+              Select
+            </Button>
+          </DialogFooter>
+        </DialogContent>
       </Dialog>
     </div>
   )

@@ -65,7 +65,8 @@ export function ProjectPreviewCard({
         <Card
           className={cn(
             "gap-0 overflow-hidden py-0 transition-shadow hover:shadow-sm",
-            "border border-border hover:border-violet-500"
+            "border border-border hover:border-violet-500",
+            "rounded-md"
           )}
         >
           <div className="relative aspect-[4/3] bg-muted">
