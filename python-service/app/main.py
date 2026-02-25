@@ -124,6 +124,15 @@ async def pixelate_filter(request: PixelateRequest):
 
 @app.post("/filters/lineart")
 async def lineart_filter(request: LineArtRequest):
+    """
+    Apply line art filter with closed contours for coloring.
+    
+    Algorithm:
+    1. Canny edge detection
+    2. Close gaps with morphological operations
+    3. Find and draw closed contours
+    4. Result: Black lines with closed regions ready for coloring
+    """
     if request.threshold1 < 0 or request.threshold2 < 0:
         raise HTTPException(status_code=400, detail="Thresholds must be >= 0")
     if request.threshold1 >= request.threshold2:
@@ -132,33 +141,49 @@ async def lineart_filter(request: LineArtRequest):
         raise HTTPException(status_code=400, detail="Line thickness must be between 1 and 10")
     
     try:
+        # Decode and convert image
         img_bytes = base64.b64decode(request.image_base64)
         img = Image.open(io.BytesIO(img_bytes))
         img_array = np.array(img)
         
+        # Convert to grayscale
         if len(img_array.shape) == 3:
             gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
         else:
             gray = img_array
         
+        # Apply Canny edge detection
         edges = cv2.Canny(gray, request.threshold1, request.threshold2)
         
-        if request.line_thickness > 1:
-            kernel = np.ones((request.line_thickness, request.line_thickness), np.uint8)
-            edges = cv2.dilate(edges, kernel, iterations=1)
+        # Close gaps with morphological closing
+        kernel_size = max(3, request.line_thickness + 2)
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_size, kernel_size))
+        closed = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel)
         
-        if request.invert:
-            edges = cv2.bitwise_not(edges)
+        # Find contours
+        contours, _ = cv2.findContours(closed, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         
-        result = Image.fromarray(edges)
+        # Create white background
+        result = np.ones_like(gray) * 255
+        
+        # Draw contours with specified thickness
+        cv2.drawContours(result, contours, -1, (0), thickness=request.line_thickness)
+        
+        # Invert if requested (white lines on black)
+        if not request.invert:
+            result = cv2.bitwise_not(result)
+        
+        # Convert back to PIL
+        result_img = Image.fromarray(result)
+        
+        # Save as PNG
         output = io.BytesIO()
-        result.save(output, format="PNG", optimize=True)
+        result_img.save(output, format="PNG", optimize=True)
         output.seek(0)
         
         return Response(content=output.getvalue(), media_type="image/png")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Image processing failed: {str(e)}")
-
 
 if __name__ == "__main__":
     import uvicorn
