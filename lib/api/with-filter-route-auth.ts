@@ -89,6 +89,6 @@ export async function withFilterRouteAuth<T = unknown>(
   return handler(req, {
     supabase,
     projectId,
-    userId: u.value.id,
+    userId: u.user.id,
   })
 }
