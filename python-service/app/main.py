@@ -6,6 +6,8 @@ from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from PIL import Image
+import cv2
+import numpy as np
 import io
 import base64
 from typing import Literal
