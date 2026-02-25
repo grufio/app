@@ -1,5 +1,4 @@
 import crypto from "node:crypto"
-import FormData from "form-data"
 
 import type { SupabaseClient } from "@supabase/supabase-js"
 
@@ -130,20 +129,20 @@ export async function pixelateImageAndActivate(args: {
 
   try {
     // Call Python service for pixelation
-    const formData = new FormData()
-    formData.append("image", srcBuffer, {
-      filename: `source.${outputFormat}`,
-      contentType: contentTypeFor(outputFormat),
-    })
-    formData.append("superpixel_width", superpixelWidth.toString())
-    formData.append("superpixel_height", superpixelHeight.toString())
-    formData.append("color_mode", params.colorMode)
-    formData.append("num_colors", numColors.toString())
+    const imageBase64 = srcBuffer.toString("base64")
 
     const response = await fetch(`${PYTHON_SERVICE_URL}/filters/pixelate`, {
       method: "POST",
-      body: formData as any,
-      headers: formData.getHeaders(),
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        image_base64: imageBase64,
+        superpixel_width: superpixelWidth,
+        superpixel_height: superpixelHeight,
+        color_mode: params.colorMode,
+        num_colors: numColors,
+      }),
     })
 
     if (!response.ok) {
