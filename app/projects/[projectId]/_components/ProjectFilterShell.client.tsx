@@ -124,6 +124,8 @@ export function ProjectFilterPageClient(props: { projectId: string }) {
   useEffect(() => {
     console.log("[FilterStack]", {
       displayImageId: workingImage?.id,
+      imageName: workingImage?.name,
+      isFilterResult: workingImage?.isFilterResult,
       stackLength: filterStack.stack.length,
       stack: filterStack.stack,
     })
