@@ -29,6 +29,15 @@ class PixelateRequest(BaseModel):
     num_colors: int = 16
 
 
+class LineArtRequest(BaseModel):
+    image_base64: str
+    threshold1: int = 100
+    threshold2: int = 200
+    line_thickness: int = 1
+    invert: bool = False
+
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok"}
@@ -105,6 +114,46 @@ async def pixelate_filter(request: PixelateRequest):
         
         return Response(content=output.getvalue(), media_type="image/png")
         
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Image processing failed: {str(e)}")
+
+
+
+
+@app.post("/filters/lineart")
+async def lineart_filter(request: LineArtRequest):
+    if request.threshold1 < 0 or request.threshold2 < 0:
+        raise HTTPException(status_code=400, detail="Thresholds must be >= 0")
+    if request.threshold1 >= request.threshold2:
+        raise HTTPException(status_code=400, detail="threshold1 must be < threshold2")
+    if request.line_thickness < 1 or request.line_thickness > 10:
+        raise HTTPException(status_code=400, detail="Line thickness must be between 1 and 10")
+    
+    try:
+        img_bytes = base64.b64decode(request.image_base64)
+        img = Image.open(io.BytesIO(img_bytes))
+        img_array = np.array(img)
+        
+        if len(img_array.shape) == 3:
+            gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
+        else:
+            gray = img_array
+        
+        edges = cv2.Canny(gray, request.threshold1, request.threshold2)
+        
+        if request.line_thickness > 1:
+            kernel = np.ones((request.line_thickness, request.line_thickness), np.uint8)
+            edges = cv2.dilate(edges, kernel, iterations=1)
+        
+        if request.invert:
+            edges = cv2.bitwise_not(edges)
+        
+        result = Image.fromarray(edges)
+        output = io.BytesIO()
+        result.save(output, format="PNG", optimize=True)
+        output.seek(0)
+        
+        return Response(content=output.getvalue(), media_type="image/png")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Image processing failed: {str(e)}")
 
