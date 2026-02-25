@@ -701,7 +701,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   }, [imageRender])
 
   const cropMinSize = 10
-  const cropLimitFrame = imageFrame
+  const cropLimitFrame = hasArtboard ? { x: 0, y: 0, w: artW, h: artH } : imageFrame
   const { beginSelectResize, stopSelectResize } = useSelectResizeController({
     containerRef,
     view,

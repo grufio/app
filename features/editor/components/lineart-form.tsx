@@ -23,13 +23,13 @@ type Props = {
 }
 
 export function LineArtForm({ onCancel, onApply, busy = false }: Props) {
-  const [threshold1, setThreshold1] = useState(100)
+  const [threshold1, setThreshold1] = useState(50)
   const [threshold2, setThreshold2] = useState(200)
   const [lineThickness, setLineThickness] = useState(2)
   const [invert, setInvert] = useState(true)
   const [blurAmount, setBlurAmount] = useState(3)
-  const [minContourArea, setMinContourArea] = useState(100)
-  const [smoothness, setSmoothness] = useState(0.01)
+  const [minContourArea, setMinContourArea] = useState(500)
+  const [smoothness, setSmoothness] = useState(0.002)
 
   const isValid = useMemo(() => {
     return (

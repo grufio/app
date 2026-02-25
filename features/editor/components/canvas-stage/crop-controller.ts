@@ -52,6 +52,17 @@ export function useCropController(opts: {
   const [cropRect, setCropRect] = useState<CropRectWorld | null>(null)
   const cropRectRef = useRef<CropRectWorld | null>(null)
   const cleanupRef = useRef<null | (() => void)>(null)
+
+  useEffect(() => {
+    if (cropEnabled && !cropRect && imageFrame) {
+      if (cropLimitFrame) {
+        setCropRect(cropLimitFrame)
+      } else {
+        setCropRect(imageFrame)
+      }
+    }
+  }, [cropEnabled, cropRect, imageFrame, cropLimitFrame])
+
   const effectiveCropRect = useCallback((): CropRectWorld | null => {
     if (!cropEnabled || !imageFrame) return null
     return clampCropRect(cropRect ?? imageFrame, imageFrame, cropMinSize)
@@ -66,16 +77,19 @@ export function useCropController(opts: {
   }, [])
 
   useEffect(() => {
-    if (!cropEnabled) stopCropResize()
+    if (!cropEnabled) {
+      stopCropResize()
+      setCropRect(null)
+    }
   }, [cropEnabled, stopCropResize])
 
   const applyCropMove = useCallback(
     (dx: number, dy: number) => {
       const base = cropRectRef.current
       if (!base) return
-      setCropRect(clampCropRect({ ...base, x: dx, y: dy }, cropLimitFrame, cropMinSize))
+      setCropRect({ ...base, x: dx, y: dy })
     },
-    [cropLimitFrame, cropMinSize]
+    []
   )
 
   const applyCropResize = useCallback(
@@ -90,11 +104,15 @@ export function useCropController(opts: {
           pointerY,
           minSize: cropMinSize,
           keepAspect,
-          clamp: (next) => clampCropRect(next, cropLimitFrame, cropMinSize),
+          clamp: (next) => {
+            const w = Math.max(cropMinSize, next.w)
+            const h = Math.max(cropMinSize, next.h)
+            return { x: next.x, y: next.y, w, h }
+          },
         })
       })
     },
-    [cropLimitFrame, cropMinSize]
+    [cropMinSize]
   )
 
   const beginCropResize = useCallback(
@@ -166,4 +184,3 @@ export function useCropController(opts: {
     stopCropResize,
   }
 }
-

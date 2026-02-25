@@ -119,13 +119,13 @@ async def pixelate_filter(request: PixelateRequest):
 
 class LineArtRequest(BaseModel):
     image_base64: str
-    threshold1: int = 100
+    threshold1: int = 50
     threshold2: int = 200
     line_thickness: int = 2
     invert: bool = True
     blur_amount: int = 3
-    min_contour_area: int = 100
-    smoothness: float = 0.01
+    min_contour_area: int = 500
+    smoothness: float = 0.002
 
 
 class NumerateRequest(BaseModel):
