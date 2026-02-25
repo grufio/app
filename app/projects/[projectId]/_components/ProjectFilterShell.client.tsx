@@ -127,7 +127,9 @@ export function ProjectFilterPageClient(props: { projectId: string }) {
       imageName: workingImage?.name,
       isFilterResult: workingImage?.isFilterResult,
       stackLength: filterStack.stack.length,
-      stack: filterStack.stack,
+      stackLength: filterStack.stack.length,
+      stackIds: filterStack.stack.map(f => f.id),
+      stackTypes: filterStack.stack.map(f => f.filterType),
     })
   }, [workingImage?.id, filterStack.stack])
   const canvasRef = useRef<ProjectCanvasStageHandle | null>(null)
