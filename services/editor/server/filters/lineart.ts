@@ -106,7 +106,7 @@ export async function lineArtImageAndActivate(args: {
   try {
     const imageBase64 = srcBuffer.toString("base64")
 
-    const response = await fetch(\`\${PYTHON_SERVICE_URL}/filters/lineart\`, {
+    const response = await fetch(`${PYTHON_SERVICE_URL}/filters/lineart`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -126,14 +126,14 @@ export async function lineArtImageAndActivate(args: {
         ok: false,
         status: response.status,
         stage: "lineart_process",
-        reason: \`Python service error: \${error}\`,
+        reason: `Python service error: ${error}`,
       }
     }
 
     const outputBuffer = Buffer.from(await response.arrayBuffer())
 
     const imageId = crypto.randomUUID()
-    const objectPath = \`projects/\${projectId}/images/\${imageId}\`
+    const objectPath = `projects/${projectId}/images/${imageId}`
 
     const { error: uploadErr } = await supabase.storage
       .from("project_images")
@@ -150,7 +150,7 @@ export async function lineArtImageAndActivate(args: {
       id: imageId,
       project_id: projectId,
       role: "asset",
-      name: \`\${src.name} (line art)\`,
+      name: `${src.name} (line art)`,
       format: "png",
       width_px: origWidth,
       height_px: origHeight,
