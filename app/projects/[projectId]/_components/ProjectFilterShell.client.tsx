@@ -119,6 +119,15 @@ export function ProjectFilterPageClient(props: { projectId: string }) {
   const { image: workingImage, loading: workingImageLoading, error: workingImageError, refresh: refreshWorkingImage } = useFilterWorkingImage(props.projectId)
   const { initialImageTransform, imageStateLoading, loadImageState } = useImageState(props.projectId, true, null, false)
   const filterStack = useFilterStack(props.projectId, workingImage?.id ?? null)
+
+  // Debug: Log filter stack
+  useEffect(() => {
+    console.log("[FilterStack]", {
+      displayImageId: workingImage?.id,
+      stackLength: filterStack.stack.length,
+      stack: filterStack.stack,
+    })
+  }, [workingImage?.id, filterStack.stack])
   const canvasRef = useRef<ProjectCanvasStageHandle | null>(null)
   const [activeFilterType, setActiveFilterType] = useState<"pixelate" | "lineart" | null>(null)
   const [showFilterSelection, setShowFilterSelection] = useState(false)
