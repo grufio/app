@@ -3,9 +3,9 @@
  *
  * Logic:
  * 1. Load working copy of active image
- * 2. Check if a filter result exists (source_image_id = workingCopy.id)
- * 3. If filter result exists: return filter result
- * 4. If not: return working copy
+ * 2. Walk the entire filter chain starting from workingCopy
+ * 3. Return the last filter result in the chain
+ * 4. If no filters exist: return working copy
  */
 "use client"
 
@@ -50,45 +50,59 @@ export function useFilterWorkingImage(projectId: string) {
       try {
         const workingCopy = await getOrCreateFilterWorkingCopy(projectId)
         
-        // Check if a filter result exists (has source_image_id = workingCopy.id)
+        // Initialize currentImage with working copy
+        let currentImage = {
+          id: workingCopy.id,
+          signedUrl: workingCopy.signedUrl,
+          width_px: workingCopy.width_px,
+          height_px: workingCopy.height_px,
+          storage_path: workingCopy.storage_path,
+          source_image_id: workingCopy.source_image_id,
+          name: workingCopy.name,
+          isFilterResult: false,
+        }
+
         const supabase = createSupabaseBrowserClient()
-        const { data: filterResult } = await supabase
-          .from("project_images")
-          .select("id,name,storage_bucket,storage_path,width_px,height_px,source_image_id")
-          .eq("project_id", projectId)
-          .eq("source_image_id", workingCopy.id)
-          .eq("role", "asset")
-          .is("deleted_at", null)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle()
 
-        if (filterResult) {
-          // Filter result exists, get signed URL and return it
+        // Walk forward through the filter chain
+        while (true) {
+          const { data: nextFilter } = await supabase
+            .from("project_images")
+            .select("id,name,storage_bucket,storage_path,width_px,height_px,source_image_id")
+            .eq("project_id", projectId)
+            .eq("source_image_id", currentImage.id)
+            .eq("role", "asset")
+            .is("deleted_at", null)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle()
+
+          if (!nextFilter) {
+            // No more filters in chain, currentImage is the last one
+            break
+          }
+
+          // Get signed URL for this filter result
           const { data: signedData } = await supabase.storage
-            .from(String(filterResult.storage_bucket ?? "project_images"))
-            .createSignedUrl(String(filterResult.storage_path), 3600)
+            .from(String(nextFilter.storage_bucket ?? "project_images"))
+            .createSignedUrl(String(nextFilter.storage_path), 3600)
 
-          if (mountedRef.current) {
-            setImage({
-              id: filterResult.id,
-              signedUrl: signedData?.signedUrl ?? "",
-              width_px: filterResult.width_px,
-              height_px: filterResult.height_px,
-              storage_path: filterResult.storage_path,
-              source_image_id: filterResult.source_image_id,
-              name: filterResult.name,
-              isFilterResult: true,
-            })
+          // Update currentImage to this filter result
+          currentImage = {
+            id: nextFilter.id,
+            signedUrl: signedData?.signedUrl ?? "",
+            width_px: nextFilter.width_px,
+            height_px: nextFilter.height_px,
+            storage_path: nextFilter.storage_path,
+            source_image_id: nextFilter.source_image_id,
+            name: nextFilter.name,
+            isFilterResult: true,
           }
-        } else {
-          // No filter result, return working copy
-          if (mountedRef.current) {
-            setImage({
-              ...workingCopy,
-              isFilterResult: false,
-            })
-          }
+        }
+
+        // Return the last image in the chain
+        if (mountedRef.current) {
+          setImage(currentImage)
         }
       } catch (e) {
         if (mountedRef.current) {
