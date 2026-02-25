@@ -31,13 +31,6 @@ class PixelateRequest(BaseModel):
     num_colors: int = 16
 
 
-class LineArtRequest(BaseModel):
-    image_base64: str
-    threshold1: int = 100
-    threshold2: int = 200
-    line_thickness: int = 1
-    invert: bool = False
-
 
 
 @app.get("/health")
@@ -122,16 +115,30 @@ async def pixelate_filter(request: PixelateRequest):
 
 
 
+
+
+class LineArtRequest(BaseModel):
+    image_base64: str
+    threshold1: int = 100
+    threshold2: int = 200
+    line_thickness: int = 1
+    invert: bool = False
+    blur_amount: int = 0
+    min_contour_area: int = 100
+
+
 @app.post("/filters/lineart")
 async def lineart_filter(request: LineArtRequest):
     """
     Apply line art filter with closed contours exported as SVG vectors.
     
     Algorithm:
-    1. Canny edge detection
-    2. Close gaps with morphological operations
-    3. Find closed contours
-    4. Export contours as SVG paths (vectors)
+    1. Optional: Gaussian blur (reduces details)
+    2. Canny edge detection
+    3. Close gaps with morphological operations
+    4. Find closed contours
+    5. Filter by minimum area (removes noise)
+    6. Export contours as SVG paths (vectors)
     """
     if request.threshold1 < 0 or request.threshold2 < 0:
         raise HTTPException(status_code=400, detail="Thresholds must be >= 0")
@@ -139,6 +146,10 @@ async def lineart_filter(request: LineArtRequest):
         raise HTTPException(status_code=400, detail="threshold1 must be < threshold2")
     if request.line_thickness < 1 or request.line_thickness > 10:
         raise HTTPException(status_code=400, detail="Line thickness must be between 1 and 10")
+    if request.blur_amount < 0 or request.blur_amount > 20:
+        raise HTTPException(status_code=400, detail="Blur amount must be between 0 and 20")
+    if request.min_contour_area < 0:
+        raise HTTPException(status_code=400, detail="Min contour area must be >= 0")
     
     try:
         # Decode and convert image
@@ -154,6 +165,12 @@ async def lineart_filter(request: LineArtRequest):
         
         height, width = gray.shape
         
+        # Apply Gaussian blur if requested (reduces details)
+        if request.blur_amount > 0:
+            # Blur kernel must be odd
+            kernel_size = request.blur_amount * 2 + 1
+            gray = cv2.GaussianBlur(gray, (kernel_size, kernel_size), 0)
+        
         # Apply Canny edge detection
         edges = cv2.Canny(gray, request.threshold1, request.threshold2)
         
@@ -165,10 +182,17 @@ async def lineart_filter(request: LineArtRequest):
         # Find contours
         contours, _ = cv2.findContours(closed, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         
+        # Filter contours by minimum area
+        filtered_contours = []
+        for contour in contours:
+            area = cv2.contourArea(contour)
+            if area >= request.min_contour_area:
+                filtered_contours.append(contour)
+        
         # Convert contours to SVG paths
         svg_paths = []
-        for contour in contours:
-            if len(contour) < 3:  # Skip tiny contours
+        for contour in filtered_contours:
+            if len(contour) < 3:
                 continue
             
             # Build SVG path data
@@ -176,10 +200,10 @@ async def lineart_filter(request: LineArtRequest):
             for i, point in enumerate(contour):
                 x, y = point[0]
                 if i == 0:
-                    path_data.append(f"M {x} {y}")  # Move to start
+                    path_data.append(f"M {x} {y}")
                 else:
-                    path_data.append(f"L {x} {y}")  # Line to point
-            path_data.append("Z")  # Close path
+                    path_data.append(f"L {x} {y}")
+            path_data.append("Z")
             
             svg_paths.append(f'<path d="{" ".join(path_data)}" fill="none" stroke="black" stroke-width="{request.line_thickness}" stroke-linecap="round" stroke-linejoin="round"/>')
         
@@ -195,6 +219,7 @@ async def lineart_filter(request: LineArtRequest):
         return Response(content=svg_content, media_type="image/svg+xml")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Image processing failed: {str(e)}")
+
 
 
 if __name__ == "__main__":

@@ -11,6 +11,8 @@ export type LineArtFormData = {
   threshold2: number
   lineThickness: number
   invert: boolean
+  blurAmount: number
+  minContourArea: number
 }
 
 type Props = {
@@ -24,6 +26,8 @@ export function LineArtForm({ onCancel, onApply, busy = false }: Props) {
   const [threshold2, setThreshold2] = useState(200)
   const [lineThickness, setLineThickness] = useState(1)
   const [invert, setInvert] = useState(true)
+  const [blurAmount, setBlurAmount] = useState(0)
+  const [minContourArea, setMinContourArea] = useState(100)
 
   const isValid = useMemo(() => {
     return (
@@ -42,6 +46,8 @@ export function LineArtForm({ onCancel, onApply, busy = false }: Props) {
       threshold2,
       lineThickness,
       invert,
+      blurAmount,
+      minContourArea,
     })
   }
 
@@ -88,6 +94,35 @@ export function LineArtForm({ onCancel, onApply, busy = false }: Props) {
             disabled={busy}
           />
           <p className="text-xs text-muted-foreground">Thickness in pixels (1-10)</p>
+        </Field>
+
+        <Field>
+          <Label htmlFor="blurAmount">Blur Amount</Label>
+          <Input
+            id="blurAmount"
+            type="number"
+            min={0}
+            max={20}
+            value={blurAmount}
+            onChange={(e) => setBlurAmount(Number(e.target.value))}
+            disabled={busy}
+          />
+          <p className="text-xs text-muted-foreground">Smoothing before edge detection (0-20, 0=no blur)</p>
+        </Field>
+
+        <Field>
+          <Label htmlFor="minContourArea">Min. Detail Size</Label>
+          <Input
+            id="minContourArea"
+            type="number"
+            min={0}
+            max={10000}
+            step={50}
+            value={minContourArea}
+            onChange={(e) => setMinContourArea(Number(e.target.value))}
+            disabled={busy}
+          />
+          <p className="text-xs text-muted-foreground">Minimum contour area in pixels (removes small details)</p>
         </Field>
 
         <Field>

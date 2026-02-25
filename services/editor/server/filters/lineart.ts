@@ -39,6 +39,8 @@ type LineArtParams = {
   threshold2: number
   lineThickness: number
   invert: boolean
+  blurAmount: number
+  minContourArea: number
 }
 
 function toInt(value: number): number | null {
@@ -63,6 +65,8 @@ export async function lineArtImageAndActivate(args: {
   const { supabase, projectId, sourceImageId, params } = args
   const threshold1 = toInt(params.threshold1)
   const threshold2 = toInt(params.threshold2)
+  const blurAmount = toInt(params.blurAmount)
+  const minContourArea = toInt(params.minContourArea)
   const lineThickness = toInt(params.lineThickness)
 
   if (
@@ -71,6 +75,11 @@ export async function lineArtImageAndActivate(args: {
     threshold1 < 0 ||
     threshold2 < 0 ||
     threshold1 >= threshold2 ||
+    blurAmount == null ||
+    blurAmount < 0 ||
+    blurAmount > 20 ||
+    minContourArea == null ||
+    minContourArea < 0 ||
     lineThickness == null ||
     lineThickness < 1 ||
     lineThickness > 10
@@ -128,6 +137,8 @@ export async function lineArtImageAndActivate(args: {
         threshold2: threshold2,
         line_thickness: lineThickness,
         invert: params.invert,
+        blur_amount: blurAmount,
+        min_contour_area: minContourArea,
       }),
     })
 

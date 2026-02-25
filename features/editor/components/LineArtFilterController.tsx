@@ -43,6 +43,8 @@ export function LineArtFilterController({
         threshold1: data.threshold1,
         threshold2: data.threshold2,
         lineThickness: data.lineThickness,
+        blurAmount: data.blurAmount,
+        minContourArea: data.minContourArea,
         invert: data.invert,
       })
       onSuccess()

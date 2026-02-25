@@ -375,6 +375,8 @@ export async function applyLineArtFilter(args: {
   threshold2: number
   lineThickness: number
   invert: boolean
+  blurAmount: number
+  minContourArea: number
 }): Promise<{ id: string; width_px: number; height_px: number }> {
   const { projectId, sourceImageId, threshold1, threshold2, lineThickness, invert } = args
   const res = await fetchJson<{ ok?: boolean; id?: string; width_px?: number; height_px?: number }>(
@@ -388,6 +390,8 @@ export async function applyLineArtFilter(args: {
         threshold1,
         threshold2,
         line_thickness: lineThickness,
+        blur_amount: blurAmount,
+        min_contour_area: minContourArea,
         invert,
       }),
     }
