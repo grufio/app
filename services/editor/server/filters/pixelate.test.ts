@@ -4,7 +4,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
-import { pixelateImageAndActivate } from "./pixelate-filter"
+import { pixelateImageAndActivate } from "./pixelate"
 import type { Database } from "@/lib/supabase/database.types"
 
 // Mock sharp - skip actual image processing in tests
