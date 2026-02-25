@@ -3,7 +3,7 @@
  *
  * Responsibilities:
  * - Return active image metadata and a short-lived signed URL for download.
- * - Support deletion of the master image (and associated state) via Supabase.
+ * - Support deletion of the active master image and all transitively derived images.
  */
 import { NextResponse } from "next/server"
 
@@ -13,7 +13,6 @@ import { isUuid, jsonError, requireUser } from "@/lib/api/route-guards"
 export const dynamic = "force-dynamic"
 
 // Best-effort in-memory cache to reduce Storage signed URL churn.
-// This is per server process (works well in dev / long-lived runtimes).
 const signedUrlCache = new Map<string, { url: string; expiresAtMs: number }>()
 const SIGNED_URL_CACHE_MAX_ENTRIES = 500
 const SIGNED_URL_TTL_S = 60 * 10
@@ -86,12 +85,10 @@ export async function GET(
   const dpi = Number.isFinite(dpiRaw) && dpiRaw > 0 ? Math.round(dpiRaw) : null
 
   const now = Date.now()
-  // Signed URLs are bearer tokens; the cache must be user-scoped.
   const bucket = img.storage_bucket ?? "project_images"
   const cacheKey = `${u.user.id}:${bucket}:${img.storage_path}`
   const cached = signedUrlCache.get(cacheKey)
   if (cached && cached.expiresAtMs - SIGNED_URL_RENEW_BUFFER_MS > now) {
-    // LRU: refresh recency on hit.
     signedUrlCache.delete(cacheKey)
     signedUrlCache.set(cacheKey, cached)
     return NextResponse.json({
@@ -116,7 +113,6 @@ export async function GET(
   }
 
   signedUrlCache.set(cacheKey, { url: signed.signedUrl, expiresAtMs: now + SIGNED_URL_TTL_S * 1000 })
-  // Prevent unbounded growth in long-lived runtimes.
   if (signedUrlCache.size > SIGNED_URL_CACHE_MAX_ENTRIES) {
     const firstKey = signedUrlCache.keys().next().value as string | undefined
     if (firstKey) signedUrlCache.delete(firstKey)
@@ -163,8 +159,97 @@ export async function DELETE(
     return jsonError("Forbidden (project not accessible)", 403, { stage: "rls_denied", where: "project_access" })
   }
 
-  return jsonError("Master image is immutable. Deletion is not allowed.", 409, {
-    stage: "master_immutable",
-    reason: "master_delete_forbidden",
-  })
+  // Fetch the active image to delete
+  const { data: imageToDelete, error: fetchErr } = await supabase
+    .from("project_images")
+    .select("id,storage_path,storage_bucket,is_active")
+    .eq("project_id", projectId)
+    .eq("is_active", true)
+    .is("deleted_at", null)
+    .maybeSingle()
+
+  if (fetchErr) {
+    return jsonError("Failed to fetch image", 400, { stage: "fetch_image" })
+  }
+  if (!imageToDelete) {
+    return jsonError("Image not found", 404, { stage: "not_found" })
+  }
+
+  const imageId = imageToDelete.id
+
+  // Fetch ALL images in project to find transitive dependencies
+  const { data: allImages } = await supabase
+    .from("project_images")
+    .select("id,storage_path,storage_bucket,source_image_id")
+    .eq("project_id", projectId)
+    .is("deleted_at", null)
+
+  // Build transitive dependency tree (all images that depend on imageId, directly or transitively)
+  const transitivelyDerived = new Set<string>()
+  const toProcess = [imageId]
+  
+  while (toProcess.length > 0) {
+    const currentId = toProcess.pop()!
+    const children = (allImages ?? []).filter((img) => img.source_image_id === currentId)
+    for (const child of children) {
+      if (!transitivelyDerived.has(child.id)) {
+        transitivelyDerived.add(child.id)
+        toProcess.push(child.id)
+      }
+    }
+  }
+
+  const wasActive = imageToDelete.is_active
+
+  // Delete the master image (cascade will delete all derived images via FK)
+  const { error: deleteErr } = await supabase
+    .from("project_images")
+    .delete()
+    .eq("id", imageId)
+    .eq("project_id", projectId)
+
+  if (deleteErr) {
+    return jsonError("Failed to delete image", 400, { stage: "db_delete", error: deleteErr.message })
+  }
+
+  // Clean up storage for master
+  const storagePaths: string[] = []
+  if (imageToDelete.storage_path) {
+    storagePaths.push(imageToDelete.storage_path)
+  }
+
+  // Clean up storage for all transitively derived images
+  if (allImages) {
+    for (const img of allImages) {
+      if (transitivelyDerived.has(img.id) && img.storage_path) {
+        storagePaths.push(img.storage_path)
+      }
+    }
+  }
+
+  if (storagePaths.length > 0) {
+    const bucket = imageToDelete.storage_bucket ?? "project_images"
+    await supabase.storage.from(bucket).remove(storagePaths)
+  }
+
+  // If we deleted the active image, promote the latest remaining master
+  if (wasActive) {
+    const { data: remainingImages } = await supabase
+      .from("project_images")
+      .select("id")
+      .eq("project_id", projectId)
+      .eq("role", "master")
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+
+    if (remainingImages && remainingImages.length > 0) {
+      await supabase
+        .from("project_images")
+        .update({ is_active: true })
+        .eq("id", remainingImages[0].id)
+    }
+  }
+
+  return NextResponse.json({ ok: true })
 }

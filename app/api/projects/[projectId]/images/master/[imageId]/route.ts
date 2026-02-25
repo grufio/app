@@ -3,7 +3,7 @@
  *
  * Responsibilities:
  * - Delete DB record (cascade will auto-delete derived images via FK)
- * - Delete storage objects for the master and all derived images
+ * - Delete storage objects for the master and all transitively derived images
  * - If the active master was removed, promote the latest remaining master
  */
 import { NextResponse } from "next/server"
@@ -39,7 +39,7 @@ export async function DELETE(
     return jsonError("Forbidden (project not accessible)", 403, { stage: "rls_denied", where: "project_access" })
   }
 
-  // Fetch the image to delete and all derived images (for storage cleanup)
+  // Fetch the image to delete
   const { data: imageToDelete, error: fetchErr } = await supabase
     .from("project_images")
     .select("id,storage_path,storage_bucket,is_active")
@@ -55,16 +55,31 @@ export async function DELETE(
     return jsonError("Image not found", 404, { stage: "not_found" })
   }
 
-  // Fetch all derived images (will be cascade-deleted by FK)
-  const { data: derivedImages } = await supabase
+  // Fetch ALL images in project to find transitive dependencies
+  const { data: allImages } = await supabase
     .from("project_images")
-    .select("storage_path,storage_bucket")
-    .eq("source_image_id", imageId)
+    .select("id,storage_path,storage_bucket,source_image_id")
+    .eq("project_id", projectId)
     .is("deleted_at", null)
+
+  // Build transitive dependency tree (all images that depend on imageId, directly or transitively)
+  const transitivelyDerived = new Set<string>()
+  const toProcess = [imageId]
+  
+  while (toProcess.length > 0) {
+    const currentId = toProcess.pop()!
+    const children = (allImages ?? []).filter((img) => img.source_image_id === currentId)
+    for (const child of children) {
+      if (!transitivelyDerived.has(child.id)) {
+        transitivelyDerived.add(child.id)
+        toProcess.push(child.id)
+      }
+    }
+  }
 
   const wasActive = imageToDelete.is_active
 
-  // Delete the master image (cascade will delete derived images via FK)
+  // Delete the master image (cascade will delete all derived images via FK)
   const { error: deleteErr } = await supabase
     .from("project_images")
     .delete()
@@ -81,11 +96,11 @@ export async function DELETE(
     storagePaths.push(imageToDelete.storage_path)
   }
 
-  // Clean up storage for all derived images
-  if (derivedImages && derivedImages.length > 0) {
-    for (const derived of derivedImages) {
-      if (derived.storage_path) {
-        storagePaths.push(derived.storage_path)
+  // Clean up storage for all transitively derived images
+  if (allImages) {
+    for (const img of allImages) {
+      if (transitivelyDerived.has(img.id) && img.storage_path) {
+        storagePaths.push(img.storage_path)
       }
     }
   }
