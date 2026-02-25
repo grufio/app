@@ -367,3 +367,42 @@ export async function applyPixelateFilter(args: {
     height_px: Number(res.data.height_px ?? 0),
   }
 }
+
+export async function applyLineArtFilter(args: {
+  projectId: string
+  sourceImageId: string
+  threshold1: number
+  threshold2: number
+  lineThickness: number
+  invert: boolean
+}): Promise<{ id: string; width_px: number; height_px: number }> {
+  const { projectId, sourceImageId, threshold1, threshold2, lineThickness, invert } = args
+  const res = await fetchJson<{ ok?: boolean; id?: string; width_px?: number; height_px?: number }>(
+    `/api/projects/${projectId}/filters/lineart`,
+    {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json"},
+      body: JSON.stringify({
+        source_image_id: sourceImageId,
+        threshold1,
+        threshold2,
+        line_thickness: lineThickness,
+        invert,
+      }),
+    }
+  )
+  if (!res.ok) {
+    const msg = `Failed to apply line art filter (HTTP ${res.status})` + (res.error ? ` ${JSON.stringify(res.error)}` : "")
+    throw new Error(msg)
+  }
+  if (!res.data?.id) {
+    throw new Error("Failed to apply line art filter (missing id)")
+  }
+  invalidateFetchJsonGetCache(`/api/projects/${projectId}/images/filter-working-copy`)
+  return {
+    id: String(res.data.id),
+    width_px: Number(res.data.width_px ?? 0),
+    height_px: Number(res.data.height_px ?? 0),
+  }
+}
