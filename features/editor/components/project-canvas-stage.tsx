@@ -76,6 +76,7 @@ type Props = {
     rotationDeg: number
   }) => void
   cropEnabled?: boolean
+  onCropDblClick?: () => void
   cropBusy?: boolean
   /** Global guard for rotate mutations (e.g. locked image). */
   rotateEnabled?: boolean
@@ -237,6 +238,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     onImageSizeChange,
     initialImageTransform,
     onImageTransformCommit,
+    onCropDblClick,
     cropEnabled = false,
     cropBusy = false,
     rotateEnabled = true,
@@ -1001,6 +1003,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
                     e.cancelBubble = true
                   }}
                   onDragMove={(e) => applyCropMove(e.target.x(), e.target.y())}
+                  onDblClick={() => onCropDblClick?.()}
                 />
                 {(
                   [
