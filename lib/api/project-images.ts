@@ -412,3 +412,42 @@ export async function applyLineArtFilter(args: {
     height_px: Number(res.data.height_px ?? 0),
   }
 }
+
+export async function applyNumerateFilter(args: {
+  projectId: string
+  sourceImageId: string
+  superpixelWidth: number
+  superpixelHeight: number
+  strokeWidth: number
+  showColors: boolean
+}): Promise<{ id: string; width_px: number; height_px: number }> {
+  const { projectId, sourceImageId, superpixelWidth, superpixelHeight, strokeWidth, showColors } = args
+  const res = await fetchJson<{ ok?: boolean; id?: string; width_px?: number; height_px?: number }>(
+    `/api/projects/${projectId}/filters/numerate`,
+    {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json"},
+      body: JSON.stringify({
+        source_image_id: sourceImageId,
+        superpixel_width: superpixelWidth,
+        superpixel_height: superpixelHeight,
+        stroke_width: strokeWidth,
+        show_colors: showColors,
+      }),
+    }
+  )
+  if (!res.ok) {
+    const msg = `Failed to apply numerate filter (HTTP ${res.status})` + (res.error ? ` ${JSON.stringify(res.error)}` : "")
+    throw new Error(msg)
+  }
+  if (!res.data?.id) {
+    throw new Error("Failed to apply numerate filter (missing id)")
+  }
+  invalidateFetchJsonGetCache(`/api/projects/${projectId}/images/filter-working-copy`)
+  return {
+    id: String(res.data.id),
+    width_px: Number(res.data.width_px ?? 0),
+    height_px: Number(res.data.height_px ?? 0),
+  }
+}

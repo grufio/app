@@ -6,25 +6,25 @@ import type { Database } from "@/lib/supabase/database.types"
 
 const PYTHON_SERVICE_URL = process.env.PYTHON_SERVICE_URL || "http://localhost:8001"
 
-type LineArtFailStage =
+type NumerateFailStage =
   | "validation"
   | "source_lookup"
   | "lock_conflict"
   | "source_download"
-  | "lineart_process"
+  | "numerate_process"
   | "storage_upload"
   | "db_insert"
   | "active_switch"
 
-type LineArtFailure = {
+type NumerateFailure = {
   ok: false
   status: number
-  stage: LineArtFailStage
+  stage: NumerateFailStage
   reason: string
   code?: string
 }
 
-type LineArtSuccess = {
+type NumerateSuccess = {
   ok: true
   id: string
   storagePath: string
@@ -32,16 +32,13 @@ type LineArtSuccess = {
   heightPx: number
 }
 
-export type LineArtFilterResult = LineArtSuccess | LineArtFailure
+export type NumerateFilterResult = NumerateSuccess | NumerateFailure
 
-type LineArtParams = {
-  threshold1: number
-  threshold2: number
-  lineThickness: number
-  invert: boolean
-  blurAmount: number
-  minContourArea: number
-  smoothness: number
+type NumerateParams = {
+  superpixelWidth: number
+  superpixelHeight: number
+  strokeWidth: number
+  showColors: boolean
 }
 
 function toInt(value: number): number | null {
@@ -51,45 +48,27 @@ function toInt(value: number): number | null {
   return n
 }
 
-function contentTypeFor(format: "jpeg" | "png" | "webp"): string {
-  if (format === "jpeg") return "image/jpeg"
-  if (format === "webp") return "image/webp"
-  return "image/png"
-}
-
-export async function lineArtImageAndActivate(args: {
+export async function numerateImageAndActivate(args: {
   supabase: SupabaseClient<Database>
   projectId: string
   sourceImageId: string
-  params: LineArtParams
-}): Promise<LineArtFilterResult> {
+  params: NumerateParams
+}): Promise<NumerateFilterResult> {
   const { supabase, projectId, sourceImageId, params } = args
-  const threshold1 = toInt(params.threshold1)
-  const threshold2 = toInt(params.threshold2)
-  const blurAmount = toInt(params.blurAmount)
-  const minContourArea = toInt(params.minContourArea)
-  const lineThickness = toInt(params.lineThickness)
-  const smoothness = params.smoothness
+  const superpixelWidth = toInt(params.superpixelWidth)
+  const superpixelHeight = toInt(params.superpixelHeight)
+  const strokeWidth = toInt(params.strokeWidth)
 
   if (
-    threshold1 == null ||
-    threshold2 == null ||
-    threshold1 < 0 ||
-    threshold2 < 0 ||
-    threshold1 >= threshold2 ||
-    blurAmount == null ||
-    blurAmount < 0 ||
-    blurAmount > 20 ||
-    minContourArea == null ||
-    minContourArea < 0 ||
-    lineThickness == null ||
-    lineThickness < 1 ||
-    lineThickness > 10 ||
-    !Number.isFinite(smoothness) ||
-    smoothness < 0 ||
-    smoothness > 0.05
+    superpixelWidth == null ||
+    superpixelHeight == null ||
+    superpixelWidth < 1 ||
+    superpixelHeight < 1 ||
+    strokeWidth == null ||
+    strokeWidth < 1 ||
+    strokeWidth > 20
   ) {
-    return { ok: false, status: 400, stage: "validation", reason: "Invalid line art params" }
+    return { ok: false, status: 400, stage: "validation", reason: "Invalid numerate params" }
   }
 
   const { data: src, error: srcErr } = await supabase
@@ -114,6 +93,13 @@ export async function lineArtImageAndActivate(args: {
     return { ok: false, status: 400, stage: "validation", reason: "Invalid source dimensions" }
   }
 
+  const gridWidth = Math.max(1, Math.floor(origWidth / superpixelWidth))
+  const gridHeight = Math.max(1, Math.floor(origHeight / superpixelHeight))
+
+  if (gridWidth < 1 || gridHeight < 1) {
+    return { ok: false, status: 400, stage: "validation", reason: "Superpixel size too large for image" }
+  }
+
   const { data: srcBlob, error: downloadErr } = await supabase.storage
     .from(String(src.storage_bucket ?? "project_images"))
     .download(String(src.storage_path))
@@ -124,27 +110,20 @@ export async function lineArtImageAndActivate(args: {
 
   const srcBuffer = Buffer.from(await srcBlob.arrayBuffer())
 
-  // Line art always outputs PNG (grayscale/binary)
-  const outputFormat = "svg"
-
   try {
-    // Call Python service for line art
     const imageBase64 = srcBuffer.toString("base64")
 
-    const response = await fetch(`${PYTHON_SERVICE_URL}/filters/lineart`, {
+    const response = await fetch(`${PYTHON_SERVICE_URL}/filters/numerate`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
         image_base64: imageBase64,
-        threshold1: threshold1,
-        threshold2: threshold2,
-        line_thickness: lineThickness,
-        invert: params.invert,
-        blur_amount: blurAmount,
-        min_contour_area: minContourArea,
-        smoothness: smoothness,
+        superpixel_width: superpixelWidth,
+        superpixel_height: superpixelHeight,
+        stroke_width: strokeWidth,
+        show_colors: params.showColors,
       }),
     })
 
@@ -153,7 +132,7 @@ export async function lineArtImageAndActivate(args: {
       return {
         ok: false,
         status: response.status,
-        stage: "lineart_process",
+        stage: "numerate_process",
         reason: `Python service error: ${error}`,
       }
     }
@@ -171,14 +150,14 @@ export async function lineArtImageAndActivate(args: {
       })
 
     if (uploadErr) {
-      return { ok: false, status: 500, stage: "storage_upload", reason: "Failed to upload line art image" }
+      return { ok: false, status: 500, stage: "storage_upload", reason: "Failed to upload numerate image" }
     }
 
     const { error: insertErr } = await supabase.from("project_images").insert({
       id: imageId,
       project_id: projectId,
       role: "asset",
-      name: `${src.name.replace(/ \(filter working\)| \(pixelate\)| \(line art\)| \(numerate\)/g, "")} (line art)`,
+      name: `${src.name.replace(/ \(filter working\)| \(pixelate\)| \(line art\)| \(numerate\)/g, "")} (numerate)`,
       format: "svg",
       width_px: origWidth,
       height_px: origHeight,
@@ -202,7 +181,7 @@ export async function lineArtImageAndActivate(args: {
       heightPx: origHeight,
     }
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Line art process failed"
-    return { ok: false, status: 500, stage: "lineart_process", reason: msg }
+    const msg = e instanceof Error ? e.message : "Numerate process failed"
+    return { ok: false, status: 500, stage: "numerate_process", reason: msg }
   }
 }

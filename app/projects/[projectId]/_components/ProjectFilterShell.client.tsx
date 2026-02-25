@@ -21,6 +21,7 @@ import { EditorSidebarSection } from "@/features/editor/components/sidebar/edito
 import { FilterSelectionController } from "@/features/editor/components/FilterSelectionController"
 import { PixelateFilterController } from "@/features/editor/components/PixelateFilterController"
 import { LineArtFilterController } from "@/features/editor/components/LineArtFilterController"
+import { NumerateFilterController } from "@/features/editor/components/NumerateFilterController"
 import { ToolbarIconButton } from "@/features/editor/components/toolbar-icon-button"
 import { ProjectEditorHeader, ProjectEditorLayout } from "@/features/editor"
 import type { ProjectCanvasStageHandle } from "@/features/editor/components/project-canvas-stage"
@@ -42,6 +43,8 @@ function getFilterLabel(filterType: string): string {
       return "Pixelate"
     case "lineart":
       return "Line Art"
+    case "numerate":
+      return "Numerate"
     default:
       return "Filter"
   }
@@ -131,9 +134,11 @@ export function ProjectFilterPageClient(props: { projectId: string }) {
   const filterStack = useFilterStack(props.projectId, workingImage?.id ?? null)
 
   const canvasRef = useRef<ProjectCanvasStageHandle | null>(null)
-  const [activeFilterType, setActiveFilterType] = useState<"pixelate" | "lineart" | null>(null)
+  const [activeFilterType, setActiveFilterType] = useState<"pixelate" | "lineart" | "numerate" | null>(null)
   const [showFilterSelection, setShowFilterSelection] = useState(false)
   const [removingFilter, setRemovingFilter] = useState(false)
+  const [numerateSuperpixelWidth, setNumerateSuperpixelWidth] = useState(10)
+  const [numerateSuperpixelHeight, setNumerateSuperpixelHeight] = useState(10)
 
   useLoadImageStateOnActiveImageChange({ masterImageId: workingImage?.id ?? null, loadImageState })
   const toolbar = useFloatingToolbarControls({
@@ -165,7 +170,7 @@ export function ProjectFilterPageClient(props: { projectId: string }) {
     await filterStack.refresh()
   }
 
-  const handleFilterSelect = (filterType: "pixelate" | "lineart") => {
+  const handleFilterSelect = (filterType: "pixelate" | "lineart" | "numerate") => {
     setShowFilterSelection(false)
     setActiveFilterType(filterType)
   }
@@ -307,9 +312,17 @@ export function ProjectFilterPageClient(props: { projectId: string }) {
             onClose={handleCloseActiveFilter}
             onSuccess={handleFilterSuccess}
           />
+          <NumerateFilterController
+            projectId={props.projectId}
+            workingImageId={workingImage.id}
+            superpixelWidth={numerateSuperpixelWidth}
+            superpixelHeight={numerateSuperpixelHeight}
+            open={activeFilterType === "numerate"}
+            onClose={handleCloseActiveFilter}
+            onSuccess={handleFilterSuccess}
+          />
         </>
       )}
     </div>
   )
 }
-

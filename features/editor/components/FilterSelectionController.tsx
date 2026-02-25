@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dialog"
 import { FilterTypeCards } from "./filter-type-cards"
 
-type FilterType = "pixelate" | "lineart"
+type FilterType = "pixelate" | "lineart" | "numerate"
 
 type Props = {
   workingImageUrl: string | null
@@ -25,6 +25,7 @@ type Props = {
 const FILTER_CARD_ITEMS = [
   { id: "pixelate" as const, label: "Pixelate" },
   { id: "lineart" as const, label: "Line Art" },
+  { id: "numerate" as const, label: "Numerate" },
 ]
 
 export function FilterSelectionController({

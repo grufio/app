@@ -9,7 +9,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 export type FilterStackItem = {
   id: string
   name: string
-  filterType: "pixelate" | "lineart" | "unknown"
+  filterType: "pixelate" | "lineart" | "numerate" | "unknown"
   source_image_id: string | null
 }
 
@@ -60,9 +60,10 @@ export function useFilterStack(projectId: string, displayImageId: string | null)
         }
 
         // Determine filter type from name
-        let filterType: "pixelate" | "lineart" | "unknown" = "unknown"
+        let filterType: "pixelate" | "lineart" | "numerate" | "unknown" = "unknown"
         if (img.name.includes("(pixelate)")) filterType = "pixelate"
         else if (img.name.includes("(line art)")) filterType = "lineart"
+        else if (img.name.includes("(numerate)")) filterType = "numerate"
 
         chain.unshift({
           id: img.id,
