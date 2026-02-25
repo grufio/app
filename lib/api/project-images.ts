@@ -271,3 +271,99 @@ export async function removeProjectImageFilter(args: {
   invalidateFetchJsonGetCache(`/api/projects/${projectId}/images/filters`)
   return { active_image_id: String(res.data.active_image_id) }
 }
+
+export async function getOrCreateFilterWorkingCopy(projectId: string): Promise<{
+  id: string
+  signedUrl: string
+  width_px: number
+  height_px: number
+  storage_path: string
+  source_image_id: string | null
+  name: string
+}> {
+  const res = await fetchJson<{
+    ok?: boolean
+    id?: string
+    signed_url?: string
+    width_px?: number
+    height_px?: number
+    storage_path?: string
+    source_image_id?: string | null
+    name?: string
+  }>(`/api/projects/${projectId}/images/filter-working-copy`, {
+    method: "POST",
+    credentials: "same-origin",
+  })
+  if (!res.ok) {
+    const msg =
+      `Failed to get filter working copy (HTTP ${res.status})` + (res.error ? ` ${JSON.stringify(res.error)}` : "")
+    throw new Error(msg)
+  }
+  if (!res.data?.id || !res.data.signed_url) {
+    throw new Error("Failed to get filter working copy (missing data)")
+  }
+  return {
+    id: String(res.data.id),
+    signedUrl: String(res.data.signed_url),
+    width_px: Number(res.data.width_px ?? 0),
+    height_px: Number(res.data.height_px ?? 0),
+    storage_path: String(res.data.storage_path ?? ""),
+    source_image_id: res.data.source_image_id ?? null,
+    name: String(res.data.name ?? ""),
+  }
+}
+
+export async function removeActiveFilter(projectId: string): Promise<void> {
+  const res = await fetchJson<{ ok?: boolean }>(
+    `/api/projects/${projectId}/filters/remove`,
+    {
+      method: "DELETE",
+      credentials: "same-origin",
+    }
+  )
+  if (!res.ok) {
+    const msg = `Failed to remove filter (HTTP ${res.status})` + (res.error ? ` ${JSON.stringify(res.error)}` : "")
+    throw new Error(msg)
+  }
+  invalidateFetchJsonGetCache(`/api/projects/${projectId}/images/filter-working-copy`)
+}
+
+export async function applyPixelateFilter(args: {
+  projectId: string
+  sourceImageId: string
+  superpixelWidth: number
+  superpixelHeight: number
+  colorMode: "rgb" | "grayscale"
+  numColors: number
+}): Promise<{ id: string; width_px: number; height_px: number }> {
+  const { projectId, sourceImageId, superpixelWidth, superpixelHeight, colorMode, numColors } = args
+  const res = await fetchJson<{ ok?: boolean; id?: string; width_px?: number; height_px?: number }>(
+    `/api/projects/${projectId}/filters/pixelate`,
+    {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json"},
+      body: JSON.stringify({
+        source_image_id: sourceImageId,
+        superpixel_width: superpixelWidth,
+        superpixel_height: superpixelHeight,
+        color_mode: colorMode,
+        num_colors: numColors,
+      }),
+    }
+  )
+  if (!res.ok) {
+    const msg = `Failed to apply pixelate filter (HTTP ${res.status})` + (res.error ? ` ${JSON.stringify(res.error)}` : "")
+    throw new Error(msg)
+  }
+  if (!res.data?.id) {
+    throw new Error("Failed to apply pixelate filter (missing id)")
+  }
+  invalidateFetchJsonGetCache(`/api/projects/${projectId}/images/master`)
+  invalidateFetchJsonGetCache(`/api/projects/${projectId}/images/master/list`)
+  return {
+    id: String(res.data.id),
+    width_px: Number(res.data.width_px ?? 0),
+    height_px: Number(res.data.height_px ?? 0),
+  }
+}

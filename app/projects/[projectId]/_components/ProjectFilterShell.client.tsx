@@ -32,14 +32,15 @@ import { SidebarContent, SidebarMenu, SidebarMenuAction, SidebarMenuButton, Side
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { EditorSidebarSection } from "@/features/editor/components/sidebar/editor-sidebar-section"
 import { FilterTypeCards } from "@/features/editor/components/filter-type-cards"
+import { PixelateForm, type PixelateFormData } from "@/features/editor/components/pixelate-form"
 import { ToolbarIconButton } from "@/features/editor/components/toolbar-icon-button"
 import { ProjectEditorHeader, ProjectEditorLayout } from "@/features/editor"
 import type { ProjectCanvasStageHandle } from "@/features/editor/components/project-canvas-stage"
 import { useFloatingToolbarControls } from "@/lib/editor/floating-toolbar-controls"
 import { useProjectWorkspace } from "@/lib/editor/project-workspace"
 import { useImageState } from "@/lib/editor/use-image-state"
-import { useMasterImage } from "@/lib/editor/use-master-image"
-import { useProjectImageFilters } from "@/lib/editor/use-project-image-filters"
+import { useFilterWorkingImage } from "@/lib/editor/use-filter-working-image"
+import { applyPixelateFilter, removeActiveFilter } from "@/lib/api/project-images"
 
 const ProjectCanvasStage = dynamic(
   () => import("@/features/editor/components/project-canvas-stage").then((m) => m.ProjectCanvasStage),
@@ -125,42 +126,101 @@ function useLoadImageStateOnActiveImageChange(args: { masterImageId: string | nu
 
 export function ProjectFilterPageClient(props: { projectId: string }) {
   const { widthPx, heightPx } = useProjectWorkspace()
-  const { masterImage, masterImageError, masterImageLoading, refreshMasterImage } = useMasterImage(props.projectId, null)
+  const { image: workingImage, loading: workingImageLoading, error: workingImageError, refresh: refreshWorkingImage } = useFilterWorkingImage(props.projectId)
   const { initialImageTransform, imageStateLoading, loadImageState } = useImageState(props.projectId, true, null, false)
   const canvasRef = useRef<ProjectCanvasStageHandle | null>(null)
-  const filters = useProjectImageFilters(props.projectId)
   const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false)
   const [selectedFilterCardId, setSelectedFilterCardId] = useState<string | null>(null)
+  const [selectedFilterType, setSelectedFilterType] = useState<string | null>(null)
+  const [pixelateBusy, setPixelateBusy] = useState(false)
+  const [removingFilter, setRemovingFilter] = useState(false)
   const FILTER_CARD_ITEMS = [
-    { id: "new-filter-card", label: "Filter Card", thumbUrl: masterImage?.signedUrl ?? null },
-    { id: "new-filter-card-2", label: "Filter Card 2", thumbUrl: masterImage?.signedUrl ?? null },
+    { id: "pixelate", label: "Pixelate", thumbUrl: workingImage?.signedUrl ?? null },
   ] as const
 
-  useLoadImageStateOnActiveImageChange({ masterImageId: masterImage?.id ?? null, loadImageState })
+  useLoadImageStateOnActiveImageChange({ masterImageId: workingImage?.id ?? null, loadImageState })
   const toolbar = useFloatingToolbarControls({
     canvasRef,
-    hasImage: Boolean(masterImage),
-    masterImageLoading,
+    hasImage: Boolean(workingImage),
+    masterImageLoading: workingImageLoading,
     imageStateLoading,
     enableShortcuts: false,
   })
 
-  const handleRemoveFilter = async (filterId: string) => {
-    const out = await filters.remove(filterId)
-    if (!out.ok) return
-    await refreshMasterImage()
-    await loadImageState()
+  // Check if the ACTIVE image (not working copy) is a filter result
+  // The isFilterResult flag tells us if we're showing a filter result or the working copy
+  const isFilterActive = workingImage?.isFilterResult ?? false
+  const filterLabel = isFilterActive ? "Pixelate" : "Neuer Filter"
+
+  // Debug logging
+  useEffect(() => {
+    console.log('[FilterTab] workingImage:', { 
+      id: workingImage?.id, 
+      name: workingImage?.name,
+      source_image_id: workingImage?.source_image_id,
+      isFilterResult: workingImage?.isFilterResult,
+      isFilterActive 
+    })
+  }, [workingImage, isFilterActive])
+
+  const handleRemoveFilter = async () => {
+    if (!workingImage || removingFilter || !isFilterActive) return
+    setRemovingFilter(true)
+    try {
+      await removeActiveFilter(props.projectId)
+      await refreshWorkingImage()
+    } catch (e) {
+      console.error("Failed to remove filter:", e)
+      alert(e instanceof Error ? e.message : "Failed to remove filter")
+    } finally {
+      setRemovingFilter(false)
+    }
   }
 
   const handleFilterDialogOpenChange = (open: boolean) => {
     setIsFilterDialogOpen(open)
-    if (!open) setSelectedFilterCardId(null)
+    if (!open) {
+      setSelectedFilterCardId(null)
+      setSelectedFilterType(null)
+    }
   }
 
   const handleSelectFilterCard = () => {
     if (!selectedFilterCardId) return
-    setIsFilterDialogOpen(false)
+    // Map card ID to filter type
+    if (selectedFilterCardId === "pixelate") {
+      setSelectedFilterType("pixelate")
+      setSelectedFilterCardId(null)
+    }
+  }
+
+  const handleCancelPixelate = () => {
+    setSelectedFilterType(null)
     setSelectedFilterCardId(null)
+  }
+
+  const handleApplyPixelate = async (data: PixelateFormData) => {
+    if (!workingImage || pixelateBusy) return
+    setPixelateBusy(true)
+    try {
+      await applyPixelateFilter({
+        projectId: props.projectId,
+        sourceImageId: workingImage.id,
+        superpixelWidth: data.superpixelWidth,
+        superpixelHeight: data.superpixelHeight,
+        colorMode: data.colorMode,
+        numColors: data.numColors,
+      })
+      // Refresh to show the filter result
+      await refreshWorkingImage()
+      setIsFilterDialogOpen(false)
+      setSelectedFilterType(null)
+    } catch (e) {
+      console.error("Failed to apply pixelate filter:", e)
+      alert(e instanceof Error ? e.message : "Failed to apply filter")
+    } finally {
+      setPixelateBusy(false)
+    }
   }
 
   return (
@@ -178,34 +238,27 @@ export function ProjectFilterPageClient(props: { projectId: string }) {
                     <SidebarMenuItem>
                       <SidebarMenuButton isActive={true} aria-current="page" className="text-xs">
                         <SlidersHorizontal />
-                        <span>Neuer Filter</span>
+                        <span>{filterLabel}</span>
                       </SidebarMenuButton>
-                      <SidebarMenuAction
-                        aria-label="Add filter"
-                        disabled={filters.loading || masterImageLoading || imageStateLoading || !masterImage}
-                        onClick={() => setIsFilterDialogOpen(true)}
-                      >
-                        <Plus />
-                      </SidebarMenuAction>
-                    </SidebarMenuItem>
-                    {filters.items.map((f) => (
-                      <SidebarMenuItem key={f.id}>
-                        <SidebarMenuButton className="text-xs">
-                          <SlidersHorizontal />
-                          <span>{`Filter ${f.stack_order}: ${f.filter_type}`}</span>
-                        </SidebarMenuButton>
+                      {isFilterActive ? (
                         <SidebarMenuAction
-                          showOnHover
-                          aria-label={`Remove filter ${f.stack_order}`}
-                          disabled={filters.loading}
-                          onClick={() => void handleRemoveFilter(f.id)}
+                          aria-label="Remove filter"
+                          disabled={removingFilter || workingImageLoading || imageStateLoading}
+                          onClick={handleRemoveFilter}
                         >
                           <Trash2 />
                         </SidebarMenuAction>
-                      </SidebarMenuItem>
-                    ))}
+                      ) : (
+                        <SidebarMenuAction
+                          aria-label="Add filter"
+                          disabled={workingImageLoading || imageStateLoading || !workingImage}
+                          onClick={() => setIsFilterDialogOpen(true)}
+                        >
+                          <Plus />
+                        </SidebarMenuAction>
+                      )}
+                    </SidebarMenuItem>
                   </SidebarMenu>
-                  {filters.error ? <div className="px-1 text-[11px] text-destructive">{filters.error}</div> : null}
                 </EditorSidebarSection>
               </SidebarContent>
             </SidebarFrame>
@@ -213,7 +266,7 @@ export function ProjectFilterPageClient(props: { projectId: string }) {
 
           {/* Center canvas */}
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            {masterImageError ? <div className="px-6 pt-4 text-sm text-destructive">{masterImageError}</div> : null}
+            {workingImageError ? <div className="px-6 pt-4 text-sm text-destructive">{workingImageError}</div> : null}
             <div className="relative min-h-0 flex-1">
               <div className="absolute bottom-4 left-1/2 z-10 w-max -translate-x-1/2">
                 <FilterFloatingToolbar
@@ -223,42 +276,33 @@ export function ProjectFilterPageClient(props: { projectId: string }) {
                   onFit={toolbar.actions.fit}
                 />
               </div>
-              {masterImageLoading ? (
+              {workingImageLoading ? (
                 <div className="h-full w-full" aria-hidden="true" />
-              ) : masterImage && imageStateLoading ? (
+              ) : workingImage && imageStateLoading ? (
                 <div className="h-full w-full" aria-hidden="true" />
               ) : (
                 <ProjectCanvasStage
                   ref={canvasRef}
-                  src={masterImage?.signedUrl ?? undefined}
-                  activeImageId={masterImage?.id ?? null}
-                  alt={masterImage?.name ?? undefined}
+                  src={workingImage?.signedUrl ?? undefined}
+                  activeImageId={workingImage?.id ?? null}
+                  alt="Filter working copy"
                   className="h-full w-full"
                   renderArtboard={true}
                   artboardWidthPx={widthPx ?? undefined}
                   artboardHeightPx={heightPx ?? undefined}
                   intrinsicWidthPx={
-                    typeof masterImage?.width_px === "number" && Number.isFinite(masterImage.width_px)
-                      ? masterImage.width_px
+                    typeof workingImage?.width_px === "number" && Number.isFinite(workingImage.width_px)
+                      ? workingImage.width_px
                       : undefined
                   }
                   intrinsicHeightPx={
-                    typeof masterImage?.height_px === "number" && Number.isFinite(masterImage.height_px)
-                      ? masterImage.height_px
+                    typeof workingImage?.height_px === "number" && Number.isFinite(workingImage.height_px)
+                      ? workingImage.height_px
                       : undefined
                   }
-                  restoreBaseImageId={masterImage?.restore_base?.id ?? undefined}
-                  restoreBaseWidthPx={
-                    typeof masterImage?.restore_base?.width_px === "number" && Number.isFinite(masterImage.restore_base.width_px)
-                      ? masterImage.restore_base.width_px
-                      : undefined
-                  }
-                  restoreBaseHeightPx={
-                    typeof masterImage?.restore_base?.height_px === "number" && Number.isFinite(masterImage.restore_base.height_px)
-                      ? masterImage.restore_base.height_px
-                      : undefined
-                  }
-                  initialImageTransform={masterImage ? initialImageTransform : null}
+                  restoreBaseWidthPx={undefined}
+                  restoreBaseHeightPx={undefined}
+                  initialImageTransform={workingImage ? initialImageTransform : null}
                   panEnabled={true}
                   imageDraggable={false}
                   cropEnabled={false}
@@ -284,23 +328,43 @@ export function ProjectFilterPageClient(props: { projectId: string }) {
       </ProjectEditorLayout>
       <Dialog open={isFilterDialogOpen} onOpenChange={handleFilterDialogOpenChange}>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Filter</DialogTitle>
-            <DialogDescription>Select a card.</DialogDescription>
-          </DialogHeader>
-          <FilterTypeCards
-            items={[...FILTER_CARD_ITEMS]}
-            selectedId={selectedFilterCardId}
-            onSelect={setSelectedFilterCardId}
-          />
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="outline">Cancel</Button>
-            </DialogClose>
-            <Button onClick={handleSelectFilterCard} disabled={!selectedFilterCardId}>
-              Select
-            </Button>
-          </DialogFooter>
+          {!selectedFilterType ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>Filter</DialogTitle>
+                <DialogDescription>Select a card.</DialogDescription>
+              </DialogHeader>
+              <FilterTypeCards
+                items={[...FILTER_CARD_ITEMS]}
+                selectedId={selectedFilterCardId}
+                onSelect={setSelectedFilterCardId}
+              />
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button variant="outline">Cancel</Button>
+                </DialogClose>
+                <Button onClick={handleSelectFilterCard} disabled={!selectedFilterCardId}>
+                  Select
+                </Button>
+              </DialogFooter>
+            </>
+          ) : selectedFilterType === "pixelate" ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>Pixelate</DialogTitle>
+                <DialogDescription>Configure pixelate filter settings.</DialogDescription>
+              </DialogHeader>
+              {workingImage ? (
+                <PixelateForm
+                  imageWidth={workingImage.width_px}
+                  imageHeight={workingImage.height_px}
+                  onCancel={handleCancelPixelate}
+                  onApply={handleApplyPixelate}
+                  busy={pixelateBusy}
+                />
+              ) : null}
+            </>
+          ) : null}
         </DialogContent>
       </Dialog>
     </div>

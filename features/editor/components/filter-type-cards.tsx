@@ -44,7 +44,7 @@ export function FilterTypeCards(props: {
               </div>
             </div>
             <CardContent className="space-y-0.5 p-3">
-              <div className="line-clamp-1 text-[12px] font-semibold leading-tight">Placeholder</div>
+              <div className="line-clamp-1 text-[12px] font-semibold leading-tight">{item.label}</div>
             </CardContent>
           </Card>
         </button>
