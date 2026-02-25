@@ -28,7 +28,9 @@ import { useFloatingToolbarControls } from "@/lib/editor/floating-toolbar-contro
 import { useProjectWorkspace } from "@/lib/editor/project-workspace"
 import { useImageState } from "@/lib/editor/use-image-state"
 import { useFilterWorkingImage } from "@/lib/editor/use-filter-working-image"
+import { useFilterStack } from "@/lib/editor/use-filter-stack"
 import { removeActiveFilter } from "@/lib/api/project-images"
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 
 const ProjectCanvasStage = dynamic(
   () => import("@/features/editor/components/project-canvas-stage").then((m) => m.ProjectCanvasStage),
@@ -116,6 +118,7 @@ export function ProjectFilterPageClient(props: { projectId: string }) {
   const { widthPx, heightPx } = useProjectWorkspace()
   const { image: workingImage, loading: workingImageLoading, error: workingImageError, refresh: refreshWorkingImage } = useFilterWorkingImage(props.projectId)
   const { initialImageTransform, imageStateLoading, loadImageState } = useImageState(props.projectId, true, null, false)
+  const filterStack = useFilterStack(props.projectId, workingImage?.id ?? null)
   const canvasRef = useRef<ProjectCanvasStageHandle | null>(null)
   const [activeFilterType, setActiveFilterType] = useState<"pixelate" | "lineart" | null>(null)
   const [showFilterSelection, setShowFilterSelection] = useState(false)
@@ -130,24 +133,29 @@ export function ProjectFilterPageClient(props: { projectId: string }) {
     enableShortcuts: false,
   })
 
-  // Check if the ACTIVE image (not working copy) is a filter result
-  // The isFilterResult flag tells us if we're showing a filter result or the working copy
-  const isFilterActive = workingImage?.isFilterResult ?? false
-  const filterLabel = isFilterActive ? "Pixelate" : "Neuer Filter"
-
-  // Debug logging
-  useEffect(() => {
-    console.log('[FilterTab] workingImage:', { 
-      id: workingImage?.id, 
-      name: workingImage?.name,
-      source_image_id: workingImage?.source_image_id,
-      isFilterResult: workingImage?.isFilterResult,
-      isFilterActive 
-    })
-  }, [workingImage, isFilterActive])
+  const handleRemoveSpecificFilter = async (filterId: string) => {
+    if (removingFilter) return
+    setRemovingFilter(true)
+    try {
+      const supabase = createSupabaseBrowserClient()
+      
+      await supabase
+        .from("project_images")
+        .update({ deleted_at: new Date().toISOString() })
+        .eq("id", filterId)
+      
+      await refreshWorkingImage()
+      await filterStack.refresh()
+    } catch (e) {
+      console.error("Failed to remove filter:", e)
+      alert(e instanceof Error ? e.message : "Failed to remove filter")
+    } finally {
+      setRemovingFilter(false)
+    }
+  }
 
   const handleRemoveFilter = async () => {
-    if (!workingImage || removingFilter || !isFilterActive) return
+    if (!workingImage || removingFilter) return
     setRemovingFilter(true)
     try {
       await removeActiveFilter(props.projectId)
@@ -185,28 +193,34 @@ export function ProjectFilterPageClient(props: { projectId: string }) {
               <SidebarContent className="gap-0">
                 <EditorSidebarSection title="Filter">
                   <SidebarMenu>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton isActive={true} aria-current="page" className="text-xs">
-                        <SlidersHorizontal />
-                        <span>{filterLabel}</span>
-                      </SidebarMenuButton>
-                      {isFilterActive ? (
+                    {filterStack.stack.map((filter) => (
+                      <SidebarMenuItem key={filter.id}>
+                        <SidebarMenuButton isActive={true} className="text-xs">
+                          <SlidersHorizontal />
+                          <span>{filter.filterType === "pixelate" ? "Pixelate" : filter.filterType === "lineart" ? "Line Art" : "Filter"}</span>
+                        </SidebarMenuButton>
                         <SidebarMenuAction
-                          aria-label="Remove filter"
-                          disabled={removingFilter || workingImageLoading || imageStateLoading}
-                          onClick={handleRemoveFilter}
+                          aria-label={`Remove filter`}
+                          disabled={removingFilter}
+                          onClick={() => handleRemoveSpecificFilter(filter.id)}
                         >
                           <Trash2 />
                         </SidebarMenuAction>
-                      ) : (
-                        <SidebarMenuAction
-                          aria-label="Add filter"
-                          disabled={workingImageLoading || imageStateLoading || !workingImage}
-                          onClick={() => setShowFilterSelection(true)}
-                        >
-                          <Plus />
-                        </SidebarMenuAction>
-                      )}
+                      </SidebarMenuItem>
+                    ))}
+                    
+                    <SidebarMenuItem>
+                      <SidebarMenuButton isActive={filterStack.stack.length === 0} aria-current={filterStack.stack.length === 0 ? "page" : undefined} className="text-xs">
+                        <SlidersHorizontal />
+                        <span>Neuer Filter</span>
+                      </SidebarMenuButton>
+                      <SidebarMenuAction
+                        aria-label="Add filter"
+                        disabled={workingImageLoading || imageStateLoading || !workingImage}
+                        onClick={() => setShowFilterSelection(true)}
+                      >
+                        <Plus />
+                      </SidebarMenuAction>
                     </SidebarMenuItem>
                   </SidebarMenu>
                 </EditorSidebarSection>
