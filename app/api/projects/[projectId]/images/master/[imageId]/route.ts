@@ -42,7 +42,7 @@ export async function DELETE(
   // Fetch the image to delete
   const { data: imageToDelete, error: fetchErr } = await supabase
     .from("project_images")
-    .select("id,storage_path,storage_bucket,is_active")
+    .select("id,storage_path,storage_bucket,is_active,role")
     .eq("id", imageId)
     .eq("project_id", projectId)
     .is("deleted_at", null)
@@ -62,7 +62,7 @@ export async function DELETE(
     .eq("project_id", projectId)
     .is("deleted_at", null)
 
-  // Build transitive dependency tree (all images that depend on imageId, directly or transitively)
+  // Build transitive dependency tree
   const transitivelyDerived = new Set<string>()
   const toProcess = [imageId]
   
@@ -80,14 +80,20 @@ export async function DELETE(
   const wasActive = imageToDelete.is_active
 
   // Delete the master image (cascade will delete all derived images via FK)
-  const { error: deleteErr } = await supabase
+  const { error: deleteErr, count } = await supabase
     .from("project_images")
-    .delete()
+    .delete({ count: "exact" })
     .eq("id", imageId)
     .eq("project_id", projectId)
 
+  console.log(`[DELETE] imageId=${imageId}, deleteErr=${JSON.stringify(deleteErr)}, count=${count}, transitiveCount=${transitivelyDerived.size}`)
+
   if (deleteErr) {
-    return jsonError("Failed to delete image", 400, { stage: "db_delete", error: deleteErr.message })
+    return jsonError("Failed to delete image", 400, { stage: "db_delete", error: deleteErr.message, code: deleteErr.code })
+  }
+
+  if (count === 0) {
+    return jsonError("Image was not deleted (possibly already deleted or RLS blocked)", 400, { stage: "db_delete", code: "no_rows_affected" })
   }
 
   // Clean up storage for master
@@ -105,9 +111,12 @@ export async function DELETE(
     }
   }
 
+  console.log(`[DELETE] storagePaths to remove: ${storagePaths.length}`, storagePaths)
+
   if (storagePaths.length > 0) {
     const bucket = imageToDelete.storage_bucket ?? "project_images"
-    await supabase.storage.from(bucket).remove(storagePaths)
+    const { data: removeData, error: removeErr } = await supabase.storage.from(bucket).remove(storagePaths)
+    console.log(`[DELETE] storage remove result:`, { removeData, removeErr })
   }
 
   // If we deleted the active image, promote the latest remaining master
@@ -122,12 +131,15 @@ export async function DELETE(
       .limit(1)
 
     if (remainingImages && remainingImages.length > 0) {
-      await supabase
+      const { error: promoteErr } = await supabase
         .from("project_images")
         .update({ is_active: true })
         .eq("id", remainingImages[0].id)
+      console.log(`[DELETE] promoted next master: ${remainingImages[0].id}, error: ${promoteErr?.message}`)
+    } else {
+      console.log(`[DELETE] no remaining master images to promote`)
     }
   }
 
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, deleted: count, transitiveCount: transitivelyDerived.size })
 }

@@ -350,8 +350,8 @@ export function ProjectDetailPageClient({
     if (!res.ok) return
     setDeleteOpen(false)
     setImagePxU(null)
-    void refreshProjectImages()
-    void refreshMasterImage()
+    await refreshProjectImages()
+    await refreshMasterImage()
   }, [deleteImage, deleteImageById, refreshMasterImage, refreshProjectImages, selectedImageId])
 
   const handleRestoreInitialImage = useCallback(async () => {

@@ -45,13 +45,15 @@ export function useFilterStack(projectId: string, displayImageId: string | null)
       while (currentId) {
         const { data: img } = await supabase
           .from("project_images")
-          .select("id,name,source_image_id")
+          .select("id,name,source_image_id,role")
           .eq("id", currentId)
           .eq("project_id", projectId)
           .is("deleted_at", null)
           .maybeSingle()
 
         if (!img) break
+
+        if (img.role === "master") break
 
         // Check if this is a filter result (not working copy)
         if (img.name.includes("(filter working)")) {
