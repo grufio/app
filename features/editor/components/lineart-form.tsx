@@ -13,6 +13,7 @@ export type LineArtFormData = {
   invert: boolean
   blurAmount: number
   minContourArea: number
+  smoothness: number
 }
 
 type Props = {
@@ -24,10 +25,11 @@ type Props = {
 export function LineArtForm({ onCancel, onApply, busy = false }: Props) {
   const [threshold1, setThreshold1] = useState(100)
   const [threshold2, setThreshold2] = useState(200)
-  const [lineThickness, setLineThickness] = useState(1)
+  const [lineThickness, setLineThickness] = useState(2)
   const [invert, setInvert] = useState(true)
-  const [blurAmount, setBlurAmount] = useState(0)
-  const [minContourArea, setMinContourArea] = useState(100)
+  const [blurAmount, setBlurAmount] = useState(3)
+  const [minContourArea, setMinContourArea] = useState(200)
+  const [smoothness, setSmoothness] = useState(0.005)
 
   const isValid = useMemo(() => {
     return (
@@ -48,6 +50,7 @@ export function LineArtForm({ onCancel, onApply, busy = false }: Props) {
       invert,
       blurAmount,
       minContourArea,
+      smoothness,
     })
   }
 
@@ -123,6 +126,21 @@ export function LineArtForm({ onCancel, onApply, busy = false }: Props) {
             disabled={busy}
           />
           <p className="text-xs text-muted-foreground">Minimum contour area in pixels (removes small details)</p>
+        </Field>
+
+        <Field>
+          <Label htmlFor="smoothness">Smoothness</Label>
+          <Input
+            id="smoothness"
+            type="number"
+            min={0}
+            max={0.05}
+            step={0.001}
+            value={smoothness}
+            onChange={(e) => setSmoothness(Number(e.target.value))}
+            disabled={busy}
+          />
+          <p className="text-xs text-muted-foreground">Curve smoothing (0=sharp corners, 0.02=very smooth)</p>
         </Field>
 
         <Field>

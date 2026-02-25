@@ -14,6 +14,7 @@ type LineArtRequest = {
   blur_amount?: number
   min_contour_area?: number
   invert?: boolean
+  smoothness?: number
 }
 
 export async function POST(
@@ -43,10 +44,11 @@ export async function POST(
 
   const threshold1 = Number(body.threshold1 ?? 100)
   const threshold2 = Number(body.threshold2 ?? 200)
-  const lineThickness = Number(body.line_thickness ?? 1)
+  const lineThickness = Number(body.line_thickness ?? 2)
   const invert = Boolean(body.invert)
-  const blurAmount = Number(body.blur_amount ?? 0)
-  const minContourArea = Number(body.min_contour_area ?? 100)
+  const blurAmount = Number(body.blur_amount ?? 3)
+  const minContourArea = Number(body.min_contour_area ?? 200)
+  const smoothness = Number(body.smoothness ?? 0.005)
 
   const result = await lineArtImageAndActivate({
     supabase,
@@ -59,6 +61,7 @@ export async function POST(
       blurAmount,
       minContourArea,
       invert,
+      smoothness,
     },
   })
 

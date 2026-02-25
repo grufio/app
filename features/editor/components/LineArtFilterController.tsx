@@ -46,6 +46,7 @@ export function LineArtFilterController({
         blurAmount: data.blurAmount,
         minContourArea: data.minContourArea,
         invert: data.invert,
+        smoothness: data.smoothness,
       })
       onSuccess()
       onClose()

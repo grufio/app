@@ -41,6 +41,7 @@ type LineArtParams = {
   invert: boolean
   blurAmount: number
   minContourArea: number
+  smoothness: number
 }
 
 function toInt(value: number): number | null {
@@ -68,6 +69,7 @@ export async function lineArtImageAndActivate(args: {
   const blurAmount = toInt(params.blurAmount)
   const minContourArea = toInt(params.minContourArea)
   const lineThickness = toInt(params.lineThickness)
+  const smoothness = params.smoothness
 
   if (
     threshold1 == null ||
@@ -82,7 +84,10 @@ export async function lineArtImageAndActivate(args: {
     minContourArea < 0 ||
     lineThickness == null ||
     lineThickness < 1 ||
-    lineThickness > 10
+    lineThickness > 10 ||
+    !Number.isFinite(smoothness) ||
+    smoothness < 0 ||
+    smoothness > 0.05
   ) {
     return { ok: false, status: 400, stage: "validation", reason: "Invalid line art params" }
   }
@@ -139,6 +144,7 @@ export async function lineArtImageAndActivate(args: {
         invert: params.invert,
         blur_amount: blurAmount,
         min_contour_area: minContourArea,
+        smoothness: smoothness,
       }),
     })
 

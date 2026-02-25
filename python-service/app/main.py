@@ -121,10 +121,11 @@ class LineArtRequest(BaseModel):
     image_base64: str
     threshold1: int = 100
     threshold2: int = 200
-    line_thickness: int = 1
-    invert: bool = False
-    blur_amount: int = 0
-    min_contour_area: int = 100
+    line_thickness: int = 2
+    invert: bool = True
+    blur_amount: int = 3
+    min_contour_area: int = 200
+    smoothness: float = 0.005
 
 
 @app.post("/filters/lineart")
@@ -150,6 +151,8 @@ async def lineart_filter(request: LineArtRequest):
         raise HTTPException(status_code=400, detail="Blur amount must be between 0 and 20")
     if request.min_contour_area < 0:
         raise HTTPException(status_code=400, detail="Min contour area must be >= 0")
+    if request.smoothness < 0 or request.smoothness > 0.1:
+        raise HTTPException(status_code=400, detail="Smoothness must be between 0 and 0.1")
     
     try:
         # Decode and convert image
@@ -195,9 +198,13 @@ async def lineart_filter(request: LineArtRequest):
             if len(contour) < 3:
                 continue
             
-            # Build SVG path data
+            # Apply polygon approximation for smoother curves
+            epsilon = request.smoothness * cv2.arcLength(contour, True)
+            approx = cv2.approxPolyDP(contour, epsilon, True)
+            
+            # Build SVG path data from approximated contour
             path_data = []
-            for i, point in enumerate(contour):
+            for i, point in enumerate(approx):
                 x, y = point[0]
                 if i == 0:
                     path_data.append(f"M {x} {y}")
