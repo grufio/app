@@ -38,6 +38,7 @@ type RouteHandler<T = unknown> = (
  * - Authenticates the user via Supabase
  * - Verifies project access through RLS
  * 
+ * @param req - The incoming Request object
  * @param projectId - The project ID from route params
  * @param handler - The route handler function to execute after auth
  * @returns NextResponse with appropriate success or error response
@@ -47,7 +48,7 @@ type RouteHandler<T = unknown> = (
  * export async function POST(req: Request, { params }: { params: Promise<{ projectId: string }> }) {
  *   const { projectId } = await params
  *   
- *   return withFilterRouteAuth(projectId, async (req, context) => {
+ *   return withFilterRouteAuth(req, projectId, async (req, context) => {
  *     // context provides: supabase, projectId, userId
  *     const result = await someService({ supabase: context.supabase, projectId: context.projectId })
  *     return NextResponse.json(result)
@@ -56,6 +57,7 @@ type RouteHandler<T = unknown> = (
  * ```
  */
 export async function withFilterRouteAuth<T = unknown>(
+  req: Request,
   projectId: string,
   handler: RouteHandler<T>
 ): Promise<NextResponse<T>> {

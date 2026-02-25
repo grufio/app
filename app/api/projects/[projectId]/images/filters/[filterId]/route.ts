@@ -11,7 +11,7 @@ export async function DELETE(
 ) {
   const { projectId, filterId } = await params
 
-  return withFilterRouteAuth(projectId, async (req, context) => {
+  return withFilterRouteAuth(req, projectId, async (req, context) => {
     if (!isUuid(filterId)) {
       return jsonError("Invalid filterId", 400, { stage: "validation", where: "params" })
     }

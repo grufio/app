@@ -23,7 +23,7 @@ export async function POST(
 ) {
   const { projectId } = await params
 
-  return withFilterRouteAuth(projectId, async (req, context) => {
+  return withFilterRouteAuth(req, projectId, async (req, context) => {
     const parsed = await readJson<LineArtRequest>(req, { stage: "validation" })
   if (!parsed.ok) return parsed.res
   const body = parsed.value ?? {}
