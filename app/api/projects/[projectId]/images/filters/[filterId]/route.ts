@@ -1,30 +1,54 @@
 import { NextResponse } from "next/server"
 
-import { createSupabaseServerClient } from "@/lib/supabase/server"
-import { isUuid, jsonError, requireUser } from "@/lib/api/route-guards"
-import { removeProjectImageFilter } from "@/services/editor/server/filter-variants"
+import { isUuid, jsonError } from "@/lib/api/route-guards"
+import { withFilterRouteAuth } from "@/lib/api/with-filter-route-auth"
 
 export const dynamic = "force-dynamic"
 
 export async function DELETE(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ projectId: string; filterId: string }> }
 ) {
   const { projectId, filterId } = await params
-  if (!isUuid(String(projectId)) || !isUuid(String(filterId))) {
-    return jsonError("Invalid params", 400, { stage: "validation", where: "params" })
-  }
-  const supabase = await createSupabaseServerClient()
-  const user = await requireUser(supabase)
-  if (!user.ok) return user.res
 
-  const { data: projectRow, error: projectErr } = await supabase.from("projects").select("id").eq("id", projectId).maybeSingle()
-  if (projectErr) return jsonError("Failed to verify project access", 400, { stage: "project_access" })
-  if (!projectRow?.id) return jsonError("Forbidden (project not accessible)", 403, { stage: "rls_denied", where: "project_access" })
+  return withFilterRouteAuth(projectId, async (req, context) => {
+    // Validate filterId
+    if (!isUuid(filterId)) {
+      return jsonError("Invalid filterId", 400, { stage: "validation" })
+    }
 
-  const removed = await removeProjectImageFilter({ supabase, projectId, filterId })
-  if (!removed.ok) return jsonError(removed.reason, removed.status, { stage: removed.stage, code: removed.code })
+    // Get the filter to be deleted
+    const { data: filter, error: filterErr } = await context.supabase
+      .from("project_images")
+      .select("id,source_image_id")
+      .eq("id", filterId)
+      .eq("project_id", context.projectId)
+      .eq("role", "asset")
+      .is("deleted_at", null)
+      .maybeSingle()
 
-  return NextResponse.json({ ok: true, active_image_id: removed.active_image_id })
+    if (filterErr || !filter) {
+      return jsonError("Filter not found", 404, { stage: "filter_lookup" })
+    }
+
+    // Soft-delete the filter
+    const { error: deleteErr } = await context.supabase
+      .from("project_images")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("id", filterId)
+
+    if (deleteErr) {
+      return jsonError("Failed to delete filter", 500, { stage: "delete", code: deleteErr.code })
+    }
+
+    // Soft-delete all working copies to force refresh
+    await context.supabase
+      .from("project_images")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("project_id", context.projectId)
+      .like("name", "%(filter working)")
+      .is("deleted_at", null)
+
+    return NextResponse.json({ ok: true, active_image_id: filter.source_image_id })
+  })
 }
-

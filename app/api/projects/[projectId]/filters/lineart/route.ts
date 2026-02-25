@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 
-import { isUuid, jsonError, readJson, requireUser } from "@/lib/api/route-guards"
-import { createSupabaseServerClient } from "@/lib/supabase/server"
+import { isUuid, jsonError, readJson } from "@/lib/api/route-guards"
+import { withFilterRouteAuth } from "@/lib/api/with-filter-route-auth"
 import { lineArtImageAndActivate } from "@/services/editor/server/filters/lineart"
 
 export const dynamic = "force-dynamic"
@@ -22,19 +22,9 @@ export async function POST(
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   const { projectId } = await params
-  if (!isUuid(String(projectId))) {
-    return jsonError("Invalid projectId", 400, { stage: "validation", where: "params" })
-  }
 
-  const supabase = await createSupabaseServerClient()
-  const u = await requireUser(supabase)
-  if (!u.ok) return u.res
-
-  const { data: projectRow, error: projectErr } = await supabase.from("projects").select("id").eq("id", projectId).maybeSingle()
-  if (projectErr) return jsonError("Failed to verify project access", 400, { stage: "project_access" })
-  if (!projectRow?.id) return jsonError("Forbidden (project not accessible)", 403, { stage: "rls_denied", where: "project_access" })
-
-  const parsed = await readJson<LineArtRequest>(req, { stage: "validation" })
+  return withFilterRouteAuth(projectId, async (req, context) => {
+    const parsed = await readJson<LineArtRequest>(req, { stage: "validation" })
   if (!parsed.ok) return parsed.res
   const body = parsed.value ?? {}
   const sourceImageId = String(body.source_image_id ?? "")
@@ -51,8 +41,8 @@ export async function POST(
   const smoothness = Number(body.smoothness ?? 0.005)
 
   const result = await lineArtImageAndActivate({
-    supabase,
-    projectId,
+    supabase: context.supabase,
+    projectId: context.projectId,
     sourceImageId,
     params: {
       threshold1,
@@ -75,5 +65,6 @@ export async function POST(
     storage_path: result.storagePath,
     width_px: result.widthPx,
     height_px: result.heightPx,
+  })
   })
 }

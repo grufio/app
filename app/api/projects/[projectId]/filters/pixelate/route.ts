@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 
-import { isUuid, jsonError, readJson, requireUser } from "@/lib/api/route-guards"
-import { createSupabaseServerClient } from "@/lib/supabase/server"
+import { isUuid, jsonError, readJson } from "@/lib/api/route-guards"
+import { withFilterRouteAuth } from "@/lib/api/with-filter-route-auth"
 import { pixelateImageAndActivate } from "@/services/editor/server/filters/pixelate"
 
 export const dynamic = "force-dynamic"
@@ -19,52 +19,43 @@ export async function POST(
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   const { projectId } = await params
-  if (!isUuid(String(projectId))) {
-    return jsonError("Invalid projectId", 400, { stage: "validation", where: "params" })
-  }
 
-  const supabase = await createSupabaseServerClient()
-  const u = await requireUser(supabase)
-  if (!u.ok) return u.res
+  return withFilterRouteAuth(projectId, async (req, context) => {
+    const parsed = await readJson<PixelateRequest>(req, { stage: "validation" })
+    if (!parsed.ok) return parsed.res
+    const body = parsed.value ?? {}
+    const sourceImageId = String(body.source_image_id ?? "")
+    if (!isUuid(sourceImageId)) {
+      return jsonError("Invalid source_image_id", 400, { stage: "validation", where: "body" })
+    }
 
-  const { data: projectRow, error: projectErr } = await supabase.from("projects").select("id").eq("id", projectId).maybeSingle()
-  if (projectErr) return jsonError("Failed to verify project access", 400, { stage: "project_access" })
-  if (!projectRow?.id) return jsonError("Forbidden (project not accessible)", 403, { stage: "rls_denied", where: "project_access" })
+    const colorMode = String(body.color_mode ?? "rgb")
+    if (colorMode !== "rgb" && colorMode !== "grayscale") {
+      return jsonError("Invalid color_mode (must be rgb or grayscale)", 400, { stage: "validation", where: "body" })
+    }
 
-  const parsed = await readJson<PixelateRequest>(req, { stage: "validation" })
-  if (!parsed.ok) return parsed.res
-  const body = parsed.value ?? {}
-  const sourceImageId = String(body.source_image_id ?? "")
-  if (!isUuid(sourceImageId)) {
-    return jsonError("Invalid source_image_id", 400, { stage: "validation", where: "body" })
-  }
+    const result = await pixelateImageAndActivate({
+      supabase: context.supabase,
+      projectId: context.projectId,
+      sourceImageId,
+      params: {
+        superpixelWidth: Number(body.superpixel_width),
+        superpixelHeight: Number(body.superpixel_height),
+        colorMode: colorMode as "rgb" | "grayscale",
+        numColors: Number(body.num_colors),
+      },
+    })
 
-  const colorMode = String(body.color_mode ?? "rgb")
-  if (colorMode !== "rgb" && colorMode !== "grayscale") {
-    return jsonError("Invalid color_mode (must be rgb or grayscale)", 400, { stage: "validation", where: "body" })
-  }
+    if (!result.ok) {
+      return jsonError(result.reason, result.status, { stage: result.stage, code: result.code })
+    }
 
-  const result = await pixelateImageAndActivate({
-    supabase,
-    projectId,
-    sourceImageId,
-    params: {
-      superpixelWidth: Number(body.superpixel_width),
-      superpixelHeight: Number(body.superpixel_height),
-      colorMode: colorMode as "rgb" | "grayscale",
-      numColors: Number(body.num_colors),
-    },
-  })
-
-  if (!result.ok) {
-    return jsonError(result.reason, result.status, { stage: result.stage, code: result.code })
-  }
-
-  return NextResponse.json({
-    ok: true,
-    id: result.id,
-    storage_path: result.storagePath,
-    width_px: result.widthPx,
-    height_px: result.heightPx,
+    return NextResponse.json({
+      ok: true,
+      id: result.id,
+      storage_path: result.storagePath,
+      width_px: result.widthPx,
+      height_px: result.heightPx,
+    })
   })
 }

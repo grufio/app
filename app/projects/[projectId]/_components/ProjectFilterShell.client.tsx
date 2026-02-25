@@ -29,13 +29,23 @@ import { useProjectWorkspace } from "@/lib/editor/project-workspace"
 import { useImageState } from "@/lib/editor/use-image-state"
 import { useFilterWorkingImage } from "@/lib/editor/use-filter-working-image"
 import { useFilterStack } from "@/lib/editor/use-filter-stack"
-import { removeActiveFilter } from "@/lib/api/project-images"
-import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
+import { removeProjectImageFilter } from "@/lib/api/project-images"
 
 const ProjectCanvasStage = dynamic(
   () => import("@/features/editor/components/project-canvas-stage").then((m) => m.ProjectCanvasStage),
   { ssr: false, loading: () => <div className="h-full w-full" aria-hidden="true" /> }
 )
+
+function getFilterLabel(filterType: string): string {
+  switch (filterType) {
+    case "pixelate":
+      return "Pixelate"
+    case "lineart":
+      return "Line Art"
+    default:
+      return "Filter"
+  }
+}
 
 function FilterFloatingToolbar(props: {
   actionsDisabled: boolean
@@ -120,18 +130,6 @@ export function ProjectFilterPageClient(props: { projectId: string }) {
   const { initialImageTransform, imageStateLoading, loadImageState } = useImageState(props.projectId, true, null, false)
   const filterStack = useFilterStack(props.projectId, workingImage?.id ?? null)
 
-  // Debug: Log filter stack
-  useEffect(() => {
-    console.log("[FilterStack]", {
-      displayImageId: workingImage?.id,
-      imageName: workingImage?.name,
-      isFilterResult: workingImage?.isFilterResult,
-      stackLength: filterStack.stack.length,
-      stackLength: filterStack.stack.length,
-      stackIds: filterStack.stack.map(f => f.id),
-      stackTypes: filterStack.stack.map(f => f.filterType),
-    })
-  }, [workingImage?.id, filterStack.stack])
   const canvasRef = useRef<ProjectCanvasStageHandle | null>(null)
   const [activeFilterType, setActiveFilterType] = useState<"pixelate" | "lineart" | null>(null)
   const [showFilterSelection, setShowFilterSelection] = useState(false)
@@ -146,33 +144,14 @@ export function ProjectFilterPageClient(props: { projectId: string }) {
     enableShortcuts: false,
   })
 
-  const handleRemoveSpecificFilter = async (filterId: string) => {
+  const handleRemoveFilter = async (filterId: string) => {
     if (removingFilter) return
     setRemovingFilter(true)
     try {
-      const supabase = createSupabaseBrowserClient()
-      
-      await supabase
-        .from("project_images")
-        .update({ deleted_at: new Date().toISOString() })
-        .eq("id", filterId)
+      await removeProjectImageFilter({ projectId: props.projectId, filterId })
       
       await refreshWorkingImage()
       await filterStack.refresh()
-    } catch (e) {
-      console.error("Failed to remove filter:", e)
-      alert(e instanceof Error ? e.message : "Failed to remove filter")
-    } finally {
-      setRemovingFilter(false)
-    }
-  }
-
-  const handleRemoveFilter = async () => {
-    if (!workingImage || removingFilter) return
-    setRemovingFilter(true)
-    try {
-      await removeActiveFilter(props.projectId)
-      await refreshWorkingImage()
     } catch (e) {
       console.error("Failed to remove filter:", e)
       alert(e instanceof Error ? e.message : "Failed to remove filter")
@@ -211,12 +190,12 @@ export function ProjectFilterPageClient(props: { projectId: string }) {
                       <SidebarMenuItem key={filter.id}>
                         <SidebarMenuButton isActive={true} className="text-xs">
                           <SlidersHorizontal />
-                          <span>{filter.filterType === "pixelate" ? "Pixelate" : filter.filterType === "lineart" ? "Line Art" : "Filter"}</span>
+                          <span>{getFilterLabel(filter.filterType)}</span>
                         </SidebarMenuButton>
                         <SidebarMenuAction
                           aria-label={`Remove filter`}
                           disabled={removingFilter}
-                          onClick={() => handleRemoveSpecificFilter(filter.id)}
+                          onClick={() => handleRemoveFilter(filter.id)}
                         >
                           <Trash2 />
                         </SidebarMenuAction>
