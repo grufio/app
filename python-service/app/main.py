@@ -123,9 +123,9 @@ class LineArtRequest(BaseModel):
     threshold2: int = 200
     line_thickness: int = 2
     invert: bool = True
-    blur_amount: int = 3
-    min_contour_area: int = 200
-    smoothness: float = 0.005
+    blur_amount: int = 5
+    min_contour_area: int = 500
+    smoothness: float = 0.015
 
 
 @app.post("/filters/lineart")
