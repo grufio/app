@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 
 import { isUuid, jsonError, readJson, requireUser } from "@/lib/api/route-guards"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
-import { pixelateImageAndActivate } from "@/services/editor/server/pixelate-filter"
+import { pixelateImageAndActivate } from "@/services/editor/server/filters/pixelate"
 
 export const dynamic = "force-dynamic"
 
