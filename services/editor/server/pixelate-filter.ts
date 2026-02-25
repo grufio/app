@@ -1,9 +1,11 @@
 import crypto from "node:crypto"
+import FormData from "form-data"
 
-import sharp from "sharp"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/lib/supabase/database.types"
+
+const PYTHON_SERVICE_URL = process.env.PYTHON_SERVICE_URL || "http://localhost:8001"
 
 type PixelateFailStage =
   | "validation"
@@ -123,50 +125,38 @@ export async function pixelateImageAndActivate(args: {
 
   const srcBuffer = Buffer.from(await srcBlob.arrayBuffer())
 
+  // Determine output format
+  const outputFormat = pickOutputFormat(src.format)
+
   try {
-    let pipeline = sharp(srcBuffer)
+    // Call Python service for pixelation
+    const formData = new FormData()
+    formData.append("image", srcBuffer, {
+      filename: `source.${outputFormat}`,
+      contentType: contentTypeFor(outputFormat),
+    })
+    formData.append("superpixel_width", superpixelWidth.toString())
+    formData.append("superpixel_height", superpixelHeight.toString())
+    formData.append("color_mode", params.colorMode)
+    formData.append("num_colors", numColors.toString())
 
-    // Step 1: Resize down to grid dimensions
-    pipeline = pipeline.resize(gridWidth, gridHeight, {
-      fit: "fill",
-      kernel: sharp.kernel.nearest,
+    const response = await fetch(`${PYTHON_SERVICE_URL}/filters/pixelate`, {
+      method: "POST",
+      body: formData as any,
+      headers: formData.getHeaders(),
     })
 
-    // Step 2: Apply grayscale if requested
-    if (params.colorMode === "grayscale") {
-      pipeline = pipeline.grayscale()
+    if (!response.ok) {
+      const error = await response.text()
+      return {
+        ok: false,
+        status: response.status,
+        stage: "pixelate_process",
+        reason: `Python service error: ${error}`,
+      }
     }
 
-    // Step 3: Color quantization
-    // Sharp's PNG palette mode provides color quantization
-    const outputFormat = pickOutputFormat(src.format)
-    if (outputFormat === "png") {
-      pipeline = pipeline.png({ palette: true, colors: numColors, quality: 100 })
-    } else if (outputFormat === "jpeg") {
-      pipeline = pipeline.jpeg({ quality: 95 })
-    } else {
-      pipeline = pipeline.webp({ quality: 95 })
-    }
-
-    // Convert to buffer to apply color reduction
-    const intermediateBuffer = await pipeline.toBuffer()
-
-    // Step 4: Resize back up to original dimensions using nearest-neighbor
-    let finalPipeline = sharp(intermediateBuffer).resize(origWidth, origHeight, {
-      fit: "fill",
-      kernel: sharp.kernel.nearest,
-    })
-
-    // Re-encode with same format
-    if (outputFormat === "png") {
-      finalPipeline = finalPipeline.png({ quality: 100, compressionLevel: 6 })
-    } else if (outputFormat === "jpeg") {
-      finalPipeline = finalPipeline.jpeg({ quality: 95 })
-    } else {
-      finalPipeline = finalPipeline.webp({ quality: 95 })
-    }
-
-    const outputBuffer = await finalPipeline.toBuffer()
+    const outputBuffer = Buffer.from(await response.arrayBuffer())
 
     const imageId = crypto.randomUUID()
     const objectPath = `projects/${projectId}/images/${imageId}`
