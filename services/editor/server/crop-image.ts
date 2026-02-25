@@ -4,7 +4,6 @@ import sharp from "sharp"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/lib/supabase/database.types"
-import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role"
 import { activateMasterWithState } from "@/lib/supabase/project-images"
 
 type CropFailStage =
@@ -99,11 +98,19 @@ export async function cropImageAndActivate(args: {
     return { ok: false, status: 400, stage: "validation", reason: "Crop rect out of source bounds" }
   }
 
-  const service = createSupabaseServiceRoleClient()
   const sourceBucket = src.storage_bucket ?? "project_images"
-  const { data: srcBlob, error: downloadErr } = await service.storage.from(sourceBucket).download(src.storage_path)
+  const { data: srcBlob, error: downloadErr } = await supabase.storage
+    .from(String(sourceBucket))
+    .download(String(src.storage_path))
+  
   if (downloadErr || !srcBlob) {
-    return { ok: false, status: 400, stage: "source_download", reason: downloadErr?.message ?? "Failed to download source image" }
+    const errDetails = downloadErr ? JSON.stringify(downloadErr) : "No blob returned"
+    return { 
+      ok: false, 
+      status: 400, 
+      stage: "source_download", 
+      reason: `Download failed: ${errDetails}. Path: ${src.storage_path}, Bucket: ${sourceBucket}` 
+    }
   }
 
   let outputBuffer: Buffer
@@ -124,9 +131,9 @@ export async function cropImageAndActivate(args: {
 
   const imageId = crypto.randomUUID()
   const objectPath = `projects/${projectId}/images/${imageId}`
-  const { error: uploadErr } = await service.storage.from("project_images").upload(objectPath, outputBuffer, {
-    upsert: false,
+  const { error: uploadErr } = await supabase.storage.from("project_images").upload(objectPath, outputBuffer, {
     contentType: contentTypeFor(outputFormat),
+    upsert: false,
   })
   if (uploadErr) {
     return { ok: false, status: 400, stage: "storage_upload", reason: uploadErr.message, code: (uploadErr as { code?: string }).code }
@@ -148,7 +155,7 @@ export async function cropImageAndActivate(args: {
     crop_rect_px: { x, y, w, h },
   })
   if (insertErr) {
-    await service.storage.from("project_images").remove([objectPath])
+    await supabase.storage.from("project_images").remove([objectPath])
     return { ok: false, status: 400, stage: "db_insert", reason: insertErr.message, code: (insertErr as { code?: string }).code }
   }
 
@@ -161,7 +168,7 @@ export async function cropImageAndActivate(args: {
   })
   if (!activation.ok) {
     await supabase.from("project_images").delete().eq("id", imageId)
-    await service.storage.from("project_images").remove([objectPath])
+    await supabase.storage.from("project_images").remove([objectPath])
     return { ok: false, status: activation.status, stage: activation.stage, reason: activation.reason, code: activation.code }
   }
 
