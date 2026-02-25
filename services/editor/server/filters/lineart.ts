@@ -14,6 +14,7 @@ type LineArtFailStage =
   | "lineart_process"
   | "storage_upload"
   | "db_insert"
+  | "active_switch"
 
 type LineArtFailure = {
   ok: false
@@ -45,6 +46,12 @@ function toInt(value: number): number | null {
   const n = Math.round(value)
   if (n < 0) return null
   return n
+}
+
+function contentTypeFor(format: "jpeg" | "png" | "webp"): string {
+  if (format === "jpeg") return "image/jpeg"
+  if (format === "webp") return "image/webp"
+  return "image/png"
 }
 
 export async function lineArtImageAndActivate(args: {
@@ -103,7 +110,11 @@ export async function lineArtImageAndActivate(args: {
 
   const srcBuffer = Buffer.from(await srcBlob.arrayBuffer())
 
+  // Line art always outputs PNG (grayscale/binary)
+  const outputFormat = "png"
+
   try {
+    // Call Python service for line art
     const imageBase64 = srcBuffer.toString("base64")
 
     const response = await fetch(`${PYTHON_SERVICE_URL}/filters/lineart`, {
@@ -138,7 +149,7 @@ export async function lineArtImageAndActivate(args: {
     const { error: uploadErr } = await supabase.storage
       .from("project_images")
       .upload(objectPath, outputBuffer, {
-        contentType: "image/png",
+        contentType: contentTypeFor(outputFormat),
         upsert: false,
       })
 
@@ -151,7 +162,7 @@ export async function lineArtImageAndActivate(args: {
       project_id: projectId,
       role: "asset",
       name: `${src.name} (line art)`,
-      format: "png",
+      format: outputFormat,
       width_px: origWidth,
       height_px: origHeight,
       storage_bucket: "project_images",
