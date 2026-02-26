@@ -9,7 +9,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 export type FilterStackItem = {
   id: string
   name: string
-  filterType: "pixelate" | "lineart" | "unknown"
+  filterType: "pixelate" | "lineart" | "numerate" | "unknown"
   source_image_id: string | null
 }
 
@@ -45,13 +45,15 @@ export function useFilterStack(projectId: string, displayImageId: string | null)
       while (currentId) {
         const { data: img } = await supabase
           .from("project_images")
-          .select("id,name,source_image_id")
+          .select("id,name,source_image_id,role")
           .eq("id", currentId)
           .eq("project_id", projectId)
           .is("deleted_at", null)
           .maybeSingle()
 
         if (!img) break
+
+        if (img.role === "master") break
 
         // Check if this is a filter result (not working copy)
         if (img.name.includes("(filter working)")) {
@@ -60,9 +62,10 @@ export function useFilterStack(projectId: string, displayImageId: string | null)
         }
 
         // Determine filter type from name
-        let filterType: "pixelate" | "lineart" | "unknown" = "unknown"
+        let filterType: "pixelate" | "lineart" | "numerate" | "unknown" = "unknown"
         if (img.name.includes("(pixelate)")) filterType = "pixelate"
         else if (img.name.includes("(line art)")) filterType = "lineart"
+        else if (img.name.includes("(numerate)")) filterType = "numerate"
 
         chain.unshift({
           id: img.id,

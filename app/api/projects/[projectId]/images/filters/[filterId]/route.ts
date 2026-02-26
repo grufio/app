@@ -40,13 +40,9 @@ export async function DELETE(
       return jsonError("Failed to delete filter", 500, { stage: "delete", code: deleteErr.code })
     }
 
-    // Soft-delete all working copies to force refresh
-    await context.supabase
-      .from("project_images")
-      .update({ deleted_at: new Date().toISOString() })
-      .eq("project_id", context.projectId)
-      .like("name", "%(filter working)")
-      .is("deleted_at", null)
+    // Note: We intentionally do NOT delete working copies here
+    // The working copy is shared across all filters and should persist
+    // It will be refreshed automatically when needed
 
     return NextResponse.json({ ok: true, active_image_id: filter.source_image_id })
   })

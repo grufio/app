@@ -272,17 +272,24 @@ export async function removeProjectImageFilter(args: {
   return { active_image_id: String(res.data.active_image_id) }
 }
 
-export async function getOrCreateFilterWorkingCopy(projectId: string): Promise<{
-  id: string
-  signedUrl: string
-  width_px: number
-  height_px: number
-  storage_path: string
-  source_image_id: string | null
-  name: string
-}> {
+export async function getOrCreateFilterWorkingCopy(projectId: string): Promise<
+  | {
+      exists: false
+    }
+  | {
+      exists: true
+      id: string
+      signedUrl: string
+      width_px: number
+      height_px: number
+      storage_path: string
+      source_image_id: string | null
+      name: string
+    }
+> {
   const res = await fetchJson<{
     ok?: boolean
+    exists?: boolean
     id?: string
     signed_url?: string
     width_px?: number
@@ -299,10 +306,14 @@ export async function getOrCreateFilterWorkingCopy(projectId: string): Promise<{
       `Failed to get filter working copy (HTTP ${res.status})` + (res.error ? ` ${JSON.stringify(res.error)}` : "")
     throw new Error(msg)
   }
+  if (res.data?.exists === false) {
+    return { exists: false }
+  }
   if (!res.data?.id || !res.data.signed_url) {
     throw new Error("Failed to get filter working copy (missing data)")
   }
   return {
+    exists: true,
     id: String(res.data.id),
     signedUrl: String(res.data.signed_url),
     width_px: Number(res.data.width_px ?? 0),
@@ -404,6 +415,45 @@ export async function applyLineArtFilter(args: {
   }
   if (!res.data?.id) {
     throw new Error("Failed to apply line art filter (missing id)")
+  }
+  invalidateFetchJsonGetCache(`/api/projects/${projectId}/images/filter-working-copy`)
+  return {
+    id: String(res.data.id),
+    width_px: Number(res.data.width_px ?? 0),
+    height_px: Number(res.data.height_px ?? 0),
+  }
+}
+
+export async function applyNumerateFilter(args: {
+  projectId: string
+  sourceImageId: string
+  superpixelWidth: number
+  superpixelHeight: number
+  strokeWidth: number
+  showColors: boolean
+}): Promise<{ id: string; width_px: number; height_px: number }> {
+  const { projectId, sourceImageId, superpixelWidth, superpixelHeight, strokeWidth, showColors } = args
+  const res = await fetchJson<{ ok?: boolean; id?: string; width_px?: number; height_px?: number }>(
+    `/api/projects/${projectId}/filters/numerate`,
+    {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json"},
+      body: JSON.stringify({
+        source_image_id: sourceImageId,
+        superpixel_width: superpixelWidth,
+        superpixel_height: superpixelHeight,
+        stroke_width: strokeWidth,
+        show_colors: showColors,
+      }),
+    }
+  )
+  if (!res.ok) {
+    const msg = `Failed to apply numerate filter (HTTP ${res.status})` + (res.error ? ` ${JSON.stringify(res.error)}` : "")
+    throw new Error(msg)
+  }
+  if (!res.data?.id) {
+    throw new Error("Failed to apply numerate filter (missing id)")
   }
   invalidateFetchJsonGetCache(`/api/projects/${projectId}/images/filter-working-copy`)
   return {

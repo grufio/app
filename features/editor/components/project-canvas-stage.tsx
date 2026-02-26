@@ -76,6 +76,7 @@ type Props = {
     rotationDeg: number
   }) => void
   cropEnabled?: boolean
+  onCropDblClick?: () => void
   cropBusy?: boolean
   /** Global guard for rotate mutations (e.g. locked image). */
   rotateEnabled?: boolean
@@ -237,6 +238,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     onImageSizeChange,
     initialImageTransform,
     onImageTransformCommit,
+    onCropDblClick,
     cropEnabled = false,
     cropBusy = false,
     rotateEnabled = true,
@@ -701,7 +703,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   }, [imageRender])
 
   const cropMinSize = 10
-  const cropLimitFrame = imageFrame
+  const cropLimitFrame = hasArtboard ? { x: 0, y: 0, w: artW, h: artH } : imageFrame
   const { beginSelectResize, stopSelectResize } = useSelectResizeController({
     containerRef,
     view,
@@ -1001,6 +1003,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
                     e.cancelBubble = true
                   }}
                   onDragMove={(e) => applyCropMove(e.target.x(), e.target.y())}
+                  onDblClick={() => onCropDblClick?.()}
                 />
                 {(
                   [

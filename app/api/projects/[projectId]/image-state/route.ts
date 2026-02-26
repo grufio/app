@@ -2,7 +2,7 @@
  * API route: persisted image state (transform) for a project.
  *
  * Responsibilities:
- * - GET: read `project_image_state` for the master role.
+ * - GET: read `project_image_state` for the master role or specific image.
  * - POST: validate and upsert µpx-based transform state.
  */
 import { NextResponse } from "next/server"
@@ -15,7 +15,11 @@ import { validateIncomingImageStateUpsert, type IncomingImageStatePayload } from
 
 export const dynamic = "force-dynamic"
 
-export async function GET(_req: Request, { params }: { params: Promise<{ projectId: string }> }) {
+export async function GET(req: Request, { params }: { params: Promise<{ projectId: string }> }) {
+  const url = new URL(req.url)
+  const queryImageId = url.searchParams.get("imageId")
+  const useQueryImageId = queryImageId && isUuid(queryImageId)
+
   const { projectId } = await params
   if (!isUuid(String(projectId))) {
     return jsonError("Invalid projectId", 400, { stage: "validation", where: "params" })
@@ -25,13 +29,24 @@ export async function GET(_req: Request, { params }: { params: Promise<{ project
   const u = await requireUser(supabase)
   if (!u.ok) return u.res
 
-  const { imageId: activeImageId, error: activeErr } = await getActiveMasterImageId(supabase, projectId)
-  if (activeErr) return jsonError(activeErr, 400, { stage: "active_image_lookup" })
-  if (!activeImageId) {
+  let targetImageId: string | null = null
+
+  if (useQueryImageId) {
+    targetImageId = queryImageId
+  } else {
+    const { imageId: activeImageId, error: activeErr } = await getActiveMasterImageId(supabase, projectId)
+    if (activeErr) return jsonError(activeErr, 400, { stage: "active_image_lookup" })
+    if (!activeImageId) {
+      return NextResponse.json({ exists: false, state: null })
+    }
+    targetImageId = activeImageId
+  }
+
+  if (!targetImageId) {
     return NextResponse.json({ exists: false, state: null })
   }
 
-  const { row: data, error: readErr, unsupported } = await loadBoundImageState(supabase, projectId, activeImageId)
+  const { row: data, error: readErr, unsupported } = await loadBoundImageState(supabase, projectId, targetImageId)
   if (readErr) return jsonError(readErr, 400, { stage: "select_state" })
   if (unsupported) {
     return jsonError("Unsupported image state: missing width_px_u/height_px_u", 400, { stage: "schema_missing", where: "validate_state" })
@@ -50,7 +65,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ project
   const u = await requireUser(supabase)
   if (!u.ok) return u.res
 
-  // Explicit access check for clearer error staging (RLS still enforces owner-only).
   const { data: projectRow, error: projectErr } = await supabase.from("projects").select("id").eq("id", projectId).maybeSingle()
   if (projectErr) {
     console.warn("image-state: project access query failed", { projectId, message: projectErr.message })
@@ -72,14 +86,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ project
     return jsonError("Invalid image_id", 400, { stage: "validation", where: "image_id" })
   }
 
-  // µpx schema required.
   const baseRow = {
     project_id: projectId,
     image_id: validated.image_id,
     ...validated,
   }
 
-  // Never trust client-provided image identity; bind state to current active master.
   const { imageId: activeImageIdForWrite, error: activeErr } = await getActiveMasterImageId(supabase, projectId)
   if (activeErr) return jsonError(activeErr, 400, { stage: "active_image_lookup" })
   if (!activeImageIdForWrite) {
@@ -118,4 +130,3 @@ export async function POST(req: Request, { params }: { params: Promise<{ project
 
   return NextResponse.json({ ok: true })
 }
-

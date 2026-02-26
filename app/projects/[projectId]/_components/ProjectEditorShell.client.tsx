@@ -350,8 +350,8 @@ export function ProjectDetailPageClient({
     if (!res.ok) return
     setDeleteOpen(false)
     setImagePxU(null)
-    void refreshProjectImages()
-    void refreshMasterImage()
+    await refreshProjectImages()
+    await refreshMasterImage()
   }, [deleteImage, deleteImageById, refreshMasterImage, refreshProjectImages, selectedImageId])
 
   const handleRestoreInitialImage = useCallback(async () => {
@@ -594,6 +594,32 @@ export function ProjectDetailPageClient({
               pageBgEnabled={pageBgEnabled}
               pageBgColor={pageBgColor}
               pageBgOpacity={pageBgOpacity}
+              onCropDblClick={async () => {
+                if (toolbar.tool !== "crop") return
+                if (cropBusy) return
+                const sourceImageId = masterImage?.id ?? null
+                if (!sourceImageId) return
+                const selection = canvasRef.current?.getCropSelection()
+                if (!selection?.ok) return
+                const rect = selection.rect
+                setCropBusy(true)
+                try {
+                  await cropImageVariant({
+                    projectId,
+                    sourceImageId,
+                    x: rect.x,
+                    y: rect.y,
+                    w: rect.w,
+                    h: rect.h,
+                  })
+                  toolbar.setTool("select")
+                  await refreshMasterImage()
+                  await refreshProjectImages()
+                  await loadImageState()
+                } finally {
+                  setCropBusy(false)
+                }
+              }}
             />
           </main>
 

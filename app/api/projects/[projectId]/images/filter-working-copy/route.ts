@@ -24,11 +24,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ project
   const result = await getOrCreateFilterWorkingCopy({ supabase, projectId })
 
   if (!result.ok) {
+    if (result.stage === "active_lookup") {
+      return NextResponse.json({ ok: true, exists: false })
+    }
     return jsonError(result.reason, result.status, { stage: result.stage, code: result.code })
   }
 
   return NextResponse.json({
     ok: true,
+    exists: true,
     id: result.id,
     storage_path: result.storagePath,
     width_px: result.widthPx,

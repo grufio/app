@@ -78,6 +78,7 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
   handleImagePxChange: (w: bigint, h: bigint) => void
   initialImageTransform: CanvasInitialImageTransform
   saveImageState?: CanvasTransformCommit
+  onCropDblClick?: () => void
 }) {
   const {
     projectId,
@@ -96,6 +97,7 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
     handleImagePxChange,
     initialImageTransform,
     saveImageState,
+    onCropDblClick,
   } = props
 
   void _masterImageLoading
@@ -172,6 +174,7 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
             onImageSizeChange={handleImagePxChange}
             initialImageTransform={masterImage ? initialImageTransform : null}
             onImageTransformCommit={masterImage ? saveImageState : undefined}
+            onCropDblClick={onCropDblClick}
           />
         )}
 

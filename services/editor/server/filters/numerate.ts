@@ -7,25 +7,25 @@ import { copyImageTransform } from "@/services/editor/server/copy-image-transfor
 
 const PYTHON_SERVICE_URL = process.env.PYTHON_SERVICE_URL || "http://localhost:8001"
 
-type PixelateFailStage =
+type NumerateFailStage =
   | "validation"
   | "source_lookup"
   | "lock_conflict"
   | "source_download"
-  | "pixelate_process"
+  | "numerate_process"
   | "storage_upload"
   | "db_insert"
   | "active_switch"
 
-type PixelateFailure = {
+type NumerateFailure = {
   ok: false
   status: number
-  stage: PixelateFailStage
+  stage: NumerateFailStage
   reason: string
   code?: string
 }
 
-type PixelateSuccess = {
+type NumerateSuccess = {
   ok: true
   id: string
   storagePath: string
@@ -33,13 +33,13 @@ type PixelateSuccess = {
   heightPx: number
 }
 
-export type PixelateFilterResult = PixelateSuccess | PixelateFailure
+export type NumerateFilterResult = NumerateSuccess | NumerateFailure
 
-type PixelateParams = {
+type NumerateParams = {
   superpixelWidth: number
   superpixelHeight: number
-  colorMode: "rgb" | "grayscale"
-  numColors: number
+  strokeWidth: number
+  showColors: boolean
 }
 
 function toInt(value: number): number | null {
@@ -49,40 +49,27 @@ function toInt(value: number): number | null {
   return n
 }
 
-function pickOutputFormat(format: string | null | undefined): "jpeg" | "png" | "webp" {
-  const f = String(format ?? "").toLowerCase()
-  if (f === "jpg" || f === "jpeg") return "jpeg"
-  if (f === "webp") return "webp"
-  return "png"
-}
-
-function contentTypeFor(format: "jpeg" | "png" | "webp"): string {
-  if (format === "jpeg") return "image/jpeg"
-  if (format === "webp") return "image/webp"
-  return "image/png"
-}
-
-export async function pixelateImageAndActivate(args: {
+export async function numerateImageAndActivate(args: {
   supabase: SupabaseClient<Database>
   projectId: string
   sourceImageId: string
-  params: PixelateParams
-}): Promise<PixelateFilterResult> {
+  params: NumerateParams
+}): Promise<NumerateFilterResult> {
   const { supabase, projectId, sourceImageId, params } = args
   const superpixelWidth = toInt(params.superpixelWidth)
   const superpixelHeight = toInt(params.superpixelHeight)
-  const numColors = toInt(params.numColors)
+  const strokeWidth = toInt(params.strokeWidth)
 
   if (
     superpixelWidth == null ||
     superpixelHeight == null ||
     superpixelWidth < 1 ||
     superpixelHeight < 1 ||
-    numColors == null ||
-    numColors < 2 ||
-    numColors > 256
+    strokeWidth == null ||
+    strokeWidth < 1 ||
+    strokeWidth > 20
   ) {
-    return { ok: false, status: 400, stage: "validation", reason: "Invalid pixelate params" }
+    return { ok: false, status: 400, stage: "validation", reason: "Invalid numerate params" }
   }
 
   const { data: src, error: srcErr } = await supabase
@@ -107,7 +94,6 @@ export async function pixelateImageAndActivate(args: {
     return { ok: false, status: 400, stage: "validation", reason: "Invalid source dimensions" }
   }
 
-  // Calculate grid dimensions
   const gridWidth = Math.max(1, Math.floor(origWidth / superpixelWidth))
   const gridHeight = Math.max(1, Math.floor(origHeight / superpixelHeight))
 
@@ -125,14 +111,10 @@ export async function pixelateImageAndActivate(args: {
 
   const srcBuffer = Buffer.from(await srcBlob.arrayBuffer())
 
-  // Determine output format
-  const outputFormat = pickOutputFormat(src.format)
-
   try {
-    // Call Python service for pixelation
     const imageBase64 = srcBuffer.toString("base64")
 
-    const response = await fetch(`${PYTHON_SERVICE_URL}/filters/pixelate`, {
+    const response = await fetch(`${PYTHON_SERVICE_URL}/filters/numerate`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -141,8 +123,8 @@ export async function pixelateImageAndActivate(args: {
         image_base64: imageBase64,
         superpixel_width: superpixelWidth,
         superpixel_height: superpixelHeight,
-        color_mode: params.colorMode,
-        num_colors: numColors,
+        stroke_width: strokeWidth,
+        show_colors: params.showColors,
       }),
     })
 
@@ -151,7 +133,7 @@ export async function pixelateImageAndActivate(args: {
       return {
         ok: false,
         status: response.status,
-        stage: "pixelate_process",
+        stage: "numerate_process",
         reason: `Python service error: ${error}`,
       }
     }
@@ -164,20 +146,20 @@ export async function pixelateImageAndActivate(args: {
     const { error: uploadErr } = await supabase.storage
       .from("project_images")
       .upload(objectPath, outputBuffer, {
-        contentType: contentTypeFor(outputFormat),
+        contentType: "image/svg+xml",
         upsert: false,
       })
 
     if (uploadErr) {
-      return { ok: false, status: 500, stage: "storage_upload", reason: "Failed to upload pixelated image" }
+      return { ok: false, status: 500, stage: "storage_upload", reason: "Failed to upload numerate image" }
     }
 
     const { error: insertErr } = await supabase.from("project_images").insert({
       id: imageId,
       project_id: projectId,
       role: "asset",
-      name: `${src.name.replace(/ \(filter working\)| \(pixelate\)| \(line art\)| \(numerate\)/g, "")} (pixelate)`,
-      format: outputFormat,
+      name: `${src.name.replace(/ \(filter working\)| \(pixelate\)| \(line art\)| \(numerate\)/g, "")} (numerate)`,
+      format: "svg",
       width_px: origWidth,
       height_px: origHeight,
       storage_bucket: "project_images",
@@ -191,9 +173,8 @@ export async function pixelateImageAndActivate(args: {
       await supabase.storage.from("project_images").remove([objectPath])
       return { ok: false, status: 400, stage: "db_insert", reason: insertErr.message, code: insertErr.code }
     }
-
     // Copy transform from source to filter image
-    const transformCopy = await copyImageTransform({
+    await copyImageTransform({
       supabase,
       projectId,
       sourceImageId,
@@ -204,6 +185,7 @@ export async function pixelateImageAndActivate(args: {
       targetHeight: origHeight,
     })
 
+
     return {
       ok: true,
       id: imageId,
@@ -212,7 +194,7 @@ export async function pixelateImageAndActivate(args: {
       heightPx: origHeight,
     }
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Pixelate process failed"
-    return { ok: false, status: 500, stage: "pixelate_process", reason: msg }
+    const msg = e instanceof Error ? e.message : "Numerate process failed"
+    return { ok: false, status: 500, stage: "numerate_process", reason: msg }
   }
 }

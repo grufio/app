@@ -49,7 +49,15 @@ export function useFilterWorkingImage(projectId: string) {
       setLoading(true)
       try {
         const workingCopy = await getOrCreateFilterWorkingCopy(projectId)
-        
+
+        if (!workingCopy.exists) {
+          if (mountedRef.current) {
+            setImage(null)
+            setError("")
+          }
+          return
+        }
+
         // Initialize currentImage with working copy
         let currentImage = {
           id: workingCopy.id,

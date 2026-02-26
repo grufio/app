@@ -11,8 +11,8 @@ import { ApiError } from "@/lib/api/api-error"
 
 export type { GetImageStateResponse, ImageStateRow, SaveImageStateBody } from "@/lib/editor/imageState"
 
-export async function getImageState(projectId: string): Promise<GetImageStateResponse> {
-  const res = await fetchJson<GetImageStateResponse>(`/api/projects/${projectId}/image-state`, {
+export async function getImageState(projectId: string, imageId?: string): Promise<GetImageStateResponse> {
+  const res = await fetchJson<GetImageStateResponse>(imageId ? `/api/projects/${projectId}/image-state?imageId=${imageId}` : `/api/projects/${projectId}/image-state`, {
     method: "GET",
     credentials: "same-origin",
   })
@@ -23,7 +23,7 @@ export async function getImageState(projectId: string): Promise<GetImageStateRes
 }
 
 export async function saveImageState(projectId: string, body: SaveImageStateBody): Promise<void> {
-  const res = await fetchJson<unknown>(`/api/projects/${projectId}/image-state`, {
+  const res = await fetchJson<unknown>(imageId ? `/api/projects/${projectId}/image-state?imageId=${imageId}` : `/api/projects/${projectId}/image-state`, {
     method: "POST",
     credentials: "same-origin",
     headers: { "Content-Type": "application/json" },

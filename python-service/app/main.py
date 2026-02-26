@@ -119,13 +119,133 @@ async def pixelate_filter(request: PixelateRequest):
 
 class LineArtRequest(BaseModel):
     image_base64: str
-    threshold1: int = 100
+    threshold1: int = 50
     threshold2: int = 200
     line_thickness: int = 2
     invert: bool = True
     blur_amount: int = 3
-    min_contour_area: int = 100
-    smoothness: float = 0.01
+    min_contour_area: int = 500
+    smoothness: float = 0.002
+
+
+class NumerateRequest(BaseModel):
+    image_base64: str
+    superpixel_width: int
+    superpixel_height: int
+    stroke_width: int = 2
+    show_colors: bool = True
+
+
+@app.post("/filters/numerate")
+async def numerate_filter(request: NumerateRequest):
+    """
+    Create a vector grid overlay from pixelated superpixels.
+    
+    Algorithm:
+    1. Divide image into superpixel grid
+    2. Calculate average color per superpixel
+    3. Generate SVG with grid lines and optional color backgrounds
+    """
+    if request.superpixel_width < 1 or request.superpixel_height < 1:
+        raise HTTPException(status_code=400, detail="Superpixel dimensions must be >= 1")
+    if request.stroke_width < 1 or request.stroke_width > 20:
+        raise HTTPException(status_code=400, detail="Stroke width must be between 1 and 20")
+    
+    try:
+        # Decode image
+        img_bytes = base64.b64decode(request.image_base64)
+        img = Image.open(io.BytesIO(img_bytes))
+        
+        if img.mode not in ("RGB", "L"):
+            img = img.convert("RGB")
+        
+        width, height = img.size
+        grid_width = width // request.superpixel_width
+        grid_height = height // request.superpixel_height
+        
+        if grid_width < 1 or grid_height < 1:
+            raise HTTPException(status_code=400, detail="Superpixel size too large for image")
+        
+        pixels = img.load()
+        svg_paths = []
+        
+        # Generate superpixel colors and rectangles
+        for block_y in range(grid_height):
+            for block_x in range(grid_width):
+                x_start = block_x * request.superpixel_width
+                y_start = block_y * request.superpixel_height
+                x_end = min(x_start + request.superpixel_width, width)
+                y_end = min(y_start + request.superpixel_height, height)
+                
+                # Calculate average color
+                if request.show_colors:
+                    r_sum, g_sum, b_sum = 0, 0, 0
+                    pixel_count = 0
+                    
+                    for y in range(y_start, y_end):
+                        for x in range(x_start, x_end):
+                            pixel = pixels[x, y]
+                            if img.mode == "RGB":
+                                r_sum += pixel[0]
+                                g_sum += pixel[1]
+                                b_sum += pixel[2]
+                            else:
+                                r_sum += pixel
+                                g_sum += pixel
+                                b_sum += pixel
+                            pixel_count += 1
+                    
+                    if pixel_count > 0:
+                        if img.mode == "RGB":
+                            avg_r = r_sum // pixel_count
+                            avg_g = g_sum // pixel_count
+                            avg_b = b_sum // pixel_count
+                            color = f"rgb({avg_r},{avg_g},{avg_b})"
+                        else:
+                            avg_gray = r_sum // pixel_count
+                            color = f"rgb({avg_gray},{avg_gray},{avg_gray})"
+                        
+                        # Add colored rectangle
+                        svg_paths.append(
+                            f'<rect x="{x_start}" y="{y_start}" '
+                            f'width="{x_end - x_start}" height="{y_end - y_start}" '
+                            f'fill="{color}" />'
+                        )
+        
+        # Generate grid lines
+        grid_lines = []
+        
+        # Vertical lines
+        for i in range(grid_width + 1):
+            x = min(i * request.superpixel_width, width)
+            grid_lines.append(
+                f'<line x1="{x}" y1="0" x2="{x}" y2="{height}" '
+                f'stroke="black" stroke-width="{request.stroke_width}" />'
+            )
+        
+        # Horizontal lines
+        for i in range(grid_height + 1):
+            y = min(i * request.superpixel_height, height)
+            grid_lines.append(
+                f'<line x1="0" y1="{y}" x2="{width}" y2="{y}" '
+                f'stroke="black" stroke-width="{request.stroke_width}" />'
+            )
+        
+        # Create SVG document
+        svg_content = f'''<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
+  <rect width="{width}" height="{height}" fill="white"/>
+  <g id="colors">
+    {chr(10).join(svg_paths)}
+  </g>
+  <g id="grid">
+    {chr(10).join(grid_lines)}
+  </g>
+</svg>'''
+        
+        return Response(content=svg_content, media_type="image/svg+xml")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Image processing failed: {str(e)}")
 
 
 @app.post("/filters/lineart")
