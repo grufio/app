@@ -173,6 +173,7 @@ export function ProjectDetailPageClient({
   const [restoreBusy, setRestoreBusy] = useState(false)
   const [restoreError, setRestoreError] = useState("")
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [leftPanelTab, setLeftPanelTab] = useState<"image" | "filter" | "colors" | "output">("image")
   const [canvasMode, setCanvasMode] = useState<"image" | "filter">("image")
   const [showFilterSelection, setShowFilterSelection] = useState(false)
   const [activeFilterType, setActiveFilterType] = useState<"pixelate" | "lineart" | "numerate" | null>(null)
@@ -656,7 +657,7 @@ export function ProjectDetailPageClient({
             <SidebarMenuItem key={filter.id}>
               <SidebarMenuButton
                 isActive={canvasMode === "filter" && filterDisplayImage?.id === filter.id}
-                className="text-xs"
+                className="text-xs font-medium"
                 onClick={() => setCanvasMode("filter")}
               >
                 <SlidersHorizontal />
@@ -675,11 +676,11 @@ export function ProjectDetailPageClient({
           <SidebarMenuItem>
             <SidebarMenuButton
               isActive={canvasMode === "filter" && filterStack.stack.length === 0}
-              className="text-xs"
+              className="text-xs font-medium"
               onClick={() => setShowFilterSelection(true)}
             >
               <SlidersHorizontal />
-              <span>Neuer Filter</span>
+              <span>New Filter</span>
             </SidebarMenuButton>
             <SidebarMenuAction
               aria-label="Add filter"
@@ -711,19 +712,23 @@ export function ProjectDetailPageClient({
 
   return (
     <div className="flex min-h-svh w-full flex-col">
-      <ProjectEditorHeader projectId={projectId} />
+      <ProjectEditorHeader
+        projectId={projectId}
+        initialTitle={project && project.id === projectId ? project.name : "Untitled"}
+        onTitleUpdated={handleTitleUpdated}
+      />
 
       <ProjectEditorLayout>
         <EditorErrorBoundary resetKey={`${projectId}:${masterImage?.signedUrl ?? "no-image"}`}>
           <main className="flex min-w-0 flex-1">
             <ProjectEditorLeftPanel
               projectId={projectId}
-              initialTitle={project && project.id === projectId ? project.name : "Untitled"}
-              onTitleUpdated={handleTitleUpdated}
               widthRem={leftPanelWidthRem}
               minRem={minPanelRem}
               maxRem={maxPanelRem}
               onWidthRemChange={setLeftPanelWidthRem}
+              activeTab={leftPanelTab}
+              onActiveTabChange={setLeftPanelTab}
               selectedId={selectedNavId}
               onSelect={setSelectedNavId}
               images={leftPanelImages}
@@ -734,7 +739,7 @@ export function ProjectDetailPageClient({
               onImageDeleteRequested={requestDeleteImage}
               onGridCreateRequested={requestCreateGrid}
               onGridDeleteRequested={requestDeleteGrid}
-              extraContent={filterSidebarContent}
+              filterPanelContent={filterSidebarContent}
             />
             <ProjectEditorStage
               projectId={projectId}

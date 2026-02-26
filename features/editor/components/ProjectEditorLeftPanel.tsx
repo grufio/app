@@ -12,12 +12,10 @@ import { SidebarFrame } from "@/components/navigation/SidebarFrame"
 import { SidebarContent } from "@/components/ui/sidebar"
 import { EditorSidebarSection } from "./sidebar/editor-sidebar-section"
 import { EditorNavTree } from "./editor-nav-tree"
-import { ProjectTitleEditor } from "./project-title-editor"
+import { TabsSidepanel, type SidepanelTab } from "./TabsSidepanel"
 
 export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel(props: {
   projectId: string
-  initialTitle?: string
-  onTitleUpdated?: (nextTitle: string) => void
   widthRem: number
   minRem: number
   maxRem: number
@@ -32,12 +30,12 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
   onImageDeleteRequested: (imageId: string) => void | Promise<void>
   onGridCreateRequested: () => void | Promise<void>
   onGridDeleteRequested: () => void | Promise<void>
-  extraContent?: React.ReactNode
+  activeTab: SidepanelTab
+  onActiveTabChange: (tab: SidepanelTab) => void
+  filterPanelContent?: React.ReactNode
 }) {
   const {
     projectId,
-    initialTitle,
-    onTitleUpdated,
     widthRem,
     minRem,
     maxRem,
@@ -52,7 +50,9 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
     onImageDeleteRequested,
     onGridCreateRequested,
     onGridDeleteRequested,
-    extraContent,
+    activeTab,
+    onActiveTabChange,
+    filterPanelContent,
   } = props
 
   const clamp = (v: number) => Math.max(minRem, Math.min(maxRem, v))
@@ -92,25 +92,26 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
     >
       <SidebarFrame className="block min-h-0 w-full">
         <SidebarContent className="gap-0">
-          <div className="border-b px-4 py-3">
-            <ProjectTitleEditor projectId={projectId} initialTitle={initialTitle} onTitleUpdated={onTitleUpdated} />
-          </div>
-          <EditorSidebarSection title="Projekt">
-            <EditorNavTree
-              projectId={projectId}
-              selectedId={selectedId}
-              onSelect={onSelect}
-              images={images}
-              lockedById={lockedById}
-              onToggleImageLocked={onToggleImageLocked}
-              hasGrid={hasGrid}
-              onImageUploaded={onImageUploaded}
-              onImageDeleteRequested={onImageDeleteRequested}
-              onGridCreateRequested={onGridCreateRequested}
-              onGridDeleteRequested={onGridDeleteRequested}
-            />
-          </EditorSidebarSection>
-          {extraContent}
+          <TabsSidepanel activeTab={activeTab} onTabChange={onActiveTabChange} />
+          {activeTab === "filter" ? (
+            filterPanelContent
+          ) : (
+            <EditorSidebarSection title="Projekt">
+              <EditorNavTree
+                projectId={projectId}
+                selectedId={selectedId}
+                onSelect={onSelect}
+                images={images}
+                lockedById={lockedById}
+                onToggleImageLocked={onToggleImageLocked}
+                hasGrid={hasGrid}
+                onImageUploaded={onImageUploaded}
+                onImageDeleteRequested={onImageDeleteRequested}
+                onGridCreateRequested={onGridCreateRequested}
+                onGridDeleteRequested={onGridDeleteRequested}
+              />
+            </EditorSidebarSection>
+          )}
         </SidebarContent>
       </SidebarFrame>
       {/* Resize handle (use border line; no separate visual handle). */}

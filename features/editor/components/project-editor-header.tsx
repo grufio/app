@@ -2,26 +2,20 @@
 
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { ProjectTitleEditor } from "./project-title-editor"
 
 /**
  * Header for the project editor page.
  *
  * Features:
  * - Back link to the dashboard
- * - Section tabs for right-panel context
+ * - Header stays minimal; editor tabs live in the left sidebar
  */
-export function ProjectEditorHeader(props: { projectId: string }) {
-  const base = `/projects/${props.projectId}`
-  const activeTab = "image" as const
-
-  const tabs: Array<{ key: "image" | "colors" | "output"; label: string; href?: string; disabled?: boolean }> = [
-    { key: "image", label: "Image", href: base },
-    // reserved for later
-    { key: "colors", label: "Colors", disabled: true },
-    { key: "output", label: "Output", disabled: true },
-  ]
-
+export function ProjectEditorHeader(props: {
+  projectId: string
+  initialTitle?: string
+  onTitleUpdated?: (nextTitle: string) => void
+}) {
   return (
     <header className="flex shrink-0 items-center py-1 transition-[width,height] ease-linear">
       <div className="flex items-center gap-2 px-4">
@@ -32,41 +26,12 @@ export function ProjectEditorHeader(props: { projectId: string }) {
         >
           <ArrowLeft className="h-[16px] w-[16px]" />
         </Link>
-        <div role="tablist" aria-label="Editor sections" className="inline-grid h-7 w-fit grid-flow-col auto-cols-max items-center gap-[12px] p-0">
-          {tabs.map((tab) => {
-            const active = activeTab === tab.key
-            const className = cn(
-              "inline-flex h-7 items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-[12px] leading-[24px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
-              active ? "bg-black text-white" : "bg-muted text-foreground hover:bg-muted/80",
-              tab.disabled && "opacity-50 pointer-events-none"
-            )
-            if (!tab.href) {
-              return (
-                <button
-                  key={tab.key}
-                  type="button"
-                  role="tab"
-                  aria-selected={active}
-                  aria-disabled={tab.disabled ? "true" : "false"}
-                  disabled={Boolean(tab.disabled)}
-                  className={className}
-                >
-                  {tab.label}
-                </button>
-              )
-            }
-            return (
-              <Link
-                key={tab.key}
-                role="tab"
-                aria-selected={active}
-                href={tab.href}
-                className={className}
-              >
-                {tab.label}
-              </Link>
-            )
-          })}
+        <div className="min-w-0 flex-1 max-w-md">
+          <ProjectTitleEditor
+            projectId={props.projectId}
+            initialTitle={props.initialTitle}
+            onTitleUpdated={props.onTitleUpdated}
+          />
         </div>
       </div>
     </header>
