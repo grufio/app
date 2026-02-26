@@ -8,6 +8,7 @@
  */
 import { getImageDimensions } from "@/lib/images/dimensions"
 import { guessImageFormat } from "@/lib/images/format-detection"
+import { extractImageDPI } from "@/lib/images/dpi-extraction"
 
 type UploadMasterImageOk = { ok: true }
 type UploadMasterImageErr = { ok: false; error: string }
@@ -28,12 +29,16 @@ export async function uploadMasterImageClient(args: {
 }): Promise<UploadMasterImageResult> {
   const { projectId, file, fetchImpl = fetch } = args
   const { width, height } = await getImageDimensions(file)
+  const { dpiX, dpiY } = await extractImageDPI(file)
   const format = guessImageFormat(file)
 
   const form = new FormData()
   form.set("file", file)
   form.set("width_px", String(width))
   form.set("height_px", String(height))
+  form.set("dpi_x", String(dpiX))
+  form.set("dpi_y", String(dpiY))
+  form.set("bit_depth", "8") // Default 8-bit for now
   form.set("format", format)
 
   const res = await fetchImpl(`/api/projects/${projectId}/images/master/upload`, {

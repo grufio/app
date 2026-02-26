@@ -8,7 +8,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { activateMasterWithState } from "@/lib/supabase/project-images"
-import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role"
 import type { Database } from "@/lib/supabase/database.types"
 
 type UploadFailStage = "validation" | "upload_limits" | "storage_upload" | "db_upsert" | "active_switch" | "lock_conflict"
@@ -60,18 +59,34 @@ export async function uploadMasterImage(args: {
   file: File
   widthPx: number
   heightPx: number
+  dpiX: number
+  dpiY: number
+  bitDepth: number
   format: string
 }): Promise<UploadMasterImageResult> {
   const { supabase, projectId, file, format } = args
 
   const widthPx = normalizePositiveInt(args.widthPx)
   const heightPx = normalizePositiveInt(args.heightPx)
+  const dpiX = normalizePositiveInt(args.dpiX)
+  const dpiY = normalizePositiveInt(args.dpiY)
+  const bitDepth = normalizePositiveInt(args.bitDepth)
+
   if (!widthPx || !heightPx) {
     return {
       ok: false,
       status: 400,
       stage: "validation",
       reason: "Missing/invalid width_px/height_px",
+    }
+  }
+
+  if (!dpiX || !dpiY || !bitDepth) {
+    return {
+      ok: false,
+      status: 400,
+      stage: "validation",
+      reason: "Missing/invalid dpi_x/dpi_y/bit_depth",
     }
   }
 
@@ -127,8 +142,7 @@ export async function uploadMasterImage(args: {
   const imageId = crypto.randomUUID()
   const objectPath = `projects/${projectId}/images/${imageId}`
 
-  const service = createSupabaseServiceRoleClient()
-  const { error: uploadErr } = await service.storage.from("project_images").upload(objectPath, file, {
+  const { error: uploadErr } = await supabase.storage.from("project_images").upload(objectPath, file, {
     upsert: true,
     contentType: file.type || undefined,
   })
@@ -150,6 +164,9 @@ export async function uploadMasterImage(args: {
     format,
     width_px: widthPx,
     height_px: heightPx,
+    dpi_x: dpiX,
+    dpi_y: dpiY,
+    bit_depth: bitDepth,
     storage_bucket: "project_images",
     storage_path: objectPath,
     file_size_bytes: file.size,
