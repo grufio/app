@@ -105,7 +105,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ project
   const upsert = await upsertBoundImageState(supabase, {
     project_id: baseRow.project_id,
     image_id: baseRow.image_id,
-    role: baseRow.role,
+    role: "master",
     x_px_u: baseRow.x_px_u,
     y_px_u: baseRow.y_px_u,
     width_px_u: baseRow.width_px_u,

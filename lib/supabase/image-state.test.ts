@@ -17,12 +17,7 @@ function makeSupabase(result: QueryResult, calls: Array<{ method: "eq"; key: str
               eq: (key2: string, value2: unknown) => {
                 calls.push({ method: "eq", key: key2, value: value2 })
                 return {
-                  eq: (key3: string, value3: unknown) => {
-                    calls.push({ method: "eq", key: key3, value: value3 })
-                    return {
-                      maybeSingle: async () => result,
-                    }
-                  },
+                  maybeSingle: async () => result,
                 }
               },
             }
@@ -107,7 +102,6 @@ describe("loadBoundImageState", () => {
     })
     expect(calls).toEqual([
       { method: "eq", key: "project_id", value: "p9" },
-      { method: "eq", key: "role", value: "master" },
       { method: "eq", key: "image_id", value: "img9" },
     ])
   })
@@ -132,7 +126,7 @@ describe("upsertBoundImageState", () => {
     expect(out).toEqual({ ok: true })
     expect(calls).toEqual([
       {
-        onConflict: "project_id,role",
+        onConflict: "project_id,image_id",
         row: {
           project_id: "p1",
           image_id: "img1",
@@ -145,6 +139,22 @@ describe("upsertBoundImageState", () => {
         },
       },
     ])
+  })
+
+  it("defaults role to master when omitted", async () => {
+    const calls: Array<{ row: Record<string, unknown>; onConflict: string }> = []
+    const supabase = makeSupabaseUpsert({ error: null }, calls)
+    const out = await upsertBoundImageState(supabase, {
+      project_id: "p2",
+      image_id: "img2",
+      x_px_u: null,
+      y_px_u: null,
+      width_px_u: "10",
+      height_px_u: "20",
+      rotation_deg: 0,
+    })
+    expect(out).toEqual({ ok: true })
+    expect(calls[0]?.row.role).toBe("master")
   })
 
   it("maps upsert errors", async () => {

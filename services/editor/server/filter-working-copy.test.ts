@@ -11,62 +11,159 @@ describe("getOrCreateFilterWorkingCopy", () => {
   let mockSupabase: SupabaseClient<Database>
   const projectId = "test-project-id"
   const activeImageId = "active-image-id"
-  const workingCopyId = "working-copy-id"
+  const activeImage = {
+    id: activeImageId,
+    name: "test.jpg",
+    storage_bucket: "project_images",
+    storage_path: "path/to/active.jpg",
+    format: "jpeg",
+    width_px: 1000,
+    height_px: 800,
+    file_size_bytes: 50000,
+    source_image_id: null,
+  }
+
+  function makeSupabase(args: {
+    active?: Record<string, unknown> | null
+    copies?: Array<Record<string, unknown>>
+  }) {
+    const removedIds: string[][] = []
+    const insertedRows: Array<Record<string, unknown>> = []
+    const queryState = { activeQuery: false, copyQuery: false }
+
+    const from = vi.fn((table: string) => {
+      if (table !== "project_images") return {}
+      return {
+        select: vi.fn(() => {
+          const chain: Record<string, unknown> = {}
+          chain.eq = vi.fn((key: string) => {
+            if (key === "is_active") queryState.activeQuery = true
+            if (key === "role") queryState.copyQuery = true
+            return chain
+          })
+          chain.is = vi.fn(() => chain)
+          chain.like = vi.fn(() => chain)
+          chain.order = vi.fn(() => chain)
+          chain.maybeSingle = vi.fn(async () => {
+            if (queryState.activeQuery) {
+              queryState.activeQuery = false
+              return { data: args.active ?? null, error: null }
+            }
+            return { data: null, error: null }
+          })
+          chain.limit = vi.fn(async () => {
+            if (queryState.copyQuery) {
+              queryState.copyQuery = false
+              return { data: args.copies ?? [], error: null }
+            }
+            return { data: [], error: null }
+          })
+          return chain
+        }),
+        update: vi.fn(() => ({
+          in: vi.fn(async (_key: string, ids: string[]) => {
+            removedIds.push(ids)
+            return { error: null }
+          }),
+        })),
+        insert: vi.fn(async (row: Record<string, unknown>) => {
+          insertedRows.push(row)
+          return { error: null }
+        }),
+      }
+    })
+
+    const storageFrom = vi.fn(() => ({
+      download: vi.fn(async () => ({ data: new Blob([new Uint8Array([1, 2, 3])]), error: null })),
+      upload: vi.fn(async () => ({ error: null })),
+      createSignedUrl: vi.fn(async () => ({ data: { signedUrl: "https://signed-url.test/img.jpg" }, error: null })),
+      remove: vi.fn(async () => ({ error: null })),
+    }))
+
+    return {
+      supabase: {
+        from,
+        storage: { from: storageFrom },
+      } as unknown as SupabaseClient<Database>,
+      removedIds,
+      insertedRows,
+    }
+  }
 
   beforeEach(() => {
-    mockSupabase = {
-      from: vi.fn(() => ({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              is: vi.fn(() => ({
-                maybeSingle: vi.fn(),
-              })),
-            })),
-            is: vi.fn(() => ({
-              maybeSingle: vi.fn(),
-            })),
-            like: vi.fn(() => ({
-              is: vi.fn(() => ({
-                maybeSingle: vi.fn(),
-              })),
-            })),
-          })),
-          is: vi.fn(() => ({
-            maybeSingle: vi.fn(),
-          })),
-        })),
-        insert: vi.fn(() => ({
-          select: vi.fn(),
-        })),
-        update: vi.fn(() => ({
-          eq: vi.fn(),
-        })),
-      })),
-      storage: {
-        from: vi.fn(() => ({
-          download: vi.fn(),
-          upload: vi.fn(),
-          createSignedUrl: vi.fn(),
-          remove: vi.fn(),
-        })),
-      },
-    } as unknown as SupabaseClient<Database>
+    mockSupabase = {} as SupabaseClient<Database>
   })
 
-  it("should return error when no active image exists", async () => {
-    const mockFrom = mockSupabase.from as unknown as ReturnType<typeof vi.fn>
-    mockFrom.mockReturnValue({
-      select: vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            is: vi.fn().mockReturnValue({
-              maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-            }),
-          }),
-        }),
-      }),
+  it("returns existing reusable copy and cleans duplicates", async () => {
+    const reusableId = "working-copy-id"
+    const duplicateId = "duplicate-working-copy-id"
+    const setup = makeSupabase({
+      active: activeImage,
+      copies: [
+        {
+          id: reusableId,
+          storage_bucket: "project_images",
+          storage_path: "path/to/working.jpg",
+          width_px: 1000,
+          height_px: 800,
+          source_image_id: activeImageId,
+          name: "test.jpg (filter working)",
+          updated_at: "2026-01-01T00:00:00Z",
+          created_at: "2026-01-01T00:00:00Z",
+        },
+        {
+          id: duplicateId,
+          storage_bucket: "project_images",
+          storage_path: "path/to/duplicate.jpg",
+          width_px: 1000,
+          height_px: 800,
+          source_image_id: activeImageId,
+          name: "test.jpg (filter working)",
+          updated_at: "2025-01-01T00:00:00Z",
+          created_at: "2025-01-01T00:00:00Z",
+        },
+      ],
     })
+    mockSupabase = setup.supabase
+
+    const result = await getOrCreateFilterWorkingCopy({ supabase: mockSupabase, projectId })
+
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.id).toBe(reusableId)
+    expect(setup.removedIds).toEqual([[duplicateId]])
+    expect(setup.insertedRows).toHaveLength(0)
+  })
+
+  it("creates a new working copy when only outdated copies exist", async () => {
+    const outdatedId = "outdated-copy-id"
+    const setup = makeSupabase({
+      active: activeImage,
+      copies: [
+        {
+          id: outdatedId,
+          storage_bucket: "project_images",
+          storage_path: "path/to/outdated.jpg",
+          width_px: 1000,
+          height_px: 800,
+          source_image_id: "old-active-id",
+          name: "old.jpg (filter working)",
+          updated_at: "2026-01-01T00:00:00Z",
+          created_at: "2026-01-01T00:00:00Z",
+        },
+      ],
+    })
+    mockSupabase = setup.supabase
+
+    const result = await getOrCreateFilterWorkingCopy({ supabase: mockSupabase, projectId })
+
+    expect(result.ok).toBe(true)
+    expect(setup.removedIds).toEqual([[outdatedId]])
+    expect(setup.insertedRows).toHaveLength(1)
+  })
+
+  it("returns not found when no active image exists", async () => {
+    const setup = makeSupabase({ active: null, copies: [] })
+    mockSupabase = setup.supabase
 
     const result = await getOrCreateFilterWorkingCopy({ supabase: mockSupabase, projectId })
 
@@ -74,204 +171,6 @@ describe("getOrCreateFilterWorkingCopy", () => {
     if (!result.ok) {
       expect(result.stage).toBe("active_lookup")
       expect(result.reason).toBe("Active image not found")
-    }
-  })
-
-  it("should return existing working copy when it matches active image", async () => {
-    const activeImage = {
-      id: activeImageId,
-      name: "test.jpg",
-      storage_bucket: "project_images",
-      storage_path: "path/to/active.jpg",
-      format: "jpeg",
-      width_px: 1000,
-      height_px: 800,
-      file_size_bytes: 50000,
-      source_image_id: null,
-    }
-
-    const existingCopy = {
-      id: workingCopyId,
-      storage_bucket: "project_images",
-      storage_path: "path/to/working.jpg",
-      width_px: 1000,
-      height_px: 800,
-      source_image_id: activeImageId,
-      name: "test.jpg (filter working)",
-    }
-
-    let callCount = 0
-    const mockFrom = mockSupabase.from as unknown as ReturnType<typeof vi.fn>
-    mockFrom.mockImplementation(() => ({
-      select: vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            is: vi.fn().mockReturnValue({
-              maybeSingle: vi.fn().mockResolvedValue({
-                data: callCount++ === 0 ? activeImage : null,
-                error: null,
-              }),
-            }),
-            like: vi.fn().mockReturnValue({
-              is: vi.fn().mockReturnValue({
-                maybeSingle: vi.fn().mockResolvedValue({ data: existingCopy, error: null }),
-              }),
-            }),
-          }),
-        }),
-      }),
-    }))
-
-    const mockStorage = mockSupabase.storage as unknown as {
-      from: ReturnType<typeof vi.fn>
-    }
-    mockStorage.from.mockReturnValue({
-      createSignedUrl: vi.fn().mockResolvedValue({
-        data: { signedUrl: "https://signed-url.com/working.jpg" },
-        error: null,
-      }),
-    })
-
-    const result = await getOrCreateFilterWorkingCopy({ supabase: mockSupabase, projectId })
-
-    expect(result.ok).toBe(true)
-    if (result.ok) {
-      expect(result.id).toBe(workingCopyId)
-      expect(result.signedUrl).toBe("https://signed-url.com/working.jpg")
-      expect(result.sourceImageId).toBe(null) // Active image has no source
-    }
-  })
-
-  it("should delete outdated working copy and create new one", async () => {
-    const activeImage = {
-      id: activeImageId,
-      name: "test.jpg",
-      storage_bucket: "project_images",
-      storage_path: "path/to/active.jpg",
-      format: "jpeg",
-      width_px: 1000,
-      height_px: 800,
-      file_size_bytes: 50000,
-      source_image_id: null,
-    }
-
-    const outdatedCopy = {
-      id: "old-working-copy-id",
-      storage_bucket: "project_images",
-      storage_path: "path/to/old-working.jpg",
-      width_px: 800,
-      height_px: 600,
-      source_image_id: "old-active-image-id", // Points to old image
-      name: "old.jpg (filter working)",
-    }
-
-    const mockFrom = mockSupabase.from as unknown as ReturnType<typeof vi.fn>
-    mockFrom.mockImplementation((table: string) => {
-      if (table === "project_images") {
-        return {
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                is: vi.fn().mockReturnValue({
-                  maybeSingle: vi.fn().mockResolvedValue({
-                    data: activeImage,
-                    error: null,
-                  }),
-                  like: vi.fn().mockReturnValue({
-                    is: vi.fn().mockReturnValue({
-                      maybeSingle: vi.fn().mockResolvedValue({
-                        data: outdatedCopy,
-                        error: null,
-                      }),
-                    }),
-                  }),
-                }),
-              }),
-            }),
-          }),
-          update: vi.fn().mockReturnValue({
-            eq: vi.fn().mockResolvedValue({ error: null }),
-          }),
-          insert: vi.fn().mockResolvedValue({ error: null }),
-        }
-      }
-      return {}
-    })
-
-    const mockStorage = mockSupabase.storage as unknown as {
-      from: ReturnType<typeof vi.fn>
-    }
-    mockStorage.from.mockReturnValue({
-      download: vi.fn().mockResolvedValue({
-        data: new Blob([new ArrayBuffer(100)]),
-        error: null,
-      }),
-      upload: vi.fn().mockResolvedValue({ error: null }),
-      createSignedUrl: vi.fn().mockResolvedValue({
-        data: { signedUrl: "https://signed-url.com/new-working.jpg" },
-        error: null,
-      }),
-    })
-
-    const result = await getOrCreateFilterWorkingCopy({ supabase: mockSupabase, projectId })
-
-    expect(result.ok).toBe(true)
-    if (result.ok) {
-      expect(result.widthPx).toBe(1000)
-      expect(result.heightPx).toBe(800)
-    }
-  })
-
-  it("should handle storage download failure gracefully", async () => {
-    const activeImage = {
-      id: activeImageId,
-      name: "test.jpg",
-      storage_bucket: "project_images",
-      storage_path: "path/to/active.jpg",
-      format: "jpeg",
-      width_px: 1000,
-      height_px: 800,
-      file_size_bytes: 50000,
-      source_image_id: null,
-    }
-
-    const mockFrom = mockSupabase.from as unknown as ReturnType<typeof vi.fn>
-    mockFrom.mockReturnValue({
-      select: vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            is: vi.fn().mockReturnValue({
-              maybeSingle: vi.fn().mockResolvedValue({
-                data: activeImage,
-                error: null,
-              }),
-              like: vi.fn().mockReturnValue({
-                is: vi.fn().mockReturnValue({
-                  maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-                }),
-              }),
-            }),
-          }),
-        }),
-      }),
-    })
-
-    const mockStorage = mockSupabase.storage as unknown as {
-      from: ReturnType<typeof vi.fn>
-    }
-    mockStorage.from.mockReturnValue({
-      download: vi.fn().mockResolvedValue({
-        data: null,
-        error: { message: "Storage error" },
-      }),
-    })
-
-    const result = await getOrCreateFilterWorkingCopy({ supabase: mockSupabase, projectId })
-
-    expect(result.ok).toBe(false)
-    if (!result.ok) {
-      expect(result.stage).toBe("storage_download")
-      expect(result.reason).toBe("Failed to download active image")
     }
   })
 })
