@@ -3,6 +3,7 @@ import crypto from "node:crypto"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/lib/supabase/database.types"
+import { copyImageTransform } from "@/services/editor/server/copy-image-transform"
 
 type FailStage = "active_lookup" | "working_copy_exists" | "storage_download" | "storage_upload" | "db_insert"
 
@@ -170,6 +171,18 @@ export async function getOrCreateFilterWorkingCopy(args: {
       code: insertErr.code,
     }
   }
+
+  // Copy transform from active image to working copy
+  await copyImageTransform({
+    supabase,
+    projectId,
+    sourceImageId: activeImage.id,
+    targetImageId: workingCopyId,
+    sourceWidth: activeImage.width_px,
+    sourceHeight: activeImage.height_px,
+    targetWidth: activeImage.width_px,
+    targetHeight: activeImage.height_px,
+  })
 
   // Get signed URL for the new copy
   const { data: signedData } = await supabase.storage
