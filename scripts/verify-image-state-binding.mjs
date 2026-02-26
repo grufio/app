@@ -120,12 +120,59 @@ function main() {
     `
   )
 
+  const fkNotCascade = runQuery(
+    dbUrl,
+    `
+      select conname
+      from pg_constraint
+      where conrelid = 'public.project_image_state'::regclass
+        and contype = 'f'
+        and conname = 'project_image_state_image_id_fkey'
+        and confdeltype <> 'c';
+    `
+  )
+
+  const nullImageIdRows = runQuery(
+    dbUrl,
+    `
+      select project_id::text || E'\\t' || role::text
+      from public.project_image_state
+      where image_id is null
+      order by project_id;
+    `
+  )
+
+  const duplicateImageStateRows = runQuery(
+    dbUrl,
+    `
+      select project_id::text || E'\\t' || image_id::text || E'\\t' || count(*)::text
+      from public.project_image_state
+      group by project_id, image_id
+      having count(*) > 1
+      order by project_id, image_id;
+    `
+  )
+
   printRows("Gate failed: multiple active master images found (project_id\\tcount):", multipleActive)
   printRows("Gate failed: active master image has no matching bound state (project_id\\timage_id):", activeWithoutState)
   printRows("Gate failed: stale/mismatched master state binding (project_id\\tstate_image_id\\tactive_image_id):", staleState)
   printRows("Gate failed: state points to missing image_id (project_id\\timage_id):", orphanStateImageId)
+  printRows("Gate failed: project_image_state_image_id_fkey is not ON DELETE CASCADE (constraint_name):", fkNotCascade)
+  printRows("Gate failed: project_image_state rows with NULL image_id (project_id\\trole):", nullImageIdRows)
+  printRows(
+    "Gate failed: duplicate project_image_state rows for same key (project_id\\timage_id\\tcount):",
+    duplicateImageStateRows
+  )
 
-  if (multipleActive.length || activeWithoutState.length || staleState.length || orphanStateImageId.length) {
+  if (
+    multipleActive.length ||
+    activeWithoutState.length ||
+    staleState.length ||
+    orphanStateImageId.length ||
+    fkNotCascade.length ||
+    nullImageIdRows.length ||
+    duplicateImageStateRows.length
+  ) {
     fail("Image-state rollout verification failed.")
   }
 

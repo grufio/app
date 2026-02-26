@@ -2,7 +2,7 @@
  * Image-state repository helpers.
  *
  * Responsibilities:
- * - Load persisted transform state bound to a specific image id.
+ * - Load persisted master transform state bound to a specific active image id.
  * - Enforce the canonical µpx invariant (`width_px_u` / `height_px_u` must exist).
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
@@ -19,7 +19,7 @@ export type BoundImageStateRow = {
 export type BoundImageStateUpsert = {
   project_id: string
   image_id: string
-  role: "master" | "working"
+  role?: "master" | "working" | "asset"
   x_px_u: string | null
   y_px_u: string | null
   width_px_u: string
@@ -66,8 +66,11 @@ export async function upsertBoundImageState(
   supabase: SupabaseClient,
   row: BoundImageStateUpsert
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const { error } = await supabase.from("project_image_state").upsert(row, { onConflict: "project_id,image_id" })
+  const payload = {
+    ...row,
+    role: row.role ?? "master",
+  }
+  const { error } = await supabase.from("project_image_state").upsert(payload, { onConflict: "project_id,image_id" })
   if (error) return { ok: false, error: error.message }
   return { ok: true }
 }
-

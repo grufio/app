@@ -3,9 +3,8 @@ import crypto from "node:crypto"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/lib/supabase/database.types"
-import { copyImageTransform } from "@/services/editor/server/copy-image-transform"
 
-type FailStage = "active_lookup" | "working_copy_exists" | "storage_download" | "storage_upload" | "db_insert" | "state_copy"
+type FailStage = "active_lookup" | "working_copy_exists" | "storage_download" | "storage_upload" | "db_insert"
 
 type Failure = {
   ok: false
@@ -28,9 +27,20 @@ type Success = {
 
 export type FilterWorkingCopyResult = Success | Failure
 
+async function softDeleteCopies(
+  supabase: SupabaseClient<Database>,
+  ids: string[]
+): Promise<void> {
+  if (!ids.length) return
+  await supabase
+    .from("project_images")
+    .update({ deleted_at: new Date().toISOString() })
+    .in("id", ids)
+}
+
 /**
  * Creates or retrieves a filter working copy from the active image.
- * 
+ *
  * Logic:
  * 1. Find active image (is_active=true, any role)
  * 2. Check if a working copy already exists (role='asset', source_image_id=activeImageId, name ends with '(filter working)')
@@ -63,16 +73,17 @@ export async function getOrCreateFilterWorkingCopy(args: {
     }
   }
 
-  // Check if working copy already exists for this project
-  // There should only be one working copy per project (role='asset', name ends with '(filter working)')
-  const { data: existingCopy, error: existingErr } = await supabase
+  // Load all candidate working copies and pick deterministically.
+  const { data: existingCopies, error: existingErr } = await supabase
     .from("project_images")
-    .select("id,storage_bucket,storage_path,width_px,height_px,source_image_id,name")
+    .select("id,storage_bucket,storage_path,width_px,height_px,source_image_id,name,updated_at,created_at")
     .eq("project_id", projectId)
     .eq("role", "asset")
     .like("name", "%(filter working)")
     .is("deleted_at", null)
-    .maybeSingle()
+    .order("updated_at", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(20)
 
   if (existingErr) {
     return {
@@ -85,49 +96,39 @@ export async function getOrCreateFilterWorkingCopy(args: {
   }
 
   const workingCopyName = `${activeImage.name} (filter working)`
+  const reusableCopy = (existingCopies ?? []).find(
+    (copy) => copy.source_image_id === activeImage.id && copy.name === workingCopyName
+  )
 
-  // If working copy exists and points to the current active image, re-sync transform and return it.
-  if (existingCopy && existingCopy.source_image_id === activeImage.id && existingCopy.name === workingCopyName) {
-    const sync = await copyImageTransform({
-      supabase,
-      projectId,
-      sourceImageId: activeImage.id,
-      targetImageId: existingCopy.id,
-      sourceWidth: activeImage.width_px,
-      sourceHeight: activeImage.height_px,
-      targetWidth: existingCopy.width_px,
-      targetHeight: existingCopy.height_px,
-    })
+  // If a reusable copy exists, keep the newest matching one and tombstone the rest.
+  if (reusableCopy) {
+    const obsoleteIds = (existingCopies ?? [])
+      .filter((copy) => copy.id !== reusableCopy.id)
+      .map((copy) => copy.id)
+    await softDeleteCopies(supabase, obsoleteIds)
 
-    if (sync.ok) {
-      const { data: signedData } = await supabase.storage
-        .from(String(existingCopy.storage_bucket ?? "project_images"))
-        .createSignedUrl(String(existingCopy.storage_path), 3600)
+    // Return existing copy with fresh signed URL
+    const { data: signedData } = await supabase.storage
+      .from(String(reusableCopy.storage_bucket ?? "project_images"))
+      .createSignedUrl(String(reusableCopy.storage_path), 3600)
 
-      return {
-        ok: true,
-        id: existingCopy.id,
-        storagePath: existingCopy.storage_path,
-        widthPx: existingCopy.width_px,
-        heightPx: existingCopy.height_px,
-        signedUrl: signedData?.signedUrl ?? "",
-        sourceImageId: activeImage.source_image_id,
-        name: activeImage.name,
-      }
+    return {
+      ok: true,
+      id: reusableCopy.id,
+      storagePath: reusableCopy.storage_path,
+      widthPx: reusableCopy.width_px,
+      heightPx: reusableCopy.height_px,
+      signedUrl: signedData?.signedUrl ?? "",
+      sourceImageId: activeImage.source_image_id,
+      name: activeImage.name,
     }
-
-    // If sync failed, rebuild a clean working copy.
-    await supabase
-      .from("project_images")
-      .update({ deleted_at: new Date().toISOString() })
-      .eq("id", existingCopy.id)
-  } else if (existingCopy) {
-    // Outdated working copy (wrong source or name) -> replace it.
-    await supabase
-      .from("project_images")
-      .update({ deleted_at: new Date().toISOString() })
-      .eq("id", existingCopy.id)
   }
+
+  // No reusable copy: tombstone all historical candidates before creating a new one.
+  await softDeleteCopies(
+    supabase,
+    (existingCopies ?? []).map((copy) => copy.id)
+  )
 
   // Download active image from storage
   const { data: srcBlob, error: downloadErr } = await supabase.storage
@@ -195,28 +196,6 @@ export async function getOrCreateFilterWorkingCopy(args: {
       stage: "db_insert",
       reason: insertErr.message,
       code: insertErr.code,
-    }
-  }
-
-  // Copy transform from active image to working copy
-  const copyOut = await copyImageTransform({
-    supabase,
-    projectId,
-    sourceImageId: activeImage.id,
-    targetImageId: workingCopyId,
-    sourceWidth: activeImage.width_px,
-    sourceHeight: activeImage.height_px,
-    targetWidth: activeImage.width_px,
-    targetHeight: activeImage.height_px,
-  })
-  if (!copyOut.ok) {
-    await supabase.storage.from("project_images").remove([objectPath])
-    await supabase.from("project_images").update({ deleted_at: new Date().toISOString() }).eq("id", workingCopyId)
-    return {
-      ok: false,
-      status: 500,
-      stage: "state_copy",
-      reason: copyOut.reason,
     }
   }
 
