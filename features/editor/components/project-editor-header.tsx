@@ -1,7 +1,6 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
 import { ArrowLeft } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -13,15 +12,11 @@ import { cn } from "@/lib/utils"
  * - Section tabs for right-panel context
  */
 export function ProjectEditorHeader(props: { projectId: string }) {
-  const pathname = usePathname()
   const base = `/projects/${props.projectId}`
-  const activeTab = pathname?.startsWith(`${base}/filter`)
-    ? ("filter" as const)
-    : ("image" as const)
+  const activeTab = "image" as const
 
-  const tabs: Array<{ key: "image" | "filter" | "colors" | "output"; label: string; href?: string; disabled?: boolean }> = [
+  const tabs: Array<{ key: "image" | "colors" | "output"; label: string; href?: string; disabled?: boolean }> = [
     { key: "image", label: "Image", href: base },
-    { key: "filter", label: "Filter", href: `${base}/filter` },
     // reserved for later
     { key: "colors", label: "Colors", disabled: true },
     { key: "output", label: "Output", disabled: true },

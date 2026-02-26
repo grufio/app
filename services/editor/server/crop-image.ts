@@ -95,7 +95,13 @@ export async function cropImageAndActivate(args: {
     return { ok: false, status: 409, stage: "lock_conflict", reason: "Source image is locked", code: "image_locked" }
   }
 
-  if (x + w > src.width_px || y + h > src.height_px) {
+  const origWidth = toInt(src.width_px)
+  const origHeight = toInt(src.height_px)
+  if (origWidth == null || origHeight == null || origWidth < 1 || origHeight < 1) {
+    return { ok: false, status: 400, stage: "validation", reason: "Invalid source dimensions" }
+  }
+
+  if (x + w > origWidth || y + h > origHeight) {
     return { ok: false, status: 400, stage: "validation", reason: "Crop rect out of source bounds" }
   }
 

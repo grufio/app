@@ -3,8 +3,9 @@ import crypto from "node:crypto"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/lib/supabase/database.types"
+import { copyImageTransform } from "@/services/editor/server/copy-image-transform"
 
-type FailStage = "active_lookup" | "working_copy_exists" | "storage_download" | "storage_upload" | "db_insert"
+type FailStage = "active_lookup" | "working_copy_exists" | "storage_download" | "storage_upload" | "db_insert" | "transform_sync"
 
 type Failure = {
   ok: false
@@ -112,6 +113,25 @@ export async function getOrCreateFilterWorkingCopy(args: {
       .from(String(reusableCopy.storage_bucket ?? "project_images"))
       .createSignedUrl(String(reusableCopy.storage_path), 3600)
 
+    const transformSync = await copyImageTransform({
+      supabase,
+      projectId,
+      sourceImageId: activeImage.id,
+      targetImageId: reusableCopy.id,
+      sourceWidth: activeImage.width_px,
+      sourceHeight: activeImage.height_px,
+      targetWidth: reusableCopy.width_px,
+      targetHeight: reusableCopy.height_px,
+    })
+    if (!transformSync.ok) {
+      return {
+        ok: false,
+        status: 500,
+        stage: "transform_sync",
+        reason: transformSync.reason,
+      }
+    }
+
     return {
       ok: true,
       id: reusableCopy.id,
@@ -119,7 +139,7 @@ export async function getOrCreateFilterWorkingCopy(args: {
       widthPx: reusableCopy.width_px,
       heightPx: reusableCopy.height_px,
       signedUrl: signedData?.signedUrl ?? "",
-      sourceImageId: activeImage.source_image_id,
+      sourceImageId: activeImage.id,
       name: activeImage.name,
     }
   }
@@ -199,6 +219,27 @@ export async function getOrCreateFilterWorkingCopy(args: {
     }
   }
 
+  const transformSync = await copyImageTransform({
+    supabase,
+    projectId,
+    sourceImageId: activeImage.id,
+    targetImageId: workingCopyId,
+    sourceWidth: activeImage.width_px,
+    sourceHeight: activeImage.height_px,
+    targetWidth: activeImage.width_px,
+    targetHeight: activeImage.height_px,
+  })
+  if (!transformSync.ok) {
+    await supabase.from("project_images").update({ deleted_at: new Date().toISOString() }).eq("id", workingCopyId)
+    await supabase.storage.from("project_images").remove([objectPath])
+    return {
+      ok: false,
+      status: 500,
+      stage: "transform_sync",
+      reason: transformSync.reason,
+    }
+  }
+
   // Get signed URL for the new copy
   const { data: signedData } = await supabase.storage
     .from("project_images")
@@ -211,7 +252,7 @@ export async function getOrCreateFilterWorkingCopy(args: {
     widthPx: activeImage.width_px,
     heightPx: activeImage.height_px,
     signedUrl: signedData?.signedUrl ?? "",
-    sourceImageId: activeImage.source_image_id,
+    sourceImageId: activeImage.id,
     name: activeImage.name,
   }
 }

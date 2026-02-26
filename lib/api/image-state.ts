@@ -11,8 +11,15 @@ import { ApiError } from "@/lib/api/api-error"
 
 export type { GetImageStateResponse, ImageStateRow, SaveImageStateBody } from "@/lib/editor/imageState"
 
+function buildImageStateUrl(projectId: string, imageId?: string): string {
+  const base = `/api/projects/${projectId}/image-state`
+  if (!imageId) return base
+  const q = new URLSearchParams({ imageId })
+  return `${base}?${q.toString()}`
+}
+
 export async function getImageState(projectId: string, imageId?: string): Promise<GetImageStateResponse> {
-  const res = await fetchJson<GetImageStateResponse>(imageId ? `/api/projects/${projectId}/image-state?imageId=${imageId}` : `/api/projects/${projectId}/image-state`, {
+  const res = await fetchJson<GetImageStateResponse>(buildImageStateUrl(projectId, imageId), {
     method: "GET",
     credentials: "same-origin",
   })
@@ -22,8 +29,8 @@ export async function getImageState(projectId: string, imageId?: string): Promis
   return res.data
 }
 
-export async function saveImageState(projectId: string, body: SaveImageStateBody): Promise<void> {
-  const res = await fetchJson<unknown>(imageId ? `/api/projects/${projectId}/image-state?imageId=${imageId}` : `/api/projects/${projectId}/image-state`, {
+export async function saveImageState(projectId: string, body: SaveImageStateBody, imageId?: string): Promise<void> {
+  const res = await fetchJson<unknown>(buildImageStateUrl(projectId, imageId), {
     method: "POST",
     credentials: "same-origin",
     headers: { "Content-Type": "application/json" },

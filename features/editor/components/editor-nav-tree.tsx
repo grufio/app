@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Grid3x3, Image as ImageIcon, LayoutGrid, Plus, SlidersHorizontal, Trash2 } from "lucide-react"
+import { Grid3x3, Image as ImageIcon, LayoutGrid, Plus, Trash2 } from "lucide-react"
 
 import {
   SidebarMenu,
@@ -148,12 +148,6 @@ export function EditorNavTree(props: {
                 <Plus />
               </SidebarMenuAction>
             )}
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton className="text-xs" disabled={!hasGrid}>
-              <SlidersHorizontal />
-              <span>Filter</span>
-            </SidebarMenuButton>
           </SidebarMenuItem>
         </>
       ) : (

@@ -6,6 +6,11 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { getOrCreateFilterWorkingCopy } from "./filter-working-copy"
 import type { Database } from "@/lib/supabase/database.types"
+import { copyImageTransform } from "./copy-image-transform"
+
+vi.mock("./copy-image-transform", () => ({
+  copyImageTransform: vi.fn(async () => ({ ok: true as const })),
+}))
 
 describe("getOrCreateFilterWorkingCopy", () => {
   let mockSupabase: SupabaseClient<Database>
@@ -92,6 +97,7 @@ describe("getOrCreateFilterWorkingCopy", () => {
 
   beforeEach(() => {
     mockSupabase = {} as SupabaseClient<Database>
+    vi.mocked(copyImageTransform).mockClear()
   })
 
   it("returns existing reusable copy and cleans duplicates", async () => {
@@ -129,9 +135,13 @@ describe("getOrCreateFilterWorkingCopy", () => {
     const result = await getOrCreateFilterWorkingCopy({ supabase: mockSupabase, projectId })
 
     expect(result.ok).toBe(true)
-    if (result.ok) expect(result.id).toBe(reusableId)
+    if (result.ok) {
+      expect(result.id).toBe(reusableId)
+      expect(result.sourceImageId).toBe(activeImageId)
+    }
     expect(setup.removedIds).toEqual([[duplicateId]])
     expect(setup.insertedRows).toHaveLength(0)
+    expect(copyImageTransform).toHaveBeenCalledTimes(1)
   })
 
   it("creates a new working copy when only outdated copies exist", async () => {
@@ -157,8 +167,10 @@ describe("getOrCreateFilterWorkingCopy", () => {
     const result = await getOrCreateFilterWorkingCopy({ supabase: mockSupabase, projectId })
 
     expect(result.ok).toBe(true)
+    if (result.ok) expect(result.sourceImageId).toBe(activeImageId)
     expect(setup.removedIds).toEqual([[outdatedId]])
     expect(setup.insertedRows).toHaveLength(1)
+    expect(copyImageTransform).toHaveBeenCalledTimes(1)
   })
 
   it("returns not found when no active image exists", async () => {

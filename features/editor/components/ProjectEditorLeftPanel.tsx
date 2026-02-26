@@ -32,6 +32,7 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
   onImageDeleteRequested: (imageId: string) => void | Promise<void>
   onGridCreateRequested: () => void | Promise<void>
   onGridDeleteRequested: () => void | Promise<void>
+  extraContent?: React.ReactNode
 }) {
   const {
     projectId,
@@ -51,6 +52,7 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
     onImageDeleteRequested,
     onGridCreateRequested,
     onGridDeleteRequested,
+    extraContent,
   } = props
 
   const clamp = (v: number) => Math.max(minRem, Math.min(maxRem, v))
@@ -108,6 +110,7 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
               onGridDeleteRequested={onGridDeleteRequested}
             />
           </EditorSidebarSection>
+          {extraContent}
         </SidebarContent>
       </SidebarFrame>
       {/* Resize handle (use border line; no separate visual handle). */}
