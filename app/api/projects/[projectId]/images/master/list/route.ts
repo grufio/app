@@ -41,6 +41,7 @@ export async function GET(
     .from("project_images")
     .select("id,name,format,width_px,height_px,dpi,storage_path,storage_bucket,file_size_bytes,is_active,is_locked,created_at")
     .eq("project_id", projectId)
+    .eq("role", "master")
     .is("deleted_at", null)
     .order("created_at", { ascending: false })
 
