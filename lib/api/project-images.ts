@@ -285,6 +285,13 @@ export async function getOrCreateFilterWorkingCopy(projectId: string): Promise<
       storage_path: string
       source_image_id: string | null
       name: string
+      isFilterResult: boolean
+      stack: Array<{
+        id: string
+        name: string
+        filterType: "pixelate" | "lineart" | "numerate" | "unknown"
+        source_image_id: string | null
+      }>
     }
 > {
   const res = await fetchJson<{
@@ -297,6 +304,13 @@ export async function getOrCreateFilterWorkingCopy(projectId: string): Promise<
     storage_path?: string
     source_image_id?: string | null
     name?: string
+    is_filter_result?: boolean
+    stack?: Array<{
+      id?: string
+      name?: string
+      filterType?: "pixelate" | "lineart" | "numerate" | "unknown"
+      source_image_id?: string | null
+    }>
   }>(`/api/projects/${projectId}/images/filter-working-copy`, {
     method: "POST",
     credentials: "same-origin",
@@ -321,6 +335,19 @@ export async function getOrCreateFilterWorkingCopy(projectId: string): Promise<
     storage_path: String(res.data.storage_path ?? ""),
     source_image_id: res.data.source_image_id ?? null,
     name: String(res.data.name ?? ""),
+    isFilterResult: Boolean(res.data.is_filter_result),
+    stack: Array.isArray(res.data.stack)
+      ? res.data.stack
+          .filter((row): row is { id: string; name: string; filterType: "pixelate" | "lineart" | "numerate" | "unknown"; source_image_id?: string | null } =>
+            Boolean(row?.id && row?.name && row?.filterType)
+          )
+          .map((row) => ({
+            id: String(row.id),
+            name: String(row.name),
+            filterType: row.filterType,
+            source_image_id: row.source_image_id ?? null,
+          }))
+      : [],
   }
 }
 

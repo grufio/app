@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import { isUuid, jsonError } from "@/lib/api/route-guards"
 import { withFilterRouteAuth } from "@/lib/api/with-filter-route-auth"
+import { removeProjectImageFilter } from "@/services/editor/server/filter-variants"
 
 export const dynamic = "force-dynamic"
 
@@ -16,34 +17,15 @@ export async function DELETE(
       return jsonError("Invalid filterId", 400, { stage: "validation", where: "params" })
     }
 
-    // Get the filter to be deleted
-    const { data: filter, error: filterErr } = await context.supabase
-      .from("project_images")
-      .select("id,source_image_id")
-      .eq("id", filterId)
-      .eq("project_id", context.projectId)
-      .eq("role", "asset")
-      .is("deleted_at", null)
-      .maybeSingle()
-
-    if (filterErr || !filter) {
-      return jsonError("Filter not found", 404, { stage: "filter_lookup" })
+    const removed = await removeProjectImageFilter({
+      supabase: context.supabase,
+      projectId: context.projectId,
+      filterId,
+    })
+    if (!removed.ok) {
+      return jsonError(removed.reason, removed.status, { stage: removed.stage, code: removed.code })
     }
 
-    // Soft-delete the filter
-    const { error: deleteErr } = await context.supabase
-      .from("project_images")
-      .update({ deleted_at: new Date().toISOString() })
-      .eq("id", filterId)
-
-    if (deleteErr) {
-      return jsonError("Failed to delete filter", 500, { stage: "delete", code: deleteErr.code })
-    }
-
-    // Note: We intentionally do NOT delete working copies here
-    // The working copy is shared across all filters and should persist
-    // It will be refreshed automatically when needed
-
-    return NextResponse.json({ ok: true, active_image_id: filter.source_image_id })
+    return NextResponse.json({ ok: true, active_image_id: removed.active_image_id })
   })
 }

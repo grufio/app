@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
+import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { updateWorkspaceDpi, updateWorkspaceGeometry } from "./browser-repo-supabase"
 
@@ -16,7 +17,7 @@ function makeSupabaseSpy() {
     })),
   }))
 
-  return { supabase: { from } as any, from, update }
+  return { supabase: { from } as unknown as SupabaseClient, from, update }
 }
 
 describe("workspace browser repo guards", () => {
@@ -28,7 +29,7 @@ describe("workspace browser repo guards", () => {
       outputDpi: 300,
       rasterEffectsPreset: "high",
       widthPxU: "123", // forbidden
-    } as any)
+    } as unknown as Parameters<typeof updateWorkspaceDpi>[1])
 
     expect(res.row).toBe(null)
     expect(res.error).toContain("invalid_payload_for_dpi_update")
@@ -48,7 +49,7 @@ describe("workspace browser repo guards", () => {
       widthPx: 200,
       heightPx: 100,
       outputDpi: 300, // forbidden
-    } as any)
+    } as unknown as Parameters<typeof updateWorkspaceGeometry>[1])
 
     expect(res.row).toBe(null)
     expect(res.error).toContain("invalid_payload_for_geometry_update")

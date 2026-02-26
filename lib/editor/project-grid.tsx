@@ -97,7 +97,7 @@ export function ProjectGridProvider({
     } finally {
       setLoading(false)
     }
-  }, [projectId, workspaceUnit])
+  }, [projectId])
 
   useEffect(() => {
     // If server provided initial data, don't refetch on mount.

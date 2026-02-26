@@ -48,7 +48,7 @@ describe("serial-write-channel", () => {
   it("enqueueLatestDropStale provides isStale() for side-effect gating", async () => {
     const ch = createSerialWriteChannel()
 
-    let applied: string[] = []
+    const applied: string[] = []
 
     const first = ch.enqueueLatestDropStale(async (isStale) => {
       await sleep(20)

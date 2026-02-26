@@ -12,7 +12,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 
 import { getOrCreateFilterWorkingCopy } from "@/lib/api/project-images"
-import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 
 export type FilterDisplayImage = {
   id: string
@@ -25,13 +24,22 @@ export type FilterDisplayImage = {
   isFilterResult: boolean
 }
 
+export type FilterStackItem = {
+  id: string
+  name: string
+  filterType: "pixelate" | "lineart" | "numerate" | "unknown"
+  source_image_id: string | null
+}
+
 export function useFilterWorkingImage(projectId: string) {
   const [image, setImage] = useState<FilterDisplayImage | null>(null)
+  const [stack, setStack] = useState<FilterStackItem[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
   const mountedRef = useRef(true)
   const inflightRef = useRef<Promise<void> | null>(null)
+  const requestSeqRef = useRef(0)
 
   useEffect(() => {
     mountedRef.current = true
@@ -45,21 +53,20 @@ export function useFilterWorkingImage(projectId: string) {
     if (!mountedRef.current) return
 
     const p = (async () => {
+      const seq = ++requestSeqRef.current
       setError((prev) => (prev === "" ? prev : ""))
       setLoading(true)
       try {
         const workingCopy = await getOrCreateFilterWorkingCopy(projectId)
+        if (seq !== requestSeqRef.current || !mountedRef.current) return
 
         if (!workingCopy.exists) {
-          if (mountedRef.current) {
-            setImage(null)
-            setError("")
-          }
+          setImage(null)
+          setStack([])
+          setError("")
           return
         }
-
-        // Initialize currentImage with working copy
-        let currentImage = {
+        setImage({
           id: workingCopy.id,
           signedUrl: workingCopy.signedUrl,
           width_px: workingCopy.width_px,
@@ -67,58 +74,16 @@ export function useFilterWorkingImage(projectId: string) {
           storage_path: workingCopy.storage_path,
           source_image_id: workingCopy.source_image_id,
           name: workingCopy.name,
-          isFilterResult: false,
-        }
-
-        const supabase = createSupabaseBrowserClient()
-
-        // Walk forward through the filter chain
-        while (true) {
-          const { data: nextFilter } = await supabase
-            .from("project_images")
-            .select("id,name,storage_bucket,storage_path,width_px,height_px,source_image_id")
-            .eq("project_id", projectId)
-            .eq("source_image_id", currentImage.id)
-            .eq("role", "asset")
-            .is("deleted_at", null)
-            .order("created_at", { ascending: false })
-            .limit(1)
-            .maybeSingle()
-
-          if (!nextFilter) {
-            // No more filters in chain, currentImage is the last one
-            break
-          }
-
-          // Get signed URL for this filter result
-          const { data: signedData } = await supabase.storage
-            .from(String(nextFilter.storage_bucket ?? "project_images"))
-            .createSignedUrl(String(nextFilter.storage_path), 3600)
-
-          // Update currentImage to this filter result
-          currentImage = {
-            id: nextFilter.id,
-            signedUrl: signedData?.signedUrl ?? "",
-            width_px: nextFilter.width_px,
-            height_px: nextFilter.height_px,
-            storage_path: nextFilter.storage_path,
-            source_image_id: nextFilter.source_image_id,
-            name: nextFilter.name,
-            isFilterResult: true,
-          }
-        }
-
-        // Return the last image in the chain
-        if (mountedRef.current) {
-          setImage(currentImage)
-        }
+          isFilterResult: workingCopy.isFilterResult,
+        })
+        setStack(workingCopy.stack)
       } catch (e) {
-        if (mountedRef.current) {
-          setImage(null)
-          setError(e instanceof Error ? e.message : "Failed to load filter working image")
-        }
+        if (seq !== requestSeqRef.current || !mountedRef.current) return
+        setImage(null)
+        setStack([])
+        setError(e instanceof Error ? e.message : "Failed to load filter working image")
       } finally {
-        if (mountedRef.current) setLoading(false)
+        if (seq === requestSeqRef.current && mountedRef.current) setLoading(false)
       }
     })()
 
@@ -136,6 +101,7 @@ export function useFilterWorkingImage(projectId: string) {
 
   return {
     image,
+    stack,
     loading,
     error,
     refresh,

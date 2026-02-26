@@ -15,6 +15,7 @@ type PixelateFailStage =
   | "pixelate_process"
   | "storage_upload"
   | "db_insert"
+  | "transform_sync"
   | "active_switch"
 
 type PixelateFailure = {
@@ -203,6 +204,11 @@ export async function pixelateImageAndActivate(args: {
       targetWidth: origWidth,
       targetHeight: origHeight,
     })
+    if (!transformCopy.ok) {
+      await supabase.from("project_images").delete().eq("id", imageId)
+      await supabase.storage.from("project_images").remove([objectPath])
+      return { ok: false, status: 500, stage: "transform_sync", reason: transformCopy.reason }
+    }
 
     return {
       ok: true,

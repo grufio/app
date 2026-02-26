@@ -93,7 +93,6 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
     masterImageLoading,
     deleteBusy,
     deleteError,
-    setDeleteError,
     restoreOpen,
     setRestoreOpen,
     restoreBusy,

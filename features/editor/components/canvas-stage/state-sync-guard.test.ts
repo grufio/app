@@ -19,7 +19,7 @@ describe("state-sync-guard", () => {
 
   it("does not apply if superseded by a later scheduleApply", async () => {
     const g = createStateSyncGuard()
-    let applied: string[] = []
+    const applied: string[] = []
     g.scheduleApply("k1", () => applied.push("first"))
     g.scheduleApply("k2", () => applied.push("second"))
     await flushMicrotasks()

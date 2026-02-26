@@ -15,6 +15,7 @@ type LineArtFailStage =
   | "lineart_process"
   | "storage_upload"
   | "db_insert"
+  | "transform_sync"
   | "active_switch"
 
 type LineArtFailure = {
@@ -50,12 +51,6 @@ function toInt(value: number): number | null {
   const n = Math.round(value)
   if (n < 0) return null
   return n
-}
-
-function contentTypeFor(format: "jpeg" | "png" | "webp"): string {
-  if (format === "jpeg") return "image/jpeg"
-  if (format === "webp") return "image/webp"
-  return "image/png"
 }
 
 export async function lineArtImageAndActivate(args: {
@@ -125,9 +120,6 @@ export async function lineArtImageAndActivate(args: {
 
   const srcBuffer = Buffer.from(await srcBlob.arrayBuffer())
 
-  // Line art always outputs PNG (grayscale/binary)
-  const outputFormat = "svg"
-
   try {
     // Call Python service for line art
     const imageBase64 = srcBuffer.toString("base64")
@@ -196,7 +188,7 @@ export async function lineArtImageAndActivate(args: {
     }
 
     // Copy transform from source to filter image
-    await copyImageTransform({
+    const transformCopy = await copyImageTransform({
       supabase,
       projectId,
       sourceImageId,
@@ -206,6 +198,11 @@ export async function lineArtImageAndActivate(args: {
       targetWidth: origWidth,
       targetHeight: origHeight,
     })
+    if (!transformCopy.ok) {
+      await supabase.from("project_images").delete().eq("id", imageId)
+      await supabase.storage.from("project_images").remove([objectPath])
+      return { ok: false, status: 500, stage: "transform_sync", reason: transformCopy.reason }
+    }
 
 
     return {

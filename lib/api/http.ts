@@ -47,27 +47,37 @@ export async function fetchJson<T>(input: RequestInfo | URL, init?: RequestInit)
     if (p) return (await p) as FetchJsonResult<T>
   }
 
-  const run = async () => {
-    const res = await fetch(input, init)
-    const status = res.status
+  const run = async (): Promise<FetchJsonResult<unknown>> => {
+    try {
+      const res = await fetch(input, init)
+      const status = res.status
 
-    const body = (await res.json().catch(() => null)) as unknown
-    const json = (body && typeof body === "object" ? (body as JsonRecord) : null) as unknown
+      const body = (await res.json().catch(() => null)) as unknown
+      const json = (body && typeof body === "object" ? (body as JsonRecord) : null) as unknown
 
-    if (!res.ok) {
-      return { ok: false, status, error: (json as JsonRecord | null) ?? null } as FetchJsonResult<unknown>
+      if (!res.ok) {
+        return { ok: false, status, error: (json as JsonRecord | null) ?? null }
+      }
+      return { ok: true, status, data: body as unknown }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Network request failed"
+      return {
+        ok: false,
+        status: 0,
+        error: { stage: "network", error: message },
+      }
     }
-    return { ok: true, status, data: body as unknown } as FetchJsonResult<unknown>
   }
 
   const promise = run()
   if (key) inflight.set(key, promise)
-  const out = await promise
-  if (key) {
-    inflight.delete(key)
-    if (out.ok) cache.set(key, { at: Date.now(), value: out })
+  try {
+    const out = await promise
+    if (key && out.ok) cache.set(key, { at: Date.now(), value: out })
+    return out as FetchJsonResult<T>
+  } finally {
+    if (key) inflight.delete(key)
   }
-  return out as FetchJsonResult<T>
 }
 
 export function invalidateFetchJsonGetCache(match?: string | RegExp): void {

@@ -28,6 +28,38 @@ type Success = {
 
 export type FilterWorkingCopyResult = Success | Failure
 
+export type FilterPanelStackItem = {
+  id: string
+  name: string
+  filterType: "pixelate" | "lineart" | "numerate" | "unknown"
+  source_image_id: string | null
+}
+
+export type FilterPanelDataResult =
+  | {
+      ok: true
+      display: {
+        id: string
+        storagePath: string
+        widthPx: number
+        heightPx: number
+        signedUrl: string
+        sourceImageId: string | null
+        name: string
+        isFilterResult: boolean
+      }
+      stack: FilterPanelStackItem[]
+    }
+  | Failure
+
+function parseFilterType(value: unknown): FilterPanelStackItem["filterType"] {
+  const type = String(value ?? "").toLowerCase()
+  if (type === "pixelate") return "pixelate"
+  if (type === "lineart" || type === "line art") return "lineart"
+  if (type === "numerate") return "numerate"
+  return "unknown"
+}
+
 async function softDeleteCopies(
   supabase: SupabaseClient<Database>,
   ids: string[]
@@ -254,5 +286,146 @@ export async function getOrCreateFilterWorkingCopy(args: {
     signedUrl: signedData?.signedUrl ?? "",
     sourceImageId: activeImage.id,
     name: activeImage.name,
+  }
+}
+
+export async function getFilterPanelData(args: {
+  supabase: SupabaseClient<Database>
+  projectId: string
+}): Promise<FilterPanelDataResult> {
+  const { supabase, projectId } = args
+  const working = await getOrCreateFilterWorkingCopy({ supabase, projectId })
+  if (!working.ok) return working
+
+  const { data: filterRows, error: filterErr } = await supabase
+    .from("project_image_filters")
+    .select("id,input_image_id,output_image_id,filter_type,stack_order")
+    .eq("project_id", projectId)
+    .order("stack_order", { ascending: true })
+
+  if (filterErr) {
+    return {
+      ok: false,
+      status: 400,
+      stage: "working_copy_exists",
+      reason: filterErr.message,
+      code: filterErr.code,
+    }
+  }
+
+  const displayFromWorking = {
+    id: working.id,
+    storagePath: working.storagePath,
+    widthPx: working.widthPx,
+    heightPx: working.heightPx,
+    signedUrl: working.signedUrl,
+    sourceImageId: working.sourceImageId,
+    name: working.name,
+    isFilterResult: false,
+  }
+  if (!(filterRows ?? []).length) {
+    return {
+      ok: true,
+      display: displayFromWorking,
+      stack: [],
+    }
+  }
+
+  const chain: Array<{
+    id: string
+    input_image_id: string
+    output_image_id: string
+    filter_type: string
+  }> = []
+  let cursorImageId = working.id
+  for (const row of filterRows ?? []) {
+    const input = String(row.input_image_id ?? "")
+    const output = String(row.output_image_id ?? "")
+    if (!input || !output) continue
+    if (input !== cursorImageId) continue
+    chain.push({
+      id: String(row.id),
+      input_image_id: input,
+      output_image_id: output,
+      filter_type: String(row.filter_type ?? ""),
+    })
+    cursorImageId = output
+  }
+
+  if (!chain.length) {
+    return {
+      ok: true,
+      display: displayFromWorking,
+      stack: [],
+    }
+  }
+
+  const outputImageIds = chain.map((row) => row.output_image_id)
+  const { data: images, error } = await supabase
+    .from("project_images")
+    .select("id,name,storage_bucket,storage_path,width_px,height_px,source_image_id")
+    .eq("project_id", projectId)
+    .eq("role", "asset")
+    .in("id", outputImageIds)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false })
+
+  if (error) {
+    return {
+      ok: false,
+      status: 400,
+      stage: "working_copy_exists",
+      reason: error.message,
+      code: error.code,
+    }
+  }
+
+  const imageById = new Map((images ?? []).map((row) => [row.id, row]))
+  const stack: FilterPanelStackItem[] = []
+  for (const node of chain) {
+    const image = imageById.get(node.output_image_id)
+    if (!image) {
+      return {
+        ok: false,
+        status: 409,
+        stage: "working_copy_exists",
+        reason: "Filter chain references a missing output image",
+      }
+    }
+    stack.push({
+      id: node.id,
+      name: image.name,
+      filterType: parseFilterType(node.filter_type),
+      source_image_id: node.input_image_id,
+    })
+  }
+
+  const tipId = chain[chain.length - 1].output_image_id
+  const tipImage = imageById.get(tipId)
+  if (!tipImage) {
+    return {
+      ok: false,
+      status: 409,
+      stage: "working_copy_exists",
+      reason: "Filter chain tip is missing",
+    }
+  }
+  const { data: signedData } = await supabase.storage
+    .from(String(tipImage.storage_bucket ?? "project_images"))
+    .createSignedUrl(String(tipImage.storage_path), 3600)
+
+  return {
+    ok: true,
+    display: {
+      id: tipImage.id,
+      storagePath: tipImage.storage_path,
+      widthPx: tipImage.width_px,
+      heightPx: tipImage.height_px,
+      signedUrl: signedData?.signedUrl ?? "",
+      sourceImageId: tipImage.source_image_id,
+      name: tipImage.name,
+      isFilterResult: true,
+    },
+    stack,
   }
 }

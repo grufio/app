@@ -24,6 +24,11 @@ type InsertPayload = Record<string, unknown>
 
 function makeSupabase(insertResult: { error: { message: string; code?: string } | null }, capture: { insert?: InsertPayload }) {
   return {
+    storage: {
+      from: () => ({
+        upload: uploadSpy,
+      }),
+    },
     from: () => ({
       insert: async (payload: InsertPayload) => {
         capture.insert = payload
@@ -70,6 +75,9 @@ describe("master-image-upload service", () => {
       file,
       widthPx: 10,
       heightPx: 10,
+      dpiX: 72,
+      dpiY: 72,
+      bitDepth: 8,
       format: "png",
     })
     expect(out.ok).toBe(false)
@@ -92,12 +100,17 @@ describe("master-image-upload service", () => {
       file,
       widthPx: 400.9,
       heightPx: 200.1,
+      dpiX: 300,
+      dpiY: 300,
+      bitDepth: 8,
       format: "png",
     })
 
     expect(out.ok).toBe(true)
     expect(uploadSpy).toHaveBeenCalledTimes(1)
-    expect(capture.insert).not.toHaveProperty("dpi")
+    expect(capture.insert?.dpi_x).toBe(300)
+    expect(capture.insert?.dpi_y).toBe(300)
+    expect(capture.insert?.bit_depth).toBe(8)
     expect(capture.insert?.width_px).toBe(400)
     expect(capture.insert?.height_px).toBe(200)
     expect(activateSpy).toHaveBeenCalledTimes(1)
@@ -122,6 +135,9 @@ describe("master-image-upload service", () => {
       file,
       widthPx: 200,
       heightPx: 100,
+      dpiX: 72,
+      dpiY: 72,
+      bitDepth: 8,
       format: "png",
     })
 

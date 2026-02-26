@@ -41,7 +41,7 @@ describe("pixelateImageAndActivate - validation", () => {
       })),
       storage: {
         from: vi.fn(() => ({
-          download: vi.fn(),
+          download: vi.fn(async () => ({ data: null, error: { message: "download failed" } })),
           upload: vi.fn(),
           remove: vi.fn(),
         })),
@@ -188,19 +188,33 @@ describe("pixelateImageAndActivate - validation", () => {
   })
 
   it("should calculate correct grid dimensions from superpixel size", async () => {
-    const sourceImage = {
-      id: sourceImageId,
-      name: "test.jpg",
-      storage_bucket: "project_images",
-      storage_path: "path/to/test.jpg",
-      format: "jpeg",
-      width_px: 1000,
-      height_px: 800,
-      is_locked: false,
-    }
+    const mockFrom = mockSupabase.from as unknown as ReturnType<typeof vi.fn>
+    mockFrom.mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            is: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: {
+                  id: sourceImageId,
+                  name: "test.jpg",
+                  storage_bucket: "project_images",
+                  storage_path: "path/to/test.jpg",
+                  format: "jpeg",
+                  width_px: 1000,
+                  height_px: 800,
+                  is_locked: false,
+                },
+                error: null,
+              }),
+            }),
+          }),
+        }),
+      }),
+    })
 
     // Superpixel 10x10 on 1000x800 image = 100x80 grid
-    const result = await pixelateImageAndActivate({
+    await pixelateImageAndActivate({
       supabase: mockSupabase,
       projectId,
       sourceImageId,

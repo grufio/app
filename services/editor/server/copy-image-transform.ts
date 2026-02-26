@@ -44,7 +44,7 @@ export async function copyImageTransform(args: {
   }
 
   if (!sourceTransform) {
-    return { ok: true }
+    return { ok: false, reason: "Source image transform is missing" }
   }
 
   const sourceX = BigInt(sourceTransform.x_px_u ?? "0")

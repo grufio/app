@@ -41,13 +41,13 @@ function makeSupabaseStub(opts: {
 
       throw new Error(`unexpected table: ${table}`)
     },
-  } as any
+  } as unknown
 }
 
 async function importRouteWithMocks(args: {
-  supabase: any
+  supabase: unknown
   activeImageId: string | null
-  loadState?: { row: any | null; error: string | null; unsupported?: boolean }
+  loadState?: { row: Record<string, unknown> | null; error: string | null; unsupported?: boolean }
   upsertOk?: boolean
 }) {
   vi.resetModules()
@@ -57,7 +57,7 @@ async function importRouteWithMocks(args: {
   }))
 
   vi.doMock("@/lib/api/route-guards", async () => {
-    const actual = await vi.importActual<any>("@/lib/api/route-guards")
+    const actual = await vi.importActual<typeof import("@/lib/api/route-guards")>("@/lib/api/route-guards")
     return {
       ...actual,
       requireUser: async () => ({ ok: true, res: null }),

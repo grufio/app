@@ -56,6 +56,7 @@ export function useCropController(opts: {
   useEffect(() => {
     if (cropEnabled && !cropRect && imageFrame) {
       if (cropLimitFrame) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setCropRect(cropLimitFrame)
       } else {
         setCropRect(imageFrame)
@@ -79,6 +80,7 @@ export function useCropController(opts: {
   useEffect(() => {
     if (!cropEnabled) {
       stopCropResize()
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCropRect(null)
     }
   }, [cropEnabled, stopCropResize])
@@ -137,7 +139,7 @@ export function useCropController(opts: {
         onUp: () => onUp(),
       })
     },
-    [applyCropResize, containerRef, stopCropResize, view.x, view.scale, view.y]
+    [applyCropResize, containerRef, stopCropResize, view]
   )
 
   const getCropSelection = useCallback((): CropSelectionResult => {
