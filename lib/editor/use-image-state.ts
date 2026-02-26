@@ -135,7 +135,7 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
     } finally {
       loadInflightRef.current = null
     }
-  }, [logPrefix, projectId])
+  }, [imageId, logPrefix, projectId])
 
   const flushOnce = useCallback(async (p: Pending<ImageState>): Promise<void> => {
     const t = p.value
