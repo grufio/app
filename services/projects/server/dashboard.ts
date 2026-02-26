@@ -94,7 +94,7 @@ export async function listDashboardProjects(
   const { data: rows, error } = await supabase
     .from("projects")
     .select(
-      "id,name,updated_at,status,project_images(role,file_size_bytes,storage_path,name,format,width_px,height_px),project_workspace(width_px,height_px),project_image_state(role,x_px_u,y_px_u,width_px_u,height_px_u,rotation_deg)"
+      "id,name,updated_at,status,project_images!project_images_project_id_fkey(role,file_size_bytes,storage_path,name,format,width_px,height_px),project_workspace(width_px,height_px),project_image_state(role,x_px_u,y_px_u,width_px_u,height_px_u,rotation_deg)"
     )
     .order("updated_at", { ascending: false })
     .limit(100)
