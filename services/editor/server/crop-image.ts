@@ -15,6 +15,7 @@ type CropFailStage =
   | "crop_process"
   | "storage_upload"
   | "db_insert"
+  | "transform_sync"
   | "active_switch"
 
 type CropFailure = {
@@ -166,7 +167,7 @@ export async function cropImageAndActivate(args: {
     return { ok: false, status: 400, stage: "db_insert", reason: insertErr.message, code: (insertErr as { code?: string }).code }
   }
   // Copy transform from source to cropped image
-  await copyImageTransform({
+  const transformCopy = await copyImageTransform({
     supabase,
     projectId,
     sourceImageId,
@@ -176,6 +177,11 @@ export async function cropImageAndActivate(args: {
     targetWidth: w,
     targetHeight: h,
   })
+  if (!transformCopy.ok) {
+    await supabase.from("project_images").delete().eq("id", imageId)
+    await supabase.storage.from("project_images").remove([objectPath])
+    return { ok: false, status: 500, stage: "transform_sync", reason: transformCopy.reason }
+  }
 
 
   const activation = await activateMasterWithState({

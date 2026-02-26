@@ -81,7 +81,6 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
   onCropDblClick?: () => void
 }) {
   const {
-    projectId,
     masterImage,
     masterImageLoading: _masterImageLoading,
     masterImageError,

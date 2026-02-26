@@ -9,7 +9,7 @@
  * - This module is pure (no React/DOM, no Supabase).
  * - It intentionally mirrors existing UI behavior; changes should be covered by tests.
  */
-import { clampPx, pxUToPxNumber, pxUToUnitDisplayFixed, PX_U_SCALE, type Unit } from "@/lib/editor/units"
+import { clampPx, pxUToUnitDisplayFixed, PX_U_SCALE, type Unit } from "@/lib/editor/units"
 import { normalizeUnit } from "./normalize-unit"
 import type { WorkspaceRow } from "./workspace/types"
 

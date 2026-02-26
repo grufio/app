@@ -16,7 +16,7 @@ export function ProjectTitleEditor({ projectId, initialTitle, onTitleUpdated }: 
   const [draft, setDraft] = useState<string>(initialTitle ?? "Untitled")
   const [isFocused, setIsFocused] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
-  const [error, setError] = useState<string>("")
+  const [, setError] = useState<string>("")
 
   const inputRef = useRef<HTMLInputElement | null>(null)
   const lastSubmittedRef = useRef<string | null>(null)

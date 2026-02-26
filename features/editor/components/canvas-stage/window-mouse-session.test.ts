@@ -3,19 +3,26 @@ import { describe, expect, it, vi } from "vitest"
 import { attachWindowMouseDragSession, type WindowLike } from "./window-mouse-session"
 
 function makeWindowStub() {
-  const listeners = new Map<string, Set<Function>>()
+  type MouseListener = (evt: MouseEvent) => void
+  const listeners = new Map<string, Set<MouseListener>>()
   const addEventListener: WindowLike["addEventListener"] = (type, listener) => {
     const key = String(type)
     const set = listeners.get(key) ?? new Set()
-    set.add(listener as unknown as Function)
+    if (typeof listener === "function") {
+      set.add(listener as MouseListener)
+    } else {
+      set.add(((evt: MouseEvent) => listener.handleEvent(evt)) as MouseListener)
+    }
     listeners.set(key, set)
   }
   const removeEventListener: WindowLike["removeEventListener"] = (type, listener) => {
     const key = String(type)
-    listeners.get(key)?.delete(listener as unknown as Function)
+    if (typeof listener === "function") {
+      listeners.get(key)?.delete(listener as MouseListener)
+    }
   }
 
-  const dispatch = (type: string, evt: any) => {
+  const dispatch = (type: string, evt: MouseEvent) => {
     for (const fn of listeners.get(type) ?? []) fn(evt)
   }
 
@@ -28,9 +35,9 @@ describe("attachWindowMouseDragSession", () => {
     const onMove = vi.fn()
     const onUp = vi.fn()
 
-    attachWindowMouseDragSession({ win, onMove: onMove as any, onUp: onUp as any })
-    dispatch("mousemove", { clientX: 1, clientY: 2 })
-    dispatch("mouseup", {})
+    attachWindowMouseDragSession({ win, onMove, onUp })
+    dispatch("mousemove", { clientX: 1, clientY: 2 } as MouseEvent)
+    dispatch("mouseup", {} as MouseEvent)
 
     expect(onMove).toHaveBeenCalledTimes(1)
     expect(onUp).toHaveBeenCalledTimes(1)
@@ -41,12 +48,12 @@ describe("attachWindowMouseDragSession", () => {
     const onMove = vi.fn()
     const onUp = vi.fn()
 
-    const cleanup = attachWindowMouseDragSession({ win, onMove: onMove as any, onUp: onUp as any })
+    const cleanup = attachWindowMouseDragSession({ win, onMove, onUp })
     expect((listeners.get("mousemove")?.size ?? 0) + (listeners.get("mouseup")?.size ?? 0)).toBe(2)
 
     cleanup()
-    dispatch("mousemove", { clientX: 1, clientY: 2 })
-    dispatch("mouseup", {})
+    dispatch("mousemove", { clientX: 1, clientY: 2 } as MouseEvent)
+    dispatch("mouseup", {} as MouseEvent)
 
     expect(onMove).not.toHaveBeenCalled()
     expect(onUp).not.toHaveBeenCalled()

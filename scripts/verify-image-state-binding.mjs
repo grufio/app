@@ -153,6 +153,27 @@ function main() {
     `
   )
 
+  const pkDrift = runQuery(
+    dbUrl,
+    `
+      select conname
+      from pg_constraint
+      where conrelid = 'public.project_image_state'::regclass
+        and contype = 'p'
+        and conname = 'project_image_state_pk'
+        and pg_get_constraintdef(oid) not ilike 'PRIMARY KEY (project_id, image_id)%';
+    `
+  )
+
+  const functionConflictDrift = runQuery(
+    dbUrl,
+    `
+      select 'set_active_master_with_state_conflict_key_drift'
+      where pg_get_functiondef('public.set_active_master_with_state(uuid, uuid, integer, integer)'::regprocedure)
+            not ilike '%ON CONFLICT (project_id, image_id)%';
+    `
+  )
+
   printRows("Gate failed: multiple active master images found (project_id\\tcount):", multipleActive)
   printRows("Gate failed: active master image has no matching bound state (project_id\\timage_id):", activeWithoutState)
   printRows("Gate failed: stale/mismatched master state binding (project_id\\tstate_image_id\\tactive_image_id):", staleState)
@@ -163,6 +184,8 @@ function main() {
     "Gate failed: duplicate project_image_state rows for same key (project_id\\timage_id\\tcount):",
     duplicateImageStateRows
   )
+  printRows("Gate failed: project_image_state primary key drifted from (project_id, image_id):", pkDrift)
+  printRows("Gate failed: set_active_master_with_state uses wrong ON CONFLICT key:", functionConflictDrift)
 
   if (
     multipleActive.length ||
@@ -171,7 +194,9 @@ function main() {
     orphanStateImageId.length ||
     fkNotCascade.length ||
     nullImageIdRows.length ||
-    duplicateImageStateRows.length
+    duplicateImageStateRows.length ||
+    pkDrift.length ||
+    functionConflictDrift.length
   ) {
     fail("Image-state rollout verification failed.")
   }

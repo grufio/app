@@ -90,7 +90,7 @@ export function useSelectResizeController(opts: {
         onUp: () => onUp(),
       })
     },
-    [applySelectResize, containerRef, scheduleCommitTransform, stop, view.x, view.scale, view.y]
+    [applySelectResize, containerRef, scheduleCommitTransform, stop, view]
   )
 
   useEffect(() => () => stop(), [stop])

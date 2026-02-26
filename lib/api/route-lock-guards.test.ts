@@ -94,6 +94,17 @@ function makeImageStateSupabaseLocked() {
 }
 
 function makeDeleteRouteSupabaseInactive() {
+  const images = [
+    {
+      id: IMAGE_UUID,
+      storage_bucket: "project_images",
+      storage_path: "path/file.png",
+      is_active: false,
+      is_locked: false,
+      role: "master",
+      source_image_id: null,
+    },
+  ]
   return {
     auth: {
       getUser: async () => ({ data: { user: { id: "u1" } } }),
@@ -113,22 +124,38 @@ function makeDeleteRouteSupabaseInactive() {
           select: () => ({
             eq: () => ({
               eq: () => ({
-                eq: () => ({
-                  is: () => ({
-                    maybeSingle: async () => ({
-                      data: {
-                        id: IMAGE_UUID,
-                        storage_bucket: "project_images",
-                        storage_path: "path/file.png",
-                        is_active: false,
-                        is_locked: false,
-                      },
-                      error: null,
-                    }),
+                is: () => ({
+                  maybeSingle: async () => ({
+                    data: {
+                      id: IMAGE_UUID,
+                      storage_bucket: "project_images",
+                      storage_path: "path/file.png",
+                      is_active: false,
+                      is_locked: false,
+                    },
+                    error: null,
+                  }),
+                  order: () => ({
+                    limit: async () => ({ data: [], error: null }),
                   }),
                 }),
               }),
+              is: () => ({
+                order: () => ({
+                  limit: async () => ({ data: [], error: null }),
+                }),
+                then: undefined,
+              }),
             }),
+            is: async () => ({ data: images, error: null }),
+          }),
+          delete: () => ({
+            eq: () => ({
+              eq: async () => ({ error: null, count: 1 }),
+            }),
+          }),
+          update: () => ({
+            eq: async () => ({ error: null }),
           }),
         }
       }
@@ -266,7 +293,7 @@ describe("lock guard route contracts", () => {
     expect(upsertBoundImageStateMock).not.toHaveBeenCalled()
   })
 
-  it("master image delete route returns active_conflict for non-active targets", async () => {
+  it("master image delete route allows deleting non-active target by id", async () => {
     vi.resetModules()
     vi.doMock("@/lib/supabase/server", () => ({
       createSupabaseServerClient: async () => makeDeleteRouteSupabaseInactive(),
@@ -276,9 +303,8 @@ describe("lock guard route contracts", () => {
     const req = new Request("http://test.local", { method: "DELETE" })
     const res = await mod.DELETE(req, { params: Promise.resolve({ projectId: VALID_UUID, imageId: IMAGE_UUID }) })
 
-    expect(res.status).toBe(409)
+    expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.stage).toBe("active_conflict")
-    expect(body.reason).toBe("image_not_active")
+    expect(body.ok).toBe(true)
   })
 })

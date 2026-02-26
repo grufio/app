@@ -31,10 +31,9 @@ import { EditorSidebarSection } from "@/features/editor/components/sidebar/edito
 import { cropImageVariant, removeProjectImageFilter, restoreInitialMasterImage } from "@/lib/api/project-images"
 import { computeImagePanelReady, computeWorkspaceReady } from "@/lib/editor/editor-ready"
 import { useFloatingToolbarControls } from "@/lib/editor/floating-toolbar-controls"
-import { useFilterStack } from "@/lib/editor/use-filter-stack"
 import { useFilterWorkingImage } from "@/lib/editor/use-filter-working-image"
+import { usePageBackgroundState } from "@/lib/editor/use-page-background-state"
 import { useProjectGrid } from "@/lib/editor/project-grid"
-import type { WorkspaceRow } from "@/lib/editor/project-workspace"
 import { useProjectWorkspace } from "@/lib/editor/project-workspace"
 import type { ImageState } from "@/lib/editor/use-image-state"
 import { useImageState } from "@/lib/editor/use-image-state"
@@ -44,7 +43,6 @@ import { useProjectImages } from "@/lib/editor/use-project-images"
 import type { Project } from "@/lib/editor/use-project"
 import { useProject } from "@/lib/editor/use-project"
 import { computeRenderableGrid } from "@/services/editor/grid/validation"
-import { normalizeWorkspacePageBg, clampOpacityPercent } from "@/services/editor/page-background"
 import { mapSelectedNavIdToRightPanelSection } from "@/services/editor/panel-routing"
 
 function useImageStateLoadOrchestration(args: {
@@ -75,6 +73,47 @@ function getFilterLabel(filterType: string): string {
       return "Numerate"
     default:
       return "Filter"
+  }
+}
+
+function useFilterCommands(args: {
+  projectId: string
+  setCanvasMode: (mode: "image" | "filter") => void
+  refreshFilterImage: () => Promise<void>
+}) {
+  const { projectId, setCanvasMode, refreshFilterImage } = args
+  const [removingFilter, setRemovingFilter] = useState(false)
+  const [filterActionError, setFilterActionError] = useState("")
+
+  const handleRemoveFilter = useCallback(
+    async (filterId: string) => {
+      if (removingFilter) return
+      setRemovingFilter(true)
+      setFilterActionError("")
+      setCanvasMode("filter")
+      try {
+        await removeProjectImageFilter({ projectId, filterId })
+        await refreshFilterImage()
+      } catch (e) {
+        setFilterActionError(e instanceof Error ? e.message : "Failed to remove filter")
+      } finally {
+        setRemovingFilter(false)
+      }
+    },
+    [projectId, refreshFilterImage, removingFilter, setCanvasMode]
+  )
+
+  const handleFilterSuccess = useCallback(async () => {
+    await refreshFilterImage()
+    setCanvasMode("filter")
+  }, [refreshFilterImage, setCanvasMode])
+
+  return {
+    removingFilter,
+    filterActionError,
+    setFilterActionError,
+    handleRemoveFilter,
+    handleFilterSuccess,
   }
 }
 
@@ -163,11 +202,11 @@ export function ProjectDetailPageClient({
   } = useProjectImages(projectId)
   const {
     image: filterDisplayImage,
+    stack: filterStack,
     loading: filterImageLoading,
     error: filterImageError,
     refresh: refreshFilterImage,
   } = useFilterWorkingImage(projectId)
-  const filterStack = useFilterStack(projectId, filterDisplayImage?.id ?? null)
 
   const [restoreOpen, setRestoreOpen] = useState(false)
   const [restoreBusy, setRestoreBusy] = useState(false)
@@ -177,8 +216,6 @@ export function ProjectDetailPageClient({
   const [canvasMode, setCanvasMode] = useState<"image" | "filter">("image")
   const [showFilterSelection, setShowFilterSelection] = useState(false)
   const [activeFilterType, setActiveFilterType] = useState<"pixelate" | "lineart" | "numerate" | null>(null)
-  const [removingFilter, setRemovingFilter] = useState(false)
-  const [filterActionError, setFilterActionError] = useState("")
   const [numerateSuperpixelWidth] = useState(10)
   const [numerateSuperpixelHeight] = useState(10)
   const [gridVisible, setGridVisible] = useState(true)
@@ -187,6 +224,11 @@ export function ProjectDetailPageClient({
   const [imagePxU, setImagePxU] = useState<{ w: bigint; h: bigint } | null>(null)
   const [cropBusy, setCropBusy] = useState(false)
   const activeCanvasImageId = canvasMode === "filter" ? (filterDisplayImage?.id ?? null) : (masterImage?.id ?? null)
+  const { removingFilter, filterActionError, handleRemoveFilter, handleFilterSuccess } = useFilterCommands({
+    projectId,
+    setCanvasMode,
+    refreshFilterImage,
+  })
 
   // Load image-state independent of masterImage loading, so reloads can apply persisted size immediately.
   // Persist is still gated by `masterImage` when wiring `onImageTransformCommit` (see ProjectEditorStage props).
@@ -229,6 +271,50 @@ export function ProjectDetailPageClient({
     imageStateLoading,
     enableShortcuts: canvasMode !== "filter",
   })
+  const applyCropSelection = useCallback(async () => {
+    if (canvasMode === "filter") return
+    if (cropBusy) return
+    const sourceImageId = masterImage?.id ?? null
+    if (!sourceImageId) {
+      console.warn("Crop apply blocked: missing source image id")
+      return
+    }
+    const selection = canvasRef.current?.getCropSelection()
+    if (!selection?.ok) {
+      console.warn("Crop apply blocked", { reason: selection?.reason ?? "not_ready" })
+      return
+    }
+    const rect = selection.rect
+    setCropBusy(true)
+    try {
+      await cropImageVariant({
+        projectId,
+        sourceImageId,
+        x: rect.x,
+        y: rect.y,
+        w: rect.w,
+        h: rect.h,
+      })
+      toolbar.setTool("select")
+      await refreshMasterImage()
+      await refreshProjectImages()
+      await refreshFilterImage()
+      await loadImageState()
+    } finally {
+      setCropBusy(false)
+    }
+  }, [
+    canvasMode,
+    cropBusy,
+    loadImageState,
+    masterImage?.id,
+    projectId,
+    refreshFilterImage,
+    refreshMasterImage,
+    refreshProjectImages,
+    toolbar,
+  ])
+
   useEffect(() => {
     const onKeyDown = async (e: KeyboardEvent) => {
       if (canvasMode === "filter") return
@@ -242,38 +328,11 @@ export function ProjectDetailPageClient({
       }
       if (e.key !== "Enter") return
       e.preventDefault()
-      const sourceImageId = masterImage?.id ?? null
-      if (!sourceImageId) {
-        console.warn("Crop apply blocked: missing source image id")
-        return
-      }
-      const selection = canvasRef.current?.getCropSelection()
-      if (!selection?.ok) {
-        console.warn("Crop apply blocked", { reason: selection?.reason ?? "not_ready" })
-        return
-      }
-      const rect = selection.rect
-      setCropBusy(true)
-      try {
-        await cropImageVariant({
-          projectId,
-          sourceImageId,
-          x: rect.x,
-          y: rect.y,
-          w: rect.w,
-          h: rect.h,
-        })
-        toolbar.setTool("select")
-        await refreshMasterImage()
-        await refreshProjectImages()
-        await loadImageState()
-      } finally {
-        setCropBusy(false)
-      }
+      await applyCropSelection()
     }
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
-  }, [canvasMode, cropBusy, loadImageState, masterImage?.id, projectId, refreshMasterImage, refreshProjectImages, toolbar])
+  }, [applyCropSelection, canvasMode, cropBusy, toolbar])
 
   const autoSelectMasterIdRef = useRef<string | null>(null)
 
@@ -401,8 +460,7 @@ export function ProjectDetailPageClient({
     await refreshProjectImages()
     await refreshMasterImage()
     await refreshFilterImage()
-    await filterStack.refresh()
-  }, [deleteImage, deleteImageById, filterStack, refreshFilterImage, refreshMasterImage, refreshProjectImages, selectedImageId])
+  }, [deleteImage, deleteImageById, refreshFilterImage, refreshMasterImage, refreshProjectImages, selectedImageId])
 
   const handleRestoreInitialImage = useCallback(async () => {
     if (restoreBusy) return
@@ -415,39 +473,13 @@ export function ProjectDetailPageClient({
       await refreshMasterImage()
       await refreshProjectImages()
       await refreshFilterImage()
-      await filterStack.refresh()
       await loadImageState()
     } catch (e) {
       setRestoreError(e instanceof Error ? e.message : "Failed to restore initial image")
     } finally {
       setRestoreBusy(false)
     }
-  }, [filterStack, loadImageState, projectId, refreshFilterImage, refreshMasterImage, refreshProjectImages, restoreBusy, toolbar])
-
-  const handleRemoveFilter = useCallback(
-    async (filterId: string) => {
-      if (removingFilter) return
-      setRemovingFilter(true)
-      setFilterActionError("")
-      setCanvasMode("filter")
-      try {
-        await removeProjectImageFilter({ projectId, filterId })
-        await refreshFilterImage()
-        await filterStack.refresh()
-      } catch (e) {
-        setFilterActionError(e instanceof Error ? e.message : "Failed to remove filter")
-      } finally {
-        setRemovingFilter(false)
-      }
-    },
-    [filterStack, projectId, refreshFilterImage, removingFilter]
-  )
-
-  const handleFilterSuccess = useCallback(async () => {
-    await refreshFilterImage()
-    await filterStack.refresh()
-    setCanvasMode("filter")
-  }, [filterStack, refreshFilterImage])
+  }, [loadImageState, projectId, refreshFilterImage, refreshMasterImage, refreshProjectImages, restoreBusy, toolbar])
 
   const requestDeleteImage = useCallback(
     async (imageId: string) => {
@@ -480,91 +512,17 @@ export function ProjectDetailPageClient({
   const minPanelRem = 18
   const maxPanelRem = 24
 
-  const [pageBgEnabled, setPageBgEnabled] = useState(false)
-  const [pageBgColor, setPageBgColor] = useState("#ffffff")
-  const [pageBgOpacity, setPageBgOpacity] = useState(50)
-
-  const pageBgRef = useRef<{ enabled: boolean; color: string; opacity: number }>({
-    enabled: pageBgEnabled,
-    color: pageBgColor,
-    opacity: pageBgOpacity,
+  const {
+    pageBgEnabled,
+    pageBgColor,
+    pageBgOpacity,
+    handlePageBgEnabledChange,
+    handlePageBgColorChange,
+    handlePageBgOpacityChange,
+  } = usePageBackgroundState({
+    workspaceRow,
+    updateWorkspacePageBg,
   })
-  useEffect(() => {
-    pageBgRef.current = { enabled: pageBgEnabled, color: pageBgColor, opacity: pageBgOpacity }
-  }, [pageBgColor, pageBgEnabled, pageBgOpacity])
-
-  const workspaceRowRef = useRef<WorkspaceRow | null>(workspaceRow)
-  useEffect(() => {
-    workspaceRowRef.current = workspaceRow
-  }, [workspaceRow])
-
-  const pageBgInitKeyRef = useRef<string | null>(null)
-  useEffect(() => {
-    if (!workspaceRow) return
-    // Initialize once per project load (avoid overwriting user edits mid-session).
-    if (pageBgInitKeyRef.current === workspaceRow.project_id) return
-    pageBgInitKeyRef.current = workspaceRow.project_id
-    const normalized = normalizeWorkspacePageBg(workspaceRow)
-    setPageBgEnabled(normalized.enabled)
-    setPageBgColor(normalized.color)
-    setPageBgOpacity(normalized.opacity)
-  }, [workspaceRow])
-
-  const bgSaveTimerRef = useRef<number | null>(null)
-  const scheduleSavePageBg = useCallback(
-    (next: { enabled: boolean; color: string; opacity: number }) => {
-      if (bgSaveTimerRef.current != null) window.clearTimeout(bgSaveTimerRef.current)
-      bgSaveTimerRef.current = window.setTimeout(() => {
-        bgSaveTimerRef.current = null
-        const base = workspaceRowRef.current
-        if (!base) return
-        void updateWorkspacePageBg({
-          enabled: next.enabled,
-          color: next.color,
-          opacity: next.opacity,
-        })
-      }, 250)
-    },
-    [updateWorkspacePageBg]
-  )
-
-  const handlePageBgEnabledChange = useCallback(
-    (enabled: boolean) => {
-      setPageBgEnabled(enabled)
-      const { color, opacity } = pageBgRef.current
-      scheduleSavePageBg({ enabled, color, opacity })
-    },
-    [scheduleSavePageBg]
-  )
-
-  const handlePageBgColorChange = useCallback(
-    (color: string) => {
-      const enabled = true
-      const { opacity } = pageBgRef.current
-      setPageBgColor(color)
-      setPageBgEnabled(enabled)
-      scheduleSavePageBg({ enabled, color, opacity })
-    },
-    [scheduleSavePageBg]
-  )
-
-  const handlePageBgOpacityChange = useCallback(
-    (opacityPercent: number) => {
-      const enabled = true
-      const clamped = clampOpacityPercent(opacityPercent, 0)
-      const { color } = pageBgRef.current
-      setPageBgOpacity(clamped)
-      setPageBgEnabled(enabled)
-      scheduleSavePageBg({ enabled, color, opacity: clamped })
-    },
-    [scheduleSavePageBg]
-  )
-
-  useEffect(() => {
-    return () => {
-      if (bgSaveTimerRef.current != null) window.clearTimeout(bgSaveTimerRef.current)
-    }
-  }, [])
 
   const panelImagePxU = useMemo(() => {
     if (imageStateLoading) return null
@@ -653,7 +611,7 @@ export function ProjectDetailPageClient({
     () => (
       <EditorSidebarSection title="Filter">
         <SidebarMenu>
-          {filterStack.stack.map((filter) => (
+          {filterStack.map((filter) => (
             <SidebarMenuItem key={filter.id}>
               <SidebarMenuButton
                 isActive={canvasMode === "filter" && filterDisplayImage?.id === filter.id}
@@ -675,7 +633,7 @@ export function ProjectDetailPageClient({
 
           <SidebarMenuItem>
             <SidebarMenuButton
-              isActive={canvasMode === "filter" && filterStack.stack.length === 0}
+              isActive={canvasMode === "filter" && filterStack.length === 0}
               className="text-xs font-medium"
               onClick={() => setShowFilterSelection(true)}
             >
@@ -701,7 +659,7 @@ export function ProjectDetailPageClient({
       filterActionError,
       filterDisplayImage,
       filterImageLoading,
-      filterStack.stack,
+      filterStack,
       handleRemoveFilter,
       imageStateLoading,
       removingFilter,
@@ -760,33 +718,8 @@ export function ProjectDetailPageClient({
               pageBgColor={pageBgColor}
               pageBgOpacity={pageBgOpacity}
               onCropDblClick={async () => {
-                if (canvasMode === "filter") return
                 if (toolbar.tool !== "crop") return
-                if (cropBusy) return
-                const sourceImageId = masterImage?.id ?? null
-                if (!sourceImageId) return
-                const selection = canvasRef.current?.getCropSelection()
-                if (!selection?.ok) return
-                const rect = selection.rect
-                setCropBusy(true)
-                try {
-                  await cropImageVariant({
-                    projectId,
-                    sourceImageId,
-                    x: rect.x,
-                    y: rect.y,
-                    w: rect.w,
-                    h: rect.h,
-                  })
-                  toolbar.setTool("select")
-                  await refreshMasterImage()
-                  await refreshProjectImages()
-                  await refreshFilterImage()
-                  await filterStack.refresh()
-                  await loadImageState()
-                } finally {
-                  setCropBusy(false)
-                }
+                await applyCropSelection()
               }}
             />
           </main>

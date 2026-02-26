@@ -15,6 +15,7 @@ type NumerateFailStage =
   | "numerate_process"
   | "storage_upload"
   | "db_insert"
+  | "transform_sync"
   | "active_switch"
 
 type NumerateFailure = {
@@ -174,7 +175,7 @@ export async function numerateImageAndActivate(args: {
       return { ok: false, status: 400, stage: "db_insert", reason: insertErr.message, code: insertErr.code }
     }
     // Copy transform from source to filter image
-    await copyImageTransform({
+    const transformCopy = await copyImageTransform({
       supabase,
       projectId,
       sourceImageId,
@@ -184,6 +185,11 @@ export async function numerateImageAndActivate(args: {
       targetWidth: origWidth,
       targetHeight: origHeight,
     })
+    if (!transformCopy.ok) {
+      await supabase.from("project_images").delete().eq("id", imageId)
+      await supabase.storage.from("project_images").remove([objectPath])
+      return { ok: false, status: 500, stage: "transform_sync", reason: transformCopy.reason }
+    }
 
 
     return {

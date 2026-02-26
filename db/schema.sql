@@ -2815,3 +2815,604 @@ $$;
 -- =========================================================
 -- END db/043_reconcile_image_state_contract.sql
 -- =========================================================
+
+-- =========================================================
+-- BEGIN db/039_cascade_delete_derived_images.sql
+-- =========================================================
+-- Migration: Cascade delete for derived images
+-- Purpose: When a master image is deleted, automatically delete all derived images (filters, crops)
+--
+-- Changes:
+-- - Modify source_image_id foreign key constraint to ON DELETE CASCADE
+-- - This allows deleting master images and automatically cleans up all derived assets
+
+alter table public.project_images
+  drop constraint if exists project_images_source_image_id_fkey;
+
+alter table public.project_images
+  add constraint project_images_source_image_id_fkey
+  foreign key (source_image_id)
+  references public.project_images(id)
+  on delete cascade;
+-- =========================================================
+-- END db/039_cascade_delete_derived_images.sql
+-- =========================================================
+
+-- =========================================================
+-- BEGIN db/040_allow_master_image_delete.sql
+-- =========================================================
+-- Migration: Allow master image deletion
+-- Purpose: Remove the DELETE block from guard_master_immutable trigger
+--
+-- Background:
+-- The original trigger prevented deletion of master images to enforce immutability.
+-- Now we want to allow deletion with proper cascade cleanup of derived images.
+--
+-- Changes:
+-- - Modify guard_master_immutable() to only guard UPDATE operations
+-- - Keep UPDATE guards for critical fields (storage_path, format, dimensions, etc.)
+-- - Remove DELETE block entirely
+
+create or replace function public.guard_master_immutable()
+returns trigger
+language plpgsql
+as $$
+begin
+  -- Allow DELETE operations (cascade cleanup will handle derived images)
+  if tg_op = 'DELETE' then
+    return old;
+  end if;
+
+  -- Guard UPDATE: prevent mutation of critical master image fields
+  if tg_op = 'UPDATE' and old.role = 'master' then
+    if new.format is distinct from old.format
+       or new.width_px is distinct from old.width_px
+       or new.height_px is distinct from old.height_px
+       or new.storage_bucket is distinct from old.storage_bucket
+       or new.storage_path is distinct from old.storage_path
+       or new.file_size_bytes is distinct from old.file_size_bytes
+       or new.source_image_id is distinct from old.source_image_id
+       or new.crop_rect_px is distinct from old.crop_rect_px
+       or new.role is distinct from old.role
+       or new.deleted_at is distinct from old.deleted_at then
+      raise exception using
+        message = 'master image core fields are immutable',
+        detail = format('project_id=%s image_id=%s', old.project_id, old.id),
+        hint = 'Create a new derived image (role=asset) instead.';
+    end if;
+  end if;
+
+  return new;
+end;
+$$;
+
+alter function public.guard_master_immutable()
+  set search_path = public, pg_temp;
+-- =========================================================
+-- END db/040_allow_master_image_delete.sql
+-- =========================================================
+
+-- =========================================================
+-- BEGIN db/041_add_image_dpi_columns.sql
+-- =========================================================
+-- Migration 041: Add DPI and bit depth columns to project_images
+--
+-- These columns store image metadata for DPI-based initial scaling:
+-- - dpi_x, dpi_y: Dots per inch from EXIF or fallback (72)
+-- - bit_depth: Color depth (8, 16, etc.)
+
+alter table public.project_images
+  add column if not exists dpi_x numeric not null default 72 check (dpi_x > 0),
+  add column if not exists dpi_y numeric not null default 72 check (dpi_y > 0),
+  add column if not exists bit_depth integer not null default 8 check (bit_depth > 0);
+-- =========================================================
+-- END db/041_add_image_dpi_columns.sql
+-- =========================================================
+
+-- =========================================================
+-- BEGIN db/042_dpi_based_initial_scale.sql
+-- =========================================================
+-- Migration 042: DPI-based initial image scale
+--
+-- When activating a master image, calculate initial scale based on:
+-- - Image DPI (from EXIF or fallback 72)
+-- - Artboard DPI (from project_workspace.output_dpi)
+-- - Scale = ImageDPI / ArtboardDPI (fallback to 1.0 if no Artboard DPI)
+
+create or replace function public.set_active_master_with_state(
+  p_project_id uuid,
+  p_image_id uuid,
+  p_width_px integer,
+  p_height_px integer
+)
+returns void
+language plpgsql
+as $$
+declare
+  v_w_u bigint;
+  v_h_u bigint;
+  v_artboard_w_u bigint;
+  v_artboard_h_u bigint;
+  v_image_dpi_x numeric;
+  v_artboard_dpi numeric;
+  v_scale numeric;
+begin
+  v_w_u := greatest(1, p_width_px)::bigint * 1000000;
+  v_h_u := greatest(1, p_height_px)::bigint * 1000000;
+
+  perform public.set_active_image(p_project_id, p_image_id);
+
+  select
+    case
+      when pw.width_px_u is not null then pw.width_px_u::bigint
+      else greatest(1, pw.width_px)::bigint * 1000000
+    end,
+    case
+      when pw.height_px_u is not null then pw.height_px_u::bigint
+      else greatest(1, pw.height_px)::bigint * 1000000
+    end,
+    pw.output_dpi
+  into v_artboard_w_u, v_artboard_h_u, v_artboard_dpi
+  from public.project_workspace pw
+  where pw.project_id = p_project_id;
+
+  if v_artboard_w_u is null then v_artboard_w_u := v_w_u; end if;
+  if v_artboard_h_u is null then v_artboard_h_u := v_h_u; end if;
+
+  select pi.dpi_x
+  into v_image_dpi_x
+  from public.project_images pi
+  where pi.id = p_image_id;
+
+  if v_artboard_dpi is not null and v_artboard_dpi > 0 and v_image_dpi_x is not null and v_image_dpi_x > 0 then
+    v_scale := v_image_dpi_x / v_artboard_dpi;
+  else
+    v_scale := 1.0;
+  end if;
+
+  insert into public.project_image_state (
+    project_id,
+    role,
+    image_id,
+    x_px_u,
+    y_px_u,
+    width_px_u,
+    height_px_u,
+    rotation_deg
+  ) values (
+    p_project_id,
+    'master',
+    p_image_id,
+    (v_artboard_w_u / 2)::text,
+    (v_artboard_h_u / 2)::text,
+    (v_w_u * v_scale)::bigint::text,
+    (v_h_u * v_scale)::bigint::text,
+    0
+  )
+  on conflict (project_id, role)
+  do update
+    set image_id = excluded.image_id,
+        x_px_u = excluded.x_px_u,
+        y_px_u = excluded.y_px_u,
+        width_px_u = excluded.width_px_u,
+        height_px_u = excluded.height_px_u,
+        rotation_deg = excluded.rotation_deg,
+        updated_at = now();
+end;
+$$;
+-- =========================================================
+-- END db/042_dpi_based_initial_scale.sql
+-- =========================================================
+
+-- =========================================================
+-- BEGIN db/043_image_state_per_image.sql
+-- =========================================================
+-- Migration 043: Transform state per image (not per role)
+--
+-- Change primary key from (project_id, role) to (project_id, image_id)
+-- to allow each filter image to have its own transform.
+
+-- First, populate NULL image_id values with active master image
+UPDATE public.project_image_state pis
+SET image_id = am.image_id
+FROM (
+  SELECT DISTINCT ON (project_id)
+    project_id,
+    id as image_id
+  FROM public.project_images
+  WHERE role = 'master'
+    AND is_active = true
+    AND deleted_at IS NULL
+  ORDER BY project_id, created_at DESC
+) am
+WHERE pis.project_id = am.project_id
+  AND pis.role = 'master'
+  AND pis.image_id IS NULL;
+
+-- Drop old primary key
+ALTER TABLE public.project_image_state
+  DROP CONSTRAINT IF EXISTS project_image_state_pk;
+
+-- Make image_id NOT NULL (required for primary key)
+ALTER TABLE public.project_image_state
+  ALTER COLUMN image_id SET NOT NULL;
+
+-- Add new primary key on (project_id, image_id)
+ALTER TABLE public.project_image_state
+  ADD CONSTRAINT project_image_state_pk PRIMARY KEY (project_id, image_id);
+
+-- Add index on role for queries that filter by role
+CREATE INDEX IF NOT EXISTS project_image_state_role_idx
+  ON public.project_image_state (role);
+-- =========================================================
+-- END db/043_image_state_per_image.sql
+-- =========================================================
+
+-- =========================================================
+-- BEGIN db/044_cleanup_duplicate_fks.sql
+-- =========================================================
+-- Migration 044: Cleanup duplicate foreign keys
+--
+-- If migrations were applied multiple times, there may be duplicate FKs.
+-- This migration ensures only the correct FK exists.
+
+DO $$
+DECLARE
+  fk_count INTEGER;
+BEGIN
+  -- Count FKs from project_images.project_id to projects.id
+  SELECT COUNT(*) INTO fk_count
+  FROM pg_constraint
+  WHERE conrelid = 'project_images'::regclass
+    AND contype = 'f'
+    AND confrelid = 'projects'::regclass;
+
+  -- If more than 1 FK exists, drop all and recreate the canonical one
+  IF fk_count > 1 THEN
+    -- Drop all FKs from project_images to projects
+    DECLARE
+      fk_name TEXT;
+    BEGIN
+      FOR fk_name IN
+        SELECT conname
+        FROM pg_constraint
+        WHERE conrelid = 'project_images'::regclass
+          AND contype = 'f'
+          AND confrelid = 'projects'::regclass
+      LOOP
+        EXECUTE format('ALTER TABLE project_images DROP CONSTRAINT IF EXISTS %I', fk_name);
+      END LOOP;
+    END;
+
+    -- Recreate the canonical FK
+    ALTER TABLE public.project_images
+      ADD CONSTRAINT project_images_project_id_fkey
+      FOREIGN KEY (project_id)
+      REFERENCES public.projects(id)
+      ON DELETE CASCADE;
+  END IF;
+END $$;
+-- =========================================================
+-- END db/044_cleanup_duplicate_fks.sql
+-- =========================================================
+
+-- =========================================================
+-- BEGIN db/045_cleanup_null_image_ids.sql
+-- =========================================================
+-- Migration 045: Cleanup NULL image_id values in project_image_state
+--
+-- Some old rows may have image_id=NULL if migration 043 wasn't applied yet.
+-- This migration deletes orphaned rows or fills them with active master.
+
+-- Option 1: Try to fill NULL image_ids with active master
+UPDATE public.project_image_state pis
+SET image_id = am.image_id
+FROM (
+  SELECT DISTINCT ON (project_id)
+    project_id,
+    id as image_id
+  FROM public.project_images
+  WHERE role = 'master'
+    AND is_active = true
+    AND deleted_at IS NULL
+  ORDER BY project_id, created_at DESC
+) am
+WHERE pis.project_id = am.project_id
+  AND pis.role = 'master'
+  AND pis.image_id IS NULL;
+
+-- Option 2: Delete any remaining rows with NULL image_id (orphaned)
+DELETE FROM public.project_image_state
+WHERE image_id IS NULL;
+-- =========================================================
+-- END db/045_cleanup_null_image_ids.sql
+-- =========================================================
+
+-- =========================================================
+-- BEGIN db/046_fix_set_active_master_pk.sql
+-- =========================================================
+-- Migration 046: Fix set_active_master_with_state for new PK
+--
+-- Migration 043 changed PK from (project_id, role) to (project_id, image_id)
+-- so the conflict clause in set_active_master_with_state must be updated
+
+CREATE OR REPLACE FUNCTION public.set_active_master_with_state(
+  p_project_id uuid,
+  p_image_id uuid,
+  p_width_px integer,
+  p_height_px integer
+)
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_w_u bigint;
+  v_h_u bigint;
+  v_artboard_w_u bigint;
+  v_artboard_h_u bigint;
+  v_image_dpi_x numeric;
+  v_artboard_dpi numeric;
+  v_scale numeric;
+BEGIN
+  v_w_u := greatest(1, p_width_px)::bigint * 1000000;
+  v_h_u := greatest(1, p_height_px)::bigint * 1000000;
+
+  PERFORM public.set_active_image(p_project_id, p_image_id);
+
+  SELECT
+    CASE
+      WHEN pw.width_px_u IS NOT NULL THEN pw.width_px_u::bigint
+      ELSE greatest(1, pw.width_px)::bigint * 1000000
+    END,
+    CASE
+      WHEN pw.height_px_u IS NOT NULL THEN pw.height_px_u::bigint
+      ELSE greatest(1, pw.height_px)::bigint * 1000000
+    END,
+    pw.output_dpi
+  INTO v_artboard_w_u, v_artboard_h_u, v_artboard_dpi
+  FROM public.project_workspace pw
+  WHERE pw.project_id = p_project_id;
+
+  IF v_artboard_w_u IS NULL THEN v_artboard_w_u := v_w_u; END IF;
+  IF v_artboard_h_u IS NULL THEN v_artboard_h_u := v_h_u; END IF;
+
+  SELECT pi.dpi_x
+  INTO v_image_dpi_x
+  FROM public.project_images pi
+  WHERE pi.id = p_image_id;
+
+  IF v_artboard_dpi IS NOT NULL AND v_artboard_dpi > 0 AND v_image_dpi_x IS NOT NULL AND v_image_dpi_x > 0 THEN
+    v_scale := v_image_dpi_x / v_artboard_dpi;
+  ELSE
+    v_scale := 1.0;
+  END IF;
+
+  INSERT INTO public.project_image_state (
+    project_id,
+    role,
+    image_id,
+    x_px_u,
+    y_px_u,
+    width_px_u,
+    height_px_u,
+    rotation_deg
+  ) VALUES (
+    p_project_id,
+    'master',
+    p_image_id,
+    (v_artboard_w_u / 2)::text,
+    (v_artboard_h_u / 2)::text,
+    (v_w_u * v_scale)::bigint::text,
+    (v_h_u * v_scale)::bigint::text,
+    0
+  )
+  ON CONFLICT (project_id, image_id)
+  DO UPDATE
+    SET role = excluded.role,
+        x_px_u = excluded.x_px_u,
+        y_px_u = excluded.y_px_u,
+        width_px_u = excluded.width_px_u,
+        height_px_u = excluded.height_px_u,
+        rotation_deg = excluded.rotation_deg,
+        updated_at = now();
+END;
+$$;
+-- =========================================================
+-- END db/046_fix_set_active_master_pk.sql
+-- =========================================================
+
+-- =========================================================
+-- BEGIN db/047_force_cleanup_and_fix_function.sql
+-- =========================================================
+-- Migration 047: Force cleanup NULL image_ids and prevent future issues
+
+DELETE FROM public.project_image_state WHERE image_id IS NULL;
+
+CREATE OR REPLACE FUNCTION public.set_active_master_with_state(
+  p_project_id uuid,
+  p_image_id uuid,
+  p_width_px integer,
+  p_height_px integer
+)
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_w_u bigint;
+  v_h_u bigint;
+  v_artboard_w_u bigint;
+  v_artboard_h_u bigint;
+  v_image_dpi_x numeric;
+  v_artboard_dpi numeric;
+  v_scale numeric;
+BEGIN
+  v_w_u := greatest(1, p_width_px)::bigint * 1000000;
+  v_h_u := greatest(1, p_height_px)::bigint * 1000000;
+
+  PERFORM public.set_active_image(p_project_id, p_image_id);
+
+  SELECT
+    CASE
+      WHEN pw.width_px_u IS NOT NULL THEN pw.width_px_u::bigint
+      ELSE greatest(1, pw.width_px)::bigint * 1000000
+    END,
+    CASE
+      WHEN pw.height_px_u IS NOT NULL THEN pw.height_px_u::bigint
+      ELSE greatest(1, pw.height_px)::bigint * 1000000
+    END,
+    pw.output_dpi
+  INTO v_artboard_w_u, v_artboard_h_u, v_artboard_dpi
+  FROM public.project_workspace pw
+  WHERE pw.project_id = p_project_id;
+
+  IF v_artboard_w_u IS NULL THEN v_artboard_w_u := v_w_u; END IF;
+  IF v_artboard_h_u IS NULL THEN v_artboard_h_u := v_h_u; END IF;
+
+  SELECT pi.dpi_x
+  INTO v_image_dpi_x
+  FROM public.project_images pi
+  WHERE pi.id = p_image_id;
+
+  IF v_artboard_dpi IS NOT NULL AND v_artboard_dpi > 0 AND v_image_dpi_x IS NOT NULL AND v_image_dpi_x > 0 THEN
+    v_scale := v_image_dpi_x / v_artboard_dpi;
+  ELSE
+    v_scale := 1.0;
+  END IF;
+
+  DELETE FROM public.project_image_state
+  WHERE project_id = p_project_id AND (image_id = p_image_id OR image_id IS NULL);
+
+  INSERT INTO public.project_image_state (
+    project_id,
+    role,
+    image_id,
+    x_px_u,
+    y_px_u,
+    width_px_u,
+    height_px_u,
+    rotation_deg
+  ) VALUES (
+    p_project_id,
+    'master',
+    p_image_id,
+    (v_artboard_w_u / 2)::text,
+    (v_artboard_h_u / 2)::text,
+    (v_w_u * v_scale)::bigint::text,
+    (v_h_u * v_scale)::bigint::text,
+    0
+  );
+END;
+$$;
+-- =========================================================
+-- END db/047_force_cleanup_and_fix_function.sql
+-- =========================================================
+
+-- =========================================================
+-- BEGIN db/048_reconcile_image_state_fk_and_master_state.sql
+-- =========================================================
+-- Migration 048: Reconcile image_state FK and master-state function
+--
+-- Purpose:
+-- - Fix incompatibility between NOT NULL image_id and old FK ON DELETE SET NULL.
+-- - Keep project_image_state stable after PK switch to (project_id, image_id).
+-- - Ensure set_active_master_with_state upserts on the new PK.
+
+-- 1) Defensive cleanup of legacy/null rows.
+DELETE FROM public.project_image_state
+WHERE image_id IS NULL;
+
+-- 2) Ensure FK is cascade (NOT set null), compatible with NOT NULL image_id.
+ALTER TABLE public.project_image_state
+  DROP CONSTRAINT IF EXISTS project_image_state_image_id_fkey;
+
+ALTER TABLE public.project_image_state
+  ADD CONSTRAINT project_image_state_image_id_fkey
+  FOREIGN KEY (image_id)
+  REFERENCES public.project_images(id)
+  ON DELETE CASCADE;
+
+-- 3) Canonical function for activating master + initializing/refreshing state.
+CREATE OR REPLACE FUNCTION public.set_active_master_with_state(
+  p_project_id uuid,
+  p_image_id uuid,
+  p_width_px integer,
+  p_height_px integer
+)
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_w_u bigint;
+  v_h_u bigint;
+  v_artboard_w_u bigint;
+  v_artboard_h_u bigint;
+  v_image_dpi_x numeric;
+  v_artboard_dpi numeric;
+  v_scale numeric;
+BEGIN
+  v_w_u := greatest(1, p_width_px)::bigint * 1000000;
+  v_h_u := greatest(1, p_height_px)::bigint * 1000000;
+
+  PERFORM public.set_active_image(p_project_id, p_image_id);
+
+  SELECT
+    CASE
+      WHEN pw.width_px_u IS NOT NULL THEN pw.width_px_u::bigint
+      ELSE greatest(1, pw.width_px)::bigint * 1000000
+    END,
+    CASE
+      WHEN pw.height_px_u IS NOT NULL THEN pw.height_px_u::bigint
+      ELSE greatest(1, pw.height_px)::bigint * 1000000
+    END,
+    pw.output_dpi
+  INTO v_artboard_w_u, v_artboard_h_u, v_artboard_dpi
+  FROM public.project_workspace pw
+  WHERE pw.project_id = p_project_id;
+
+  IF v_artboard_w_u IS NULL THEN v_artboard_w_u := v_w_u; END IF;
+  IF v_artboard_h_u IS NULL THEN v_artboard_h_u := v_h_u; END IF;
+
+  SELECT pi.dpi_x
+  INTO v_image_dpi_x
+  FROM public.project_images pi
+  WHERE pi.id = p_image_id;
+
+  IF v_artboard_dpi IS NOT NULL AND v_artboard_dpi > 0 AND v_image_dpi_x IS NOT NULL AND v_image_dpi_x > 0 THEN
+    v_scale := v_image_dpi_x / v_artboard_dpi;
+  ELSE
+    v_scale := 1.0;
+  END IF;
+
+  INSERT INTO public.project_image_state (
+    project_id,
+    role,
+    image_id,
+    x_px_u,
+    y_px_u,
+    width_px_u,
+    height_px_u,
+    rotation_deg
+  ) VALUES (
+    p_project_id,
+    'master',
+    p_image_id,
+    (v_artboard_w_u / 2)::text,
+    (v_artboard_h_u / 2)::text,
+    (v_w_u * v_scale)::bigint::text,
+    (v_h_u * v_scale)::bigint::text,
+    0
+  )
+  ON CONFLICT (project_id, image_id)
+  DO UPDATE
+    SET role = excluded.role,
+        x_px_u = excluded.x_px_u,
+        y_px_u = excluded.y_px_u,
+        width_px_u = excluded.width_px_u,
+        height_px_u = excluded.height_px_u,
+        rotation_deg = excluded.rotation_deg,
+        updated_at = now();
+END;
+$$;
+-- =========================================================
+-- END db/048_reconcile_image_state_fk_and_master_state.sql
+-- =========================================================

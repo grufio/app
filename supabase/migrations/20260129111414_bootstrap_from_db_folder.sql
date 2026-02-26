@@ -1916,6 +1916,22 @@ alter function public.set_active_master_image(uuid, uuid)
   set search_path = public, pg_temp;
 
 -- =========================================================
+-- Marker sync for migrations managed in db/ after bootstrap cut
+-- =========================================================
+-- db/038_project_image_filters_remove_grayscale.sql
+-- db/039_cascade_delete_derived_images.sql
+-- db/040_allow_master_image_delete.sql
+-- db/041_add_image_dpi_columns.sql
+-- db/042_dpi_based_initial_scale.sql
+-- db/043_image_state_per_image.sql
+-- db/043_reconcile_image_state_contract.sql
+-- db/044_cleanup_duplicate_fks.sql
+-- db/045_cleanup_null_image_ids.sql
+-- db/046_fix_set_active_master_pk.sql
+-- db/047_force_cleanup_and_fix_function.sql
+-- db/048_reconcile_image_state_fk_and_master_state.sql
+
+-- =========================================================
 -- db/037_master_variant_filter_contract.sql
 -- =========================================================
 -- gruf.io - Master / Variant / Filter contract hardening
