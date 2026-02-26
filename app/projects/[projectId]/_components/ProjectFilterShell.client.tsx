@@ -130,7 +130,7 @@ function useLoadImageStateOnActiveImageChange(args: { masterImageId: string | nu
 export function ProjectFilterPageClient(props: { projectId: string }) {
   const { widthPx, heightPx } = useProjectWorkspace()
   const { image: workingImage, loading: workingImageLoading, error: workingImageError, refresh: refreshWorkingImage } = useFilterWorkingImage(props.projectId)
-  const { initialImageTransform, imageStateLoading, loadImageState } = useImageState(props.projectId, true, null, false)
+  const { initialImageTransform, imageStateLoading, loadImageState } = useImageState(props.projectId, true, null, false, workingImage?.id)
   const filterStack = useFilterStack(props.projectId, workingImage?.id ?? null)
 
   const canvasRef = useRef<ProjectCanvasStageHandle | null>(null)

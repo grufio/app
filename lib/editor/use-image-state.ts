@@ -56,7 +56,7 @@ export function createPendingSlot<T>() {
   }
 }
 
-export function useImageState(projectId: string, enabled: boolean, initial?: ImageState | null, autoLoad = true) {
+export function useImageState(projectId: string, enabled: boolean, initial?: ImageState | null, autoLoad = true, imageId?: string) {
   const [initialImageTransform, setInitialImageTransform] = useState<ImageState | null>(() => initial ?? null)
   const [imageStateError, setImageStateError] = useState("")
   const [imageStateLoading, setImageStateLoading] = useState(false)
@@ -87,7 +87,7 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
     setImageStateError((prev) => (prev === "" ? prev : ""))
     setImageStateLoading(true)
     try {
-      const payload = await getImageState(projectId)
+      const payload = await getImageState(projectId, imageId)
       if (seq !== requestSeqRef.current) return
       if (!payload?.exists) {
         if (lastLoadedSignatureRef.current === "__missing__") return

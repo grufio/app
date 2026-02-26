@@ -3,6 +3,7 @@ import crypto from "node:crypto"
 import sharp from "sharp"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
+import { copyImageTransform } from "@/services/editor/server/copy-image-transform"
 import type { Database } from "@/lib/supabase/database.types"
 import { activateMasterWithState } from "@/lib/supabase/project-images"
 
@@ -158,6 +159,18 @@ export async function cropImageAndActivate(args: {
     await supabase.storage.from("project_images").remove([objectPath])
     return { ok: false, status: 400, stage: "db_insert", reason: insertErr.message, code: (insertErr as { code?: string }).code }
   }
+  // Copy transform from source to cropped image
+  await copyImageTransform({
+    supabase,
+    projectId,
+    sourceImageId,
+    targetImageId: imageId,
+    sourceWidth: origWidth,
+    sourceHeight: origHeight,
+    targetWidth: w,
+    targetHeight: h,
+  })
+
 
   const activation = await activateMasterWithState({
     supabase,

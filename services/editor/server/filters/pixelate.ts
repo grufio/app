@@ -3,6 +3,7 @@ import crypto from "node:crypto"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/lib/supabase/database.types"
+import { copyImageTransform } from "@/services/editor/server/copy-image-transform"
 
 const PYTHON_SERVICE_URL = process.env.PYTHON_SERVICE_URL || "http://localhost:8001"
 
@@ -190,6 +191,18 @@ export async function pixelateImageAndActivate(args: {
       await supabase.storage.from("project_images").remove([objectPath])
       return { ok: false, status: 400, stage: "db_insert", reason: insertErr.message, code: insertErr.code }
     }
+
+    // Copy transform from source to filter image
+    const transformCopy = await copyImageTransform({
+      supabase,
+      projectId,
+      sourceImageId,
+      targetImageId: imageId,
+      sourceWidth: origWidth,
+      sourceHeight: origHeight,
+      targetWidth: origWidth,
+      targetHeight: origHeight,
+    })
 
     return {
       ok: true,
