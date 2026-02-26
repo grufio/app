@@ -7,6 +7,19 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/lib/supabase/database.types"
 
+function toPositiveInt(n: number): number {
+  const v = Math.round(n)
+  return Number.isFinite(v) && v > 0 ? v : 1
+}
+
+function scaleMicroPx(value: bigint, numerator: number, denominator: number): string {
+  const num = BigInt(toPositiveInt(numerator))
+  const den = BigInt(toPositiveInt(denominator))
+  // Round half up in integer space to avoid float precision drift.
+  const scaled = (value * num + den / 2n) / den
+  return scaled.toString()
+}
+
 export async function copyImageTransform(args: {
   supabase: SupabaseClient<Database>
   projectId: string
@@ -19,7 +32,6 @@ export async function copyImageTransform(args: {
 }): Promise<{ ok: true } | { ok: false; reason: string }> {
   const { supabase, projectId, sourceImageId, targetImageId, sourceWidth, sourceHeight, targetWidth, targetHeight } = args
 
-  // Load source transform
   const { data: sourceTransform, error: loadErr } = await supabase
     .from("project_image_state")
     .select("x_px_u,y_px_u,width_px_u,height_px_u,rotation_deg")
@@ -31,40 +43,36 @@ export async function copyImageTransform(args: {
     return { ok: false, reason: `Failed to load source transform: ${loadErr.message}` }
   }
 
-  // If no source transform, skip (no transform to copy)
   if (!sourceTransform) {
     return { ok: true }
   }
 
-  // Calculate scale factor
-  const scaleX = targetWidth / sourceWidth
-  const scaleY = targetHeight / sourceHeight
-
-  // Scale transform
   const sourceX = BigInt(sourceTransform.x_px_u ?? "0")
   const sourceY = BigInt(sourceTransform.y_px_u ?? "0")
   const sourceW = BigInt(sourceTransform.width_px_u ?? "0")
   const sourceH = BigInt(sourceTransform.height_px_u ?? "0")
 
-  const targetX = (Number(sourceX) * scaleX).toFixed(0)
-  const targetY = (Number(sourceY) * scaleY).toFixed(0)
-  const targetW = (Number(sourceW) * scaleX).toFixed(0)
-  const targetH = (Number(sourceH) * scaleY).toFixed(0)
+  const targetX = scaleMicroPx(sourceX, targetWidth, sourceWidth)
+  const targetY = scaleMicroPx(sourceY, targetHeight, sourceHeight)
+  const targetW = scaleMicroPx(sourceW, targetWidth, sourceWidth)
+  const targetH = scaleMicroPx(sourceH, targetHeight, sourceHeight)
 
-  // Insert new transform
-  const { error: insertErr } = await supabase.from("project_image_state").insert({
-    project_id: projectId,
-    image_id: targetImageId,
-    role: "asset",
-    x_px_u: targetX,
-    y_px_u: targetY,
-    width_px_u: targetW,
-    height_px_u: targetH,
-    rotation_deg: sourceTransform.rotation_deg ?? 0,
-  })
+  const { error: upsertErr } = await supabase.from("project_image_state").upsert(
+    {
+      project_id: projectId,
+      image_id: targetImageId,
+      role: "asset",
+      x_px_u: targetX,
+      y_px_u: targetY,
+      width_px_u: targetW,
+      height_px_u: targetH,
+      rotation_deg: sourceTransform.rotation_deg ?? 0,
+    },
+    { onConflict: "project_id,image_id" }
+  )
 
-  if (insertErr) {
-    return { ok: false, reason: `Failed to insert target transform: ${insertErr.message}` }
+  if (upsertErr) {
+    return { ok: false, reason: `Failed to upsert target transform: ${upsertErr.message}` }
   }
 
   return { ok: true }

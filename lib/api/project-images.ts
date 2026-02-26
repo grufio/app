@@ -272,17 +272,24 @@ export async function removeProjectImageFilter(args: {
   return { active_image_id: String(res.data.active_image_id) }
 }
 
-export async function getOrCreateFilterWorkingCopy(projectId: string): Promise<{
-  id: string
-  signedUrl: string
-  width_px: number
-  height_px: number
-  storage_path: string
-  source_image_id: string | null
-  name: string
-}> {
+export async function getOrCreateFilterWorkingCopy(projectId: string): Promise<
+  | {
+      exists: false
+    }
+  | {
+      exists: true
+      id: string
+      signedUrl: string
+      width_px: number
+      height_px: number
+      storage_path: string
+      source_image_id: string | null
+      name: string
+    }
+> {
   const res = await fetchJson<{
     ok?: boolean
+    exists?: boolean
     id?: string
     signed_url?: string
     width_px?: number
@@ -299,10 +306,14 @@ export async function getOrCreateFilterWorkingCopy(projectId: string): Promise<{
       `Failed to get filter working copy (HTTP ${res.status})` + (res.error ? ` ${JSON.stringify(res.error)}` : "")
     throw new Error(msg)
   }
+  if (res.data?.exists === false) {
+    return { exists: false }
+  }
   if (!res.data?.id || !res.data.signed_url) {
     throw new Error("Failed to get filter working copy (missing data)")
   }
   return {
+    exists: true,
     id: String(res.data.id),
     signedUrl: String(res.data.signed_url),
     width_px: Number(res.data.width_px ?? 0),

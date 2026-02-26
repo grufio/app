@@ -5,7 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/lib/supabase/database.types"
 import { copyImageTransform } from "@/services/editor/server/copy-image-transform"
 
-type FailStage = "active_lookup" | "working_copy_exists" | "storage_download" | "storage_upload" | "db_insert"
+type FailStage = "active_lookup" | "working_copy_exists" | "storage_download" | "storage_upload" | "db_insert" | "state_copy"
 
 type Failure = {
   ok: false
@@ -74,29 +74,55 @@ export async function getOrCreateFilterWorkingCopy(args: {
     .is("deleted_at", null)
     .maybeSingle()
 
-  const workingCopyName = `${activeImage.name} (filter working)`
-
-  // If working copy exists and points to the current active image, return it
-  if (existingCopy && existingCopy.source_image_id === activeImage.id && existingCopy.name === workingCopyName) {
-    // Return existing copy with fresh signed URL
-    const { data: signedData } = await supabase.storage
-      .from(String(existingCopy.storage_bucket ?? "project_images"))
-      .createSignedUrl(String(existingCopy.storage_path), 3600)
-
+  if (existingErr) {
     return {
-      ok: true,
-      id: existingCopy.id,
-      storagePath: existingCopy.storage_path,
-      widthPx: existingCopy.width_px,
-      heightPx: existingCopy.height_px,
-      signedUrl: signedData?.signedUrl ?? "",
-      sourceImageId: activeImage.source_image_id,
-      name: activeImage.name,
+      ok: false,
+      status: 400,
+      stage: "working_copy_exists",
+      reason: existingErr.message,
+      code: existingErr.code,
     }
   }
 
-  // If working copy exists but is outdated (wrong source or wrong name), soft-delete it
-  if (existingCopy) {
+  const workingCopyName = `${activeImage.name} (filter working)`
+
+  // If working copy exists and points to the current active image, re-sync transform and return it.
+  if (existingCopy && existingCopy.source_image_id === activeImage.id && existingCopy.name === workingCopyName) {
+    const sync = await copyImageTransform({
+      supabase,
+      projectId,
+      sourceImageId: activeImage.id,
+      targetImageId: existingCopy.id,
+      sourceWidth: activeImage.width_px,
+      sourceHeight: activeImage.height_px,
+      targetWidth: existingCopy.width_px,
+      targetHeight: existingCopy.height_px,
+    })
+
+    if (sync.ok) {
+      const { data: signedData } = await supabase.storage
+        .from(String(existingCopy.storage_bucket ?? "project_images"))
+        .createSignedUrl(String(existingCopy.storage_path), 3600)
+
+      return {
+        ok: true,
+        id: existingCopy.id,
+        storagePath: existingCopy.storage_path,
+        widthPx: existingCopy.width_px,
+        heightPx: existingCopy.height_px,
+        signedUrl: signedData?.signedUrl ?? "",
+        sourceImageId: activeImage.source_image_id,
+        name: activeImage.name,
+      }
+    }
+
+    // If sync failed, rebuild a clean working copy.
+    await supabase
+      .from("project_images")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("id", existingCopy.id)
+  } else if (existingCopy) {
+    // Outdated working copy (wrong source or name) -> replace it.
     await supabase
       .from("project_images")
       .update({ deleted_at: new Date().toISOString() })
@@ -173,7 +199,7 @@ export async function getOrCreateFilterWorkingCopy(args: {
   }
 
   // Copy transform from active image to working copy
-  await copyImageTransform({
+  const copyOut = await copyImageTransform({
     supabase,
     projectId,
     sourceImageId: activeImage.id,
@@ -183,6 +209,16 @@ export async function getOrCreateFilterWorkingCopy(args: {
     targetWidth: activeImage.width_px,
     targetHeight: activeImage.height_px,
   })
+  if (!copyOut.ok) {
+    await supabase.storage.from("project_images").remove([objectPath])
+    await supabase.from("project_images").update({ deleted_at: new Date().toISOString() }).eq("id", workingCopyId)
+    return {
+      ok: false,
+      status: 500,
+      stage: "state_copy",
+      reason: copyOut.reason,
+    }
+  }
 
   // Get signed URL for the new copy
   const { data: signedData } = await supabase.storage
