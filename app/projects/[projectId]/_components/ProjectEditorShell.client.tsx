@@ -33,6 +33,7 @@ import { computeImagePanelReady, computeWorkspaceReady } from "@/lib/editor/edit
 import { useFloatingToolbarControls } from "@/lib/editor/floating-toolbar-controls"
 import { useFilterWorkingImage } from "@/lib/editor/use-filter-working-image"
 import { useFilterDialogSession } from "@/lib/editor/use-filter-dialog-session"
+import { useEditorSessionState } from "@/lib/editor/use-editor-session-state"
 import { usePageBackgroundState } from "@/lib/editor/use-page-background-state"
 import { useProjectGrid } from "@/lib/editor/project-grid"
 import { useProjectWorkspace } from "@/lib/editor/project-workspace"
@@ -212,10 +213,12 @@ export function ProjectDetailPageClient({
   const [restoreOpen, setRestoreOpen] = useState(false)
   const [restoreBusy, setRestoreBusy] = useState(false)
   const [restoreError, setRestoreError] = useState("")
-  const [deleteOpen, setDeleteOpen] = useState(false)
-  const [leftPanelTab, setLeftPanelTab] = useState<"image" | "filter" | "colors" | "output">("image")
-  const [canvasMode, setCanvasMode] = useState<"image" | "filter">("image")
-  const [hiddenFilterIds, setHiddenFilterIds] = useState<Record<string, true>>({})
+  const {
+    state: sessionState,
+    actions: sessionActions,
+  } = useEditorSessionState()
+  const { deleteOpen, leftPanelTab, canvasMode, hiddenFilterIds } = sessionState
+  const { setDeleteOpen, setLeftPanelTab, setCanvasMode, showFilter, toggleHiddenFilter, pruneHiddenFilters } = sessionActions
   const [numerateSuperpixelWidth] = useState(10)
   const [numerateSuperpixelHeight] = useState(10)
   const [gridVisible, setGridVisible] = useState(true)
@@ -240,7 +243,7 @@ export function ProjectDetailPageClient({
     setCanvasMode("filter")
     await handleFilterSuccess()
     filterDialog.reset()
-  }, [filterDialog, handleFilterSuccess])
+  }, [filterDialog, handleFilterSuccess, setCanvasMode])
 
   const handleFilterApplyError = useCallback(
     (error: Error) => {
@@ -255,17 +258,8 @@ export function ProjectDetailPageClient({
   const isActiveDisplayFilterHidden = activeDisplayFilterId ? Boolean(hiddenFilterIds[activeDisplayFilterId]) : false
 
   useEffect(() => {
-    setHiddenFilterIds((prev) => {
-      const validIds = new Set(filterStack.map((item) => item.id))
-      let changed = false
-      const next: Record<string, true> = {}
-      for (const id of Object.keys(prev)) {
-        if (validIds.has(id)) next[id] = true
-        else changed = true
-      }
-      return changed ? next : prev
-    })
-  }, [filterStack])
+    pruneHiddenFilters(new Set(filterStack.map((item) => item.id)))
+  }, [filterStack, pruneHiddenFilters])
 
 
   // Load image-state independent of masterImage loading, so reloads can apply persisted size immediately.
@@ -380,23 +374,15 @@ export function ProjectDetailPageClient({
     return selection.imageId
   }, [selectedNavId])
 
-  useEffect(() => {
-    // Any explicit selection from the project tree means "Image workspace" mode.
-    // While the Filter tab is active, do not force-switch back to image mode.
-    // This avoids stale selection updates overriding freshly applied filter results.
-    if (leftPanelTab === "filter" || canvasMode === "filter") return
-    setCanvasMode("image")
-  }, [canvasMode, leftPanelTab, selectedNavId])
+  const derivedCanvasMode = useMemo<"image" | "filter">(() => {
+    if (leftPanelTab === "filter" && filterDisplayImage) return "filter"
+    return "image"
+  }, [filterDisplayImage, leftPanelTab])
 
   useEffect(() => {
-    // In Filter tab, canvas must stay in filter mode when a display image exists.
-    // This prevents selection-driven state drift that otherwise requires a manual
-    // click on a filter row to re-enter filter mode.
-    if (leftPanelTab !== "filter") return
-    if (!filterDisplayImage) return
-    if (canvasMode === "filter") return
-    setCanvasMode("filter")
-  }, [canvasMode, filterDisplayImage, leftPanelTab])
+    if (canvasMode === derivedCanvasMode) return
+    setCanvasMode(derivedCanvasMode)
+  }, [canvasMode, derivedCanvasMode, setCanvasMode])
 
   const lockedImageById = useMemo<Record<string, boolean>>(() => {
     const out: Record<string, boolean> = {}
@@ -509,7 +495,7 @@ export function ProjectDetailPageClient({
     await refreshProjectImages()
     await refreshMasterImage()
     await refreshFilterImage()
-  }, [deleteImage, deleteImageById, refreshFilterImage, refreshMasterImage, refreshProjectImages, selectedImageId])
+  }, [deleteImage, deleteImageById, refreshFilterImage, refreshMasterImage, refreshProjectImages, selectedImageId, setDeleteOpen])
 
   const handleRestoreInitialImage = useCallback(async () => {
     if (restoreBusy) return
@@ -536,13 +522,13 @@ export function ProjectDetailPageClient({
       setSelectedNavId(buildNavId({ kind: "image", imageId }))
       setDeleteOpen(true)
     },
-    [setDeleteError]
+    [setDeleteError, setDeleteOpen]
   )
 
   const requestDeleteSelectedImage = useCallback(() => {
     setDeleteError("")
     setDeleteOpen(true)
-  }, [setDeleteError])
+  }, [setDeleteError, setDeleteOpen])
 
   const requestCreateGrid = useCallback(async () => {
     const out = await createGrid()
@@ -630,30 +616,27 @@ export function ProjectDetailPageClient({
     loadImageState,
   })
 
-  const stageImage = useMemo(() => {
-    if (canvasMode === "filter") {
-      if (isActiveDisplayFilterHidden) return masterImage
-      if (filterDisplayImage) {
-        return {
-          id: filterDisplayImage.id,
-          signedUrl: filterDisplayImage.signedUrl,
-          name: filterDisplayImage.name,
-          width_px: filterDisplayImage.width_px,
-          height_px: filterDisplayImage.height_px,
-          dpi: null,
-          restore_base: null,
-        }
-      }
-      return masterImage
-    }
-    return masterImage
-  }, [canvasMode, filterDisplayImage, isActiveDisplayFilterHidden, masterImage])
+  const renderModel = useMemo(() => {
+    const baseImage = masterImage
+    const filterOverlay =
+      filterDisplayImage && !isActiveDisplayFilterHidden
+        ? {
+            id: filterDisplayImage.id,
+            signedUrl: filterDisplayImage.signedUrl,
+            name: filterDisplayImage.name,
+            width_px: filterDisplayImage.width_px,
+            height_px: filterDisplayImage.height_px,
+            dpi: null,
+            restore_base: null,
+          }
+        : null
+    return { baseImage, filterOverlay }
+  }, [filterDisplayImage, isActiveDisplayFilterHidden, masterImage])
 
-  useEffect(() => {
-    if (canvasMode === "filter" && !filterDisplayImage) {
-      setCanvasMode("image")
-    }
-  }, [canvasMode, filterDisplayImage])
+  const stageImage = useMemo(() => {
+    if (canvasMode === "filter") return renderModel.filterOverlay ?? renderModel.baseImage
+    return renderModel.baseImage
+  }, [canvasMode, renderModel])
 
   const grid = useMemo(() => {
     if (!gridVisible) return null
@@ -669,7 +652,10 @@ export function ProjectDetailPageClient({
               <SidebarMenuButton
                 isActive={canvasMode === "filter" && !isActiveDisplayFilterHidden && activeDisplayFilterId === filter.id}
                 className="text-xs font-medium"
-                onClick={() => setCanvasMode("filter")}
+                onClick={() => {
+                  showFilter(filter.id)
+                  setCanvasMode("filter")
+                }}
               >
                 <SlidersHorizontal />
                 <span>{getFilterLabel(filter.filterType)}</span>
@@ -678,14 +664,7 @@ export function ProjectDetailPageClient({
                 <SidebarMenuAction
                   inline
                   aria-label={hiddenFilterIds[filter.id] ? "Show filter" : "Hide filter"}
-                  onClick={() => {
-                    setHiddenFilterIds((prev) => {
-                      const next = { ...prev }
-                      if (next[filter.id]) delete next[filter.id]
-                      else next[filter.id] = true
-                      return next
-                    })
-                  }}
+                  onClick={() => toggleHiddenFilter(filter.id)}
                 >
                   {hiddenFilterIds[filter.id] ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                 </SidebarMenuAction>
@@ -736,6 +715,9 @@ export function ProjectDetailPageClient({
       activeDisplayFilterId,
       openFilterSelection,
       removingFilter,
+      setCanvasMode,
+      showFilter,
+      toggleHiddenFilter,
     ]
   )
 

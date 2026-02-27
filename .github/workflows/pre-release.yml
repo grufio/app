@@ -56,3 +56,8 @@ jobs:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: npm run verify:image-state-binding
 
+      - name: Verify filter-chain rollout gate (required)
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: npm run verify:filter-chain-binding
+

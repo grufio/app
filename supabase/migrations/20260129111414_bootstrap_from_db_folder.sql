@@ -1931,6 +1931,7 @@ alter function public.set_active_master_image(uuid, uuid)
 -- db/047_force_cleanup_and_fix_function.sql
 -- db/048_reconcile_image_state_fk_and_master_state.sql
 -- db/049_enable_project_image_filters.sql
+-- db/050_atomic_filter_chain_append.sql
 
 -- =========================================================
 -- db/037_master_variant_filter_contract.sql

@@ -13,10 +13,7 @@ export function useHtmlImage(src: string | null) {
   const [img, setImg] = useState<HTMLImageElement | null>(null)
 
   useEffect(() => {
-    if (!src) {
-      setImg(null)
-      return
-    }
+    if (!src) return
     const i = new window.Image()
     i.crossOrigin = "anonymous"
     i.onload = () => setImg(i)
@@ -29,6 +26,6 @@ export function useHtmlImage(src: string | null) {
     }
   }, [src])
 
-  return img
+  return src ? img : null
 }
 
