@@ -70,6 +70,7 @@ describe("getOrCreateFilterWorkingCopy", () => {
             removedIds.push(ids)
             return { error: null }
           }),
+          eq: vi.fn(async () => ({ error: null })),
         })),
         insert: vi.fn(async (row: Record<string, unknown>) => {
           insertedRows.push(row)
@@ -171,6 +172,23 @@ describe("getOrCreateFilterWorkingCopy", () => {
     expect(setup.removedIds).toEqual([[outdatedId]])
     expect(setup.insertedRows).toHaveLength(1)
     expect(copyImageTransform).toHaveBeenCalledTimes(1)
+  })
+
+  it("fails explicitly when transform copy fails", async () => {
+    vi.mocked(copyImageTransform).mockResolvedValueOnce({
+      ok: false,
+      reason: "Source image transform is missing",
+    })
+    const setup = makeSupabase({ active: activeImage, copies: [] })
+    mockSupabase = setup.supabase
+
+    const result = await getOrCreateFilterWorkingCopy({ supabase: mockSupabase, projectId })
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.stage).toBe("transform_sync")
+      expect(result.reason).toContain("Source image transform is missing")
+    }
   })
 
   it("returns not found when no active image exists", async () => {
