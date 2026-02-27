@@ -552,6 +552,33 @@ function SidebarMenuButton({
   )
 }
 
+const sidebarMenuActionVariants = cva(
+  "text-sidebar-foreground ring-sidebar-ring flex aspect-square w-5 items-center justify-center rounded-md p-0 outline-hidden transition-transform focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
+  {
+    variants: {
+      inline: {
+        true: "",
+        false:
+          "absolute top-1.5 right-1 after:absolute after:-inset-2 md:after:hidden peer-data-[size=sm]/menu-button:top-1 peer-data-[size=default]/menu-button:top-1.5 peer-data-[size=lg]/menu-button:top-2.5",
+      },
+      showOnHover: {
+        true: "peer-data-[active=true]/menu-button:text-sidebar-accent-foreground group-focus-within/menu-item:opacity-100 group-hover/menu-item:opacity-100 data-[state=open]:opacity-100 md:opacity-0",
+        false: "",
+      },
+      disabled: {
+        true: "pointer-events-none cursor-not-allowed opacity-50",
+        false:
+          "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground peer-hover/menu-button:text-sidebar-accent-foreground",
+      },
+    },
+    defaultVariants: {
+      inline: false,
+      showOnHover: false,
+      disabled: false,
+    },
+  }
+)
+
 function SidebarMenuAction({
   className,
   asChild = false,
@@ -564,22 +591,20 @@ function SidebarMenuAction({
   inline?: boolean
 }) {
   const Comp = asChild ? Slot : "button"
+  const isDisabled = Boolean(props.disabled || props["aria-disabled"])
 
   return (
     <Comp
       data-slot="sidebar-menu-action"
       data-sidebar="menu-action"
+      data-disabled={isDisabled ? "" : undefined}
       className={cn(
-        "text-sidebar-foreground ring-sidebar-ring hover:bg-sidebar-accent hover:text-sidebar-accent-foreground peer-hover/menu-button:text-sidebar-accent-foreground flex aspect-square w-5 items-center justify-center rounded-md p-0 outline-hidden transition-transform focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
-        !inline && "absolute top-1.5 right-1",
-        // Increases the hit area of the button on mobile.
-        !inline && "after:absolute after:-inset-2 md:after:hidden",
-        !inline && "peer-data-[size=sm]/menu-button:top-1",
-        !inline && "peer-data-[size=default]/menu-button:top-1.5",
-        !inline && "peer-data-[size=lg]/menu-button:top-2.5",
+        sidebarMenuActionVariants({
+          inline,
+          showOnHover,
+          disabled: isDisabled,
+        }),
         "group-data-[collapsible=icon]:hidden",
-        showOnHover &&
-          "peer-data-[active=true]/menu-button:text-sidebar-accent-foreground group-focus-within/menu-item:opacity-100 group-hover/menu-item:opacity-100 data-[state=open]:opacity-100 md:opacity-0",
         className
       )}
       {...props}

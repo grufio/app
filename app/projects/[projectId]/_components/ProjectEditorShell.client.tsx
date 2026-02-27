@@ -253,15 +253,7 @@ export function ProjectDetailPageClient({
           : null,
     [filterDisplayImage, masterImage]
   )
-  const canStartNewFilter =
-    Boolean(filterSourceImage) && !filterImageLoading && !imageStateLoading && !removingFilter
   const filterDialog = useFilterDialogSession(filterSourceImage)
-  const openFilterSelection = useCallback(() => {
-    if (!canStartNewFilter) return
-    setFilterActionError("")
-    const opened = filterDialog.beginSelection()
-    if (opened) setCanvasMode("filter")
-  }, [canStartNewFilter, filterDialog, setCanvasMode, setFilterActionError])
 
   const handleFilterApplySuccess = useCallback(async () => {
     setCanvasMode("filter")
@@ -314,6 +306,15 @@ export function ProjectDetailPageClient({
     },
     [canvasMode, masterImage?.id, saveImageState]
   )
+  const hasFilterSourceImage = Boolean(filterSourceImage)
+  const isNewFilterActionBusy = filterImageLoading || imageStateLoading || removingFilter
+  const openFilterSelection = useCallback(() => {
+    if (isNewFilterActionBusy) return
+    if (!hasFilterSourceImage) return
+    setFilterActionError("")
+    const opened = filterDialog.beginSelection()
+    if (opened) setCanvasMode("filter")
+  }, [filterDialog, hasFilterSourceImage, isNewFilterActionBusy, setCanvasMode, setFilterActionError])
 
   const initialImagePxU = useMemo(() => {
     if (!masterImage || !initialImageTransform) return null
@@ -718,7 +719,7 @@ export function ProjectDetailPageClient({
             <SidebarMenuButton
               isActive={canvasMode === "filter" && filterStack.length === 0}
               className="text-xs font-medium"
-              disabled={!canStartNewFilter}
+              disabled={!hasFilterSourceImage}
               onClick={openFilterSelection}
             >
               <SlidersHorizontal />
@@ -726,23 +727,23 @@ export function ProjectDetailPageClient({
             </SidebarMenuButton>
             <SidebarMenuAction
               aria-label="Add filter"
-              disabled={!canStartNewFilter}
+              disabled={!hasFilterSourceImage || isNewFilterActionBusy}
               onClick={openFilterSelection}
             >
               <Plus />
             </SidebarMenuAction>
           </SidebarMenuItem>
         </SidebarMenu>
-        {filterPanelError ? <div className="mt-2 text-xs text-destructive">{filterPanelError}</div> : null}
       </EditorSidebarSection>
     ),
     [
       canvasMode,
       filterPanelError,
-      canStartNewFilter,
       filterStack,
+      hasFilterSourceImage,
       hiddenFilterIds,
       handleRemoveFilter,
+      isNewFilterActionBusy,
       isActiveDisplayFilterHidden,
       activeDisplayFilterId,
       openFilterSelection,
