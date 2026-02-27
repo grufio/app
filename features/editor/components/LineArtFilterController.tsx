@@ -10,6 +10,7 @@ type Props = {
   open: boolean
   onClose: () => void
   onSuccess: () => void
+  onError?: (error: Error) => void
 }
 
 export function LineArtFilterController({
@@ -18,12 +19,14 @@ export function LineArtFilterController({
   open,
   onClose,
   onSuccess,
+  onError,
 }: Props) {
   return (
     <BaseFilterController<LineArtFormData>
       open={open}
       onClose={onClose}
       onSuccess={onSuccess}
+      onError={onError}
       title="Line Art"
       description="Create comic-style outlines with edge detection."
       applyFilter={(data) =>

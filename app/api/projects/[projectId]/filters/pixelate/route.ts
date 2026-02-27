@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import { isUuid, jsonError, readJson } from "@/lib/api/route-guards"
 import { withFilterRouteAuth } from "@/lib/api/with-filter-route-auth"
+import { appendProjectImageFilter, cleanupOrphanFilterImage } from "@/services/editor/server/filter-chain"
 import { pixelateImageAndActivate } from "@/services/editor/server/filters/pixelate"
 
 export const dynamic = "force-dynamic"
@@ -48,6 +49,29 @@ export async function POST(
 
     if (!result.ok) {
       return jsonError(result.reason, result.status, { stage: result.stage, code: result.code })
+    }
+
+    const chain = await appendProjectImageFilter({
+      supabase: context.supabase,
+      projectId: context.projectId,
+      inputImageId: sourceImageId,
+      outputImageId: result.id,
+      filterType: "pixelate",
+      filterParams: {
+        superpixel_width: Number(body.superpixel_width),
+        superpixel_height: Number(body.superpixel_height),
+        color_mode: colorMode,
+        num_colors: Number(body.num_colors),
+      },
+    })
+    if (!chain.ok) {
+      await cleanupOrphanFilterImage({
+        supabase: context.supabase,
+        projectId: context.projectId,
+        imageId: result.id,
+        storagePath: result.storagePath,
+      })
+      return jsonError(chain.reason, 400, { stage: "db_insert", code: chain.code })
     }
 
     return NextResponse.json({

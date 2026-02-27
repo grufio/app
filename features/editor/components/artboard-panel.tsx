@@ -13,12 +13,12 @@ import { ArrowLeftRight, ArrowUpDown, Gauge, Link2, Ruler, Unlink2 } from "lucid
 
 import { fmt2, type Unit } from "@/lib/editor/units"
 import { parseNumericInput } from "@/lib/editor/numeric"
-import { Button } from "@/components/ui/button"
 import { InputGroup, InputGroupAddon, InputGroupText } from "@/components/ui/input-group"
 import { SelectItem } from "@/components/ui/select"
 import { IconSelectField } from "./fields/icon-select-field"
 import { NumericInput } from "./numeric-input"
 import { PanelIconSlot, PanelTwoFieldRow } from "./panel-layout"
+import { RightPanelToggleIconButton } from "./right-panel-controls"
 import { useProjectWorkspace } from "@/lib/editor/project-workspace"
 import {
   computeWorkspaceDpiChange,
@@ -317,16 +317,11 @@ export function ArtboardPanel() {
         />
 
         <PanelIconSlot>
-          <Button
+          <RightPanelToggleIconButton
             type="button"
-            size="icon"
-            variant="ghost"
+            active={lockAspect}
             aria-label={lockAspect ? "Unlock proportional scaling" : "Lock proportional scaling"}
-            aria-pressed={lockAspect}
             disabled={sizeControlsDisabled}
-            className={
-              lockAspect ? "bg-black text-white hover:bg-black/90 hover:text-white" : "!bg-muted text-foreground hover:!bg-muted-foreground/10"
-            }
             onPointerDownCapture={() => {
               // Avoid blur-autosave firing when clicking the lock button.
               ignoreNextBlurSaveRef.current = true
@@ -340,7 +335,7 @@ export function ArtboardPanel() {
             }}
           >
             {lockAspect ? <Link2 className="h-[16px] w-[16px]" /> : <Unlink2 className="h-[16px] w-[16px]" />}
-          </Button>
+          </RightPanelToggleIconButton>
         </PanelIconSlot>
       </PanelTwoFieldRow>
 

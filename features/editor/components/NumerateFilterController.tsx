@@ -12,6 +12,7 @@ type Props = {
   open: boolean
   onClose: () => void
   onSuccess: () => void
+  onError?: (error: Error) => void
 }
 
 export function NumerateFilterController({
@@ -22,12 +23,14 @@ export function NumerateFilterController({
   open,
   onClose,
   onSuccess,
+  onError,
 }: Props) {
   return (
     <BaseFilterController<NumerateFormData>
       open={open}
       onClose={onClose}
       onSuccess={onSuccess}
+      onError={onError}
       title="Numerate"
       description="Create a vector grid overlay from pixelated superpixels."
       applyFilter={(data) =>

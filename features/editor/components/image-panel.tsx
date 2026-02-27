@@ -22,11 +22,11 @@ import {
 import type { KeyboardEventHandler, ReactNode } from "react"
 import { useMemo, useRef, useState } from "react"
 
-import { Button } from "@/components/ui/button"
 import { InputGroup, InputGroupAddon, InputGroupText } from "@/components/ui/input-group"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { NumericInput } from "./numeric-input"
 import { PanelIconSlot, PanelTwoFieldRow } from "./panel-layout"
+import { RightPanelToggleIconButton } from "./right-panel-controls"
 import { pxUToUnitDisplayUiFixed, type Unit } from "@/lib/editor/units"
 import {
   computeLockedAspectOtherDimensionFromHeightInput,
@@ -236,18 +236,11 @@ function ImageSizeInputs({
       />
 
       <PanelIconSlot>
-        <Button
+        <RightPanelToggleIconButton
           type="button"
-          size="icon"
-          variant="ghost"
+          active={lockAspect}
           aria-label={lockAspect ? "Unlock proportional image scaling" : "Lock proportional image scaling"}
-          aria-pressed={lockAspect}
           disabled={controlsDisabled}
-          className={
-            lockAspect
-              ? "bg-black text-white hover:bg-black/90 hover:text-white"
-              : "!bg-muted text-foreground hover:!bg-muted-foreground/10"
-          }
           onPointerDownCapture={() => {
             // Prevent blur-commit firing when clicking the lock button.
             ignoreNextBlurCommitRef.current = true
@@ -261,7 +254,7 @@ function ImageSizeInputs({
           }}
         >
           {lockAspect ? <Link2 className="h-[16px] w-[16px]" /> : <Unlink2 className="h-[16px] w-[16px]" />}
-        </Button>
+        </RightPanelToggleIconButton>
       </PanelIconSlot>
     </PanelTwoFieldRow>
   )

@@ -12,6 +12,7 @@ type Props = {
   open: boolean
   onClose: () => void
   onSuccess: () => void
+  onError?: (error: Error) => void
 }
 
 export function PixelateFilterController({
@@ -22,12 +23,14 @@ export function PixelateFilterController({
   open,
   onClose,
   onSuccess,
+  onError,
 }: Props) {
   return (
     <BaseFilterController<PixelateFormData>
       open={open}
       onClose={onClose}
       onSuccess={onSuccess}
+      onError={onError}
       title="Pixelate"
       description="Configure pixelate filter settings."
       applyFilter={(data) =>

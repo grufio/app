@@ -9,8 +9,8 @@
  * NOTE: In this first step, it preserves existing Image tab behavior.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Plus, SlidersHorizontal, Trash2 } from "lucide-react"
-import { SidebarMenu, SidebarMenuAction, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar"
+import { Eye, EyeOff, Plus, SlidersHorizontal, Trash2 } from "lucide-react"
+import { SidebarMenu, SidebarMenuAction, SidebarMenuActions, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar"
 
 import {
   EditorErrorBoundary,
@@ -32,6 +32,7 @@ import { cropImageVariant, removeProjectImageFilter, restoreInitialMasterImage }
 import { computeImagePanelReady, computeWorkspaceReady } from "@/lib/editor/editor-ready"
 import { useFloatingToolbarControls } from "@/lib/editor/floating-toolbar-controls"
 import { useFilterWorkingImage } from "@/lib/editor/use-filter-working-image"
+import { useFilterDialogSession } from "@/lib/editor/use-filter-dialog-session"
 import { usePageBackgroundState } from "@/lib/editor/use-page-background-state"
 import { useProjectGrid } from "@/lib/editor/project-grid"
 import { useProjectWorkspace } from "@/lib/editor/project-workspace"
@@ -214,8 +215,7 @@ export function ProjectDetailPageClient({
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [leftPanelTab, setLeftPanelTab] = useState<"image" | "filter" | "colors" | "output">("image")
   const [canvasMode, setCanvasMode] = useState<"image" | "filter">("image")
-  const [showFilterSelection, setShowFilterSelection] = useState(false)
-  const [activeFilterType, setActiveFilterType] = useState<"pixelate" | "lineart" | "numerate" | null>(null)
+  const [hiddenFilterIds, setHiddenFilterIds] = useState<Record<string, true>>({})
   const [numerateSuperpixelWidth] = useState(10)
   const [numerateSuperpixelHeight] = useState(10)
   const [gridVisible, setGridVisible] = useState(true)
@@ -224,11 +224,49 @@ export function ProjectDetailPageClient({
   const [imagePxU, setImagePxU] = useState<{ w: bigint; h: bigint } | null>(null)
   const [cropBusy, setCropBusy] = useState(false)
   const activeCanvasImageId = canvasMode === "filter" ? (filterDisplayImage?.id ?? null) : (masterImage?.id ?? null)
-  const { removingFilter, filterActionError, handleRemoveFilter, handleFilterSuccess } = useFilterCommands({
+  const { removingFilter, filterActionError, setFilterActionError, handleRemoveFilter, handleFilterSuccess } = useFilterCommands({
     projectId,
     setCanvasMode,
     refreshFilterImage,
   })
+  const filterDialog = useFilterDialogSession(filterDisplayImage)
+  const openFilterSelection = useCallback(() => {
+    setFilterActionError("")
+    const opened = filterDialog.beginSelection()
+    if (opened) setCanvasMode("filter")
+  }, [filterDialog, setCanvasMode, setFilterActionError])
+
+  const handleFilterApplySuccess = useCallback(async () => {
+    setCanvasMode("filter")
+    await handleFilterSuccess()
+    filterDialog.reset()
+  }, [filterDialog, handleFilterSuccess])
+
+  const handleFilterApplyError = useCallback(
+    (error: Error) => {
+      setFilterActionError(error.message || "Failed to apply filter")
+    },
+    [setFilterActionError]
+  )
+
+  const filterPanelError = filterActionError || filterDialog.error
+  const filterDialogSource = filterDialog.session
+  const activeDisplayFilterId = filterStack[filterStack.length - 1]?.id ?? null
+  const isActiveDisplayFilterHidden = activeDisplayFilterId ? Boolean(hiddenFilterIds[activeDisplayFilterId]) : false
+
+  useEffect(() => {
+    setHiddenFilterIds((prev) => {
+      const validIds = new Set(filterStack.map((item) => item.id))
+      let changed = false
+      const next: Record<string, true> = {}
+      for (const id of Object.keys(prev)) {
+        if (validIds.has(id)) next[id] = true
+        else changed = true
+      }
+      return changed ? next : prev
+    })
+  }, [filterStack])
+
 
   // Load image-state independent of masterImage loading, so reloads can apply persisted size immediately.
   // Persist is still gated by `masterImage` when wiring `onImageTransformCommit` (see ProjectEditorStage props).
@@ -266,8 +304,8 @@ export function ProjectDetailPageClient({
 
   const toolbar = useFloatingToolbarControls({
     canvasRef,
-    hasImage: Boolean(canvasMode === "filter" ? filterDisplayImage : masterImage),
-    masterImageLoading: canvasMode === "filter" ? filterImageLoading : masterImageLoading,
+    hasImage: Boolean(canvasMode === "filter" && !isActiveDisplayFilterHidden ? filterDisplayImage : masterImage),
+    masterImageLoading: canvasMode === "filter" && !isActiveDisplayFilterHidden ? filterImageLoading : masterImageLoading,
     imageStateLoading,
     enableShortcuts: canvasMode !== "filter",
   })
@@ -344,10 +382,21 @@ export function ProjectDetailPageClient({
 
   useEffect(() => {
     // Any explicit selection from the project tree means "Image workspace" mode.
-    // Keep this effect keyed only to tree selection changes so opening the filter
-    // dialog does not immediately flip back to image mode.
+    // While the Filter tab is active, do not force-switch back to image mode.
+    // This avoids stale selection updates overriding freshly applied filter results.
+    if (leftPanelTab === "filter" || canvasMode === "filter") return
     setCanvasMode("image")
-  }, [selectedNavId])
+  }, [canvasMode, leftPanelTab, selectedNavId])
+
+  useEffect(() => {
+    // In Filter tab, canvas must stay in filter mode when a display image exists.
+    // This prevents selection-driven state drift that otherwise requires a manual
+    // click on a filter row to re-enter filter mode.
+    if (leftPanelTab !== "filter") return
+    if (!filterDisplayImage) return
+    if (canvasMode === "filter") return
+    setCanvasMode("filter")
+  }, [canvasMode, filterDisplayImage, leftPanelTab])
 
   const lockedImageById = useMemo<Record<string, boolean>>(() => {
     const out: Record<string, boolean> = {}
@@ -582,19 +631,23 @@ export function ProjectDetailPageClient({
   })
 
   const stageImage = useMemo(() => {
-    if (canvasMode === "filter" && filterDisplayImage) {
-      return {
-        id: filterDisplayImage.id,
-        signedUrl: filterDisplayImage.signedUrl,
-        name: filterDisplayImage.name,
-        width_px: filterDisplayImage.width_px,
-        height_px: filterDisplayImage.height_px,
-        dpi: null,
-        restore_base: null,
+    if (canvasMode === "filter") {
+      if (isActiveDisplayFilterHidden) return masterImage
+      if (filterDisplayImage) {
+        return {
+          id: filterDisplayImage.id,
+          signedUrl: filterDisplayImage.signedUrl,
+          name: filterDisplayImage.name,
+          width_px: filterDisplayImage.width_px,
+          height_px: filterDisplayImage.height_px,
+          dpi: null,
+          restore_base: null,
+        }
       }
+      return masterImage
     }
     return masterImage
-  }, [canvasMode, filterDisplayImage, masterImage])
+  }, [canvasMode, filterDisplayImage, isActiveDisplayFilterHidden, masterImage])
 
   useEffect(() => {
     if (canvasMode === "filter" && !filterDisplayImage) {
@@ -614,20 +667,37 @@ export function ProjectDetailPageClient({
           {filterStack.map((filter) => (
             <SidebarMenuItem key={filter.id}>
               <SidebarMenuButton
-                isActive={canvasMode === "filter" && filterDisplayImage?.id === filter.id}
+                isActive={canvasMode === "filter" && !isActiveDisplayFilterHidden && activeDisplayFilterId === filter.id}
                 className="text-xs font-medium"
                 onClick={() => setCanvasMode("filter")}
               >
                 <SlidersHorizontal />
                 <span>{getFilterLabel(filter.filterType)}</span>
               </SidebarMenuButton>
-              <SidebarMenuAction
-                aria-label="Remove filter"
-                disabled={removingFilter}
-                onClick={() => void handleRemoveFilter(filter.id)}
-              >
-                <Trash2 />
-              </SidebarMenuAction>
+              <SidebarMenuActions>
+                <SidebarMenuAction
+                  inline
+                  aria-label={hiddenFilterIds[filter.id] ? "Show filter" : "Hide filter"}
+                  onClick={() => {
+                    setHiddenFilterIds((prev) => {
+                      const next = { ...prev }
+                      if (next[filter.id]) delete next[filter.id]
+                      else next[filter.id] = true
+                      return next
+                    })
+                  }}
+                >
+                  {hiddenFilterIds[filter.id] ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </SidebarMenuAction>
+                <SidebarMenuAction
+                  inline
+                  aria-label="Remove filter"
+                  disabled={removingFilter}
+                  onClick={() => void handleRemoveFilter(filter.id)}
+                >
+                  <Trash2 />
+                </SidebarMenuAction>
+              </SidebarMenuActions>
             </SidebarMenuItem>
           ))}
 
@@ -635,7 +705,8 @@ export function ProjectDetailPageClient({
             <SidebarMenuButton
               isActive={canvasMode === "filter" && filterStack.length === 0}
               className="text-xs font-medium"
-              onClick={() => setShowFilterSelection(true)}
+              disabled={filterImageLoading || imageStateLoading || !filterDisplayImage}
+                onClick={openFilterSelection}
             >
               <SlidersHorizontal />
               <span>New Filter</span>
@@ -643,25 +714,27 @@ export function ProjectDetailPageClient({
             <SidebarMenuAction
               aria-label="Add filter"
               disabled={filterImageLoading || imageStateLoading || !filterDisplayImage}
-              onClick={() => {
-                setShowFilterSelection(true)
-              }}
+                onClick={openFilterSelection}
             >
               <Plus />
             </SidebarMenuAction>
           </SidebarMenuItem>
         </SidebarMenu>
-        {filterActionError ? <div className="mt-2 text-xs text-destructive">{filterActionError}</div> : null}
+        {filterPanelError ? <div className="mt-2 text-xs text-destructive">{filterPanelError}</div> : null}
       </EditorSidebarSection>
     ),
     [
       canvasMode,
-      filterActionError,
+      filterPanelError,
       filterDisplayImage,
       filterImageLoading,
       filterStack,
+      hiddenFilterIds,
       handleRemoveFilter,
       imageStateLoading,
+      isActiveDisplayFilterHidden,
+      activeDisplayFilterId,
+      openFilterSelection,
       removingFilter,
     ]
   )
@@ -761,40 +834,42 @@ export function ProjectDetailPageClient({
             canvasRef={canvasRef}
           />
           <FilterSelectionController
-            workingImageUrl={filterDisplayImage?.signedUrl ?? null}
-            open={showFilterSelection}
-            onClose={() => setShowFilterSelection(false)}
+            workingImageUrl={filterDialogSource?.sourceImageUrl ?? null}
+            open={filterDialog.selectionOpen}
+            onClose={filterDialog.closeSelection}
             onSelect={(filterType) => {
-              setShowFilterSelection(false)
-              setActiveFilterType(filterType)
+              filterDialog.selectFilterType(filterType)
             }}
           />
-          {filterDisplayImage ? (
+          {filterDialogSource ? (
             <>
               <PixelateFilterController
                 projectId={projectId}
-                workingImageId={filterDisplayImage.id}
-                workingImageWidth={filterDisplayImage.width_px}
-                workingImageHeight={filterDisplayImage.height_px}
-                open={activeFilterType === "pixelate"}
-                onClose={() => setActiveFilterType(null)}
-                onSuccess={handleFilterSuccess}
+                workingImageId={filterDialogSource.sourceImageId}
+                workingImageWidth={filterDialogSource.sourceImageWidth}
+                workingImageHeight={filterDialogSource.sourceImageHeight}
+                open={filterDialog.activeFilterType === "pixelate"}
+                onClose={filterDialog.closeConfigure}
+                onSuccess={handleFilterApplySuccess}
+                onError={handleFilterApplyError}
               />
               <LineArtFilterController
                 projectId={projectId}
-                workingImageId={filterDisplayImage.id}
-                open={activeFilterType === "lineart"}
-                onClose={() => setActiveFilterType(null)}
-                onSuccess={handleFilterSuccess}
+                workingImageId={filterDialogSource.sourceImageId}
+                open={filterDialog.activeFilterType === "lineart"}
+                onClose={filterDialog.closeConfigure}
+                onSuccess={handleFilterApplySuccess}
+                onError={handleFilterApplyError}
               />
               <NumerateFilterController
                 projectId={projectId}
-                workingImageId={filterDisplayImage.id}
+                workingImageId={filterDialogSource.sourceImageId}
                 superpixelWidth={numerateSuperpixelWidth}
                 superpixelHeight={numerateSuperpixelHeight}
-                open={activeFilterType === "numerate"}
-                onClose={() => setActiveFilterType(null)}
-                onSuccess={handleFilterSuccess}
+                open={filterDialog.activeFilterType === "numerate"}
+                onClose={filterDialog.closeConfigure}
+                onSuccess={handleFilterApplySuccess}
+                onError={handleFilterApplyError}
               />
             </>
           ) : null}
