@@ -20,16 +20,38 @@ export function TabsSidepanel(props: {
     <div className="border-b px-4 py-3">
       <Tabs value={activeTab} onValueChange={(value) => onTabChange(value as SidepanelTab)}>
         <TabsList className={sidePanelTabsListClass}>
-          <TabsTrigger value="image" className={sidePanelTabsTriggerClass}>
+          <TabsTrigger
+            value="image"
+            className={sidePanelTabsTriggerClass}
+            id="editor-left-tabs-trigger-image"
+            aria-controls="editor-left-tabs-content-image"
+          >
             Image
           </TabsTrigger>
-          <TabsTrigger value="filter" className={sidePanelTabsTriggerClass}>
+          <TabsTrigger
+            value="filter"
+            className={sidePanelTabsTriggerClass}
+            id="editor-left-tabs-trigger-filter"
+            aria-controls="editor-left-tabs-content-filter"
+          >
             Filter
           </TabsTrigger>
-          <TabsTrigger value="colors" className={sidePanelTabsTriggerClass} disabled>
+          <TabsTrigger
+            value="colors"
+            className={sidePanelTabsTriggerClass}
+            id="editor-left-tabs-trigger-colors"
+            aria-controls="editor-left-tabs-content-colors"
+            disabled
+          >
             Colors
           </TabsTrigger>
-          <TabsTrigger value="output" className={sidePanelTabsTriggerClass} disabled>
+          <TabsTrigger
+            value="output"
+            className={sidePanelTabsTriggerClass}
+            id="editor-left-tabs-trigger-output"
+            aria-controls="editor-left-tabs-content-output"
+            disabled
+          >
             Output
           </TabsTrigger>
         </TabsList>
