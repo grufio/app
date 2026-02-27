@@ -2,9 +2,13 @@
 
 import { useCallback, useMemo, useState } from "react"
 
-import type { FilterDisplayImage } from "@/lib/editor/use-filter-working-image"
-
 export type FilterType = "pixelate" | "lineart" | "numerate"
+type FilterDialogSourceImage = {
+  id: string
+  width_px: number
+  height_px: number
+  signedUrl: string
+}
 
 type FilterDialogSession = {
   sourceImageId: string
@@ -18,7 +22,7 @@ type FilterDialogState =
   | { phase: "selecting"; session: FilterDialogSession }
   | { phase: "configuring"; session: FilterDialogSession; filterType: FilterType }
 
-function toSession(image: FilterDisplayImage): FilterDialogSession {
+function toSession(image: FilterDialogSourceImage): FilterDialogSession {
   return {
     sourceImageId: image.id,
     sourceImageWidth: image.width_px,
@@ -27,19 +31,19 @@ function toSession(image: FilterDisplayImage): FilterDialogSession {
   }
 }
 
-export function useFilterDialogSession(filterDisplayImage: FilterDisplayImage | null) {
+export function useFilterDialogSession(sourceImage: FilterDialogSourceImage | null) {
   const [state, setState] = useState<FilterDialogState>({ phase: "idle" })
   const [error, setError] = useState("")
 
   const beginSelection = useCallback(() => {
-    if (!filterDisplayImage) {
+    if (!sourceImage) {
       setError("No active image available for filtering.")
       return false
     }
     setError("")
-    setState({ phase: "selecting", session: toSession(filterDisplayImage) })
+    setState({ phase: "selecting", session: toSession(sourceImage) })
     return true
-  }, [filterDisplayImage])
+  }, [sourceImage])
 
   const closeSelection = useCallback(() => {
     setState({ phase: "idle" })
