@@ -12,28 +12,15 @@ export async function appendProjectImageFilter(args: {
 }): Promise<{ ok: true } | { ok: false; reason: string; code?: string }> {
   const { supabase, projectId, inputImageId, outputImageId, filterType, filterParams } = args
 
-  const { data: maxRow, error: maxErr } = await supabase
-    .from("project_image_filters")
-    .select("stack_order")
-    .eq("project_id", projectId)
-    .order("stack_order", { ascending: false })
-    .limit(1)
-    .maybeSingle()
-  if (maxErr) {
-    return { ok: false, reason: maxErr.message, code: maxErr.code }
-  }
-
-  const nextOrder = Number(maxRow?.stack_order ?? 0) + 1
-  const { error: insertErr } = await supabase.from("project_image_filters").insert({
-    project_id: projectId,
-    input_image_id: inputImageId,
-    output_image_id: outputImageId,
-    filter_type: filterType,
-    filter_params: filterParams,
-    stack_order: nextOrder,
+  const { error } = await supabase.rpc("append_project_image_filter", {
+    p_project_id: projectId,
+    p_input_image_id: inputImageId,
+    p_output_image_id: outputImageId,
+    p_filter_type: filterType,
+    p_filter_params: filterParams,
   })
-  if (insertErr) {
-    return { ok: false, reason: insertErr.message, code: insertErr.code }
+  if (error) {
+    return { ok: false, reason: error.message, code: error.code }
   }
 
   return { ok: true }

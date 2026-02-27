@@ -7,7 +7,7 @@ import type { Database } from "@/lib/supabase/database.types"
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role"
 import { activateMasterWithState } from "@/lib/supabase/project-images"
 
-export type SupportedFilterType = "invert" | "blur" | "brightness"
+export type SupportedFilterType = "pixelate" | "lineart" | "numerate"
 
 export type FilterOpFailure = {
   ok: false
@@ -52,20 +52,26 @@ export type FilterRemoveSuccess = {
 
 function parseFilterType(value: unknown): SupportedFilterType | null {
   const v = String(value ?? "").trim().toLowerCase()
-  if (v === "invert" || v === "blur" || v === "brightness") return v
+  if (v === "pixelate" || v === "lineart" || v === "numerate") return v
   return null
 }
 
 function normalizeFilterParams(filterType: SupportedFilterType, params: unknown): Record<string, unknown> {
-  if (filterType === "blur") {
-    const sigmaRaw = Number((params as { sigma?: unknown } | null | undefined)?.sigma ?? 1)
-    const sigma = Number.isFinite(sigmaRaw) ? Math.min(20, Math.max(0.1, sigmaRaw)) : 1
-    return { sigma }
-  }
-  if (filterType === "brightness") {
-    const valueRaw = Number((params as { value?: unknown } | null | undefined)?.value ?? 1.1)
-    const value = Number.isFinite(valueRaw) ? Math.min(3, Math.max(0.1, valueRaw)) : 1.1
-    return { value }
+  if (filterType === "pixelate") {
+    const p = params as
+      | { superpixel_width?: unknown; superpixel_height?: unknown; num_colors?: unknown; color_mode?: unknown }
+      | null
+      | undefined
+    const superpixelWidthRaw = Number(p?.superpixel_width ?? 10)
+    const superpixelHeightRaw = Number(p?.superpixel_height ?? 10)
+    const numColorsRaw = Number(p?.num_colors ?? 16)
+    const colorMode = String(p?.color_mode ?? "rgb").toLowerCase() === "grayscale" ? "grayscale" : "rgb"
+    return {
+      superpixel_width: Number.isFinite(superpixelWidthRaw) ? Math.max(1, Math.round(superpixelWidthRaw)) : 10,
+      superpixel_height: Number.isFinite(superpixelHeightRaw) ? Math.max(1, Math.round(superpixelHeightRaw)) : 10,
+      num_colors: Number.isFinite(numColorsRaw) ? Math.min(256, Math.max(2, Math.round(numColorsRaw))) : 16,
+      color_mode: colorMode,
+    }
   }
   return {}
 }
@@ -78,10 +84,21 @@ async function applyFilterToBuffer(args: {
 }): Promise<{ buffer: Buffer; format: "jpeg" | "png" | "webp"; width: number; height: number }> {
   const { input, format, filterType, params } = args
   const outFormat: "jpeg" | "png" | "webp" = format === "jpg" || format === "jpeg" ? "jpeg" : format === "webp" ? "webp" : "png"
+  if (filterType !== "pixelate") {
+    throw new Error("Use dedicated /filters routes for non-pixelate filters")
+  }
+  const sourceMeta = await sharp(input).metadata()
+  const srcW = Number(sourceMeta.width ?? 0)
+  const srcH = Number(sourceMeta.height ?? 0)
+  if (!(srcW > 0 && srcH > 0)) throw new Error("Invalid source image dimensions")
+  const superW = Math.max(1, Number(params.superpixel_width ?? 10))
+  const superH = Math.max(1, Number(params.superpixel_height ?? 10))
+  const downW = Math.max(1, Math.floor(srcW / superW))
+  const downH = Math.max(1, Math.floor(srcH / superH))
   let pipeline = sharp(input)
-  if (filterType === "invert") pipeline = pipeline.negate()
-  if (filterType === "blur") pipeline = pipeline.blur(Number(params.sigma ?? 1))
-  if (filterType === "brightness") pipeline = pipeline.modulate({ brightness: Number(params.value ?? 1.1) })
+    .resize(downW, downH, { kernel: "nearest", fit: "fill" })
+    .resize(srcW, srcH, { kernel: "nearest", fit: "fill" })
+  if (params.color_mode === "grayscale") pipeline = pipeline.grayscale()
   const buffer = await pipeline.toFormat(outFormat).toBuffer()
   const meta = await sharp(buffer).metadata()
   const width = Number(meta.width ?? 0)
