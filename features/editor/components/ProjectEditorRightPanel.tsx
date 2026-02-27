@@ -37,6 +37,7 @@ const ImagePanel = dynamic(() => import("./image-panel").then((m) => m.ImagePane
 })
 import type { ProjectCanvasStageHandle } from "./project-canvas-stage"
 import { PanelIconSlot, PanelTwoFieldRow } from "./panel-layout"
+import { RightPanelIconButton } from "./right-panel-controls"
 import { IconColorField } from "./fields/icon-color-field"
 import { IconNumericField } from "./fields/icon-numeric-field"
 import { EditorSidebarSection } from "./sidebar/editor-sidebar-section"
@@ -180,16 +181,13 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
                     />
 
                     <PanelIconSlot>
-                      <Button
+                      <RightPanelIconButton
                         type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
                         aria-label="Hide page background"
                         onClick={() => onPageBgEnabledChange(false)}
                       >
                         <EyeOff className="size-4" />
-                      </Button>
+                      </RightPanelIconButton>
                     </PanelIconSlot>
                   </PanelTwoFieldRow>
                 </EditorSidebarSection>
@@ -206,28 +204,22 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
                 title="Image"
                 headerActions={
                   <>
-                    <Button
+                    <RightPanelIconButton
                       type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6"
                       disabled={!masterImage || masterImageLoading || deleteBusy || restoreBusy}
                       aria-label="Restore image"
                       onClick={() => setRestoreOpen(true)}
                     >
                       <RotateCcw className="size-4" />
-                    </Button>
-                    <Button
+                    </RightPanelIconButton>
+                    <RightPanelIconButton
                       type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6"
                       disabled={!masterImage || masterImageLoading || deleteBusy}
                       aria-label="Delete image"
                       onClick={onRequestDeleteImage}
                     >
                       <Trash2 className="size-4" />
-                    </Button>
+                    </RightPanelIconButton>
                   </>
                 }
               >
