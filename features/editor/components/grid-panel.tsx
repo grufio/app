@@ -8,7 +8,7 @@
  * - Persist settings via `project_grid`.
  */
 import { useCallback, useEffect, useRef, type KeyboardEventHandler, type ReactNode } from "react"
-import { ArrowLeftRight, ArrowUpDown, Eye, EyeOff, Ruler } from "lucide-react"
+import { ArrowLeftRight, ArrowUpDown, Eye, EyeOff, Percent } from "lucide-react"
 
 import { IconColorField } from "./fields/icon-color-field"
 import { IconNumericField } from "./fields/icon-numeric-field"
@@ -77,11 +77,11 @@ export function GridPanel({
 
   const computedW = row ? fmt2(Number(row.spacing_x_value)) : ""
   const computedH = row ? fmt2(Number(row.spacing_y_value)) : ""
-  const computedLineWidth = row ? fmt2(Number(row.line_width_value)) : ""
+  const computedOpacity = String(Math.max(0, Math.min(100, Number(row?.line_width_value ?? 100))))
 
   const { value: draftW, setValue: setDraftW } = useKeyedDraft(projectId ?? null, computedW)
   const { value: draftH, setValue: setDraftH } = useKeyedDraft(projectId ?? null, computedH)
-  const { value: draftLineWidth, setValue: setDraftLineWidth } = useKeyedDraft(projectId ?? null, computedLineWidth)
+  const { value: draftOpacity, setValue: setDraftOpacity } = useKeyedDraft(projectId ?? null, computedOpacity)
 
   const lastSubmitRef = useRef<string | null>(null)
   const ignoreNextBlurSaveRef = useRef(false)
@@ -111,10 +111,11 @@ export function GridPanel({
     if (!row) return
     const w = Number(draftW)
     const h = Number(draftH)
-    const lw = Number(draftLineWidth)
+    const opacityRaw = Number(draftOpacity)
     if (!Number.isFinite(w) || w <= 0) return
     if (!Number.isFinite(h) || h <= 0) return
-    if (!Number.isFinite(lw) || lw <= 0) return
+    if (!Number.isFinite(opacityRaw)) return
+    const opacity = Math.max(0, Math.min(100, Math.round(opacityRaw)))
 
     await saveWith({
       ...row,
@@ -122,9 +123,9 @@ export function GridPanel({
       spacing_value: w,
       spacing_x_value: w,
       spacing_y_value: h,
-      line_width_value: lw,
+      line_width_value: opacity,
     })
-  }, [draftH, draftLineWidth, draftW, effectiveUnit, row, saveWith])
+  }, [draftH, draftOpacity, draftW, effectiveUnit, row, saveWith])
 
   return (
     <EditorSidebarSection
@@ -198,6 +199,7 @@ export function GridPanel({
                 unit: effectiveUnit,
                 spacing_value: (row as ProjectGridRow).spacing_x_value,
                 color: next,
+                line_width_value: Math.max(0, Math.min(100, Number(draftOpacity))),
               })
             }}
             ariaLabel="Grid line color"
@@ -206,12 +208,12 @@ export function GridPanel({
           />
 
           <IconNumericField
-            value={draftLineWidth}
-            mode="float"
-            ariaLabel={`Grid line width (${effectiveUnit})`}
+            value={draftOpacity}
+            mode="int"
+            ariaLabel="Grid line opacity percent"
             disabled={controlsDisabled}
-            icon={<Ruler aria-hidden="true" />}
-            onValueChange={(next) => setDraftLineWidth(next)}
+            icon={<Percent aria-hidden="true" />}
+            onValueChange={setDraftOpacity}
             numericProps={{
               onKeyDown: (e) => {
                 if (e.key === "Enter") void save()
@@ -223,15 +225,12 @@ export function GridPanel({
                 }
                 void save()
               },
-              onPointerDownCapture: () => {
-                // Avoid blur-save firing when interacting with the color picker.
-                ignoreNextBlurSaveRef.current = true
-              },
             }}
           />
 
           <PanelIconSlot />
         </PanelTwoFieldRow>
+        <div className="text-[11px] text-muted-foreground">Grid line width is fixed at 1 px.</div>
       </div>
     </EditorSidebarSection>
   )

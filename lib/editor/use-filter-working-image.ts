@@ -34,8 +34,9 @@ export type FilterStackItem = {
 export function useFilterWorkingImage(projectId: string) {
   const [image, setImage] = useState<FilterDisplayImage | null>(null)
   const [stack, setStack] = useState<FilterStackItem[]>([])
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
+  const [loadedOnce, setLoadedOnce] = useState(false)
 
   const mountedRef = useRef(true)
   const inflightRef = useRef<Promise<void> | null>(null)
@@ -83,7 +84,10 @@ export function useFilterWorkingImage(projectId: string) {
         setStack([])
         setError(e instanceof Error ? e.message : "Failed to load filter working image")
       } finally {
-        if (seq === requestSeqRef.current && mountedRef.current) setLoading(false)
+        if (seq === requestSeqRef.current && mountedRef.current) {
+          setLoading(false)
+          setLoadedOnce(true)
+        }
       }
     })()
 
@@ -103,6 +107,7 @@ export function useFilterWorkingImage(projectId: string) {
     image,
     stack,
     loading,
+    loadedOnce,
     error,
     refresh,
   }

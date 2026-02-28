@@ -42,6 +42,82 @@ test("smoke: /projects/:id loads editor with artboard + canvas", async ({ page }
   await expect(page.locator("canvas").first()).toBeVisible()
 })
 
+test("smoke: upload/crop/filter/remove/restore flow keeps deterministic image source", async ({ page }) => {
+  await page.setExtraHTTPHeaders({ "x-e2e-test": "1", "x-e2e-user": "1" })
+  await setupMockRoutes(page, { withImage: false })
+
+  const res = await page.goto(`/projects/${PROJECT_ID}`)
+  expect(res?.ok()).toBe(true)
+  await assertEditorSurfaceVisible(page)
+
+  const apiFlow = await page.evaluate(async (projectId: string) => {
+    const out: Record<string, unknown> = {}
+    const post = async (path: string, body?: Record<string, unknown>) => {
+      const r = await fetch(path, {
+        method: "POST",
+        headers: body ? { "Content-Type": "application/json" } : undefined,
+        body: body ? JSON.stringify(body) : undefined,
+      })
+      return { status: r.status, json: await r.json() }
+    }
+    const del = async (path: string) => {
+      const r = await fetch(path, { method: "DELETE" })
+      return { status: r.status, json: await r.json() }
+    }
+    const get = async (path: string) => {
+      const r = await fetch(path)
+      return { status: r.status, json: await r.json() }
+    }
+
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10"><rect width="20" height="10" fill="#ff3b30"/></svg>`
+    const file = new File([new Blob([svg], { type: "image/svg+xml" })], "test.svg", { type: "image/svg+xml" })
+    const fd = new FormData()
+    fd.append("file", file)
+    fd.append("width_px", "20")
+    fd.append("height_px", "10")
+    fd.append("format", "svg")
+    const uploadRes = await fetch(`/api/projects/${projectId}/images/master/upload`, { method: "POST", body: fd })
+    out.upload = { status: uploadRes.status, json: await uploadRes.json() }
+
+    const master = await get(`/api/projects/${projectId}/images/master`)
+    out.master = master
+    const sourceImageId = String((master.json as { id?: string }).id ?? "")
+
+    out.crop = await post(`/api/projects/${projectId}/images/crop`, {
+      source_image_id: sourceImageId,
+      x: 0,
+      y: 0,
+      w: 10,
+      h: 10,
+    })
+
+    out.filter = await post(`/api/projects/${projectId}/images/filters`, {
+      filter_type: "pixelate",
+      filter_params: { superpixel_width: 4 },
+    })
+
+    const filterId = String(((out.filter as { json?: { item?: { id?: string } } }).json?.item?.id ?? ""))
+    out.remove = await del(`/api/projects/${projectId}/images/filters/${filterId}`)
+    out.restore = await post(`/api/projects/${projectId}/images/master/restore`)
+    out.working = await post(`/api/projects/${projectId}/images/filter-working-copy`)
+
+    return out
+  }, PROJECT_ID)
+
+  expect(apiFlow.upload).toMatchObject({ status: 200 })
+  expect(apiFlow.master).toMatchObject({ status: 200 })
+  expect(apiFlow.crop).toMatchObject({ status: 200 })
+  expect(apiFlow.filter).toMatchObject({ status: 200 })
+  expect(apiFlow.remove).toMatchObject({ status: 200 })
+  expect(apiFlow.restore).toMatchObject({ status: 200 })
+  expect(apiFlow.working).toMatchObject({ status: 200 })
+
+  const workingJson = (apiFlow.working as { json?: { exists?: boolean; stack?: unknown[] } }).json
+  expect(workingJson?.exists).toBe(true)
+  expect(Array.isArray(workingJson?.stack)).toBe(true)
+  expect((workingJson?.stack ?? []).length).toBe(0)
+})
+
 test.skip("storage: upload → master returns signed URL → editor renders image", async ({ page }) => {
   await page.setExtraHTTPHeaders({ "x-e2e-test": "1", "x-e2e-user": "1" })
   await setupMockRoutes(page, { withImage: false })
