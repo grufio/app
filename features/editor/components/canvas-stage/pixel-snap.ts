@@ -14,8 +14,14 @@ export function snapWorldToDeviceHalfPixel(args: { worldCoord: number; axis: "x"
   const { worldCoord, axis, view } = args
   const scale = view.scale || 1
   const offset = axis === "x" ? view.x : view.y
+  const dpr =
+    typeof window === "undefined" || !Number.isFinite(Number(window.devicePixelRatio))
+      ? 1
+      : Math.max(1, Number(window.devicePixelRatio))
   const screen = offset + worldCoord * scale
-  const snapped = Math.round(screen - 0.5) + 0.5
+  // At DPR=1, center 1px strokes on half-pixels for crisp hairlines.
+  // At DPR>1, snapping to full device pixels avoids perceived thickening.
+  const snapped = dpr <= 1 ? Math.round(screen - 0.5) + 0.5 : Math.round(screen)
   return (snapped - offset) / scale
 }
 

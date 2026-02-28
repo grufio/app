@@ -6,6 +6,7 @@
  * - Preserve UI semantics: require finite positive numbers.
  */
 import type { ProjectGridRow } from "./types"
+import { computeRgbaBackgroundStyleFromHex } from "@/lib/editor/color"
 
 export type RenderableGrid = {
   spacingXPx: number
@@ -30,7 +31,15 @@ export function computeRenderableGrid(opts: {
   const spacingY = Number(spacingYPx)
   if (spacingX <= 0 || spacingY <= 0) return null
 
+  const opacityPercent = Math.max(0, Math.min(100, Number(row.line_width_value)))
+  const rgba = computeRgbaBackgroundStyleFromHex({
+    enabled: true,
+    hex: row.color,
+    opacityPercent,
+  })
+  const strokeColor = rgba?.backgroundColor ?? row.color
+
   // Grid lines are rendered as a fixed 1px hairline for consistent sharpness.
-  return { spacingXPx: spacingX, spacingYPx: spacingY, lineWidthPx: 1, color: row.color }
+  return { spacingXPx: spacingX, spacingYPx: spacingY, lineWidthPx: 1, color: strokeColor }
 }
 

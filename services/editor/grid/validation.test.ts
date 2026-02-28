@@ -9,10 +9,8 @@ describe("computeRenderableGrid", () => {
     spacing_value: 1,
     spacing_x_value: 1,
     spacing_y_value: 1,
-    line_width_value: 0.25,
+    line_width_value: 35,
     color: "#000000",
-    opacity_pct: 35,
-    visible: true,
     created_at: "2026-01-01T00:00:00.000Z",
     updated_at: "2026-01-01T00:00:00.000Z",
   }
@@ -28,7 +26,7 @@ describe("computeRenderableGrid", () => {
       spacingXPx: 20,
       spacingYPx: 24,
       lineWidthPx: 1,
-      color: "#000000",
+      color: "rgba(0, 0, 0, 0.35)",
     })
   })
 
