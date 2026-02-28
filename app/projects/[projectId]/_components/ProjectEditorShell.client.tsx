@@ -79,6 +79,12 @@ function getFilterLabel(filterType: string): string {
   }
 }
 
+type EditorImageSourceState =
+  | { status: "loading"; image: null; error: "" }
+  | { status: "ready"; image: { id: string; signedUrl: string; width_px: number; height_px: number; name: string }; error: "" }
+  | { status: "empty"; image: null; error: "" }
+  | { status: "error"; image: null; error: string }
+
 function useFilterCommands(args: {
   projectId: string
   setCanvasMode: (mode: "image" | "filter") => void
@@ -207,6 +213,7 @@ export function ProjectDetailPageClient({
     image: filterDisplayImage,
     stack: filterStack,
     loading: filterImageLoading,
+    loadedOnce: filterImageLoadedOnce,
     error: filterImageError,
     refresh: refreshFilterImage,
   } = useFilterWorkingImage(projectId)
@@ -228,30 +235,51 @@ export function ProjectDetailPageClient({
   const lastFilterErrorToastRef = useRef("")
   const [imagePxU, setImagePxU] = useState<{ w: bigint; h: bigint } | null>(null)
   const [cropBusy, setCropBusy] = useState(false)
-  const activeCanvasImageId = canvasMode === "filter" ? (filterDisplayImage?.id ?? null) : (masterImage?.id ?? null)
+  const editorImageSource = useMemo<EditorImageSourceState>(() => {
+    if (masterImageLoading || filterImageLoading || !filterImageLoadedOnce) {
+      return { status: "loading", image: null, error: "" }
+    }
+    if (filterDisplayImage) {
+      return {
+        status: "ready",
+        image: {
+          id: filterDisplayImage.id,
+          signedUrl: filterDisplayImage.signedUrl,
+          width_px: filterDisplayImage.width_px,
+          height_px: filterDisplayImage.height_px,
+          name: filterDisplayImage.name,
+        },
+        error: "",
+      }
+    }
+    if (filterImageError) return { status: "error", image: null, error: filterImageError }
+    if (masterImageError) return { status: "error", image: null, error: masterImageError }
+    if (masterImage) {
+      return {
+        status: "error",
+        image: null,
+        error: "No working image available. Please refresh or restore the image.",
+      }
+    }
+    return { status: "empty", image: null, error: "" }
+  }, [
+    filterDisplayImage,
+    filterImageError,
+    filterImageLoadedOnce,
+    filterImageLoading,
+    masterImage,
+    masterImageError,
+    masterImageLoading,
+  ])
+  const activeCanvasImageId = editorImageSource.status === "ready" ? editorImageSource.image.id : null
   const { removingFilter, filterActionError, setFilterActionError, handleRemoveFilter, handleFilterSuccess } = useFilterCommands({
     projectId,
     setCanvasMode,
     refreshFilterImage,
   })
   const filterSourceImage = useMemo(
-    () =>
-      filterDisplayImage
-        ? {
-            id: filterDisplayImage.id,
-            width_px: filterDisplayImage.width_px,
-            height_px: filterDisplayImage.height_px,
-            signedUrl: filterDisplayImage.signedUrl,
-          }
-        : masterImage
-          ? {
-              id: masterImage.id,
-              width_px: masterImage.width_px,
-              height_px: masterImage.height_px,
-              signedUrl: masterImage.signedUrl,
-            }
-          : null,
-    [filterDisplayImage, masterImage]
+    () => (editorImageSource.status === "ready" ? editorImageSource.image : null),
+    [editorImageSource]
   )
   const filterDialog = useFilterDialogSession(filterSourceImage)
 
@@ -290,21 +318,21 @@ export function ProjectDetailPageClient({
 
   // Load image-state independent of masterImage loading, so reloads can apply persisted size immediately.
   // Persist is still gated by `masterImage` when wiring `onImageTransformCommit` (see ProjectEditorStage props).
+  const imageStateEnabled = editorImageSource.status === "ready"
   const { initialImageTransform, imageStateLoading, loadImageState, saveImageState } = useImageState(
     projectId,
-    true,
+    imageStateEnabled,
     initialImageState,
     false,
     activeCanvasImageId ?? undefined
   )
   const saveImageStateBound = useCallback(
     async (t: { xPxU?: bigint; yPxU?: bigint; widthPxU: bigint; heightPxU: bigint; rotationDeg: number }) => {
-      if (canvasMode === "filter") return
-      const imageId = masterImage?.id
+      const imageId = activeCanvasImageId
       if (!imageId) return
       await saveImageState({ ...t, imageId })
     },
-    [canvasMode, masterImage?.id, saveImageState]
+    [activeCanvasImageId, saveImageState]
   )
   const hasFilterSourceImage = Boolean(filterSourceImage)
   const isNewFilterActionBusy = filterImageLoading || imageStateLoading || removingFilter
@@ -317,12 +345,12 @@ export function ProjectDetailPageClient({
   }, [filterDialog, hasFilterSourceImage, isNewFilterActionBusy, setCanvasMode, setFilterActionError])
 
   const initialImagePxU = useMemo(() => {
-    if (!masterImage || !initialImageTransform) return null
+    if (!activeCanvasImageId || !initialImageTransform) return null
     const wU = initialImageTransform.widthPxU
     const hU = initialImageTransform.heightPxU
     if (!wU || !hU || wU <= 0n || hU <= 0n) return null
     return { w: wU, h: hU }
-  }, [initialImageTransform, masterImage])
+  }, [activeCanvasImageId, initialImageTransform])
 
   const handleImagePxChange = useCallback((w: bigint, h: bigint) => {
     setImagePxU((prev) => {
@@ -333,15 +361,16 @@ export function ProjectDetailPageClient({
 
   const toolbar = useFloatingToolbarControls({
     canvasRef,
-    hasImage: Boolean(canvasMode === "filter" && !isActiveDisplayFilterHidden ? filterDisplayImage : masterImage),
-    masterImageLoading: canvasMode === "filter" && !isActiveDisplayFilterHidden ? filterImageLoading : masterImageLoading,
+    hasImage: editorImageSource.status === "ready",
+    masterImageLoading: editorImageSource.status === "loading",
     imageStateLoading,
     enableShortcuts: canvasMode !== "filter",
   })
   const applyCropSelection = useCallback(async () => {
     if (canvasMode === "filter") return
     if (cropBusy) return
-    const sourceImageId = masterImage?.id ?? null
+    if (editorImageSource.status !== "ready") return
+    const sourceImageId = editorImageSource.image.id
     if (!sourceImageId) {
       console.warn("Crop apply blocked: missing source image id")
       return
@@ -374,7 +403,7 @@ export function ProjectDetailPageClient({
     canvasMode,
     cropBusy,
     loadImageState,
-    masterImage?.id,
+    editorImageSource,
     projectId,
     refreshFilterImage,
     refreshMasterImage,
@@ -410,9 +439,9 @@ export function ProjectDetailPageClient({
   }, [selectedNavId])
 
   const derivedCanvasMode = useMemo<"image" | "filter">(() => {
-    if (leftPanelTab === "filter" && filterDisplayImage) return "filter"
+    if (leftPanelTab === "filter" && editorImageSource.status === "ready") return "filter"
     return "image"
-  }, [filterDisplayImage, leftPanelTab])
+  }, [editorImageSource.status, leftPanelTab])
 
   useEffect(() => {
     if (canvasMode === derivedCanvasMode) return
@@ -479,7 +508,7 @@ export function ProjectDetailPageClient({
     setTool: handleToolbarToolChange,
     selectedNavId,
     setSelectedNavId,
-    masterImageId: masterImage?.id ?? null,
+    masterImageId: activeCanvasImageId,
     cropBusy,
   })
 
@@ -652,26 +681,23 @@ export function ProjectDetailPageClient({
   })
 
   const renderModel = useMemo(() => {
-    const baseImage = masterImage
-    const filterOverlay =
-      filterDisplayImage && !isActiveDisplayFilterHidden
-        ? {
-            id: filterDisplayImage.id,
-            signedUrl: filterDisplayImage.signedUrl,
-            name: filterDisplayImage.name,
-            width_px: filterDisplayImage.width_px,
-            height_px: filterDisplayImage.height_px,
-            dpi: null,
-            restore_base: null,
-          }
-        : null
-    return { baseImage, filterOverlay }
-  }, [filterDisplayImage, isActiveDisplayFilterHidden, masterImage])
+    const baseImage = editorImageSource.status === "ready"
+      ? {
+          id: editorImageSource.image.id,
+          signedUrl: editorImageSource.image.signedUrl,
+          name: editorImageSource.image.name,
+          width_px: editorImageSource.image.width_px,
+          height_px: editorImageSource.image.height_px,
+          dpi: null,
+          restore_base: null,
+        }
+      : null
+    return { baseImage }
+  }, [editorImageSource])
 
   const stageImage = useMemo(() => {
-    if (canvasMode === "filter") return renderModel.filterOverlay ?? renderModel.baseImage
     return renderModel.baseImage
-  }, [canvasMode, renderModel])
+  }, [renderModel])
 
   const grid = useMemo(() => {
     if (!gridVisible) return null
@@ -738,7 +764,6 @@ export function ProjectDetailPageClient({
     ),
     [
       canvasMode,
-      filterPanelError,
       filterStack,
       hasFilterSourceImage,
       hiddenFilterIds,
@@ -790,8 +815,8 @@ export function ProjectDetailPageClient({
             <ProjectEditorStage
               projectId={projectId}
               masterImage={stageImage}
-              masterImageLoading={canvasMode === "filter" ? filterImageLoading : masterImageLoading}
-              masterImageError={canvasMode === "filter" ? filterImageError : masterImageError}
+              masterImageLoading={editorImageSource.status === "loading"}
+              masterImageError={editorImageSource.status === "error" ? editorImageSource.error : ""}
               imageStateLoading={imageStateLoading}
               toolbar={stageToolbar}
               canvasRef={canvasRef}

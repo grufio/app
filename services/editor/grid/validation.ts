@@ -20,17 +20,17 @@ export function computeRenderableGrid(opts: {
   spacingYPx: number | null | undefined
   lineWidthPx: number | null | undefined
 }): RenderableGrid | null {
-  const { row, spacingXPx, spacingYPx, lineWidthPx } = opts
+  const { row, spacingXPx, spacingYPx } = opts
   if (!row) return null
 
-  // Preserve existing guard behavior (use NaN fallback).
-  if (!Number.isFinite(spacingXPx ?? NaN) || !Number.isFinite(spacingYPx ?? NaN) || !Number.isFinite(lineWidthPx ?? NaN)) return null
+  // Preserve existing guard behavior (use NaN fallback) for spacing.
+  if (!Number.isFinite(spacingXPx ?? NaN) || !Number.isFinite(spacingYPx ?? NaN)) return null
 
   const spacingX = Number(spacingXPx)
   const spacingY = Number(spacingYPx)
-  const lw = Number(lineWidthPx)
-  if (spacingX <= 0 || spacingY <= 0 || lw <= 0) return null
+  if (spacingX <= 0 || spacingY <= 0) return null
 
-  return { spacingXPx: spacingX, spacingYPx: spacingY, lineWidthPx: lw, color: row.color }
+  // Grid lines are rendered as a fixed 1px hairline for consistent sharpness.
+  return { spacingXPx: spacingX, spacingYPx: spacingY, lineWidthPx: 1, color: row.color }
 }
 

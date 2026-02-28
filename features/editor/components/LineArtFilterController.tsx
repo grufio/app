@@ -2,7 +2,7 @@
 
 import { BaseFilterController } from "./BaseFilterController"
 import { LineArtForm, type LineArtFormData } from "./lineart-form"
-import { applyLineArtFilter } from "@/lib/api/project-images"
+import { applyProjectImageFilter } from "@/lib/api/project-images"
 
 type Props = {
   projectId: string
@@ -29,19 +29,22 @@ export function LineArtFilterController({
       onError={onError}
       title="Line Art"
       description="Create comic-style outlines with edge detection."
-      applyFilter={(data) =>
-        applyLineArtFilter({
+      applyFilter={async (data) => {
+        await applyProjectImageFilter({
           projectId,
-          sourceImageId: workingImageId,
-          threshold1: data.threshold1,
-          threshold2: data.threshold2,
-          lineThickness: data.lineThickness,
-          blurAmount: data.blurAmount,
-          minContourArea: data.minContourArea,
-          invert: data.invert,
-          smoothness: data.smoothness,
+          filterType: "lineart",
+          filterParams: {
+            source_image_id: workingImageId,
+            threshold1: data.threshold1,
+            threshold2: data.threshold2,
+            line_thickness: data.lineThickness,
+            blur_amount: data.blurAmount,
+            min_contour_area: data.minContourArea,
+            invert: data.invert,
+            smoothness: data.smoothness,
+          },
         })
-      }
+      }}
     >
       {({ busy, onCancel, onApply }) => (
         <LineArtForm

@@ -6,6 +6,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/lib/supabase/database.types"
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role"
 import { activateMasterWithState } from "@/lib/supabase/project-images"
+import { appendProjectImageFilter } from "@/services/editor/server/filter-chain"
 
 export type SupportedFilterType = "pixelate" | "lineart" | "numerate"
 
@@ -273,33 +274,45 @@ export async function applyProjectImageFilter(args: {
   })
   if (!created.ok) return created
 
-  const { data: maxRow, error: maxErr } = await supabase
-    .from("project_image_filters")
-    .select("stack_order")
-    .eq("project_id", projectId)
-    .order("stack_order", { ascending: false })
-    .limit(1)
-    .maybeSingle()
-  if (maxErr) {
+  const appended = await appendProjectImageFilter({
+    supabase,
+    projectId,
+    inputImageId: String(active.id),
+    outputImageId: created.imageId,
+    filterType,
+    filterParams: params,
+  })
+  if (!appended.ok) {
     await removeImageRowsAndStorage({ supabase, imageIds: [created.imageId] })
-    return { ok: false, status: 400, stage: "db_insert", reason: maxErr.message, code: (maxErr as { code?: string }).code }
+    return { ok: false, status: 400, stage: "db_insert", reason: appended.reason, code: appended.code }
   }
-  const nextOrder = Number(maxRow?.stack_order ?? 0) + 1
+
   const { data: inserted, error: filterErr } = await supabase
     .from("project_image_filters")
-    .insert({
-      project_id: projectId,
-      input_image_id: String(active.id),
-      output_image_id: created.imageId,
-      filter_type: filterType,
-      filter_params: params,
-      stack_order: nextOrder,
-    })
     .select("id,input_image_id,output_image_id,filter_type,filter_params,stack_order,created_at")
-    .single()
-  if (filterErr) {
+    .eq("project_id", projectId)
+    .eq("output_image_id", created.imageId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (filterErr || !inserted) {
     await removeImageRowsAndStorage({ supabase, imageIds: [created.imageId] })
-    return { ok: false, status: 400, stage: "db_insert", reason: filterErr.message, code: (filterErr as { code?: string }).code }
+    return {
+      ok: false,
+      status: 400,
+      stage: "db_insert",
+      reason: filterErr?.message ?? "Failed to load appended filter row",
+      code: (filterErr as { code?: string } | null)?.code,
+    }
+  }
+
+  const insertedFilterId = String(inserted.id ?? "")
+  const cleanupInsertedFilter = async () => {
+    if (insertedFilterId) {
+      await supabase.from("project_image_filters").delete().eq("id", insertedFilterId).eq("project_id", projectId)
+      return
+    }
+    await supabase.from("project_image_filters").delete().eq("project_id", projectId).eq("output_image_id", created.imageId)
   }
 
   const activation = await activateMasterWithState({
@@ -310,7 +323,7 @@ export async function applyProjectImageFilter(args: {
     heightPx: created.heightPx,
   })
   if (!activation.ok) {
-    await supabase.from("project_image_filters").delete().eq("id", inserted.id)
+    await cleanupInsertedFilter()
     await removeImageRowsAndStorage({ supabase, imageIds: [created.imageId] })
     return { ok: false, status: activation.status, stage: activation.stage, reason: activation.reason, code: activation.code }
   }
@@ -318,7 +331,7 @@ export async function applyProjectImageFilter(args: {
   return {
     ok: true,
     item: {
-      id: String(inserted.id),
+      id: insertedFilterId,
       input_image_id: String(inserted.input_image_id),
       output_image_id: String(inserted.output_image_id),
       filter_type: filterType,

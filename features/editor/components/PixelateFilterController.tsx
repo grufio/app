@@ -2,7 +2,7 @@
 
 import { BaseFilterController } from "./BaseFilterController"
 import { PixelateForm, type PixelateFormData } from "./pixelate-form"
-import { applyPixelateFilter } from "@/lib/api/project-images"
+import { applyProjectImageFilter } from "@/lib/api/project-images"
 
 type Props = {
   projectId: string
@@ -33,16 +33,19 @@ export function PixelateFilterController({
       onError={onError}
       title="Pixelate"
       description="Configure pixelate filter settings."
-      applyFilter={(data) =>
-        applyPixelateFilter({
+      applyFilter={async (data) => {
+        await applyProjectImageFilter({
           projectId,
-          sourceImageId: workingImageId,
-          superpixelWidth: data.superpixelWidth,
-          superpixelHeight: data.superpixelHeight,
-          colorMode: data.colorMode,
-          numColors: data.numColors,
+          filterType: "pixelate",
+          filterParams: {
+            source_image_id: workingImageId,
+            superpixel_width: data.superpixelWidth,
+            superpixel_height: data.superpixelHeight,
+            color_mode: data.colorMode,
+            num_colors: data.numColors,
+          },
         })
-      }
+      }}
     >
       {({ busy, onCancel, onApply }) => (
         <PixelateForm

@@ -77,11 +77,10 @@ export function GridPanel({
 
   const computedW = row ? fmt2(Number(row.spacing_x_value)) : ""
   const computedH = row ? fmt2(Number(row.spacing_y_value)) : ""
-  const computedLineWidth = row ? fmt2(Number(row.line_width_value)) : ""
+  const fixedGridLineWidth = fmt2(1)
 
   const { value: draftW, setValue: setDraftW } = useKeyedDraft(projectId ?? null, computedW)
   const { value: draftH, setValue: setDraftH } = useKeyedDraft(projectId ?? null, computedH)
-  const { value: draftLineWidth, setValue: setDraftLineWidth } = useKeyedDraft(projectId ?? null, computedLineWidth)
 
   const lastSubmitRef = useRef<string | null>(null)
   const ignoreNextBlurSaveRef = useRef(false)
@@ -111,10 +110,8 @@ export function GridPanel({
     if (!row) return
     const w = Number(draftW)
     const h = Number(draftH)
-    const lw = Number(draftLineWidth)
     if (!Number.isFinite(w) || w <= 0) return
     if (!Number.isFinite(h) || h <= 0) return
-    if (!Number.isFinite(lw) || lw <= 0) return
 
     await saveWith({
       ...row,
@@ -122,9 +119,8 @@ export function GridPanel({
       spacing_value: w,
       spacing_x_value: w,
       spacing_y_value: h,
-      line_width_value: lw,
     })
-  }, [draftH, draftLineWidth, draftW, effectiveUnit, row, saveWith])
+  }, [draftH, draftW, effectiveUnit, row, saveWith])
 
   return (
     <EditorSidebarSection
@@ -206,32 +202,17 @@ export function GridPanel({
           />
 
           <IconNumericField
-            value={draftLineWidth}
+            value={fixedGridLineWidth}
             mode="float"
-            ariaLabel={`Grid line width (${effectiveUnit})`}
-            disabled={controlsDisabled}
+            ariaLabel="Grid line width fixed at 1 px"
+            disabled
             icon={<Ruler aria-hidden="true" />}
-            onValueChange={(next) => setDraftLineWidth(next)}
-            numericProps={{
-              onKeyDown: (e) => {
-                if (e.key === "Enter") void save()
-              },
-              onBlur: () => {
-                if (ignoreNextBlurSaveRef.current) {
-                  ignoreNextBlurSaveRef.current = false
-                  return
-                }
-                void save()
-              },
-              onPointerDownCapture: () => {
-                // Avoid blur-save firing when interacting with the color picker.
-                ignoreNextBlurSaveRef.current = true
-              },
-            }}
+            onValueChange={() => {}}
           />
 
           <PanelIconSlot />
         </PanelTwoFieldRow>
+        <div className="text-[11px] text-muted-foreground">Grid line width is fixed at 1 px.</div>
       </div>
     </EditorSidebarSection>
   )

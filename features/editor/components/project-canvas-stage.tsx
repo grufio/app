@@ -404,6 +404,31 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     },
     [view.scale, view.x, view.y]
   )
+  const snappedGridLines = useMemo(() => {
+    if (!gridLines) return null
+    return {
+      ...gridLines,
+      lines: gridLines.lines.map((line) => {
+        const [x1, y1, x2, y2] = line.points
+        // Keep vertical/horizontal grid lines aligned to half-device pixels.
+        if (x1 === x2) {
+          const snappedX = snapWorldToDeviceHalfPixel(x1, "x")
+          return { ...line, points: [snappedX, y1, snappedX, y2] }
+        }
+        if (y1 === y2) {
+          const snappedY = snapWorldToDeviceHalfPixel(y1, "y")
+          return { ...line, points: [x1, snappedY, x2, snappedY] }
+        }
+        return line
+      }),
+    }
+  }, [gridLines, snapWorldToDeviceHalfPixel])
+  const stagePixelRatio = useMemo(() => {
+    if (typeof window === "undefined") return 1
+    const dpr = Number(window.devicePixelRatio || 1)
+    if (!Number.isFinite(dpr)) return 1
+    return Math.min(2, Math.max(1, dpr))
+  }, [])
 
   const fitToView = useCallback(() => {
     if (!world) return
@@ -845,7 +870,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
         }}
         width={size.w}
         height={size.h}
-        pixelRatio={1}
+        pixelRatio={stagePixelRatio}
         scaleX={view.scale}
         scaleY={view.scale}
         x={view.x}
@@ -921,14 +946,14 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
             ) : null}
 
             {/* Grid overlay (under selection frame). */}
-            {gridLines && gridLines.lines.length ? (
+            {snappedGridLines && snappedGridLines.lines.length ? (
               <>
-                {gridLines.lines.map((l) => (
+                {snappedGridLines.lines.map((l) => (
                   <Line
                     key={l.key}
                     points={l.points}
-                    stroke={gridLines.stroke}
-                    strokeWidth={gridLines.strokeWidth}
+                    stroke={snappedGridLines.stroke}
+                    strokeWidth={snappedGridLines.strokeWidth}
                     strokeScaleEnabled={false}
                     listening={false}
                   />

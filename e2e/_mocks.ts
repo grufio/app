@@ -66,17 +66,63 @@ export async function setupMockRoutes(page: Page, opts: SetupMockRoutesOpts) {
 
   let hasImage = Boolean(opts.withImage)
   const activeImageId = "11111111-1111-4111-8111-111111111111"
+  let currentImageId = activeImageId
+  let imageCounter = 0
+  const imageVersions = new Map<
+    string,
+    {
+      id: string
+      signedUrl: string
+      width_px: number
+      height_px: number
+      name: string
+      source_image_id: string | null
+      isFilterResult: boolean
+    }
+  >([
+    [
+      activeImageId,
+      {
+        id: activeImageId,
+        signedUrl: dataImage,
+        width_px: 20,
+        height_px: 10,
+        name: "test.svg",
+        source_image_id: null,
+        isFilterResult: false,
+      },
+    ],
+  ])
+  const filterStack: Array<{
+    id: string
+    input_image_id: string
+    output_image_id: string
+    filter_type: "pixelate" | "lineart" | "numerate"
+    stack_order: number
+  }> = []
+  const nextImageId = () => {
+    imageCounter += 1
+    const suffix = String(imageCounter).padStart(12, "0")
+    return `22222222-2222-4222-8222-${suffix}`
+  }
+  const nextFilterId = () => {
+    const suffix = String(filterStack.length + 1).padStart(12, "0")
+    return `33333333-3333-4333-8333-${suffix}`
+  }
+  const currentImagePayload = () => {
+    const img = imageVersions.get(currentImageId)
+    if (!hasImage || !img) return { exists: false as const }
+    return {
+      exists: true as const,
+      id: img.id,
+      signedUrl: img.signedUrl,
+      width_px: img.width_px,
+      height_px: img.height_px,
+      name: img.name,
+    }
+  }
   const masterImagePayload = () =>
-    hasImage
-      ? {
-          exists: true,
-          id: activeImageId,
-          signedUrl: dataImage,
-          width_px: 20,
-          height_px: 10,
-          name: "test.svg",
-        }
-      : { exists: false }
+    currentImagePayload()
 
   let imageState: ImageStateRow | null = opts.imageState && opts.imageState.exists ? opts.imageState.state : null
 
@@ -130,7 +176,13 @@ export async function setupMockRoutes(page: Page, opts: SetupMockRoutesOpts) {
     }
 
     // Internal API: master image exists + signed URL
-    if (url.includes(`/api/projects/${PROJECT_ID}/images/master`) && !url.includes("/exists") && !url.includes("/upload") && !url.includes("/list")) {
+    if (
+      url.includes(`/api/projects/${PROJECT_ID}/images/master`) &&
+      !url.includes("/exists") &&
+      !url.includes("/upload") &&
+      !url.includes("/list") &&
+      !url.includes("/restore")
+    ) {
       return route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -167,7 +219,7 @@ export async function setupMockRoutes(page: Page, opts: SetupMockRoutesOpts) {
         try {
           const body = (await req.postDataJSON()) as Partial<ImageStateRow>
           imageState = {
-            image_id: hasImage ? activeImageId : null,
+            image_id: hasImage ? currentImageId : null,
             x_px_u: body.x_px_u ?? null,
             y_px_u: body.y_px_u ?? null,
             width_px_u: body.width_px_u ?? null,
@@ -189,11 +241,149 @@ export async function setupMockRoutes(page: Page, opts: SetupMockRoutesOpts) {
                 exists: true,
                 state: {
                   ...imageState,
-                  image_id: imageState.image_id ?? (hasImage ? activeImageId : null),
+                  image_id: imageState.image_id ?? (hasImage ? currentImageId : null),
                 },
               }
             : { exists: false }
         ),
+      })
+    }
+
+    if (url.includes(`/api/projects/${PROJECT_ID}/images/filter-working-copy`)) {
+      if (!hasImage) {
+        return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, exists: false }) })
+      }
+      const img = imageVersions.get(currentImageId)
+      if (!img) {
+        return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, exists: false }) })
+      }
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          ok: true,
+          exists: true,
+          id: img.id,
+          signed_url: img.signedUrl,
+          width_px: img.width_px,
+          height_px: img.height_px,
+          storage_path: `projects/${PROJECT_ID}/images/${img.id}`,
+          source_image_id: img.source_image_id,
+          name: img.name,
+          is_filter_result: img.isFilterResult,
+          stack: filterStack.map((f) => ({
+            id: f.id,
+            name: f.filter_type,
+            filterType: f.filter_type,
+            source_image_id: f.input_image_id,
+          })),
+        }),
+      })
+    }
+
+    if (url.includes(`/api/projects/${PROJECT_ID}/images/filters`) && route.request().method() === "POST") {
+      if (!hasImage) {
+        return route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ error: "No active image" }) })
+      }
+      let filterType: "pixelate" | "lineart" | "numerate" = "pixelate"
+      try {
+        const body = (await route.request().postDataJSON()) as { filter_type?: "pixelate" | "lineart" | "numerate" }
+        if (body.filter_type === "lineart" || body.filter_type === "numerate" || body.filter_type === "pixelate") {
+          filterType = body.filter_type
+        }
+      } catch {
+        // Keep default.
+      }
+      const inputId = currentImageId
+      const nextId = nextImageId()
+      const parent = imageVersions.get(inputId)
+      imageVersions.set(nextId, {
+        id: nextId,
+        signedUrl: dataImage,
+        width_px: parent?.width_px ?? 20,
+        height_px: parent?.height_px ?? 10,
+        name: `${parent?.name ?? "image"} (${filterType})`,
+        source_image_id: inputId,
+        isFilterResult: true,
+      })
+      const item = {
+        id: nextFilterId(),
+        input_image_id: inputId,
+        output_image_id: nextId,
+        filter_type: filterType,
+        filter_params: {},
+        stack_order: filterStack.length + 1,
+        created_at: "2026-01-01T00:00:00.000Z",
+      }
+      filterStack.push({
+        id: item.id,
+        input_image_id: item.input_image_id,
+        output_image_id: item.output_image_id,
+        filter_type: item.filter_type,
+        stack_order: item.stack_order,
+      })
+      currentImageId = nextId
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          ok: true,
+          item,
+          image_id: nextId,
+          width_px: parent?.width_px ?? 20,
+          height_px: parent?.height_px ?? 10,
+        }),
+      })
+    }
+
+    if (url.includes(`/api/projects/${PROJECT_ID}/images/filters/`) && route.request().method() === "DELETE") {
+      const filterId = url.split("/").pop() ?? ""
+      const idx = filterStack.findIndex((f) => f.id === filterId)
+      if (idx < 0) {
+        return route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ error: "Filter not found" }) })
+      }
+      filterStack.splice(idx)
+      currentImageId = idx > 0 ? filterStack[idx - 1].output_image_id : activeImageId
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true, active_image_id: currentImageId }),
+      })
+    }
+
+    if (url.includes(`/api/projects/${PROJECT_ID}/images/crop`) && route.request().method() === "POST") {
+      const croppedId = nextImageId()
+      imageVersions.set(croppedId, {
+        id: croppedId,
+        signedUrl: dataImage,
+        width_px: 10,
+        height_px: 10,
+        name: "test.svg (crop)",
+        source_image_id: currentImageId,
+        isFilterResult: false,
+      })
+      currentImageId = croppedId
+      filterStack.length = 0
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          ok: true,
+          id: croppedId,
+          width_px: 10,
+          height_px: 10,
+        }),
+      })
+    }
+
+    if (url.includes(`/api/projects/${PROJECT_ID}/images/master/restore`) && route.request().method() === "POST") {
+      currentImageId = activeImageId
+      filterStack.length = 0
+      hasImage = true
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true, image_id: activeImageId }),
       })
     }
 
