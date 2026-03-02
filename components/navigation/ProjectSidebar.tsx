@@ -26,8 +26,10 @@ import {
 } from "@/components/ui/sidebar"
 import { mapSidebarNodeIconKey, mapSidebarNodeLabel } from "@/services/editor/navigation-mapping"
 
+type TreeItem = string | [string, ...TreeItem[]]
+
 // This is sample data.
-const data = {
+const data: { tree: TreeItem[] } = {
   tree: [
     [
       "app",
@@ -77,8 +79,6 @@ export function ProjectSidebar(props: {
     </SidebarContent>
   )
 }
-
-type TreeItem = string | TreeItem[]
 
 function Tree(props: {
   item: TreeItem

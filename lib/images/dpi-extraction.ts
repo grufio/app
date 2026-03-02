@@ -22,11 +22,7 @@ const FALLBACK_DPI = 72 // Standard for web/screenshots without EXIF
  */
 export async function extractImageDPI(file: File): Promise<ImageDPI> {
   try {
-    const exif = await exifr.parse(file, {
-      xResolution: true,
-      yResolution: true,
-      resolutionUnit: true,
-    })
+    const exif = await exifr.parse(file)
 
     if (!exif) {
       return { dpiX: FALLBACK_DPI, dpiY: FALLBACK_DPI, source: "fallback" }

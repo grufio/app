@@ -32,3 +32,24 @@ Goal (MVP): a **5-minute** sanity check to catch the common editor regressions (
 - Reload the page.
 - **Expected**: image position persists (no “re-fit to artboard” jump).
 
+### 5) Image workflow contract (2 min)
+
+- **No image source**: `New Filter` text button and add icon are both disabled.
+- **Image source present**: `New Filter` opens selection reliably and does not race with stale error state.
+- **Filter apply/remove**: after mutation the visible image refreshes from the canonical working-image endpoint.
+- **Restore isolation**: restore panel only shows restore-specific errors; filter/crop errors stay in filter error channel.
+
+### 6) Playwright local runbook (two-port mode)
+
+- Keep the normal app server on `http://127.0.0.1:3000` (for normal development).
+- Local E2E always uses dedicated `3110` server mode with `E2E_TEST=1`.
+- Run local E2E via:
+  - `npm run test:e2e:doctor`
+  - `npm run test:e2e:local:smoke`
+  - `npm run test:e2e:local:workflow`
+  - `npm run test:e2e:local:full`
+- Build/type failures are classified as `APP_BUILD` and must be fixed before E2E assertions.
+- If preflight says port `3110` is occupied, stop the process on that port and retry.
+- If preflight says webserver mode needs a free E2E port, do not point local tests to `3000`.
+- CI runs isolated via `npm run test:e2e:ci` and is not expected to reuse a local server.
+

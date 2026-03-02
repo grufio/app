@@ -325,4 +325,87 @@ describe("getFilterPanelData", () => {
       expect(result.stack.map((s) => s.filterType)).toEqual(["pixelate", "lineart"])
     }
   })
+
+  it("fails when stored filter rows are disconnected from working copy chain", async () => {
+    const activeImage = {
+      id: "active-image-id",
+      name: "master.jpg",
+      storage_bucket: "project_images",
+      storage_path: "projects/p/images/master",
+      format: "jpeg",
+      width_px: 1000,
+      height_px: 800,
+      file_size_bytes: 50000,
+      source_image_id: null,
+    }
+    const workingCopy = {
+      id: "working-copy-id",
+      storage_bucket: "project_images",
+      storage_path: "projects/p/images/working",
+      width_px: 1000,
+      height_px: 800,
+      source_image_id: "active-image-id",
+      name: "master.jpg (filter working)",
+      updated_at: "2026-01-01T00:00:00Z",
+      created_at: "2026-01-01T00:00:00Z",
+    }
+    const disconnectedFilterRows = [
+      {
+        id: "f1",
+        input_image_id: "other-image-id",
+        output_image_id: "img-pixelate",
+        filter_type: "pixelate",
+        stack_order: 1,
+      },
+    ]
+
+    let projectImagesCall = 0
+    const from = vi.fn((table: string) => {
+      if (table === "project_images") {
+        projectImagesCall += 1
+        if (projectImagesCall === 1) {
+          const q: Record<string, unknown> = {}
+          q.select = vi.fn(() => q)
+          q.eq = vi.fn(() => q)
+          q.is = vi.fn(() => q)
+          q.maybeSingle = vi.fn(async () => ({ data: activeImage, error: null }))
+          return q
+        }
+        if (projectImagesCall === 2) {
+          const q: Record<string, unknown> = {}
+          q.select = vi.fn(() => q)
+          q.eq = vi.fn(() => q)
+          q.like = vi.fn(() => q)
+          q.is = vi.fn(() => q)
+          q.order = vi.fn(() => q)
+          q.limit = vi.fn(async () => ({ data: [workingCopy], error: null }))
+          return q
+        }
+      }
+      if (table === "project_image_filters") {
+        const q: Record<string, unknown> = {}
+        q.select = vi.fn(() => q)
+        q.eq = vi.fn(() => q)
+        q.order = vi.fn(async () => ({ data: disconnectedFilterRows, error: null }))
+        return q
+      }
+      return {}
+    })
+
+    const supabase = {
+      from,
+      storage: {
+        from: vi.fn(() => ({
+          createSignedUrl: vi.fn(async () => ({ data: { signedUrl: "https://signed-url.test/img.jpg" }, error: null })),
+          download: vi.fn(async () => ({ data: new Blob([new Uint8Array([1, 2, 3])]), error: null })),
+        })),
+      },
+    } as unknown as SupabaseClient<Database>
+
+    const result = await getFilterPanelData({ supabase, projectId: "project-1" })
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.stage).toBe("chain_invalid")
+    }
+  })
 })

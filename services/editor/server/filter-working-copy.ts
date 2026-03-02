@@ -5,7 +5,14 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/lib/supabase/database.types"
 import { copyImageTransform } from "@/services/editor/server/copy-image-transform"
 
-type FailStage = "active_lookup" | "working_copy_exists" | "storage_download" | "storage_upload" | "db_insert" | "transform_sync"
+type FailStage =
+  | "active_lookup"
+  | "working_copy_exists"
+  | "storage_download"
+  | "storage_upload"
+  | "db_insert"
+  | "transform_sync"
+  | "chain_invalid"
 
 type Failure = {
   ok: false
@@ -353,10 +360,29 @@ export async function getFilterPanelData(args: {
   }
 
   if (!chain.length) {
+    if ((filterRows ?? []).length > 0) {
+      return {
+        ok: false,
+        status: 409,
+        stage: "chain_invalid",
+        reason: "Stored filter rows do not form a chain from the current working copy",
+      }
+    }
     return {
       ok: true,
       display: displayFromWorking,
       stack: [],
+    }
+  }
+
+  const chainRowIds = new Set(chain.map((node) => node.id))
+  const hasDisconnectedRows = (filterRows ?? []).some((row) => !chainRowIds.has(String(row.id)))
+  if (hasDisconnectedRows) {
+    return {
+      ok: false,
+      status: 409,
+      stage: "chain_invalid",
+      reason: "Stored filter rows contain disconnected chain segments",
     }
   }
 

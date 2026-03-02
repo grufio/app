@@ -33,11 +33,12 @@ function getIngestUrl(): string | null {
 
 export async function reportError(error: unknown, event?: Omit<ErrorEvent, "message" | "stack" | "name">) {
   const e = error instanceof Error ? error : new Error(typeof error === "string" ? error : "Unknown error")
+  const digestValue = (e as unknown as { digest?: unknown }).digest
   const payload: ErrorEvent = {
     message: e.message,
     stack: e.stack,
     name: e.name,
-    digest: (e as { digest?: unknown })?.digest != null ? String((e as { digest: unknown }).digest) : undefined,
+    digest: digestValue != null ? String(digestValue) : undefined,
     ...event,
   }
 

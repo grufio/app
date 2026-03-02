@@ -17,6 +17,11 @@ type RouteContext = {
   userId: string
 }
 
+type RouteErrorPayload = {
+  error: string
+  stage: string
+}
+
 /**
  * Type definition for route handler functions used with withFilterRouteAuth.
  * 
@@ -28,7 +33,7 @@ type RouteContext = {
 type RouteHandler<T = unknown> = (
   req: Request,
   context: RouteContext
-) => Promise<NextResponse<T>>
+) => Promise<NextResponse<T> | NextResponse<RouteErrorPayload>>
 
 /**
  * Authentication and authorization wrapper for filter API routes.
@@ -60,16 +65,16 @@ export async function withFilterRouteAuth<T = unknown>(
   req: Request,
   projectId: string,
   handler: RouteHandler<T>
-): Promise<NextResponse<T>> {
+): Promise<NextResponse<T> | NextResponse<RouteErrorPayload>> {
   // Validate projectId
   if (!isUuid(String(projectId))) {
-    return jsonError("Invalid projectId", 400, { stage: "validation", where: "params" }) as unknown as NextResponse<T>
+    return jsonError("Invalid projectId", 400, { stage: "validation", where: "params" })
   }
 
   // Authenticate user
   const supabase = await createSupabaseServerClient()
   const u = await requireUser(supabase)
-  if (!u.ok) return u.res as unknown as NextResponse<T>
+  if (!u.ok) return u.res as NextResponse<RouteErrorPayload>
 
   // Verify project access
   const { data: projectRow, error: projectErr } = await supabase
@@ -79,10 +84,10 @@ export async function withFilterRouteAuth<T = unknown>(
     .maybeSingle()
 
   if (projectErr) {
-    return jsonError("Failed to verify project access", 400, { stage: "project_access" }) as unknown as NextResponse<T>
+    return jsonError("Failed to verify project access", 400, { stage: "project_access" })
   }
   if (!projectRow?.id) {
-    return jsonError("Forbidden (project not accessible)", 403, { stage: "rls_denied", where: "project_access" }) as unknown as NextResponse<T>
+    return jsonError("Forbidden (project not accessible)", 403, { stage: "rls_denied", where: "project_access" })
   }
 
   // Call handler with authenticated context

@@ -21,7 +21,6 @@ export default defineConfig({
     // CI speed: small suite today, but enable parallel execution as it grows.
     pool: "threads",
     fileParallelism: true,
-    maxThreads: 4,
     testTimeout: 10_000,
     coverage: {
       provider: "v8",

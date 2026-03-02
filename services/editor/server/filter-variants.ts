@@ -21,6 +21,7 @@ export type FilterOpFailure = {
     | "filter_process"
     | "storage_upload"
     | "db_insert"
+    | "chain_append"
     | "active_switch"
     | "filter_lookup"
     | "rebuild"
@@ -284,7 +285,7 @@ export async function applyProjectImageFilter(args: {
   })
   if (!appended.ok) {
     await removeImageRowsAndStorage({ supabase, imageIds: [created.imageId] })
-    return { ok: false, status: 400, stage: "db_insert", reason: appended.reason, code: appended.code }
+    return { ok: false, status: 400, stage: appended.stage, reason: appended.reason, code: appended.code }
   }
 
   const { data: inserted, error: filterErr } = await supabase

@@ -15,13 +15,37 @@ async function selectLayerNavItem(page: import("@playwright/test").Page, label: 
   await layers.getByRole("button", { name: label, exact: true }).click()
 }
 
+async function selectLeftTab(page: import("@playwright/test").Page, tab: "Image" | "Filter") {
+  const tabId = tab === "Filter" ? "#editor-left-tabs-trigger-filter" : "#editor-left-tabs-trigger-image"
+  await page.locator(tabId).click()
+}
+
+async function gotoProject(page: import("@playwright/test").Page) {
+  const res = await page.goto(`/projects/${PROJECT_ID}`)
+  if (!res?.ok()) {
+    throw new Error(
+      `[ENV_SERVER] Project page request failed: status=${res?.status() ?? "unknown"} url=${res?.url() ?? "unknown"}`
+    )
+  }
+}
+
 async function assertEditorSurfaceVisible(page: import("@playwright/test").Page) {
   const crashed = page.getByText("Editor crashed")
   const canvasRoot = page.getByTestId("editor-canvas-root")
   const artboardPanel = page.getByTestId("editor-artboard-panel")
 
   // Wait for either the happy path (canvas + at least one panel) or the error boundary.
-  await expect(crashed.or(canvasRoot)).toBeVisible()
+  try {
+    await expect(crashed.or(canvasRoot)).toBeVisible()
+  } catch (error) {
+    const url = page.url()
+    const title = await page.title().catch(() => "unknown")
+    throw new Error(
+      `[APP_RUNTIME_OR_ENV_SERVER] Editor surface did not appear (url=${url}, title=${title}). ` +
+        `Classify as ENV_SERVER or APP_RUNTIME before locator changes. ` +
+        `Original: ${error instanceof Error ? error.message : String(error)}`
+    )
+  }
 
   if (await crashed.isVisible()) {
     const details = await page.locator("pre").first().textContent().catch(() => null)
@@ -36,8 +60,7 @@ test("smoke: /projects/:id loads editor with artboard + canvas", async ({ page }
   await page.setExtraHTTPHeaders({ "x-e2e-test": "1", "x-e2e-user": "1" })
   await setupMockRoutes(page, { withImage: true })
 
-  const res = await page.goto(`/projects/${PROJECT_ID}`)
-  expect(res?.ok()).toBe(true)
+  await gotoProject(page)
   await assertEditorSurfaceVisible(page)
   await expect(page.locator("canvas").first()).toBeVisible()
 })
@@ -46,8 +69,7 @@ test("smoke: upload/crop/filter/remove/restore flow keeps deterministic image so
   await page.setExtraHTTPHeaders({ "x-e2e-test": "1", "x-e2e-user": "1" })
   await setupMockRoutes(page, { withImage: false })
 
-  const res = await page.goto(`/projects/${PROJECT_ID}`)
-  expect(res?.ok()).toBe(true)
+  await gotoProject(page)
   await assertEditorSurfaceVisible(page)
 
   const apiFlow = await page.evaluate(async (projectId: string) => {
@@ -116,6 +138,67 @@ test("smoke: upload/crop/filter/remove/restore flow keeps deterministic image so
   expect(workingJson?.exists).toBe(true)
   expect(Array.isArray(workingJson?.stack)).toBe(true)
   expect((workingJson?.stack ?? []).length).toBe(0)
+})
+
+test("regression: new filter stays disabled without active image source", async ({ page }) => {
+  await page.setExtraHTTPHeaders({ "x-e2e-test": "1", "x-e2e-user": "1" })
+  await setupMockRoutes(page, { withImage: false })
+
+  await gotoProject(page)
+  await assertEditorSurfaceVisible(page)
+  await selectLeftTab(page, "Filter")
+
+  await expect(page.getByRole("button", { name: "New Filter" })).toBeDisabled()
+  await expect(page.getByLabel("Add filter")).toBeDisabled()
+})
+
+test("regression: new filter is enabled and opens selector with active image source", async ({ page }) => {
+  await page.setExtraHTTPHeaders({ "x-e2e-test": "1", "x-e2e-user": "1" })
+  await setupMockRoutes(page, { withImage: true })
+
+  await gotoProject(page)
+  await assertEditorSurfaceVisible(page)
+  await selectLeftTab(page, "Filter")
+
+  const newFilterButton = page.getByRole("button", { name: "New Filter" })
+  const addFilterButton = page.getByLabel("Add filter")
+
+  await expect(newFilterButton).toBeEnabled()
+  await expect(addFilterButton).toBeEnabled()
+
+  await newFilterButton.click()
+  await expect(page.getByRole("heading", { name: "Filter" })).toBeVisible()
+})
+
+test("regression: filter error does not leak into restore dialog", async ({ page }) => {
+  await page.setExtraHTTPHeaders({ "x-e2e-test": "1", "x-e2e-user": "1" })
+  await setupMockRoutes(page, { withImage: true })
+  await page.route(`**/api/projects/${PROJECT_ID}/images/filters`, async (route) => {
+    if (route.request().method() !== "POST") return route.fallback()
+    return route.fulfill({
+      status: 500,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "forced filter failure" }),
+    })
+  })
+
+  await gotoProject(page)
+  await assertEditorSurfaceVisible(page)
+  await selectLeftTab(page, "Filter")
+
+  await page.getByRole("button", { name: "New Filter" }).click()
+  await page.getByRole("button", { name: "Pixelate" }).click()
+  await page.getByRole("button", { name: "Select" }).click()
+  await page.getByRole("button", { name: "Apply" }).click()
+  await expect(page.getByText("forced filter failure")).toBeVisible()
+
+  // Close filter dialog before checking image restore dialog.
+  await page.getByRole("button", { name: "Cancel" }).click()
+
+  await selectLayerNavItem(page, "Image")
+  await page.getByLabel("Restore image").click()
+  await expect(page.getByRole("heading", { name: "Restore image?" })).toBeVisible()
+  await expect(page.getByText("forced filter failure")).toHaveCount(0)
 })
 
 test.skip("storage: upload → master returns signed URL → editor renders image", async ({ page }) => {

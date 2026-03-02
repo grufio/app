@@ -107,7 +107,11 @@ jobs:
         run: npx -y playwright install --with-deps chromium
 
       - name: E2E (Playwright)
-        run: npm run test:e2e
+        env:
+          PLAYWRIGHT_USE_WEBSERVER: "1"
+          PLAYWRIGHT_WEBSERVER_COMMAND: "npm run dev:e2e"
+          PLAYWRIGHT_BASE_URL: "http://127.0.0.1:3110"
+        run: npm run test:e2e:ci
 
       - name: Upload Playwright report
         if: failure()

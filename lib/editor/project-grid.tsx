@@ -49,8 +49,6 @@ function gridRowSignature(row: ProjectGridRow | null): string {
     row.spacing_y_value,
     row.line_width_value,
     row.color,
-    row.opacity_pct,
-    row.visible,
   ].join("|")
 }
 

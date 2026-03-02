@@ -7,13 +7,11 @@
  */
 
 export type ProjectThumbImageState = {
-  x: number
-  y: number
-  scaleX: number
-  scaleY: number
   rotationDeg: number
-  widthPx?: number
-  heightPx?: number
+  xPxU?: bigint
+  yPxU?: bigint
+  widthPxU?: bigint
+  heightPxU?: bigint
 } | null
 
 export function ProjectCardThumbnail({

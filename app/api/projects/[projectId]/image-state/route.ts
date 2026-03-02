@@ -88,7 +88,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ project
 
   const baseRow = {
     project_id: projectId,
-    image_id: validated.image_id,
     ...validated,
   }
 

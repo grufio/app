@@ -101,11 +101,12 @@ export function MasterImageUpload({
   }
 
   if (variant === "toolbar") {
+    const { label: _dropzoneLabel, ...toolbarDropProps } = getRootProps()
     return (
       <ToolbarIconButton
         label="Add image"
         disabled={isUploading}
-        {...getRootProps()}
+        {...toolbarDropProps}
       >
         <input {...getInputProps()} />
         <ImagePlus className="size-6" strokeWidth={1} />

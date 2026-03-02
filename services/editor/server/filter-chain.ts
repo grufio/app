@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 
-import type { Database } from "@/lib/supabase/database.types"
+import type { Database, Json } from "@/lib/supabase/database.types"
 
 export async function appendProjectImageFilter(args: {
   supabase: SupabaseClient<Database>
@@ -9,7 +9,7 @@ export async function appendProjectImageFilter(args: {
   outputImageId: string
   filterType: "pixelate" | "lineart" | "numerate"
   filterParams: Record<string, unknown>
-}): Promise<{ ok: true } | { ok: false; reason: string; code?: string }> {
+}): Promise<{ ok: true } | { ok: false; stage: "chain_append"; reason: string; code?: string }> {
   const { supabase, projectId, inputImageId, outputImageId, filterType, filterParams } = args
 
   const { error } = await supabase.rpc("append_project_image_filter", {
@@ -17,10 +17,10 @@ export async function appendProjectImageFilter(args: {
     p_input_image_id: inputImageId,
     p_output_image_id: outputImageId,
     p_filter_type: filterType,
-    p_filter_params: filterParams,
+    p_filter_params: filterParams as Json,
   })
   if (error) {
-    return { ok: false, reason: error.message, code: error.code }
+    return { ok: false, stage: "chain_append", reason: error.message, code: error.code }
   }
 
   return { ok: true }

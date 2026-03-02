@@ -49,7 +49,7 @@ export type TransformController = {
 }
 
 export function createTransformController(deps: TransformControllerDeps): TransformController {
-  let commitTimer: number | null = null
+  let commitTimer: ReturnType<typeof globalThis.setTimeout> | null = null
   let pending: { commitPosition: boolean } | null = null
 
   const cancelScheduledCommit = () => {
