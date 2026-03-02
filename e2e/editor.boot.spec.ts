@@ -160,7 +160,7 @@ test("regression: new filter stays disabled without active image source", async 
   await expect(page.getByLabel("Add filter")).toBeDisabled()
 })
 
-test("regression: new filter is enabled and opens selector with active image source", async ({ page }) => {
+test("regression: add filter is enabled and opens selector with active image source", async ({ page }) => {
   await page.setExtraHTTPHeaders({ "x-e2e-test": "1", "x-e2e-user": "1" })
   await setupMockRoutes(page, { withImage: true })
 
@@ -171,10 +171,10 @@ test("regression: new filter is enabled and opens selector with active image sou
   const newFilterButton = page.getByRole("button", { name: "New Filter" })
   const addFilterButton = page.getByLabel("Add filter")
 
-  await expect(newFilterButton).toBeEnabled()
+  await expect(newFilterButton).toBeDisabled()
   await expect(addFilterButton).toBeEnabled()
 
-  await newFilterButton.click()
+  await addFilterButton.click()
   await expect(page.getByRole("heading", { name: "Filter" })).toBeVisible()
 })
 
@@ -186,6 +186,7 @@ test("regression: upload makes image usable without page reload", async ({ page 
   await assertEditorSurfaceVisible(page)
   await selectLeftTab(page, "Filter")
   await expect(page.getByRole("button", { name: "New Filter" })).toBeDisabled()
+  await expect(page.getByLabel("Add filter")).toBeDisabled()
   await selectLeftTab(page, "Image")
   const uploadInput = page.getByTestId("add-image-input")
   await expect(uploadInput).toBeAttached()
@@ -208,7 +209,7 @@ test("regression: upload makes image usable without page reload", async ({ page 
   expect(workingCopyJson.exists).toBe(true)
 
   await selectLeftTab(page, "Filter")
-  await expect(page.getByRole("button", { name: "New Filter" })).toBeEnabled()
+  await expect(page.getByRole("button", { name: "New Filter" })).toBeDisabled()
   await expect(page.getByLabel("Add filter")).toBeEnabled()
 })
 

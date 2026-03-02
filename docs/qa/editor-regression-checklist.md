@@ -35,7 +35,7 @@ Goal (MVP): a **5-minute** sanity check to catch the common editor regressions (
 ### 5) Image workflow contract (2 min)
 
 - **No image source**: `New Filter` text button and add icon are both disabled.
-- **Image source present**: `New Filter` opens selection reliably and does not race with stale error state.
+- **Image source present**: `New Filter` text button stays disabled, add icon opens selection reliably without stale error races.
 - **Filter apply/remove**: after mutation the visible image refreshes from the canonical working-image endpoint.
 - **Restore isolation**: restore panel only shows restore-specific errors; filter/crop errors stay in filter error channel.
 

@@ -230,7 +230,6 @@ export function GridPanel({
 
           <PanelIconSlot />
         </PanelTwoFieldRow>
-        <div className="text-[11px] text-muted-foreground">Grid line width is fixed at 1 px.</div>
       </div>
     </EditorSidebarSection>
   )

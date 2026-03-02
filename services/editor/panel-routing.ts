@@ -6,12 +6,10 @@
  * - Keep the “why” out of React components to avoid copy/paste drift as the editor grows.
  */
 import { parseNavId } from "@/features/editor/navigation/nav-id"
-
-export type EditorRightPanelSection = "artboard" | "image" | "grid"
+import { resolveRightSectionFromNavKind, type EditorRightPanelSection } from "@/services/editor/section-registry"
 
 export function mapSelectedNavIdToRightPanelSection(selectedNavId: string): EditorRightPanelSection {
   const selection = parseNavId(selectedNavId)
-  if (selection.kind === "grid") return "grid"
-  return selection.kind === "image" || selection.kind === "imagesFolder" ? "image" : "artboard"
+  return resolveRightSectionFromNavKind(selection.kind)
 }
 
