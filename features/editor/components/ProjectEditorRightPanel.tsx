@@ -42,13 +42,14 @@ import { IconColorField } from "./fields/icon-color-field"
 import { IconNumericField } from "./fields/icon-numeric-field"
 import { EditorSidebarSection } from "./sidebar/editor-sidebar-section"
 import type { Unit } from "@/lib/editor/units"
+import type { EditorRightPanelSection } from "@/services/editor/section-registry"
 
 export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPanel(props: {
   panelWidthRem: number
   minPanelRem: number
   maxPanelRem: number
   onPanelWidthRemChange: (next: number) => void
-  activeSection: "artboard" | "image" | "grid"
+  activeSection: EditorRightPanelSection
   pageBgEnabled: boolean
   pageBgColor: string
   pageBgOpacity: number
