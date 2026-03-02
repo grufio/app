@@ -189,6 +189,7 @@ export function ProjectDetailPageClient({
   const [numerateSuperpixelWidth] = useState(10)
   const [numerateSuperpixelHeight] = useState(10)
   const [gridVisible, setGridVisible] = useState(true)
+  const [uploadSyncing, setUploadSyncing] = useState(false)
   const [selectedNavId, setSelectedNavId] = useState<string>(buildNavId({ kind: "artboard" }))
   const canvasRef = useRef<ProjectCanvasStageHandle | null>(null)
   const lastFilterErrorToastRef = useRef("")
@@ -196,7 +197,7 @@ export function ProjectDetailPageClient({
   const activeSourceImageIdRef = useRef<string | null>(null)
   const [imagePxU, setImagePxU] = useState<{ w: bigint; h: bigint } | null>(null)
   const sourceSnapshot = useMemo<EditorImageSourceState>(() => {
-    if (masterImageLoading || filterImageLoading || !filterImageLoadedOnce) {
+    if (masterImageLoading || filterImageLoading || uploadSyncing || !filterImageLoadedOnce) {
       return { status: "loading", image: null, error: "" }
     }
     if (filterDisplayImage) {
@@ -230,6 +231,7 @@ export function ProjectDetailPageClient({
     masterImage,
     masterImageError,
     masterImageLoading,
+    uploadSyncing,
   ])
   useEffect(() => {
     activeSourceImageIdRef.current = sourceSnapshot.status === "ready" ? sourceSnapshot.image.id : null
@@ -336,6 +338,15 @@ export function ProjectDetailPageClient({
     },
     [workflow]
   )
+  const handleImageUploaded = useCallback(async () => {
+    // Single-entry sync contract after upload: refresh through workflow orchestration only.
+    setUploadSyncing(true)
+    try {
+      await workflow.refreshAndWait()
+    } finally {
+      setUploadSyncing(false)
+    }
+  }, [workflow])
 
   const filterOperationError =
     workflow.lastOperation === "filter_apply" || workflow.lastOperation === "filter_remove" ? workflow.operationError : ""
@@ -818,7 +829,7 @@ export function ProjectDetailPageClient({
               lockedById={lockedImageById}
               onToggleImageLocked={handleToggleImageLocked}
               hasGrid={hasGrid}
-              onImageUploaded={refreshMasterImage}
+              onImageUploaded={handleImageUploaded}
               onImageDeleteRequested={requestDeleteImage}
               onGridCreateRequested={requestCreateGrid}
               onGridDeleteRequested={requestDeleteGrid}

@@ -12,7 +12,15 @@ import { PROJECT_ID, setupMockRoutes } from "./_mocks"
 
 async function selectLayerNavItem(page: import("@playwright/test").Page, label: "Artboard" | "Image" | "Grid") {
   const layers = page.getByLabel("Layers")
-  await layers.getByRole("button", { name: label, exact: true }).click()
+  const projectListItem = layers.locator("li").filter({ has: layers.getByRole("button", { name: label, exact: true }) }).first()
+  const layerButton = projectListItem.getByRole("button", { name: label, exact: true })
+  if ((await layerButton.count()) > 0) {
+    await layerButton.click()
+    return
+  }
+
+  // Fallback: older markup where layer switch lived in top tabs.
+  await layers.getByRole("tab", { name: label, exact: true }).click()
 }
 
 async function selectLeftTab(page: import("@playwright/test").Page, tab: "Image" | "Filter") {
@@ -168,6 +176,40 @@ test("regression: new filter is enabled and opens selector with active image sou
 
   await newFilterButton.click()
   await expect(page.getByRole("heading", { name: "Filter" })).toBeVisible()
+})
+
+test("regression: upload makes image usable without page reload", async ({ page }) => {
+  await page.setExtraHTTPHeaders({ "x-e2e-test": "1", "x-e2e-user": "1" })
+  await setupMockRoutes(page, { withImage: false })
+
+  await gotoProject(page)
+  await assertEditorSurfaceVisible(page)
+  await selectLeftTab(page, "Filter")
+  await expect(page.getByRole("button", { name: "New Filter" })).toBeDisabled()
+  await selectLeftTab(page, "Image")
+  const uploadInput = page.getByTestId("add-image-input")
+  await expect(uploadInput).toBeAttached()
+  const waitUploadResponse = page.waitForResponse(
+    (res) =>
+      res.request().method() === "POST" &&
+      res.url().includes(`/api/projects/${PROJECT_ID}/images/master/upload`) &&
+      res.status() === 200
+  )
+  const waitWorkingCopyResponse = page.waitForResponse(
+    (res) =>
+      res.request().method() === "POST" &&
+      res.url().includes(`/api/projects/${PROJECT_ID}/images/filter-working-copy`) &&
+      res.status() === 200
+  )
+  await uploadInput.setInputFiles("e2e/fixtures/upload-test.svg")
+  await waitUploadResponse
+  const workingCopyRes = await waitWorkingCopyResponse
+  const workingCopyJson = (await workingCopyRes.json()) as { exists?: boolean }
+  expect(workingCopyJson.exists).toBe(true)
+
+  await selectLeftTab(page, "Filter")
+  await expect(page.getByRole("button", { name: "New Filter" })).toBeEnabled()
+  await expect(page.getByLabel("Add filter")).toBeEnabled()
 })
 
 test("regression: filter error does not leak into restore dialog", async ({ page }) => {

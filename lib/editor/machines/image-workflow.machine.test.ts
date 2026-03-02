@@ -156,6 +156,32 @@ describe("createImageWorkflowMachine", () => {
     expect(services.refreshAll).toHaveBeenCalledTimes(1)
   })
 
+  it("accepts REFRESH while in operation error and recovers via syncing", async () => {
+    const refreshAll = vi.fn(async () => {})
+    const services = createServices({
+      applyFilter: vi.fn(async () => {
+        throw new Error("apply failed")
+      }),
+      refreshAll,
+    })
+    const actor = createActor(createImageWorkflowMachine(), { input: { services } })
+    actor.start()
+    actor.send({
+      type: "SOURCE_SNAPSHOT",
+      snapshot: {
+        status: "ready",
+        image: { id: "img_1", signedUrl: "u", width_px: 100, height_px: 80, name: "Image" },
+        error: "",
+      },
+    })
+
+    actor.send({ type: "FILTER_APPLY", filterType: "lineart", filterParams: {} })
+    await waitFor(actor, (s) => s.matches({ operation: "error" }))
+    actor.send({ type: "REFRESH" })
+    await waitFor(actor, (s) => s.matches({ operation: "idle" }))
+    expect(refreshAll).toHaveBeenCalledTimes(1)
+  })
+
   it("updates service adapters via SERVICES_UPDATE without machine reset", async () => {
     const oldApplyFilter = vi.fn(async () => {
       throw new Error("old service should not run")

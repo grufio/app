@@ -93,6 +93,32 @@ export function useImageWorkflowMachine(args: {
       })
       sendEvent({ type: "FILTER_APPLY", filterType: args.filterType, filterParams: args.filterParams })
     })
+  const refreshAndWait = () =>
+    new Promise<void>((resolve, reject) => {
+      let enteredSync = state.matches({ operation: "syncing" })
+      const sub = actorRef.subscribe((snapshot) => {
+        const isSyncingNow = snapshot.matches({ operation: "syncing" })
+        const isIdleNow = snapshot.matches({ operation: "idle" })
+        const isErrorNow = snapshot.matches({ operation: "error" })
+
+        if (isSyncingNow) enteredSync = true
+        if (!enteredSync) return
+
+        if (isErrorNow) {
+          sub.unsubscribe()
+          reject(new Error(snapshot.context.lastOpError || "Failed to refresh workflow source"))
+          return
+        }
+        if (isIdleNow) {
+          sub.unsubscribe()
+          resolve()
+        }
+      })
+
+      if (!state.matches({ operation: "syncing" })) {
+        sendEvent({ type: "REFRESH" })
+      }
+    })
   const removeFilter = (filterId: string) => sendEvent({ type: "FILTER_REMOVE", filterId })
   const applyCrop = (rect: { x: number; y: number; w: number; h: number }) => sendEvent({ type: "CROP_APPLY", rect })
   const restore = () => sendEvent({ type: "RESTORE" })
@@ -115,6 +141,7 @@ export function useImageWorkflowMachine(args: {
     operationError,
     persistenceError,
     applyFilter,
+    refreshAndWait,
     removeFilter,
     applyCrop,
     restore,

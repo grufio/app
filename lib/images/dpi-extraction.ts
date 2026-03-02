@@ -6,7 +6,7 @@
  * - Provide fallback DPI when EXIF is missing
  * - Normalize to consistent DPI format
  */
-import exifr from "exifr"
+import exifr from "exifr/dist/lite.esm.mjs"
 
 export type ImageDPI = {
   dpiX: number

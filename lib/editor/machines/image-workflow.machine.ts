@@ -252,6 +252,7 @@ export function createImageWorkflowMachine() {
             on: {
               DISMISS_ERROR: { target: "idle", actions: "clearOperationError" },
               RETRY: { target: "syncing", actions: ["clearOperationError", "assignLastOperation"] },
+              REFRESH: { target: "syncing", actions: ["clearOperationError", "assignLastOperation"] },
             },
           },
         },

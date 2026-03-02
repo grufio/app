@@ -90,6 +90,7 @@ Design rules:
 ### Do-not-break invariants (workflow contract)
 
 - `ProjectEditorShell` dispatches image mutations through the machine contract (`FILTER_APPLY`, `FILTER_REMOVE`, `CROP_APPLY`, `RESTORE`, `TRANSFORM_SAVE`) instead of ad-hoc direct mutation paths.
+- Master-image upload aftermath is synchronized via a single workflow refresh entry (no ad-hoc multi-refresh chain in shell callbacks).
 - Exactly one active non-deleted image exists per project, and the active image must be reachable from a master root through `source_image_id`.
 - `New Filter` UI availability is derived from a single guard (`has ready source image` and `not busy`) so button and action icon never drift apart.
 - Restore error UI is scoped to restore transitions; filter/crop errors must not leak into restore panels.

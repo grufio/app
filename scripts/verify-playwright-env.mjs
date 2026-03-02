@@ -121,7 +121,7 @@ async function main() {
   info(`Chromium binary: ${chromiumBinary}`)
 
   const reuseBaseUrl = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3110"
-  const webServerBaseUrl = process.env.PLAYWRIGHT_BASE_URL ?? process.env.PLAYWRIGHT_DEFAULT_BASE_URL ?? "http://127.0.0.1:3110"
+  const webServerBaseUrl = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3110"
   const expectedLocalE2EPort = Number(process.env.PLAYWRIGHT_LOCAL_E2E_PORT ?? 3110)
 
   if (!useWebServerMode) {
@@ -165,7 +165,7 @@ async function main() {
     fail(
       "ENV_MODE",
       `Webserver mode must target E2E port ${expectedLocalE2EPort}, got ${targetBaseUrl}. ` +
-        "Use PLAYWRIGHT_BASE_URL/PLAYWRIGHT_DEFAULT_BASE_URL with the E2E port."
+        "Use PLAYWRIGHT_BASE_URL with the E2E port."
     )
   }
   const portAlreadyUsed = await isTcpPortInUse(targetHost, targetPort)
@@ -176,9 +176,15 @@ async function main() {
         "Stop the process on that port or run in explicit reuse mode."
     )
   }
-  const lockFile = path.resolve(process.cwd(), ".next/dev/lock")
-  if (fs.existsSync(lockFile)) {
-    warn(`Detected .next/dev/lock at ${lockFile}. Ensure no stale lock before webserver mode.`)
+  const webServerCommand = process.env.PLAYWRIGHT_WEBSERVER_COMMAND ?? ""
+  const usesNextDev =
+    webServerCommand.includes("next dev") ||
+    webServerCommand.includes("dev:e2e")
+  if (usesNextDev) {
+    const lockFile = path.resolve(process.cwd(), ".next/dev/lock")
+    if (fs.existsSync(lockFile)) {
+      warn(`Detected .next/dev/lock at ${lockFile}. Ensure no stale lock before webserver mode.`)
+    }
   }
 
   info("Preflight OK")

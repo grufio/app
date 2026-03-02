@@ -12,10 +12,15 @@
 export async function getImageDimensions(file: File): Promise<{ width: number; height: number }> {
   // Prefer createImageBitmap when available.
   if (typeof createImageBitmap === "function") {
-    const bmp = await createImageBitmap(file)
-    const dims = { width: bmp.width, height: bmp.height }
-    bmp.close()
-    return dims
+    try {
+      const bmp = await createImageBitmap(file)
+      const dims = { width: bmp.width, height: bmp.height }
+      bmp.close()
+      return dims
+    } catch {
+      // Fall through to <img> decode path for browser/runtime combinations
+      // where createImageBitmap rejects for otherwise valid files.
+    }
   }
 
   // Fallback: <img> + objectURL
@@ -27,6 +32,9 @@ export async function getImageDimensions(file: File): Promise<{ width: number; h
       img.onerror = () => reject(new Error("Failed to load image"))
       img.src = objectUrl
     })
+    if (img.naturalWidth <= 0 || img.naturalHeight <= 0) {
+      throw new Error("Failed to read image dimensions")
+    }
     return { width: img.naturalWidth, height: img.naturalHeight }
   } finally {
     URL.revokeObjectURL(objectUrl)
