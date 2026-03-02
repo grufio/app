@@ -8,6 +8,7 @@
  */
 import { fetchJson } from "@/lib/api/http"
 import { ApiError } from "@/lib/api/api-error"
+import type { GetImageStateResponse, SaveImageStateBody } from "@/lib/editor/imageState"
 
 export type { GetImageStateResponse, ImageStateRow, SaveImageStateBody } from "@/lib/editor/imageState"
 

@@ -29,9 +29,11 @@ import { NumerateFilterController } from "@/features/editor/components/NumerateF
 import { PixelateFilterController } from "@/features/editor/components/PixelateFilterController"
 import { FilterSelectionController } from "@/features/editor/components/FilterSelectionController"
 import { EditorSidebarSection } from "@/features/editor/components/sidebar/editor-sidebar-section"
-import { cropImageVariant, removeProjectImageFilter, restoreInitialMasterImage } from "@/lib/api/project-images"
+import { applyProjectImageFilter, cropImageVariant, removeProjectImageFilter, restoreInitialMasterImage } from "@/lib/api/project-images"
 import { computeImagePanelReady, computeWorkspaceReady } from "@/lib/editor/editor-ready"
 import { useFloatingToolbarControls } from "@/lib/editor/floating-toolbar-controls"
+import { useImageWorkflowMachine } from "@/lib/editor/machines/use-image-workflow-machine"
+import { reportError } from "@/lib/monitoring/error-reporting"
 import { useFilterWorkingImage } from "@/lib/editor/use-filter-working-image"
 import { useFilterDialogSession } from "@/lib/editor/use-filter-dialog-session"
 import { useEditorSessionState } from "@/lib/editor/use-editor-session-state"
@@ -84,47 +86,6 @@ type EditorImageSourceState =
   | { status: "ready"; image: { id: string; signedUrl: string; width_px: number; height_px: number; name: string }; error: "" }
   | { status: "empty"; image: null; error: "" }
   | { status: "error"; image: null; error: string }
-
-function useFilterCommands(args: {
-  projectId: string
-  setCanvasMode: (mode: "image" | "filter") => void
-  refreshFilterImage: () => Promise<void>
-}) {
-  const { projectId, setCanvasMode, refreshFilterImage } = args
-  const [removingFilter, setRemovingFilter] = useState(false)
-  const [filterActionError, setFilterActionError] = useState("")
-
-  const handleRemoveFilter = useCallback(
-    async (filterId: string) => {
-      if (removingFilter) return
-      setRemovingFilter(true)
-      setFilterActionError("")
-      setCanvasMode("filter")
-      try {
-        await removeProjectImageFilter({ projectId, filterId })
-        await refreshFilterImage()
-      } catch (e) {
-        setFilterActionError(e instanceof Error ? e.message : "Failed to remove filter")
-      } finally {
-        setRemovingFilter(false)
-      }
-    },
-    [projectId, refreshFilterImage, removingFilter, setCanvasMode]
-  )
-
-  const handleFilterSuccess = useCallback(async () => {
-    await refreshFilterImage()
-    setCanvasMode("filter")
-  }, [refreshFilterImage, setCanvasMode])
-
-  return {
-    removingFilter,
-    filterActionError,
-    setFilterActionError,
-    handleRemoveFilter,
-    handleFilterSuccess,
-  }
-}
 
 function useEditorInteractionController(args: {
   tool: "select" | "hand" | "crop"
@@ -219,8 +180,6 @@ export function ProjectDetailPageClient({
   } = useFilterWorkingImage(projectId)
 
   const [restoreOpen, setRestoreOpen] = useState(false)
-  const [restoreBusy, setRestoreBusy] = useState(false)
-  const [restoreError, setRestoreError] = useState("")
   const {
     state: sessionState,
     actions: sessionActions,
@@ -233,9 +192,10 @@ export function ProjectDetailPageClient({
   const [selectedNavId, setSelectedNavId] = useState<string>(buildNavId({ kind: "artboard" }))
   const canvasRef = useRef<ProjectCanvasStageHandle | null>(null)
   const lastFilterErrorToastRef = useRef("")
+  const lastNoWorkingImageMetricRef = useRef("")
+  const activeSourceImageIdRef = useRef<string | null>(null)
   const [imagePxU, setImagePxU] = useState<{ w: bigint; h: bigint } | null>(null)
-  const [cropBusy, setCropBusy] = useState(false)
-  const editorImageSource = useMemo<EditorImageSourceState>(() => {
+  const sourceSnapshot = useMemo<EditorImageSourceState>(() => {
     if (masterImageLoading || filterImageLoading || !filterImageLoadedOnce) {
       return { status: "loading", image: null, error: "" }
     }
@@ -271,32 +231,116 @@ export function ProjectDetailPageClient({
     masterImageError,
     masterImageLoading,
   ])
-  const activeCanvasImageId = editorImageSource.status === "ready" ? editorImageSource.image.id : null
-  const { removingFilter, filterActionError, setFilterActionError, handleRemoveFilter, handleFilterSuccess } = useFilterCommands({
+  useEffect(() => {
+    activeSourceImageIdRef.current = sourceSnapshot.status === "ready" ? sourceSnapshot.image.id : null
+  }, [sourceSnapshot])
+  const activeSnapshotImageId = sourceSnapshot.status === "ready" ? sourceSnapshot.image.id : null
+  const imageStateEnabled = sourceSnapshot.status === "ready"
+  const { initialImageTransform, imageStateLoading, loadImageState, saveImageState } = useImageState(
     projectId,
-    setCanvasMode,
-    refreshFilterImage,
+    imageStateEnabled,
+    initialImageState,
+    false,
+    activeSnapshotImageId ?? undefined
+  )
+  const refreshEditorData = useCallback(async () => {
+    await refreshMasterImage()
+    await refreshProjectImages()
+    await refreshFilterImage()
+    await loadImageState()
+  }, [loadImageState, refreshFilterImage, refreshMasterImage, refreshProjectImages])
+  const removeFilterService = useCallback(
+    async (filterId: string) => {
+      await removeProjectImageFilter({ projectId, filterId })
+    },
+    [projectId]
+  )
+  const applyCropService = useCallback(
+    async ({ sourceImageId, rect }: { sourceImageId: string; rect: { x: number; y: number; w: number; h: number } }) => {
+      await cropImageVariant({
+        projectId,
+        sourceImageId,
+        x: rect.x,
+        y: rect.y,
+        w: rect.w,
+        h: rect.h,
+      })
+    },
+    [projectId]
+  )
+  const restoreBaseService = useCallback(async () => {
+    await restoreInitialMasterImage(projectId)
+  }, [projectId])
+  const applyFilterService = useCallback(
+    async (args: { filterType: "pixelate" | "lineart" | "numerate"; filterParams: Record<string, unknown> }) => {
+      const sourceImageId = activeSourceImageIdRef.current
+      if (!sourceImageId) {
+        throw new Error("No active image available for filtering.")
+      }
+      await applyProjectImageFilter({
+        projectId,
+        filterType: args.filterType,
+        filterParams: {
+          source_image_id: sourceImageId,
+          ...args.filterParams,
+        },
+      })
+    },
+    [projectId]
+  )
+  const saveTransformService = useCallback(
+    async ({ imageId, transform }: { imageId: string; transform: { xPxU?: bigint; yPxU?: bigint; widthPxU: bigint; heightPxU: bigint; rotationDeg: number } }) => {
+      await saveImageState({ ...transform, imageId })
+    },
+    [saveImageState]
+  )
+  const workflowServices = useMemo(
+    () => ({
+      removeFilter: removeFilterService,
+      applyFilter: applyFilterService,
+      applyCrop: applyCropService,
+      restoreBase: restoreBaseService,
+      refreshAll: refreshEditorData,
+      saveTransform: saveTransformService,
+    }),
+    [applyCropService, applyFilterService, refreshEditorData, removeFilterService, restoreBaseService, saveTransformService]
+  )
+  const workflow = useImageWorkflowMachine({
+    projectId,
+    sourceSnapshot,
+    services: workflowServices,
   })
+  const editorImageSource = workflow.readModel
+  const activeCanvasImageId =
+    editorImageSource.status === "ready" && editorImageSource.image ? editorImageSource.image.id : null
   const filterSourceImage = useMemo(
-    () => (editorImageSource.status === "ready" ? editorImageSource.image : null),
+    () => (editorImageSource.status === "ready" && editorImageSource.image ? editorImageSource.image : null),
     [editorImageSource]
   )
   const filterDialog = useFilterDialogSession(filterSourceImage)
 
-  const handleFilterApplySuccess = useCallback(async () => {
+  const handleFilterApplySuccess = useCallback(() => {
     setCanvasMode("filter")
-    await handleFilterSuccess()
     filterDialog.reset()
-  }, [filterDialog, handleFilterSuccess, setCanvasMode])
+  }, [filterDialog, setCanvasMode])
 
   const handleFilterApplyError = useCallback(
     (error: Error) => {
-      setFilterActionError(error.message || "Failed to apply filter")
+      console.error("Failed to apply filter:", error)
     },
-    [setFilterActionError]
+    []
+  )
+  const handleApplyFilter = useCallback(
+    async (args: { filterType: "pixelate" | "lineart" | "numerate"; filterParams: Record<string, unknown> }) => {
+      await workflow.applyFilter(args)
+    },
+    [workflow]
   )
 
-  const filterPanelError = filterActionError || filterDialog.error || filterImageError
+  const filterOperationError =
+    workflow.lastOperation === "filter_apply" || workflow.lastOperation === "filter_remove" ? workflow.operationError : ""
+  const restoreOperationError = workflow.lastOperation === "restore" ? workflow.operationError : ""
+  const filterPanelError = filterOperationError || workflow.persistenceError || filterDialog.error || filterImageError
   const filterDialogSource = filterDialog.session
   const activeDisplayFilterId = filterStack[filterStack.length - 1]?.id ?? null
   const isActiveDisplayFilterHidden = activeDisplayFilterId ? Boolean(hiddenFilterIds[activeDisplayFilterId]) : false
@@ -312,37 +356,44 @@ export function ProjectDetailPageClient({
   }, [filterPanelError])
 
   useEffect(() => {
+    const noWorkingImageMessage = "No working image available. Please refresh or restore the image."
+    if (sourceSnapshot.status !== "error" || sourceSnapshot.error !== noWorkingImageMessage) {
+      lastNoWorkingImageMetricRef.current = ""
+      return
+    }
+    const metricKey = `${projectId}:${sourceSnapshot.error}`
+    if (lastNoWorkingImageMetricRef.current === metricKey) return
+    lastNoWorkingImageMetricRef.current = metricKey
+    void reportError(new Error(noWorkingImageMessage), {
+      tags: {
+        domain: "image_workflow",
+        metric: "no_working_image_available",
+      },
+      extra: {
+        projectId,
+        sourceStatus: sourceSnapshot.status,
+      },
+    })
+  }, [projectId, sourceSnapshot])
+
+  useEffect(() => {
     pruneHiddenFilters(new Set(filterStack.map((item) => item.id)))
   }, [filterStack, pruneHiddenFilters])
 
 
-  // Load image-state independent of masterImage loading, so reloads can apply persisted size immediately.
-  // Persist is still gated by `masterImage` when wiring `onImageTransformCommit` (see ProjectEditorStage props).
-  const imageStateEnabled = editorImageSource.status === "ready"
-  const { initialImageTransform, imageStateLoading, loadImageState, saveImageState } = useImageState(
-    projectId,
-    imageStateEnabled,
-    initialImageState,
-    false,
-    activeCanvasImageId ?? undefined
-  )
-  const saveImageStateBound = useCallback(
-    async (t: { xPxU?: bigint; yPxU?: bigint; widthPxU: bigint; heightPxU: bigint; rotationDeg: number }) => {
-      const imageId = activeCanvasImageId
-      if (!imageId) return
-      await saveImageState({ ...t, imageId })
-    },
-    [activeCanvasImageId, saveImageState]
-  )
+  const saveImageStateBound = useCallback(async (t: { xPxU?: bigint; yPxU?: bigint; widthPxU: bigint; heightPxU: bigint; rotationDeg: number }) => {
+    workflow.saveTransform(t)
+  }, [workflow])
   const hasFilterSourceImage = Boolean(filterSourceImage)
-  const isNewFilterActionBusy = filterImageLoading || imageStateLoading || removingFilter
+  const isNewFilterActionBusy = filterImageLoading || imageStateLoading || workflow.isMutating || workflow.isSyncing
+  const newFilterDisabledReason = !hasFilterSourceImage ? "missing_source" : isNewFilterActionBusy ? "busy" : null
+  const isNewFilterDisabled = newFilterDisabledReason !== null
   const openFilterSelection = useCallback(() => {
-    if (isNewFilterActionBusy) return
-    if (!hasFilterSourceImage) return
-    setFilterActionError("")
+    if (isNewFilterDisabled) return
+    workflow.dismissError()
     const opened = filterDialog.beginSelection()
     if (opened) setCanvasMode("filter")
-  }, [filterDialog, hasFilterSourceImage, isNewFilterActionBusy, setCanvasMode, setFilterActionError])
+  }, [filterDialog, isNewFilterDisabled, setCanvasMode, workflow])
 
   const initialImagePxU = useMemo(() => {
     if (!activeCanvasImageId || !initialImageTransform) return null
@@ -368,54 +419,27 @@ export function ProjectDetailPageClient({
   })
   const applyCropSelection = useCallback(async () => {
     if (canvasMode === "filter") return
-    if (cropBusy) return
+    if (workflow.isCropping) return
     if (editorImageSource.status !== "ready") return
-    const sourceImageId = editorImageSource.image.id
-    if (!sourceImageId) {
-      console.warn("Crop apply blocked: missing source image id")
-      return
-    }
     const selection = canvasRef.current?.getCropSelection()
     if (!selection?.ok) {
       console.warn("Crop apply blocked", { reason: selection?.reason ?? "not_ready" })
       return
     }
-    const rect = selection.rect
-    setCropBusy(true)
-    try {
-      await cropImageVariant({
-        projectId,
-        sourceImageId,
-        x: rect.x,
-        y: rect.y,
-        w: rect.w,
-        h: rect.h,
-      })
-      toolbar.setTool("select")
-      await refreshMasterImage()
-      await refreshProjectImages()
-      await refreshFilterImage()
-      await loadImageState()
-    } finally {
-      setCropBusy(false)
-    }
+    workflow.applyCrop(selection.rect)
+    toolbar.setTool("select")
   }, [
     canvasMode,
-    cropBusy,
-    loadImageState,
     editorImageSource,
-    projectId,
-    refreshFilterImage,
-    refreshMasterImage,
-    refreshProjectImages,
     toolbar,
+    workflow,
   ])
 
   useEffect(() => {
     const onKeyDown = async (e: KeyboardEvent) => {
       if (canvasMode === "filter") return
       if (toolbar.tool !== "crop") return
-      if (cropBusy) return
+      if (workflow.isCropping) return
       if (e.key === "Escape") {
         e.preventDefault()
         canvasRef.current?.resetCropSelection()
@@ -428,7 +452,7 @@ export function ProjectDetailPageClient({
     }
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
-  }, [applyCropSelection, canvasMode, cropBusy, toolbar])
+  }, [applyCropSelection, canvasMode, toolbar, workflow.isCropping])
 
   const autoSelectMasterIdRef = useRef<string | null>(null)
 
@@ -509,7 +533,7 @@ export function ProjectDetailPageClient({
     selectedNavId,
     setSelectedNavId,
     masterImageId: activeCanvasImageId,
-    cropBusy,
+    cropBusy: workflow.isCropping,
   })
 
   const stageToolbar = useMemo(
@@ -520,11 +544,11 @@ export function ProjectDetailPageClient({
       cropDisabled: canvasMode === "filter" || toolbarImageLocked,
       rotateDisabled: canvasMode === "filter" || toolbarImageLocked,
       cropEnabled: canvasMode !== "filter" && toolbar.tool === "crop",
-      cropBusy,
+      cropBusy: workflow.isCropping,
       imageDraggable: canvasMode !== "filter" && toolbar.tool === "select",
       panEnabled: canvasMode === "filter" ? true : toolbar.tool === "hand",
     }),
-    [canvasMode, cropBusy, handleToolbarToolChange, toolbar, toolbarImageLocked]
+    [canvasMode, handleToolbarToolChange, toolbar, toolbarImageLocked, workflow.isCropping]
   )
 
   const selectedImage = useMemo(() => {
@@ -562,23 +586,12 @@ export function ProjectDetailPageClient({
   }, [deleteImage, deleteImageById, refreshFilterImage, refreshMasterImage, refreshProjectImages, selectedImageId, setDeleteOpen])
 
   const handleRestoreInitialImage = useCallback(async () => {
-    if (restoreBusy) return
-    setRestoreError("")
-    setRestoreBusy(true)
-    try {
-      await restoreInitialMasterImage(projectId)
-      setRestoreOpen(false)
-      toolbar.setTool("select")
-      await refreshMasterImage()
-      await refreshProjectImages()
-      await refreshFilterImage()
-      await loadImageState()
-    } catch (e) {
-      setRestoreError(e instanceof Error ? e.message : "Failed to restore initial image")
-    } finally {
-      setRestoreBusy(false)
-    }
-  }, [loadImageState, projectId, refreshFilterImage, refreshMasterImage, refreshProjectImages, restoreBusy, toolbar])
+    if (workflow.isRestoring) return
+    workflow.dismissError()
+    workflow.restore()
+    setRestoreOpen(false)
+    toolbar.setTool("select")
+  }, [toolbar, workflow])
 
   const requestDeleteImage = useCallback(
     async (imageId: string) => {
@@ -681,13 +694,14 @@ export function ProjectDetailPageClient({
   })
 
   const renderModel = useMemo(() => {
-    const baseImage = editorImageSource.status === "ready"
+    const readyImage = editorImageSource.status === "ready" ? editorImageSource.image : null
+    const baseImage = readyImage
       ? {
-          id: editorImageSource.image.id,
-          signedUrl: editorImageSource.image.signedUrl,
-          name: editorImageSource.image.name,
-          width_px: editorImageSource.image.width_px,
-          height_px: editorImageSource.image.height_px,
+          id: readyImage.id,
+          signedUrl: readyImage.signedUrl,
+          name: readyImage.name,
+          width_px: readyImage.width_px,
+          height_px: readyImage.height_px,
           dpi: null,
           restore_base: null,
         }
@@ -732,8 +746,8 @@ export function ProjectDetailPageClient({
                 <SidebarMenuAction
                   inline
                   aria-label="Remove filter"
-                  disabled={removingFilter}
-                  onClick={() => void handleRemoveFilter(filter.id)}
+                  disabled={workflow.isRemovingFilter}
+                  onClick={() => workflow.removeFilter(filter.id)}
                 >
                   <Trash2 />
                 </SidebarMenuAction>
@@ -745,7 +759,7 @@ export function ProjectDetailPageClient({
             <SidebarMenuButton
               isActive={canvasMode === "filter" && filterStack.length === 0}
               className="text-xs font-medium"
-              disabled={!hasFilterSourceImage}
+                disabled={isNewFilterDisabled}
               onClick={openFilterSelection}
             >
               <SlidersHorizontal />
@@ -753,7 +767,7 @@ export function ProjectDetailPageClient({
             </SidebarMenuButton>
             <SidebarMenuAction
               aria-label="Add filter"
-              disabled={!hasFilterSourceImage || isNewFilterActionBusy}
+              disabled={isNewFilterDisabled}
               onClick={openFilterSelection}
             >
               <Plus />
@@ -765,17 +779,15 @@ export function ProjectDetailPageClient({
     [
       canvasMode,
       filterStack,
-      hasFilterSourceImage,
       hiddenFilterIds,
-      handleRemoveFilter,
-      isNewFilterActionBusy,
+      isNewFilterDisabled,
       isActiveDisplayFilterHidden,
       activeDisplayFilterId,
       openFilterSelection,
-      removingFilter,
       setCanvasMode,
       showFilter,
       toggleHiddenFilter,
+      workflow,
     ]
   )
 
@@ -856,8 +868,8 @@ export function ProjectDetailPageClient({
             setDeleteError={setDeleteError}
             restoreOpen={restoreOpen}
             setRestoreOpen={setRestoreOpen}
-            restoreBusy={restoreBusy}
-            restoreError={restoreError}
+            restoreBusy={workflow.isRestoring}
+            restoreError={restoreOperationError}
             onRestoreImage={handleRestoreInitialImage}
             deleteOpen={deleteOpen}
             setDeleteOpen={setDeleteOpen}
@@ -884,32 +896,29 @@ export function ProjectDetailPageClient({
           {filterDialogSource ? (
             <>
               <PixelateFilterController
-                projectId={projectId}
-                workingImageId={filterDialogSource.sourceImageId}
                 workingImageWidth={filterDialogSource.sourceImageWidth}
                 workingImageHeight={filterDialogSource.sourceImageHeight}
                 open={filterDialog.activeFilterType === "pixelate"}
                 onClose={filterDialog.closeConfigure}
                 onSuccess={handleFilterApplySuccess}
                 onError={handleFilterApplyError}
+                onApplyFilter={handleApplyFilter}
               />
               <LineArtFilterController
-                projectId={projectId}
-                workingImageId={filterDialogSource.sourceImageId}
                 open={filterDialog.activeFilterType === "lineart"}
                 onClose={filterDialog.closeConfigure}
                 onSuccess={handleFilterApplySuccess}
                 onError={handleFilterApplyError}
+                onApplyFilter={handleApplyFilter}
               />
               <NumerateFilterController
-                projectId={projectId}
-                workingImageId={filterDialogSource.sourceImageId}
                 superpixelWidth={numerateSuperpixelWidth}
                 superpixelHeight={numerateSuperpixelHeight}
                 open={filterDialog.activeFilterType === "numerate"}
                 onClose={filterDialog.closeConfigure}
                 onSuccess={handleFilterApplySuccess}
                 onError={handleFilterApplyError}
+                onApplyFilter={handleApplyFilter}
               />
             </>
           ) : null}

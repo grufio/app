@@ -481,6 +481,22 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      append_project_image_filter: {
+        Args: {
+          p_filter_params: Json
+          p_filter_type: string
+          p_input_image_id: string
+          p_output_image_id: string
+          p_project_id: string
+        }
+        Returns: undefined
+      }
+      reorder_project_image_filters: {
+        Args: {
+          p_project_id: string
+        }
+        Returns: undefined
+      }
       set_active_master_image: {
         Args: {
           p_image_id: string

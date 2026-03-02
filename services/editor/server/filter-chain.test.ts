@@ -18,6 +18,24 @@ describe("filter-chain service", () => {
     expect(rpc).toHaveBeenCalledWith("append_project_image_filter", expect.objectContaining({ p_project_id: "p1" }))
   })
 
+  it("returns structured stage on append failure", async () => {
+    const rpc = vi.fn().mockResolvedValue({ error: { message: "tip mismatch", code: "23514" } })
+    const supabase = { rpc } as unknown as Parameters<typeof appendProjectImageFilter>[0]["supabase"]
+    const out = await appendProjectImageFilter({
+      supabase,
+      projectId: "p1",
+      inputImageId: "i1",
+      outputImageId: "i2",
+      filterType: "pixelate",
+      filterParams: { superpixel_width: 10 },
+    })
+    expect(out.ok).toBe(false)
+    if (!out.ok) {
+      expect(out.stage).toBe("chain_append")
+      expect(out.code).toBe("23514")
+    }
+  })
+
   it("cleans up storage and db row", async () => {
     const remove = vi.fn().mockResolvedValue({ error: null })
     const from = vi.fn().mockReturnValue({ remove })

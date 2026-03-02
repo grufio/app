@@ -17,7 +17,7 @@ export function boundsFromNodeNoRotation(node: { width(): number; height(): numb
 }
 
 export function boundsFromNodeClientRect(
-  node: { getClientRect(config?: Konva.ShapeGetClientRectConfig): { x: number; y: number; width: number; height: number } },
+  node: { getClientRect(config?: { relativeTo?: Konva.Node }): { x: number; y: number; width: number; height: number } },
   layer: Konva.Node
 ): BoundsRect {
   const r = node.getClientRect({ relativeTo: layer })

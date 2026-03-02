@@ -2,28 +2,25 @@
 
 import { BaseFilterController } from "./BaseFilterController"
 import { NumerateForm, type NumerateFormData } from "./numerate-form"
-import { applyProjectImageFilter } from "@/lib/api/project-images"
 
 type Props = {
-  projectId: string
-  workingImageId: string
   superpixelWidth: number
   superpixelHeight: number
   open: boolean
   onClose: () => void
   onSuccess: () => void
   onError?: (error: Error) => void
+  onApplyFilter: (args: { filterType: "numerate"; filterParams: Record<string, unknown> }) => Promise<void>
 }
 
 export function NumerateFilterController({
-  projectId,
-  workingImageId,
   superpixelWidth,
   superpixelHeight,
   open,
   onClose,
   onSuccess,
   onError,
+  onApplyFilter,
 }: Props) {
   return (
     <BaseFilterController<NumerateFormData>
@@ -34,11 +31,9 @@ export function NumerateFilterController({
       title="Numerate"
       description="Create a vector grid overlay from pixelated superpixels."
       applyFilter={async (data) => {
-        await applyProjectImageFilter({
-          projectId,
+        await onApplyFilter({
           filterType: "numerate",
           filterParams: {
-            source_image_id: workingImageId,
             superpixel_width: superpixelWidth,
             superpixel_height: superpixelHeight,
             stroke_width: data.strokeWidth,

@@ -49,6 +49,6 @@ export async function GET(
     return jsonError(error.message, 400, { stage: "image_exists_query" })
   }
 
-  return NextResponse.json({ exists: Array.isArray(data) ? data.length > 0 : Boolean(data?.id) })
+  return NextResponse.json({ exists: Array.isArray(data) ? data.length > 0 : false })
 }
 

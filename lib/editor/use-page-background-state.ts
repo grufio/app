@@ -7,7 +7,7 @@ import { clampOpacityPercent, normalizeWorkspacePageBg } from "@/services/editor
 
 export function usePageBackgroundState(args: {
   workspaceRow: WorkspaceRow | null
-  updateWorkspacePageBg: (values: { enabled: boolean; color: string; opacity: number }) => Promise<void> | void
+  updateWorkspacePageBg: (values: { enabled: boolean; color: string; opacity: number }) => Promise<unknown> | void
 }) {
   const { workspaceRow, updateWorkspacePageBg } = args
   const normalized = normalizeWorkspacePageBg(workspaceRow)

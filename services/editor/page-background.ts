@@ -13,11 +13,18 @@ export function clampOpacityPercent(value: unknown, fallback: number): number {
   return Math.max(0, Math.min(100, base))
 }
 
-export function normalizeWorkspacePageBg(workspaceRow: WorkspaceRow): {
+export function normalizeWorkspacePageBg(workspaceRow: WorkspaceRow | null): {
   enabled: boolean
   color: string
   opacity: number
 } {
+  if (!workspaceRow) {
+    return {
+      enabled: false,
+      color: "#ffffff",
+      opacity: 50,
+    }
+  }
   return {
     enabled: Boolean(workspaceRow.page_bg_enabled ?? false),
     color: typeof workspaceRow.page_bg_color === "string" ? workspaceRow.page_bg_color : "#ffffff",
