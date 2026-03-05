@@ -30,14 +30,14 @@ export async function uploadMasterImageClient(args: {
   const { projectId, file, fetchImpl = fetch } = args
   const { width, height } = await getImageDimensions(file)
   const { dpiX, dpiY } = await extractImageDPI(file)
+  const dpi = Number.isFinite(dpiX) && dpiX > 0 ? Math.round(dpiX) : Number.isFinite(dpiY) && dpiY > 0 ? Math.round(dpiY) : null
   const format = guessImageFormat(file)
 
   const form = new FormData()
   form.set("file", file)
   form.set("width_px", String(width))
   form.set("height_px", String(height))
-  form.set("dpi_x", String(dpiX))
-  form.set("dpi_y", String(dpiY))
+  if (dpi != null) form.set("dpi", String(dpi))
   form.set("bit_depth", "8") // Default 8-bit for now
   form.set("format", format)
 

@@ -1932,6 +1932,9 @@ alter function public.set_active_master_image(uuid, uuid)
 -- db/048_reconcile_image_state_fk_and_master_state.sql
 -- db/049_enable_project_image_filters.sql
 -- db/050_atomic_filter_chain_append.sql
+-- db/051_canonical_set_active_master_with_state.sql
+-- db/052_reinforce_master_immutable_contract.sql
+-- db/053_collect_transitive_delete_targets.sql
 
 -- =========================================================
 -- db/037_master_variant_filter_contract.sql

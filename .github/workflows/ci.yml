@@ -10,6 +10,10 @@ on:
   push:
     branches: [ main ]
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lint_test:
     runs-on: ubuntu-latest
@@ -26,8 +30,17 @@ jobs:
       - name: Install
         run: npm ci
 
-      - name: Check (lint + tests + schema markers)
-        run: npm run check
+      - name: Check local gates (lint + tests + schema markers)
+        run: npm run check:local
+
+      - name: Coverage gate
+        run: npm run test:coverage:gate
+
+      - name: Check remote DB invariants (optional)
+        if: ${{ secrets.SUPABASE_DB_URL != '' }}
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: npm run check:remote
 
       # Optional release gates (require secrets + linked Supabase project).
       - name: Verify remote migrations (optional)
@@ -49,34 +62,8 @@ jobs:
           SUPABASE_VERIFY_TYPES_SYNC: "1"
         run: npm run verify:types-synced
 
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
-      - name: Cache Next build cache
-        uses: actions/cache@v4
-        with:
-          path: .next/cache
-          key: ${{ runner.os }}-nextcache-${{ hashFiles('package-lock.json') }}-${{ hashFiles('next.config.*', 'tsconfig.json', 'app/**/*', 'components/**/*', 'lib/**/*') }}
-          restore-keys: |
-            ${{ runner.os }}-nextcache-${{ hashFiles('package-lock.json') }}-
-            ${{ runner.os }}-nextcache-
-
-      - name: Install
-        run: npm ci
-
-      - name: Build
-        run: npm run build
-
   e2e:
+    needs: lint_test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -109,9 +96,9 @@ jobs:
       - name: E2E (Playwright)
         env:
           PLAYWRIGHT_USE_WEBSERVER: "1"
-          PLAYWRIGHT_WEBSERVER_COMMAND: "npm run dev:e2e"
+          PLAYWRIGHT_WEBSERVER_COMMAND: "npm run start:e2e"
           PLAYWRIGHT_BASE_URL: "http://127.0.0.1:3110"
-        run: npm run test:e2e:ci
+        run: npm run test:e2e:ci:pr
 
       - name: Upload Playwright report
         if: failure()
@@ -120,3 +107,11 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
+
+      - name: Upload Playwright flaky metrics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-flaky-metrics
+          path: playwright-report/flaky-summary.json
+          retention-days: 30

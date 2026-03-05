@@ -13,6 +13,7 @@ import { SidebarContent } from "@/components/ui/sidebar"
 import { EditorSidebarSection } from "./sidebar/editor-sidebar-section"
 import { EditorNavTree } from "./editor-nav-tree"
 import { TabsSidepanel, type SidepanelTab } from "./TabsSidepanel"
+import { useResizableSidebar } from "./use-resizable-sidebar"
 
 export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel(props: {
   projectId: string
@@ -56,32 +57,19 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
   } = props
 
   const clamp = (v: number) => Math.max(minRem, Math.min(maxRem, v))
+  const startResize = useResizableSidebar()
 
   const onResizeMouseDown = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    const prevCursor = document.body.style.cursor
-    const prevUserSelect = document.body.style.userSelect
-    document.body.style.cursor = "col-resize"
-    document.body.style.userSelect = "none"
-    const startX = e.clientX
-    const startWidthPx = widthRem * 16
-
-    const onMove = (ev: MouseEvent) => {
-      const nextWidthPx = startWidthPx + (ev.clientX - startX)
-      const nextRem = clamp(nextWidthPx / 16)
-      onWidthRemChange(nextRem)
-    }
-
-    const onUp = () => {
-      window.removeEventListener("mousemove", onMove)
-      window.removeEventListener("mouseup", onUp)
-      document.body.style.cursor = prevCursor
-      document.body.style.userSelect = prevUserSelect
-    }
-
-    window.addEventListener("mousemove", onMove)
-    window.addEventListener("mouseup", onUp)
+    startResize({
+      startClientX: e.clientX,
+      startWidthRem: widthRem,
+      minRem,
+      maxRem,
+      direction: "expand-right",
+      onWidthRemChange,
+    })
   }
 
   return (

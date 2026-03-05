@@ -11,7 +11,7 @@ describe("upload-master-image", () => {
     vi.restoreAllMocks()
   })
 
-  it("submits form-data without client dpi", async () => {
+  it("submits form-data with normalized client dpi when available", async () => {
     const file = new File([new Uint8Array([1, 2, 3])], "test.png", { type: "image/png" })
     let capturedBody: FormData | null = null
 
@@ -24,7 +24,7 @@ describe("upload-master-image", () => {
     expect(out).toEqual({ ok: true })
     expect(capturedBody?.get("width_px")).toBe("640")
     expect(capturedBody?.get("height_px")).toBe("480")
-    expect(capturedBody?.get("dpi")).toBeNull()
+    expect(capturedBody?.get("dpi")).toBe("72")
   })
 
   it("normalizes API error payload into a stable message", async () => {

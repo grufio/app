@@ -33,26 +33,21 @@ function resolveChromiumExecutablePath(): string | undefined {
   const baseDir = resolvePlaywrightBrowsersBaseDir()
   const chromiumDir = getNewestVersionedDir(baseDir, "chromium-")
   if (!chromiumDir) return undefined
-  const macDir = path.join(chromiumDir, `chrome-mac-${hostArch}`)
-  if (!existsSync(macDir)) return undefined
-
-  const knownAppBinaries = [
-    path.join(
-      macDir,
-      "Chromium.app",
-      "Contents",
-      "MacOS",
-      "Chromium"
-    ),
-    path.join(
-      macDir,
-      "Google Chrome for Testing.app",
-      "Contents",
-      "MacOS",
-      "Google Chrome for Testing"
-    ),
-  ]
-  for (const binary of knownAppBinaries) {
+  const knownBinaries: string[] = []
+  if (process.platform === "darwin") {
+    const macDir = path.join(chromiumDir, `chrome-mac-${hostArch}`)
+    knownBinaries.push(
+      path.join(macDir, "Chromium.app", "Contents", "MacOS", "Chromium"),
+      path.join(macDir, "Google Chrome for Testing.app", "Contents", "MacOS", "Google Chrome for Testing")
+    )
+  } else if (process.platform === "linux") {
+    const linuxDir = path.join(chromiumDir, "chrome-linux")
+    knownBinaries.push(path.join(linuxDir, "chrome"), path.join(linuxDir, "chrome-wrapper"))
+  } else if (process.platform === "win32") {
+    const winDir = path.join(chromiumDir, "chrome-win")
+    knownBinaries.push(path.join(winDir, "chrome.exe"))
+  }
+  for (const binary of knownBinaries) {
     if (existsSync(binary)) return binary
   }
   return undefined
@@ -67,7 +62,9 @@ export default defineConfig({
   fullyParallel: true,
   maxFailures: process.env.CI ? 1 : undefined,
   retries: process.env.CI ? 2 : 0,
-  reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : [["list"]],
+  reporter: process.env.CI
+    ? [["github"], ["html", { open: "never" }], ["json", { outputFile: "playwright-report/results.json" }]]
+    : [["list"]],
   use: {
     baseURL,
     trace: "retain-on-failure",

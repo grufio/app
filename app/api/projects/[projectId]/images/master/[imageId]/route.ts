@@ -1,10 +1,10 @@
 /**
- * API route: delete a master image by id.
+ * API route: delete a non-master image by id.
  *
  * Responsibilities:
- * - Delete DB record (cascade will auto-delete derived images via FK)
+ * - Delete non-master DB record (cascade will auto-delete derived images via FK)
  * - Delete storage objects for the master and all transitively derived images
- * - If the active master was removed, promote the latest remaining master
+ * - If the active image was removed, promote the latest remaining master
  */
 import { NextResponse } from "next/server"
 
@@ -54,69 +54,64 @@ export async function DELETE(
   if (!imageToDelete) {
     return jsonError("Image not found", 404, { stage: "not_found" })
   }
-
-  // Fetch ALL images in project to find transitive dependencies
-  const { data: allImages } = await supabase
-    .from("project_images")
-    .select("id,storage_path,storage_bucket,source_image_id")
-    .eq("project_id", projectId)
-    .is("deleted_at", null)
-
-  // Build transitive dependency tree
-  const transitivelyDerived = new Set<string>()
-  const toProcess = [imageId]
-  
-  while (toProcess.length > 0) {
-    const currentId = toProcess.pop()!
-    const children = (allImages ?? []).filter((img) => img.source_image_id === currentId)
-    for (const child of children) {
-      if (!transitivelyDerived.has(child.id)) {
-        transitivelyDerived.add(child.id)
-        toProcess.push(child.id)
-      }
-    }
+  if (imageToDelete.role === "master") {
+    return jsonError("Master image is immutable. Use restore/replace flow.", 409, { stage: "master_immutable" })
   }
+
+  const { data: targetsRaw, error: targetsErr } = await supabase.rpc("collect_project_image_delete_targets", {
+    p_project_id: projectId,
+    p_root_image_id: imageId,
+  })
+  if (targetsErr) {
+    return jsonError("Failed to resolve transitive delete targets", 500, {
+      stage: "delete_targets",
+      error: targetsErr.message,
+      code: (targetsErr as unknown as { code?: string })?.code,
+    })
+  }
+  const deleteTargets = Array.isArray(targetsRaw)
+    ? (targetsRaw as Array<{ id: string; storage_bucket: string | null; storage_path: string | null }>)
+    : []
 
   const wasActive = imageToDelete.is_active
 
-  // Delete the master image (cascade will delete all derived images via FK)
+  // Delete non-master image (cascade deletes derived rows via FK)
   const { error: deleteErr, count } = await supabase
     .from("project_images")
     .delete({ count: "exact" })
     .eq("id", imageId)
     .eq("project_id", projectId)
-
-  console.log(`[DELETE] imageId=${imageId}, deleteErr=${JSON.stringify(deleteErr)}, count=${count}, transitiveCount=${transitivelyDerived.size}`)
+    .neq("role", "master")
 
   if (deleteErr) {
-    return jsonError("Failed to delete image", 400, { stage: "db_delete", error: deleteErr.message, code: deleteErr.code })
+    return jsonError("Failed to delete image", 500, { stage: "db_delete", error: deleteErr.message, code: deleteErr.code })
   }
 
   if (count === 0) {
     return jsonError("Image was not deleted (possibly already deleted or RLS blocked)", 400, { stage: "db_delete", code: "no_rows_affected" })
   }
 
-  // Clean up storage for master
-  const storagePaths: string[] = []
-  if (imageToDelete.storage_path) {
-    storagePaths.push(imageToDelete.storage_path)
-  }
-
-  // Clean up storage for all transitively derived images
-  if (allImages) {
-    for (const img of allImages) {
-      if (transitivelyDerived.has(img.id) && img.storage_path) {
-        storagePaths.push(img.storage_path)
+  if (deleteTargets.length > 0) {
+    const storageByBucket = new Map<string, string[]>()
+    const defaultBucket = "project_images"
+    for (const target of deleteTargets) {
+      if (!target.storage_path) continue
+      const bucket = target.storage_bucket ?? defaultBucket
+      const existing = storageByBucket.get(bucket)
+      if (existing) existing.push(target.storage_path)
+      else storageByBucket.set(bucket, [target.storage_path])
+    }
+    for (const [bucket, paths] of storageByBucket) {
+      if (!paths.length) continue
+      const { error: removeErr } = await supabase.storage.from(bucket).remove(paths)
+      if (removeErr) {
+        return jsonError("Failed to cleanup storage objects", 502, {
+          stage: "storage_cleanup",
+          bucket,
+          error: removeErr.message,
+        })
       }
     }
-  }
-
-  console.log(`[DELETE] storagePaths to remove: ${storagePaths.length}`, storagePaths)
-
-  if (storagePaths.length > 0) {
-    const bucket = imageToDelete.storage_bucket ?? "project_images"
-    const { data: removeData, error: removeErr } = await supabase.storage.from(bucket).remove(storagePaths)
-    console.log(`[DELETE] storage remove result:`, { removeData, removeErr })
   }
 
   // If we deleted the active image, promote the latest remaining master
@@ -135,11 +130,14 @@ export async function DELETE(
         .from("project_images")
         .update({ is_active: true })
         .eq("id", remainingImages[0].id)
-      console.log(`[DELETE] promoted next master: ${remainingImages[0].id}, error: ${promoteErr?.message}`)
-    } else {
-      console.log(`[DELETE] no remaining master images to promote`)
+      if (promoteErr) {
+        return jsonError("Failed to promote remaining active image", 500, {
+          stage: "promote_next_master",
+          error: promoteErr.message,
+        })
+      }
     }
   }
 
-  return NextResponse.json({ ok: true, deleted: count, transitiveCount: transitivelyDerived.size })
+  return NextResponse.json({ ok: true, deleted: count, transitiveCount: Math.max(0, deleteTargets.length - 1) })
 }

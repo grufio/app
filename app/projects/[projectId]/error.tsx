@@ -20,7 +20,13 @@ export default function Error({
 }) {
   useEffect(() => {
     console.error("Project editor route error:", error)
-    void reportError(error, { tags: { route: "project-editor" } })
+    void reportError(error, {
+      scope: "editor",
+      code: "APP_RUNTIME",
+      stage: "project_editor_error_boundary",
+      severity: "error",
+      tags: { route: "project-editor" },
+    })
   }, [error])
 
   return (

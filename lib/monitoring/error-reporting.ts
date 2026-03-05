@@ -11,10 +11,17 @@
  */
 
 export type ErrorEvent = {
+  schemaVersion: "v1"
+  timestamp: string
   message: string
   stack?: string
   name?: string
   digest?: string
+  scope?: "app" | "editor" | "api" | "server" | "client"
+  code?: string
+  stage?: string
+  severity?: "error" | "warn"
+  context?: Record<string, unknown>
   tags?: Record<string, string>
   extra?: Record<string, unknown>
 }
@@ -31,10 +38,15 @@ function getIngestUrl(): string | null {
   }
 }
 
-export async function reportError(error: unknown, event?: Omit<ErrorEvent, "message" | "stack" | "name">) {
+export async function reportError(
+  error: unknown,
+  event?: Omit<ErrorEvent, "message" | "stack" | "name" | "schemaVersion" | "timestamp">
+) {
   const e = error instanceof Error ? error : new Error(typeof error === "string" ? error : "Unknown error")
   const digestValue = (e as unknown as { digest?: unknown }).digest
   const payload: ErrorEvent = {
+    schemaVersion: "v1",
+    timestamp: new Date().toISOString(),
     message: e.message,
     stack: e.stack,
     name: e.name,

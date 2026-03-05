@@ -491,6 +491,17 @@ export type Database = {
         }
         Returns: undefined
       }
+      collect_project_image_delete_targets: {
+        Args: {
+          p_project_id: string
+          p_root_image_id: string
+        }
+        Returns: {
+          id: string
+          storage_bucket: string | null
+          storage_path: string | null
+        }[]
+      }
       reorder_project_image_filters: {
         Args: {
           p_project_id: string

@@ -50,14 +50,19 @@ export async function POST(
 
   const width_px = Number(form.get("width_px"))
   const height_px = Number(form.get("height_px"))
-  const dpi_x = Number(form.get("dpi_x"))
-  const dpi_y = Number(form.get("dpi_y"))
-  const bit_depth = Number(form.get("bit_depth"))
+  const dpiRaw = form.get("dpi")
+  const dpiXRaw = form.get("dpi_x")
+  const dpiYRaw = form.get("dpi_y")
+  const bitDepthRaw = form.get("bit_depth")
   const format = String(form.get("format") ?? "unknown")
 
-  if (!Number.isFinite(width_px) || !Number.isFinite(height_px) || !Number.isFinite(dpi_x) || !Number.isFinite(dpi_y) || !Number.isFinite(bit_depth)) {
-    return jsonError("Missing/invalid dimensions/dpi", 400, { stage: "validation", where: "validate" })
+  if (!Number.isFinite(width_px) || !Number.isFinite(height_px)) {
+    return jsonError("Missing/invalid dimensions", 400, { stage: "validation", where: "validate" })
   }
+  const parsedDpi = Number(dpiRaw ?? dpiXRaw ?? dpiYRaw)
+  const dpi = Number.isFinite(parsedDpi) && parsedDpi > 0 ? parsedDpi : null
+  const parsedBitDepth = Number(bitDepthRaw)
+  const bitDepth = Number.isFinite(parsedBitDepth) && parsedBitDepth > 0 ? parsedBitDepth : null
 
   const result = await uploadMasterImage({
     supabase,
@@ -65,9 +70,8 @@ export async function POST(
     file,
     widthPx: width_px,
     heightPx: height_px,
-    dpiX: dpi_x,
-    dpiY: dpi_y,
-    bitDepth: bit_depth,
+    ...(dpi != null ? { dpi } : {}),
+    ...(bitDepth != null ? { bitDepth } : {}),
     format,
   })
   if (!result.ok) {

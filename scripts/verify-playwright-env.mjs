@@ -42,14 +42,26 @@ function newestVersionedDir(baseDir, prefix) {
 function resolveChromiumBinary(baseDir, hostArch) {
   const chromiumDir = newestVersionedDir(baseDir, "chromium-")
   if (!chromiumDir) return null
-  const macDir = path.join(chromiumDir, `chrome-mac-${hostArch}`)
-  if (!fs.existsSync(macDir)) return null
-
-  const binaries = [
-    path.join(macDir, "Google Chrome for Testing.app", "Contents", "MacOS", "Google Chrome for Testing"),
-    path.join(macDir, "Chromium.app", "Contents", "MacOS", "Chromium"),
-  ]
-  return binaries.find((candidate) => fs.existsSync(candidate)) ?? null
+  const candidates = []
+  if (process.platform === "darwin") {
+    const macDir = path.join(chromiumDir, `chrome-mac-${hostArch}`)
+    candidates.push(
+      path.join(macDir, "Google Chrome for Testing.app", "Contents", "MacOS", "Google Chrome for Testing"),
+      path.join(macDir, "Chromium.app", "Contents", "MacOS", "Chromium")
+    )
+  } else if (process.platform === "linux") {
+    const linuxDir = path.join(chromiumDir, "chrome-linux")
+    candidates.push(
+      path.join(linuxDir, "chrome"),
+      path.join(linuxDir, "chrome-wrapper")
+    )
+  } else if (process.platform === "win32") {
+    const winDir = path.join(chromiumDir, "chrome-win")
+    candidates.push(
+      path.join(winDir, "chrome.exe")
+    )
+  }
+  return candidates.find((candidate) => fs.existsSync(candidate)) ?? null
 }
 
 async function canReachUrl(url) {

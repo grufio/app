@@ -9,7 +9,7 @@ import {
   type FilterType,
   type ProjectImageFilterItem,
 } from "@/lib/api/project-images"
-import { createSerialWriteChannel } from "@/lib/utils/serial-write-channel"
+import { createSerialWriteChannel, isSupersededWriteError } from "@/lib/utils/serial-write-channel"
 
 export function useProjectImageFilters(projectId: string) {
   const [items, setItems] = useState<ProjectImageFilterItem[]>([])
@@ -54,36 +54,46 @@ export function useProjectImageFilters(projectId: string) {
 
   const apply = useCallback(
     async (filterType: FilterType, filterParams?: Record<string, unknown>) => {
-      return channelRef.current.enqueueLatest(async () => {
-        setError("")
-        try {
-          const out = await applyProjectImageFilter({ projectId, filterType, filterParams })
-          await refresh()
-          return { ok: true as const, ...out }
-        } catch (e) {
-          const msg = e instanceof Error ? e.message : "Failed to apply filter"
-          if (mountedRef.current) setError(msg)
-          return { ok: false as const, error: msg }
-        }
-      })
+      try {
+        return await channelRef.current.enqueueLatest(async () => {
+          setError("")
+          try {
+            const out = await applyProjectImageFilter({ projectId, filterType, filterParams })
+            await refresh()
+            return { ok: true as const, ...out }
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : "Failed to apply filter"
+            if (mountedRef.current) setError(msg)
+            return { ok: false as const, error: msg }
+          }
+        })
+      } catch (e) {
+        if (isSupersededWriteError(e)) return { ok: true as const }
+        throw e
+      }
     },
     [projectId, refresh]
   )
 
   const remove = useCallback(
     async (filterId: string) => {
-      return channelRef.current.enqueueLatest(async () => {
-        setError("")
-        try {
-          const out = await removeProjectImageFilter({ projectId, filterId })
-          await refresh()
-          return { ok: true as const, ...out }
-        } catch (e) {
-          const msg = e instanceof Error ? e.message : "Failed to remove filter"
-          if (mountedRef.current) setError(msg)
-          return { ok: false as const, error: msg }
-        }
-      })
+      try {
+        return await channelRef.current.enqueueLatest(async () => {
+          setError("")
+          try {
+            const out = await removeProjectImageFilter({ projectId, filterId })
+            await refresh()
+            return { ok: true as const, ...out }
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : "Failed to remove filter"
+            if (mountedRef.current) setError(msg)
+            return { ok: false as const, error: msg }
+          }
+        })
+      } catch (e) {
+        if (isSupersededWriteError(e)) return { ok: true as const }
+        throw e
+      }
     },
     [projectId, refresh]
   )

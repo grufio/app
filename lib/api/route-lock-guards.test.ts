@@ -101,7 +101,7 @@ function makeDeleteRouteSupabaseInactive() {
       storage_path: "path/file.png",
       is_active: false,
       is_locked: false,
-      role: "master",
+      role: "working",
       source_image_id: null,
     },
   ]
@@ -151,7 +151,9 @@ function makeDeleteRouteSupabaseInactive() {
           }),
           delete: () => ({
             eq: () => ({
-              eq: async () => ({ error: null, count: 1 }),
+              eq: () => ({
+                neq: async () => ({ error: null, count: 1 }),
+              }),
             }),
           }),
           update: () => ({
@@ -166,7 +168,10 @@ function makeDeleteRouteSupabaseInactive() {
         remove: async () => ({ error: null }),
       }),
     },
-    rpc: async () => ({ error: null }),
+    rpc: async () => ({
+      data: [{ id: IMAGE_UUID, storage_bucket: "project_images", storage_path: "path/file.png" }],
+      error: null,
+    }),
   }
 }
 

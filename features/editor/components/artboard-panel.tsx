@@ -122,6 +122,8 @@ export function ArtboardPanel() {
   const draftUnitRef = useRef<Unit>("mm")
   const unitChangeInFlightRef = useRef<Unit | null>(null)
   const lockRatioRef = useRef<number | null>(null)
+  const pendingTaskSeqRef = useRef(0)
+  const unmountedRef = useRef(false)
 
   useEffect(() => {
     draftUnitRef.current = draftUnit
@@ -131,7 +133,24 @@ export function ArtboardPanel() {
     // Reset lock ratio when switching projects (no setState to satisfy lint rule).
     lockRatioRef.current = null
     geometryDirtyRef.current = false
+    pendingTaskSeqRef.current++
   }, [activeProjectId])
+
+  useEffect(() => {
+    unmountedRef.current = false
+    return () => {
+      unmountedRef.current = true
+    }
+  }, [])
+
+  const schedulePersist = (task: () => Promise<void> | void) => {
+    const seq = ++pendingTaskSeqRef.current
+    queueMicrotask(() => {
+      if (unmountedRef.current) return
+      if (seq !== pendingTaskSeqRef.current) return
+      void task()
+    })
+  }
 
   // Canonical size for conversions is µpx (BigInt), not integer px.
   const canonicalW = widthPxU
@@ -209,10 +228,13 @@ export function ArtboardPanel() {
     draftUnitRef.current = nextUnit
     setDraftUnit(nextUnit)
 
-    setTimeout(() => {
-      void saveUnitOnly(nextUnit)
-      unitChangeInFlightRef.current = null
-    }, 0)
+    schedulePersist(async () => {
+      try {
+        await saveUnitOnly(nextUnit)
+      } finally {
+        unitChangeInFlightRef.current = null
+      }
+    })
   }
 
   const onRasterPresetChange = (next: string) => {
@@ -225,7 +247,7 @@ export function ArtboardPanel() {
     setDraftOutputDpi(String(dpi))
 
     // Output DPI only; do not change canonical µpx size.
-    setTimeout(() => {
+    schedulePersist(() => {
       const computed = computeWorkspaceDpiChange({ base: row, nextDpi: dpi, nextPreset: preset })
       void updateWorkspaceDpi({
         outputDpi: computed.next.output_dpi,
@@ -234,7 +256,7 @@ export function ArtboardPanel() {
         if (!saved) return
         geometryDirtyRef.current = false
       })
-    }, 0)
+    })
   }
 
   const controlsDisabled = loading || !row || saving || !canonicalW || !canonicalH

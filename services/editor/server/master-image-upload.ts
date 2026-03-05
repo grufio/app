@@ -10,7 +10,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { activateMasterWithState } from "@/lib/supabase/project-images"
 import type { Database } from "@/lib/supabase/database.types"
 
-type UploadFailStage = "validation" | "upload_limits" | "storage_upload" | "db_upsert" | "active_switch" | "lock_conflict"
+type UploadFailStage = "validation" | "upload_limits" | "storage_upload" | "db_upsert" | "active_switch" | "lock_conflict" | "storage_cleanup"
 
 export type UploadMasterImageFailure = {
   ok: false
@@ -53,24 +53,45 @@ function normalizePositiveInt(n: number): number | null {
   return v
 }
 
+function mapDbErrorStatus(error: { code?: string }): number {
+  if (error.code === "23505") return 409
+  if (error.code === "23503") return 409
+  if (error.code === "23514") return 400
+  return 500
+}
+
+async function cleanupUploadedObject(args: {
+  supabase: SupabaseClient<Database>
+  objectPath: string
+}): Promise<{ ok: true } | { ok: false; reason: string; code?: string }> {
+  const { supabase, objectPath } = args
+  const { error } = await supabase.storage.from("project_images").remove([objectPath])
+  if (error) {
+    return {
+      ok: false,
+      reason: error.message,
+      code: (error as unknown as { code?: string })?.code,
+    }
+  }
+  return { ok: true }
+}
+
 export async function uploadMasterImage(args: {
   supabase: SupabaseClient<Database>
   projectId: string
   file: File
   widthPx: number
   heightPx: number
-  dpiX: number
-  dpiY: number
-  bitDepth: number
+  dpi?: number | null
+  bitDepth?: number | null
   format: string
 }): Promise<UploadMasterImageResult> {
   const { supabase, projectId, file, format } = args
 
   const widthPx = normalizePositiveInt(args.widthPx)
   const heightPx = normalizePositiveInt(args.heightPx)
-  const dpiX = normalizePositiveInt(args.dpiX)
-  const dpiY = normalizePositiveInt(args.dpiY)
-  const bitDepth = normalizePositiveInt(args.bitDepth)
+  const dpi = args.dpi == null ? null : normalizePositiveInt(args.dpi)
+  const bitDepth = args.bitDepth == null ? null : normalizePositiveInt(args.bitDepth)
 
   if (!widthPx || !heightPx) {
     return {
@@ -78,15 +99,6 @@ export async function uploadMasterImage(args: {
       status: 400,
       stage: "validation",
       reason: "Missing/invalid width_px/height_px",
-    }
-  }
-
-  if (!dpiX || !dpiY || !bitDepth) {
-    return {
-      ok: false,
-      status: 400,
-      stage: "validation",
-      reason: "Missing/invalid dpi_x/dpi_y/bit_depth",
     }
   }
 
@@ -149,7 +161,7 @@ export async function uploadMasterImage(args: {
   if (uploadErr) {
     return {
       ok: false,
-      status: 400,
+      status: 502,
       stage: "storage_upload",
       reason: uploadErr.message,
       code: (uploadErr as unknown as { code?: string })?.code,
@@ -164,8 +176,7 @@ export async function uploadMasterImage(args: {
     format,
     width_px: widthPx,
     height_px: heightPx,
-    dpi_x: dpiX,
-    dpi_y: dpiY,
+    dpi,
     bit_depth: bitDepth,
     storage_bucket: "project_images",
     storage_path: objectPath,
@@ -173,12 +184,21 @@ export async function uploadMasterImage(args: {
     is_active: false,
   })
   if (dbErr) {
+    const cleanup = await cleanupUploadedObject({ supabase, objectPath })
     return {
       ok: false,
-      status: 400,
+      status: mapDbErrorStatus(dbErr as unknown as { code?: string }),
       stage: "db_upsert",
       reason: dbErr.message,
       code: (dbErr as unknown as { code?: string })?.code,
+      ...(cleanup.ok
+        ? {}
+        : {
+            details: {
+              cleanup_error: cleanup.reason,
+              cleanup_code: cleanup.code ?? null,
+            },
+          }),
     }
   }
 
@@ -190,12 +210,21 @@ export async function uploadMasterImage(args: {
     heightPx,
   })
   if (!activation.ok) {
+    const cleanup = await cleanupUploadedObject({ supabase, objectPath })
     return {
       ok: false,
-      status: activation.status,
+      status: activation.stage === "lock_conflict" ? 409 : 500,
       stage: activation.stage,
       reason: activation.reason,
       code: activation.code,
+      ...(cleanup.ok
+        ? {}
+        : {
+            details: {
+              cleanup_error: cleanup.reason,
+              cleanup_code: cleanup.code ?? null,
+            },
+          }),
     }
   }
 

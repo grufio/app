@@ -190,11 +190,15 @@ export function ProjectDetailPageClient({
     if (lastNoWorkingImageMetricRef.current === metricKey) return
     lastNoWorkingImageMetricRef.current = metricKey
     void reportError(new Error(noWorkingImageMessage), {
+      scope: "editor",
+      code: "WORKFLOW_SOURCE_MISSING",
+      stage: "source_snapshot",
+      severity: "warn",
       tags: {
         domain: "image_workflow",
         metric: "no_working_image_available",
       },
-      extra: {
+      context: {
         projectId,
         sourceStatus: sourceSnapshot.status,
       },

@@ -43,6 +43,8 @@ export function useEditorWorkflowAdapter(args: {
   } = args
   const [uploadSyncing, setUploadSyncing] = useState(false)
   const activeSourceImageIdRef = useRef<string | null>(null)
+  const refreshInFlightRef = useRef<Promise<void> | null>(null)
+  const refreshQueuedRef = useRef(false)
 
   const sourceSnapshot = useMemo<EditorImageSourceState>(() => {
     if (masterImageLoading || filterImageLoading || uploadSyncing || !filterImageLoadedOnce) {
@@ -96,12 +98,32 @@ export function useEditorWorkflowAdapter(args: {
     activeSnapshotImageId ?? undefined
   )
 
-  const refreshEditorData = useCallback(async () => {
+  const refreshEditorDataOnce = useCallback(async () => {
     await refreshMasterImage()
     await refreshProjectImages()
     await refreshFilterImage()
     await loadImageState()
   }, [loadImageState, refreshFilterImage, refreshMasterImage, refreshProjectImages])
+
+  const refreshEditorData = useCallback(async () => {
+    if (refreshInFlightRef.current) {
+      refreshQueuedRef.current = true
+      return refreshInFlightRef.current
+    }
+    const run = async () => {
+      do {
+        refreshQueuedRef.current = false
+        await refreshEditorDataOnce()
+      } while (refreshQueuedRef.current)
+    }
+    const inFlight = run().finally(() => {
+      if (refreshInFlightRef.current === inFlight) {
+        refreshInFlightRef.current = null
+      }
+    })
+    refreshInFlightRef.current = inFlight
+    return inFlight
+  }, [refreshEditorDataOnce])
 
   const removeFilterService = useCallback(
     async (filterId: string) => {

@@ -41,6 +41,7 @@ import { RightPanelIconButton } from "./right-panel-controls"
 import { IconColorField } from "./fields/icon-color-field"
 import { IconNumericField } from "./fields/icon-numeric-field"
 import { EditorSidebarSection } from "./sidebar/editor-sidebar-section"
+import { useResizableSidebar } from "./use-resizable-sidebar"
 import type { Unit } from "@/lib/editor/units"
 import type { EditorRightPanelSection } from "@/services/editor/section-registry"
 
@@ -116,32 +117,19 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
   } = props
 
   const clamp = (v: number) => Math.max(minPanelRem, Math.min(maxPanelRem, v))
+  const startResize = useResizableSidebar()
 
   const onResizeMouseDown = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    const prevCursor = document.body.style.cursor
-    const prevUserSelect = document.body.style.userSelect
-    document.body.style.cursor = "col-resize"
-    document.body.style.userSelect = "none"
-    const startX = e.clientX
-    const startWidthPx = panelWidthRem * 16
-
-    const onMove = (ev: MouseEvent) => {
-      const nextWidthPx = startWidthPx + (startX - ev.clientX)
-      const nextRem = clamp(nextWidthPx / 16)
-      onPanelWidthRemChange(nextRem)
-    }
-
-    const onUp = () => {
-      window.removeEventListener("mousemove", onMove)
-      window.removeEventListener("mouseup", onUp)
-      document.body.style.cursor = prevCursor
-      document.body.style.userSelect = prevUserSelect
-    }
-
-    window.addEventListener("mousemove", onMove)
-    window.addEventListener("mouseup", onUp)
+    startResize({
+      startClientX: e.clientX,
+      startWidthRem: panelWidthRem,
+      minRem: minPanelRem,
+      maxRem: maxPanelRem,
+      direction: "expand-left",
+      onWidthRemChange: onPanelWidthRemChange,
+    })
   }
 
   return (

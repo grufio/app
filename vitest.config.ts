@@ -26,6 +26,12 @@ export default defineConfig({
       provider: "v8",
       reporter: ["text", "html", "json"],
       exclude: ["e2e/**", "node_modules/**", ".next/**"],
+      thresholds: {
+        lines: 40,
+        functions: 40,
+        branches: 30,
+        statements: 40,
+      },
     },
   },
 })

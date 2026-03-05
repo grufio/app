@@ -11,6 +11,8 @@ import type {
   WorkflowTransformPayload,
 } from "./image-workflow.types"
 
+const WORKFLOW_WAIT_TIMEOUT_MS = 20_000
+
 export function useImageWorkflowMachine(args: {
   projectId?: string
   sourceSnapshot: WorkflowSourceSnapshot
@@ -20,6 +22,7 @@ export function useImageWorkflowMachine(args: {
   const [state, send, actorRef] = useMachine(machine, { input: { services: args.services } })
   const prevStateRef = useRef<string | null>(null)
   const lastEventRef = useRef<string>("INIT")
+  const refreshWaitRef = useRef<Promise<void> | null>(null)
 
   const sendEvent = useCallback((event: ImageWorkflowEvent) => {
     lastEventRef.current = event.type
@@ -71,7 +74,15 @@ export function useImageWorkflowMachine(args: {
 
   const applyFilter = (args: { filterType: "pixelate" | "lineart" | "numerate"; filterParams: Record<string, unknown> }) =>
     new Promise<void>((resolve, reject) => {
+      if (!state.can({ type: "FILTER_APPLY", filterType: args.filterType, filterParams: args.filterParams })) {
+        reject(new Error("Filter apply is not allowed in the current workflow state"))
+        return
+      }
       let enteredMutationFlow = false
+      const timeout = window.setTimeout(() => {
+        sub.unsubscribe()
+        reject(new Error("Timed out while waiting for filter workflow completion"))
+      }, WORKFLOW_WAIT_TIMEOUT_MS)
       const sub = actorRef.subscribe((snapshot) => {
         const isApplying = snapshot.matches({ operation: "applyingFilter" })
         const isSyncing = snapshot.matches({ operation: "syncing" })
@@ -82,11 +93,13 @@ export function useImageWorkflowMachine(args: {
         if (!enteredMutationFlow) return
 
         if (isError) {
+          window.clearTimeout(timeout)
           sub.unsubscribe()
           reject(new Error(snapshot.context.lastOpError || "Failed to apply filter"))
           return
         }
         if (isIdle) {
+          window.clearTimeout(timeout)
           sub.unsubscribe()
           resolve()
         }
@@ -94,8 +107,19 @@ export function useImageWorkflowMachine(args: {
       sendEvent({ type: "FILTER_APPLY", filterType: args.filterType, filterParams: args.filterParams })
     })
   const refreshAndWait = () =>
+    (refreshWaitRef.current ??=
     new Promise<void>((resolve, reject) => {
+      if (!state.matches({ operation: "syncing" }) && !state.can({ type: "REFRESH" })) {
+        refreshWaitRef.current = null
+        reject(new Error("Refresh is not allowed in the current workflow state"))
+        return
+      }
       let enteredSync = state.matches({ operation: "syncing" })
+      const timeout = window.setTimeout(() => {
+        sub.unsubscribe()
+        refreshWaitRef.current = null
+        reject(new Error("Timed out while waiting for workflow refresh"))
+      }, WORKFLOW_WAIT_TIMEOUT_MS)
       const sub = actorRef.subscribe((snapshot) => {
         const isSyncingNow = snapshot.matches({ operation: "syncing" })
         const isIdleNow = snapshot.matches({ operation: "idle" })
@@ -105,12 +129,16 @@ export function useImageWorkflowMachine(args: {
         if (!enteredSync) return
 
         if (isErrorNow) {
+          window.clearTimeout(timeout)
           sub.unsubscribe()
+          refreshWaitRef.current = null
           reject(new Error(snapshot.context.lastOpError || "Failed to refresh workflow source"))
           return
         }
         if (isIdleNow) {
+          window.clearTimeout(timeout)
           sub.unsubscribe()
+          refreshWaitRef.current = null
           resolve()
         }
       })
@@ -118,7 +146,7 @@ export function useImageWorkflowMachine(args: {
       if (!state.matches({ operation: "syncing" })) {
         sendEvent({ type: "REFRESH" })
       }
-    })
+    }))
   const removeFilter = (filterId: string) => sendEvent({ type: "FILTER_REMOVE", filterId })
   const applyCrop = (rect: { x: number; y: number; w: number; h: number }) => sendEvent({ type: "CROP_APPLY", rect })
   const restore = () => sendEvent({ type: "RESTORE" })

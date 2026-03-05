@@ -163,9 +163,11 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
       pendingSlotRef.current?.clearIfSeq(p.seq)
       return
     }
-    lastSavedSignatureRef.current = signature
 
     await saveImageStateApi(projectId, payload)
+    // Mark as saved only after a successful write. Otherwise retries with the
+    // same payload would be incorrectly deduped after transient failures.
+    lastSavedSignatureRef.current = signature
     // Only clear if this is still the latest pending value.
     pendingSlotRef.current?.clearIfSeq(p.seq)
   }, [projectId])

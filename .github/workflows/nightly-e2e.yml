@@ -1,0 +1,64 @@
+name: Nightly E2E
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: nightly-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e_nightly:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: .playwright-browsers
+          key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      - name: Install Playwright browsers (Chromium)
+        if: ${{ steps.playwright-cache.outputs.cache-hit != 'true' }}
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: .playwright-browsers
+        run: npx -y playwright install --with-deps chromium
+
+      - name: E2E Nightly (Playwright full tier)
+        env:
+          PLAYWRIGHT_USE_WEBSERVER: "1"
+          PLAYWRIGHT_WEBSERVER_COMMAND: "npm run start:e2e"
+          PLAYWRIGHT_BASE_URL: "http://127.0.0.1:3110"
+        run: npm run test:e2e:ci:nightly
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-nightly
+          path: playwright-report/
+          retention-days: 14
+
+      - name: Upload Playwright flaky metrics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-flaky-metrics-nightly
+          path: playwright-report/flaky-summary.json
+          retention-days: 30

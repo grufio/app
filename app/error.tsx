@@ -21,7 +21,13 @@ export default function Error({
 }) {
   useEffect(() => {
     console.error("App route error:", error)
-    void reportError(error, { tags: { route: "app" } })
+    void reportError(error, {
+      scope: "app",
+      code: "APP_RUNTIME",
+      stage: "error_boundary",
+      severity: "error",
+      tags: { route: "app" },
+    })
   }, [error])
 
   return (

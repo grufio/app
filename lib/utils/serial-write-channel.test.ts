@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { createSerialWriteChannel } from "./serial-write-channel"
+import { createSerialWriteChannel, SupersededWriteError } from "./serial-write-channel"
 
 function sleep(ms: number) {
   return new Promise<void>((r) => setTimeout(r, ms))
@@ -68,6 +68,25 @@ describe("serial-write-channel", () => {
     await second
 
     expect(applied).toEqual(["second"])
+  })
+
+  it("enqueueLatest rejects superseded pending task to avoid hangs", async () => {
+    const ch = createSerialWriteChannel()
+
+    const first = ch.enqueueLatest(async () => {
+      await sleep(20)
+      return "first"
+    })
+    await sleep(1)
+    const second = ch.enqueueLatest(async () => {
+      await sleep(10)
+      return "second"
+    })
+    const third = ch.enqueueLatest(async () => "third")
+
+    await expect(second).rejects.toBeInstanceOf(SupersededWriteError)
+    await expect(first).resolves.toBe("first")
+    await expect(third).resolves.toBe("third")
   })
 })
 

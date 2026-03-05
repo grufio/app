@@ -101,7 +101,7 @@ export function MasterImageUpload({
   }
 
   if (variant === "toolbar") {
-    const { label: _dropzoneLabel, ...toolbarDropProps } = getRootProps()
+    const toolbarDropProps = getRootProps()
     return (
       <ToolbarIconButton
         label="Add image"
