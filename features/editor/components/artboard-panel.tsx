@@ -13,7 +13,7 @@ import { ArrowLeftRight, ArrowUpDown, Gauge, Link2, Ruler, Unlink2 } from "lucid
 
 import { fmt2, type Unit } from "@/lib/editor/units"
 import { parseNumericInput } from "@/lib/editor/numeric"
-import { InputGroup, InputGroupAddon, InputGroupText } from "@/components/ui/input-group"
+import { InputGroup, InputGroupAddon, InputGroupText } from "@/components/ui/form-controls/input-group"
 import { SelectItem } from "@/components/ui/select"
 import { IconSelectField } from "./fields/icon-select-field"
 import { NumericInput } from "./numeric-input"

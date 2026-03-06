@@ -9,7 +9,7 @@
  */
 import type * as React from "react"
 
-import { InputGroup, InputGroupAddon } from "@/components/ui/input-group"
+import { InputGroup, InputGroupAddon } from "@/components/ui/form-controls/input-group"
 
 type AddonAlign = React.ComponentProps<typeof InputGroupAddon>["align"]
 

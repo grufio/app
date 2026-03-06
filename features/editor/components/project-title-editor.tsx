@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 
 import { updateProjectTitleClient } from "@/services/projects/client/update-project-title"
-import { InputGroup, InputGroupInput } from "@/components/ui/input-group"
+import { InputGroup, InputGroupInput } from "@/components/ui/form-controls/input-group"
 
 type Props = {
   projectId: string

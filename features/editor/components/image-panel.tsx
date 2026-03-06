@@ -22,7 +22,7 @@ import {
 import type { KeyboardEventHandler, ReactNode } from "react"
 import { useMemo, useRef, useState } from "react"
 
-import { InputGroup, InputGroupAddon, InputGroupText } from "@/components/ui/input-group"
+import { InputGroup, InputGroupAddon, InputGroupText } from "@/components/ui/form-controls/input-group"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { NumericInput } from "./numeric-input"
 import { PanelIconSlot, PanelTwoFieldRow } from "./panel-layout"

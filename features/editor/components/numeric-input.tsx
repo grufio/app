@@ -9,7 +9,7 @@
  */
 import React, { forwardRef } from "react"
 
-import { InputGroupInput } from "@/components/ui/input-group"
+import { InputGroupInput } from "@/components/ui/form-controls/input-group"
 import { sanitizeNumericInput, type NumericMode } from "@/lib/editor/numeric"
 
 type Props = Omit<React.ComponentPropsWithoutRef<typeof InputGroupInput>, "onChange" | "value" | "inputMode"> & {
