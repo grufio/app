@@ -24,7 +24,7 @@ export function IconSelectField({
   ariaLabel,
   disabled,
   icon,
-  triggerClassName = "flex-1 min-w-0 border-0 bg-transparent shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 overflow-hidden whitespace-nowrap",
+  triggerClassName,
   triggerOnPointerDownCapture,
   children,
 }: {

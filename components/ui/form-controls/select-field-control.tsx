@@ -9,7 +9,10 @@ export function SelectFieldControl(props: React.ComponentProps<typeof SelectTrig
   const { className, ...rest } = props
   return (
     <SelectTrigger
-      className={cn("flex-1 min-w-0 overflow-hidden whitespace-nowrap", className)}
+      className={cn(
+        "flex-1 min-w-0 border-0 bg-transparent shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 overflow-hidden whitespace-nowrap",
+        className
+      )}
       {...rest}
     />
   )

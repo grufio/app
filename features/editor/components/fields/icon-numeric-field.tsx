@@ -8,7 +8,6 @@
  */
 import type * as React from "react"
 
-import { NumericFieldControl } from "@/components/ui/form-controls"
 import { NumericInput } from "../numeric-input"
 import { IconInputGroup } from "./icon-input-group"
 
@@ -33,7 +32,7 @@ export function IconNumericField({
 }) {
   return (
     <IconInputGroup addon={icon} addonAlign="inline-start">
-      <NumericFieldControl
+      <NumericInput
         value={value}
         onValueChange={onValueChange}
         aria-label={ariaLabel}
