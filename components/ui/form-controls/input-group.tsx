@@ -10,7 +10,6 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 
 /**
  * InputGroup
@@ -75,20 +74,6 @@ function InputGroupText({ className, ...props }: React.ComponentProps<"span">) {
   )
 }
 
-function InputGroupInput({ className, ...props }: React.ComponentProps<typeof Input>) {
-  return (
-    <Input
-      data-slot="input-group-control"
-      className={cn(
-        // Group owns the chrome; input stays transparent.
-        "flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent",
-        className
-      )}
-      {...props}
-    />
-  )
-}
-
 function InputGroupTextarea({ className, ...props }: React.ComponentProps<"textarea">) {
   return (
     <textarea
@@ -116,4 +101,4 @@ function InputGroupButton({
   )
 }
 
-export { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextarea }
+export { InputGroup, InputGroupAddon, InputGroupButton, InputGroupText, InputGroupTextarea }
