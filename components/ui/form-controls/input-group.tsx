@@ -4,7 +4,7 @@
  * Input group UI primitive.
  *
  * Responsibilities:
- * - Compose inputs/selects with addons/buttons into a single focus ring + border.
+ * - Compose inputs/selects with addons/buttons in one horizontal row.
  */
 import * as React from "react"
 
@@ -24,21 +24,7 @@ function InputGroup({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="input-group"
       className={cn(
-        // Layout
         "flex w-full min-w-0 items-stretch",
-        // Chrome (match Input tokens)
-        "dark:bg-input/30 border-input bg-transparent rounded-md border shadow-xs transition-[color,box-shadow] outline-none",
-        "hover:border-muted-foreground/30",
-        // Focus handling via the control slot (explicit purple border on click + keyboard, no glow ring)
-        "has-[[data-slot=input-group-control]:focus]:border-[#7C5CFF] has-[[data-slot=select-trigger]:focus]:border-[#7C5CFF]",
-        "has-[[data-slot=input-group-control]:focus-visible]:border-[#7C5CFF] has-[[data-slot=select-trigger]:focus-visible]:border-[#7C5CFF]",
-        // Invalid
-        "has-[[data-slot=input-group-control][aria-invalid=true]]:border-destructive has-[[data-slot=select-trigger][aria-invalid=true]]:border-destructive",
-        // Ensure inner controls don't create double-rounded corners
-        "[&>[data-slot=input-group-control]]:rounded-none",
-        "[&>[data-slot=input-group-addon]]:rounded-none",
-        "[&>[data-slot=input-group-button]]:rounded-none",
-        "[&>[data-slot=select-trigger]]:rounded-none",
         className
       )}
       {...props}
