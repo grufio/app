@@ -8,7 +8,8 @@
  */
 import type * as React from "react"
 
-import { Select, SelectContent, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { SelectFieldControl } from "@/components/ui/form-controls"
+import { Select, SelectContent, SelectValue } from "@/components/ui/select"
 import { IconInputGroup } from "./icon-input-group"
 
 /**
@@ -23,7 +24,7 @@ export function IconSelectField({
   ariaLabel,
   disabled,
   icon,
-  triggerClassName = "flex-1 min-w-0 border-0 bg-transparent shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 overflow-hidden whitespace-nowrap",
+  triggerClassName,
   triggerOnPointerDownCapture,
   children,
 }: {
@@ -33,20 +34,20 @@ export function IconSelectField({
   disabled?: boolean
   icon: React.ReactNode
   triggerClassName?: string
-  triggerOnPointerDownCapture?: React.ComponentProps<typeof SelectTrigger>["onPointerDownCapture"]
+  triggerOnPointerDownCapture?: React.ComponentProps<typeof SelectFieldControl>["onPointerDownCapture"]
   children: React.ReactNode
 }) {
   return (
     <IconInputGroup addon={icon} addonAlign="inline-start">
       <Select value={value} onValueChange={onValueChange}>
-        <SelectTrigger
+        <SelectFieldControl
           className={triggerClassName}
           disabled={disabled}
           aria-label={ariaLabel}
           onPointerDownCapture={triggerOnPointerDownCapture}
         >
           <SelectValue className="truncate" />
-        </SelectTrigger>
+        </SelectFieldControl>
         <SelectContent>{children}</SelectContent>
       </Select>
     </IconInputGroup>

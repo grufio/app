@@ -4,13 +4,12 @@
  * Input group UI primitive.
  *
  * Responsibilities:
- * - Compose inputs/selects with addons/buttons into a single focus ring + border.
+ * - Compose inputs/selects with addons/buttons in one horizontal row.
  */
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 
 /**
  * InputGroup
@@ -24,21 +23,7 @@ function InputGroup({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="input-group"
       className={cn(
-        // Layout
         "flex w-full min-w-0 items-stretch",
-        // Chrome (match Input tokens)
-        "dark:bg-input/30 border-input bg-transparent rounded-md border shadow-xs transition-[color,box-shadow] outline-none",
-        "hover:border-muted-foreground/30",
-        // Focus handling via the control slot (explicit purple border on click + keyboard, no glow ring)
-        "has-[[data-slot=input-group-control]:focus]:border-[#7C5CFF] has-[[data-slot=select-trigger]:focus]:border-[#7C5CFF]",
-        "has-[[data-slot=input-group-control]:focus-visible]:border-[#7C5CFF] has-[[data-slot=select-trigger]:focus-visible]:border-[#7C5CFF]",
-        // Invalid
-        "has-[[data-slot=input-group-control][aria-invalid=true]]:border-destructive has-[[data-slot=select-trigger][aria-invalid=true]]:border-destructive",
-        // Ensure inner controls don't create double-rounded corners
-        "[&>[data-slot=input-group-control]]:rounded-none",
-        "[&>[data-slot=input-group-addon]]:rounded-none",
-        "[&>[data-slot=input-group-button]]:rounded-none",
-        "[&>[data-slot=select-trigger]]:rounded-none",
         className
       )}
       {...props}
@@ -89,20 +74,6 @@ function InputGroupText({ className, ...props }: React.ComponentProps<"span">) {
   )
 }
 
-function InputGroupInput({ className, ...props }: React.ComponentProps<typeof Input>) {
-  return (
-    <Input
-      data-slot="input-group-control"
-      className={cn(
-        // Group owns the chrome; input stays transparent.
-        "flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent",
-        className
-      )}
-      {...props}
-    />
-  )
-}
-
 function InputGroupTextarea({ className, ...props }: React.ComponentProps<"textarea">) {
   return (
     <textarea
@@ -130,5 +101,4 @@ function InputGroupButton({
   )
 }
 
-export { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextarea }
-
+export { InputGroup, InputGroupAddon, InputGroupButton, InputGroupText, InputGroupTextarea }

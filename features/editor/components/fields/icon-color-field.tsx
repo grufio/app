@@ -10,7 +10,7 @@
  */
 import * as React from "react"
 
-import { InputGroupInput } from "@/components/ui/input-group"
+import { ColorSwatchControl, TextFieldControl } from "@/components/ui/form-controls"
 import { IconInputGroup } from "./icon-input-group"
 
 /**
@@ -78,18 +78,10 @@ export function IconColorField({
       addonAlign="inline-start"
       addonClassName="px-1"
       addon={
-        <input
-          type="color"
+        <ColorSwatchControl
           value={swatchHex}
           disabled={disabled}
           aria-label={ariaLabel}
-          className={[
-            // Make the native control render as a solid 16×16 swatch (no inner "tiny" swatch).
-            "size-4 cursor-pointer appearance-none overflow-hidden rounded-sm border border-input bg-transparent p-0",
-            "[&::-webkit-color-swatch-wrapper]:p-0",
-            "[&::-webkit-color-swatch]:border-0 [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch]:rounded-none",
-            "[&::-moz-color-swatch]:border-0 [&::-moz-color-swatch]:p-0",
-          ].join(" ")}
           onChange={(e) => {
             const next = e.target.value
             onChange(next)
@@ -98,7 +90,7 @@ export function IconColorField({
         />
       }
     >
-      <InputGroupInput
+      <TextFieldControl
         type="text"
         value={draftHex}
         aria-label={ariaLabel}

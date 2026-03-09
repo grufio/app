@@ -9,9 +9,9 @@
  */
 import type * as React from "react"
 
-import { InputGroup, InputGroupAddon } from "@/components/ui/input-group"
+import { FieldGroup, FieldGroupAddon } from "@/components/ui/form-controls/field-group"
 
-type AddonAlign = React.ComponentProps<typeof InputGroupAddon>["align"]
+type AddonAlign = React.ComponentProps<typeof FieldGroupAddon>["align"]
 
 /**
  * Shared wrapper for the common pattern:
@@ -36,12 +36,12 @@ export function IconInputGroup({
   children: React.ReactNode
 }) {
   return (
-    <InputGroup className={groupClassName}>
+    <FieldGroup className={groupClassName}>
       {children}
-      <InputGroupAddon align={addonAlign} className={addonClassName}>
+      <FieldGroupAddon align={addonAlign} className={addonClassName}>
         {addon}
-      </InputGroupAddon>
-    </InputGroup>
+      </FieldGroupAddon>
+    </FieldGroup>
   )
 }
 

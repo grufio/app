@@ -16,7 +16,7 @@ import { NumericInput } from "./numeric-input"
 import { PanelIconSlot, PanelTwoFieldRow } from "./panel-layout"
 import { EditorSidebarSection } from "./sidebar/editor-sidebar-section"
 import { Button } from "@/components/ui/button"
-import { InputGroup, InputGroupAddon, InputGroupText } from "@/components/ui/input-group"
+import { FieldGroup, FieldGroupAddon, FieldGroupText } from "@/components/ui/form-controls/field-group"
 import { useProjectGrid, type ProjectGridRow } from "@/lib/editor/project-grid"
 import { useProjectWorkspace } from "@/lib/editor/project-workspace"
 import { computeGridUpsert } from "@/services/editor"
@@ -43,7 +43,7 @@ function GridSizeField({
   onKeyDown: KeyboardEventHandler<HTMLInputElement>
 }) {
   return (
-    <InputGroup>
+    <FieldGroup>
       <NumericInput
         value={value}
         onValueChange={onValueChange}
@@ -53,13 +53,13 @@ function GridSizeField({
         onKeyDown={onKeyDown}
         onBlur={onBlur}
       />
-      <InputGroupAddon align="inline-start" aria-hidden="true">
+      <FieldGroupAddon align="inline-start" aria-hidden="true">
         {icon}
-      </InputGroupAddon>
-      <InputGroupAddon align="inline-end" className="pointer-events-none" aria-hidden="true">
-        <InputGroupText>{unit}</InputGroupText>
-      </InputGroupAddon>
-    </InputGroup>
+      </FieldGroupAddon>
+      <FieldGroupAddon align="inline-end" className="pointer-events-none" aria-hidden="true">
+        <FieldGroupText>{unit}</FieldGroupText>
+      </FieldGroupAddon>
+    </FieldGroup>
   )
 }
 

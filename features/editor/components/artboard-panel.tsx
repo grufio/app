@@ -13,7 +13,7 @@ import { ArrowLeftRight, ArrowUpDown, Gauge, Link2, Ruler, Unlink2 } from "lucid
 
 import { fmt2, type Unit } from "@/lib/editor/units"
 import { parseNumericInput } from "@/lib/editor/numeric"
-import { InputGroup, InputGroupAddon, InputGroupText } from "@/components/ui/input-group"
+import { FieldGroup, FieldGroupAddon, FieldGroupText } from "@/components/ui/form-controls/field-group"
 import { SelectItem } from "@/components/ui/select"
 import { IconSelectField } from "./fields/icon-select-field"
 import { NumericInput } from "./numeric-input"
@@ -58,7 +58,7 @@ function ArtboardSizeField({
   onBlur: () => void
 }) {
   return (
-    <InputGroup>
+    <FieldGroup>
       <NumericInput
         id={inputId}
         value={value}
@@ -69,13 +69,13 @@ function ArtboardSizeField({
         onKeyDown={onKeyDown}
         onBlur={onBlur}
       />
-      <InputGroupAddon align="inline-start" aria-hidden="true">
+      <FieldGroupAddon align="inline-start" aria-hidden="true">
         {icon}
-      </InputGroupAddon>
-      <InputGroupAddon align="inline-end" className="pointer-events-none" aria-hidden="true">
-        <InputGroupText>{unit}</InputGroupText>
-      </InputGroupAddon>
-    </InputGroup>
+      </FieldGroupAddon>
+      <FieldGroupAddon align="inline-end" className="pointer-events-none" aria-hidden="true">
+        <FieldGroupText>{unit}</FieldGroupText>
+      </FieldGroupAddon>
+    </FieldGroup>
   )
 }
 

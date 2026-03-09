@@ -22,7 +22,7 @@ import {
 import type { KeyboardEventHandler, ReactNode } from "react"
 import { useMemo, useRef, useState } from "react"
 
-import { InputGroup, InputGroupAddon, InputGroupText } from "@/components/ui/input-group"
+import { FieldGroup, FieldGroupAddon, FieldGroupText } from "@/components/ui/form-controls/field-group"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { NumericInput } from "./numeric-input"
 import { PanelIconSlot, PanelTwoFieldRow } from "./panel-layout"
@@ -56,7 +56,7 @@ function SizeField({
   unit: Unit
 }) {
   return (
-    <InputGroup>
+    <FieldGroup>
       <NumericInput
         value={value}
         onValueChange={onValueChange}
@@ -67,13 +67,13 @@ function SizeField({
         onKeyDown={onKeyDown}
         onBlur={onBlur}
       />
-      <InputGroupAddon align="inline-start" aria-hidden="true">
+      <FieldGroupAddon align="inline-start" aria-hidden="true">
         {addon}
-      </InputGroupAddon>
-      <InputGroupAddon align="inline-end" className="pointer-events-none" aria-hidden="true">
-        <InputGroupText>{unit}</InputGroupText>
-      </InputGroupAddon>
-    </InputGroup>
+      </FieldGroupAddon>
+      <FieldGroupAddon align="inline-end" className="pointer-events-none" aria-hidden="true">
+        <FieldGroupText>{unit}</FieldGroupText>
+      </FieldGroupAddon>
+    </FieldGroup>
   )
 }
 
