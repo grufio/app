@@ -55,7 +55,7 @@ describe("computeDpiRelativePlacementPx", () => {
     })
   })
 
-  it("scales down when image dpi is higher than artboard dpi", () => {
+  it("scales up when image dpi is higher than artboard dpi", () => {
     const out = computeDpiRelativePlacementPx({
       artW: 1200,
       artH: 800,
@@ -67,12 +67,12 @@ describe("computeDpiRelativePlacementPx", () => {
     expect(out).toEqual({
       xPx: 600,
       yPx: 400,
-      widthPx: 300,
-      heightPx: 200,
+      widthPx: 1200,
+      heightPx: 800,
     })
   })
 
-  it("scales up when image dpi is lower than artboard dpi", () => {
+  it("scales down when image dpi is lower than artboard dpi", () => {
     const out = computeDpiRelativePlacementPx({
       artW: 1200,
       artH: 800,
@@ -84,8 +84,8 @@ describe("computeDpiRelativePlacementPx", () => {
     expect(out).toEqual({
       xPx: 600,
       yPx: 400,
-      widthPx: 1200,
-      heightPx: 800,
+      widthPx: 300,
+      heightPx: 200,
     })
   })
 
@@ -101,9 +101,22 @@ describe("computeDpiRelativePlacementPx", () => {
     expect(out).toEqual({
       xPx: 600,
       yPx: 400,
-      widthPx: 100 * (300 / FALLBACK_IMAGE_DPI),
-      heightPx: 50 * (300 / FALLBACK_IMAGE_DPI),
+      widthPx: 100 * (FALLBACK_IMAGE_DPI / 300),
+      heightPx: 50 * (FALLBACK_IMAGE_DPI / 300),
     })
+  })
+
+
+  it("returns null when artboard dpi is missing", () => {
+    const out = computeDpiRelativePlacementPx({
+      artW: 1200,
+      artH: 800,
+      intrinsicW: 1000,
+      intrinsicH: 500,
+      artboardDpi: null,
+      imageDpi: 72,
+    })
+    expect(out).toBeNull()
   })
 
   it("returns null for invalid dimensions", () => {

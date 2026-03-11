@@ -4,17 +4,21 @@ import { useEffect, type MutableRefObject } from "react"
 
 import { numberToMicroPx } from "@/lib/editor/konva"
 
-import { computeDpiRelativePlacementPx, pickIntrinsicSize } from "./placement"
+import { computeDpiRelativePlacementPx, pickIntrinsicSize, shouldApplyPersistedTransform } from "./placement"
 
 type PersistedTransform = {
   imageId?: string
+  xPxU?: bigint
+  yPxU?: bigint
   widthPxU?: bigint
   heightPxU?: bigint
+  rotationDeg?: number
 } | null | undefined
 
 type StateSyncGuard = {
   hasUserChanged: () => boolean
   getAppliedKey: () => string | null
+  scheduleApply: (key: string, apply: () => void) => void
 }
 
 export function useInitialImagePlacement(args: {
@@ -33,6 +37,7 @@ export function useInitialImagePlacement(args: {
   stateSyncGuardRef: MutableRefObject<StateSyncGuard>
   setRotation: (deg: number) => void
   setImageTx: (next: { xPxU: bigint; yPxU: bigint; widthPxU: bigint; heightPxU: bigint }) => void
+  scheduleBoundsUpdate: () => void
 }) {
   const {
     src,
@@ -50,6 +55,7 @@ export function useInitialImagePlacement(args: {
     stateSyncGuardRef,
     setRotation,
     setImageTx,
+    scheduleBoundsUpdate,
   } = args
 
   useEffect(() => {
@@ -57,15 +63,33 @@ export function useInitialImagePlacement(args: {
     if (!img) return
     if (stateSyncGuardRef.current.hasUserChanged()) return
     if (!hasArtboard) return
+    if (typeof artboardDpi !== "number" || !Number.isFinite(artboardDpi) || artboardDpi <= 0) return
 
-    const hasPersistedSize = Boolean(
-      initialImageTransform?.widthPxU &&
-        initialImageTransform?.heightPxU &&
-        initialImageTransform?.imageId &&
-        activeImageId &&
-        initialImageTransform.imageId === activeImageId
-    )
-    if (hasPersistedSize) return
+    if (
+      shouldApplyPersistedTransform({
+        src,
+        appliedKey: stateSyncGuardRef.current.getAppliedKey(),
+        userChanged: stateSyncGuardRef.current.hasUserChanged(),
+        activeImageId,
+        stateImageId: initialImageTransform?.imageId,
+        initialImageTransform,
+      })
+    ) {
+      const nextWidthPxU = initialImageTransform?.widthPxU
+      const nextHeightPxU = initialImageTransform?.heightPxU
+      if (!nextWidthPxU || !nextHeightPxU) return
+      const xPxU = initialImageTransform?.xPxU ?? 0n
+      const yPxU = initialImageTransform?.yPxU ?? 0n
+      const rotationDeg = Number(initialImageTransform?.rotationDeg ?? 0)
+
+      stateSyncGuardRef.current.scheduleApply(src, () => {
+        setRotation(Number.isFinite(rotationDeg) ? rotationDeg : 0)
+        setImageTx({ xPxU, yPxU, widthPxU: nextWidthPxU, heightPxU: nextHeightPxU })
+        scheduleBoundsUpdate()
+      })
+      return
+    }
+
     if (stateSyncGuardRef.current.getAppliedKey() === src) return
 
     const key = `${src}:${artW}x${artH}:adpi${artboardDpi ?? ""}:idpi${imageDpi ?? ""}`
@@ -85,7 +109,7 @@ export function useInitialImagePlacement(args: {
     })
     if (!placement) return
 
-    queueMicrotask(() => {
+    stateSyncGuardRef.current.scheduleApply(src, () => {
       setRotation(0)
       setImageTx({
         xPxU: numberToMicroPx(placement.xPx),
@@ -93,6 +117,7 @@ export function useInitialImagePlacement(args: {
         widthPxU: numberToMicroPx(placement.widthPx),
         heightPxU: numberToMicroPx(placement.heightPx),
       })
+      scheduleBoundsUpdate()
     })
   }, [
     activeImageId,
@@ -110,5 +135,6 @@ export function useInitialImagePlacement(args: {
     setRotation,
     src,
     stateSyncGuardRef,
+    scheduleBoundsUpdate,
   ])
 }

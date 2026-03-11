@@ -37,10 +37,21 @@ describe("resolveRestoreImageRequest", () => {
       placement: {
         xPx: 600,
         yPx: 400,
-        widthPx: 300,
-        heightPx: 150,
+        widthPx: 17.28,
+        heightPx: 8.64,
       },
     })
+  })
+
+
+  it("returns not_ready when artboard dpi is missing", () => {
+    const out = resolveRestoreImageRequest({
+      artW: 1200,
+      artH: 800,
+      artboardDpi: null,
+      baseSpec: { imageId: "img-1", widthPx: 640, heightPx: 480, dpi: 72 },
+    })
+    expect(out).toEqual({ ok: false, reason: "not_ready" })
   })
 
   it("returns not_ready for invalid artboard size", () => {

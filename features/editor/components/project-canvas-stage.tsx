@@ -16,7 +16,6 @@ import { useAlignImageController, type AlignImageOptions } from "./canvas-stage/
 import { createBoundsController } from "./canvas-stage/bounds-controller"
 import { computeGridLines } from "./canvas-stage/grid-lines"
 import { useInitialImagePlacement } from "./canvas-stage/initial-placement-controller"
-import { usePersistedTransformController } from "./canvas-stage/persisted-transform-controller"
 import { useRestoreBaseSpecController } from "./canvas-stage/restore-base-spec-controller"
 import { useViewController } from "./canvas-stage/view-controller"
 import { useStageRafBoundsController } from "./canvas-stage/stage-raf-bounds-controller"
@@ -458,17 +457,6 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
       setView,
     })
 
-  usePersistedTransformController({
-    src,
-    imgReady: Boolean(img),
-    activeImageId,
-    initialImageTransform,
-    stateSyncGuardRef,
-    setRotation,
-    setImageTx,
-    scheduleBoundsUpdate,
-  })
-
   // Compute selection bounds (axis-aligned) for the image node.
   // Shown by default when the Select tool is active (`imageDraggable === true`).
   useEffect(() => {
@@ -498,6 +486,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     stateSyncGuardRef,
     setRotation,
     setImageTx,
+    scheduleBoundsUpdate,
   })
 
   if (!transformControllerRef.current) {

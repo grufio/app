@@ -16,6 +16,9 @@ export function resolveRestoreImageRequest(args: {
 }): { ok: true; placement: ImagePlacementPx } | { ok: false; reason: "not_ready" | "missing_base_spec" | "stale_base_spec" } {
   const { artW, artH, baseSpec, artboardDpi, activeImageId } = args
   if (!(artW > 0 && artH > 0)) return { ok: false, reason: "not_ready" }
+  if (typeof artboardDpi !== "number" || !Number.isFinite(artboardDpi) || artboardDpi <= 0) {
+    return { ok: false, reason: "not_ready" }
+  }
   if (!baseSpec) return { ok: false, reason: "missing_base_spec" }
   if (activeImageId && baseSpec.imageId && activeImageId !== baseSpec.imageId) return { ok: false, reason: "stale_base_spec" }
   if (!(baseSpec.widthPx > 0 && baseSpec.heightPx > 0)) return { ok: false, reason: "missing_base_spec" }
