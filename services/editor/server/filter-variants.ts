@@ -119,7 +119,7 @@ async function createDerivedImageFromSource(args: {
   const { supabase, projectId, sourceImageId, filterType, params } = args
   const { data: src, error: srcErr } = await supabase
     .from("project_images")
-    .select("id,name,format,width_px,height_px,storage_bucket,storage_path,is_locked,deleted_at")
+    .select("id,name,format,width_px,height_px,dpi,storage_bucket,storage_path,is_locked,deleted_at")
     .eq("project_id", projectId)
     .eq("id", sourceImageId)
     .is("deleted_at", null)
@@ -162,6 +162,7 @@ async function createDerivedImageFromSource(args: {
     format: rendered.format,
     width_px: rendered.width,
     height_px: rendered.height,
+    dpi: Number(src.dpi ?? 72),
     storage_bucket: "project_images",
     storage_path: objectPath,
     file_size_bytes: rendered.buffer.byteLength,
@@ -255,7 +256,7 @@ export async function applyProjectImageFilter(args: {
 
   const { data: active, error: activeErr } = await supabase
     .from("project_images")
-    .select("id,is_locked")
+    .select("id,is_locked,dpi")
     .eq("project_id", projectId)
     .eq("is_active", true)
     .is("deleted_at", null)
@@ -308,6 +309,7 @@ export async function applyProjectImageFilter(args: {
     imageId: created.imageId,
     widthPx: created.widthPx,
     heightPx: created.heightPx,
+    imageDpi: Number(active.dpi ?? 72),
   })
   if (!activation.ok) {
     await supabase.from("project_image_filters").delete().eq("id", inserted.id)
@@ -424,7 +426,7 @@ export async function removeProjectImageFilter(args: {
   const activeImageId = after.length > 0 ? newArtifacts[newArtifacts.length - 1].imageId : currentImageId
   const { data: activeRow, error: activeRowErr } = await supabase
     .from("project_images")
-    .select("width_px,height_px")
+    .select("width_px,height_px,dpi")
     .eq("project_id", projectId)
     .eq("id", activeImageId)
     .is("deleted_at", null)
@@ -439,6 +441,7 @@ export async function removeProjectImageFilter(args: {
     imageId: activeImageId,
     widthPx: Number(activeRow.width_px ?? 1),
     heightPx: Number(activeRow.height_px ?? 1),
+    imageDpi: Number(activeRow.dpi ?? 72),
   })
   if (!activation.ok) return { ok: false, status: activation.status, stage: activation.stage, reason: activation.reason, code: activation.code }
 

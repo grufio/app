@@ -4,37 +4,58 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { uploadMasterImage } from "./master-image-upload"
 
 const uploadSpy = vi.fn()
+const removeSpy = vi.fn()
 const activateSpy = vi.fn()
 
-vi.mock("@/lib/supabase/service-role", () => ({
-  createSupabaseServiceRoleClient: () => ({
-    storage: {
-      from: () => ({
-        upload: uploadSpy,
-      }),
-    },
-  }),
-}))
+type InsertPayload = Record<string, unknown>
+
+type MakeSupabaseOpts = {
+  insertError?: { message: string; code?: string } | null
+  selectData?: Array<{ id: string; storage_bucket?: string | null; storage_path?: string | null }>
+  selectError?: { message: string; code?: string } | null
+  deleteError?: { message: string; code?: string } | null
+  capture: { insert?: InsertPayload; deletes: number }
+}
 
 vi.mock("@/lib/supabase/project-images", () => ({
   activateMasterWithState: (...args: unknown[]) => activateSpy(...args),
 }))
 
-type InsertPayload = Record<string, unknown>
+function makeSupabase(opts: MakeSupabaseOpts) {
+  const { capture, insertError = null, selectData = [], selectError = null, deleteError = null } = opts
+  const from = () => ({
+    select: () => ({
+      eq: () => ({
+        eq: () => ({
+          is: async () => ({
+            data: selectData,
+            error: selectError,
+          }),
+        }),
+      }),
+    }),
+    insert: async (payload: InsertPayload) => {
+      capture.insert = payload
+      return { error: insertError }
+    },
+    delete: () => {
+      capture.deletes += 1
+      const chain = {
+        eq: () => chain,
+        is: async () => ({ error: deleteError }),
+      }
+      return chain
+    },
+  })
 
-function makeSupabase(insertResult: { error: { message: string; code?: string } | null }, capture: { insert?: InsertPayload }) {
   return {
     storage: {
       from: () => ({
         upload: uploadSpy,
+        remove: removeSpy,
       }),
     },
-    from: () => ({
-      insert: async (payload: InsertPayload) => {
-        capture.insert = payload
-        return insertResult
-      },
-    }),
+    from,
   } as unknown as SupabaseClient
 }
 
@@ -47,7 +68,7 @@ describe("master-image-upload service", () => {
   })
 
   it("rejects invalid dimensions with validation stage", async () => {
-    const supabase = makeSupabase({ error: null }, {})
+    const supabase = makeSupabase({ capture: { deletes: 0 } })
     const file = new File([new Uint8Array([1])], "x.png", { type: "image/png" })
     const out = await uploadMasterImage({
       supabase: supabase as never,
@@ -56,6 +77,9 @@ describe("master-image-upload service", () => {
       widthPx: 0,
       heightPx: 10,
       format: "png",
+      dpiX: 72,
+      dpiY: 72,
+      bitDepth: 8,
     })
     expect(out.ok).toBe(false)
     if (!out.ok) {
@@ -66,7 +90,7 @@ describe("master-image-upload service", () => {
 
   it("applies upload limits from env", async () => {
     process.env.USER_MAX_UPLOAD_BYTES = "1"
-    const supabase = makeSupabase({ error: null }, {})
+    const supabase = makeSupabase({ capture: { deletes: 0 } })
     const file = new File([new Uint8Array([1, 2])], "x.png", { type: "image/png" })
 
     const out = await uploadMasterImage({
@@ -87,10 +111,14 @@ describe("master-image-upload service", () => {
     }
   })
 
-  it("uploads, inserts, and activates", async () => {
-    const capture: { insert?: InsertPayload } = {}
-    const supabase = makeSupabase({ error: null }, capture)
+  it("replaces existing master rows, inserts, and activates", async () => {
+    const capture = { deletes: 0 }
+    const supabase = makeSupabase({
+      capture,
+      selectData: [{ id: "master-old", storage_bucket: "project_images", storage_path: "projects/p1/images/master-old" }],
+    })
     uploadSpy.mockResolvedValueOnce({ error: null })
+    removeSpy.mockResolvedValue({ error: null })
     activateSpy.mockResolvedValueOnce({ ok: true })
     const file = new File([new Uint8Array([1])], "x.png", { type: "image/png" })
 
@@ -110,16 +138,19 @@ describe("master-image-upload service", () => {
     expect(uploadSpy).toHaveBeenCalledTimes(1)
     expect(capture.insert?.dpi_x).toBe(300)
     expect(capture.insert?.dpi_y).toBe(300)
+    expect(capture.insert?.dpi).toBe(300)
     expect(capture.insert?.bit_depth).toBe(8)
     expect(capture.insert?.width_px).toBe(400)
     expect(capture.insert?.height_px).toBe(200)
+    expect(capture.deletes).toBeGreaterThanOrEqual(1)
     expect(activateSpy).toHaveBeenCalledTimes(1)
   })
 
-  it("maps lock_conflict from active switch as 409", async () => {
-    const capture: { insert?: InsertPayload } = {}
-    const supabase = makeSupabase({ error: null }, capture)
+  it("rolls back inserted row and storage object when activation fails", async () => {
+    const capture = { deletes: 0 }
+    const supabase = makeSupabase({ capture, selectData: [] })
     uploadSpy.mockResolvedValueOnce({ error: null })
+    removeSpy.mockResolvedValue({ error: null })
     activateSpy.mockResolvedValueOnce({
       ok: false,
       status: 409,
@@ -148,5 +179,7 @@ describe("master-image-upload service", () => {
       reason: "Active image is locked",
       code: "image_locked",
     })
+    expect(capture.deletes).toBeGreaterThanOrEqual(1)
+    expect(removeSpy).toHaveBeenCalled()
   })
 })

@@ -186,6 +186,7 @@ describe("getActiveMasterImage", () => {
       imageId: "img-1",
       widthPx: 400.8,
       heightPx: 0,
+      imageDpi: 144,
     })
 
     expect(out).toEqual({ ok: true })
@@ -197,6 +198,7 @@ describe("getActiveMasterImage", () => {
           p_image_id: "img-1",
           p_width_px: 400,
           p_height_px: 1,
+          p_image_dpi: 144,
         },
       },
     ])
@@ -212,6 +214,7 @@ describe("getActiveMasterImage", () => {
       imageId: "img-1",
       widthPx: 10,
       heightPx: 20,
+      imageDpi: 300,
     })
 
     expect(out).toEqual({
@@ -232,6 +235,7 @@ describe("getActiveMasterImage", () => {
       imageId: "img-2",
       widthPx: 20,
       heightPx: 20,
+      imageDpi: 300,
     })
     expect(out).toEqual({
       ok: false,
@@ -245,15 +249,16 @@ describe("getActiveMasterImage", () => {
 })
 
 describe("db contract: pixel-only seeding", () => {
-  it("set_active_master_with_state SQL uses centered 100% size and no fit/dpi scaling", () => {
-    const sqlPath = path.join(process.cwd(), "db/052_set_active_master_with_state_centered_100pct.sql")
+  it("set_active_master_with_state SQL uses DPI-relative seed with 72 fallback", () => {
+    const sqlPath = path.join(process.cwd(), "db/053_set_active_master_with_state_dpi_relative.sql")
     const sql = fs.readFileSync(sqlPath, "utf8")
 
-    expect(sql).toMatch(/\bv_w_u::text\b/)
-    expect(sql).toMatch(/\bv_h_u::text\b/)
+    expect(sql).toMatch(/\bv_output_dpi\b/)
+    expect(sql).toMatch(/\bv_image_dpi\b/)
+    expect(sql).toMatch(/coalesce\(p_image_dpi,\s*72\)/)
+    expect(sql).toMatch(/v_output_dpi::numeric\s*\/\s*v_image_dpi::numeric/)
     expect(sql).not.toMatch(/\bLEAST\s*\(/)
     expect(sql).not.toMatch(/\bartboard_dpi\b/)
-    expect(sql).not.toMatch(/\bimage_dpi\b/)
     expect(sql).not.toMatch(/\bpi\.dpi\b/)
   })
 })

@@ -3,8 +3,12 @@
  *
  * Responsibilities:
  * - Pick intrinsic image size from metadata/DOM safely.
+ * - Compute initial/restore placement using a DPI-relative contract.
  * - Gate when persisted transforms should be applied vs user-changed state.
  */
+export const FALLBACK_IMAGE_DPI = 72
+export const FALLBACK_ARTBOARD_DPI = 300
+
 export function pickIntrinsicSize(args: {
   intrinsicWidthPx?: number
   intrinsicHeightPx?: number
@@ -32,20 +36,32 @@ export type ImagePlacementPx = {
   heightPx: number
 }
 
-export function computeCenteredPlacementPx(args: {
+function normalizePositiveDpi(value: number | null | undefined, fallback: number): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return fallback
+  return value
+}
+
+export function computeDpiRelativePlacementPx(args: {
   artW: number
   artH: number
   intrinsicW: number
   intrinsicH: number
+  artboardDpi?: number | null
+  imageDpi?: number | null
 }): ImagePlacementPx | null {
-  const { artW, artH, intrinsicW, intrinsicH } = args
+  const { artW, artH, intrinsicW, intrinsicH, artboardDpi, imageDpi } = args
   if (!(artW > 0 && artH > 0 && intrinsicW > 0 && intrinsicH > 0)) return null
+
+  const outputDpi = normalizePositiveDpi(artboardDpi, FALLBACK_ARTBOARD_DPI)
+  const sourceDpi = normalizePositiveDpi(imageDpi, FALLBACK_IMAGE_DPI)
+  const scale = outputDpi / sourceDpi
+  if (!Number.isFinite(scale) || scale <= 0) return null
 
   return {
     xPx: artW / 2,
     yPx: artH / 2,
-    widthPx: intrinsicW,
-    heightPx: intrinsicH,
+    widthPx: intrinsicW * scale,
+    heightPx: intrinsicH * scale,
   }
 }
 

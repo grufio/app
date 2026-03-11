@@ -11,20 +11,24 @@ import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo,
 import { Group, Image as KonvaImage, Layer, Line, Rect, Stage } from "react-konva"
 import type Konva from "konva"
 
-import { fitToWorld, panBy, zoomAround } from "@/lib/editor/canvas-model"
 import { pxUToPxNumber } from "@/lib/editor/units"
-import { numberToMicroPx } from "@/lib/editor/konva"
 import { useAlignImageController, type AlignImageOptions } from "./canvas-stage/align-controller"
 import { createBoundsController } from "./canvas-stage/bounds-controller"
 import { computeGridLines } from "./canvas-stage/grid-lines"
-import { computeCenteredPlacementPx, pickIntrinsicSize, shouldApplyPersistedTransform } from "./canvas-stage/placement"
+import { useInitialImagePlacement } from "./canvas-stage/initial-placement-controller"
+import { usePersistedTransformController } from "./canvas-stage/persisted-transform-controller"
+import { useRestoreBaseSpecController } from "./canvas-stage/restore-base-spec-controller"
+import { useViewController } from "./canvas-stage/view-controller"
+import { useStageRafBoundsController } from "./canvas-stage/stage-raf-bounds-controller"
+import { useSelectionCropController } from "./canvas-stage/selection-crop-controller"
+import { useStageEventsController } from "./canvas-stage/stage-events-controller"
+import { pickIntrinsicSize } from "./canvas-stage/placement"
 import { createStateSyncGuard } from "./canvas-stage/state-sync-guard"
 import { snapWorldToDeviceHalfPixel as snapHalfPixel } from "./canvas-stage/pixel-snap"
-import { createRafScheduler, RAF_BOUNDS, RAF_DRAG_BOUNDS, RAF_PAN, RAF_ZOOM } from "./canvas-stage/raf-scheduler"
 import { useRestoreImageController, type RestoreBaseSpec, type RestoreImageResult } from "./canvas-stage/restore-controller"
-import { useCropController, type CropRectWorld } from "./canvas-stage/crop-controller"
-import { useSelectResizeController, type ResizeHandle } from "./canvas-stage/select-controller"
-import { useResizeListenerLifecycle, useWheelZoomGuard } from "./canvas-stage/stage-lifecycle-controller"
+import type { CropRectWorld } from "./canvas-stage/crop-controller"
+import type { ResizeHandle } from "./canvas-stage/select-controller"
+import { useWheelZoomGuard } from "./canvas-stage/stage-lifecycle-controller"
 import { createTransformController } from "./canvas-stage/transform-controller"
 import type { BoundsRect, ViewState } from "./canvas-stage/types"
 import { useHtmlImage } from "./canvas-stage/use-html-image"
@@ -43,16 +47,19 @@ type Props = {
   renderArtboard?: boolean
   artboardWidthPx?: number
   artboardHeightPx?: number
+  artboardDpi?: number
   /**
    * Intrinsic (source) image pixel dimensions from persisted metadata (DB).
    * This must be the canonical source of truth for initial sizing (not DOM layout).
    */
   intrinsicWidthPx?: number
   intrinsicHeightPx?: number
+  imageDpi?: number | null
   /** Canonical restore baseline from initial upload master image. */
   restoreBaseImageId?: string | null
   restoreBaseWidthPx?: number
   restoreBaseHeightPx?: number
+  restoreBaseDpi?: number | null
   grid?: {
     spacingXPx: number
     spacingYPx: number
@@ -229,11 +236,14 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     renderArtboard = true,
     artboardWidthPx,
     artboardHeightPx,
+    artboardDpi,
     intrinsicWidthPx,
     intrinsicHeightPx,
+    imageDpi,
     restoreBaseImageId,
     restoreBaseWidthPx,
     restoreBaseHeightPx,
+    restoreBaseDpi,
     grid = null,
     onImageSizeChange,
     initialImageTransform,
@@ -326,25 +336,14 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     stateSyncGuardRef.current.resetForNewImage()
   }, [activeImageId])
 
-  useEffect(() => {
-    const imageId = restoreBaseImageId ?? null
-    const widthPx = typeof restoreBaseWidthPx === "number" && Number.isFinite(restoreBaseWidthPx) ? restoreBaseWidthPx : 0
-    const heightPx = typeof restoreBaseHeightPx === "number" && Number.isFinite(restoreBaseHeightPx) ? restoreBaseHeightPx : 0
-    const current = restoreBaseSpecRef.current
-    if (!imageId) {
-      restoreBaseSpecRef.current = null
-      return
-    }
-    if (current?.imageId && current.imageId !== imageId) {
-      restoreBaseSpecRef.current = null
-    }
-    if (!(widthPx > 0 && heightPx > 0)) {
-      // Never keep stale dimensions for an image id.
-      restoreBaseSpecRef.current = null
-      return
-    }
-    restoreBaseSpecRef.current = { imageId, widthPx, heightPx }
-  }, [restoreBaseHeightPx, restoreBaseImageId, restoreBaseWidthPx])
+
+  useRestoreBaseSpecController({
+    restoreBaseImageId,
+    restoreBaseWidthPx,
+    restoreBaseHeightPx,
+    restoreBaseDpi,
+    restoreBaseSpecRef,
+  })
 
   // Prevent browser page zoom / scroll stealing (Cmd/Ctrl + wheel / trackpad pinch).
   useWheelZoomGuard(containerRef)
@@ -405,38 +404,16 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     [view.scale, view.x, view.y]
   )
 
-  const fitToView = useCallback(() => {
-    if (!world) return
-    if (size.w <= 0 || size.h <= 0) return
-    userInteractedRef.current = false
-    autoFitKeyRef.current = null
-    setView(fitToWorld(size, world, fitPadding))
-  }, [fitPadding, size, world])
 
-  const zoomIn = useCallback(() => {
-    const pointer = { x: size.w / 2, y: size.h / 2 }
-    userInteractedRef.current = true
-    setView((v) => zoomAround(v, pointer, 1.1, 0.05, 8))
-  }, [size.h, size.w])
-
-  const zoomOut = useCallback(() => {
-    const pointer = { x: size.w / 2, y: size.h / 2 }
-    userInteractedRef.current = true
-    setView((v) => zoomAround(v, pointer, 1 / 1.1, 0.05, 8))
-  }, [size.h, size.w])
-
-  // Auto-fit view once the artboard + container dimensions are known.
-  useEffect(() => {
-    if (!hasArtboard) return
-    if (!world) return
-    if (size.w <= 0 || size.h <= 0) return
-    if (userInteractedRef.current) return
-
-    const key = `${size.w}x${size.h}:${world.w}x${world.h}:p${fitPadding}`
-    if (autoFitKeyRef.current === key) return
-    autoFitKeyRef.current = key
-    setView(fitToWorld(size, world, fitPadding))
-  }, [fitPadding, hasArtboard, size, world])
+  const { fitToView, zoomIn, zoomOut } = useViewController({
+    hasArtboard,
+    world,
+    size,
+    fitPadding,
+    setView,
+    userInteractedRef,
+    autoFitKeyRef,
+  })
 
   const reportImageSize = useCallback((tx: { widthPxU: bigint; heightPxU: bigint } | null) => {
     if (!tx) return
@@ -470,100 +447,27 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     })
   }
 
-  const updateImageBoundsFromNode = useCallback(() => {
-    boundsControllerRef.current?.updateImageBoundsFromNode()
-  }, [])
-
-  const rafSchedulerRef = useRef<ReturnType<typeof createRafScheduler> | null>(null)
-  if (!rafSchedulerRef.current) {
-    rafSchedulerRef.current = createRafScheduler({
-      onPan: () => {
-        const { dx, dy } = panDeltaRef.current
-        panDeltaRef.current = { dx: 0, dy: 0 }
-        if (dx !== 0 || dy !== 0) setView((v) => panBy(v, dx, dy))
-      },
-      onZoom: () => {
-        const zoom = zoomRef.current
-        zoomRef.current = null
-        if (!zoom) return
-        if (!Number.isFinite(zoom.factor) || zoom.factor === 1) return
-        setView((v) => zoomAround(v, { x: zoom.x, y: zoom.y }, zoom.factor, 0.05, 8))
-      },
-      onDragBounds: () => {
-        boundsControllerRef.current?.flushDragBounds()
-      },
-      onBounds: () => {
-        updateImageBoundsFromNode()
-      },
-      onRafScheduled: () => {
-        const g = globalThis as unknown as { __gruf_editor?: { rafScheduled?: number } }
-        if (g.__gruf_editor) g.__gruf_editor.rafScheduled = (g.__gruf_editor.rafScheduled ?? 0) + 1
-      },
-      onRafExecuted: () => {
-        const g = globalThis as unknown as { __gruf_editor?: { rafExecuted?: number } }
-        if (g.__gruf_editor) g.__gruf_editor.rafExecuted = (g.__gruf_editor.rafExecuted ?? 0) + 1
-      },
+  const { scheduleRaf, scheduleBoundsUpdate, updateBoundsDuringDragMove, disposeRafScheduler } =
+    useStageRafBoundsController({
+      boundsControllerRef,
+      imageNodeRef,
+      rotationRef,
+      dragPosRef,
+      panDeltaRef,
+      zoomRef,
+      setView,
     })
-  }
-  const scheduleRaf = useCallback((flag: number) => rafSchedulerRef.current?.schedule(flag), [])
-  const scheduleBoundsUpdate = useCallback(() => scheduleRaf(RAF_BOUNDS), [scheduleRaf])
 
-  const updateBoundsDuringDragMove = useCallback(() => {
-    const node = imageNodeRef.current
-    if (!node) return
-    if (rotationRef.current % 360 !== 0) {
-      scheduleBoundsUpdate()
-      return
-    }
-    const prevPos = dragPosRef.current
-    const nextPos = { x: node.x(), y: node.y() }
-    dragPosRef.current = nextPos
-
-    if (!prevPos) {
-      scheduleBoundsUpdate()
-      return
-    }
-
-    const dx = nextPos.x - prevPos.x
-    const dy = nextPos.y - prevPos.y
-    if (dx === 0 && dy === 0) return
-
-    boundsControllerRef.current?.accumulateDragDelta(dx, dy)
-    scheduleRaf(RAF_DRAG_BOUNDS)
-  }, [scheduleBoundsUpdate, scheduleRaf])
-
-  // Apply persisted image state even if it arrives after initial placement.
-  useEffect(() => {
-    if (!img) return
-    if (!src) return
-    if (!initialImageTransform) return
-    if (
-      !shouldApplyPersistedTransform({
-        src,
-        appliedKey: stateSyncGuardRef.current.getAppliedKey(),
-        userChanged: stateSyncGuardRef.current.hasUserChanged(),
-        activeImageId,
-        stateImageId: initialImageTransform.imageId,
-        initialImageTransform,
-      })
-    )
-      return
-
-    const rotationDeg = Number(initialImageTransform.rotationDeg)
-    const nextWidthPxU = initialImageTransform.widthPxU
-    const nextHeightPxU = initialImageTransform.heightPxU
-    // Hard requirement: persisted state must include canonical µpx size.
-    if (!nextWidthPxU || !nextHeightPxU) return
-
-    const xPxU = initialImageTransform.xPxU ?? 0n
-    const yPxU = initialImageTransform.yPxU ?? 0n
-
-    stateSyncGuardRef.current.scheduleApply(src, () => {
-      setRotation(Number.isFinite(rotationDeg) ? rotationDeg : 0)
-      setImageTx({ xPxU, yPxU, widthPxU: nextWidthPxU, heightPxU: nextHeightPxU })
-      scheduleBoundsUpdate()
-    })
-  }, [activeImageId, img, initialImageTransform, scheduleBoundsUpdate, src])
+  usePersistedTransformController({
+    src,
+    imgReady: Boolean(img),
+    activeImageId,
+    initialImageTransform,
+    stateSyncGuardRef,
+    setRotation,
+    setImageTx,
+    scheduleBoundsUpdate,
+  })
 
   // Compute selection bounds (axis-aligned) for the image node.
   // Shown by default when the Select tool is active (`imageDraggable === true`).
@@ -577,48 +481,24 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     scheduleBoundsUpdate()
   }, [imageDraggable, imageTx, rotation, scheduleBoundsUpdate])
 
-  useEffect(() => {
-    if (!src) return
-    if (!img) return
-    if (stateSyncGuardRef.current.hasUserChanged()) return
-    // Initial placement:
-    // - wait until artboardWidthPx and artboardHeightPx are known
-    // - place at 100% intrinsic size, centered in the artboard (Illustrator-like)
-    if (!hasArtboard) return
-    const hasPersistedSize = Boolean(
-      initialImageTransform?.widthPxU &&
-      initialImageTransform?.heightPxU &&
-      initialImageTransform?.imageId &&
-      activeImageId &&
-      initialImageTransform.imageId === activeImageId
-    )
-    if (hasPersistedSize) return
-    if (stateSyncGuardRef.current.getAppliedKey() === src) return
 
-    const key = `${src}:${artW}x${artH}`
-    if (placedKeyRef.current === key) return
-    placedKeyRef.current = key
-
-    const intrinsic = pickIntrinsicSize({ intrinsicWidthPx, intrinsicHeightPx, img })
-    if (!intrinsic) return
-
-    const placement = computeCenteredPlacementPx({
-      artW,
-      artH,
-      intrinsicW: intrinsic.w,
-      intrinsicH: intrinsic.h,
-    })
-    if (!placement) return
-    queueMicrotask(() => {
-      setRotation(0)
-      setImageTx({
-        xPxU: numberToMicroPx(placement.xPx),
-        yPxU: numberToMicroPx(placement.yPx),
-        widthPxU: numberToMicroPx(placement.widthPx),
-        heightPxU: numberToMicroPx(placement.heightPx),
-      })
-    })
-  }, [activeImageId, artH, artW, hasArtboard, img, initialImageTransform, intrinsicHeightPx, intrinsicWidthPx, src])
+  useInitialImagePlacement({
+    src,
+    img,
+    hasArtboard,
+    artW,
+    artH,
+    artboardDpi,
+    imageDpi,
+    intrinsicWidthPx,
+    intrinsicHeightPx,
+    initialImageTransform,
+    activeImageId,
+    placedKeyRef,
+    stateSyncGuardRef,
+    setRotation,
+    setImageTx,
+  })
 
   if (!transformControllerRef.current) {
     transformControllerRef.current = createTransformController({
@@ -640,9 +520,9 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   useEffect(() => {
     return () => {
       transformControllerRef.current?.dispose()
-      rafSchedulerRef.current?.dispose()
+      disposeRafScheduler()
     }
-  }, [])
+  }, [disposeRafScheduler])
 
   const rotate90 = useCallback(() => {
     if (!mutationsEnabled || !rotateEnabled) return
@@ -661,6 +541,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   const restoreImageRaw = useRestoreImageController({
     artW,
     artH,
+    artboardDpi,
     restoreBaseSpecRef,
     activeImageId,
     transformControllerRef,
@@ -705,59 +586,47 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     }
   }, [imageRender])
 
-  const cropMinSize = 10
-  const cropLimitFrame = hasArtboard ? { x: 0, y: 0, w: artW, h: artH } : imageFrame
-  const { beginSelectResize, stopSelectResize } = useSelectResizeController({
-    containerRef,
+  const {
+    beginSelectResize,
+    cropRect,
+    applyCropMove,
+    beginCropResize,
+    getCropSelection,
+    getCropSelectionPx,
+    resetCropSelection,
+    cropRects,
+    selectRects,
+  } = useSelectionCropController({
+    cropEnabled,
+    cropBusy,
+    imageDraggable,
+    panEnabled,
     view,
+    containerRef,
+    imageFrame,
+    hasArtboard,
+    artW,
+    artH,
+    intrinsicWidthPx,
+    intrinsicHeightPx,
+    imageRender,
+    rotation,
+    selectionHandlePx,
+    snapWorldToDeviceHalfPixel,
     setImageTx,
     markUserChanged,
     scheduleBoundsUpdate,
     scheduleCommitTransform,
   })
 
-  const { cropRect, applyCropMove, beginCropResize, getCropSelection, getCropSelectionPx, resetCropSelection, stopCropResize } =
-    useCropController({
-    cropEnabled,
-    view,
-    containerRef,
-    imageFrame,
-    cropMinSize,
-    cropLimitFrame,
-    intrinsicWidthPx,
-    intrinsicHeightPx,
-    imageRender: imageRender ? { w: imageRender.width, h: imageRender.height } : null,
-    rotation,
-    })
-
-  useResizeListenerLifecycle({
-    cropBusy,
-    cropEnabled,
-    imageDraggable,
-    panEnabled,
-    stopSelectResize,
-    stopCropResize,
+  const { onWheel, onStageDragStart, onStageDragEnd } = useStageEventsController({
+    stageRef,
+    userInteractedRef,
+    panDeltaRef,
+    zoomRef,
+    scheduleRaf,
+    setView,
   })
-
-  const cropRects = useMemo(() => {
-    if (!cropRect) return null
-    return computeSelectionHandleRects({
-      bounds: { x: cropRect.x, y: cropRect.y, w: cropRect.w, h: cropRect.h },
-      view: { x: view.x, y: view.y, scale: view.scale },
-      handlePx: selectionHandlePx,
-      snapWorldToDeviceHalfPixel,
-    })
-  }, [cropRect, selectionHandlePx, snapWorldToDeviceHalfPixel, view.scale, view.x, view.y])
-
-  const selectRects = useMemo(() => {
-    if (!imageFrame) return null
-    return computeSelectionHandleRects({
-      bounds: { x: imageFrame.x, y: imageFrame.y, w: imageFrame.w, h: imageFrame.h },
-      view: { x: view.x, y: view.y, scale: view.scale },
-      handlePx: selectionHandlePx,
-      snapWorldToDeviceHalfPixel,
-    })
-  }, [imageFrame, selectionHandlePx, snapWorldToDeviceHalfPixel, view.scale, view.x, view.y])
 
   useImperativeHandle(
     ref,
@@ -776,33 +645,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     [alignImage, fitToView, getCropSelection, getCropSelectionPx, resetCropSelection, restoreImage, rotate90, setImageSize, zoomIn, zoomOut]
   )
 
-  const onWheel = useCallback(
-    (e: Konva.KonvaEventObject<WheelEvent>) => {
-      e.evt.preventDefault()
-      const stage = stageRef.current
-      if (!stage) return
 
-      // Illustrator-like:
-      // - wheel: pan
-      // - ctrl/cmd + wheel: zoom around cursor
-      if (e.evt.ctrlKey || e.evt.metaKey) {
-        userInteractedRef.current = true
-        const pos = stage.getPointerPosition()
-        if (!pos) return
-        const factor = Math.pow(1.0015, -e.evt.deltaY)
-        const prev = zoomRef.current
-        zoomRef.current = prev ? { factor: prev.factor * factor, x: pos.x, y: pos.y } : { factor, x: pos.x, y: pos.y }
-        scheduleRaf(RAF_ZOOM)
-        return
-      }
-
-      userInteractedRef.current = true
-      panDeltaRef.current.dx += e.evt.deltaX
-      panDeltaRef.current.dy += e.evt.deltaY
-      scheduleRaf(RAF_PAN)
-    },
-    [scheduleRaf]
-  )
 
   // E2E test hook: expose stage + image node to the browser so Playwright can
   // assert transforms without pixel-based screenshots.
@@ -854,20 +697,8 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
         x={view.x}
         y={view.y}
         draggable={panEnabled}
-        onDragStart={(e) => {
-          if (e.target === stageRef.current) userInteractedRef.current = true
-        }}
-        onDragEnd={(e) => {
-          const stage = stageRef.current
-          if (!stage) return
-          if (e.target !== stage) return
-          setView((v) => {
-            const x = stage.x()
-            const y = stage.y()
-            if (v.x === x && v.y === y) return v
-            return { ...v, x, y }
-          })
-        }}
+        onDragStart={onStageDragStart}
+        onDragEnd={onStageDragEnd}
         onWheel={onWheel}
       >
         <Layer

@@ -8,6 +8,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 export const PROJECT_IMAGES_BUCKET = "project_images"
+const DEFAULT_IMAGE_DPI = 72
+
+function normalizeImageDpi(value: number | null | undefined): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return DEFAULT_IMAGE_DPI
+  return Math.max(1, Math.trunc(value))
+}
 
 export type ActiveMasterImage = {
   id: string
@@ -42,7 +48,7 @@ export async function activateMasterWithState(args: {
   widthPx: number
   heightPx: number
 }): Promise<{ ok: true } | { ok: false; status: number; stage: "active_switch" | "lock_conflict"; reason: string; code?: string }> {
-  const { supabase, projectId, imageId, widthPx, heightPx } = args
+  const { supabase, projectId, imageId, widthPx, heightPx, imageDpi } = args
   const { data: activeRow, error: activeErr } = await supabase
     .from("project_images")
     .select("id,is_locked")
@@ -74,6 +80,7 @@ export async function activateMasterWithState(args: {
     p_image_id: imageId,
     p_width_px: Math.max(1, Math.trunc(widthPx)),
     p_height_px: Math.max(1, Math.trunc(heightPx)),
+    p_image_dpi: normalizeImageDpi(imageDpi),
   })
   if (error) {
     return {

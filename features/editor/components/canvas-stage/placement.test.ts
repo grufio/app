@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from "vitest"
 
-import { computeCenteredPlacementPx, pickIntrinsicSize, shouldApplyPersistedTransform } from "./placement"
+import { computeDpiRelativePlacementPx, FALLBACK_IMAGE_DPI, pickIntrinsicSize, shouldApplyPersistedTransform } from "./placement"
 
 describe("pickIntrinsicSize", () => {
   it("prefers DB intrinsic size when present", () => {
@@ -37,13 +37,15 @@ describe("pickIntrinsicSize", () => {
   })
 })
 
-describe("computeCenteredPlacementPx", () => {
-  it("centers landscape image at intrinsic size", () => {
-    const out = computeCenteredPlacementPx({
+describe("computeDpiRelativePlacementPx", () => {
+  it("keeps 1:1 size when image dpi equals artboard dpi", () => {
+    const out = computeDpiRelativePlacementPx({
       artW: 1200,
       artH: 800,
       intrinsicW: 640,
       intrinsicH: 480,
+      artboardDpi: 300,
+      imageDpi: 300,
     })
     expect(out).toEqual({
       xPx: 600,
@@ -53,27 +55,65 @@ describe("computeCenteredPlacementPx", () => {
     })
   })
 
-  it("centers portrait image at intrinsic size", () => {
-    const out = computeCenteredPlacementPx({
-      artW: 1000,
-      artH: 1000,
-      intrinsicW: 1000,
-      intrinsicH: 2000,
+  it("scales down when image dpi is higher than artboard dpi", () => {
+    const out = computeDpiRelativePlacementPx({
+      artW: 1200,
+      artH: 800,
+      intrinsicW: 600,
+      intrinsicH: 400,
+      artboardDpi: 300,
+      imageDpi: 600,
     })
     expect(out).toEqual({
-      xPx: 500,
-      yPx: 500,
-      widthPx: 1000,
-      heightPx: 2000,
+      xPx: 600,
+      yPx: 400,
+      widthPx: 300,
+      heightPx: 200,
+    })
+  })
+
+  it("scales up when image dpi is lower than artboard dpi", () => {
+    const out = computeDpiRelativePlacementPx({
+      artW: 1200,
+      artH: 800,
+      intrinsicW: 600,
+      intrinsicH: 400,
+      artboardDpi: 300,
+      imageDpi: 150,
+    })
+    expect(out).toEqual({
+      xPx: 600,
+      yPx: 400,
+      widthPx: 1200,
+      heightPx: 800,
+    })
+  })
+
+  it("uses 72 fallback when image dpi is missing", () => {
+    const out = computeDpiRelativePlacementPx({
+      artW: 1200,
+      artH: 800,
+      intrinsicW: 100,
+      intrinsicH: 50,
+      artboardDpi: 300,
+      imageDpi: null,
+    })
+    expect(out).toEqual({
+      xPx: 600,
+      yPx: 400,
+      widthPx: 100 * (300 / FALLBACK_IMAGE_DPI),
+      heightPx: 50 * (300 / FALLBACK_IMAGE_DPI),
     })
   })
 
   it("returns null for invalid dimensions", () => {
-    const out = computeCenteredPlacementPx({
+    const out = computeDpiRelativePlacementPx({
       artW: 0,
       artH: 1000,
       intrinsicW: 1000,
       intrinsicH: 2000,
+      artboardDpi: 300,
+      imageDpi: 72,
     })
     expect(out).toBeNull()
   })

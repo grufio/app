@@ -2,56 +2,21 @@
  * Server-side orchestration for master image uploads.
  *
  * Responsibilities:
- * - Validate upload constraints and normalize metadata.
- * - Upload file to storage, insert DB row, then activate state.
+ * - Normalize upload metadata.
+ * - Enforce upload policy and limits.
+ * - Coordinate storage write, DB insert, and activation.
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
 
-import { activateMasterWithState } from "@/lib/supabase/project-images"
 import type { Database } from "@/lib/supabase/database.types"
 
-type UploadFailStage = "validation" | "upload_limits" | "storage_upload" | "db_upsert" | "active_switch" | "lock_conflict"
+import { activateInsertedMaster } from "./master-image-upload/activation"
+import { insertMasterWithCleanup } from "./master-image-upload/master-insert-flow"
+import { validateUploadInputs, validateUploadLimits } from "./master-image-upload/policy"
+import type { UploadMasterImageResult } from "./master-image-upload/types"
+import { normalizePositiveInt, resolveImageDpi } from "./master-image-upload/validation"
 
-export type UploadMasterImageFailure = {
-  ok: false
-  status: number
-  stage: UploadFailStage
-  reason: string
-  code?: string
-  details?: Record<string, unknown>
-}
-
-export type UploadMasterImageSuccess = {
-  ok: true
-  id: string
-  storagePath: string
-}
-
-export type UploadMasterImageResult = UploadMasterImageSuccess | UploadMasterImageFailure
-
-function parseOptionalPositiveInt(value: string | undefined): number | null {
-  if (typeof value !== "string" || !value.trim()) return null
-  const n = Number(value)
-  if (!Number.isFinite(n) || !Number.isInteger(n) || n <= 0) return null
-  return n
-}
-
-function parseAllowedMimeList(value: string | undefined): Set<string> | null {
-  if (typeof value !== "string" || !value.trim()) return null
-  const items = value
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean)
-  if (!items.length) return null
-  return new Set(items)
-}
-
-function normalizePositiveInt(n: number): number | null {
-  if (!Number.isFinite(n)) return null
-  const v = Math.trunc(n)
-  if (v <= 0) return null
-  return v
-}
+export type { UploadMasterImageFailure, UploadMasterImageSuccess, UploadMasterImageResult } from "./master-image-upload/types"
 
 export async function uploadMasterImage(args: {
   supabase: SupabaseClient<Database>
@@ -71,73 +36,13 @@ export async function uploadMasterImage(args: {
   const dpiX = normalizePositiveInt(args.dpiX)
   const dpiY = normalizePositiveInt(args.dpiY)
   const bitDepth = normalizePositiveInt(args.bitDepth)
+  const imageDpi = resolveImageDpi({ dpiX, dpiY })
 
-  if (!widthPx || !heightPx) {
-    return {
-      ok: false,
-      status: 400,
-      stage: "validation",
-      reason: "Missing/invalid width_px/height_px",
-    }
-  }
+  const inputError = validateUploadInputs({ widthPx, heightPx, dpiX, dpiY, bitDepth })
+  if (inputError) return inputError
 
-  if (!dpiX || !dpiY || !bitDepth) {
-    return {
-      ok: false,
-      status: 400,
-      stage: "validation",
-      reason: "Missing/invalid dpi_x/dpi_y/bit_depth",
-    }
-  }
-
-  const maxUploadBytes = parseOptionalPositiveInt(process.env.USER_MAX_UPLOAD_BYTES)
-  if (maxUploadBytes != null && file.size > maxUploadBytes) {
-    return {
-      ok: false,
-      status: 413,
-      stage: "upload_limits",
-      reason: "Upload too large",
-      details: {
-        max_bytes: maxUploadBytes,
-        got_bytes: file.size,
-      },
-    }
-  }
-
-  const allowedMime = parseAllowedMimeList(process.env.USER_ALLOWED_UPLOAD_MIME)
-  if (allowedMime != null) {
-    const mime = (file.type || "").trim()
-    if (!mime || !allowedMime.has(mime)) {
-      return {
-        ok: false,
-        status: 415,
-        stage: "upload_limits",
-        reason: "Unsupported file type",
-        details: {
-          mime: mime || null,
-          allowed_mime: Array.from(allowedMime),
-        },
-      }
-    }
-  }
-
-  const maxPixels = parseOptionalPositiveInt(process.env.USER_UPLOAD_MAX_PIXELS)
-  if (maxPixels != null) {
-    const pixels = BigInt(widthPx) * BigInt(heightPx)
-    if (pixels > BigInt(maxPixels)) {
-      return {
-        ok: false,
-        status: 413,
-        stage: "upload_limits",
-        reason: "Image dimensions too large",
-        details: {
-          max_pixels: maxPixels,
-          width_px: widthPx,
-          height_px: heightPx,
-        },
-      }
-    }
-  }
+  const limitError = validateUploadLimits({ file, widthPx, heightPx })
+  if (limitError) return limitError
 
   const imageId = crypto.randomUUID()
   const objectPath = `projects/${projectId}/images/${imageId}`
@@ -156,46 +61,46 @@ export async function uploadMasterImage(args: {
     }
   }
 
-  const { error: dbErr } = await supabase.from("project_images").insert({
-    id: imageId,
-    project_id: projectId,
-    role: "master",
-    name: file.name,
+  const insertResult = await insertMasterWithCleanup({
+    supabase,
+    imageId,
+    projectId,
+    file,
     format,
-    width_px: widthPx,
-    height_px: heightPx,
-    dpi_x: dpiX,
-    dpi_y: dpiY,
-    bit_depth: bitDepth,
-    storage_bucket: "project_images",
-    storage_path: objectPath,
-    file_size_bytes: file.size,
-    is_active: false,
+    widthPx,
+    heightPx,
+    dpiX,
+    dpiY,
+    imageDpi,
+    bitDepth,
+    objectPath,
   })
-  if (dbErr) {
+  if (!insertResult.ok) {
     return {
       ok: false,
       status: 400,
       stage: "db_upsert",
-      reason: dbErr.message,
-      code: (dbErr as unknown as { code?: string })?.code,
+      reason: insertResult.reason,
+      code: insertResult.code,
     }
   }
 
-  const activation = await activateMasterWithState({
+  const activationResult = await activateInsertedMaster({
     supabase,
     projectId,
     imageId,
     widthPx,
     heightPx,
+    imageDpi,
+    objectPath,
   })
-  if (!activation.ok) {
+  if (!activationResult.ok) {
     return {
       ok: false,
-      status: activation.status,
-      stage: activation.stage,
-      reason: activation.reason,
-      code: activation.code,
+      status: activationResult.status,
+      stage: activationResult.stage,
+      reason: activationResult.reason,
+      code: activationResult.code,
     }
   }
 
