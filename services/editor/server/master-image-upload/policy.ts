@@ -4,11 +4,10 @@ import { parseAllowedMimeList, parseOptionalPositiveInt } from "./validation"
 export function validateUploadInputs(args: {
   widthPx: number | null
   heightPx: number | null
-  dpiX: number | null
-  dpiY: number | null
+  dpi: number | null
   bitDepth: number | null
 }): UploadMasterImageFailure | null {
-  const { widthPx, heightPx, dpiX, dpiY, bitDepth } = args
+  const { widthPx, heightPx, dpi, bitDepth } = args
   if (!widthPx || !heightPx) {
     return {
       ok: false,
@@ -18,12 +17,12 @@ export function validateUploadInputs(args: {
     }
   }
 
-  if (!dpiX || !dpiY || !bitDepth) {
+  if (!dpi || !bitDepth) {
     return {
       ok: false,
       status: 400,
       stage: "validation",
-      reason: "Missing/invalid dpi_x/dpi_y/bit_depth",
+      reason: "Missing/invalid dpi/bit_depth",
     }
   }
 

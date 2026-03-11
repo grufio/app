@@ -51,15 +51,13 @@ export async function POST(
   const width_px = Number(form.get("width_px"))
   const height_px = Number(form.get("height_px"))
   const dpiRaw = form.get("dpi")
-  const dpiXRaw = form.get("dpi_x")
-  const dpiYRaw = form.get("dpi_y")
   const bitDepthRaw = form.get("bit_depth")
   const format = String(form.get("format") ?? "unknown")
 
   if (!Number.isFinite(width_px) || !Number.isFinite(height_px)) {
     return jsonError("Missing/invalid dimensions", 400, { stage: "validation", where: "validate" })
   }
-  const parsedDpi = Number(dpiRaw ?? dpiXRaw ?? dpiYRaw)
+  const parsedDpi = Number(dpiRaw)
   const dpi = Number.isFinite(parsedDpi) && parsedDpi > 0 ? parsedDpi : null
   const parsedBitDepth = Number(bitDepthRaw)
   const bitDepth = Number.isFinite(parsedBitDepth) && parsedBitDepth > 0 ? parsedBitDepth : null

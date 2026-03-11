@@ -14,7 +14,7 @@ import { activateInsertedMaster } from "./master-image-upload/activation"
 import { insertMasterWithCleanup } from "./master-image-upload/master-insert-flow"
 import { validateUploadInputs, validateUploadLimits } from "./master-image-upload/policy"
 import type { UploadMasterImageResult } from "./master-image-upload/types"
-import { normalizePositiveInt, resolveImageDpi } from "./master-image-upload/validation"
+import { normalizePositiveInt } from "./master-image-upload/validation"
 
 export type { UploadMasterImageFailure, UploadMasterImageSuccess, UploadMasterImageResult } from "./master-image-upload/types"
 
@@ -24,8 +24,7 @@ export async function uploadMasterImage(args: {
   file: File
   widthPx: number
   heightPx: number
-  dpiX: number
-  dpiY: number
+  dpi?: number
   bitDepth: number
   format: string
 }): Promise<UploadMasterImageResult> {
@@ -33,12 +32,10 @@ export async function uploadMasterImage(args: {
 
   const widthPx = normalizePositiveInt(args.widthPx)
   const heightPx = normalizePositiveInt(args.heightPx)
-  const dpiX = normalizePositiveInt(args.dpiX)
-  const dpiY = normalizePositiveInt(args.dpiY)
+  const dpi = normalizePositiveInt(args.dpi ?? Number.NaN)
   const bitDepth = normalizePositiveInt(args.bitDepth)
-  const imageDpi = resolveImageDpi({ dpiX, dpiY })
 
-  const inputError = validateUploadInputs({ widthPx, heightPx, dpiX, dpiY, bitDepth })
+  const inputError = validateUploadInputs({ widthPx, heightPx, dpi, bitDepth })
   if (inputError) return inputError
 
   const limitError = validateUploadLimits({ file, widthPx, heightPx })
@@ -69,9 +66,9 @@ export async function uploadMasterImage(args: {
     format,
     widthPx,
     heightPx,
-    dpiX,
-    dpiY,
-    imageDpi,
+    dpiX: dpi as number,
+    dpiY: dpi as number,
+    imageDpi: dpi as number,
     bitDepth,
     objectPath,
   })
@@ -91,7 +88,7 @@ export async function uploadMasterImage(args: {
     imageId,
     widthPx,
     heightPx,
-    imageDpi,
+    imageDpi: dpi as number,
     objectPath,
   })
   if (!activationResult.ok) {

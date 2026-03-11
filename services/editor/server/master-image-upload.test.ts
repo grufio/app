@@ -77,8 +77,7 @@ describe("master-image-upload service", () => {
       widthPx: 0,
       heightPx: 10,
       format: "png",
-      dpiX: 72,
-      dpiY: 72,
+      dpi: 72,
       bitDepth: 8,
     })
     expect(out.ok).toBe(false)
@@ -99,8 +98,7 @@ describe("master-image-upload service", () => {
       file,
       widthPx: 10,
       heightPx: 10,
-      dpiX: 72,
-      dpiY: 72,
+      dpi: 72,
       bitDepth: 8,
       format: "png",
     })
@@ -128,8 +126,7 @@ describe("master-image-upload service", () => {
       file,
       widthPx: 400.9,
       heightPx: 200.1,
-      dpiX: 300,
-      dpiY: 300,
+      dpi: 300,
       bitDepth: 8,
       format: "png",
     })
@@ -166,8 +163,7 @@ describe("master-image-upload service", () => {
       file,
       widthPx: 200,
       heightPx: 100,
-      dpiX: 72,
-      dpiY: 72,
+      dpi: 72,
       bitDepth: 8,
       format: "png",
     })
