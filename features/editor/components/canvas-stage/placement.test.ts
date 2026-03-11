@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from "vitest"
 
-import { pickIntrinsicSize, shouldApplyPersistedTransform } from "./placement"
+import { computeCenteredPlacementPx, pickIntrinsicSize, shouldApplyPersistedTransform } from "./placement"
 
 describe("pickIntrinsicSize", () => {
   it("prefers DB intrinsic size when present", () => {
@@ -34,6 +34,48 @@ describe("pickIntrinsicSize", () => {
       img: { naturalWidth: 0, naturalHeight: 0, width: 30, height: 40 },
     })
     expect(out).toEqual({ w: 30, h: 40 })
+  })
+})
+
+describe("computeCenteredPlacementPx", () => {
+  it("centers landscape image at intrinsic size", () => {
+    const out = computeCenteredPlacementPx({
+      artW: 1200,
+      artH: 800,
+      intrinsicW: 640,
+      intrinsicH: 480,
+    })
+    expect(out).toEqual({
+      xPx: 600,
+      yPx: 400,
+      widthPx: 640,
+      heightPx: 480,
+    })
+  })
+
+  it("centers portrait image at intrinsic size", () => {
+    const out = computeCenteredPlacementPx({
+      artW: 1000,
+      artH: 1000,
+      intrinsicW: 1000,
+      intrinsicH: 2000,
+    })
+    expect(out).toEqual({
+      xPx: 500,
+      yPx: 500,
+      widthPx: 1000,
+      heightPx: 2000,
+    })
+  })
+
+  it("returns null for invalid dimensions", () => {
+    const out = computeCenteredPlacementPx({
+      artW: 0,
+      artH: 1000,
+      intrinsicW: 1000,
+      intrinsicH: 2000,
+    })
+    expect(out).toBeNull()
   })
 })
 
@@ -90,4 +132,3 @@ describe("shouldApplyPersistedTransform", () => {
     ).toBe(false)
   })
 })
-

@@ -1,15 +1,25 @@
 import { describe, expect, it } from "vitest"
 
+import { computeCenteredPlacementPx } from "./placement"
 import { resolveRestoreImageRequest } from "./restore-controller"
 
 describe("resolveRestoreImageRequest", () => {
-  it("returns base dimensions when ready and image ids match", () => {
+  it("returns placement from the same centered-100%-size contract", () => {
     const out = resolveRestoreImageRequest({
       artW: 1200,
       artH: 800,
       baseSpec: { imageId: "img-1", widthPx: 640, heightPx: 480 },
     })
-    expect(out).toEqual({ ok: true, baseW: 640, baseH: 480 })
+    const expectedPlacement = computeCenteredPlacementPx({
+      artW: 1200,
+      artH: 800,
+      intrinsicW: 640,
+      intrinsicH: 480,
+    })
+    expect(out).toEqual({
+      ok: true,
+      placement: expectedPlacement,
+    })
   })
 
   it("returns not_ready for invalid artboard size", () => {
@@ -40,4 +50,3 @@ describe("resolveRestoreImageRequest", () => {
     expect(out).toEqual({ ok: false, reason: "stale_base_spec" })
   })
 })
-

@@ -25,6 +25,30 @@ export function pickIntrinsicSize(args: {
   return { w, h }
 }
 
+export type ImagePlacementPx = {
+  xPx: number
+  yPx: number
+  widthPx: number
+  heightPx: number
+}
+
+export function computeCenteredPlacementPx(args: {
+  artW: number
+  artH: number
+  intrinsicW: number
+  intrinsicH: number
+}): ImagePlacementPx | null {
+  const { artW, artH, intrinsicW, intrinsicH } = args
+  if (!(artW > 0 && artH > 0 && intrinsicW > 0 && intrinsicH > 0)) return null
+
+  return {
+    xPx: artW / 2,
+    yPx: artH / 2,
+    widthPx: intrinsicW,
+    heightPx: intrinsicH,
+  }
+}
+
 export function shouldApplyPersistedTransform(args: {
   src: string | undefined
   appliedKey: string | null
@@ -41,4 +65,3 @@ export function shouldApplyPersistedTransform(args: {
   if (appliedKey === src) return false
   return Boolean(initialImageTransform.widthPxU && initialImageTransform.heightPxU)
 }
-

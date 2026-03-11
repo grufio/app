@@ -245,10 +245,13 @@ describe("getActiveMasterImage", () => {
 })
 
 describe("db contract: pixel-only seeding", () => {
-  it("set_active_master_with_state SQL does not use DPI scaling", () => {
-    const sqlPath = path.join(process.cwd(), "db/025_set_active_master_with_state_dpi_aligned.sql")
+  it("set_active_master_with_state SQL uses centered 100% size and no fit/dpi scaling", () => {
+    const sqlPath = path.join(process.cwd(), "db/052_set_active_master_with_state_centered_100pct.sql")
     const sql = fs.readFileSync(sqlPath, "utf8")
 
+    expect(sql).toMatch(/\bv_w_u::text\b/)
+    expect(sql).toMatch(/\bv_h_u::text\b/)
+    expect(sql).not.toMatch(/\bLEAST\s*\(/)
     expect(sql).not.toMatch(/\bartboard_dpi\b/)
     expect(sql).not.toMatch(/\bimage_dpi\b/)
     expect(sql).not.toMatch(/\bpi\.dpi\b/)

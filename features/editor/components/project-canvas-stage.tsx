@@ -17,7 +17,7 @@ import { numberToMicroPx } from "@/lib/editor/konva"
 import { useAlignImageController, type AlignImageOptions } from "./canvas-stage/align-controller"
 import { createBoundsController } from "./canvas-stage/bounds-controller"
 import { computeGridLines } from "./canvas-stage/grid-lines"
-import { pickIntrinsicSize, shouldApplyPersistedTransform } from "./canvas-stage/placement"
+import { computeCenteredPlacementPx, pickIntrinsicSize, shouldApplyPersistedTransform } from "./canvas-stage/placement"
 import { createStateSyncGuard } from "./canvas-stage/state-sync-guard"
 import { snapWorldToDeviceHalfPixel as snapHalfPixel } from "./canvas-stage/pixel-snap"
 import { createRafScheduler, RAF_BOUNDS, RAF_DRAG_BOUNDS, RAF_PAN, RAF_ZOOM } from "./canvas-stage/raf-scheduler"
@@ -583,8 +583,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     if (stateSyncGuardRef.current.hasUserChanged()) return
     // Initial placement:
     // - wait until artboardWidthPx and artboardHeightPx are known
-    // - convert source pixel size to document pixels using Actual PPI and document DPI
-    //   (Illustrator rule in this pixel world: pixels / actualPPI * documentDPI)
+    // - place at 100% intrinsic size, centered in the artboard (Illustrator-like)
     if (!hasArtboard) return
     const hasPersistedSize = Boolean(
       initialImageTransform?.widthPxU &&
@@ -602,16 +601,21 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
 
     const intrinsic = pickIntrinsicSize({ intrinsicWidthPx, intrinsicHeightPx, img })
     if (!intrinsic) return
-    const baseW = intrinsic.w
-    const baseH = intrinsic.h
 
+    const placement = computeCenteredPlacementPx({
+      artW,
+      artH,
+      intrinsicW: intrinsic.w,
+      intrinsicH: intrinsic.h,
+    })
+    if (!placement) return
     queueMicrotask(() => {
       setRotation(0)
       setImageTx({
-        xPxU: numberToMicroPx(artW / 2),
-        yPxU: numberToMicroPx(artH / 2),
-        widthPxU: numberToMicroPx(baseW),
-        heightPxU: numberToMicroPx(baseH),
+        xPxU: numberToMicroPx(placement.xPx),
+        yPxU: numberToMicroPx(placement.yPx),
+        widthPxU: numberToMicroPx(placement.widthPx),
+        heightPxU: numberToMicroPx(placement.heightPx),
       })
     })
   }, [activeImageId, artH, artW, hasArtboard, img, initialImageTransform, intrinsicHeightPx, intrinsicWidthPx, src])
@@ -659,7 +663,6 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     artH,
     restoreBaseSpecRef,
     activeImageId,
-    initialImageTransform,
     transformControllerRef,
     scheduleBoundsUpdate,
   })

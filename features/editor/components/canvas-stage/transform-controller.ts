@@ -16,6 +16,7 @@ import {
   readMicroPxPositionFromNode,
 } from "@/lib/editor/konva"
 import { getClientRectRelative, getNodeXY, setNodeXY } from "./konva-adapters"
+import type { ImagePlacementPx } from "./placement"
 
 export type ImageTx = { xPxU: MicroPx; yPxU: MicroPx; widthPxU: MicroPx; heightPxU: MicroPx }
 
@@ -40,11 +41,7 @@ export type TransformController = {
   setImageSize: (widthPxU: MicroPx, heightPxU: MicroPx, fallbackCenterPx?: { x: number; y: number } | null) => void
   alignImage: (opts: { artW: number; artH: number; x?: "left" | "center" | "right"; y?: "top" | "center" | "bottom" }) => void
   restoreImage: (opts: {
-    artW: number
-    artH: number
-    baseW: number
-    baseH: number
-    initialImageTransform?: { xPxU?: MicroPx; yPxU?: MicroPx; widthPxU?: MicroPx; heightPxU?: MicroPx; rotationDeg: number } | null
+    placement: ImagePlacementPx
   }) => void
 }
 
@@ -156,19 +153,15 @@ export function createTransformController(deps: TransformControllerDeps): Transf
   }
 
   const restoreImage = (opts: {
-    artW: number
-    artH: number
-    baseW: number
-    baseH: number
-    initialImageTransform?: { xPxU?: MicroPx; yPxU?: MicroPx; widthPxU?: MicroPx; heightPxU?: MicroPx; rotationDeg: number } | null
+    placement: ImagePlacementPx
   }) => {
     cancelScheduledCommit()
     // Restore must reset to the default placement in the current artboard,
     // not to the latest persisted transform.
-    const nextWidthPxU = numberToMicroPx(opts.baseW)
-    const nextHeightPxU = numberToMicroPx(opts.baseH)
-    const nextX = numberToMicroPx(opts.artW / 2)
-    const nextY = numberToMicroPx(opts.artH / 2)
+    const nextWidthPxU = numberToMicroPx(opts.placement.widthPx)
+    const nextHeightPxU = numberToMicroPx(opts.placement.heightPx)
+    const nextX = numberToMicroPx(opts.placement.xPx)
+    const nextY = numberToMicroPx(opts.placement.yPx)
 
     const next: ImageTx = { xPxU: nextX, yPxU: nextY, widthPxU: nextWidthPxU, heightPxU: nextHeightPxU }
 

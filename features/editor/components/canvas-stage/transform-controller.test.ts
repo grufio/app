@@ -163,13 +163,15 @@ describe("createTransformController", () => {
       })
 
       c.scheduleCommit(true, 200)
-      c.restoreImage({ artW: 1000, artH: 800, baseW: 640, baseH: 480, initialImageTransform: null })
+      c.restoreImage({
+        placement: { xPx: 500, yPx: 400, widthPx: 1000, heightPx: 750 },
+      })
 
       await vi.advanceTimersByTimeAsync(250)
 
       expect(commits.length).toBe(1)
-      expect(commits[0].widthPxU).toBe(640_000_000n)
-      expect(commits[0].heightPxU).toBe(480_000_000n)
+      expect(commits[0].widthPxU).toBe(1_000_000_000n)
+      expect(commits[0].heightPxU).toBe(750_000_000n)
     } finally {
       vi.useRealTimers()
     }
