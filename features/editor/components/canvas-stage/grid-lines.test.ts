@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from "vitest"
 
-import { computeGridLines } from "./grid-lines"
+import { computeGridLines, snapGridLinesToDevicePixels } from "./grid-lines"
 
 describe("computeGridLines", () => {
   it("returns null for invalid inputs", () => {
@@ -45,5 +45,35 @@ describe("computeGridLines", () => {
     // Stride is chosen to cap total line count roughly at maxLines.
     expect(out!.lines.length).toBeLessThanOrEqual(650)
   })
+
+  it("snaps vertical and horizontal lines via provided pixel snap function", () => {
+    const base = computeGridLines({
+      artW: 100,
+      artH: 100,
+      grid: { spacingXPx: 10, spacingYPx: 10, lineWidthPx: 1, color: "#000" },
+      maxLines: 600,
+    })
+    expect(base).not.toBeNull()
+
+    const snapped = snapGridLinesToDevicePixels({
+      gridLines: base,
+      snapWorldToDeviceHalfPixel: (worldCoord, axis) => (axis === "x" ? worldCoord + 0.5 : worldCoord + 0.25),
+    })
+    expect(snapped).not.toBeNull()
+
+    const firstVertical = snapped!.lines.find((line) => line.key === "vx:0")
+    const firstHorizontal = snapped!.lines.find((line) => line.key === "hy:0")
+    expect(firstVertical?.points).toEqual([0.5, 0, 0.5, 100])
+    expect(firstHorizontal?.points).toEqual([0, 0.25, 100, 0.25])
+  })
+
+  it("returns null when snapping receives null grid", () => {
+    const out = snapGridLinesToDevicePixels({
+      gridLines: null,
+      snapWorldToDeviceHalfPixel: (worldCoord) => worldCoord,
+    })
+    expect(out).toBeNull()
+  })
+
 })
 

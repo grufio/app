@@ -14,7 +14,7 @@ import type Konva from "konva"
 import { pxUToPxNumber } from "@/lib/editor/units"
 import { useAlignImageController, type AlignImageOptions } from "./canvas-stage/align-controller"
 import { createBoundsController } from "./canvas-stage/bounds-controller"
-import { computeGridLines } from "./canvas-stage/grid-lines"
+import { computeGridLines, snapGridLinesToDevicePixels } from "./canvas-stage/grid-lines"
 import { useInitialImagePlacement } from "./canvas-stage/initial-placement-controller"
 import { useRestoreBaseSpecController } from "./canvas-stage/restore-base-spec-controller"
 import { useViewController } from "./canvas-stage/view-controller"
@@ -23,6 +23,7 @@ import { useSelectionCropController } from "./canvas-stage/selection-crop-contro
 import { useStageEventsController } from "./canvas-stage/stage-events-controller"
 import { pickIntrinsicSize } from "./canvas-stage/placement"
 import { createStateSyncGuard } from "./canvas-stage/state-sync-guard"
+import { getStaticLineRenderProps } from "./canvas-stage/line-rendering"
 import { snapWorldToDeviceHalfPixel as snapHalfPixel } from "./canvas-stage/pixel-snap"
 import { useRestoreImageController, type RestoreBaseSpec, type RestoreImageResult } from "./canvas-stage/restore-controller"
 import type { CropRectWorld } from "./canvas-stage/crop-controller"
@@ -158,40 +159,33 @@ const SelectionOverlay = memo(function SelectionOverlay({
   const handleW = rects.handleSize.w
   const handleH = rects.handleSize.h
   const handleRects = [tl, tm, tr, rm, br, bm, bl, lm]
+  const lineProps = getStaticLineRenderProps(1)
 
   return (
     <>
       <Line
         points={[x1, y1, x2, y1]}
         stroke={selectionColor}
-        strokeWidth={1}
         dash={selectionDash}
-        strokeScaleEnabled={false}
-        listening={false}
+        {...lineProps}
       />
       <Line
         points={[x2, y1, x2, y2]}
         stroke={selectionColor}
-        strokeWidth={1}
         dash={selectionDash}
-        strokeScaleEnabled={false}
-        listening={false}
+        {...lineProps}
       />
       <Line
         points={[x2, y2, x1, y2]}
         stroke={selectionColor}
-        strokeWidth={1}
         dash={selectionDash}
-        strokeScaleEnabled={false}
-        listening={false}
+        {...lineProps}
       />
       <Line
         points={[x1, y2, x1, y1]}
         stroke={selectionColor}
-        strokeWidth={1}
         dash={selectionDash}
-        strokeScaleEnabled={false}
-        listening={false}
+        {...lineProps}
       />
 
       {handleRects.map((h, idx) => (
@@ -403,6 +397,10 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     [view.scale, view.x, view.y]
   )
 
+
+  const snappedGridLines = useMemo(() => {
+    return snapGridLinesToDevicePixels({ gridLines, snapWorldToDeviceHalfPixel })
+  }, [gridLines, snapWorldToDeviceHalfPixel])
 
   const { fitToView, zoomIn, zoomOut } = useViewController({
     hasArtboard,
@@ -744,16 +742,14 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
             ) : null}
 
             {/* Grid overlay (under selection frame). */}
-            {gridLines && gridLines.lines.length ? (
+            {snappedGridLines && snappedGridLines.lines.length ? (
               <>
-                {gridLines.lines.map((l) => (
+                {snappedGridLines.lines.map((l) => (
                   <Line
                     key={l.key}
                     points={l.points}
-                    stroke={gridLines.stroke}
-                    strokeWidth={gridLines.strokeWidth}
-                    strokeScaleEnabled={false}
-                    listening={false}
+                    stroke={snappedGridLines.stroke}
+                    {...getStaticLineRenderProps(snappedGridLines.strokeWidth)}
                   />
                 ))}
               </>
@@ -874,30 +870,22 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
                     <Line
                       points={[xL, 0, xL, artH]}
                       stroke={borderColor}
-                      strokeWidth={borderWidth}
-                      strokeScaleEnabled={false}
-                      listening={false}
+                      {...getStaticLineRenderProps(borderWidth)}
                     />
                     <Line
                       points={[xR, 0, xR, artH]}
                       stroke={borderColor}
-                      strokeWidth={borderWidth}
-                      strokeScaleEnabled={false}
-                      listening={false}
+                      {...getStaticLineRenderProps(borderWidth)}
                     />
                     <Line
                       points={[0, yT, artW, yT]}
                       stroke={borderColor}
-                      strokeWidth={borderWidth}
-                      strokeScaleEnabled={false}
-                      listening={false}
+                      {...getStaticLineRenderProps(borderWidth)}
                     />
                     <Line
                       points={[0, yB, artW, yB]}
                       stroke={borderColor}
-                      strokeWidth={borderWidth}
-                      strokeScaleEnabled={false}
-                      listening={false}
+                      {...getStaticLineRenderProps(borderWidth)}
                     />
                   </>
                 )

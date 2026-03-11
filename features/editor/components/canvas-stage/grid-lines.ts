@@ -56,3 +56,27 @@ export function computeGridLines(opts: {
   return { stroke, strokeWidth, lines }
 }
 
+
+
+export function snapGridLinesToDevicePixels(args: {
+  gridLines: GridLines | null
+  snapWorldToDeviceHalfPixel: (worldCoord: number, axis: "x" | "y") => number
+}): GridLines | null {
+  const { gridLines, snapWorldToDeviceHalfPixel } = args
+  if (!gridLines) return null
+
+  const snappedLines = gridLines.lines.map((line) => {
+    const [x1, y1, x2, y2] = line.points
+    if (x1 === x2) {
+      const sx = snapWorldToDeviceHalfPixel(x1, "x")
+      return { ...line, points: [sx, y1, sx, y2] }
+    }
+    if (y1 === y2) {
+      const sy = snapWorldToDeviceHalfPixel(y1, "y")
+      return { ...line, points: [x1, sy, x2, sy] }
+    }
+    return line
+  })
+
+  return { ...gridLines, lines: snappedLines }
+}

@@ -17,6 +17,9 @@ concurrency:
 jobs:
   lint_test:
     runs-on: ubuntu-latest
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -37,28 +40,21 @@ jobs:
         run: npm run test:coverage:gate
 
       - name: Check remote DB invariants (optional)
-        if: ${{ secrets.SUPABASE_DB_URL != '' }}
-        env:
-          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        if: ${{ env.SUPABASE_DB_URL != '' }}
         run: npm run check:remote
 
       # Optional release gates (require secrets + linked Supabase project).
       - name: Verify remote migrations (optional)
-        if: ${{ secrets.SUPABASE_DB_PASSWORD != '' }}
-        env:
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        if: ${{ env.SUPABASE_DB_PASSWORD != '' }}
         run: npm run verify:remote-migrations
 
       - name: Verify remote RLS + storage policies (optional)
-        if: ${{ secrets.SUPABASE_DB_PASSWORD != '' }}
-        env:
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        if: ${{ env.SUPABASE_DB_PASSWORD != '' }}
         run: npm run verify:remote-rls
 
       - name: Verify DB types are synced (optional)
-        if: ${{ secrets.SUPABASE_DB_PASSWORD != '' }}
+        if: ${{ env.SUPABASE_DB_PASSWORD != '' }}
         env:
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
           SUPABASE_VERIFY_TYPES_SYNC: "1"
         run: npm run verify:types-synced
 

@@ -5,6 +5,7 @@ import { Line, Rect } from "react-konva"
 
 import { computeSelectionHandleRects } from "@/services/editor"
 import type { BoundsRect, ViewState } from "./types"
+import { getStaticLineRenderProps } from "./line-rendering"
 
 export const SelectionOverlay = memo(function SelectionOverlay({
   imageBounds,
@@ -33,13 +34,14 @@ export const SelectionOverlay = memo(function SelectionOverlay({
   const handleW = rects.handleSize.w
   const handleH = rects.handleSize.h
   const handleRects = [tl, tm, tr, rm, br, bm, bl, lm]
+  const lineProps = getStaticLineRenderProps(1)
 
   return (
     <>
-      <Line points={[x1, y1, x2, y1]} stroke={selectionColor} strokeWidth={1} dash={selectionDash} strokeScaleEnabled={false} listening={false} />
-      <Line points={[x2, y1, x2, y2]} stroke={selectionColor} strokeWidth={1} dash={selectionDash} strokeScaleEnabled={false} listening={false} />
-      <Line points={[x2, y2, x1, y2]} stroke={selectionColor} strokeWidth={1} dash={selectionDash} strokeScaleEnabled={false} listening={false} />
-      <Line points={[x1, y2, x1, y1]} stroke={selectionColor} strokeWidth={1} dash={selectionDash} strokeScaleEnabled={false} listening={false} />
+      <Line points={[x1, y1, x2, y1]} stroke={selectionColor} dash={selectionDash} {...lineProps} />
+      <Line points={[x2, y1, x2, y2]} stroke={selectionColor} dash={selectionDash} {...lineProps} />
+      <Line points={[x2, y2, x1, y2]} stroke={selectionColor} dash={selectionDash} {...lineProps} />
+      <Line points={[x1, y2, x1, y1]} stroke={selectionColor} dash={selectionDash} {...lineProps} />
 
       {handleRects.map((h, idx) => (
         <Rect
