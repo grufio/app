@@ -50,19 +50,36 @@ function makeSupabaseRpc(
   result: { error: { message: string; code?: string } | null },
   calls: Array<{ fn: string; args: Record<string, unknown> }>,
   activeRow: { id?: string; is_locked?: boolean } | null = null,
-  activeError: { message: string; code?: string } | null = null
+  activeError: { message: string; code?: string } | null = null,
+  workspaceRow: {
+    width_px_u?: string | null
+    height_px_u?: string | null
+    width_px?: number | null
+    height_px?: number | null
+    output_dpi?: number | null
+  } | null = { width_px_u: null, height_px_u: null, width_px: 1200, height_px: 800, output_dpi: 300 },
+  workspaceError: { message: string; code?: string } | null = null
 ) {
   return {
     from: (table: string) => {
-      expect(table).toBe("project_images")
+      if (table === "project_images") {
+        return {
+          select: () => ({
+            eq: () => ({
+              eq: () => ({
+                is: () => ({
+                  maybeSingle: async () => ({ data: activeRow, error: activeError }),
+                }),
+              }),
+            }),
+          }),
+        }
+      }
+      expect(table).toBe("project_workspace")
       return {
         select: () => ({
           eq: () => ({
-            eq: () => ({
-              is: () => ({
-                maybeSingle: async () => ({ data: activeRow, error: activeError }),
-              }),
-            }),
+            maybeSingle: async () => ({ data: workspaceRow, error: workspaceError }),
           }),
         }),
       }
@@ -176,7 +193,7 @@ describe("getActiveMasterImage", () => {
     })
   })
 
-  it("calls set_active_master_with_state with normalized dimensions", async () => {
+  it("calls set_active_master_with_state with precomputed placement micro-px", async () => {
     const calls: Array<{ fn: string; args: Record<string, unknown> }> = []
     const supabase = makeSupabaseRpc({ error: null }, calls)
 
@@ -186,6 +203,7 @@ describe("getActiveMasterImage", () => {
       imageId: "img-1",
       widthPx: 400.8,
       heightPx: 0,
+      imageDpi: 144,
     })
 
     expect(out).toEqual({ ok: true })
@@ -195,8 +213,10 @@ describe("getActiveMasterImage", () => {
         args: {
           p_project_id: "proj-1",
           p_image_id: "img-1",
-          p_width_px: 400,
-          p_height_px: 1,
+          p_x_px_u: "600000000",
+          p_y_px_u: "400000000",
+          p_width_px_u: "192000000",
+          p_height_px_u: "480000",
         },
       },
     ])
@@ -212,6 +232,7 @@ describe("getActiveMasterImage", () => {
       imageId: "img-1",
       widthPx: 10,
       heightPx: 20,
+      imageDpi: 300,
     })
 
     expect(out).toEqual({
@@ -232,6 +253,7 @@ describe("getActiveMasterImage", () => {
       imageId: "img-2",
       widthPx: 20,
       heightPx: 20,
+      imageDpi: 300,
     })
     expect(out).toEqual({
       ok: false,
@@ -244,14 +266,20 @@ describe("getActiveMasterImage", () => {
   })
 })
 
-describe("db contract: pixel-only seeding", () => {
-  it("set_active_master_with_state SQL does not use DPI scaling", () => {
-    const sqlPath = path.join(process.cwd(), "db/025_set_active_master_with_state_dpi_aligned.sql")
+describe("db contract: precomputed placement persistence", () => {
+  it("set_active_master_with_state SQL persists precomputed placement and has no DPI formula", () => {
+    const sqlPath = path.join(process.cwd(), "db/053_set_active_master_with_state_dpi_relative.sql")
     const sql = fs.readFileSync(sqlPath, "utf8")
 
-    expect(sql).not.toMatch(/\bartboard_dpi\b/)
-    expect(sql).not.toMatch(/\bimage_dpi\b/)
-    expect(sql).not.toMatch(/\bpi\.dpi\b/)
+    expect(sql).toMatch(/p_x_px_u\s+text/)
+    expect(sql).toMatch(/p_y_px_u\s+text/)
+    expect(sql).toMatch(/p_width_px_u\s+text/)
+    expect(sql).toMatch(/p_height_px_u\s+text/)
+    expect(sql).toMatch(/v_x_u := p_x_px_u::bigint/)
+    expect(sql).toMatch(/v_w_u := p_width_px_u::bigint/)
+    expect(sql).not.toMatch(/coalesce\(p_image_dpi,\s*72\)/)
+    expect(sql).not.toMatch(/v_output_dpi::numeric\s*\/\s*v_image_dpi::numeric/)
+    expect(sql).not.toMatch(/\bLEAST\s*\(/)
   })
 })
 

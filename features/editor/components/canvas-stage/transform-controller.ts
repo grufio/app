@@ -12,14 +12,12 @@ import {
   applyMicroPxPositionToNode,
   applyMicroPxToNode,
   bakeInSizeToMicroPx,
-  numberToMicroPx,
   readMicroPxPositionFromNode,
 } from "@/lib/editor/konva"
-import { getClientRectRelative, getNodeXY, setNodeXY } from "./konva-adapters"
-
-export type ImageTx = { xPxU: MicroPx; yPxU: MicroPx; widthPxU: MicroPx; heightPxU: MicroPx }
-
-export type TransformCommit = { xPxU?: MicroPx; yPxU?: MicroPx; widthPxU: MicroPx; heightPxU: MicroPx; rotationDeg: number }
+import type { ImagePlacementPx } from "./placement"
+import { createCommitScheduler } from "./transform-commit-scheduler"
+import { alignNodeAndBuildImageTx, buildRestoreImageTx, resolveBasePositionMicroPx } from "./transform-ops"
+import type { AlignImageOpts, ImageTx, TransformCommit } from "./transform-types"
 
 export type TransformControllerDeps = {
   getImageNode: () => Konva.Image | null
@@ -38,28 +36,13 @@ export type TransformController = {
   dispose: () => void
   rotate90: () => void
   setImageSize: (widthPxU: MicroPx, heightPxU: MicroPx, fallbackCenterPx?: { x: number; y: number } | null) => void
-  alignImage: (opts: { artW: number; artH: number; x?: "left" | "center" | "right"; y?: "top" | "center" | "bottom" }) => void
+  alignImage: (opts: AlignImageOpts) => void
   restoreImage: (opts: {
-    artW: number
-    artH: number
-    baseW: number
-    baseH: number
-    initialImageTransform?: { xPxU?: MicroPx; yPxU?: MicroPx; widthPxU?: MicroPx; heightPxU?: MicroPx; rotationDeg: number } | null
+    placement: ImagePlacementPx
   }) => void
 }
 
 export function createTransformController(deps: TransformControllerDeps): TransformController {
-  let commitTimer: ReturnType<typeof globalThis.setTimeout> | null = null
-  let pending: { commitPosition: boolean } | null = null
-
-  const cancelScheduledCommit = () => {
-    if (commitTimer != null) {
-      globalThis.clearTimeout(commitTimer)
-      commitTimer = null
-    }
-    pending = null
-  }
-
   const commitFromNode = (commitPosition: boolean) => {
     const node = deps.getImageNode()
     if (!node) return
@@ -86,28 +69,12 @@ export function createTransformController(deps: TransformControllerDeps): Transf
     })
   }
 
-  const scheduleCommit = (commitPosition: boolean, delayMs = 150) => {
-    // Merge flags: never lose a previously requested position commit.
-    pending = pending ? { commitPosition: pending.commitPosition || commitPosition } : { commitPosition }
-    if (commitTimer != null) {
-      globalThis.clearTimeout(commitTimer)
-      commitTimer = null
-    }
-    commitTimer = globalThis.setTimeout(() => {
-      commitTimer = null
-      const p = pending
-      pending = null
-      if (!p) return
-      commitFromNode(p.commitPosition)
-    }, delayMs)
-  }
-
-  const dispose = () => {
-    cancelScheduledCommit()
-  }
+  const scheduler = createCommitScheduler((commitPosition) => {
+    commitFromNode(commitPosition)
+  })
 
   const rotate90 = () => {
-    cancelScheduledCommit()
+    scheduler.cancel()
     const next = (deps.getRotationDeg() + 90) % 360
     deps.setRotationDeg(next)
     const prev = deps.getImageTx()
@@ -117,12 +84,11 @@ export function createTransformController(deps: TransformControllerDeps): Transf
   }
 
   const setImageSize = (widthPxU: MicroPx, heightPxU: MicroPx, fallbackCenterPx?: { x: number; y: number } | null) => {
-    cancelScheduledCommit()
+    scheduler.cancel()
     if (widthPxU <= 0n || heightPxU <= 0n) return
     const prev = deps.getImageTx()
-    const baseX = prev?.xPxU ?? (fallbackCenterPx ? numberToMicroPx(fallbackCenterPx.x) : (0n as MicroPx))
-    const baseY = prev?.yPxU ?? (fallbackCenterPx ? numberToMicroPx(fallbackCenterPx.y) : (0n as MicroPx))
-    const next: ImageTx = { xPxU: baseX, yPxU: baseY, widthPxU, heightPxU }
+    const base = resolveBasePositionMicroPx({ prev, fallbackCenterPx })
+    const next: ImageTx = { xPxU: base.xPxU, yPxU: base.yPxU, widthPxU, heightPxU }
     const node = deps.getImageNode()
     if (node) applyMicroPxToNode(node, widthPxU, heightPxU)
     deps.markUserChanged()
@@ -130,61 +96,51 @@ export function createTransformController(deps: TransformControllerDeps): Transf
     deps.onCommit?.({ xPxU: next.xPxU, yPxU: next.yPxU, widthPxU: next.widthPxU, heightPxU: next.heightPxU, rotationDeg: deps.getRotationDeg() })
   }
 
-  const alignImage = (opts: { artW: number; artH: number; x?: "left" | "center" | "right"; y?: "top" | "center" | "bottom" }) => {
-    cancelScheduledCommit()
+  const alignImage = (opts: AlignImageOpts) => {
+    scheduler.cancel()
     const layer = deps.getLayer()
     const node = deps.getImageNode()
     if (!layer || !node) return
     const prev = deps.getImageTx()
     if (!prev) return
-    const r = getClientRectRelative(node, layer)
-    let dx = 0
-    let dy = 0
-    if (opts.x === "left") dx = 0 - r.x
-    if (opts.x === "center") dx = opts.artW / 2 - (r.x + r.width / 2)
-    if (opts.x === "right") dx = opts.artW - (r.x + r.width)
-    if (opts.y === "top") dy = 0 - r.y
-    if (opts.y === "center") dy = opts.artH / 2 - (r.y + r.height / 2)
-    if (opts.y === "bottom") dy = opts.artH - (r.y + r.height)
-    if (dx === 0 && dy === 0) return
-    const { x: baseX, y: baseY } = getNodeXY(node)
-    setNodeXY(node, baseX + dx, baseY + dy)
-    const next: ImageTx = { xPxU: numberToMicroPx(baseX + dx), yPxU: numberToMicroPx(baseY + dy), widthPxU: prev.widthPxU, heightPxU: prev.heightPxU }
+
+    const next = alignNodeAndBuildImageTx({ node, layer, prev, opts })
+    if (!next) return
+
     deps.markUserChanged()
     deps.setImageTx(next)
     deps.onCommit?.({ xPxU: next.xPxU, yPxU: next.yPxU, widthPxU: next.widthPxU, heightPxU: next.heightPxU, rotationDeg: deps.getRotationDeg() })
   }
 
   const restoreImage = (opts: {
-    artW: number
-    artH: number
-    baseW: number
-    baseH: number
-    initialImageTransform?: { xPxU?: MicroPx; yPxU?: MicroPx; widthPxU?: MicroPx; heightPxU?: MicroPx; rotationDeg: number } | null
+    placement: ImagePlacementPx
   }) => {
-    cancelScheduledCommit()
-    // Restore must reset to the default placement in the current artboard,
-    // not to the latest persisted transform.
-    const nextWidthPxU = numberToMicroPx(opts.baseW)
-    const nextHeightPxU = numberToMicroPx(opts.baseH)
-    const nextX = numberToMicroPx(opts.artW / 2)
-    const nextY = numberToMicroPx(opts.artH / 2)
-
-    const next: ImageTx = { xPxU: nextX, yPxU: nextY, widthPxU: nextWidthPxU, heightPxU: nextHeightPxU }
-
+    scheduler.cancel()
+    const next = buildRestoreImageTx(opts.placement)
     const rot = 0
     deps.setRotationDeg(rot)
 
     const node = deps.getImageNode()
     if (node) {
-      applyMicroPxToNode(node, nextWidthPxU, nextHeightPxU)
-      applyMicroPxPositionToNode(node, nextX, nextY)
+      applyMicroPxToNode(node, next.widthPxU, next.heightPxU)
+      applyMicroPxPositionToNode(node, next.xPxU, next.yPxU)
     }
     deps.markUserChanged()
     deps.setImageTx(next)
     deps.onCommit?.({ xPxU: next.xPxU, yPxU: next.yPxU, widthPxU: next.widthPxU, heightPxU: next.heightPxU, rotationDeg: rot })
   }
 
-  return { commitFromNode, scheduleCommit, dispose, rotate90, setImageSize, alignImage, restoreImage }
+  return {
+    commitFromNode,
+    scheduleCommit: (commitPosition: boolean, delayMs = 150) => {
+      scheduler.schedule(commitPosition, delayMs)
+    },
+    dispose: () => {
+      scheduler.cancel()
+    },
+    rotate90,
+    setImageSize,
+    alignImage,
+    restoreImage,
+  }
 }
-

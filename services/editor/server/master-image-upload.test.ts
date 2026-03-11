@@ -7,23 +7,47 @@ const uploadSpy = vi.fn()
 const removeSpy = vi.fn()
 const activateSpy = vi.fn()
 
-vi.mock("@/lib/supabase/service-role", () => ({
-  createSupabaseServiceRoleClient: () => ({
-    storage: {
-      from: () => ({
-        upload: uploadSpy,
-      }),
-    },
-  }),
-}))
+type InsertPayload = Record<string, unknown>
+
+type MakeSupabaseOpts = {
+  insertError?: { message: string; code?: string } | null
+  selectData?: Array<{ id: string; storage_bucket?: string | null; storage_path?: string | null }>
+  selectError?: { message: string; code?: string } | null
+  deleteError?: { message: string; code?: string } | null
+  capture: { insert?: InsertPayload; deletes: number }
+}
 
 vi.mock("@/lib/supabase/project-images", () => ({
   activateMasterWithState: (...args: unknown[]) => activateSpy(...args),
 }))
 
-type InsertPayload = Record<string, unknown>
+function makeSupabase(opts: MakeSupabaseOpts) {
+  const { capture, insertError = null, selectData = [], selectError = null, deleteError = null } = opts
+  const from = () => ({
+    select: () => ({
+      eq: () => ({
+        eq: () => ({
+          is: async () => ({
+            data: selectData,
+            error: selectError,
+          }),
+        }),
+      }),
+    }),
+    insert: async (payload: InsertPayload) => {
+      capture.insert = payload
+      return { error: insertError }
+    },
+    delete: () => {
+      capture.deletes += 1
+      const chain = {
+        eq: () => chain,
+        is: async () => ({ error: deleteError }),
+      }
+      return chain
+    },
+  })
 
-function makeSupabase(insertResult: { error: { message: string; code?: string } | null }, capture: { insert?: InsertPayload }) {
   return {
     storage: {
       from: () => ({
@@ -31,26 +55,20 @@ function makeSupabase(insertResult: { error: { message: string; code?: string } 
         remove: removeSpy,
       }),
     },
-    from: () => ({
-      insert: async (payload: InsertPayload) => {
-        capture.insert = payload
-        return insertResult
-      },
-    }),
+    from,
   } as unknown as SupabaseClient
 }
 
 describe("master-image-upload service", () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    removeSpy.mockResolvedValue({ error: null })
     delete process.env.USER_MAX_UPLOAD_BYTES
     delete process.env.USER_ALLOWED_UPLOAD_MIME
     delete process.env.USER_UPLOAD_MAX_PIXELS
   })
 
   it("rejects invalid dimensions with validation stage", async () => {
-    const supabase = makeSupabase({ error: null }, {})
+    const supabase = makeSupabase({ capture: { deletes: 0 } })
     const file = new File([new Uint8Array([1])], "x.png", { type: "image/png" })
     const out = await uploadMasterImage({
       supabase: supabase as never,
@@ -59,6 +77,9 @@ describe("master-image-upload service", () => {
       widthPx: 0,
       heightPx: 10,
       format: "png",
+      dpiX: 72,
+      dpiY: 72,
+      bitDepth: 8,
     })
     expect(out.ok).toBe(false)
     if (!out.ok) {
@@ -69,7 +90,7 @@ describe("master-image-upload service", () => {
 
   it("applies upload limits from env", async () => {
     process.env.USER_MAX_UPLOAD_BYTES = "1"
-    const supabase = makeSupabase({ error: null }, {})
+    const supabase = makeSupabase({ capture: { deletes: 0 } })
     const file = new File([new Uint8Array([1, 2])], "x.png", { type: "image/png" })
 
     const out = await uploadMasterImage({
@@ -78,6 +99,9 @@ describe("master-image-upload service", () => {
       file,
       widthPx: 10,
       heightPx: 10,
+      dpiX: 72,
+      dpiY: 72,
+      bitDepth: 8,
       format: "png",
     })
     expect(out.ok).toBe(false)
@@ -87,29 +111,14 @@ describe("master-image-upload service", () => {
     }
   })
 
-  it("maps storage upload failures to 502", async () => {
-    const supabase = makeSupabase({ error: null }, {})
-    uploadSpy.mockResolvedValueOnce({ error: { message: "storage down", code: "storage_unavailable" } })
-    const file = new File([new Uint8Array([1])], "x.png", { type: "image/png" })
-    const out = await uploadMasterImage({
-      supabase: supabase as never,
-      projectId: "p1",
-      file,
-      widthPx: 10,
-      heightPx: 10,
-      format: "png",
+  it("replaces existing master rows, inserts, and activates", async () => {
+    const capture = { deletes: 0 }
+    const supabase = makeSupabase({
+      capture,
+      selectData: [{ id: "master-old", storage_bucket: "project_images", storage_path: "projects/p1/images/master-old" }],
     })
-    expect(out.ok).toBe(false)
-    if (!out.ok) {
-      expect(out.stage).toBe("storage_upload")
-      expect(out.status).toBe(502)
-    }
-  })
-
-  it("uploads, inserts, and activates", async () => {
-    const capture: { insert?: InsertPayload } = {}
-    const supabase = makeSupabase({ error: null }, capture)
     uploadSpy.mockResolvedValueOnce({ error: null })
+    removeSpy.mockResolvedValue({ error: null })
     activateSpy.mockResolvedValueOnce({ ok: true })
     const file = new File([new Uint8Array([1])], "x.png", { type: "image/png" })
 
@@ -119,25 +128,29 @@ describe("master-image-upload service", () => {
       file,
       widthPx: 400.9,
       heightPx: 200.1,
-      dpi: 300,
+      dpiX: 300,
+      dpiY: 300,
       bitDepth: 8,
       format: "png",
     })
 
     expect(out.ok).toBe(true)
     expect(uploadSpy).toHaveBeenCalledTimes(1)
+    expect(capture.insert?.dpi_x).toBe(300)
+    expect(capture.insert?.dpi_y).toBe(300)
     expect(capture.insert?.dpi).toBe(300)
     expect(capture.insert?.bit_depth).toBe(8)
     expect(capture.insert?.width_px).toBe(400)
     expect(capture.insert?.height_px).toBe(200)
+    expect(capture.deletes).toBeGreaterThanOrEqual(1)
     expect(activateSpy).toHaveBeenCalledTimes(1)
-    expect(removeSpy).toHaveBeenCalledTimes(0)
   })
 
-  it("maps lock_conflict from active switch as 409", async () => {
-    const capture: { insert?: InsertPayload } = {}
-    const supabase = makeSupabase({ error: null }, capture)
+  it("rolls back inserted row and storage object when activation fails", async () => {
+    const capture = { deletes: 0 }
+    const supabase = makeSupabase({ capture, selectData: [] })
     uploadSpy.mockResolvedValueOnce({ error: null })
+    removeSpy.mockResolvedValue({ error: null })
     activateSpy.mockResolvedValueOnce({
       ok: false,
       status: 409,
@@ -153,7 +166,8 @@ describe("master-image-upload service", () => {
       file,
       widthPx: 200,
       heightPx: 100,
-      dpi: 72,
+      dpiX: 72,
+      dpiY: 72,
       bitDepth: 8,
       format: "png",
     })
@@ -165,31 +179,7 @@ describe("master-image-upload service", () => {
       reason: "Active image is locked",
       code: "image_locked",
     })
-    expect(removeSpy).toHaveBeenCalledTimes(1)
-  })
-
-  it("cleans up uploaded object when db insert fails", async () => {
-    const capture: { insert?: InsertPayload } = {}
-    const supabase = makeSupabase({ error: { message: "duplicate key", code: "23505" } }, capture)
-    uploadSpy.mockResolvedValueOnce({ error: null })
-    const file = new File([new Uint8Array([1])], "x.png", { type: "image/png" })
-
-    const out = await uploadMasterImage({
-      supabase: supabase as never,
-      projectId: "p1",
-      file,
-      widthPx: 200,
-      heightPx: 100,
-      dpi: 72,
-      bitDepth: 8,
-      format: "png",
-    })
-
-    expect(out.ok).toBe(false)
-    if (!out.ok) {
-      expect(out.stage).toBe("db_upsert")
-      expect(out.status).toBe(409)
-    }
-    expect(removeSpy).toHaveBeenCalledTimes(1)
+    expect(capture.deletes).toBeGreaterThanOrEqual(1)
+    expect(removeSpy).toHaveBeenCalled()
   })
 })

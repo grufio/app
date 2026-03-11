@@ -7,7 +7,34 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
 
+import { computeDpiRelativePlacementPx, placementPxToMicroPx } from "@/lib/editor/image-placement"
+import { pxUToPxNumber } from "@/lib/editor/units"
+
 export const PROJECT_IMAGES_BUCKET = "project_images"
+
+function parsePositiveBigInt(value: unknown): bigint | null {
+  if (typeof value !== "string" || !value.trim()) return null
+  try {
+    const out = BigInt(value)
+    return out > 0n ? out : null
+  } catch {
+    return null
+  }
+}
+
+function resolveArtboardPx(workspace: {
+  width_px_u?: string | null
+  height_px_u?: string | null
+  width_px?: number | null
+  height_px?: number | null
+}): { artW: number; artH: number } | null {
+  const widthPxU = parsePositiveBigInt(workspace.width_px_u)
+  const heightPxU = parsePositiveBigInt(workspace.height_px_u)
+  const artW = widthPxU ? pxUToPxNumber(widthPxU) : Number(workspace.width_px ?? 0)
+  const artH = heightPxU ? pxUToPxNumber(heightPxU) : Number(workspace.height_px ?? 0)
+  if (!(artW > 0 && artH > 0)) return null
+  return { artW, artH }
+}
 
 export type ActiveMasterImage = {
   id: string
@@ -41,8 +68,9 @@ export async function activateMasterWithState(args: {
   imageId: string
   widthPx: number
   heightPx: number
+  imageDpi?: number | null
 }): Promise<{ ok: true } | { ok: false; status: number; stage: "active_switch" | "lock_conflict"; reason: string; code?: string }> {
-  const { supabase, projectId, imageId, widthPx, heightPx } = args
+  const { supabase, projectId, imageId, widthPx, heightPx, imageDpi } = args
   const { data: activeRow, error: activeErr } = await supabase
     .from("project_images")
     .select("id,is_locked")
@@ -69,11 +97,59 @@ export async function activateMasterWithState(args: {
     }
   }
 
+  const { data: workspaceRow, error: workspaceErr } = await supabase
+    .from("project_workspace")
+    .select("width_px_u,height_px_u,width_px,height_px,output_dpi")
+    .eq("project_id", projectId)
+    .maybeSingle()
+
+  if (workspaceErr || !workspaceRow) {
+    return {
+      ok: false,
+      status: 400,
+      stage: "active_switch",
+      reason: workspaceErr?.message ?? "Workspace missing",
+      code: (workspaceErr as unknown as { code?: string } | null)?.code,
+    }
+  }
+
+  const artboard = resolveArtboardPx(workspaceRow)
+  if (!artboard) {
+    return {
+      ok: false,
+      status: 400,
+      stage: "active_switch",
+      reason: "Workspace size missing or invalid",
+    }
+  }
+
+  const placement = computeDpiRelativePlacementPx({
+    artW: artboard.artW,
+    artH: artboard.artH,
+    intrinsicW: Math.max(1, Math.trunc(widthPx)),
+    intrinsicH: Math.max(1, Math.trunc(heightPx)),
+    artboardDpi: Number(workspaceRow.output_dpi),
+    imageDpi,
+  })
+
+  if (!placement) {
+    return {
+      ok: false,
+      status: 400,
+      stage: "active_switch",
+      reason: "Failed to compute initial placement",
+    }
+  }
+
+  const placementU = placementPxToMicroPx(placement)
+
   const { error } = await supabase.rpc("set_active_master_with_state", {
     p_project_id: projectId,
     p_image_id: imageId,
-    p_width_px: Math.max(1, Math.trunc(widthPx)),
-    p_height_px: Math.max(1, Math.trunc(heightPx)),
+    p_x_px_u: placementU.xPxU,
+    p_y_px_u: placementU.yPxU,
+    p_width_px_u: placementU.widthPxU,
+    p_height_px_u: placementU.heightPxU,
   })
   if (error) {
     return {
@@ -119,4 +195,3 @@ export async function getActiveMasterImage(
     error: null,
   }
 }
-

@@ -7,31 +7,31 @@
  * - Render the artboard, grid, selection overlay, and image node.
  * - Delegate RAF/bounds/transform persistence to controller modules.
  */
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react"
+import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react"
+import { Group, Image as KonvaImage, Layer, Line, Rect, Stage } from "react-konva"
 import type Konva from "konva"
 
-import { panBy, zoomAround } from "@/lib/editor/canvas-model"
 import { pxUToPxNumber } from "@/lib/editor/units"
 import { useAlignImageController, type AlignImageOptions } from "./canvas-stage/align-controller"
 import { createBoundsController } from "./canvas-stage/bounds-controller"
 import { computeGridLines } from "./canvas-stage/grid-lines"
+import { useInitialImagePlacement } from "./canvas-stage/initial-placement-controller"
+import { useRestoreBaseSpecController } from "./canvas-stage/restore-base-spec-controller"
+import { useViewController } from "./canvas-stage/view-controller"
+import { useStageRafBoundsController } from "./canvas-stage/stage-raf-bounds-controller"
+import { useSelectionCropController } from "./canvas-stage/selection-crop-controller"
+import { useStageEventsController } from "./canvas-stage/stage-events-controller"
 import { pickIntrinsicSize } from "./canvas-stage/placement"
 import { createStateSyncGuard } from "./canvas-stage/state-sync-guard"
 import { snapWorldToDeviceHalfPixel as snapHalfPixel } from "./canvas-stage/pixel-snap"
-import { createRafScheduler, RAF_BOUNDS, RAF_DRAG_BOUNDS, RAF_PAN, RAF_ZOOM } from "./canvas-stage/raf-scheduler"
 import { useRestoreImageController, type RestoreBaseSpec, type RestoreImageResult } from "./canvas-stage/restore-controller"
-import { useCropController, type CropRectWorld } from "./canvas-stage/crop-controller"
-import { useSelectResizeController } from "./canvas-stage/select-controller"
-import { useResizeListenerLifecycle } from "./canvas-stage/stage-lifecycle-controller"
+import type { CropRectWorld } from "./canvas-stage/crop-controller"
+import type { ResizeHandle } from "./canvas-stage/select-controller"
+import { useWheelZoomGuard } from "./canvas-stage/stage-lifecycle-controller"
 import { createTransformController } from "./canvas-stage/transform-controller"
-import { computeSelectionRects } from "./canvas-stage/selection-rects"
-import { computeSnappedGridLines } from "./canvas-stage/snapped-grid-lines"
-import type { BoundsRect } from "./canvas-stage/types"
+import type { BoundsRect, ViewState } from "./canvas-stage/types"
 import { useHtmlImage } from "./canvas-stage/use-html-image"
-import { computeWorldSize } from "@/services/editor"
-import { useStageViewController } from "./canvas-stage/use-stage-view-controller"
-import { useImagePlacementSync } from "./canvas-stage/use-image-placement-sync"
-import { CanvasStageScene } from "./canvas-stage/canvas-stage-scene"
+import { computeSelectionHandleRects, computeWorldSize } from "@/services/editor"
 
 type Props = {
   src?: string
@@ -46,16 +46,19 @@ type Props = {
   renderArtboard?: boolean
   artboardWidthPx?: number
   artboardHeightPx?: number
+  artboardDpi?: number
   /**
    * Intrinsic (source) image pixel dimensions from persisted metadata (DB).
    * This must be the canonical source of truth for initial sizing (not DOM layout).
    */
   intrinsicWidthPx?: number
   intrinsicHeightPx?: number
+  imageDpi?: number | null
   /** Canonical restore baseline from initial upload master image. */
   restoreBaseImageId?: string | null
   restoreBaseWidthPx?: number
   restoreBaseHeightPx?: number
+  restoreBaseDpi?: number | null
   grid?: {
     spacingXPx: number
     spacingYPx: number
@@ -128,6 +131,87 @@ export type ProjectCanvasStageHandle = {
   resetCropSelection: () => void
 }
 
+const SelectionOverlay = memo(function SelectionOverlay({
+  imageBounds,
+  view,
+  selectionHandlePx,
+  selectionColor,
+  selectionDash,
+  snapWorldToDeviceHalfPixel,
+}: {
+  imageBounds: BoundsRect | null
+  view: ViewState
+  selectionHandlePx: number
+  selectionColor: string
+  selectionDash: number[] | undefined
+  snapWorldToDeviceHalfPixel: (worldCoord: number, axis: "x" | "y") => number
+}) {
+  if (!imageBounds) return null
+  const rects = computeSelectionHandleRects({
+    bounds: { x: imageBounds.x, y: imageBounds.y, w: imageBounds.w, h: imageBounds.h },
+    view: { x: view.x, y: view.y, scale: view.scale },
+    handlePx: selectionHandlePx,
+    snapWorldToDeviceHalfPixel,
+  })
+  const { x1, y1, x2, y2 } = rects.outline
+  const { tl, tm, tr, rm, br, bm, bl, lm } = rects.handles
+  const handleW = rects.handleSize.w
+  const handleH = rects.handleSize.h
+  const handleRects = [tl, tm, tr, rm, br, bm, bl, lm]
+
+  return (
+    <>
+      <Line
+        points={[x1, y1, x2, y1]}
+        stroke={selectionColor}
+        strokeWidth={1}
+        dash={selectionDash}
+        strokeScaleEnabled={false}
+        listening={false}
+      />
+      <Line
+        points={[x2, y1, x2, y2]}
+        stroke={selectionColor}
+        strokeWidth={1}
+        dash={selectionDash}
+        strokeScaleEnabled={false}
+        listening={false}
+      />
+      <Line
+        points={[x2, y2, x1, y2]}
+        stroke={selectionColor}
+        strokeWidth={1}
+        dash={selectionDash}
+        strokeScaleEnabled={false}
+        listening={false}
+      />
+      <Line
+        points={[x1, y2, x1, y1]}
+        stroke={selectionColor}
+        strokeWidth={1}
+        dash={selectionDash}
+        strokeScaleEnabled={false}
+        listening={false}
+      />
+
+      {handleRects.map((h, idx) => (
+        <Rect
+          key={`selection-handle-${idx}`}
+          x={h.x}
+          y={h.y}
+          width={handleW}
+          height={handleH}
+          fill="#ffffff"
+          stroke={selectionColor}
+          strokeWidth={1}
+          strokeScaleEnabled={false}
+          listening={false}
+        />
+      ))}
+    </>
+  )
+})
+
 /**
  * Konva stage for the project editor.
  *
@@ -151,11 +235,14 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     renderArtboard = true,
     artboardWidthPx,
     artboardHeightPx,
+    artboardDpi,
     intrinsicWidthPx,
     intrinsicHeightPx,
+    imageDpi,
     restoreBaseImageId,
     restoreBaseWidthPx,
     restoreBaseHeightPx,
+    restoreBaseDpi,
     grid = null,
     onImageSizeChange,
     initialImageTransform,
@@ -178,6 +265,8 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     process.env.NEXT_PUBLIC_E2E_TEST === "1" ||
     (typeof navigator !== "undefined" && Boolean((navigator as unknown as { webdriver?: boolean })?.webdriver))
 
+  const [size, setSize] = useState({ w: 0, h: 0 })
+  const [view, setView] = useState<ViewState>({ scale: 1, x: 0, y: 0 })
   const [rotation, setRotation] = useState(0)
   const [isDraggingImage, setIsDraggingImage] = useState(false)
 
@@ -240,6 +329,36 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     stateSyncGuardRef.current.markUserChanged()
   }, [])
 
+  useEffect(() => {
+    // New active image => persisted placement/transform may apply again.
+    // Clear "user changed" gating so previous image edits never block the next image.
+    stateSyncGuardRef.current.resetForNewImage()
+  }, [activeImageId])
+
+
+  useRestoreBaseSpecController({
+    restoreBaseImageId,
+    restoreBaseWidthPx,
+    restoreBaseHeightPx,
+    restoreBaseDpi,
+    restoreBaseSpecRef,
+  })
+
+  // Prevent browser page zoom / scroll stealing (Cmd/Ctrl + wheel / trackpad pinch).
+  useWheelZoomGuard(containerRef)
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const ro = new ResizeObserver(() => {
+      const r = el.getBoundingClientRect()
+      const next = { w: Math.max(0, Math.floor(r.width)), h: Math.max(0, Math.floor(r.height)) }
+      setSize((prev) => (prev.w === next.w && prev.h === next.h ? prev : next))
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
   const world = useMemo(() => {
     // "World" size is used for view math (fit/pan/zoom). Prefer explicit artboard,
     // otherwise fall back to intrinsic image metadata (DB), and only then DOM image values.
@@ -268,30 +387,6 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   const selectionDash: number[] | undefined = undefined
   const selectionHandlePx = 8
   const fitPadding = Math.max(0, Number(fitPaddingPx) || 0)
-  const {
-    size,
-    view,
-    setView,
-    stagePixelRatio,
-    fitToView,
-    zoomIn,
-    zoomOut,
-    onWheel,
-    onStageDragStart,
-    onStageDragEnd,
-  } = useStageViewController({
-    containerRef,
-    stageRef,
-    world,
-    fitPadding,
-    hasArtboard,
-    userInteractedRef,
-    autoFitKeyRef,
-    panDeltaRef,
-    zoomRef,
-    schedulePanRaf: () => scheduleRaf(RAF_PAN),
-    scheduleZoomRaf: () => scheduleRaf(RAF_ZOOM),
-  })
 
   const gridLines = useMemo(() => {
     if (!drawArtboard) return null
@@ -307,12 +402,18 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     },
     [view.scale, view.x, view.y]
   )
-  const snappedGridLines = useMemo(() => {
-    return computeSnappedGridLines({
-      gridLines,
-      snapWorldToDeviceHalfPixel,
-    })
-  }, [gridLines, snapWorldToDeviceHalfPixel])
+
+
+  const { fitToView, zoomIn, zoomOut } = useViewController({
+    hasArtboard,
+    world,
+    size,
+    fitPadding,
+    setView,
+    userInteractedRef,
+    autoFitKeyRef,
+  })
+
   const reportImageSize = useCallback((tx: { widthPxU: bigint; heightPxU: bigint } | null) => {
     if (!tx) return
     onImageSizeChangeRef.current?.(tx.widthPxU, tx.heightPxU)
@@ -345,88 +446,16 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     })
   }
 
-  const updateImageBoundsFromNode = useCallback(() => {
-    boundsControllerRef.current?.updateImageBoundsFromNode()
-  }, [])
-
-  const rafSchedulerRef = useRef<ReturnType<typeof createRafScheduler> | null>(null)
-  if (!rafSchedulerRef.current) {
-    rafSchedulerRef.current = createRafScheduler({
-      onPan: () => {
-        const { dx, dy } = panDeltaRef.current
-        panDeltaRef.current = { dx: 0, dy: 0 }
-        if (dx !== 0 || dy !== 0) setView((v) => panBy(v, dx, dy))
-      },
-      onZoom: () => {
-        const zoom = zoomRef.current
-        zoomRef.current = null
-        if (!zoom) return
-        if (!Number.isFinite(zoom.factor) || zoom.factor === 1) return
-        setView((v) => zoomAround(v, { x: zoom.x, y: zoom.y }, zoom.factor, 0.05, 8))
-      },
-      onDragBounds: () => {
-        boundsControllerRef.current?.flushDragBounds()
-      },
-      onBounds: () => {
-        updateImageBoundsFromNode()
-      },
-      onRafScheduled: () => {
-        const g = globalThis as unknown as { __gruf_editor?: { rafScheduled?: number } }
-        if (g.__gruf_editor) g.__gruf_editor.rafScheduled = (g.__gruf_editor.rafScheduled ?? 0) + 1
-      },
-      onRafExecuted: () => {
-        const g = globalThis as unknown as { __gruf_editor?: { rafExecuted?: number } }
-        if (g.__gruf_editor) g.__gruf_editor.rafExecuted = (g.__gruf_editor.rafExecuted ?? 0) + 1
-      },
+  const { scheduleRaf, scheduleBoundsUpdate, updateBoundsDuringDragMove, disposeRafScheduler } =
+    useStageRafBoundsController({
+      boundsControllerRef,
+      imageNodeRef,
+      rotationRef,
+      dragPosRef,
+      panDeltaRef,
+      zoomRef,
+      setView,
     })
-  }
-  const scheduleRaf = useCallback((flag: number) => rafSchedulerRef.current?.schedule(flag), [])
-  const scheduleBoundsUpdate = useCallback(() => scheduleRaf(RAF_BOUNDS), [scheduleRaf])
-
-  useImagePlacementSync({
-    src,
-    img,
-    activeImageId,
-    hasArtboard,
-    artW,
-    artH,
-    initialImageTransform,
-    intrinsicWidthPx,
-    intrinsicHeightPx,
-    restoreBaseImageId,
-    restoreBaseWidthPx,
-    restoreBaseHeightPx,
-    stateSyncGuardRef,
-    placedKeyRef,
-    restoreBaseSpecRef,
-    scheduleBoundsUpdate,
-    setRotation,
-    setImageTx,
-  })
-
-  const updateBoundsDuringDragMove = useCallback(() => {
-    const node = imageNodeRef.current
-    if (!node) return
-    if (rotationRef.current % 360 !== 0) {
-      scheduleBoundsUpdate()
-      return
-    }
-    const prevPos = dragPosRef.current
-    const nextPos = { x: node.x(), y: node.y() }
-    dragPosRef.current = nextPos
-
-    if (!prevPos) {
-      scheduleBoundsUpdate()
-      return
-    }
-
-    const dx = nextPos.x - prevPos.x
-    const dy = nextPos.y - prevPos.y
-    if (dx === 0 && dy === 0) return
-
-    boundsControllerRef.current?.accumulateDragDelta(dx, dy)
-    scheduleRaf(RAF_DRAG_BOUNDS)
-  }, [scheduleBoundsUpdate, scheduleRaf])
 
   // Compute selection bounds (axis-aligned) for the image node.
   // Shown by default when the Select tool is active (`imageDraggable === true`).
@@ -439,6 +468,26 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     // schedule via RAF to keep the editor responsive during drags/transforms.
     scheduleBoundsUpdate()
   }, [imageDraggable, imageTx, rotation, scheduleBoundsUpdate])
+
+
+  useInitialImagePlacement({
+    src,
+    img,
+    hasArtboard,
+    artW,
+    artH,
+    artboardDpi,
+    imageDpi,
+    intrinsicWidthPx,
+    intrinsicHeightPx,
+    initialImageTransform,
+    activeImageId,
+    placedKeyRef,
+    stateSyncGuardRef,
+    setRotation,
+    setImageTx,
+    scheduleBoundsUpdate,
+  })
 
   if (!transformControllerRef.current) {
     transformControllerRef.current = createTransformController({
@@ -460,9 +509,9 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   useEffect(() => {
     return () => {
       transformControllerRef.current?.dispose()
-      rafSchedulerRef.current?.dispose()
+      disposeRafScheduler()
     }
-  }, [])
+  }, [disposeRafScheduler])
 
   const rotate90 = useCallback(() => {
     if (!mutationsEnabled || !rotateEnabled) return
@@ -481,9 +530,9 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   const restoreImageRaw = useRestoreImageController({
     artW,
     artH,
+    artboardDpi,
     restoreBaseSpecRef,
     activeImageId,
-    initialImageTransform,
     transformControllerRef,
     scheduleBoundsUpdate,
   })
@@ -526,57 +575,47 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     }
   }, [imageRender])
 
-  const cropMinSize = 10
-  const cropLimitFrame = hasArtboard ? { x: 0, y: 0, w: artW, h: artH } : imageFrame
-  const { beginSelectResize, stopSelectResize } = useSelectResizeController({
-    containerRef,
+  const {
+    beginSelectResize,
+    cropRect,
+    applyCropMove,
+    beginCropResize,
+    getCropSelection,
+    getCropSelectionPx,
+    resetCropSelection,
+    cropRects,
+    selectRects,
+  } = useSelectionCropController({
+    cropEnabled,
+    cropBusy,
+    imageDraggable,
+    panEnabled,
     view,
+    containerRef,
+    imageFrame,
+    hasArtboard,
+    artW,
+    artH,
+    intrinsicWidthPx,
+    intrinsicHeightPx,
+    imageRender,
+    rotation,
+    selectionHandlePx,
+    snapWorldToDeviceHalfPixel,
     setImageTx,
     markUserChanged,
     scheduleBoundsUpdate,
     scheduleCommitTransform,
   })
 
-  const { cropRect, applyCropMove, beginCropResize, getCropSelection, getCropSelectionPx, resetCropSelection, stopCropResize } =
-    useCropController({
-    cropEnabled,
-    view,
-    containerRef,
-    imageFrame,
-    cropMinSize,
-    cropLimitFrame,
-    intrinsicWidthPx,
-    intrinsicHeightPx,
-    imageRender: imageRender ? { w: imageRender.width, h: imageRender.height } : null,
-    rotation,
-    })
-
-  useResizeListenerLifecycle({
-    cropBusy,
-    cropEnabled,
-    imageDraggable,
-    panEnabled,
-    stopSelectResize,
-    stopCropResize,
+  const { onWheel, onStageDragStart, onStageDragEnd } = useStageEventsController({
+    stageRef,
+    userInteractedRef,
+    panDeltaRef,
+    zoomRef,
+    scheduleRaf,
+    setView,
   })
-
-  const cropRects = useMemo(() => {
-    return computeSelectionRects({
-      frame: cropRect ? { x: cropRect.x, y: cropRect.y, w: cropRect.w, h: cropRect.h } : null,
-      view: { x: view.x, y: view.y, scale: view.scale },
-      handlePx: selectionHandlePx,
-      snapWorldToDeviceHalfPixel,
-    })
-  }, [cropRect, selectionHandlePx, snapWorldToDeviceHalfPixel, view.scale, view.x, view.y])
-
-  const selectRects = useMemo(() => {
-    return computeSelectionRects({
-      frame: imageFrame ? { x: imageFrame.x, y: imageFrame.y, w: imageFrame.w, h: imageFrame.h } : null,
-      view: { x: view.x, y: view.y, scale: view.scale },
-      handlePx: selectionHandlePx,
-      snapWorldToDeviceHalfPixel,
-    })
-  }, [imageFrame, selectionHandlePx, snapWorldToDeviceHalfPixel, view.scale, view.x, view.y])
 
   useImperativeHandle(
     ref,
@@ -594,6 +633,8 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     }),
     [alignImage, fitToView, getCropSelection, getCropSelectionPx, resetCropSelection, restoreImage, rotate90, setImageSize, zoomIn, zoomOut]
   )
+
+
 
   // E2E test hook: expose stage + image node to the browser so Playwright can
   // assert transforms without pixel-based screenshots.
@@ -627,58 +668,245 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   }, [isE2E])
 
   return (
-    <CanvasStageScene
-      containerRef={containerRef}
-      stageRef={stageRef}
-      layerRef={layerRef}
-      imageNodeRef={imageNodeRef}
-      className={className}
-      alt={alt}
-      size={size}
-      stagePixelRatio={stagePixelRatio}
-      view={view}
-      panEnabled={panEnabled}
-      onStageDragStart={onStageDragStart}
-      onStageDragEnd={onStageDragEnd}
-      onWheel={onWheel}
-      drawArtboard={drawArtboard}
-      artW={artW}
-      artH={artH}
-      shouldClipToArtboard={shouldClipToArtboard}
-      img={img}
-      imageTx={imageTx}
-      imageRender={imageRender}
-      imageDraggable={imageDraggable}
-      rotation={rotation}
-      onImageDragInteraction={() => {
-        userInteractedRef.current = true
-      }}
-      markUserChanged={markUserChanged}
-      dragPosRef={dragPosRef}
-      setIsDraggingImage={setIsDraggingImage}
-      scheduleBoundsUpdate={scheduleBoundsUpdate}
-      updateBoundsDuringDragMove={updateBoundsDuringDragMove}
-      scheduleCommitTransform={scheduleCommitTransform}
-      snappedGridLines={snappedGridLines}
-      renderArtboard={renderArtboard}
-      cropEnabled={cropEnabled}
-      isDraggingImage={isDraggingImage}
-      imageBounds={imageBounds}
-      selectionHandlePx={selectionHandlePx}
-      selectionColor={selectionColor}
-      selectionDash={selectionDash}
-      snapWorldToDeviceHalfPixel={snapWorldToDeviceHalfPixel}
-      selectRects={selectRects}
-      beginSelectResize={beginSelectResize}
-      cropRect={cropRect}
-      cropRects={cropRects}
-      cropBusy={cropBusy}
-      applyCropMove={applyCropMove}
-      onCropDblClick={onCropDblClick}
-      beginCropResize={beginCropResize}
-      borderColor={borderColor}
-      borderWidth={borderWidth}
-    />
+    <div
+      ref={containerRef}
+      className={`touch-none ${className ?? ""}`}
+      aria-label={alt ?? "Canvas"}
+      data-testid="editor-canvas-root"
+    >
+      <Stage
+        ref={(n) => {
+          stageRef.current = n
+        }}
+        width={size.w}
+        height={size.h}
+        pixelRatio={1}
+        scaleX={view.scale}
+        scaleY={view.scale}
+        x={view.x}
+        y={view.y}
+        draggable={panEnabled}
+        onDragStart={onStageDragStart}
+        onDragEnd={onStageDragEnd}
+        onWheel={onWheel}
+      >
+        <Layer
+          ref={(n) => {
+            layerRef.current = n
+          }}
+        >
+          {drawArtboard ? <Rect x={0} y={0} width={artW} height={artH} fill="#ffffff" listening={false} /> : null}
+
+          <Group
+            clipX={shouldClipToArtboard ? 0 : undefined}
+            clipY={shouldClipToArtboard ? 0 : undefined}
+            clipWidth={shouldClipToArtboard ? artW : undefined}
+            clipHeight={shouldClipToArtboard ? artH : undefined}
+          >
+            {img && imageTx && imageRender ? (
+              <KonvaImage
+                ref={(n) => {
+                  imageNodeRef.current = n
+                }}
+                image={img}
+                listening={imageDraggable}
+                rotation={rotation}
+                width={imageRender.width}
+                height={imageRender.height}
+                scaleX={1}
+                scaleY={1}
+                offsetX={imageRender.width / 2}
+                offsetY={imageRender.height / 2}
+                x={imageRender.x}
+                y={imageRender.y}
+                draggable={imageDraggable}
+                onDragStart={() => {
+                  userInteractedRef.current = true
+                  // Mark as user-changed immediately, so a late `initialImageTransform`
+                  // cannot override state mid-drag.
+                  markUserChanged()
+                  const node = imageNodeRef.current
+                  dragPosRef.current = node ? { x: node.x(), y: node.y() } : null
+                  setIsDraggingImage(true)
+                  scheduleBoundsUpdate()
+                }}
+                onDragMove={() => {
+                  updateBoundsDuringDragMove()
+                }}
+                onDragEnd={() => {
+                  markUserChanged()
+                  scheduleCommitTransform(true, 0)
+                  dragPosRef.current = null
+                  setIsDraggingImage(false)
+                  scheduleBoundsUpdate()
+                }}
+              />
+            ) : null}
+
+            {/* Grid overlay (under selection frame). */}
+            {gridLines && gridLines.lines.length ? (
+              <>
+                {gridLines.lines.map((l) => (
+                  <Line
+                    key={l.key}
+                    points={l.points}
+                    stroke={gridLines.stroke}
+                    strokeWidth={gridLines.strokeWidth}
+                    strokeScaleEnabled={false}
+                    listening={false}
+                  />
+                ))}
+              </>
+            ) : null}
+
+            {/* Default selection frame (shown when the Select tool is active) */}
+            {renderArtboard && imageDraggable && !cropEnabled && !isDraggingImage ? (
+              <>
+                <SelectionOverlay
+                  imageBounds={imageBounds}
+                  view={view}
+                  selectionHandlePx={selectionHandlePx}
+                  selectionColor={selectionColor}
+                  selectionDash={selectionDash}
+                  snapWorldToDeviceHalfPixel={snapWorldToDeviceHalfPixel}
+                />
+                {selectRects
+                  ? (
+                      [
+                        { key: "tl", pt: selectRects.handles.tl },
+                        { key: "tm", pt: selectRects.handles.tm },
+                        { key: "tr", pt: selectRects.handles.tr },
+                        { key: "rm", pt: selectRects.handles.rm },
+                        { key: "br", pt: selectRects.handles.br },
+                        { key: "bm", pt: selectRects.handles.bm },
+                        { key: "bl", pt: selectRects.handles.bl },
+                        { key: "lm", pt: selectRects.handles.lm },
+                      ] as Array<{ key: ResizeHandle; pt: { x: number; y: number } }>
+                    ).map((h) => (
+                      <Rect
+                        key={`select-hit-${h.key}`}
+                        x={h.pt.x}
+                        y={h.pt.y}
+                        width={selectRects.handleSize.w}
+                        height={selectRects.handleSize.h}
+                        fill="rgba(0,0,0,0)"
+                        strokeScaleEnabled={false}
+                        listening
+                        onMouseDown={(e) => {
+                          e.cancelBubble = true
+                          e.evt.preventDefault()
+                          beginSelectResize(h.key, Boolean(e.evt.shiftKey))
+                        }}
+                      />
+                    ))
+                  : null}
+              </>
+            ) : null}
+
+            {/* Crop overlay (interactive while crop tool is active). */}
+            {renderArtboard && cropEnabled && cropRect && cropRects ? (
+              <>
+                {/* Crop uses its own dashed inner frame within image bounds. */}
+                <SelectionOverlay
+                  imageBounds={{ x: cropRect.x, y: cropRect.y, w: cropRect.w, h: cropRect.h }}
+                  view={view}
+                  selectionHandlePx={selectionHandlePx}
+                  selectionColor={selectionColor}
+                  selectionDash={[4, 4]}
+                  snapWorldToDeviceHalfPixel={snapWorldToDeviceHalfPixel}
+                />
+                <Rect
+                  x={cropRect.x}
+                  y={cropRect.y}
+                  width={cropRect.w}
+                  height={cropRect.h}
+                  fill="rgba(0,0,0,0)"
+                  draggable={!cropBusy}
+                  onDragStart={(e) => {
+                    e.cancelBubble = true
+                  }}
+                  onDragMove={(e) => applyCropMove(e.target.x(), e.target.y())}
+                  onDblClick={() => onCropDblClick?.()}
+                />
+                {(
+                  [
+                    { key: "tl", pt: cropRects.handles.tl },
+                    { key: "tm", pt: cropRects.handles.tm },
+                    { key: "tr", pt: cropRects.handles.tr },
+                    { key: "rm", pt: cropRects.handles.rm },
+                    { key: "br", pt: cropRects.handles.br },
+                    { key: "bm", pt: cropRects.handles.bm },
+                    { key: "bl", pt: cropRects.handles.bl },
+                    { key: "lm", pt: cropRects.handles.lm },
+                  ] as Array<{ key: ResizeHandle; pt: { x: number; y: number } }>
+                ).map((h) => (
+                  <Rect
+                    key={`crop-hit-${h.key}`}
+                    x={h.pt.x}
+                    y={h.pt.y}
+                    width={cropRects.handleSize.w}
+                    height={cropRects.handleSize.h}
+                    fill="rgba(0,0,0,0)"
+                    strokeScaleEnabled={false}
+                    listening={!cropBusy}
+                    onMouseDown={(e) => {
+                      e.cancelBubble = true
+                      e.evt.preventDefault()
+                      beginCropResize(h.key, Boolean(e.evt.shiftKey))
+                    }}
+                  />
+                ))}
+              </>
+            ) : null}
+          </Group>
+
+          {drawArtboard ? (
+            <>
+              {/* Artboard border as 4 independent lines (1px, not scaling) */}
+              {(() => {
+                const xL = snapWorldToDeviceHalfPixel(0, "x")
+                const xR = snapWorldToDeviceHalfPixel(artW, "x")
+                const yT = snapWorldToDeviceHalfPixel(0, "y")
+                const yB = snapWorldToDeviceHalfPixel(artH, "y")
+
+                return (
+                  <>
+                    <Line
+                      points={[xL, 0, xL, artH]}
+                      stroke={borderColor}
+                      strokeWidth={borderWidth}
+                      strokeScaleEnabled={false}
+                      listening={false}
+                    />
+                    <Line
+                      points={[xR, 0, xR, artH]}
+                      stroke={borderColor}
+                      strokeWidth={borderWidth}
+                      strokeScaleEnabled={false}
+                      listening={false}
+                    />
+                    <Line
+                      points={[0, yT, artW, yT]}
+                      stroke={borderColor}
+                      strokeWidth={borderWidth}
+                      strokeScaleEnabled={false}
+                      listening={false}
+                    />
+                    <Line
+                      points={[0, yB, artW, yB]}
+                      stroke={borderColor}
+                      strokeWidth={borderWidth}
+                      strokeScaleEnabled={false}
+                      listening={false}
+                    />
+                  </>
+                )
+              })()}
+            </>
+          ) : null}
+        </Layer>
+      </Stage>
+    </div>
   )
 })
 

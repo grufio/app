@@ -2,79 +2,21 @@
  * Server-side orchestration for master image uploads.
  *
  * Responsibilities:
- * - Validate upload constraints and normalize metadata.
- * - Upload file to storage, insert DB row, then activate state.
+ * - Normalize upload metadata.
+ * - Enforce upload policy and limits.
+ * - Coordinate storage write, DB insert, and activation.
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
 
-import { activateMasterWithState } from "@/lib/supabase/project-images"
 import type { Database } from "@/lib/supabase/database.types"
 
-type UploadFailStage = "validation" | "upload_limits" | "storage_upload" | "db_upsert" | "active_switch" | "lock_conflict" | "storage_cleanup"
+import { activateInsertedMaster } from "./master-image-upload/activation"
+import { insertMasterWithCleanup } from "./master-image-upload/master-insert-flow"
+import { validateUploadInputs, validateUploadLimits } from "./master-image-upload/policy"
+import type { UploadMasterImageResult } from "./master-image-upload/types"
+import { normalizePositiveInt, resolveImageDpi } from "./master-image-upload/validation"
 
-export type UploadMasterImageFailure = {
-  ok: false
-  status: number
-  stage: UploadFailStage
-  reason: string
-  code?: string
-  details?: Record<string, unknown>
-}
-
-export type UploadMasterImageSuccess = {
-  ok: true
-  id: string
-  storagePath: string
-}
-
-export type UploadMasterImageResult = UploadMasterImageSuccess | UploadMasterImageFailure
-
-function parseOptionalPositiveInt(value: string | undefined): number | null {
-  if (typeof value !== "string" || !value.trim()) return null
-  const n = Number(value)
-  if (!Number.isFinite(n) || !Number.isInteger(n) || n <= 0) return null
-  return n
-}
-
-function parseAllowedMimeList(value: string | undefined): Set<string> | null {
-  if (typeof value !== "string" || !value.trim()) return null
-  const items = value
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean)
-  if (!items.length) return null
-  return new Set(items)
-}
-
-function normalizePositiveInt(n: number): number | null {
-  if (!Number.isFinite(n)) return null
-  const v = Math.trunc(n)
-  if (v <= 0) return null
-  return v
-}
-
-function mapDbErrorStatus(error: { code?: string }): number {
-  if (error.code === "23505") return 409
-  if (error.code === "23503") return 409
-  if (error.code === "23514") return 400
-  return 500
-}
-
-async function cleanupUploadedObject(args: {
-  supabase: SupabaseClient<Database>
-  objectPath: string
-}): Promise<{ ok: true } | { ok: false; reason: string; code?: string }> {
-  const { supabase, objectPath } = args
-  const { error } = await supabase.storage.from("project_images").remove([objectPath])
-  if (error) {
-    return {
-      ok: false,
-      reason: error.message,
-      code: (error as unknown as { code?: string })?.code,
-    }
-  }
-  return { ok: true }
-}
+export type { UploadMasterImageFailure, UploadMasterImageSuccess, UploadMasterImageResult } from "./master-image-upload/types"
 
 export async function uploadMasterImage(args: {
   supabase: SupabaseClient<Database>
@@ -82,74 +24,25 @@ export async function uploadMasterImage(args: {
   file: File
   widthPx: number
   heightPx: number
-  dpi?: number | null
-  bitDepth?: number | null
+  dpiX: number
+  dpiY: number
+  bitDepth: number
   format: string
 }): Promise<UploadMasterImageResult> {
   const { supabase, projectId, file, format } = args
 
   const widthPx = normalizePositiveInt(args.widthPx)
   const heightPx = normalizePositiveInt(args.heightPx)
-  const dpi = args.dpi == null ? null : normalizePositiveInt(args.dpi)
-  const bitDepth = args.bitDepth == null ? null : normalizePositiveInt(args.bitDepth)
+  const dpiX = normalizePositiveInt(args.dpiX)
+  const dpiY = normalizePositiveInt(args.dpiY)
+  const bitDepth = normalizePositiveInt(args.bitDepth)
+  const imageDpi = resolveImageDpi({ dpiX, dpiY })
 
-  if (!widthPx || !heightPx) {
-    return {
-      ok: false,
-      status: 400,
-      stage: "validation",
-      reason: "Missing/invalid width_px/height_px",
-    }
-  }
+  const inputError = validateUploadInputs({ widthPx, heightPx, dpiX, dpiY, bitDepth })
+  if (inputError) return inputError
 
-  const maxUploadBytes = parseOptionalPositiveInt(process.env.USER_MAX_UPLOAD_BYTES)
-  if (maxUploadBytes != null && file.size > maxUploadBytes) {
-    return {
-      ok: false,
-      status: 413,
-      stage: "upload_limits",
-      reason: "Upload too large",
-      details: {
-        max_bytes: maxUploadBytes,
-        got_bytes: file.size,
-      },
-    }
-  }
-
-  const allowedMime = parseAllowedMimeList(process.env.USER_ALLOWED_UPLOAD_MIME)
-  if (allowedMime != null) {
-    const mime = (file.type || "").trim()
-    if (!mime || !allowedMime.has(mime)) {
-      return {
-        ok: false,
-        status: 415,
-        stage: "upload_limits",
-        reason: "Unsupported file type",
-        details: {
-          mime: mime || null,
-          allowed_mime: Array.from(allowedMime),
-        },
-      }
-    }
-  }
-
-  const maxPixels = parseOptionalPositiveInt(process.env.USER_UPLOAD_MAX_PIXELS)
-  if (maxPixels != null) {
-    const pixels = BigInt(widthPx) * BigInt(heightPx)
-    if (pixels > BigInt(maxPixels)) {
-      return {
-        ok: false,
-        status: 413,
-        stage: "upload_limits",
-        reason: "Image dimensions too large",
-        details: {
-          max_pixels: maxPixels,
-          width_px: widthPx,
-          height_px: heightPx,
-        },
-      }
-    }
-  }
+  const limitError = validateUploadLimits({ file, widthPx, heightPx })
+  if (limitError) return limitError
 
   const imageId = crypto.randomUUID()
   const objectPath = `projects/${projectId}/images/${imageId}`
@@ -161,70 +54,53 @@ export async function uploadMasterImage(args: {
   if (uploadErr) {
     return {
       ok: false,
-      status: 502,
+      status: 400,
       stage: "storage_upload",
       reason: uploadErr.message,
       code: (uploadErr as unknown as { code?: string })?.code,
     }
   }
 
-  const { error: dbErr } = await supabase.from("project_images").insert({
-    id: imageId,
-    project_id: projectId,
-    role: "master",
-    name: file.name,
+  const insertResult = await insertMasterWithCleanup({
+    supabase,
+    imageId,
+    projectId,
+    file,
     format,
-    width_px: widthPx,
-    height_px: heightPx,
-    dpi,
-    bit_depth: bitDepth,
-    storage_bucket: "project_images",
-    storage_path: objectPath,
-    file_size_bytes: file.size,
-    is_active: false,
+    widthPx,
+    heightPx,
+    dpiX,
+    dpiY,
+    imageDpi,
+    bitDepth,
+    objectPath,
   })
-  if (dbErr) {
-    const cleanup = await cleanupUploadedObject({ supabase, objectPath })
+  if (!insertResult.ok) {
     return {
       ok: false,
-      status: mapDbErrorStatus(dbErr as unknown as { code?: string }),
+      status: 400,
       stage: "db_upsert",
-      reason: dbErr.message,
-      code: (dbErr as unknown as { code?: string })?.code,
-      ...(cleanup.ok
-        ? {}
-        : {
-            details: {
-              cleanup_error: cleanup.reason,
-              cleanup_code: cleanup.code ?? null,
-            },
-          }),
+      reason: insertResult.reason,
+      code: insertResult.code,
     }
   }
 
-  const activation = await activateMasterWithState({
+  const activationResult = await activateInsertedMaster({
     supabase,
     projectId,
     imageId,
     widthPx,
     heightPx,
+    imageDpi,
+    objectPath,
   })
-  if (!activation.ok) {
-    const cleanup = await cleanupUploadedObject({ supabase, objectPath })
+  if (!activationResult.ok) {
     return {
       ok: false,
-      status: activation.stage === "lock_conflict" ? 409 : 500,
-      stage: activation.stage,
-      reason: activation.reason,
-      code: activation.code,
-      ...(cleanup.ok
-        ? {}
-        : {
-            details: {
-              cleanup_error: cleanup.reason,
-              cleanup_code: cleanup.code ?? null,
-            },
-          }),
+      status: activationResult.status,
+      stage: activationResult.stage,
+      reason: activationResult.reason,
+      code: activationResult.code,
     }
   }
 

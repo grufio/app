@@ -39,6 +39,7 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
       id: string
       width_px: number
       height_px: number
+      dpi?: number | null
     } | null
   } | null
   masterImageLoading: boolean
@@ -92,6 +93,7 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
     canvasRef,
     artboardWidthPx,
     artboardHeightPx,
+    artboardDpi,
     grid,
     handleImagePxChange,
     initialImageTransform,
@@ -153,12 +155,14 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
             mutationsEnabled={!Boolean(toolbar.selectDisabled || toolbar.cropDisabled || toolbar.rotateDisabled)}
             artboardWidthPx={artboardWidthPx ?? undefined}
             artboardHeightPx={artboardHeightPx ?? undefined}
+            artboardDpi={typeof artboardDpi === "number" && Number.isFinite(artboardDpi) ? artboardDpi : undefined}
             intrinsicWidthPx={
               typeof masterImage?.width_px === "number" && Number.isFinite(masterImage.width_px) ? masterImage.width_px : undefined
             }
             intrinsicHeightPx={
               typeof masterImage?.height_px === "number" && Number.isFinite(masterImage.height_px) ? masterImage.height_px : undefined
             }
+            imageDpi={typeof masterImage?.dpi === "number" && Number.isFinite(masterImage.dpi) ? masterImage.dpi : undefined}
             restoreBaseWidthPx={
               typeof masterImage?.restore_base?.width_px === "number" && Number.isFinite(masterImage.restore_base.width_px)
                 ? masterImage.restore_base.width_px
@@ -167,6 +171,11 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
             restoreBaseHeightPx={
               typeof masterImage?.restore_base?.height_px === "number" && Number.isFinite(masterImage.restore_base.height_px)
                 ? masterImage.restore_base.height_px
+                : undefined
+            }
+            restoreBaseDpi={
+              typeof masterImage?.restore_base?.dpi === "number" && Number.isFinite(masterImage.restore_base.dpi)
+                ? masterImage.restore_base.dpi
                 : undefined
             }
             grid={grid ?? null}

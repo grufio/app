@@ -80,7 +80,7 @@ export async function cropImageAndActivate(args: {
 
   const { data: src, error: srcErr } = await supabase
     .from("project_images")
-    .select("id,project_id,name,format,width_px,height_px,storage_bucket,storage_path,deleted_at,is_locked")
+    .select("id,project_id,name,format,width_px,height_px,dpi,storage_bucket,storage_path,deleted_at,is_locked")
     .eq("project_id", projectId)
     .eq("id", sourceImageId)
     .is("deleted_at", null)
@@ -155,6 +155,7 @@ export async function cropImageAndActivate(args: {
     format: outputFormat,
     width_px: w,
     height_px: h,
+    dpi: Number(src.dpi ?? 72),
     storage_bucket: "project_images",
     storage_path: objectPath,
     file_size_bytes: outputBuffer.byteLength,
@@ -190,6 +191,7 @@ export async function cropImageAndActivate(args: {
     imageId,
     widthPx: w,
     heightPx: h,
+    imageDpi: Number(src.dpi ?? 72),
   })
   if (!activation.ok) {
     await supabase.from("project_images").delete().eq("id", imageId)

@@ -1,8 +1,11 @@
+export { computeDpiRelativePlacementPx, FALLBACK_IMAGE_DPI, type ImagePlacementPx } from "@/lib/editor/image-placement"
+
 /**
  * Placement/persist gating helpers (pure).
  *
  * Responsibilities:
  * - Pick intrinsic image size from metadata/DOM safely.
+ * - Compute initial/restore placement using a DPI-relative contract.
  * - Gate when persisted transforms should be applied vs user-changed state.
  */
 export function pickIntrinsicSize(args: {
@@ -41,4 +44,3 @@ export function shouldApplyPersistedTransform(args: {
   if (appliedKey === src) return false
   return Boolean(initialImageTransform.widthPxU && initialImageTransform.heightPxU)
 }
-

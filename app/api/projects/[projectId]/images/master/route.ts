@@ -62,7 +62,7 @@ export async function GET(
 
   const { data: restoreBase, error: restoreBaseErr } = await supabase
     .from("project_images")
-    .select("id,width_px,height_px")
+    .select("id,width_px,height_px,dpi")
     .eq("project_id", projectId)
     .eq("role", "master")
     .is("deleted_at", null)
@@ -79,6 +79,7 @@ export async function GET(
           id: String(restoreBase.id),
           width_px: Number(restoreBase.width_px),
           height_px: Number(restoreBase.height_px),
+          dpi: restoreBase.dpi == null ? null : Number(restoreBase.dpi),
         }
       : null
   const dpiRaw = Number(img.dpi)
