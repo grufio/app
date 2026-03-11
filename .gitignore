@@ -50,3 +50,6 @@ supabase/.temp/
 
 # cursor
 .cursor/
+
+# allow committed Vercel env template
+!.env.vercel.production.example
