@@ -1,6 +1,7 @@
 ## Database migrations (Supabase)
 
-Legacy migrations live in `db/` and are embedded into `db/schema.sql` for convenience.
+Active DB source of truth is `db/schema.sql`.
+Historical numbered SQL files are archived in `db/_archive/`.
 
 Going forward, **canonical migrations** are in `supabase/migrations/` and should be applied via Supabase CLI.
 
@@ -45,16 +46,17 @@ npm run db:pull
 npm run types:gen
 ```
 
-### Legacy SQL editor workflow (fallback)
+### SQL editor workflow (fallback)
 
 Use this only if you cannot use the Supabase CLI flow.
 
 ### Apply a new migration
 
 1. Open the Supabase SQL editor for your project.
-2. Copy/paste the contents of the new migration file (e.g. `db/016_project_workspace_page_bg.sql`).
-3. Execute it as a privileged role (usually `postgres` / `supabase_admin`).
-4. Verify the new columns/tables exist and RLS constraints still behave as expected.
+2. Copy/paste the required statements from `db/schema.sql`.
+3. (Optional) Use `db/_archive/` only for historical reference.
+4. Execute it as a privileged role (usually `postgres` / `supabase_admin`).
+5. Verify the new columns/tables exist and RLS constraints still behave as expected.
 
 ### Verify schema drift in the repo
 
@@ -64,7 +66,7 @@ Use this only if you cannot use the Supabase CLI flow.
 npm run check:db-schema
 ```
 
-This ensures **every** `db/0xx_*.sql` file has a matching `BEGIN/END` marker block embedded into `db/schema.sql`.
+This ensures `db/schema.sql` has intact migration block markers (`BEGIN`/`END`) as a single-source integrity check.
 
 ### Recommended: record applied migrations
 

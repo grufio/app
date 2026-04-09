@@ -96,8 +96,8 @@ Then inspect `/tmp/storage.schema.sql` for:
 
 **Action**:
 - Apply the Storage policies in the **Supabase SQL editor** as a privileged role (`postgres` / `supabase_admin`), using the repo’s canonical SQL:
-  - `db/006_storage_project_images_policies.sql`
-  - plus any optimizations in `db/015_rls_policy_optimizations.sql` (if you use them)
+  - `db/schema.sql` (active source of truth)
+  - optional historical references: `db/_archive/006_storage_project_images_policies.sql` and `db/_archive/015_rls_policy_optimizations.sql`
 
 **Verify**:
 - Re-run:

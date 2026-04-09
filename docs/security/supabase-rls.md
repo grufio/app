@@ -25,13 +25,13 @@
   - `projects/{projectId}/master/{filename}`
   - `projects/{projectId}/working/{filename}` (future/optional)
 
-These paths are part of the Storage RLS policies (see `db/006_storage_project_images_policies.sql` and `db/015_rls_policy_optimizations.sql`).
+These paths are part of the Storage RLS policies (active source: `db/schema.sql`; historical references: `db/_archive/006_storage_project_images_policies.sql` and `db/_archive/015_rls_policy_optimizations.sql`).
 
 ## Where policies live
 
-- **Database tables (public schema)**: `db/001_init.sql`, `db/005_project_images_rls_policies.sql`, `db/007_project_image_state.sql`, `db/015_rls_policy_optimizations.sql`
-- **Storage policies**: `db/006_storage_project_images_policies.sql` (and optimized variants in `db/015_rls_policy_optimizations.sql`)
-- **Canonical snapshot**: `db/schema.sql` (CI verifies markers + policy checks)
+- **Database tables (public schema)**: `db/schema.sql` (historical migration files are in `db/_archive/`)
+- **Storage policies**: `db/schema.sql` (historical policy-specific files are in `db/_archive/`)
+- **Canonical snapshot**: `db/schema.sql` (CI verifies schema marker integrity + policy checks)
 
 ## Automated verification (CI + local)
 
