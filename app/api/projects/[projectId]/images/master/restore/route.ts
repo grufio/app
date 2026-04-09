@@ -9,8 +9,20 @@ import { NextResponse } from "next/server"
 
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { isUuid, jsonError, requireUser } from "@/lib/api/route-guards"
+import { computeDpiRelativePlacementPx, placementPxToMicroPx } from "@/lib/editor/image-placement"
+import { pxUToPxNumber } from "@/lib/editor/units"
 
 export const dynamic = "force-dynamic"
+
+function parsePositiveBigInt(value: unknown): bigint | null {
+  if (typeof value !== "string" || !value.trim()) return null
+  try {
+    const out = BigInt(value)
+    return out > 0n ? out : null
+  } catch {
+    return null
+  }
+}
 
 export async function POST(
   _req: Request,
@@ -54,7 +66,7 @@ export async function POST(
 
   const { data: baseMaster, error: baseErr } = await supabase
     .from("project_images")
-    .select("id,width_px,height_px")
+    .select("id,width_px,height_px,dpi")
     .eq("project_id", projectId)
     .eq("role", "master")
     .is("deleted_at", null)
@@ -74,11 +86,46 @@ export async function POST(
     return jsonError("Invalid initial master dimensions", 400, { stage: "restore_base_invalid_dims" })
   }
 
+  const { data: workspaceRow, error: workspaceErr } = await supabase
+    .from("project_workspace")
+    .select("width_px_u,height_px_u,width_px,height_px,output_dpi")
+    .eq("project_id", projectId)
+    .maybeSingle()
+  if (workspaceErr) {
+    return jsonError(workspaceErr.message, 400, { stage: "restore_workspace_query" })
+  }
+  if (!workspaceRow) {
+    return jsonError("Workspace missing", 400, { stage: "restore_workspace_missing" })
+  }
+
+  const widthPxU = parsePositiveBigInt(workspaceRow.width_px_u)
+  const heightPxU = parsePositiveBigInt(workspaceRow.height_px_u)
+  const artW = widthPxU ? pxUToPxNumber(widthPxU) : Number(workspaceRow.width_px ?? 0)
+  const artH = heightPxU ? pxUToPxNumber(heightPxU) : Number(workspaceRow.height_px ?? 0)
+  if (!(artW > 0 && artH > 0)) {
+    return jsonError("Workspace size missing or invalid", 400, { stage: "restore_workspace_invalid_dims" })
+  }
+
+  const placement = computeDpiRelativePlacementPx({
+    artW,
+    artH,
+    intrinsicW: Math.max(1, Math.trunc(widthPx)),
+    intrinsicH: Math.max(1, Math.trunc(heightPx)),
+    artboardDpi: Number(workspaceRow.output_dpi),
+    imageDpi: Number(baseMaster.dpi ?? 0),
+  })
+  if (!placement) {
+    return jsonError("Failed to compute initial placement", 400, { stage: "restore_placement" })
+  }
+  const placementU = placementPxToMicroPx(placement)
+
   const { error: rpcErr } = await supabase.rpc("set_active_master_with_state", {
     p_project_id: projectId,
     p_image_id: baseMaster.id,
-    p_width_px: Math.round(widthPx),
-    p_height_px: Math.round(heightPx),
+    p_x_px_u: placementU.xPxU,
+    p_y_px_u: placementU.yPxU,
+    p_width_px_u: placementU.widthPxU,
+    p_height_px_u: placementU.heightPxU,
   })
   if (rpcErr) {
     return jsonError(rpcErr.message, 400, { stage: "restore_rpc" })

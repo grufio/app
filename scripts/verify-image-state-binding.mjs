@@ -169,7 +169,7 @@ function main() {
     dbUrl,
     `
       select 'set_active_master_with_state_conflict_key_drift'
-      where pg_get_functiondef('public.set_active_master_with_state(uuid, uuid, integer, integer)'::regprocedure)
+      where pg_get_functiondef('public.set_active_master_with_state(uuid, uuid, text, text, text, text)'::regprocedure)
             not ilike '%ON CONFLICT (project_id, image_id)%';
     `
   )

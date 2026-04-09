@@ -523,10 +523,12 @@ export type Database = {
       }
       set_active_master_with_state: {
         Args: {
-          p_height_px: number
           p_image_id: string
           p_project_id: string
-          p_width_px: number
+          p_x_px_u: string
+          p_y_px_u: string
+          p_width_px_u: string
+          p_height_px_u: string
         }
         Returns: undefined
       }
