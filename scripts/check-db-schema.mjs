@@ -2,7 +2,8 @@
  * DB schema marker checker.
  *
  * Responsibilities:
- * - Ensure every `db/0xx_*.sql` migration is embedded in `db/schema.sql` with matching BEGIN/END markers.
+ * - Ensure `db/schema.sql` exists and remains the single active DB source file.
+ * - Verify migration block marker integrity inside `db/schema.sql` (BEGIN/END count parity).
  * - Used by CI to prevent schema drift.
  */
 import fs from "node:fs"
@@ -18,24 +19,22 @@ if (!fs.existsSync(schemaPath)) {
 }
 
 const schema = fs.readFileSync(schemaPath, "utf8")
+const beginMarkers = schema.match(/--\s*BEGIN db\/.+\.sql/g) ?? []
+const endMarkers = schema.match(/--\s*END db\/.+\.sql/g) ?? []
 
-const migrationFiles = fs
-  .readdirSync(dbDir)
-  .filter((f) => /^0\d{2}_.+\.sql$/.test(f) && f !== "schema.sql")
-  .sort()
-
-const missing = []
-for (const f of migrationFiles) {
-  const marker = `BEGIN db/${f}`
-  if (!schema.includes(marker)) missing.push(f)
-}
-
-if (missing.length) {
-  console.error("db/schema.sql is missing the following migration markers:")
-  for (const f of missing) console.error(`- ${f}`)
-  console.error("\nFix: paste the migration contents into db/schema.sql with matching BEGIN/END markers.")
+if (beginMarkers.length === 0) {
+  console.error("db/schema.sql contains no migration BEGIN markers.")
+  console.error("Fix: keep migration block markers in db/schema.sql for auditability.")
   process.exit(1)
 }
 
-console.log(`OK: db/schema.sql contains ${migrationFiles.length}/${migrationFiles.length} migration markers.`)
+if (beginMarkers.length !== endMarkers.length) {
+  console.error("db/schema.sql has mismatched migration marker counts.")
+  console.error(`BEGIN markers: ${beginMarkers.length}`)
+  console.error(`END markers:   ${endMarkers.length}`)
+  console.error("Fix: ensure every BEGIN marker has a matching END marker in db/schema.sql.")
+  process.exit(1)
+}
+
+console.log(`OK: db/schema.sql single-source integrity passed (${beginMarkers.length} migration blocks).`)
 

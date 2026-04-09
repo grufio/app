@@ -39,7 +39,7 @@ npm run dev
 ### RLS policies
 
 - Storage access is restricted to the project owner via policies in:
-  - `db/006_storage_project_images_policies.sql`
+  - `db/schema.sql` (historical source file: `db/_archive/006_storage_project_images_policies.sql`)
 
 ## Editor architecture (high level)
 
@@ -76,8 +76,13 @@ npm run dev
 - `npm run build`: production build
 - `npm run lint`: eslint
 - `npm run test`: unit tests (Vitest)
-- `npm run check:db-schema`: validate `db/schema.sql` contains all migration markers
+- `npm run check:db-schema`: validate `db/schema.sql` single-source marker integrity
 - `npm run check`: lint + tests + schema marker check
+
+## Database workflow
+
+- Active SQL source of truth: `db/schema.sql`
+- Historical numbered migrations (`db/0xx_*.sql`) are archived in `db/_archive/` and are not the active source.
 
 ## CI
 
