@@ -2,9 +2,9 @@
  * DB schema marker checker.
  *
  * Responsibilities:
- * - Ensure `db/schema.sql` exists and remains the single active DB source file.
+ * - Ensure `db/schema.sql` exists as a derived audit snapshot.
  * - Verify migration block marker integrity inside `db/schema.sql` (BEGIN/END count parity).
- * - Used by CI to prevent schema drift.
+ * - Verify that critical canonical migration invariants are represented in the snapshot.
  */
 import fs from "node:fs"
 import path from "node:path"
@@ -36,5 +36,34 @@ if (beginMarkers.length !== endMarkers.length) {
   process.exit(1)
 }
 
-console.log(`OK: db/schema.sql single-source integrity passed (${beginMarkers.length} migration blocks).`)
+const invariantChecks = [
+  {
+    name: "project_image_state canonical µpx size is NOT NULL",
+    pattern:
+      /alter table public\.project_image_state\s+alter column width_px_u set not null,\s+alter column height_px_u set not null;/m,
+  },
+  {
+    name: "project_grid spacing_x/spacing_y is NOT NULL",
+    pattern:
+      /alter table public\.project_grid\s+alter column spacing_x_value set not null,\s+alter column spacing_y_value set not null;/m,
+  },
+  {
+    name: "project_grid legacy sync trigger function exists",
+    pattern: /create or replace function public\.project_grid_sync_spacing_legacy\(\)/m,
+  },
+  {
+    name: "project_images kind enum exists",
+    pattern: /create type public\.image_kind as enum \('master', 'working_copy', 'filter_working_copy'\)/m,
+  },
+]
+
+const missingInvariants = invariantChecks.filter(({ pattern }) => !pattern.test(schema))
+if (missingInvariants.length) {
+  console.error("db/schema.sql is missing critical canonical migration invariants:")
+  for (const inv of missingInvariants) console.error(`- ${inv.name}`)
+  console.error("\nFix: regenerate or patch db/schema.sql from canonical supabase migrations.")
+  process.exit(1)
+}
+
+console.log(`OK: db/schema.sql marker/invariant integrity passed (${beginMarkers.length} migration blocks).`)
 

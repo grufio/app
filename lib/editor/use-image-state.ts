@@ -24,6 +24,18 @@ export type ImageState = {
 
 type Pending<T> = { seq: number; value: T }
 
+export function mapImageStateApiErrorToMessage(e: ApiError, action: "load" | "save"): string {
+  const stage = typeof e.payload?.stage === "string" ? e.payload.stage : null
+  if (action === "save" && stage === "lock_conflict") return "Active image is locked."
+  if (action === "save" && stage === "active_image_mismatch") return "Active image changed. Please retry."
+  if (action === "save" && stage === "no_active_image") return "No active image available. Please refresh."
+  if (action === "save" && stage === "active_lookup") return "Active image lookup failed. Please refresh."
+  if (action === "load" && stage === "schema_missing") return "Unsupported image state schema."
+  if (action === "load" && stage === "active_lookup") return "Failed to resolve active image."
+  const msg = typeof e.payload?.error === "string" && e.payload.error.trim() ? e.payload.error : null
+  return msg ?? (action === "load" ? "Failed to load image state." : "Failed to save image state.")
+}
+
 /**
  * A tiny pending-slot helper that is safe against the “set while flushing” race:
  * it never clears a newer value while completing an older flush.
@@ -71,14 +83,7 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
   const loadInflightRef = useRef<Promise<void> | null>(null)
   const requestSeqRef = useRef(0)
 
-  const mapApiErrorToMessage = useCallback((e: ApiError, action: "load" | "save"): string => {
-    const stage = typeof e.payload?.stage === "string" ? e.payload.stage : null
-    if (action === "save" && stage === "lock_conflict") return "Active image is locked."
-    if (action === "save" && stage === "active_image_mismatch") return "Active image changed. Please retry."
-    if (action === "load" && stage === "schema_missing") return "Unsupported image state schema."
-    const msg = typeof e.payload?.error === "string" && e.payload.error.trim() ? e.payload.error : null
-    return msg ?? (action === "load" ? "Failed to load image state." : "Failed to save image state.")
-  }, [])
+  const mapApiErrorToMessage = useCallback((e: ApiError, action: "load" | "save"): string => mapImageStateApiErrorToMessage(e, action), [])
 
   const loadImageState = useCallback(async () => {
     if (loadInflightRef.current) return await loadInflightRef.current
@@ -116,7 +121,9 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
     } catch (e) {
       if (seq !== requestSeqRef.current) return
       if (e instanceof ApiError) {
-        console.error(`${logPrefix} load failed`, { code: e.code, status: e.status, payload: e.payload })
+        const stage = typeof e.payload?.stage === "string" ? e.payload.stage : null
+        const payloadError = typeof e.payload?.error === "string" ? e.payload.error : null
+        console.error(`${logPrefix} load failed`, { code: e.code, status: e.status, stage, payloadError, payload: e.payload })
         setImageStateError(mapApiErrorToMessage(e, "load"))
       } else {
         console.error(`${logPrefix} load failed`, e)
@@ -201,7 +208,9 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
         setImageStateError((prev) => (prev === "" ? prev : ""))
       } catch (e) {
         if (e instanceof ApiError) {
-          console.error(`${logPrefix} save failed`, { code: e.code, status: e.status, payload: e.payload })
+          const stage = typeof e.payload?.stage === "string" ? e.payload.stage : null
+          const payloadError = typeof e.payload?.error === "string" ? e.payload.error : null
+          console.error(`${logPrefix} save failed`, { code: e.code, status: e.status, stage, payloadError, payload: e.payload })
           setImageStateError(mapApiErrorToMessage(e, "save"))
         } else {
           console.error(`${logPrefix} save failed`, e)

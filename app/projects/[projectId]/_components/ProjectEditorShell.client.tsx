@@ -23,7 +23,6 @@ import {
 import { buildNavId } from "@/features/editor/navigation/nav-id"
 import { recoverSelectedNavId } from "@/features/editor/navigation/selection-recovery"
 import { FilterSidebarSection } from "@/features/editor/components/filter-sidebar-section"
-import { reportError } from "@/lib/monitoring/error-reporting"
 import { useFilterWorkingImage } from "@/lib/editor/use-filter-working-image"
 import { useFilterDialogSession } from "@/lib/editor/use-filter-dialog-session"
 import { useEditorSessionState } from "@/lib/editor/use-editor-session-state"
@@ -92,11 +91,11 @@ export function ProjectDetailPageClient({
     deleteBusy,
     deleteError,
     setDeleteError,
-    deleteImage,
   } = useMasterImage(projectId, initialMasterImage)
 
   const {
     images: projectImages,
+    displayTarget,
     refresh: refreshProjectImages,
     deleteById: deleteImageById,
     setLockedById: setImageLockedById,
@@ -107,6 +106,7 @@ export function ProjectDetailPageClient({
     loading: filterImageLoading,
     loadedOnce: filterImageLoadedOnce,
     error: filterImageError,
+    emptyReason: filterImageEmptyReason,
     refresh: refreshFilterImage,
   } = useFilterWorkingImage(projectId)
 
@@ -148,6 +148,7 @@ export function ProjectDetailPageClient({
     filterImageLoading,
     filterImageLoadedOnce,
     filterImageError,
+    filterImageEmptyReason,
     refreshMasterImage,
     refreshProjectImages,
     refreshFilterImage,
@@ -181,22 +182,22 @@ export function ProjectDetailPageClient({
   }, [filterPanelError])
 
   useEffect(() => {
-    const noWorkingImageMessage = "No working image available. Please refresh or restore the image."
-    if (sourceSnapshot.status !== "error" || sourceSnapshot.error !== noWorkingImageMessage) {
+    const unresolvedSourceMessage = "Working image target is unresolved. Refresh editor state."
+    if (sourceSnapshot.status !== "error" || sourceSnapshot.error !== unresolvedSourceMessage) {
       lastNoWorkingImageMetricRef.current = ""
       return
     }
     const metricKey = `${projectId}:${sourceSnapshot.error}`
     if (lastNoWorkingImageMetricRef.current === metricKey) return
     lastNoWorkingImageMetricRef.current = metricKey
-    void reportError(new Error(noWorkingImageMessage), {
+    void reportError(new Error(unresolvedSourceMessage), {
       scope: "editor",
       code: "WORKFLOW_SOURCE_MISSING",
       stage: "source_snapshot",
       severity: "warn",
       tags: {
         domain: "image_workflow",
-        metric: "no_working_image_available",
+        metric: "working_image_target_unresolved",
       },
       context: {
         projectId,
@@ -286,14 +287,23 @@ export function ProjectDetailPageClient({
   })
 
   const handleDeleteMasterImage = useCallback(async () => {
-    const res = selectedImageId ? await deleteImageById(selectedImageId) : await deleteImage()
-    if (!res.ok) return
+    const targetId = selectedImageId ?? displayTarget.active_image_id
+    if (!targetId) {
+      setDeleteError("No active image available for delete.")
+      return
+    }
+
+    const res = await deleteImageById(targetId)
+    if (!res.ok) {
+      setDeleteError(res.error)
+      return
+    }
     setDeleteOpen(false)
     setImagePxU(null)
     await refreshProjectImages()
     await refreshMasterImage()
     await refreshFilterImage()
-  }, [deleteImage, deleteImageById, refreshFilterImage, refreshMasterImage, refreshProjectImages, selectedImageId, setDeleteOpen])
+  }, [deleteImageById, displayTarget.active_image_id, refreshFilterImage, refreshMasterImage, refreshProjectImages, selectedImageId, setDeleteError, setDeleteOpen])
 
   const handleRestoreInitialImage = useCallback(async () => {
     if (workflow.isRestoring) return
@@ -451,6 +461,8 @@ export function ProjectDetailPageClient({
               hasGrid={hasGrid}
               onImageUploaded={handleImageUploaded}
               onImageDeleteRequested={requestDeleteImage}
+              canDeleteActiveImage={displayTarget.deletable}
+              deleteTargetImageId={displayTarget.active_image_id}
               onGridCreateRequested={requestCreateGrid}
               onGridDeleteRequested={requestDeleteGrid}
               filterPanelContent={filterSidebarContent}
@@ -506,6 +518,7 @@ export function ProjectDetailPageClient({
             setDeleteOpen={setDeleteOpen}
             handleDeleteMasterImage={handleDeleteMasterImage}
             onRequestDeleteImage={requestDeleteSelectedImage}
+            canDeleteActiveImage={displayTarget.deletable}
             panelImagePxU={panelImagePxU}
             workspaceUnit={workspaceUnit ?? "cm"}
             workspaceReady={workspaceReady}

@@ -5,7 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/lib/supabase/database.types"
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role"
-import { activateMasterWithState } from "@/lib/supabase/project-images"
+import { activateMasterWithState, getEditorTargetImageRow } from "@/lib/supabase/project-images"
 import { appendProjectImageFilter } from "@/services/editor/server/filter-chain"
 
 export type SupportedFilterType = "pixelate" | "lineart" | "numerate"
@@ -160,6 +160,7 @@ async function createDerivedImageFromSource(args: {
     id: imageId,
     project_id: projectId,
     role: "asset",
+    kind: "filter_working_copy",
     name: `${src.name} (${filterType})`,
     format: rendered.format,
     width_px: rendered.width,
@@ -256,14 +257,17 @@ export async function applyProjectImageFilter(args: {
   if (!filterType) return { ok: false, status: 400, stage: "validation", reason: "Unsupported filter type" }
   const params = normalizeFilterParams(filterType, args.filterParams)
 
-  const { data: active, error: activeErr } = await supabase
-    .from("project_images")
-    .select("id,is_locked,dpi")
-    .eq("project_id", projectId)
-    .eq("is_active", true)
-    .is("deleted_at", null)
-    .maybeSingle()
-  if (activeErr) return { ok: false, status: 400, stage: "active_lookup", reason: activeErr.message, code: (activeErr as { code?: string }).code }
+  const activeLookup = await getEditorTargetImageRow(supabase, projectId)
+  if (activeLookup.error) {
+    return {
+      ok: false,
+      status: 400,
+      stage: "active_lookup",
+      reason: activeLookup.error.reason,
+      code: activeLookup.error.code,
+    }
+  }
+  const active = activeLookup.row
   if (!active?.id) return { ok: false, status: 404, stage: "active_lookup", reason: "No active image found" }
   if (active.is_locked) return { ok: false, status: 409, stage: "lock_conflict", reason: "Active image is locked", code: "image_locked" }
 

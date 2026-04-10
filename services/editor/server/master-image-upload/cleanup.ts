@@ -4,7 +4,10 @@ import type { Database } from "@/lib/supabase/database.types"
 
 import type { ExistingMasterRow } from "./types"
 
-async function removeStorageObjectsByBucket(supabase: SupabaseClient<Database>, rows: ExistingMasterRow[]): Promise<void> {
+async function removeStorageObjectsByBucket(
+  supabase: SupabaseClient<Database>,
+  rows: ExistingMasterRow[]
+): Promise<{ ok: true } | { ok: false; reason: string; code?: string }> {
   const pathsByBucket = new Map<string, string[]>()
   for (const row of rows) {
     if (!row.storage_path) continue
@@ -19,8 +22,16 @@ async function removeStorageObjectsByBucket(supabase: SupabaseClient<Database>, 
 
   for (const [bucket, paths] of pathsByBucket.entries()) {
     if (!paths.length) continue
-    await supabase.storage.from(bucket).remove(paths)
+    const { error } = await supabase.storage.from(bucket).remove(paths)
+    if (error) {
+      return {
+        ok: false,
+        reason: `storage cleanup failed for bucket=${bucket}: ${error.message}`,
+        code: (error as { code?: string }).code,
+      }
+    }
   }
+  return { ok: true }
 }
 
 export async function cleanupExistingMasters(args: {
@@ -53,6 +64,7 @@ export async function cleanupExistingMasters(args: {
 
   if (deleteErr) return { ok: false, reason: deleteErr.message, code: (deleteErr as { code?: string }).code }
 
-  await removeStorageObjectsByBucket(supabase, existing)
+  const cleanup = await removeStorageObjectsByBucket(supabase, existing)
+  if (!cleanup.ok) return cleanup
   return { ok: true }
 }

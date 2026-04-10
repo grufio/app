@@ -3,14 +3,21 @@ import crypto from "node:crypto"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/lib/supabase/database.types"
+import { getEditorTargetImageRow } from "@/lib/supabase/project-images"
 import { copyImageTransform } from "@/services/editor/server/copy-image-transform"
 
 type FailStage =
   | "active_lookup"
+  | "no_active_image"
   | "working_copy_exists"
+  | "filter_rows_query"
+  | "filter_output_query"
+  | "filter_output_missing"
+  | "filter_tip_missing"
   | "storage_download"
   | "storage_upload"
   | "db_insert"
+  | "soft_delete"
   | "transform_sync"
   | "chain_invalid"
 
@@ -70,19 +77,23 @@ function parseFilterType(value: unknown): FilterPanelStackItem["filterType"] {
 async function softDeleteCopies(
   supabase: SupabaseClient<Database>,
   ids: string[]
-): Promise<void> {
-  if (!ids.length) return
-  await supabase
+): Promise<{ ok: true } | { ok: false; reason: string; code?: string }> {
+  if (!ids.length) return { ok: true }
+  const { error } = await supabase
     .from("project_images")
     .update({ deleted_at: new Date().toISOString() })
     .in("id", ids)
+  if (error) {
+    return { ok: false, reason: error.message, code: error.code }
+  }
+  return { ok: true }
 }
 
 /**
  * Creates or retrieves a filter working copy from the active image.
  *
  * Logic:
- * 1. Find active image (is_active=true, any role)
+ * 1. Find current editor target image (filter/working preferred, never master)
  * 2. Check if a working copy already exists (role='asset', source_image_id=activeImageId, name ends with '(filter working)')
  * 3. If exists and points to current active image, return existing copy with fresh signed URL
  * 4. If exists but points to old image, soft-delete it and create new copy
@@ -94,29 +105,50 @@ export async function getOrCreateFilterWorkingCopy(args: {
 }): Promise<FilterWorkingCopyResult> {
   const { supabase, projectId } = args
 
-  // Find active image (any role)
-  const { data: activeImage, error: activeErr } = await supabase
-    .from("project_images")
-    .select("id,name,storage_bucket,storage_path,format,width_px,height_px,file_size_bytes,source_image_id")
-    .eq("project_id", projectId)
-    .eq("is_active", true)
-    .is("deleted_at", null)
-    .maybeSingle()
-
-  if (activeErr || !activeImage) {
+  // Resolve current editor target image.
+  const activeLookup = await getEditorTargetImageRow(supabase, projectId)
+  if (activeLookup.error) {
+    return {
+      ok: false,
+      status: 400,
+      stage: "active_lookup",
+      reason: activeLookup.error.reason,
+      code: activeLookup.error.code,
+    }
+  }
+  const activeImage = activeLookup.row
+  if (!activeImage) {
     return {
       ok: false,
       status: 404,
-      stage: "active_lookup",
+      stage: "no_active_image",
       reason: "Active image not found",
-      code: activeErr?.code,
     }
   }
+  if (
+    !activeImage.name ||
+    !activeImage.storage_path ||
+    !activeImage.format ||
+    !(Number(activeImage.width_px ?? 0) > 0) ||
+    !(Number(activeImage.height_px ?? 0) > 0)
+  ) {
+    return {
+      ok: false,
+      status: 409,
+      stage: "active_lookup",
+      reason: "Active image is missing required fields",
+    }
+  }
+  const activeWidthPx = Number(activeImage.width_px)
+  const activeHeightPx = Number(activeImage.height_px)
+  const activeName = String(activeImage.name)
+  const activeFormat = String(activeImage.format)
+  const activeFileSizeBytes = Number(activeImage.file_size_bytes ?? 0)
 
   // Load all candidate working copies and pick deterministically.
   const { data: existingCopies, error: existingErr } = await supabase
     .from("project_images")
-    .select("id,storage_bucket,storage_path,width_px,height_px,source_image_id,name,updated_at,created_at")
+    .select("id,storage_bucket,storage_path,width_px,height_px,source_image_id,name,updated_at,created_at,kind")
     .eq("project_id", projectId)
     .eq("role", "asset")
     .like("name", "%(filter working)")
@@ -135,7 +167,7 @@ export async function getOrCreateFilterWorkingCopy(args: {
     }
   }
 
-  const workingCopyName = `${activeImage.name} (filter working)`
+  const workingCopyName = `${activeName} (filter working)`
   const reusableCopy = (existingCopies ?? []).find(
     (copy) => copy.source_image_id === activeImage.id && copy.name === workingCopyName
   )
@@ -145,7 +177,16 @@ export async function getOrCreateFilterWorkingCopy(args: {
     const obsoleteIds = (existingCopies ?? [])
       .filter((copy) => copy.id !== reusableCopy.id)
       .map((copy) => copy.id)
-    await softDeleteCopies(supabase, obsoleteIds)
+    const softDelete = await softDeleteCopies(supabase, obsoleteIds)
+    if (!softDelete.ok) {
+      return {
+        ok: false,
+        status: 500,
+        stage: "soft_delete",
+        reason: softDelete.reason,
+        code: softDelete.code,
+      }
+    }
 
     // Return existing copy with fresh signed URL
     const { data: signedData } = await supabase.storage
@@ -157,8 +198,8 @@ export async function getOrCreateFilterWorkingCopy(args: {
       projectId,
       sourceImageId: activeImage.id,
       targetImageId: reusableCopy.id,
-      sourceWidth: activeImage.width_px,
-      sourceHeight: activeImage.height_px,
+      sourceWidth: activeWidthPx,
+      sourceHeight: activeHeightPx,
       targetWidth: reusableCopy.width_px,
       targetHeight: reusableCopy.height_px,
     })
@@ -179,15 +220,24 @@ export async function getOrCreateFilterWorkingCopy(args: {
       heightPx: reusableCopy.height_px,
       signedUrl: signedData?.signedUrl ?? "",
       sourceImageId: activeImage.id,
-      name: activeImage.name,
+      name: activeName,
     }
   }
 
   // No reusable copy: tombstone all historical candidates before creating a new one.
-  await softDeleteCopies(
+  const softDelete = await softDeleteCopies(
     supabase,
     (existingCopies ?? []).map((copy) => copy.id)
   )
+  if (!softDelete.ok) {
+    return {
+      ok: false,
+      status: 500,
+      stage: "soft_delete",
+      reason: softDelete.reason,
+      code: softDelete.code,
+    }
+  }
 
   // Download active image from storage
   const { data: srcBlob, error: downloadErr } = await supabase.storage
@@ -215,7 +265,7 @@ export async function getOrCreateFilterWorkingCopy(args: {
     png: "image/png",
     webp: "image/webp",
   }
-  const contentType = contentTypeMap[String(activeImage.format).toLowerCase()] ?? "application/octet-stream"
+  const contentType = contentTypeMap[activeFormat.toLowerCase()] ?? "application/octet-stream"
 
   const { error: uploadErr } = await supabase.storage.from("project_images").upload(objectPath, srcBuffer, {
     contentType,
@@ -236,13 +286,14 @@ export async function getOrCreateFilterWorkingCopy(args: {
     id: workingCopyId,
     project_id: projectId,
     role: "asset",
+    kind: "filter_working_copy",
     name: workingCopyName,
-    format: activeImage.format,
-    width_px: activeImage.width_px,
-    height_px: activeImage.height_px,
+    format: activeFormat,
+    width_px: activeWidthPx,
+    height_px: activeHeightPx,
     storage_bucket: "project_images",
     storage_path: objectPath,
-    file_size_bytes: activeImage.file_size_bytes,
+    file_size_bytes: activeFileSizeBytes,
     is_active: false,
     source_image_id: activeImage.id,
   })
@@ -263,19 +314,25 @@ export async function getOrCreateFilterWorkingCopy(args: {
     projectId,
     sourceImageId: activeImage.id,
     targetImageId: workingCopyId,
-    sourceWidth: activeImage.width_px,
-    sourceHeight: activeImage.height_px,
-    targetWidth: activeImage.width_px,
-    targetHeight: activeImage.height_px,
+    sourceWidth: activeWidthPx,
+    sourceHeight: activeHeightPx,
+    targetWidth: activeWidthPx,
+    targetHeight: activeHeightPx,
   })
   if (!transformSync.ok) {
-    await supabase.from("project_images").update({ deleted_at: new Date().toISOString() }).eq("id", workingCopyId)
+    const { error: softDeleteErr } = await supabase
+      .from("project_images")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("id", workingCopyId)
     await supabase.storage.from("project_images").remove([objectPath])
+    const reason = softDeleteErr
+      ? `${transformSync.reason}; failed to tombstone working copy: ${softDeleteErr.message}`
+      : transformSync.reason
     return {
       ok: false,
       status: 500,
       stage: "transform_sync",
-      reason: transformSync.reason,
+      reason,
     }
   }
 
@@ -288,11 +345,11 @@ export async function getOrCreateFilterWorkingCopy(args: {
     ok: true,
     id: workingCopyId,
     storagePath: objectPath,
-    widthPx: activeImage.width_px,
-    heightPx: activeImage.height_px,
+    widthPx: activeWidthPx,
+    heightPx: activeHeightPx,
     signedUrl: signedData?.signedUrl ?? "",
     sourceImageId: activeImage.id,
-    name: activeImage.name,
+    name: activeName,
   }
 }
 
@@ -314,7 +371,7 @@ export async function getFilterPanelData(args: {
     return {
       ok: false,
       status: 400,
-      stage: "working_copy_exists",
+      stage: "filter_rows_query",
       reason: filterErr.message,
       code: filterErr.code,
     }
@@ -400,7 +457,7 @@ export async function getFilterPanelData(args: {
     return {
       ok: false,
       status: 400,
-      stage: "working_copy_exists",
+      stage: "filter_output_query",
       reason: error.message,
       code: error.code,
     }
@@ -414,7 +471,7 @@ export async function getFilterPanelData(args: {
       return {
         ok: false,
         status: 409,
-        stage: "working_copy_exists",
+        stage: "filter_output_missing",
         reason: "Filter chain references a missing output image",
       }
     }
@@ -432,7 +489,7 @@ export async function getFilterPanelData(args: {
     return {
       ok: false,
       status: 409,
-      stage: "working_copy_exists",
+      stage: "filter_tip_missing",
       reason: "Filter chain tip is missing",
     }
   }

@@ -42,6 +42,21 @@ export type ProjectImageItem = {
   created_at: string
 }
 
+export type ImageDeleteReason = "no_active_image" | "master_immutable" | null
+export type ImageKind = "master" | "working_copy" | "filter_working_copy" | null
+
+export type ProjectImageDisplayTarget = {
+  active_image_id: string | null
+  kind: ImageKind
+  deletable: boolean
+  reason: ImageDeleteReason
+}
+
+export type ProjectImageFallbackTarget = {
+  image_id?: string
+  kind: "working_copy"
+} | null
+
 export type SetProjectImageLockedResponse = {
   ok: true
   id: string
@@ -92,8 +107,8 @@ export async function deleteMasterImage(projectId: string): Promise<void> {
   }
 }
 
-export async function listMasterImages(projectId: string): Promise<ProjectImageItem[]> {
-  const res = await fetchJson<{ items?: ProjectImageItem[] }>(`/api/projects/${projectId}/images/master/list`, {
+export async function listMasterImages(projectId: string): Promise<{ items: ProjectImageItem[]; displayTarget: ProjectImageDisplayTarget; fallbackTarget: ProjectImageFallbackTarget }> {
+  const res = await fetchJson<{ items?: ProjectImageItem[]; display_target?: Partial<ProjectImageDisplayTarget>; fallback_target?: ProjectImageFallbackTarget }>(`/api/projects/${projectId}/images/master/list`, {
     method: "GET",
     credentials: "same-origin",
   })
@@ -101,7 +116,31 @@ export async function listMasterImages(projectId: string): Promise<ProjectImageI
     const msg = `Failed to load images (HTTP ${res.status})` + (res.error ? ` ${JSON.stringify(res.error)}` : "")
     throw new Error(msg)
   }
-  return Array.isArray(res.data?.items) ? res.data.items : []
+  return {
+    items: Array.isArray(res.data?.items) ? res.data.items : [],
+    displayTarget: {
+      active_image_id: typeof res.data?.display_target?.active_image_id === "string" ? res.data.display_target.active_image_id : null,
+      kind:
+        res.data?.display_target?.kind === "master" ||
+        res.data?.display_target?.kind === "working_copy" ||
+        res.data?.display_target?.kind === "filter_working_copy"
+          ? res.data.display_target.kind
+          : null,
+      deletable: Boolean(res.data?.display_target?.deletable),
+      reason:
+        res.data?.display_target?.reason === "no_active_image" ||
+        res.data?.display_target?.reason === "master_immutable"
+          ? res.data.display_target.reason
+          : null,
+    },
+    fallbackTarget:
+      res.data?.fallback_target?.kind === "working_copy"
+        ? {
+            image_id: typeof res.data?.fallback_target?.image_id === "string" ? res.data.fallback_target.image_id : undefined,
+            kind: "working_copy",
+          }
+        : null,
+  }
 }
 
 export async function deleteMasterImageById(projectId: string, imageId: string): Promise<void> {
@@ -275,6 +314,7 @@ export async function removeProjectImageFilter(args: {
 export async function getOrCreateFilterWorkingCopy(projectId: string): Promise<
   | {
       exists: false
+      stage?: "no_active_image"
     }
   | {
       exists: true
@@ -297,6 +337,7 @@ export async function getOrCreateFilterWorkingCopy(projectId: string): Promise<
   const res = await fetchJson<{
     ok?: boolean
     exists?: boolean
+    stage?: string
     id?: string
     signed_url?: string
     width_px?: number
@@ -321,7 +362,7 @@ export async function getOrCreateFilterWorkingCopy(projectId: string): Promise<
     throw new Error(msg)
   }
   if (res.data?.exists === false) {
-    return { exists: false }
+    return { exists: false, stage: res.data?.stage === "no_active_image" ? "no_active_image" : undefined }
   }
   if (!res.data?.id || !res.data.signed_url) {
     throw new Error("Failed to get filter working copy (missing data)")

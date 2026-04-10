@@ -47,4 +47,16 @@ describe("project-images API wrapper", () => {
       expect(out.stack[1]).toMatchObject({ filterType: "lineart", source_image_id: "img-2" })
     }
   })
+
+  it("maps explicit no_active_image empty state", async () => {
+    const ok: FetchJsonResult<unknown> = {
+      ok: true,
+      status: 200,
+      data: { ok: true, exists: false, stage: "no_active_image" },
+    }
+    fetchJsonMock.mockResolvedValueOnce(ok)
+
+    const out = await getOrCreateFilterWorkingCopy("project-1")
+    expect(out).toEqual({ exists: false, stage: "no_active_image" })
+  })
 })

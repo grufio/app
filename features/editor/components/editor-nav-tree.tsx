@@ -47,6 +47,8 @@ export function EditorNavTree(props: {
   hasGrid: boolean
   onImageUploaded: () => void | Promise<void>
   onImageDeleteRequested: (imageId: string) => void | Promise<void>
+  canDeleteActiveImage: boolean
+  deleteTargetImageId: string | null
   onGridCreateRequested: () => void | Promise<void>
   onGridDeleteRequested: () => void | Promise<void>
 }) {
@@ -60,6 +62,8 @@ export function EditorNavTree(props: {
     hasGrid,
     onImageUploaded,
     onImageDeleteRequested,
+    canDeleteActiveImage,
+    deleteTargetImageId,
     onGridCreateRequested,
     onGridDeleteRequested,
   } = props
@@ -119,6 +123,7 @@ export function EditorNavTree(props: {
               <LockNavTreeActions
                 imageId={imageTargetImageId}
                 locked={imageLocked}
+                canDelete={canDeleteActiveImage && deleteTargetImageId === imageTargetImageId}
                 onToggleLocked={handleToggleImageLocked}
                 onDeleteRequest={handleDeleteImage}
                 onActionError={setActionError}

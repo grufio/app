@@ -9,6 +9,8 @@ import { NextResponse } from "next/server"
 
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { isUuid, jsonError, requireUser } from "@/lib/api/route-guards"
+import { evaluateDeleteTarget } from "@/services/editor/server/delete-target-policy"
+import { resolveImageKind } from "@/services/editor/server/image-kind"
 
 export const dynamic = "force-dynamic"
 
@@ -64,7 +66,7 @@ export async function GET(
     .from("project_images")
     .select("id,width_px,height_px,dpi")
     .eq("project_id", projectId)
-    .eq("role", "master")
+    .eq("kind", "master")
     .is("deleted_at", null)
     .order("created_at", { ascending: true })
     .limit(1)
@@ -163,7 +165,7 @@ export async function DELETE(
   // Fetch the active image to delete
   const { data: imageToDelete, error: fetchErr } = await supabase
     .from("project_images")
-    .select("id,storage_path,storage_bucket,is_active,role")
+    .select("id,storage_path,storage_bucket,is_active,is_locked,role,kind,source_image_id,name")
     .eq("project_id", projectId)
     .eq("is_active", true)
     .is("deleted_at", null)
@@ -172,11 +174,20 @@ export async function DELETE(
   if (fetchErr) {
     return jsonError("Failed to fetch image", 400, { stage: "fetch_image" })
   }
-  if (!imageToDelete) {
-    return jsonError("Image not found", 404, { stage: "not_found" })
-  }
-  if (imageToDelete.role === "master") {
-    return jsonError("Master image is immutable. Use restore/replace flow.", 409, { stage: "master_immutable" })
+  if (!imageToDelete) return jsonError("Image not found", 404, { stage: "not_found" })
+
+  const policy = evaluateDeleteTarget({
+    targetImageId: imageToDelete.id ? String(imageToDelete.id) : null,
+    targetKind: resolveImageKind(imageToDelete),
+  })
+  if (!policy.deletable) {
+    if (policy.delete_reason === "master_immutable") {
+      return jsonError("Master image is immutable. Use restore/replace flow.", 409, { stage: "master_immutable" })
+    }
+    if (policy.delete_reason === "image_locked") {
+      return jsonError("Active image is locked", 409, { stage: "lock_conflict", reason: "image_locked" })
+    }
+    return jsonError("No active image available for delete", 409, { stage: "stale_selection" })
   }
 
   const imageId = imageToDelete.id
@@ -204,12 +215,13 @@ export async function DELETE(
     .delete()
     .eq("id", imageId)
     .eq("project_id", projectId)
-    .neq("role", "master")
+    .neq("kind", "master")
 
   if (deleteErr) {
     return jsonError("Failed to delete image", 500, { stage: "db_delete", error: deleteErr.message })
   }
 
+  const storageCleanupFailures: Array<{ bucket: string; error: string }> = []
   if (deleteTargets.length > 0) {
     const storageByBucket = new Map<string, string[]>()
     const defaultBucket = "project_images"
@@ -224,33 +236,56 @@ export async function DELETE(
       if (!paths.length) continue
       const { error: removeErr } = await supabase.storage.from(bucket).remove(paths)
       if (removeErr) {
-        return jsonError("Failed to cleanup storage objects", 502, {
-          stage: "storage_cleanup",
-          bucket,
-          error: removeErr.message,
-        })
+        storageCleanupFailures.push({ bucket, error: removeErr.message })
       }
+    }
+    if (storageCleanupFailures.length > 0) {
+      console.warn("master-image delete: storage cleanup incomplete", {
+        projectId,
+        imageId,
+        failures: storageCleanupFailures,
+      })
     }
   }
 
-  // If we deleted the active image, promote the latest remaining master
+  let fallbackTarget: { image_id: string; kind: "working_copy" } | null = null
+  let fallbackStage: "fallback_applied" | "no_working_copy" | "delete_ok" | "storage_cleanup_incomplete" = "delete_ok"
+  if (storageCleanupFailures.length > 0) {
+    fallbackStage = "storage_cleanup_incomplete"
+  }
+  // If we deleted the active image, promote working_copy only.
   if (wasActive) {
     const { data: remainingImages } = await supabase
       .from("project_images")
-      .select("id")
+      .select("id,role,kind,source_image_id,name")
       .eq("project_id", projectId)
-      .eq("role", "master")
       .is("deleted_at", null)
-      .order("created_at", { ascending: false })
-      .limit(1)
+      .order("created_at", { ascending: true })
 
-    if (remainingImages && remainingImages.length > 0) {
+    const working = (remainingImages ?? []).find((row) => resolveImageKind(row) === "working_copy")
+    const promote = working
+    if (promote) {
+      const kind = resolveImageKind(promote)
       await supabase
         .from("project_images")
         .update({ is_active: true })
-        .eq("id", remainingImages[0].id)
+        .eq("id", promote.id)
+      fallbackTarget =
+        kind === "working_copy"
+          ? { image_id: String(promote.id), kind: "working_copy" }
+          : null
+      fallbackStage = fallbackTarget ? "fallback_applied" : "delete_ok"
+    } else {
+      fallbackStage = "no_working_copy"
     }
   }
 
-  return NextResponse.json({ ok: true, deleted: 1, transitiveCount: Math.max(0, deleteTargets.length - 1) })
+  return NextResponse.json({
+    ok: true,
+    deleted: 1,
+    transitiveCount: Math.max(0, deleteTargets.length - 1),
+    stage: fallbackStage,
+    fallback_target: fallbackTarget,
+    storage_cleanup_failures: storageCleanupFailures,
+  })
 }

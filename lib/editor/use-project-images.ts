@@ -9,7 +9,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 
-import { deleteMasterImageById, listMasterImages, setProjectImageLocked, type ProjectImageItem } from "@/lib/api/project-images"
+import {
+  deleteMasterImageById,
+  listMasterImages,
+  setProjectImageLocked,
+  type ProjectImageDisplayTarget,
+  type ProjectImageFallbackTarget,
+  type ProjectImageItem,
+} from "@/lib/api/project-images"
 import { createSerialWriteChannel, isSupersededWriteError } from "@/lib/utils/serial-write-channel"
 
 function imageListSignature(projectId: string, items: ProjectImageItem[]): string {
@@ -20,6 +27,13 @@ function imageListSignature(projectId: string, items: ProjectImageItem[]): strin
 
 export function useProjectImages(projectId: string) {
   const [images, setImages] = useState<ProjectImageItem[]>([])
+  const [displayTarget, setDisplayTarget] = useState<ProjectImageDisplayTarget>({
+    active_image_id: null,
+    kind: null,
+    deletable: false,
+    reason: "no_active_image",
+  })
+  const [fallbackTarget, setFallbackTarget] = useState<ProjectImageFallbackTarget>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
@@ -41,18 +55,27 @@ export function useProjectImages(projectId: string) {
       setError((prev) => (prev === "" ? prev : ""))
       setLoading(true)
       try {
-        const items = await listMasterImages(projectId)
+        const payload = await listMasterImages(projectId)
         if (mountedRef.current) {
-          const nextSig = imageListSignature(projectId, items)
+          const nextSig = imageListSignature(projectId, payload.items)
           if (nextSig !== lastSignatureRef.current) {
             lastSignatureRef.current = nextSig
-            setImages(items)
+            setImages(payload.items)
           }
+          setDisplayTarget(payload.displayTarget)
+          setFallbackTarget(payload.fallbackTarget)
         }
       } catch (e) {
         if (mountedRef.current) {
           lastSignatureRef.current = ""
           setImages([])
+          setDisplayTarget({
+            active_image_id: null,
+            kind: null,
+            deletable: false,
+            reason: "no_active_image",
+          })
+          setFallbackTarget(null)
           setError(e instanceof Error ? e.message : "Failed to load images")
         }
       } finally {
@@ -128,6 +151,8 @@ export function useProjectImages(projectId: string) {
 
   return {
     images,
+    displayTarget,
+    fallbackTarget,
     loading,
     error,
     setError,

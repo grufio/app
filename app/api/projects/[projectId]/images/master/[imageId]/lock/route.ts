@@ -47,7 +47,7 @@ export async function PATCH(
     .select("id")
     .eq("project_id", projectId)
     .eq("id", imageId)
-    .eq("role", "master")
+    .eq("kind", "master")
     .is("deleted_at", null)
     .maybeSingle()
   if (queryErr) return jsonError(queryErr.message, 400, { stage: "lock_query" })
@@ -58,7 +58,7 @@ export async function PATCH(
     .update({ is_locked: isLocked })
     .eq("project_id", projectId)
     .eq("id", imageId)
-    .eq("role", "master")
+    .eq("kind", "master")
     .is("deleted_at", null)
   if (updateErr) return jsonError(updateErr.message, 400, { stage: "lock_update" })
 

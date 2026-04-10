@@ -177,6 +177,7 @@ export async function pixelateImageAndActivate(args: {
       id: imageId,
       project_id: projectId,
       role: "asset",
+      kind: "filter_working_copy",
       name: `${src.name.replace(/ \(filter working\)| \(pixelate\)| \(line art\)| \(numerate\)/g, "")} (pixelate)`,
       format: outputFormat,
       width_px: origWidth,

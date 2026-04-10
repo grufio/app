@@ -53,7 +53,7 @@ jobs:
         run: npm run verify:remote-rls
 
       - name: Verify DB types are synced (optional)
-        if: ${{ env.SUPABASE_DB_PASSWORD != '' }}
+        if: ${{ env.SUPABASE_DB_URL != '' }}
         env:
           SUPABASE_VERIFY_TYPES_SYNC: "1"
         run: npm run verify:types-synced

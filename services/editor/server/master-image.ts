@@ -8,20 +8,15 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { MasterImage } from "@/lib/editor/use-master-image"
+import { getEditorTargetImageRow } from "@/lib/supabase/project-images"
 
 export async function getMasterImageForEditor(
   supabase: SupabaseClient,
   projectId: string
 ): Promise<{ masterImage: MasterImage | null; error: string | null }> {
-  const { data: img, error: imgErr } = await supabase
-    .from("project_images")
-    .select("id,storage_path,storage_bucket,name,width_px,height_px,dpi,role,is_active,deleted_at")
-    .eq("project_id", projectId)
-    .eq("is_active", true)
-    .is("deleted_at", null)
-    .maybeSingle()
-
-  if (imgErr) return { masterImage: null, error: imgErr.message }
+  const target = await getEditorTargetImageRow(supabase, projectId)
+  if (target.error) return { masterImage: null, error: target.error.reason }
+  const img = target.row
   if (!img?.storage_path) return { masterImage: null, error: null }
 
   const { data: restoreBase, error: restoreBaseErr } = await supabase

@@ -29,6 +29,8 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
   hasGrid: boolean
   onImageUploaded: () => void | Promise<void>
   onImageDeleteRequested: (imageId: string) => void | Promise<void>
+  canDeleteActiveImage: boolean
+  deleteTargetImageId: string | null
   onGridCreateRequested: () => void | Promise<void>
   onGridDeleteRequested: () => void | Promise<void>
   activeTab: SidepanelTab
@@ -49,6 +51,8 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
     hasGrid,
     onImageUploaded,
     onImageDeleteRequested,
+    canDeleteActiveImage,
+    deleteTargetImageId,
     onGridCreateRequested,
     onGridDeleteRequested,
     activeTab,
@@ -95,6 +99,8 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
                 hasGrid={hasGrid}
                 onImageUploaded={onImageUploaded}
                 onImageDeleteRequested={onImageDeleteRequested}
+                canDeleteActiveImage={canDeleteActiveImage}
+                deleteTargetImageId={deleteTargetImageId}
                 onGridCreateRequested={onGridCreateRequested}
                 onGridDeleteRequested={onGridDeleteRequested}
               />

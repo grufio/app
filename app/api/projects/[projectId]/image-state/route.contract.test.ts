@@ -46,7 +46,7 @@ function makeSupabaseStub(opts: {
 
 async function importRouteWithMocks(args: {
   supabase: unknown
-  activeImageId: string | null
+  targetImageId: string | null
   loadState?: { row: Record<string, unknown> | null; error: string | null; unsupported?: boolean }
   upsertOk?: boolean
 }) {
@@ -65,7 +65,10 @@ async function importRouteWithMocks(args: {
   })
 
   vi.doMock("@/lib/supabase/project-images", () => ({
-    getActiveMasterImageId: async () => ({ imageId: args.activeImageId, error: null }),
+    getEditorTargetImageRow: async () => ({
+      row: args.targetImageId ? { id: args.targetImageId } : null,
+      error: null,
+    }),
   }))
 
   vi.doMock("@/lib/supabase/image-state", () => ({
@@ -83,7 +86,7 @@ async function importRouteWithMocks(args: {
 describe("image-state route contract", () => {
   it("GET returns exists:false when no active image", async () => {
     const supabase = makeSupabaseStub({ projectAccessible: true, activeImageLocked: false })
-    const mod = await importRouteWithMocks({ supabase, activeImageId: null })
+    const mod = await importRouteWithMocks({ supabase, targetImageId: null })
 
     const res = await mod.GET(new Request("http://test.local"), { params: Promise.resolve({ projectId: VALID_UUID }) })
     expect(res.status).toBe(200)
@@ -93,7 +96,7 @@ describe("image-state route contract", () => {
 
   it("POST rejects invalid image_id", async () => {
     const supabase = makeSupabaseStub({ projectAccessible: true, activeImageLocked: false })
-    const mod = await importRouteWithMocks({ supabase, activeImageId: VALID_UUID })
+    const mod = await importRouteWithMocks({ supabase, targetImageId: VALID_UUID })
 
     const res = await mod.POST(
       new Request("http://test.local", {
@@ -120,7 +123,7 @@ describe("image-state route contract", () => {
 
   it("POST enforces active image binding (409 active_image_mismatch)", async () => {
     const supabase = makeSupabaseStub({ projectAccessible: true, activeImageLocked: false })
-    const mod = await importRouteWithMocks({ supabase, activeImageId: VALID_UUID })
+    const mod = await importRouteWithMocks({ supabase, targetImageId: VALID_UUID })
 
     const res = await mod.POST(
       new Request("http://test.local", {
@@ -147,7 +150,7 @@ describe("image-state route contract", () => {
 
   it("POST blocks writes when active image is locked (409 lock_conflict)", async () => {
     const supabase = makeSupabaseStub({ projectAccessible: true, activeImageLocked: true })
-    const mod = await importRouteWithMocks({ supabase, activeImageId: VALID_UUID })
+    const mod = await importRouteWithMocks({ supabase, targetImageId: VALID_UUID })
 
     const res = await mod.POST(
       new Request("http://test.local", {
@@ -171,9 +174,35 @@ describe("image-state route contract", () => {
     expect(body.stage).toBe("lock_conflict")
   })
 
+  it("POST returns no_active_image when no editor target exists", async () => {
+    const supabase = makeSupabaseStub({ projectAccessible: true, activeImageLocked: false })
+    const mod = await importRouteWithMocks({ supabase, targetImageId: null })
+
+    const res = await mod.POST(
+      new Request("http://test.local", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          image_id: VALID_UUID,
+          role: "master",
+          x_px_u: "0",
+          y_px_u: "0",
+          width_px_u: "1000000",
+          height_px_u: "1000000",
+          rotation_deg: 0,
+        }),
+      }),
+      { params: Promise.resolve({ projectId: VALID_UUID }) }
+    )
+
+    expect(res.status).toBe(409)
+    const body = await res.json()
+    expect(body.stage).toBe("no_active_image")
+  })
+
   it("POST returns ok:true on success", async () => {
     const supabase = makeSupabaseStub({ projectAccessible: true, activeImageLocked: false })
-    const mod = await importRouteWithMocks({ supabase, activeImageId: VALID_UUID, upsertOk: true })
+    const mod = await importRouteWithMocks({ supabase, targetImageId: VALID_UUID, upsertOk: true })
 
     const res = await mod.POST(
       new Request("http://test.local", {

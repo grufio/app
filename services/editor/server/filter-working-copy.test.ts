@@ -8,8 +8,16 @@ import { getFilterPanelData, getOrCreateFilterWorkingCopy } from "./filter-worki
 import type { Database } from "@/lib/supabase/database.types"
 import { copyImageTransform } from "./copy-image-transform"
 
+const { getEditorTargetImageRowMock } = vi.hoisted(() => ({
+  getEditorTargetImageRowMock: vi.fn(),
+}))
+
 vi.mock("./copy-image-transform", () => ({
   copyImageTransform: vi.fn(async () => ({ ok: true as const })),
+}))
+
+vi.mock("@/lib/supabase/project-images", () => ({
+  getEditorTargetImageRow: (...args: unknown[]) => getEditorTargetImageRowMock(...args),
 }))
 
 describe("getOrCreateFilterWorkingCopy", () => {
@@ -28,13 +36,9 @@ describe("getOrCreateFilterWorkingCopy", () => {
     source_image_id: null,
   }
 
-  function makeSupabase(args: {
-    active?: Record<string, unknown> | null
-    copies?: Array<Record<string, unknown>>
-  }) {
+  function makeSupabase(args: { copies?: Array<Record<string, unknown>> }) {
     const removedIds: string[][] = []
     const insertedRows: Array<Record<string, unknown>> = []
-    const queryState = { activeQuery: false, copyQuery: false }
 
     const from = vi.fn((table: string) => {
       if (table !== "project_images") return {}
@@ -42,26 +46,14 @@ describe("getOrCreateFilterWorkingCopy", () => {
         select: vi.fn(() => {
           const chain: Record<string, unknown> = {}
           chain.eq = vi.fn((key: string) => {
-            if (key === "is_active") queryState.activeQuery = true
-            if (key === "role") queryState.copyQuery = true
+            if (key === "role") return chain
             return chain
           })
           chain.is = vi.fn(() => chain)
           chain.like = vi.fn(() => chain)
           chain.order = vi.fn(() => chain)
-          chain.maybeSingle = vi.fn(async () => {
-            if (queryState.activeQuery) {
-              queryState.activeQuery = false
-              return { data: args.active ?? null, error: null }
-            }
-            return { data: null, error: null }
-          })
           chain.limit = vi.fn(async () => {
-            if (queryState.copyQuery) {
-              queryState.copyQuery = false
-              return { data: args.copies ?? [], error: null }
-            }
-            return { data: [], error: null }
+            return { data: args.copies ?? [], error: null }
           })
           return chain
         }),
@@ -99,13 +91,14 @@ describe("getOrCreateFilterWorkingCopy", () => {
   beforeEach(() => {
     mockSupabase = {} as SupabaseClient<Database>
     vi.mocked(copyImageTransform).mockClear()
+    getEditorTargetImageRowMock.mockReset()
+    getEditorTargetImageRowMock.mockResolvedValue({ row: activeImage, error: null })
   })
 
   it("returns existing reusable copy and cleans duplicates", async () => {
     const reusableId = "working-copy-id"
     const duplicateId = "duplicate-working-copy-id"
     const setup = makeSupabase({
-      active: activeImage,
       copies: [
         {
           id: reusableId,
@@ -148,7 +141,6 @@ describe("getOrCreateFilterWorkingCopy", () => {
   it("creates a new working copy when only outdated copies exist", async () => {
     const outdatedId = "outdated-copy-id"
     const setup = makeSupabase({
-      active: activeImage,
       copies: [
         {
           id: outdatedId,
@@ -179,7 +171,7 @@ describe("getOrCreateFilterWorkingCopy", () => {
       ok: false,
       reason: "Source image transform is missing",
     })
-    const setup = makeSupabase({ active: activeImage, copies: [] })
+    const setup = makeSupabase({ copies: [] })
     mockSupabase = setup.supabase
 
     const result = await getOrCreateFilterWorkingCopy({ supabase: mockSupabase, projectId })
@@ -192,14 +184,15 @@ describe("getOrCreateFilterWorkingCopy", () => {
   })
 
   it("returns not found when no active image exists", async () => {
-    const setup = makeSupabase({ active: null, copies: [] })
+    getEditorTargetImageRowMock.mockResolvedValueOnce({ row: null, error: null })
+    const setup = makeSupabase({ copies: [] })
     mockSupabase = setup.supabase
 
     const result = await getOrCreateFilterWorkingCopy({ supabase: mockSupabase, projectId })
 
     expect(result.ok).toBe(false)
     if (!result.ok) {
-      expect(result.stage).toBe("active_lookup")
+      expect(result.stage).toBe("no_active_image")
       expect(result.reason).toBe("Active image not found")
     }
   })
@@ -218,6 +211,7 @@ describe("getFilterPanelData", () => {
       file_size_bytes: 50000,
       source_image_id: null,
     }
+    getEditorTargetImageRowMock.mockResolvedValueOnce({ row: activeImage, error: null })
     const workingCopy = {
       id: "working-copy-id",
       storage_bucket: "project_images",
@@ -271,14 +265,6 @@ describe("getFilterPanelData", () => {
       if (table === "project_images") {
         projectImagesCall += 1
         if (projectImagesCall === 1) {
-          const q: Record<string, unknown> = {}
-          q.select = vi.fn(() => q)
-          q.eq = vi.fn(() => q)
-          q.is = vi.fn(() => q)
-          q.maybeSingle = vi.fn(async () => ({ data: activeImage, error: null }))
-          return q
-        }
-        if (projectImagesCall === 2) {
           const q: Record<string, unknown> = {}
           q.select = vi.fn(() => q)
           q.eq = vi.fn(() => q)
@@ -338,6 +324,7 @@ describe("getFilterPanelData", () => {
       file_size_bytes: 50000,
       source_image_id: null,
     }
+    getEditorTargetImageRowMock.mockResolvedValueOnce({ row: activeImage, error: null })
     const workingCopy = {
       id: "working-copy-id",
       storage_bucket: "project_images",
@@ -364,14 +351,6 @@ describe("getFilterPanelData", () => {
       if (table === "project_images") {
         projectImagesCall += 1
         if (projectImagesCall === 1) {
-          const q: Record<string, unknown> = {}
-          q.select = vi.fn(() => q)
-          q.eq = vi.fn(() => q)
-          q.is = vi.fn(() => q)
-          q.maybeSingle = vi.fn(async () => ({ data: activeImage, error: null }))
-          return q
-        }
-        if (projectImagesCall === 2) {
           const q: Record<string, unknown> = {}
           q.select = vi.fn(() => q)
           q.eq = vi.fn(() => q)

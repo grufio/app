@@ -4,8 +4,8 @@ const VALID_UUID = "c104be01-d7b0-4af4-a446-8326cd47a282"
 const IMAGE_UUID = "2e306bed-0f1a-4124-a1c7-2702d85c21e7"
 const ACTIVE_IMAGE_UUID = "73eb09f8-b8f6-4956-b79b-5f7a4f1d7360"
 const STALE_IMAGE_UUID = "6df68e6a-280f-4f3c-b5ac-c2eb34cc25cc"
-const { getActiveMasterImageIdMock, upsertBoundImageStateMock } = vi.hoisted(() => ({
-  getActiveMasterImageIdMock: vi.fn(),
+const { getEditorTargetImageRowMock, upsertBoundImageStateMock } = vi.hoisted(() => ({
+  getEditorTargetImageRowMock: vi.fn(),
   upsertBoundImageStateMock: vi.fn(),
 }))
 
@@ -215,12 +215,12 @@ describe("lock guard route contracts", () => {
 
   it("image-state route returns lock_conflict 409 when active image is locked", async () => {
     vi.resetModules()
-    getActiveMasterImageIdMock.mockReset()
+    getEditorTargetImageRowMock.mockReset()
     upsertBoundImageStateMock.mockReset()
-    getActiveMasterImageIdMock.mockResolvedValue({ imageId: ACTIVE_IMAGE_UUID, error: null })
+    getEditorTargetImageRowMock.mockResolvedValue({ row: { id: ACTIVE_IMAGE_UUID }, error: null })
 
     vi.doMock("@/lib/supabase/project-images", () => ({
-      getActiveMasterImageId: (...args: unknown[]) => getActiveMasterImageIdMock(...args),
+      getEditorTargetImageRow: (...args: unknown[]) => getEditorTargetImageRowMock(...args),
     }))
     vi.doMock("@/lib/supabase/image-state", () => ({
       loadBoundImageState: vi.fn(),
@@ -258,12 +258,12 @@ describe("lock guard route contracts", () => {
 
   it("image-state route returns active_image_mismatch when body image_id is stale", async () => {
     vi.resetModules()
-    getActiveMasterImageIdMock.mockReset()
+    getEditorTargetImageRowMock.mockReset()
     upsertBoundImageStateMock.mockReset()
-    getActiveMasterImageIdMock.mockResolvedValue({ imageId: ACTIVE_IMAGE_UUID, error: null })
+    getEditorTargetImageRowMock.mockResolvedValue({ row: { id: ACTIVE_IMAGE_UUID }, error: null })
 
     vi.doMock("@/lib/supabase/project-images", () => ({
-      getActiveMasterImageId: (...args: unknown[]) => getActiveMasterImageIdMock(...args),
+      getEditorTargetImageRow: (...args: unknown[]) => getEditorTargetImageRowMock(...args),
     }))
     vi.doMock("@/lib/supabase/image-state", () => ({
       loadBoundImageState: vi.fn(),

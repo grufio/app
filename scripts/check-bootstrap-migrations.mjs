@@ -3,7 +3,7 @@
  *
  * Responsibilities:
  * - Ensure the Supabase bootstrap migration exists.
- * - Ensure bootstrap SQL still references the schema-based DB workflow.
+ * - Ensure bootstrap SQL still references the archived db/ migration blocks.
  */
 import fs from "node:fs"
 import path from "node:path"
@@ -30,8 +30,8 @@ const missingNeedles = sourceReferenceNeedles.filter((needle) => !bootstrap.incl
 if (missingNeedles.length) {
   console.error("Bootstrap migration is missing expected schema workflow references:")
   for (const needle of missingNeedles) console.error(`- ${needle}`)
-  console.error("\nFix: keep bootstrap migration aligned with the schema.sql-first workflow.")
+  console.error("\nFix: keep bootstrap migration aligned with the archived db/* block references.")
   process.exit(1)
 }
 
-console.log("OK: bootstrap migration sanity check passed for schema.sql-first workflow.")
+console.log("OK: bootstrap migration sanity check passed.")

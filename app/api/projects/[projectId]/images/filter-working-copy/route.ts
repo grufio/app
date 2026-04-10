@@ -24,8 +24,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ project
   const result = await getFilterPanelData({ supabase, projectId })
 
   if (!result.ok) {
-    if (result.stage === "active_lookup") {
-      return NextResponse.json({ ok: true, exists: false })
+    if (result.stage === "no_active_image") {
+      return NextResponse.json({ ok: true, exists: false, stage: "no_active_image" })
     }
     return jsonError(result.reason, result.status, { stage: result.stage, code: result.code })
   }

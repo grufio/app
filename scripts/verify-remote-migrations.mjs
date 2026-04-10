@@ -44,7 +44,7 @@ function extractMigrationNamesFromJson(value, out) {
   if (typeof value === "string") {
     const s = value.trim()
     const base = s.endsWith(".sql") ? s.slice(0, -4) : s
-    if (/^\d{14}_.+/.test(base)) out.add(base)
+    if (/^\d{14}_.+/.test(base) || /^\d{14}$/.test(base)) out.add(base)
     return
   }
   if (Array.isArray(value)) {
@@ -56,12 +56,25 @@ function extractMigrationNamesFromJson(value, out) {
   }
 }
 
+function extractMigrationNamesFromTableText(text, out) {
+  const lines = String(text ?? "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+  for (const line of lines) {
+    const matches = line.match(/\b\d{14}\b/g)
+    if (!matches) continue
+    for (const m of matches) out.add(m)
+  }
+}
+
 function runSupabaseMigrationListJson() {
   const args = ["migration", "list", "--linked", "--output", "json"]
   const pw = (process.env.SUPABASE_DB_PASSWORD ?? process.env.SUPABASE_DB_PASS ?? "").trim()
   if (pw) args.push("--password", pw)
+  const cliArgs = ["-y", "supabase@2.84.2", ...args]
 
-  const res = spawnSync("supabase", args, {
+  const res = spawnSync("npx", cliArgs, {
     cwd: root,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
@@ -69,7 +82,7 @@ function runSupabaseMigrationListJson() {
   if (res.error) {
     return {
       ok: false,
-      reason: `Failed to execute Supabase CLI: ${String(res.error.message ?? res.error)}`,
+      reason: `Failed to execute Supabase CLI via npx: ${String(res.error.message ?? res.error)}`,
       stdout: res.stdout ?? "",
       stderr: res.stderr ?? "",
     }
@@ -86,9 +99,14 @@ function runSupabaseMigrationListJson() {
   try {
     parsed = JSON.parse(res.stdout)
   } catch {
+    const fallback = new Set()
+    extractMigrationNamesFromTableText(res.stdout ?? "", fallback)
+    if (fallback.size > 0) {
+      return { ok: true, value: [...fallback], stdout: res.stdout ?? "", stderr: res.stderr ?? "" }
+    }
     return {
       ok: false,
-      reason: "Supabase CLI did not return valid JSON (try upgrading Supabase CLI)",
+      reason: "Supabase CLI did not return valid JSON or parseable table output",
       stdout: res.stdout ?? "",
       stderr: res.stderr ?? "",
     }
@@ -157,13 +175,25 @@ if (!remoteRes.ok) {
 const remoteApplied = new Set()
 extractMigrationNamesFromJson(remoteRes.value, remoteApplied)
 
-const localSet = new Set(localCanonical)
+const remoteLooksTimestampOnly =
+  remoteApplied.size > 0 && [...remoteApplied].every((name) => /^\d{14}$/.test(String(name)))
+
+const localSet = remoteLooksTimestampOnly
+  ? new Set(localCanonical.map((name) => String(name).slice(0, 14)))
+  : new Set(localCanonical)
 const missingOnRemote = setDiff(localSet, remoteApplied)
 const unknownOnRemote = setDiff(remoteApplied, localSet)
 
 if (missingOnRemote.length) {
   console.error("Remote is missing canonical migrations:")
-  for (const name of missingOnRemote.sort()) console.error(`- ${name}.sql`)
+  for (const name of missingOnRemote.sort()) {
+    if (remoteLooksTimestampOnly) {
+      const full = localCanonical.find((f) => f.startsWith(`${name}_`))
+      console.error(`- ${(full ?? name)}.sql`)
+    } else {
+      console.error(`- ${name}.sql`)
+    }
+  }
   console.error("\nFix: apply pending migrations to the linked project:")
   console.error("  supabase db push --linked")
 }

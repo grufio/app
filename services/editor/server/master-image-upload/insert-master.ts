@@ -21,6 +21,7 @@ export async function insertMasterRow(args: {
     id: imageId,
     project_id: projectId,
     role: "master",
+    kind: "master",
     name: file.name,
     format,
     width_px: widthPx,

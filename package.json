@@ -17,7 +17,7 @@
     "test:coverage": "vitest run --coverage",
     "test:coverage:gate": "vitest run --coverage",
     "check:image-workflow": "npm -s run test --silent -- lib/editor/machines/image-workflow.machine.test.ts services/editor/server/filter-working-copy.test.ts services/editor/server/filter-chain.test.ts && npm -s run test:e2e:local:workflow && npm -s run verify:image-state-binding && npm -s run verify:filter-chain-binding && npm -s run verify:image-version-invariants",
-    "check:local": "npm -s run lint && npm -s run test --silent && npm -s run check:db-schema && npm -s run check:bootstrap-migrations && npm -s run verify:rls",
+    "check:local": "npm -s run lint && npm -s run test --silent && npm -s run check:db-schema && npm -s run check:bootstrap-migrations && npm -s run verify:types-synced && npm -s run verify:rls",
     "check:remote": "npm -s run verify:image-state-binding && npm -s run verify:filter-chain-binding && npm -s run verify:image-version-invariants",
     "check": "npm -s run check:local",
     "check:ci": "npm -s run check:local && npm -s run test:coverage:gate",

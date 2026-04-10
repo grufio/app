@@ -10,12 +10,14 @@ export type MenuActionResult = { ok: true } | { ok: false; reason?: string }
 export function LockNavTreeActions({
   imageId,
   locked,
+  canDelete,
   onToggleLocked,
   onDeleteRequest,
   onActionError,
 }: {
   imageId: string
   locked: boolean
+  canDelete: boolean
   onToggleLocked: (imageId: string, nextLocked: boolean) => MenuActionResult | Promise<MenuActionResult>
   onDeleteRequest: (imageId: string) => MenuActionResult | Promise<MenuActionResult>
   onActionError?: (message: string) => void

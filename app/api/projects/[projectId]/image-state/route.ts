@@ -8,12 +8,19 @@
 import { NextResponse } from "next/server"
 
 import { createSupabaseServerClient } from "@/lib/supabase/server"
-import { getActiveMasterImageId } from "@/lib/supabase/project-images"
+import { getEditorTargetImageRow } from "@/lib/supabase/project-images"
 import { loadBoundImageState, upsertBoundImageState } from "@/lib/supabase/image-state"
 import { isUuid, jsonError, readJson, requireUser } from "@/lib/api/route-guards"
 import { validateIncomingImageStateUpsert, type IncomingImageStatePayload } from "@/lib/editor/imageState"
 
 export const dynamic = "force-dynamic"
+
+function resolveImageStateRole(value: unknown): "master" | "working" | "asset" {
+  const role = String(value ?? "").toLowerCase()
+  if (role === "working") return "working"
+  if (role === "asset") return "asset"
+  return "master"
+}
 
 export async function GET(req: Request, { params }: { params: Promise<{ projectId: string }> }) {
   const url = new URL(req.url)
@@ -34,12 +41,17 @@ export async function GET(req: Request, { params }: { params: Promise<{ projectI
   if (useQueryImageId) {
     targetImageId = queryImageId
   } else {
-    const { imageId: activeImageId, error: activeErr } = await getActiveMasterImageId(supabase, projectId)
-    if (activeErr) return jsonError(activeErr, 400, { stage: "active_image_lookup" })
-    if (!activeImageId) {
+    const editorTargetLookup = await getEditorTargetImageRow(supabase, projectId)
+    if (editorTargetLookup.error) {
+      return jsonError(editorTargetLookup.error.reason, 400, {
+        stage: editorTargetLookup.error.stage,
+        code: editorTargetLookup.error.code,
+      })
+    }
+    if (!editorTargetLookup.row?.id) {
       return NextResponse.json({ exists: false, state: null })
     }
-    targetImageId = activeImageId
+    targetImageId = editorTargetLookup.row.id
   }
 
   if (!targetImageId) {
@@ -91,32 +103,38 @@ export async function POST(req: Request, { params }: { params: Promise<{ project
     ...validated,
   }
 
-  const { imageId: activeImageIdForWrite, error: activeErr } = await getActiveMasterImageId(supabase, projectId)
-  if (activeErr) return jsonError(activeErr, 400, { stage: "active_image_lookup" })
-  if (!activeImageIdForWrite) {
-    return jsonError("No active master image", 409, { stage: "active_image_lookup" })
-  }
-  if (baseRow.image_id !== activeImageIdForWrite) {
-    return jsonError("Image state target is not the active image", 409, {
-      stage: "active_image_mismatch",
-      expected_image_id: activeImageIdForWrite,
+  const editorTargetLookup = await getEditorTargetImageRow(supabase, projectId)
+  if (editorTargetLookup.error) {
+    return jsonError(editorTargetLookup.error.reason, 400, {
+      stage: editorTargetLookup.error.stage,
+      code: editorTargetLookup.error.code,
     })
   }
-  const { data: activeImageRow, error: activeImageErr } = await supabase
+  if (!editorTargetLookup.row?.id) {
+    return jsonError("No editor target image", 409, { stage: "no_active_image" })
+  }
+  const editorTargetImageIdForWrite = editorTargetLookup.row.id
+  if (baseRow.image_id !== editorTargetImageIdForWrite) {
+    return jsonError("Image state target is not the editor target image", 409, {
+      stage: "active_image_mismatch",
+      expected_image_id: editorTargetImageIdForWrite,
+    })
+  }
+  const { data: editorTargetImageRow, error: editorTargetImageErr } = await supabase
     .from("project_images")
-    .select("is_locked")
+    .select("is_locked,role")
     .eq("project_id", projectId)
-    .eq("id", activeImageIdForWrite)
+    .eq("id", editorTargetImageIdForWrite)
     .is("deleted_at", null)
     .maybeSingle()
-  if (activeImageErr) return jsonError(activeImageErr.message, 400, { stage: "lock_guard_query" })
-  if (activeImageRow?.is_locked) {
-    return jsonError("Active image is locked", 409, { stage: "lock_conflict", reason: "image_locked" })
+  if (editorTargetImageErr) return jsonError(editorTargetImageErr.message, 400, { stage: "lock_guard_query" })
+  if (editorTargetImageRow?.is_locked) {
+    return jsonError("Editor target image is locked", 409, { stage: "lock_conflict", reason: "image_locked" })
   }
   const upsert = await upsertBoundImageState(supabase, {
     project_id: baseRow.project_id,
     image_id: baseRow.image_id,
-    role: "master",
+    role: resolveImageStateRole(editorTargetImageRow?.role),
     x_px_u: baseRow.x_px_u,
     y_px_u: baseRow.y_px_u,
     width_px_u: baseRow.width_px_u,

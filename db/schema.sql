@@ -1,11 +1,8 @@
 -- gruf.io Combined Schema
 --
--- This file is a single, runnable schema that contains:
--- 1) db/001_init.sql
--- 2) db/002_workflow_generation.sql
---
--- Keep the numbered files as the canonical migrations. This file exists as a convenience
--- when you want to run everything in one go (e.g. in Supabase SQL editor).
+-- This file is a runnable, derived snapshot for auditability and SQL-editor fallback.
+-- Canonical migration history is `supabase/migrations/*.sql`.
+-- Historical numbered files are archived in `db/_archive/`.
 
 -- =========================================================
 -- BEGIN db/001_init.sql
@@ -289,6 +286,43 @@ alter table public.project_grid
   drop constraint if exists project_grid_spacing_y_positive;
 alter table public.project_grid
   add constraint project_grid_spacing_y_positive check (spacing_y_value is null or spacing_y_value > 0);
+
+alter table public.project_grid
+  alter column spacing_x_value set not null,
+  alter column spacing_y_value set not null;
+
+alter table public.project_grid
+  drop constraint if exists project_grid_spacing_x_positive;
+alter table public.project_grid
+  add constraint project_grid_spacing_x_positive check (spacing_x_value > 0);
+
+alter table public.project_grid
+  drop constraint if exists project_grid_spacing_y_positive;
+alter table public.project_grid
+  add constraint project_grid_spacing_y_positive check (spacing_y_value > 0);
+
+create or replace function public.project_grid_sync_spacing_legacy()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.spacing_x_value is null then
+    new.spacing_x_value := new.spacing_value;
+  end if;
+
+  if new.spacing_y_value is null then
+    new.spacing_y_value := new.spacing_value;
+  end if;
+
+  new.spacing_value := new.spacing_x_value;
+  return new;
+end
+$$;
+
+drop trigger if exists trg_project_grid_sync_spacing_legacy on public.project_grid;
+create trigger trg_project_grid_sync_spacing_legacy
+before insert or update on public.project_grid
+for each row execute function public.project_grid_sync_spacing_legacy();
 
 -- =========================================================
 -- END db/012_project_grid_xy.sql
@@ -2709,6 +2743,10 @@ where pis.ctid = r.ctid
 
 -- 4) Enforce NOT NULL image_id and canonical PK.
 alter table public.project_image_state
+  alter column width_px_u set not null,
+  alter column height_px_u set not null;
+
+alter table public.project_image_state
   alter column image_id set not null;
 
 alter table public.project_image_state
@@ -3977,4 +4015,49 @@ GRANT EXECUTE ON FUNCTION public.set_active_master_with_state(uuid, uuid, text, 
 NOTIFY pgrst, 'reload schema';
 -- =========================================================
 -- END db/053_set_active_master_with_state_dpi_relative.sql
+-- =========================================================
+
+-- =========================================================
+-- BEGIN db/054_project_images_kind_backfill.sql
+-- =========================================================
+do $$ begin
+  create type public.image_kind as enum ('master', 'working_copy', 'filter_working_copy');
+exception when duplicate_object then null; end $$;
+
+alter table public.project_images
+  add column if not exists kind public.image_kind;
+
+-- Deterministic backfill:
+-- - role=master => master
+-- - role=asset with lineage/name filter marker => filter_working_copy
+-- - remaining non-master rows => working_copy
+update public.project_images
+set kind = case
+  when role = 'master' then 'master'::public.image_kind
+  when role = 'asset' and (source_image_id is not null or lower(name) like '%(filter working)%') then 'filter_working_copy'::public.image_kind
+  else 'working_copy'::public.image_kind
+end
+where kind is null;
+
+-- =========================================================
+-- END db/054_project_images_kind_backfill.sql
+-- =========================================================
+
+-- =========================================================
+-- BEGIN db/055_project_images_kind_constraints.sql
+-- =========================================================
+alter table public.project_images
+  alter column kind set not null;
+
+-- One active master per project.
+create unique index if not exists project_images_active_master_kind_uidx
+  on public.project_images(project_id)
+  where is_active is true and deleted_at is null and kind = 'master';
+
+-- One active working copy per project.
+create unique index if not exists project_images_active_working_copy_kind_uidx
+  on public.project_images(project_id)
+  where is_active is true and deleted_at is null and kind = 'working_copy';
+-- =========================================================
+-- END db/055_project_images_kind_constraints.sql
 -- =========================================================

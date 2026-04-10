@@ -3,6 +3,17 @@ import path from "node:path"
 import { describe, expect, it } from "vitest"
 
 describe("api contract: master route supports cascade delete", () => {
+  it("master list endpoint returns typed display-target metadata", () => {
+    const routePath = path.join(process.cwd(), "app/api/projects/[projectId]/images/master/list/route.ts")
+    const code = fs.readFileSync(routePath, "utf8")
+    expect(code).toMatch(/display_target/)
+    expect(code).toMatch(/active_image_id/)
+    expect(code).toMatch(/kind/)
+    expect(code).toMatch(/deletable/)
+    expect(code).toMatch(/reason/)
+    expect(code).toMatch(/fallback_target/)
+  })
+
   it("master upload route uses only single dpi field", () => {
     const routePath = path.join(process.cwd(), "app/api/projects/[projectId]/images/master/upload/route.ts")
     const code = fs.readFileSync(routePath, "utf8")
@@ -23,6 +34,9 @@ describe("api contract: master route supports cascade delete", () => {
     const code = fs.readFileSync(routePath, "utf8")
     expect(code).toMatch(/transitiveCount/)
     expect(code).toMatch(/deleted/)
+    expect(code).toMatch(/stale_selection/)
+    expect(code).toMatch(/master_immutable/)
+    expect(code).toMatch(/no_working_copy/)
   })
 })
 

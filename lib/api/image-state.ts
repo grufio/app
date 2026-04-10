@@ -19,13 +19,34 @@ function buildImageStateUrl(projectId: string, imageId?: string): string {
   return `${base}?${q.toString()}`
 }
 
+function normalizeApiErrorPayload(payload: unknown, status: number) {
+  if (payload && typeof payload === "object") {
+    const obj = payload as Record<string, unknown>
+    const hasStage = typeof obj.stage === "string" && obj.stage.trim().length > 0
+    const hasError = typeof obj.error === "string" && obj.error.trim().length > 0
+    if (hasStage || hasError) {
+      return obj
+    }
+  }
+  return {
+    stage: `http_${status}`,
+    error: "image-state request failed",
+    status,
+  }
+}
+
 export async function getImageState(projectId: string, imageId?: string): Promise<GetImageStateResponse> {
   const res = await fetchJson<GetImageStateResponse>(buildImageStateUrl(projectId, imageId), {
     method: "GET",
     credentials: "same-origin",
   })
   if (!res.ok) {
-    throw new ApiError({ prefix: "image_state", action: "load", status: res.status, payload: res.error })
+    throw new ApiError({
+      prefix: "image_state",
+      action: "load",
+      status: res.status,
+      payload: normalizeApiErrorPayload(res.error, res.status),
+    })
   }
   return res.data
 }
@@ -38,7 +59,12 @@ export async function saveImageState(projectId: string, body: SaveImageStateBody
     body: JSON.stringify(body),
   })
   if (!res.ok) {
-    throw new ApiError({ prefix: "image_state", action: "save", status: res.status, payload: res.error })
+    throw new ApiError({
+      prefix: "image_state",
+      action: "save",
+      status: res.status,
+      payload: normalizeApiErrorPayload(res.error, res.status),
+    })
   }
 }
 

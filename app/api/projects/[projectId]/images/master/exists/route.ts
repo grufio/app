@@ -41,7 +41,7 @@ export async function GET(
     .from("project_images")
     .select("id")
     .eq("project_id", projectId)
-    .eq("role", "master")
+    .eq("kind", "master")
     .is("deleted_at", null)
     .limit(1)
 

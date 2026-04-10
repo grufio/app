@@ -1,6 +1,9 @@
--- gruf.io - Update storage policies for new image paths
--- Path convention: projects/<project_id>/images/<image_id>
--- NOTE: Must be executed by the owner of storage.objects (supabase_storage_admin).
+-- gruf.io - Storage policy update for project image object paths.
+-- NOTE:
+-- - Legacy filename retained for migration-history compatibility.
+-- - This migration only updates `storage.objects` RLS policies (no `public.project_images` DDL).
+-- - Path convention: projects/<project_id>/images/<image_id>
+-- - Must be executed by the owner of storage.objects (supabase_storage_admin).
 
 alter table storage.objects enable row level security;
 

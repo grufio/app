@@ -159,6 +159,7 @@ export async function numerateImageAndActivate(args: {
       id: imageId,
       project_id: projectId,
       role: "asset",
+      kind: "filter_working_copy",
       name: `${src.name.replace(/ \(filter working\)| \(pixelate\)| \(line art\)| \(numerate\)/g, "")} (numerate)`,
       format: "svg",
       width_px: origWidth,

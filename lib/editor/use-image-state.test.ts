@@ -6,7 +6,8 @@
  */
 import { describe, expect, it } from "vitest"
 
-import { createPendingSlot } from "./use-image-state"
+import { ApiError } from "@/lib/api/api-error"
+import { createPendingSlot, mapImageStateApiErrorToMessage } from "./use-image-state"
 
 describe("createPendingSlot", () => {
   it("does not clear a newer pending value when clearing an older seq", () => {
@@ -28,6 +29,28 @@ describe("createPendingSlot", () => {
     // Clearing the latest seq should clear.
     expect(slot.clearIfSeq(seq2)).toBe(true)
     expect(slot.snapshot()).toBe(null)
+  })
+})
+
+describe("mapImageStateApiErrorToMessage", () => {
+  it("maps known save stages to deterministic messages", () => {
+    const noActive = new ApiError({
+      prefix: "image_state",
+      action: "save",
+      status: 409,
+      payload: { stage: "no_active_image" },
+    })
+    expect(mapImageStateApiErrorToMessage(noActive, "save")).toBe("No active image available. Please refresh.")
+  })
+
+  it("falls back to payload error when available", () => {
+    const err = new ApiError({
+      prefix: "image_state",
+      action: "load",
+      status: 400,
+      payload: { stage: "whatever", error: "custom failure" },
+    })
+    expect(mapImageStateApiErrorToMessage(err, "load")).toBe("custom failure")
   })
 })
 

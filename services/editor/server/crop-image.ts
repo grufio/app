@@ -151,6 +151,7 @@ export async function cropImageAndActivate(args: {
     id: imageId,
     project_id: projectId,
     role: "asset",
+    kind: "filter_working_copy",
     name: `${src.name} (crop)`,
     format: outputFormat,
     width_px: w,

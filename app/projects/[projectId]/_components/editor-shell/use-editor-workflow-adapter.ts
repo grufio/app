@@ -13,6 +13,59 @@ export type EditorImageSourceState =
   | { status: "empty"; image: null; error: "" }
   | { status: "error"; image: null; error: string }
 
+export function deriveEditorSourceSnapshot(args: {
+  masterImageLoading: boolean
+  filterImageLoading: boolean
+  uploadSyncing: boolean
+  filterImageLoadedOnce: boolean
+  filterDisplayImage: { id: string; signedUrl: string; width_px: number; height_px: number; name: string } | null
+  filterImageError: string
+  masterImageError: string
+  masterImage: { id?: string; signedUrl?: string; name?: string; width_px?: number; height_px?: number } | null
+  filterImageEmptyReason: "no_active_image" | null
+}): EditorImageSourceState {
+  const {
+    masterImageLoading,
+    filterImageLoading,
+    uploadSyncing,
+    filterImageLoadedOnce,
+    filterDisplayImage,
+    filterImageError,
+    masterImageError,
+    masterImage,
+    filterImageEmptyReason,
+  } = args
+  if (masterImageLoading || filterImageLoading || uploadSyncing || !filterImageLoadedOnce) {
+    return { status: "loading", image: null, error: "" }
+  }
+  if (filterDisplayImage) {
+    return {
+      status: "ready",
+      image: {
+        id: filterDisplayImage.id,
+        signedUrl: filterDisplayImage.signedUrl,
+        width_px: filterDisplayImage.width_px,
+        height_px: filterDisplayImage.height_px,
+        name: filterDisplayImage.name,
+      },
+      error: "",
+    }
+  }
+  if (filterImageError) return { status: "error", image: null, error: filterImageError }
+  if (masterImageError) return { status: "error", image: null, error: masterImageError }
+  if (masterImage && filterImageEmptyReason === "no_active_image") {
+    return { status: "empty", image: null, error: "" }
+  }
+  if (masterImage) {
+    return {
+      status: "error",
+      image: null,
+      error: "Working image target is unresolved. Refresh editor state.",
+    }
+  }
+  return { status: "empty", image: null, error: "" }
+}
+
 export function useEditorWorkflowAdapter(args: {
   projectId: string
   initialImageState: ImageState | null
@@ -23,6 +76,7 @@ export function useEditorWorkflowAdapter(args: {
   filterImageLoading: boolean
   filterImageLoadedOnce: boolean
   filterImageError: string
+  filterImageEmptyReason: "no_active_image" | null
   refreshMasterImage: () => Promise<void>
   refreshProjectImages: () => Promise<void>
   refreshFilterImage: () => Promise<void>
@@ -37,6 +91,7 @@ export function useEditorWorkflowAdapter(args: {
     filterImageLoading,
     filterImageLoadedOnce,
     filterImageError,
+    filterImageEmptyReason,
     refreshMasterImage,
     refreshProjectImages,
     refreshFilterImage,
@@ -46,43 +101,21 @@ export function useEditorWorkflowAdapter(args: {
   const refreshInFlightRef = useRef<Promise<void> | null>(null)
   const refreshQueuedRef = useRef(false)
 
-  const sourceSnapshot = useMemo<EditorImageSourceState>(() => {
-    if (masterImageLoading || filterImageLoading || uploadSyncing || !filterImageLoadedOnce) {
-      return { status: "loading", image: null, error: "" }
-    }
-    if (filterDisplayImage) {
-      return {
-        status: "ready",
-        image: {
-          id: filterDisplayImage.id,
-          signedUrl: filterDisplayImage.signedUrl,
-          width_px: filterDisplayImage.width_px,
-          height_px: filterDisplayImage.height_px,
-          name: filterDisplayImage.name,
-        },
-        error: "",
-      }
-    }
-    if (filterImageError) return { status: "error", image: null, error: filterImageError }
-    if (masterImageError) return { status: "error", image: null, error: masterImageError }
-    if (masterImage) {
-      return {
-        status: "error",
-        image: null,
-        error: "No working image available. Please refresh or restore the image.",
-      }
-    }
-    return { status: "empty", image: null, error: "" }
-  }, [
-    filterDisplayImage,
-    filterImageError,
-    filterImageLoadedOnce,
-    filterImageLoading,
-    masterImage,
-    masterImageError,
-    masterImageLoading,
-    uploadSyncing,
-  ])
+  const sourceSnapshot = useMemo<EditorImageSourceState>(
+    () =>
+      deriveEditorSourceSnapshot({
+        masterImageLoading,
+        filterImageLoading,
+        uploadSyncing,
+        filterImageLoadedOnce,
+        filterDisplayImage,
+        filterImageError,
+        masterImageError,
+        masterImage,
+        filterImageEmptyReason,
+      }),
+    [filterDisplayImage, filterImageError, filterImageEmptyReason, filterImageLoadedOnce, filterImageLoading, masterImage, masterImageError, masterImageLoading, uploadSyncing]
+  )
 
   useEffect(() => {
     activeSourceImageIdRef.current = sourceSnapshot.status === "ready" ? sourceSnapshot.image.id : null

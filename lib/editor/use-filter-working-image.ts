@@ -36,6 +36,7 @@ export function useFilterWorkingImage(projectId: string) {
   const [stack, setStack] = useState<FilterStackItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
+  const [emptyReason, setEmptyReason] = useState<"no_active_image" | null>(null)
   const [loadedOnce, setLoadedOnce] = useState(false)
 
   const mountedRef = useRef(true)
@@ -64,9 +65,16 @@ export function useFilterWorkingImage(projectId: string) {
         if (!workingCopy.exists) {
           setImage(null)
           setStack([])
-          setError("")
+          if (workingCopy.stage === "no_active_image") {
+            setEmptyReason("no_active_image")
+            setError("")
+          } else {
+            setEmptyReason(null)
+            setError("Failed to resolve working image target")
+          }
           return
         }
+        setEmptyReason(null)
         setImage({
           id: workingCopy.id,
           signedUrl: workingCopy.signedUrl,
@@ -82,6 +90,7 @@ export function useFilterWorkingImage(projectId: string) {
         if (seq !== requestSeqRef.current || !mountedRef.current) return
         setImage(null)
         setStack([])
+        setEmptyReason(null)
         setError(e instanceof Error ? e.message : "Failed to load filter working image")
       } finally {
         if (seq === requestSeqRef.current && mountedRef.current) {
@@ -109,6 +118,7 @@ export function useFilterWorkingImage(projectId: string) {
     loading,
     loadedOnce,
     error,
+    emptyReason,
     refresh,
   }
 }

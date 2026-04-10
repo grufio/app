@@ -71,6 +71,7 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
   setDeleteOpen: (v: boolean) => void
   handleDeleteMasterImage: () => void | Promise<void>
   onRequestDeleteImage: () => void
+  canDeleteActiveImage: boolean
   panelImagePxU: { w: bigint; h: bigint } | null
   workspaceUnit: Unit
   workspaceReady: boolean
@@ -105,6 +106,7 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
     setDeleteOpen,
     handleDeleteMasterImage,
     onRequestDeleteImage,
+    canDeleteActiveImage,
     panelImagePxU,
     workspaceUnit,
     workspaceReady,
@@ -203,7 +205,7 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
                     </RightPanelIconButton>
                     <RightPanelIconButton
                       type="button"
-                      disabled={!masterImage || masterImageLoading || deleteBusy}
+                      disabled={!masterImage || masterImageLoading || deleteBusy || !canDeleteActiveImage}
                       aria-label="Delete image"
                       onClick={onRequestDeleteImage}
                     >
