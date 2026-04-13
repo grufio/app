@@ -45,6 +45,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ project
       return jsonError(result.reason, result.status, {
         stage: result.stage,
         code: result.code,
+        reason: result.code,
         where: result.where,
         ...(result.expectedImageId ? { expected_image_id: result.expectedImageId } : {}),
       })
