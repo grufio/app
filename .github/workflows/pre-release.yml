@@ -38,13 +38,19 @@ jobs:
             exit 1
           fi
 
-      - name: Verify local checks (lint + tests + schema markers + static RLS)
-        run: npm run check
+      - name: Verify deterministic local gate (lint + tests + coverage + build)
+        run: npm run check:ci
 
       - name: Verify remote migrations (required)
         env:
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: npm run verify:remote-migrations
+
+      - name: Verify DB types are synced (required)
+        env:
+          SUPABASE_VERIFY_TYPES_SYNC: "1"
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: npm run verify:types-synced
 
       - name: Verify remote RLS + storage policies (required)
         env:

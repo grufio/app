@@ -40,12 +40,8 @@ jobs:
           PLAYWRIGHT_BROWSERS_PATH: .playwright-browsers
         run: npx -y playwright install --with-deps chromium
 
-      - name: E2E Nightly (Playwright full tier)
-        env:
-          PLAYWRIGHT_USE_WEBSERVER: "1"
-          PLAYWRIGHT_WEBSERVER_COMMAND: "npm run start:e2e"
-          PLAYWRIGHT_BASE_URL: "http://127.0.0.1:3110"
-        run: npm run test:e2e:ci:nightly
+      - name: E2E Nightly full tier (Playwright)
+        run: npm run test:e2e:nightly
 
       - name: Upload Playwright report
         if: failure()

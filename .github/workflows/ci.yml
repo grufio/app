@@ -33,11 +33,8 @@ jobs:
       - name: Install
         run: npm ci
 
-      - name: Check local gates (lint + tests + schema markers)
-        run: npm run check:local
-
-      - name: Coverage gate
-        run: npm run test:coverage:gate
+      - name: Deterministic PR gate (lint + tests + coverage + build)
+        run: npm run check:ci
 
       - name: Check remote DB invariants (optional)
         if: ${{ env.SUPABASE_DB_URL != '' }}
@@ -51,12 +48,6 @@ jobs:
       - name: Verify remote RLS + storage policies (optional)
         if: ${{ env.SUPABASE_DB_PASSWORD != '' }}
         run: npm run verify:remote-rls
-
-      - name: Verify DB types are synced (optional)
-        if: ${{ env.SUPABASE_DB_URL != '' }}
-        env:
-          SUPABASE_VERIFY_TYPES_SYNC: "1"
-        run: npm run verify:types-synced
 
   e2e:
     needs: lint_test
@@ -89,12 +80,8 @@ jobs:
           PLAYWRIGHT_BROWSERS_PATH: .playwright-browsers
         run: npx -y playwright install --with-deps chromium
 
-      - name: E2E (Playwright)
-        env:
-          PLAYWRIGHT_USE_WEBSERVER: "1"
-          PLAYWRIGHT_WEBSERVER_COMMAND: "npm run start:e2e"
-          PLAYWRIGHT_BASE_URL: "http://127.0.0.1:3110"
-        run: npm run test:e2e:ci:pr
+      - name: E2E PR smoke tier (Playwright)
+        run: npm run test:e2e:pr
 
       - name: Upload Playwright report
         if: failure()

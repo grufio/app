@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 
 import { isUuid, jsonError, readJson } from "@/lib/api/route-guards"
 import { withFilterRouteAuth } from "@/lib/api/with-filter-route-auth"
-import { appendProjectImageFilter, cleanupOrphanFilterImage } from "@/services/editor/server/filter-chain"
+import { applyFilterCommand } from "@/services/editor/server/filter-command"
 import { numerateImageAndActivate } from "@/services/editor/server/filters/numerate"
 
 export const dynamic = "force-dynamic"
@@ -35,27 +35,10 @@ export async function POST(
     const strokeWidth = Number(body.stroke_width ?? 2)
     const showColors = Boolean(body.show_colors ?? true)
 
-    const result = await numerateImageAndActivate({
+    const result = await applyFilterCommand({
       supabase: context.supabase,
       projectId: context.projectId,
       sourceImageId,
-      params: {
-        superpixelWidth,
-        superpixelHeight,
-        strokeWidth,
-        showColors,
-      },
-    })
-
-    if (!result.ok) {
-      return jsonError(result.reason, result.status, { stage: result.stage, code: result.code })
-    }
-
-    const chain = await appendProjectImageFilter({
-      supabase: context.supabase,
-      projectId: context.projectId,
-      inputImageId: sourceImageId,
-      outputImageId: result.id,
       filterType: "numerate",
       filterParams: {
         superpixel_width: superpixelWidth,
@@ -63,15 +46,21 @@ export async function POST(
         stroke_width: strokeWidth,
         show_colors: showColors,
       },
+      runFilter: () =>
+        numerateImageAndActivate({
+          supabase: context.supabase,
+          projectId: context.projectId,
+          sourceImageId,
+          params: {
+            superpixelWidth,
+            superpixelHeight,
+            strokeWidth,
+            showColors,
+          },
+        }),
     })
-    if (!chain.ok) {
-      await cleanupOrphanFilterImage({
-        supabase: context.supabase,
-        projectId: context.projectId,
-        imageId: result.id,
-        storagePath: result.storagePath,
-      })
-      return jsonError(chain.reason, 400, { stage: "db_insert", code: chain.code })
+    if (!result.ok) {
+      return jsonError(result.reason, result.status, { stage: result.stage, code: result.code })
     }
 
     return NextResponse.json({

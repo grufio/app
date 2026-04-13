@@ -1,4 +1,4 @@
-import type { NavSelection } from "@/features/editor/navigation/nav-id"
+import type { NavSelection } from "@/lib/editor/navigation/nav-id"
 
 export type EditorRightPanelSection = "artboard" | "image" | "grid"
 export type EditorNavKind = NavSelection["kind"]

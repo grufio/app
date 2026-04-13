@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 
 import { isUuid, jsonError, readJson } from "@/lib/api/route-guards"
 import { withFilterRouteAuth } from "@/lib/api/with-filter-route-auth"
-import { appendProjectImageFilter, cleanupOrphanFilterImage } from "@/services/editor/server/filter-chain"
+import { applyFilterCommand } from "@/services/editor/server/filter-command"
 import { lineArtImageAndActivate } from "@/services/editor/server/filters/lineart"
 
 export const dynamic = "force-dynamic"
@@ -41,30 +41,10 @@ export async function POST(
   const minContourArea = Number(body.min_contour_area ?? 200)
   const smoothness = Number(body.smoothness ?? 0.005)
 
-  const result = await lineArtImageAndActivate({
+  const result = await applyFilterCommand({
     supabase: context.supabase,
     projectId: context.projectId,
     sourceImageId,
-    params: {
-      threshold1,
-      threshold2,
-      lineThickness,
-      blurAmount,
-      minContourArea,
-      invert,
-      smoothness,
-    },
-  })
-
-  if (!result.ok) {
-    return jsonError(result.reason, result.status, { stage: result.stage, code: result.code })
-  }
-
-  const chain = await appendProjectImageFilter({
-    supabase: context.supabase,
-    projectId: context.projectId,
-    inputImageId: sourceImageId,
-    outputImageId: result.id,
     filterType: "lineart",
     filterParams: {
       threshold1,
@@ -75,15 +55,25 @@ export async function POST(
       invert,
       smoothness,
     },
+    runFilter: () =>
+      lineArtImageAndActivate({
+        supabase: context.supabase,
+        projectId: context.projectId,
+        sourceImageId,
+        params: {
+          threshold1,
+          threshold2,
+          lineThickness,
+          blurAmount,
+          minContourArea,
+          invert,
+          smoothness,
+        },
+      }),
   })
-  if (!chain.ok) {
-    await cleanupOrphanFilterImage({
-      supabase: context.supabase,
-      projectId: context.projectId,
-      imageId: result.id,
-      storagePath: result.storagePath,
-    })
-    return jsonError(chain.reason, 400, { stage: "db_insert", code: chain.code })
+
+  if (!result.ok) {
+    return jsonError(result.reason, result.status, { stage: result.stage, code: result.code })
   }
 
   return NextResponse.json({

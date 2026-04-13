@@ -1,7 +1,6 @@
-import { NextResponse } from "next/server"
-import { isUuid, jsonError, requireUser } from "./route-guards"
-import { createSupabaseServerClient } from "@/lib/supabase/server"
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { NextResponse } from "next/server"
+import { withProjectRouteAuth } from "./with-project-route-auth"
 
 /**
  * Context object passed to authenticated route handlers.
@@ -66,34 +65,11 @@ export async function withFilterRouteAuth<T = unknown>(
   projectId: string,
   handler: RouteHandler<T>
 ): Promise<NextResponse<T> | NextResponse<RouteErrorPayload>> {
-  // Validate projectId
-  if (!isUuid(String(projectId))) {
-    return jsonError("Invalid projectId", 400, { stage: "validation", where: "params" })
-  }
-
-  // Authenticate user
-  const supabase = await createSupabaseServerClient()
-  const u = await requireUser(supabase)
-  if (!u.ok) return u.res as NextResponse<RouteErrorPayload>
-
-  // Verify project access
-  const { data: projectRow, error: projectErr } = await supabase
-    .from("projects")
-    .select("id")
-    .eq("id", projectId)
-    .maybeSingle()
-
-  if (projectErr) {
-    return jsonError("Failed to verify project access", 400, { stage: "project_access" })
-  }
-  if (!projectRow?.id) {
-    return jsonError("Forbidden (project not accessible)", 403, { stage: "rls_denied", where: "project_access" })
-  }
-
-  // Call handler with authenticated context
-  return handler(req, {
-    supabase,
-    projectId,
-    userId: u.user.id,
+  return withProjectRouteAuth(req, projectId, async (request, context) => {
+    return handler(request, {
+      supabase: context.supabase,
+      projectId: context.projectId,
+      userId: context.userId,
+    })
   })
 }

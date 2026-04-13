@@ -7,143 +7,48 @@
  */
 import { NextResponse } from "next/server"
 
-import { createSupabaseServerClient } from "@/lib/supabase/server"
-import { getEditorTargetImageRow } from "@/lib/supabase/project-images"
-import { loadBoundImageState, upsertBoundImageState } from "@/lib/supabase/image-state"
-import { isUuid, jsonError, readJson, requireUser } from "@/lib/api/route-guards"
-import { validateIncomingImageStateUpsert, type IncomingImageStatePayload } from "@/lib/editor/imageState"
+import { jsonError, readJson, type ErrorPayload } from "@/lib/api/route-guards"
+import { withProjectRouteAuth } from "@/lib/api/with-project-route-auth"
+import { type IncomingImageStatePayload } from "@/lib/editor/imageState"
+import { loadProjectImageState, saveProjectImageState } from "@/services/editor/server/image-state-route"
 
 export const dynamic = "force-dynamic"
-
-function resolveImageStateRole(value: unknown): "master" | "working" | "asset" {
-  const role = String(value ?? "").toLowerCase()
-  if (role === "working") return "working"
-  if (role === "asset") return "asset"
-  return "master"
-}
 
 export async function GET(req: Request, { params }: { params: Promise<{ projectId: string }> }) {
   const url = new URL(req.url)
   const queryImageId = url.searchParams.get("imageId")
-  const useQueryImageId = queryImageId && isUuid(queryImageId)
-
   const { projectId } = await params
-  if (!isUuid(String(projectId))) {
-    return jsonError("Invalid projectId", 400, { stage: "validation", where: "params" })
-  }
-  const supabase = await createSupabaseServerClient()
-
-  const u = await requireUser(supabase)
-  if (!u.ok) return u.res
-
-  let targetImageId: string | null = null
-
-  if (useQueryImageId) {
-    targetImageId = queryImageId
-  } else {
-    const editorTargetLookup = await getEditorTargetImageRow(supabase, projectId)
-    if (editorTargetLookup.error) {
-      return jsonError(editorTargetLookup.error.reason, 400, {
-        stage: editorTargetLookup.error.stage,
-        code: editorTargetLookup.error.code,
-      })
+  return withProjectRouteAuth(req, projectId, async (_request, context) => {
+    const result = await loadProjectImageState({
+      supabase: context.supabase,
+      projectId: context.projectId,
+      queryImageId,
+    })
+    if (!result.ok) {
+      return jsonError(result.reason, result.status, { stage: result.stage, code: result.code })
     }
-    if (!editorTargetLookup.row?.id) {
-      return NextResponse.json({ exists: false, state: null })
-    }
-    targetImageId = editorTargetLookup.row.id
-  }
-
-  if (!targetImageId) {
-    return NextResponse.json({ exists: false, state: null })
-  }
-
-  const { row: data, error: readErr, unsupported } = await loadBoundImageState(supabase, projectId, targetImageId)
-  if (readErr) return jsonError(readErr, 400, { stage: "select_state" })
-  if (unsupported) {
-    return jsonError("Unsupported image state: missing width_px_u/height_px_u", 400, { stage: "schema_missing", where: "validate_state" })
-  }
-
-  return NextResponse.json({ exists: Boolean(data), state: data ?? null })
+    return NextResponse.json({ exists: result.exists, state: result.state })
+  }) as Promise<NextResponse<{ exists: boolean; state: unknown } | ErrorPayload>>
 }
 
 export async function POST(req: Request, { params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params
-  if (!isUuid(String(projectId))) {
-    return jsonError("Invalid projectId", 400, { stage: "validation", where: "params" })
-  }
-  const supabase = await createSupabaseServerClient()
-
-  const u = await requireUser(supabase)
-  if (!u.ok) return u.res
-
-  const { data: projectRow, error: projectErr } = await supabase.from("projects").select("id").eq("id", projectId).maybeSingle()
-  if (projectErr) {
-    console.warn("image-state: project access query failed", { projectId, message: projectErr.message })
-    return jsonError("Failed to verify project access", 400, { stage: "project_access" })
-  }
-  if (!projectRow?.id) {
-    return jsonError("Forbidden (project not accessible)", 403, { stage: "rls_denied", where: "project_access" })
-  }
-
-  const parsed = await readJson<IncomingImageStatePayload>(req, { stage: "validation" })
-  if (!parsed.ok) return parsed.res
-  const body: IncomingImageStatePayload = parsed.value
-
-  const validated = validateIncomingImageStateUpsert(body)
-  if (!validated) {
-    return jsonError("Invalid fields", 400, { stage: "validation", where: "validate" })
-  }
-  if (!isUuid(validated.image_id)) {
-    return jsonError("Invalid image_id", 400, { stage: "validation", where: "image_id" })
-  }
-
-  const baseRow = {
-    project_id: projectId,
-    ...validated,
-  }
-
-  const editorTargetLookup = await getEditorTargetImageRow(supabase, projectId)
-  if (editorTargetLookup.error) {
-    return jsonError(editorTargetLookup.error.reason, 400, {
-      stage: editorTargetLookup.error.stage,
-      code: editorTargetLookup.error.code,
+  return withProjectRouteAuth(req, projectId, async (request, context) => {
+    const parsed = await readJson<IncomingImageStatePayload>(request, { stage: "validation" })
+    if (!parsed.ok) return parsed.res
+    const result = await saveProjectImageState({
+      supabase: context.supabase,
+      projectId: context.projectId,
+      body: parsed.value,
     })
-  }
-  if (!editorTargetLookup.row?.id) {
-    return jsonError("No editor target image", 409, { stage: "no_active_image" })
-  }
-  const editorTargetImageIdForWrite = editorTargetLookup.row.id
-  if (baseRow.image_id !== editorTargetImageIdForWrite) {
-    return jsonError("Image state target is not the editor target image", 409, {
-      stage: "active_image_mismatch",
-      expected_image_id: editorTargetImageIdForWrite,
-    })
-  }
-  const { data: editorTargetImageRow, error: editorTargetImageErr } = await supabase
-    .from("project_images")
-    .select("is_locked,role")
-    .eq("project_id", projectId)
-    .eq("id", editorTargetImageIdForWrite)
-    .is("deleted_at", null)
-    .maybeSingle()
-  if (editorTargetImageErr) return jsonError(editorTargetImageErr.message, 400, { stage: "lock_guard_query" })
-  if (editorTargetImageRow?.is_locked) {
-    return jsonError("Editor target image is locked", 409, { stage: "lock_conflict", reason: "image_locked" })
-  }
-  const upsert = await upsertBoundImageState(supabase, {
-    project_id: baseRow.project_id,
-    image_id: baseRow.image_id,
-    role: resolveImageStateRole(editorTargetImageRow?.role),
-    x_px_u: baseRow.x_px_u,
-    y_px_u: baseRow.y_px_u,
-    width_px_u: baseRow.width_px_u,
-    height_px_u: baseRow.height_px_u,
-    rotation_deg: baseRow.rotation_deg,
-  })
-  if (!upsert.ok) {
-    return jsonError(upsert.error, 400, { stage: "upsert" })
-  }
-
-  return NextResponse.json({ ok: true })
+    if (!result.ok) {
+      return jsonError(result.reason, result.status, {
+        stage: result.stage,
+        code: result.code,
+        where: result.where,
+        ...(result.expectedImageId ? { expected_image_id: result.expectedImageId } : {}),
+      })
+    }
+    return NextResponse.json({ ok: true })
+  }) as Promise<NextResponse<{ ok: true } | ErrorPayload>>
 }
