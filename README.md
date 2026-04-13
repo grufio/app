@@ -79,14 +79,22 @@ npm run dev
 - `npm run check:db-schema`: validate `db/schema.sql` single-source marker integrity
 - `npm run check`: lint + tests + schema marker check
 
+## Architecture contracts
+
+- **Layering rule**: `app/api` routes should orchestrate HTTP concerns only and call `services/*` for use-cases.
+- **Data-access rule**: `services/*` call `lib/supabase/*` repositories/helpers for DB/storage I/O.
+- **DB contract rule**: canonical schema history lives in `supabase/migrations/*.sql`; `db/schema.sql` is a derived audit snapshot.
+- **Gate rule**: PR checks should run one deterministic path (`lint + unit/coverage + build + static DB checks`), while remote DB checks remain explicitly gated by secrets.
+
 ## Database workflow
 
-- Active SQL source of truth: `db/schema.sql`
-- Historical numbered migrations (`db/0xx_*.sql`) are archived in `db/_archive/` and are not the active source.
+- Canonical migration source: `supabase/migrations/*.sql`
+- Derived audit snapshot: `db/schema.sql`
+- Historical numbered migrations (`db/0xx_*.sql`) remain archived in `db/_archive/` for traceability.
 
 ## CI
 
-See `docs/ci/README.md`. (We keep workflows as a template to avoid GitHub token `workflow`-scope issues.)
+See `docs/ci/README.md` for deterministic PR/nightly/pre-release gate tiers and required secrets for remote DB verification.
 
 ### Optional: local pre-commit hook
 

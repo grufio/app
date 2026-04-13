@@ -1,19 +1,12 @@
 ## CI (GitHub Actions)
 
-This repo intentionally does **not** commit `.github/workflows/*.yml` by default.
+This repo commits CI workflows under `.github/workflows/*.yml`.
 
-Reason: some setups (OAuth apps / tokens without the `workflow` scope) cannot push workflow changes, which blocks `git push`.
+### Gate tiers
 
-### Enable CI
-
-1. Copy the template:
-
-```bash
-mkdir -p .github/workflows
-cp docs/ci/github-actions-ci.yml.template .github/workflows/ci.yml
-```
-
-2. Commit & push using credentials that have permission to update workflows (GitHub PAT with `workflow` scope).
+- **PR / push gate (`CI`)**: deterministic local/static checks + optional remote checks if secrets are present.
+- **Nightly E2E gate (`Nightly E2E`)**: broader Playwright tier on schedule/manual trigger.
+- **Pre-release gate (`Pre-release gates`)**: manual hard gate requiring Supabase remote verification.
 
 ### Enforce CI on `main` (recommended)
 
@@ -26,23 +19,24 @@ This must be configured in GitHub settings (cannot be automated from within the 
   - Add required check: **CI**
   - (Optional) **Require branches to be up to date before merging**
 
-### What CI runs
+### What PR CI runs
 
-- `npm run check:ci`:
-  - eslint
-  - vitest
-  - db schema marker drift check (`scripts/check-db-schema.mjs`)
-  - `next build`
+- `npm run check:ci` (lint + tests + db static checks + coverage gate)
+- Optional remote DB checks when secrets are available:
+  - `npm run verify:remote-migrations`
+  - `npm run verify:remote-rls`
+  - `npm run verify:types-synced`
+- Playwright PR smoke tier
 
 ### DB migrations (runtime)
 
-CI validates that `db/schema.sql` includes all migration markers, but it does **not** apply migrations to your Supabase project.
+CI validates drift/contract checks, but it does **not** replace explicit migration rollout ownership.
 
-See `docs/migrations.md` for how to apply new `db/0xx_*.sql` migrations safely.
+See `docs/migrations.md` for the canonical migration pipeline.
 
-### Optional: E2E in CI
+### Required secrets for remote gates
 
-The template `docs/ci/github-actions-ci.yml.template` includes a Playwright Chromium install + `npm run test:e2e`.
-If you don't want E2E in CI (yet), you can remove those two steps from `.github/workflows/ci.yml`.
+- `SUPABASE_DB_PASSWORD`
+- `SUPABASE_DB_URL`
 
 

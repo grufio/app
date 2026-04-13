@@ -70,8 +70,6 @@ function extractMigrationNamesFromTableText(text, out) {
 
 function runSupabaseMigrationListJson() {
   const args = ["migration", "list", "--linked", "--output", "json"]
-  const pw = (process.env.SUPABASE_DB_PASSWORD ?? process.env.SUPABASE_DB_PASS ?? "").trim()
-  if (pw) args.push("--password", pw)
   const cliArgs = ["-y", "supabase@2.84.2", ...args]
 
   const res = spawnSync("npx", cliArgs, {
@@ -167,7 +165,7 @@ if (!remoteRes.ok) {
   console.error(`Reason: ${remoteRes.reason}`)
   if (remoteRes.stderr) console.error(remoteRes.stderr.trim())
   console.error(
-    "\nTip: run `supabase link --password \"$SUPABASE_DB_PASSWORD\"` once, or set SUPABASE_DB_PASSWORD for non-interactive CI/local checks."
+    '\nTip: run `supabase link --project-ref "<ref>" --password "$SUPABASE_DB_PASSWORD"` once for the linked project.'
   )
   process.exit(1)
 }

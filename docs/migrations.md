@@ -1,9 +1,9 @@
 ## Database migrations (Supabase)
 
-Active DB source of truth is `db/schema.sql`.
-Historical numbered SQL files are archived in `db/_archive/`.
+Canonical DB source of truth is `supabase/migrations/*.sql`.
 
-Going forward, **canonical migrations** are in `supabase/migrations/` and should be applied via Supabase CLI.
+`db/schema.sql` is a **derived, runnable snapshot** for auditability and SQL-editor fallback.
+Historical numbered SQL files are archived in `db/_archive/`.
 
 ### CLI-first workflow (recommended)
 
@@ -53,7 +53,7 @@ Use this only if you cannot use the Supabase CLI flow.
 ### Apply a new migration
 
 1. Open the Supabase SQL editor for your project.
-2. Copy/paste the required statements from `db/schema.sql`.
+2. Copy/paste the required statements from `db/schema.sql` (derived snapshot from canonical migrations).
 3. (Optional) Use `db/_archive/` only for historical reference.
 4. Execute it as a privileged role (usually `postgres` / `supabase_admin`).
 5. Verify the new columns/tables exist and RLS constraints still behave as expected.
@@ -66,7 +66,18 @@ Use this only if you cannot use the Supabase CLI flow.
 npm run check:db-schema
 ```
 
-This ensures `db/schema.sql` has intact migration block markers (`BEGIN`/`END`) as a single-source integrity check.
+This ensures `db/schema.sql` keeps intact migration markers and required canonical invariants for audit parity.
+
+### Recommended contract pipeline
+
+Use this sequence for every schema change:
+
+1. Add migration under `supabase/migrations/`.
+2. Apply migration to linked DB (`npm run db:push`).
+3. Regenerate DB types (`npm run types:gen`).
+4. Run drift gates:
+   - `npm run check:db-contract`
+   - `npm run verify:remote-migrations`
 
 ### Recommended: record applied migrations
 

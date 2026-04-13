@@ -41,24 +41,7 @@ import { useStageInteractionPolicy } from "./editor-shell/use-stage-interaction-
 import { useEditorWorkflowAdapter } from "./editor-shell/use-editor-workflow-adapter"
 import { EditorDialogHost } from "./editor-shell/editor-dialog-host"
 import { useLeftPanelModel } from "./editor-shell/use-left-panel-model"
-
-function useImageStateLoadOrchestration(args: {
-  imageId: string | null
-  loadImageState: () => Promise<void>
-}) {
-  const { imageId, loadImageState } = args
-  const loadedImageStateForImageIdRef = useRef<string | null>(null)
-
-  useEffect(() => {
-    if (!imageId) {
-      loadedImageStateForImageIdRef.current = null
-      return
-    }
-    if (loadedImageStateForImageIdRef.current === imageId) return
-    loadedImageStateForImageIdRef.current = imageId
-    void loadImageState()
-  }, [imageId, loadImageState])
-}
+import { useImageStateLoadOrchestration } from "./editor-shell/use-image-state-load-orchestration"
 
 export function ProjectDetailPageClient({
   projectId,

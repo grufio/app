@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 
 import { isUuid, jsonError, readJson } from "@/lib/api/route-guards"
 import { withFilterRouteAuth } from "@/lib/api/with-filter-route-auth"
-import { appendProjectImageFilter, cleanupOrphanFilterImage } from "@/services/editor/server/filter-chain"
+import { applyFilterCommand } from "@/services/editor/server/filter-command"
 import { pixelateImageAndActivate } from "@/services/editor/server/filters/pixelate"
 
 export const dynamic = "force-dynamic"
@@ -35,43 +35,35 @@ export async function POST(
       return jsonError("Invalid color_mode (must be rgb or grayscale)", 400, { stage: "validation", where: "body" })
     }
 
-    const result = await pixelateImageAndActivate({
+    const superpixelWidth = Number(body.superpixel_width)
+    const superpixelHeight = Number(body.superpixel_height)
+    const numColors = Number(body.num_colors)
+    const result = await applyFilterCommand({
       supabase: context.supabase,
       projectId: context.projectId,
       sourceImageId,
-      params: {
-        superpixelWidth: Number(body.superpixel_width),
-        superpixelHeight: Number(body.superpixel_height),
-        colorMode: colorMode as "rgb" | "grayscale",
-        numColors: Number(body.num_colors),
-      },
-    })
-
-    if (!result.ok) {
-      return jsonError(result.reason, result.status, { stage: result.stage, code: result.code })
-    }
-
-    const chain = await appendProjectImageFilter({
-      supabase: context.supabase,
-      projectId: context.projectId,
-      inputImageId: sourceImageId,
-      outputImageId: result.id,
       filterType: "pixelate",
       filterParams: {
-        superpixel_width: Number(body.superpixel_width),
-        superpixel_height: Number(body.superpixel_height),
+        superpixel_width: superpixelWidth,
+        superpixel_height: superpixelHeight,
         color_mode: colorMode,
-        num_colors: Number(body.num_colors),
+        num_colors: numColors,
       },
+      runFilter: () =>
+        pixelateImageAndActivate({
+          supabase: context.supabase,
+          projectId: context.projectId,
+          sourceImageId,
+          params: {
+            superpixelWidth,
+            superpixelHeight,
+            colorMode: colorMode as "rgb" | "grayscale",
+            numColors,
+          },
+        }),
     })
-    if (!chain.ok) {
-      await cleanupOrphanFilterImage({
-        supabase: context.supabase,
-        projectId: context.projectId,
-        imageId: result.id,
-        storagePath: result.storagePath,
-      })
-      return jsonError(chain.reason, 400, { stage: "db_insert", code: chain.code })
+    if (!result.ok) {
+      return jsonError(result.reason, result.status, { stage: result.stage, code: result.code })
     }
 
     return NextResponse.json({
