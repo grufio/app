@@ -167,13 +167,13 @@ describe("master upload route delegation", () => {
     expect(body.got_bytes).toBe(20)
   })
 
-  it("propagates db_upsert transform-sync failures from service", async () => {
+  it("propagates transform_sync failures from service", async () => {
     vi.resetModules()
     uploadMasterImageMock.mockReset()
     uploadMasterImageMock.mockResolvedValueOnce({
       ok: false as const,
       status: 500,
-      stage: "db_upsert" as const,
+      stage: "transform_sync" as const,
       reason: "Source image transform is missing",
     })
 
@@ -199,7 +199,7 @@ describe("master upload route delegation", () => {
 
     expect(res.status).toBe(500)
     const body = await res.json()
-    expect(body.stage).toBe("db_upsert")
+    expect(body.stage).toBe("transform_sync")
     expect(body.error).toBe("Source image transform is missing")
   })
 

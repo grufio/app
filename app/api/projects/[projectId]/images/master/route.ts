@@ -184,10 +184,7 @@ export async function DELETE(
     if (policy.delete_reason === "master_immutable") {
       return jsonError("Master image is immutable. Use restore/replace flow.", 409, { stage: "master_immutable" })
     }
-    if (policy.delete_reason === "image_locked") {
-      return jsonError("Active image is locked", 409, { stage: "lock_conflict", reason: "image_locked" })
-    }
-    return jsonError("No active image available for delete", 409, { stage: "stale_selection" })
+    return jsonError("No active image available for delete", 409, { stage: "no_active_image" })
   }
 
   const imageId = imageToDelete.id

@@ -19,6 +19,25 @@ import { normalizePositiveInt } from "./master-image-upload/validation"
 
 export type { UploadMasterImageFailure, UploadMasterImageSuccess, UploadMasterImageResult } from "./master-image-upload/types"
 
+async function rollbackCreatedUploadRows(args: {
+  supabase: SupabaseClient<Database>
+  projectId: string
+  masterImageId: string
+  masterObjectPath: string
+  workingImageId?: string
+  workingObjectPath?: string
+}) {
+  const { supabase, projectId, masterImageId, masterObjectPath, workingImageId, workingObjectPath } = args
+  if (workingImageId) {
+    await supabase.from("project_images").delete().eq("id", workingImageId).eq("project_id", projectId)
+  }
+  if (workingObjectPath) {
+    await supabase.storage.from("project_images").remove([workingObjectPath])
+  }
+  await supabase.from("project_images").delete().eq("id", masterImageId).eq("project_id", projectId)
+  await supabase.storage.from("project_images").remove([masterObjectPath])
+}
+
 async function createWorkingCopyFromMaster(args: {
   supabase: SupabaseClient<Database>
   projectId: string
@@ -140,8 +159,12 @@ export async function uploadMasterImage(args: {
     sourceMasterId: imageId,
   })
   if (!working.ok) {
-    await supabase.from("project_images").delete().eq("id", imageId).eq("project_id", projectId)
-    await supabase.storage.from("project_images").remove([objectPath])
+    await rollbackCreatedUploadRows({
+      supabase,
+      projectId,
+      masterImageId: imageId,
+      masterObjectPath: objectPath,
+    })
     return {
       ok: false,
       status: 400,
@@ -160,10 +183,14 @@ export async function uploadMasterImage(args: {
     imageDpi: dpi as number,
   })
   if (!activationResult.ok) {
-    await supabase.from("project_images").delete().eq("id", working.imageId).eq("project_id", projectId)
-    await supabase.storage.from("project_images").remove([working.objectPath])
-    await supabase.from("project_images").delete().eq("id", imageId).eq("project_id", projectId)
-    await supabase.storage.from("project_images").remove([objectPath])
+    await rollbackCreatedUploadRows({
+      supabase,
+      projectId,
+      masterImageId: imageId,
+      masterObjectPath: objectPath,
+      workingImageId: working.imageId,
+      workingObjectPath: working.objectPath,
+    })
     return {
       ok: false,
       status: activationResult.status,
@@ -182,16 +209,21 @@ export async function uploadMasterImage(args: {
     sourceHeight: heightPx,
     targetWidth: widthPx,
     targetHeight: heightPx,
+    fallbackWhenMissingSource: true,
   })
   if (!transformCopy.ok) {
-    await supabase.from("project_images").delete().eq("id", working.imageId).eq("project_id", projectId)
-    await supabase.storage.from("project_images").remove([working.objectPath])
-    await supabase.from("project_images").delete().eq("id", imageId).eq("project_id", projectId)
-    await supabase.storage.from("project_images").remove([objectPath])
+    await rollbackCreatedUploadRows({
+      supabase,
+      projectId,
+      masterImageId: imageId,
+      masterObjectPath: objectPath,
+      workingImageId: working.imageId,
+      workingObjectPath: working.objectPath,
+    })
     return {
       ok: false,
       status: 500,
-      stage: "db_upsert",
+      stage: "transform_sync",
       reason: transformCopy.reason,
     }
   }

@@ -17,5 +17,14 @@ describe("api contract: master by-id delete route invariants", () => {
     expect(code).toMatch(/kind:\s*"working_copy"/)
     expect(code).not.toMatch(/kind:\s*"master"/)
   })
+
+  it("handles stale selection via resolver-based 409 contract", () => {
+    const routePath = path.join(process.cwd(), "app/api/projects/[projectId]/images/master/[imageId]/route.ts")
+    const code = fs.readFileSync(routePath, "utf8")
+    expect(code).toMatch(/getEditorTargetImageRow/)
+    expect(code).toMatch(/stage:\s*"stale_selection"/)
+    expect(code).toMatch(/current_image_id/)
+    expect(code).toMatch(/stage:\s*"no_active_image"/)
+  })
 })
 

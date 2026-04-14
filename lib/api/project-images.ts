@@ -7,6 +7,20 @@
  */
 import { fetchJson, invalidateFetchJsonGetCache } from "@/lib/api/http"
 
+type ApiErrorPayload = Record<string, unknown> | null
+
+function formatApiError(prefix: string, status: number, payload: ApiErrorPayload): string {
+  const stage = typeof payload?.stage === "string" && payload.stage.trim() ? payload.stage : `http_${status}`
+  const error =
+    typeof payload?.error === "string" && payload.error.trim()
+      ? payload.error
+      : payload
+        ? JSON.stringify(payload)
+        : "No JSON error body returned"
+  const code = typeof payload?.code === "string" && payload.code.trim() ? ` code=${payload.code}` : ""
+  return `${prefix} (HTTP ${status}, stage=${stage}${code}): ${error}`
+}
+
 export type MasterImageResponse =
   | { exists: false }
   | {
@@ -81,8 +95,7 @@ export async function getMasterImage(projectId: string): Promise<MasterImageResp
     credentials: "same-origin",
   })
   if (!res.ok) {
-    const msg = `Failed to load image (HTTP ${res.status})` + (res.error ? ` ${JSON.stringify(res.error)}` : "")
-    throw new Error(msg)
+    throw new Error(formatApiError("Failed to load image", res.status, res.error))
   }
   return res.data
 }
@@ -102,8 +115,7 @@ export async function deleteMasterImage(projectId: string): Promise<void> {
     credentials: "same-origin",
   })
   if (!res.ok) {
-    const msg = `Failed to delete image (HTTP ${res.status})` + (res.error ? ` ${JSON.stringify(res.error)}` : "")
-    throw new Error(msg)
+    throw new Error(formatApiError("Failed to delete image", res.status, res.error))
   }
 }
 
@@ -113,8 +125,7 @@ export async function listMasterImages(projectId: string): Promise<{ items: Proj
     credentials: "same-origin",
   })
   if (!res.ok) {
-    const msg = `Failed to load images (HTTP ${res.status})` + (res.error ? ` ${JSON.stringify(res.error)}` : "")
-    throw new Error(msg)
+    throw new Error(formatApiError("Failed to load images", res.status, res.error))
   }
   return {
     items: Array.isArray(res.data?.items) ? res.data.items : [],
@@ -144,14 +155,26 @@ export async function listMasterImages(projectId: string): Promise<{ items: Proj
 }
 
 export async function deleteMasterImageById(projectId: string, imageId: string): Promise<void> {
+  const masterListPath = `/api/projects/${projectId}/images/master/list`
+  const masterPath = `/api/projects/${projectId}/images/master`
+  invalidateFetchJsonGetCache(masterListPath)
+  invalidateFetchJsonGetCache(masterPath)
+
   const res = await fetchJson<unknown>(`/api/projects/${projectId}/images/master/${imageId}`, {
     method: "DELETE",
     credentials: "same-origin",
   })
   if (!res.ok) {
-    const msg = `Failed to delete image (HTTP ${res.status})` + (res.error ? ` ${JSON.stringify(res.error)}` : "")
-    throw new Error(msg)
+    const stage = typeof res.error?.stage === "string" ? res.error.stage : ""
+    if (stage === "stale_selection") {
+      // Force next refresh to bypass short GET cache and fetch fresh targets.
+      invalidateFetchJsonGetCache(masterListPath)
+      invalidateFetchJsonGetCache(masterPath)
+    }
+    throw new Error(formatApiError("Failed to delete image", res.status, res.error))
   }
+  invalidateFetchJsonGetCache(masterListPath)
+  invalidateFetchJsonGetCache(masterPath)
 }
 
 export async function setProjectImageLocked(
@@ -166,8 +189,7 @@ export async function setProjectImageLocked(
     body: JSON.stringify({ is_locked: isLocked }),
   })
   if (!res.ok) {
-    const msg = `Failed to update image lock (HTTP ${res.status})` + (res.error ? ` ${JSON.stringify(res.error)}` : "")
-    throw new Error(msg)
+    throw new Error(formatApiError("Failed to update image lock", res.status, res.error))
   }
   invalidateFetchJsonGetCache(`/api/projects/${projectId}/images/master/list`)
   invalidateFetchJsonGetCache(`/api/projects/${projectId}/images/master`)
@@ -206,8 +228,7 @@ export async function cropImageVariant(args: {
     }
   )
   if (!res.ok) {
-    const msg = `Failed to crop image (HTTP ${res.status})` + (res.error ? ` ${JSON.stringify(res.error)}` : "")
-    throw new Error(msg)
+    throw new Error(formatApiError("Failed to crop image", res.status, res.error))
   }
   if (!res.data?.id) {
     throw new Error("Failed to crop image (missing id)")
@@ -227,8 +248,7 @@ export async function restoreInitialMasterImage(projectId: string): Promise<{ im
     credentials: "same-origin",
   })
   if (!res.ok) {
-    const msg = `Failed to restore initial image (HTTP ${res.status})` + (res.error ? ` ${JSON.stringify(res.error)}` : "")
-    throw new Error(msg)
+    throw new Error(formatApiError("Failed to restore initial image", res.status, res.error))
   }
   if (!res.data?.image_id) {
     throw new Error("Failed to restore initial image (missing image_id)")
@@ -244,8 +264,7 @@ export async function listProjectImageFilters(projectId: string): Promise<Projec
     credentials: "same-origin",
   })
   if (!res.ok) {
-    const msg = `Failed to load filters (HTTP ${res.status})` + (res.error ? ` ${JSON.stringify(res.error)}` : "")
-    throw new Error(msg)
+    throw new Error(formatApiError("Failed to load filters", res.status, res.error))
   }
   return Array.isArray(res.data?.items) ? res.data.items : []
 }
@@ -272,8 +291,7 @@ export async function applyProjectImageFilter(args: {
     }),
   })
   if (!res.ok) {
-    const msg = `Failed to apply filter (HTTP ${res.status})` + (res.error ? ` ${JSON.stringify(res.error)}` : "")
-    throw new Error(msg)
+    throw new Error(formatApiError("Failed to apply filter", res.status, res.error))
   }
   if (!res.data?.item || !res.data.image_id) {
     throw new Error("Failed to apply filter (invalid response)")
@@ -299,8 +317,7 @@ export async function removeProjectImageFilter(args: {
     credentials: "same-origin",
   })
   if (!res.ok) {
-    const msg = `Failed to remove filter (HTTP ${res.status})` + (res.error ? ` ${JSON.stringify(res.error)}` : "")
-    throw new Error(msg)
+    throw new Error(formatApiError("Failed to remove filter", res.status, res.error))
   }
   if (!res.data?.active_image_id) {
     throw new Error("Failed to remove filter (invalid response)")
@@ -357,9 +374,7 @@ export async function getOrCreateFilterWorkingCopy(projectId: string): Promise<
     credentials: "same-origin",
   })
   if (!res.ok) {
-    const msg =
-      `Failed to get filter working copy (HTTP ${res.status})` + (res.error ? ` ${JSON.stringify(res.error)}` : "")
-    throw new Error(msg)
+    throw new Error(formatApiError("Failed to get filter working copy", res.status, res.error))
   }
   if (res.data?.exists === false) {
     return { exists: false, stage: res.data?.stage === "no_active_image" ? "no_active_image" : undefined }
