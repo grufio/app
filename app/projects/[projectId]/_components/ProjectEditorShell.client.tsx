@@ -41,6 +41,7 @@ import { useStageInteractionPolicy } from "./editor-shell/use-stage-interaction-
 import { useEditorWorkflowAdapter } from "./editor-shell/use-editor-workflow-adapter"
 import { EditorDialogHost } from "./editor-shell/editor-dialog-host"
 import { useLeftPanelModel } from "./editor-shell/use-left-panel-model"
+import { isStaleSelectionDeleteError, resolveDeleteTargetImageId } from "./editor-shell/delete-target"
 
 function useImageStateLoadOrchestration(args: {
   imageId: string | null
@@ -287,7 +288,11 @@ export function ProjectDetailPageClient({
   })
 
   const handleDeleteMasterImage = useCallback(async () => {
-    const targetId = selectedImageId ?? displayTarget.active_image_id
+    const targetId = resolveDeleteTargetImageId({
+      selectedImageId,
+      projectImages,
+      activeImageId: displayTarget.active_image_id,
+    })
     if (!targetId) {
       setDeleteError("No active image available for delete.")
       return
@@ -295,6 +300,9 @@ export function ProjectDetailPageClient({
 
     const res = await deleteImageById(targetId)
     if (!res.ok) {
+      if (isStaleSelectionDeleteError(res.error)) {
+        await refreshProjectImages()
+      }
       setDeleteError(res.error)
       return
     }
@@ -303,7 +311,7 @@ export function ProjectDetailPageClient({
     await refreshProjectImages()
     await refreshMasterImage()
     await refreshFilterImage()
-  }, [deleteImageById, displayTarget.active_image_id, refreshFilterImage, refreshMasterImage, refreshProjectImages, selectedImageId, setDeleteError, setDeleteOpen])
+  }, [deleteImageById, displayTarget.active_image_id, projectImages, refreshFilterImage, refreshMasterImage, refreshProjectImages, selectedImageId, setDeleteError, setDeleteOpen])
 
   const handleRestoreInitialImage = useCallback(async () => {
     if (workflow.isRestoring) return

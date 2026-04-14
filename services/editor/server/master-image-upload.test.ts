@@ -268,7 +268,7 @@ describe("master-image-upload service", () => {
     expect(removeSpy).toHaveBeenCalled()
   })
 
-  it("rolls back when master->working transform copy cannot be created", async () => {
+  it("falls back to deterministic transform when source state is missing", async () => {
     const capture = { inserts: [] as InsertPayload[], deletes: 0, stateUpserts: 0 }
     const supabase = makeSupabase({
       capture,
@@ -291,15 +291,10 @@ describe("master-image-upload service", () => {
       format: "png",
     })
 
-    expect(out.ok).toBe(false)
-    if (!out.ok) {
-      expect(out.stage).toBe("db_upsert")
-      expect(out.reason).toContain("Source image transform is missing")
-    }
+    expect(out.ok).toBe(true)
     expect(capture.inserts).toHaveLength(2)
-    expect(capture.stateUpserts).toBe(0)
-    expect(capture.deletes).toBeGreaterThanOrEqual(2)
-    expect(removeSpy).toHaveBeenCalled()
+    expect(capture.stateUpserts).toBe(1)
+    expect(capture.deletes).toBe(0)
   })
 
   it("rolls back when transform upsert fails", async () => {
@@ -327,7 +322,7 @@ describe("master-image-upload service", () => {
 
     expect(out.ok).toBe(false)
     if (!out.ok) {
-      expect(out.stage).toBe("db_upsert")
+      expect(out.stage).toBe("transform_sync")
       expect(out.reason).toContain("Failed to upsert target transform")
     }
     expect(capture.inserts).toHaveLength(2)

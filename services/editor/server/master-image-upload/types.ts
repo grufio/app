@@ -1,4 +1,11 @@
-export type UploadFailStage = "validation" | "upload_limits" | "storage_upload" | "db_upsert" | "active_switch" | "lock_conflict"
+export type UploadFailStage =
+  | "validation"
+  | "upload_limits"
+  | "storage_upload"
+  | "db_upsert"
+  | "active_switch"
+  | "lock_conflict"
+  | "transform_sync"
 
 export type UploadMasterImageFailure = {
   ok: false

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import { fetchJson } from "@/lib/api/http"
-import { getOrCreateFilterWorkingCopy } from "@/lib/api/project-images"
+import { fetchJson, invalidateFetchJsonGetCache } from "@/lib/api/http"
+import { deleteMasterImageById, getOrCreateFilterWorkingCopy } from "@/lib/api/project-images"
 import type { FetchJsonResult } from "@/lib/api/http"
 
 vi.mock("@/lib/api/http", () => ({
@@ -10,10 +10,12 @@ vi.mock("@/lib/api/http", () => ({
 }))
 
 const fetchJsonMock = vi.mocked(fetchJson)
+const invalidateFetchJsonGetCacheMock = vi.mocked(invalidateFetchJsonGetCache)
 
 describe("project-images API wrapper", () => {
   beforeEach(() => {
     fetchJsonMock.mockReset()
+    invalidateFetchJsonGetCacheMock.mockReset()
   })
 
   it("maps filter panel payload including stack", async () => {
@@ -58,5 +60,36 @@ describe("project-images API wrapper", () => {
 
     const out = await getOrCreateFilterWorkingCopy("project-1")
     expect(out).toEqual({ exists: false, stage: "no_active_image" })
+  })
+
+  it("invalidates list cache before and after successful delete-by-id", async () => {
+    const ok: FetchJsonResult<unknown> = {
+      ok: true,
+      status: 200,
+      data: { ok: true },
+    }
+    fetchJsonMock.mockResolvedValueOnce(ok)
+
+    await deleteMasterImageById("project-1", "img-1")
+
+    expect(invalidateFetchJsonGetCacheMock).toHaveBeenNthCalledWith(1, "/api/projects/project-1/images/master/list")
+    expect(invalidateFetchJsonGetCacheMock).toHaveBeenNthCalledWith(2, "/api/projects/project-1/images/master")
+    expect(invalidateFetchJsonGetCacheMock).toHaveBeenNthCalledWith(3, "/api/projects/project-1/images/master/list")
+    expect(invalidateFetchJsonGetCacheMock).toHaveBeenNthCalledWith(4, "/api/projects/project-1/images/master")
+  })
+
+  it("invalidates cache again when delete-by-id fails with stale_selection", async () => {
+    const stale: FetchJsonResult<unknown> = {
+      ok: false,
+      status: 409,
+      error: { stage: "stale_selection", error: "Delete target is stale. Refresh selection." },
+    }
+    fetchJsonMock.mockResolvedValueOnce(stale)
+
+    await expect(deleteMasterImageById("project-1", "img-stale")).rejects.toThrow("stage=stale_selection")
+    expect(invalidateFetchJsonGetCacheMock).toHaveBeenNthCalledWith(1, "/api/projects/project-1/images/master/list")
+    expect(invalidateFetchJsonGetCacheMock).toHaveBeenNthCalledWith(2, "/api/projects/project-1/images/master")
+    expect(invalidateFetchJsonGetCacheMock).toHaveBeenNthCalledWith(3, "/api/projects/project-1/images/master/list")
+    expect(invalidateFetchJsonGetCacheMock).toHaveBeenNthCalledWith(4, "/api/projects/project-1/images/master")
   })
 })

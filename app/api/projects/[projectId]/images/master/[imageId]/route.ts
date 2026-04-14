@@ -10,6 +10,7 @@ import { NextResponse } from "next/server"
 
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { isUuid, jsonError, requireUser } from "@/lib/api/route-guards"
+import { getEditorTargetImageRow } from "@/lib/supabase/project-images"
 import { evaluateDeleteTarget } from "@/services/editor/server/delete-target-policy"
 import { resolveImageKind } from "@/services/editor/server/image-kind"
 
@@ -54,7 +55,17 @@ export async function DELETE(
     return jsonError("Failed to fetch image", 400, { stage: "fetch_image" })
   }
   if (!imageToDelete) {
-    return jsonError("Image not found", 404, { stage: "not_found" })
+    const targetLookup = await getEditorTargetImageRow(supabase, projectId)
+    if (targetLookup.error) {
+      return jsonError(targetLookup.error.reason, 400, { stage: targetLookup.error.stage, code: targetLookup.error.code })
+    }
+    if (!targetLookup.row?.id) {
+      return jsonError("Image not found", 404, { stage: "not_found" })
+    }
+    return jsonError("Delete target is stale. Refresh selection.", 409, {
+      stage: "stale_selection",
+      current_image_id: targetLookup.row.id,
+    })
   }
 
   const targetKind = resolveImageKind(imageToDelete)
@@ -66,10 +77,7 @@ export async function DELETE(
     if (policy.delete_reason === "master_immutable") {
       return jsonError("Master image is immutable. Use restore/replace flow.", 409, { stage: "master_immutable" })
     }
-    if (policy.delete_reason === "image_locked") {
-      return jsonError("Active image is locked", 409, { stage: "lock_conflict", reason: "image_locked" })
-    }
-    return jsonError("No active image available for delete", 409, { stage: "stale_selection" })
+    return jsonError("No active image available for delete", 409, { stage: "no_active_image" })
   }
 
   const { data: targetsRaw, error: targetsErr } = await supabase.rpc("collect_project_image_delete_targets", {

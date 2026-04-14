@@ -20,6 +20,10 @@ function scaleMicroPx(value: bigint, numerator: number, denominator: number): st
   return scaled.toString()
 }
 
+function pxToMicroPx(value: number): string {
+  return (BigInt(toPositiveInt(value)) * 1_000_000n).toString()
+}
+
 export async function copyImageTransform(args: {
   supabase: SupabaseClient<Database>
   projectId: string
@@ -29,8 +33,19 @@ export async function copyImageTransform(args: {
   sourceHeight: number
   targetWidth: number
   targetHeight: number
+  fallbackWhenMissingSource?: boolean
 }): Promise<{ ok: true } | { ok: false; reason: string }> {
-  const { supabase, projectId, sourceImageId, targetImageId, sourceWidth, sourceHeight, targetWidth, targetHeight } = args
+  const {
+    supabase,
+    projectId,
+    sourceImageId,
+    targetImageId,
+    sourceWidth,
+    sourceHeight,
+    targetWidth,
+    targetHeight,
+    fallbackWhenMissingSource = false,
+  } = args
 
   const { data: sourceTransform, error: loadErr } = await supabase
     .from("project_image_state")
@@ -43,30 +58,36 @@ export async function copyImageTransform(args: {
     return { ok: false, reason: `Failed to load source transform: ${loadErr.message}` }
   }
 
-  if (!sourceTransform) {
+  if (!sourceTransform && !fallbackWhenMissingSource) {
     return { ok: false, reason: "Source image transform is missing" }
   }
 
-  const sourceX = BigInt(sourceTransform.x_px_u ?? "0")
-  const sourceY = BigInt(sourceTransform.y_px_u ?? "0")
-  const sourceW = BigInt(sourceTransform.width_px_u ?? "0")
-  const sourceH = BigInt(sourceTransform.height_px_u ?? "0")
-
-  const targetX = scaleMicroPx(sourceX, targetWidth, sourceWidth)
-  const targetY = scaleMicroPx(sourceY, targetHeight, sourceHeight)
-  const targetW = scaleMicroPx(sourceW, targetWidth, sourceWidth)
-  const targetH = scaleMicroPx(sourceH, targetHeight, sourceHeight)
+  const targetTransform = sourceTransform
+    ? {
+        x_px_u: scaleMicroPx(BigInt(sourceTransform.x_px_u ?? "0"), targetWidth, sourceWidth),
+        y_px_u: scaleMicroPx(BigInt(sourceTransform.y_px_u ?? "0"), targetHeight, sourceHeight),
+        width_px_u: scaleMicroPx(BigInt(sourceTransform.width_px_u ?? "0"), targetWidth, sourceWidth),
+        height_px_u: scaleMicroPx(BigInt(sourceTransform.height_px_u ?? "0"), targetHeight, sourceHeight),
+        rotation_deg: sourceTransform.rotation_deg ?? 0,
+      }
+    : {
+        x_px_u: "0",
+        y_px_u: "0",
+        width_px_u: pxToMicroPx(targetWidth),
+        height_px_u: pxToMicroPx(targetHeight),
+        rotation_deg: 0,
+      }
 
   const { error: upsertErr } = await supabase.from("project_image_state").upsert(
     {
       project_id: projectId,
       image_id: targetImageId,
       role: "asset",
-      x_px_u: targetX,
-      y_px_u: targetY,
-      width_px_u: targetW,
-      height_px_u: targetH,
-      rotation_deg: sourceTransform.rotation_deg ?? 0,
+      x_px_u: targetTransform.x_px_u,
+      y_px_u: targetTransform.y_px_u,
+      width_px_u: targetTransform.width_px_u,
+      height_px_u: targetTransform.height_px_u,
+      rotation_deg: targetTransform.rotation_deg,
     },
     { onConflict: "project_id,image_id" }
   )
