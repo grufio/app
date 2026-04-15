@@ -61,7 +61,7 @@ export function LockNavTreeActions({
       <SidebarMenuAction
         inline
         showOnHover
-        disabled={disableAll}
+        disabled={disableAll || !canDelete}
         aria-busy={busy === "delete"}
         onClick={(e) => {
           e.preventDefault()

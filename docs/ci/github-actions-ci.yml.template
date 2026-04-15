@@ -6,8 +6,11 @@ on:
     branches: [ main ]
 
 jobs:
-  check:
+  lint_test:
     runs-on: ubuntu-latest
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -30,11 +33,64 @@ jobs:
       - name: Install
         run: npm ci
 
-      - name: Check (lint + tests + schema markers)
-        run: npm run check:ci
+      - name: Check local gates (lint + tests + schema markers)
+        run: npm run check:local
+
+      - name: Coverage gate
+        run: npm run test:coverage:gate
+
+      - name: Check remote DB invariants (optional)
+        if: ${{ env.SUPABASE_DB_URL != '' }}
+        run: npm run check:remote
+
+      - name: Verify remote migrations (optional)
+        if: ${{ env.SUPABASE_DB_PASSWORD != '' }}
+        run: npm run verify:remote-migrations
+
+      - name: Verify remote RLS + storage policies (optional)
+        if: ${{ env.SUPABASE_DB_PASSWORD != '' }}
+        run: npm run verify:remote-rls
+
+      - name: Verify DB types are synced (optional)
+        if: ${{ env.SUPABASE_DB_URL != '' }}
+        env:
+          SUPABASE_VERIFY_TYPES_SYNC: "1"
+        run: npm run verify:types-synced
+
+  e2e:
+    needs: lint_test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: .playwright-browsers
+          key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
 
       - name: Install Playwright browsers (Chromium)
+        if: ${{ steps.playwright-cache.outputs.cache-hit != 'true' }}
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: .playwright-browsers
         run: npx -y playwright install --with-deps chromium
 
       - name: E2E (Playwright)
-        run: npm run test:e2e
+        env:
+          PLAYWRIGHT_USE_WEBSERVER: "1"
+          PLAYWRIGHT_WEBSERVER_COMMAND: "npm run start:e2e"
+          PLAYWRIGHT_BASE_URL: "http://127.0.0.1:3110"
+        run: npm run test:e2e:ci:pr

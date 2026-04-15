@@ -71,7 +71,7 @@ export async function POST(
         imageId: result.id,
         storagePath: result.storagePath,
       })
-      return jsonError(chain.reason, 400, { stage: "db_insert", code: chain.code })
+      return jsonError(chain.reason, 400, { stage: chain.stage, code: chain.code })
     }
 
     return NextResponse.json({

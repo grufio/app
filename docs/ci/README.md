@@ -1,48 +1,37 @@
 ## CI (GitHub Actions)
 
-This repo intentionally does **not** commit `.github/workflows/*.yml` by default.
+Workflows are committed in this repository under `.github/workflows/`.
 
-Reason: some setups (OAuth apps / tokens without the `workflow` scope) cannot push workflow changes, which blocks `git push`.
+Primary pipeline:
 
-### Enable CI
+- `ci.yml`
+  - job `lint_test`:
+    - `npm run check:local`
+    - `npm run test:coverage:gate`
+    - optional remote checks (`check:remote`, `verify:remote-migrations`, `verify:remote-rls`, `verify:types-synced`) gated by available secrets/env
+  - job `e2e`:
+    - Playwright install/cache
+    - `npm run test:e2e:ci:pr`
 
-1. Copy the template:
+### Local gate commands
 
-```bash
-mkdir -p .github/workflows
-cp docs/ci/github-actions-ci.yml.template .github/workflows/ci.yml
-```
+- `npm run check:local`
+  - lint + unit/contract tests + schema/bootstrap/RLS checks
+  - does **not** require linked Supabase access
+- `npm run check:local:linked`
+  - runs `check:local` plus `verify:types-synced` with `SUPABASE_VERIFY_TYPES_SYNC=1`
+  - use this when local env is linked/authenticated to Supabase
 
-2. Commit & push using credentials that have permission to update workflows (GitHub PAT with `workflow` scope).
+### Why `verify:types-synced` is optional by default
+
+`verify:types-synced` compares generated types against a linked remote project. In environments without linked/authenticated Supabase access, this check is intentionally skipped unless explicitly enabled.
 
 ### Enforce CI on `main` (recommended)
 
-This must be configured in GitHub settings (cannot be automated from within the repo):
+Configure in GitHub settings:
 
-- Enable **Branch protection** for `main`
-- Turn on:
-  - **Require a pull request before merging**
-  - **Require status checks to pass before merging**
-  - Add required check: **CI**
-  - (Optional) **Require branches to be up to date before merging**
-
-### What CI runs
-
-- `npm run check:ci`:
-  - eslint
-  - vitest
-  - db schema marker drift check (`scripts/check-db-schema.mjs`)
-  - `next build`
-
-### DB migrations (runtime)
-
-CI validates that `db/schema.sql` includes all migration markers, but it does **not** apply migrations to your Supabase project.
-
-See `docs/migrations.md` for how to apply new `db/0xx_*.sql` migrations safely.
-
-### Optional: E2E in CI
-
-The template `docs/ci/github-actions-ci.yml.template` includes a Playwright Chromium install + `npm run test:e2e`.
-If you don't want E2E in CI (yet), you can remove those two steps from `.github/workflows/ci.yml`.
+- Enable branch protection for `main`
+- Require status checks to pass before merge
+- Add required check: `CI`
 
 

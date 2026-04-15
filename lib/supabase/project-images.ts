@@ -7,9 +7,9 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
 
+import { resolveImageKind } from "@/lib/editor/image-kind"
 import { computeDpiRelativePlacementPx, placementPxToMicroPx } from "@/lib/editor/image-placement"
 import { pxUToPxNumber } from "@/lib/editor/units"
-import { resolveImageKind } from "@/services/editor/server/image-kind"
 
 export const PROJECT_IMAGES_BUCKET = "project_images"
 

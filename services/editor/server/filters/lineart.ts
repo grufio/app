@@ -83,7 +83,7 @@ export async function lineArtImageAndActivate(args: {
     lineThickness > 10 ||
     !Number.isFinite(smoothness) ||
     smoothness < 0 ||
-    smoothness > 0.05
+    smoothness > 0.1
   ) {
     return { ok: false, status: 400, stage: "validation", reason: "Invalid line art params" }
   }
@@ -142,7 +142,15 @@ export async function lineArtImageAndActivate(args: {
     })
 
     if (!response.ok) {
-      const error = await response.text()
+      let error = await response.text()
+      try {
+        const parsed = JSON.parse(error) as { detail?: unknown }
+        if (typeof parsed.detail === "string" && parsed.detail.trim()) {
+          error = parsed.detail
+        }
+      } catch {
+        // Keep raw response text for non-JSON error payloads.
+      }
       return {
         ok: false,
         status: response.status,

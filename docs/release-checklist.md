@@ -26,6 +26,8 @@ For pre-release/public rollout, run remote verification gates (CLI-first workflo
 npm run verify:remote-migrations
 npm run verify:remote-rls
 SUPABASE_DB_URL="postgresql://..." npm run verify:image-state-binding
+SUPABASE_DB_URL="postgresql://..." npm run verify:filter-chain-binding
+SUPABASE_VERIFY_TYPES_SYNC=1 npm run verify:types-synced
 ```
 
 `verify:image-state-binding` is the rollout gate for master image/state consistency. It fails if any of these conditions are detected:
@@ -37,6 +39,7 @@ SUPABASE_DB_URL="postgresql://..." npm run verify:image-state-binding
 Notes:
 - In CI pre-release workflow, `SUPABASE_DB_PASSWORD` and `SUPABASE_DB_URL` are required secrets.
 - If you run locally, export these env vars before executing the commands.
+- `verify:types-synced` requires a linked/authenticated Supabase CLI context.
 
 If migrations are missing:
 
