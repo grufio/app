@@ -36,6 +36,7 @@ export type TransformController = {
   dispose: () => void
   rotate90: () => void
   setImageSize: (widthPxU: MicroPx, heightPxU: MicroPx, fallbackCenterPx?: { x: number; y: number } | null) => void
+  setImagePosition: (xPxU: MicroPx, yPxU: MicroPx) => void
   alignImage: (opts: AlignImageOpts) => void
   restoreImage: (opts: {
     placement: ImagePlacementPx
@@ -61,8 +62,8 @@ export function createTransformController(deps: TransformControllerDeps): Transf
     }
     deps.setImageTx(next)
     deps.onCommit?.({
-      xPxU: commitPosition ? next.xPxU : undefined,
-      yPxU: commitPosition ? next.yPxU : undefined,
+      xPxU: next.xPxU,
+      yPxU: next.yPxU,
       widthPxU: next.widthPxU,
       heightPxU: next.heightPxU,
       rotationDeg,
@@ -94,6 +95,29 @@ export function createTransformController(deps: TransformControllerDeps): Transf
     deps.markUserChanged()
     deps.setImageTx(next)
     deps.onCommit?.({ xPxU: next.xPxU, yPxU: next.yPxU, widthPxU: next.widthPxU, heightPxU: next.heightPxU, rotationDeg: deps.getRotationDeg() })
+  }
+
+  const setImagePosition = (xPxU: MicroPx, yPxU: MicroPx) => {
+    scheduler.cancel()
+    const prev = deps.getImageTx()
+    if (!prev) return
+    const next: ImageTx = {
+      xPxU,
+      yPxU,
+      widthPxU: prev.widthPxU,
+      heightPxU: prev.heightPxU,
+    }
+    const node = deps.getImageNode()
+    if (node) applyMicroPxPositionToNode(node, next.xPxU, next.yPxU)
+    deps.markUserChanged()
+    deps.setImageTx(next)
+    deps.onCommit?.({
+      xPxU: next.xPxU,
+      yPxU: next.yPxU,
+      widthPxU: next.widthPxU,
+      heightPxU: next.heightPxU,
+      rotationDeg: deps.getRotationDeg(),
+    })
   }
 
   const alignImage = (opts: AlignImageOpts) => {
@@ -140,6 +164,7 @@ export function createTransformController(deps: TransformControllerDeps): Transf
     },
     rotate90,
     setImageSize,
+    setImagePosition,
     alignImage,
     restoreImage,
   }

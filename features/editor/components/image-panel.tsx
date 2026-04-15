@@ -27,7 +27,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { NumericInput } from "./numeric-input"
 import { PanelIconSlot, PanelTwoFieldRow } from "./panel-layout"
 import { RightPanelToggleIconButton } from "./right-panel-controls"
-import { pxUToUnitDisplayUiFixed, type Unit } from "@/lib/editor/units"
+import { pxUToUnitDisplayUiFixed, type Unit, unitToPxUFixed } from "@/lib/editor/units"
 import {
   computeLockedAspectOtherDimensionFromHeightInput,
   computeLockedAspectOtherDimensionFromWidthInput,
@@ -102,16 +102,14 @@ function ImageSizeInputs({
   const [lockAspect, setLockAspect] = useState(false)
 
   const computedW = useMemo(() => {
-    if (!ready) return ""
     if (!widthPxU) return ""
     return pxUToUnitDisplayUiFixed(widthPxU, unit)
-  }, [ready, unit, widthPxU])
+  }, [unit, widthPxU])
 
   const computedH = useMemo(() => {
-    if (!ready) return ""
     if (!heightPxU) return ""
     return pxUToUnitDisplayUiFixed(heightPxU, unit)
-  }, [heightPxU, ready, unit])
+  }, [heightPxU, unit])
 
   const beginEditSession = () => {
     if (!ready) return
@@ -260,7 +258,143 @@ function ImageSizeInputs({
   )
 }
 
+function parseUnitInputToPxU(input: string, unit: Unit): bigint | null {
+  const trimmed = input.trim()
+  if (!trimmed) return null
+  try {
+    return unitToPxUFixed(trimmed, unit)
+  } catch {
+    return null
+  }
+}
+
+function ImagePositionInputs({
+  xPxU,
+  yPxU,
+  unit,
+  ready,
+  controlsDisabled,
+  onCommit,
+}: {
+  xPxU?: bigint
+  yPxU?: bigint
+  unit: Unit
+  ready: boolean
+  controlsDisabled: boolean
+  onCommit: (xPxU: bigint, yPxU: bigint) => void
+}) {
+  const [dirty, setDirty] = useState(false)
+  const draftXRef = useRef("")
+  const draftYRef = useRef("")
+  const [draftX, setDraftX] = useState("")
+  const [draftY, setDraftY] = useState("")
+
+  const computedX = useMemo(() => {
+    if (xPxU == null) return ""
+    return pxUToUnitDisplayUiFixed(xPxU, unit)
+  }, [unit, xPxU])
+
+  const computedY = useMemo(() => {
+    if (yPxU == null) return ""
+    return pxUToUnitDisplayUiFixed(yPxU, unit)
+  }, [unit, yPxU])
+
+  const beginEditSession = () => {
+    if (!ready) return
+    if (dirty) return
+    draftXRef.current = computedX
+    draftYRef.current = computedY
+    setDraftX(computedX)
+    setDraftY(computedY)
+  }
+
+  const commit = () => {
+    if (!dirty) return
+    const nextX = parseUnitInputToPxU(draftXRef.current, unit)
+    const nextY = parseUnitInputToPxU(draftYRef.current, unit)
+    if (nextX == null || nextY == null) return
+    if (xPxU != null && yPxU != null && nextX === xPxU && nextY === yPxU) return
+    onCommit(nextX, nextY)
+  }
+
+  return (
+    <PanelTwoFieldRow>
+      <SizeField
+        value={dirty ? draftX : computedX}
+        disabled={controlsDisabled}
+        ariaLabel={`Image X (${unit})`}
+        addon={<ArrowLeftRight aria-hidden="true" />}
+        unit={unit}
+        onValueChange={(next) => {
+          beginEditSession()
+          setDirty(true)
+          draftXRef.current = next
+          setDraftX(next)
+        }}
+        onFocus={() => {
+          beginEditSession()
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            commit()
+            setDirty(false)
+          }
+          if (e.key === "Escape") {
+            setDirty(false)
+            draftXRef.current = computedX
+            draftYRef.current = computedY
+            setDraftX(computedX)
+            setDraftY(computedY)
+          }
+        }}
+        onBlur={() => {
+          commit()
+          setDirty(false)
+        }}
+      />
+
+      <SizeField
+        value={dirty ? draftY : computedY}
+        disabled={controlsDisabled}
+        ariaLabel={`Image Y (${unit})`}
+        addon={<ArrowUpDown aria-hidden="true" />}
+        unit={unit}
+        onValueChange={(next) => {
+          beginEditSession()
+          setDirty(true)
+          draftYRef.current = next
+          setDraftY(next)
+        }}
+        onFocus={() => {
+          beginEditSession()
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            commit()
+            setDirty(false)
+          }
+          if (e.key === "Escape") {
+            setDirty(false)
+            draftXRef.current = computedX
+            draftYRef.current = computedY
+            setDraftX(computedX)
+            setDraftY(computedY)
+          }
+        }}
+        onBlur={() => {
+          commit()
+          setDirty(false)
+        }}
+      />
+
+      <PanelIconSlot />
+    </PanelTwoFieldRow>
+  )
+}
+
 type Props = {
+  xPxU?: bigint
+  yPxU?: bigint
   widthPxU?: bigint
   heightPxU?: bigint
   unit: Unit
@@ -269,8 +403,10 @@ type Props = {
    * Use this to prevent "flash" / drift while upstream meta/state is still loading.
    */
   ready?: boolean
+  state?: "loading" | "no_state" | "ready" | "locked"
   disabled?: boolean
   onCommit: (widthPxU: bigint, heightPxU: bigint) => void
+  onPositionCommit: (xPxU: bigint, yPxU: bigint) => void
   onAlign: (opts: { x?: "left" | "center" | "right"; y?: "top" | "center" | "bottom" }) => void
 }
 
@@ -280,14 +416,23 @@ type Props = {
  * The UI displays image size in the artboard's unit,
  * but commits changes in pixels to the canvas (so scaling remains stable).
  */
-export function ImagePanel({ widthPxU, heightPxU, unit, ready = true, disabled, onCommit, onAlign }: Props) {
-  const controlsDisabled = Boolean(disabled) || !ready
+export function ImagePanel({ xPxU, yPxU, widthPxU, heightPxU, unit, ready = true, state = "ready", disabled, onCommit, onPositionCommit, onAlign }: Props) {
+  const controlsDisabled = Boolean(disabled) || state !== "ready"
   // Functional button bars (no selected visual state). We keep transient value just to satisfy Radix.
   const [alignXAction, setAlignXAction] = useState<string>("")
   const [alignYAction, setAlignYAction] = useState<string>("")
 
   return (
     <div className="space-y-4">
+      {state !== "ready" ? (
+        <p className="text-xs text-muted-foreground">
+          {state === "loading"
+            ? "Loading image state..."
+            : state === "no_state"
+              ? "No saved image transform yet. Set width/height and X/Y to create one."
+              : "Image is locked."}
+        </p>
+      ) : null}
       {/* Keep row layout aligned with other right-panel rows:
           [field | field | icon-slot placeholder] */}
       <ImageSizeInputs
@@ -297,6 +442,14 @@ export function ImagePanel({ widthPxU, heightPxU, unit, ready = true, disabled, 
         ready={ready}
         controlsDisabled={controlsDisabled}
         onCommit={onCommit}
+      />
+      <ImagePositionInputs
+        xPxU={xPxU}
+        yPxU={yPxU}
+        unit={unit}
+        ready={ready}
+        controlsDisabled={controlsDisabled}
+        onCommit={onPositionCommit}
       />
 
       {/* Alignment controls (like the screenshot): 3 icons under width and 3 under height */}

@@ -18,14 +18,12 @@ export function computeWorkspaceReady(opts: {
 
 export function computeImagePanelReady(opts: {
   workspaceReady: boolean
-  masterImage: unknown
   imageStateLoading: boolean
   panelImagePxU: { w: bigint; h: bigint } | null
 }) {
-  const { workspaceReady, masterImage, imageStateLoading, panelImagePxU } = opts
+  const { workspaceReady, imageStateLoading, panelImagePxU } = opts
   return (
     workspaceReady &&
-    Boolean(masterImage) &&
     !imageStateLoading &&
     Boolean(panelImagePxU && panelImagePxU.w > 0n && panelImagePxU.h > 0n)
   )

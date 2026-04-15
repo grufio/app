@@ -43,24 +43,6 @@ import { EditorDialogHost } from "./editor-shell/editor-dialog-host"
 import { useLeftPanelModel } from "./editor-shell/use-left-panel-model"
 import { isStaleSelectionDeleteError, resolveDeleteTargetImageId } from "./editor-shell/delete-target"
 
-function useImageStateLoadOrchestration(args: {
-  imageId: string | null
-  loadImageState: () => Promise<void>
-}) {
-  const { imageId, loadImageState } = args
-  const loadedImageStateForImageIdRef = useRef<string | null>(null)
-
-  useEffect(() => {
-    if (!imageId) {
-      loadedImageStateForImageIdRef.current = null
-      return
-    }
-    if (loadedImageStateForImageIdRef.current === imageId) return
-    loadedImageStateForImageIdRef.current = imageId
-    void loadImageState()
-  }, [imageId, loadImageState])
-}
-
 export function ProjectDetailPageClient({
   projectId,
   initialProject,
@@ -125,12 +107,12 @@ export function ProjectDetailPageClient({
   const canvasRef = useRef<ProjectCanvasStageHandle | null>(null)
   const lastFilterErrorToastRef = useRef("")
   const lastNoWorkingImageMetricRef = useRef("")
-  const [imagePxU, setImagePxU] = useState<{ w: bigint; h: bigint } | null>(null)
+  const [imageTransformPxU, setImageTransformPxU] = useState<{ x: bigint; y: bigint; w: bigint; h: bigint } | null>(null)
   const {
     sourceSnapshot,
     initialImageTransform,
+    imageStateError,
     imageStateLoading,
-    loadImageState,
     workflow,
     editorImageSource,
     activeCanvasImageId,
@@ -225,18 +207,23 @@ export function ProjectDetailPageClient({
     if (opened) setCanvasMode("filter")
   }, [filterDialog, isAddFilterDisabled, setCanvasMode, workflow])
 
-  const initialImagePxU = useMemo(() => {
-    if (!activeCanvasImageId || !initialImageTransform) return null
+  const initialImageTransformPxU = useMemo(() => {
+    if (!initialImageTransform) return null
     const wU = initialImageTransform.widthPxU
     const hU = initialImageTransform.heightPxU
     if (!wU || !hU || wU <= 0n || hU <= 0n) return null
-    return { w: wU, h: hU }
-  }, [activeCanvasImageId, initialImageTransform])
+    return {
+      x: initialImageTransform.xPxU ?? 0n,
+      y: initialImageTransform.yPxU ?? 0n,
+      w: wU,
+      h: hU,
+    }
+  }, [initialImageTransform])
 
-  const handleImagePxChange = useCallback((w: bigint, h: bigint) => {
-    setImagePxU((prev) => {
-      if (prev && prev.w === w && prev.h === h) return prev
-      return { w, h }
+  const handleImageTransformChange = useCallback((next: { x: bigint; y: bigint; w: bigint; h: bigint }) => {
+    setImageTransformPxU((prev) => {
+      if (prev && prev.x === next.x && prev.y === next.y && prev.w === next.w && prev.h === next.h) return prev
+      return next
     })
   }, [])
 
@@ -307,7 +294,7 @@ export function ProjectDetailPageClient({
       return
     }
     setDeleteOpen(false)
-    setImagePxU(null)
+    setImageTransformPxU(null)
     await refreshProjectImages()
     await refreshMasterImage()
     await refreshFilterImage()
@@ -338,11 +325,11 @@ export function ProjectDetailPageClient({
     updateWorkspacePageBg,
   })
 
-  const { panelImagePxU, workspaceReady, imagePanelReady, imagePanelLocked, activeRightSection, panelImageMeta } = useRightPanelModel({
+  const { panelImagePxU, panelImagePosPxU, imagePanelReady, imagePanelState, imagePanelLocked, activeRightSection, panelImageMeta } = useRightPanelModel({
     selectedNavId,
     imageStateLoading,
-    imagePxU,
-    initialImagePxU,
+    imageTransformPxU,
+    initialImageTransformPxU,
     workspaceLoading,
     workspaceUnit,
     masterImage,
@@ -375,11 +362,6 @@ export function ProjectDetailPageClient({
   useEffect(() => {
     void refreshProjectImages()
   }, [masterImage?.id, refreshProjectImages])
-
-  useImageStateLoadOrchestration({
-    imageId: activeCanvasImageId,
-    loadImageState,
-  })
 
   const renderModel = useMemo(() => {
     const readyImage = editorImageSource.status === "ready" ? editorImageSource.image : null
@@ -487,7 +469,7 @@ export function ProjectDetailPageClient({
               artboardHeightPx={artboardHeightPx ?? undefined}
               artboardDpi={workspaceDpi ?? undefined}
               grid={grid}
-              handleImagePxChange={handleImagePxChange}
+              handleImageTransformChange={handleImageTransformChange}
               initialImageTransform={initialImageTransform}
               saveImageState={saveImageStateBound}
               pageBgEnabled={pageBgEnabled}
@@ -527,11 +509,12 @@ export function ProjectDetailPageClient({
             handleDeleteMasterImage={handleDeleteMasterImage}
             onRequestDeleteImage={requestDeleteSelectedImage}
             canDeleteActiveImage={displayTarget.deletable}
+            panelImagePosPxU={panelImagePosPxU}
             panelImagePxU={panelImagePxU}
             workspaceUnit={workspaceUnit ?? "cm"}
-            workspaceReady={workspaceReady}
-            imageStateLoading={imageStateLoading}
             imagePanelReady={imagePanelReady}
+            imagePanelState={imagePanelState}
+            imageStateError={imageStateError}
             imagePanelLocked={imagePanelLocked}
             gridVisible={gridVisible}
             onGridVisibleChange={setGridVisible}

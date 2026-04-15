@@ -35,6 +35,32 @@ describe("createTransformController", () => {
     expect(commits[0].heightPxU).toBe(3_000_000n)
   })
 
+  it("setImagePosition commits immediately with existing image transform", () => {
+    const commits: Array<{ xPxU?: bigint; yPxU?: bigint }> = []
+    let tx: { xPxU: bigint; yPxU: bigint; widthPxU: bigint; heightPxU: bigint } | null = {
+      xPxU: 100n,
+      yPxU: 200n,
+      widthPxU: 3_000_000n,
+      heightPxU: 4_000_000n,
+    }
+    const c = createTransformController({
+      getImageNode: () => null,
+      getLayer: () => null,
+      getRotationDeg: () => 0,
+      setRotationDeg: () => {},
+      getImageTx: () => tx,
+      setImageTx: (next) => {
+        tx = next
+      },
+      markUserChanged: () => {},
+      onCommit: (t) => commits.push({ xPxU: t.xPxU, yPxU: t.yPxU }),
+    })
+
+    c.setImagePosition(1_500_000n, 2_500_000n)
+    expect(commits.length).toBe(1)
+    expect(commits[0]).toEqual({ xPxU: 1_500_000n, yPxU: 2_500_000n })
+  })
+
   it("scheduleCommit merges commitPosition flags", async () => {
     vi.useFakeTimers()
     try {
@@ -82,6 +108,40 @@ describe("createTransformController", () => {
       // If commitPosition was merged to true, x/y are included.
       expect(typeof commits[0].xPxU).toBe("bigint")
       expect(typeof commits[0].yPxU).toBe("bigint")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("scheduleCommit(false) still commits persisted x/y values", async () => {
+    vi.useFakeTimers()
+    try {
+      const commits: Array<{ xPxU?: bigint; yPxU?: bigint }> = []
+      const nodeStub = {
+        width: () => 3,
+        height: () => 4,
+        scaleX: () => 1,
+        scaleY: () => 1,
+        x: () => 999,
+        y: () => 888,
+        rotation: () => 0,
+      } as unknown as Konva.Image
+      const c = createTransformController({
+        getImageNode: () => nodeStub,
+        getLayer: () => null,
+        getRotationDeg: () => 0,
+        setRotationDeg: () => {},
+        getImageTx: () => ({ xPxU: 11n, yPxU: 22n, widthPxU: 3_000_000n, heightPxU: 4_000_000n }),
+        setImageTx: () => {},
+        markUserChanged: () => {},
+        onCommit: (t) => commits.push({ xPxU: t.xPxU, yPxU: t.yPxU }),
+      })
+
+      c.scheduleCommit(false, 10)
+      await vi.advanceTimersByTimeAsync(20)
+
+      expect(commits.length).toBe(1)
+      expect(commits[0]).toEqual({ xPxU: 11n, yPxU: 22n })
     } finally {
       vi.useRealTimers()
     }

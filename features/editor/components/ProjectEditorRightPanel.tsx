@@ -72,11 +72,12 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
   handleDeleteMasterImage: () => void | Promise<void>
   onRequestDeleteImage: () => void
   canDeleteActiveImage: boolean
+  panelImagePosPxU: { x: bigint; y: bigint } | null
   panelImagePxU: { w: bigint; h: bigint } | null
   workspaceUnit: Unit
-  workspaceReady: boolean
-  imageStateLoading: boolean
   imagePanelReady: boolean
+  imagePanelState: "loading" | "no_state" | "ready"
+  imageStateError: string
   imagePanelLocked?: boolean
   gridVisible: boolean
   onGridVisibleChange: (v: boolean) => void
@@ -107,11 +108,12 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
     handleDeleteMasterImage,
     onRequestDeleteImage,
     canDeleteActiveImage,
+    panelImagePosPxU,
     panelImagePxU,
     workspaceUnit,
-    workspaceReady,
-    imageStateLoading,
     imagePanelReady,
+    imagePanelState,
+    imageStateError,
     imagePanelLocked = false,
     gridVisible,
     onGridVisibleChange,
@@ -133,6 +135,9 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
       onWidthRemChange: onPanelWidthRemChange,
     })
   }
+  const imagePanelUiState: "loading" | "no_state" | "ready" | "locked" = imagePanelLocked
+    ? "locked"
+    : imagePanelState
 
   return (
     <>
@@ -214,13 +219,18 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
                   </>
                 }
               >
+                {imageStateError ? <div className="mb-3 text-xs text-muted-foreground">{imageStateError}</div> : null}
                 <ImagePanel
+                  xPxU={panelImagePosPxU?.x}
+                  yPxU={panelImagePosPxU?.y}
                   widthPxU={panelImagePxU?.w}
                   heightPxU={panelImagePxU?.h}
                   unit={workspaceUnit}
                   ready={imagePanelReady}
-                  disabled={!masterImage || imageStateLoading || !workspaceReady || imagePanelLocked}
+                  state={imagePanelUiState}
+                  disabled={!imagePanelReady || imagePanelLocked}
                   onCommit={(w, h) => canvasRef.current?.setImageSize(w, h)}
+                  onPositionCommit={(x, y) => canvasRef.current?.setImagePosition(x, y)}
                   onAlign={(opts) => canvasRef.current?.alignImage(opts)}
                 />
               </EditorSidebarSection>

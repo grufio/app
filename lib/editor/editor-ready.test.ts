@@ -42,29 +42,26 @@ describe("computeImagePanelReady", () => {
     expect(
       computeImagePanelReady({
         workspaceReady: false,
-        masterImage: { name: "x" },
         imageStateLoading: false,
         panelImagePxU: { w: 1n, h: 1n },
       })
     ).toBe(false)
   })
 
-  test("false if loading image state", () => {
+  test("false while image state is loading", () => {
     expect(
       computeImagePanelReady({
         workspaceReady: true,
-        masterImage: { name: "x" },
         imageStateLoading: true,
         panelImagePxU: { w: 1n, h: 1n },
       })
     ).toBe(false)
   })
 
-  test("false if missing panel size", () => {
+  test("true even if panel size is not loaded yet", () => {
     expect(
       computeImagePanelReady({
         workspaceReady: true,
-        masterImage: { name: "x" },
         imageStateLoading: false,
         panelImagePxU: null,
       })
@@ -75,7 +72,6 @@ describe("computeImagePanelReady", () => {
     expect(
       computeImagePanelReady({
         workspaceReady: true,
-        masterImage: { name: "x" },
         imageStateLoading: false,
         panelImagePxU: { w: 0n, h: 1n },
       })
@@ -86,7 +82,6 @@ describe("computeImagePanelReady", () => {
     expect(
       computeImagePanelReady({
         workspaceReady: true,
-        masterImage: { name: "x" },
         imageStateLoading: false,
         panelImagePxU: { w: 100n, h: 200n },
       })

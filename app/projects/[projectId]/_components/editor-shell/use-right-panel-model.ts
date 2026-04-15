@@ -9,11 +9,11 @@ import { mapSelectedNavIdToRightPanelSection } from "@/services/editor/panel-rou
 export function useRightPanelModel(args: {
   selectedNavId: string
   imageStateLoading: boolean
-  imagePxU: { w: bigint; h: bigint } | null
-  initialImagePxU: { w: bigint; h: bigint } | null
+  imageTransformPxU: { x: bigint; y: bigint; w: bigint; h: bigint } | null
+  initialImageTransformPxU: { x: bigint; y: bigint; w: bigint; h: bigint } | null
   workspaceLoading: boolean
   workspaceUnit: Unit | null
-  masterImage: { signedUrl?: string | null; name?: string | null } | null
+  masterImage: { signedUrl?: string | null; name?: string | null; width_px?: number | null; height_px?: number | null } | null
   projectImages: Array<{ id: string; name?: string | null }>
   selectedImageId: string | null
   lockedImageById: Record<string, boolean>
@@ -21,8 +21,8 @@ export function useRightPanelModel(args: {
   const {
     selectedNavId,
     imageStateLoading,
-    imagePxU,
-    initialImagePxU,
+    imageTransformPxU,
+    initialImageTransformPxU,
     workspaceLoading,
     workspaceUnit,
     masterImage,
@@ -41,10 +41,20 @@ export function useRightPanelModel(args: {
     [lockedImageById, selectedImageId]
   )
 
+  const activeTransformPxU = useMemo(
+    () => imageTransformPxU ?? initialImageTransformPxU ?? null,
+    [imageTransformPxU, initialImageTransformPxU]
+  )
+
   const panelImagePxU = useMemo(() => {
-    if (imageStateLoading) return null
-    return imagePxU ?? initialImagePxU ?? null
-  }, [imagePxU, imageStateLoading, initialImagePxU])
+    if (!activeTransformPxU) return null
+    return { w: activeTransformPxU.w, h: activeTransformPxU.h }
+  }, [activeTransformPxU])
+
+  const panelImagePosPxU = useMemo(() => {
+    if (!activeTransformPxU) return null
+    return { x: activeTransformPxU.x, y: activeTransformPxU.y }
+  }, [activeTransformPxU])
 
   const workspaceReady = computeWorkspaceReady({
     workspaceLoading,
@@ -53,10 +63,15 @@ export function useRightPanelModel(args: {
 
   const imagePanelReady = computeImagePanelReady({
     workspaceReady,
-    masterImage,
     imageStateLoading,
     panelImagePxU,
   })
+
+  const imagePanelState = useMemo<"loading" | "no_state" | "ready">(() => {
+    if (!workspaceReady || imageStateLoading) return "loading"
+    if (!imagePanelReady) return "no_state"
+    return "ready"
+  }, [workspaceReady, imageStateLoading, imagePanelReady])
 
   const activeRightSection = mapSelectedNavIdToRightPanelSection(selectedNavId)
 
@@ -72,8 +87,10 @@ export function useRightPanelModel(args: {
     selectedImage,
     imagePanelLocked,
     panelImagePxU,
+    panelImagePosPxU,
     workspaceReady,
     imagePanelReady,
+    imagePanelState,
     activeRightSection,
     panelImageMeta,
   }

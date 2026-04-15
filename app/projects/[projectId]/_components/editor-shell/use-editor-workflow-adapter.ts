@@ -123,13 +123,23 @@ export function useEditorWorkflowAdapter(args: {
 
   const activeSnapshotImageId = sourceSnapshot.status === "ready" ? sourceSnapshot.image.id : null
   const imageStateEnabled = sourceSnapshot.status === "ready"
-  const { initialImageTransform, imageStateLoading, loadImageState, saveImageState } = useImageState(
+  const { initialImageTransform, imageStateError, imageStateLoading, loadImageState, saveImageState } = useImageState(
     projectId,
     imageStateEnabled,
     initialImageState,
     false,
     activeSnapshotImageId ?? undefined
   )
+  const loadedStateImageIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!activeSnapshotImageId) {
+      loadedStateImageIdRef.current = null
+      return
+    }
+    if (loadedStateImageIdRef.current === activeSnapshotImageId) return
+    loadedStateImageIdRef.current = activeSnapshotImageId
+    void loadImageState()
+  }, [activeSnapshotImageId, loadImageState])
 
   const refreshEditorDataOnce = useCallback(async () => {
     await refreshMasterImage()
@@ -251,6 +261,7 @@ export function useEditorWorkflowAdapter(args: {
   return {
     sourceSnapshot,
     initialImageTransform,
+    imageStateError,
     imageStateLoading,
     loadImageState,
     workflow,
