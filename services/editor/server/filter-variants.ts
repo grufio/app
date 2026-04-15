@@ -1,12 +1,13 @@
-import crypto from "node:crypto"
-
-import sharp from "sharp"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/lib/supabase/database.types"
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role"
-import { activateMasterWithState, getEditorTargetImageRow } from "@/lib/supabase/project-images"
+import { getEditorTargetImageRow } from "@/lib/supabase/project-images"
+import { activateProjectImage } from "@/services/editor/server/activate-project-image"
 import { appendProjectImageFilter } from "@/services/editor/server/filter-chain"
+import { lineArtImageAndActivate } from "@/services/editor/server/filters/lineart"
+import { numerateImageAndActivate } from "@/services/editor/server/filters/numerate"
+import { pixelateImageAndActivate } from "@/services/editor/server/filters/pixelate"
 
 export type SupportedFilterType = "pixelate" | "lineart" | "numerate"
 
@@ -16,12 +17,16 @@ export type FilterOpFailure = {
   stage:
     | "validation"
     | "active_lookup"
+    | "source_lookup"
     | "lock_conflict"
     | "source_download"
-    | "filter_process"
+    | "pixelate_process"
+    | "lineart_process"
+    | "numerate_process"
     | "storage_upload"
     | "db_insert"
     | "chain_append"
+    | "transform_sync"
     | "active_switch"
     | "filter_lookup"
     | "rebuild"
@@ -59,15 +64,12 @@ function parseFilterType(value: unknown): SupportedFilterType | null {
 }
 
 function normalizeFilterParams(filterType: SupportedFilterType, params: unknown): Record<string, unknown> {
+  const input = (params as Record<string, unknown> | null | undefined) ?? {}
   if (filterType === "pixelate") {
-    const p = params as
-      | { superpixel_width?: unknown; superpixel_height?: unknown; num_colors?: unknown; color_mode?: unknown }
-      | null
-      | undefined
-    const superpixelWidthRaw = Number(p?.superpixel_width ?? 10)
-    const superpixelHeightRaw = Number(p?.superpixel_height ?? 10)
-    const numColorsRaw = Number(p?.num_colors ?? 16)
-    const colorMode = String(p?.color_mode ?? "rgb").toLowerCase() === "grayscale" ? "grayscale" : "rgb"
+    const superpixelWidthRaw = Number(input.superpixel_width ?? 10)
+    const superpixelHeightRaw = Number(input.superpixel_height ?? 10)
+    const numColorsRaw = Number(input.num_colors ?? 16)
+    const colorMode = String(input.color_mode ?? "rgb").toLowerCase() === "grayscale" ? "grayscale" : "rgb"
     return {
       superpixel_width: Number.isFinite(superpixelWidthRaw) ? Math.max(1, Math.round(superpixelWidthRaw)) : 10,
       superpixel_height: Number.isFinite(superpixelHeightRaw) ? Math.max(1, Math.round(superpixelHeightRaw)) : 10,
@@ -75,40 +77,35 @@ function normalizeFilterParams(filterType: SupportedFilterType, params: unknown)
       color_mode: colorMode,
     }
   }
+  if (filterType === "lineart") {
+    const threshold1Raw = Number(input.threshold1 ?? 100)
+    const threshold2Raw = Number(input.threshold2 ?? 200)
+    const lineThicknessRaw = Number(input.line_thickness ?? 2)
+    const blurAmountRaw = Number(input.blur_amount ?? 3)
+    const minContourAreaRaw = Number(input.min_contour_area ?? 200)
+    const smoothnessRaw = Number(input.smoothness ?? 0.005)
+    return {
+      threshold1: Number.isFinite(threshold1Raw) ? Math.round(threshold1Raw) : 100,
+      threshold2: Number.isFinite(threshold2Raw) ? Math.round(threshold2Raw) : 200,
+      line_thickness: Number.isFinite(lineThicknessRaw) ? Math.max(1, Math.round(lineThicknessRaw)) : 2,
+      blur_amount: Number.isFinite(blurAmountRaw) ? Math.max(0, Math.round(blurAmountRaw)) : 3,
+      min_contour_area: Number.isFinite(minContourAreaRaw) ? Math.max(0, Math.round(minContourAreaRaw)) : 200,
+      invert: Boolean(input.invert),
+      smoothness: Number.isFinite(smoothnessRaw) ? smoothnessRaw : 0.005,
+    }
+  }
+  if (filterType === "numerate") {
+    const superpixelWidthRaw = Number(input.superpixel_width ?? 10)
+    const superpixelHeightRaw = Number(input.superpixel_height ?? 10)
+    const strokeWidthRaw = Number(input.stroke_width ?? 1)
+    return {
+      superpixel_width: Number.isFinite(superpixelWidthRaw) ? Math.max(1, Math.round(superpixelWidthRaw)) : 10,
+      superpixel_height: Number.isFinite(superpixelHeightRaw) ? Math.max(1, Math.round(superpixelHeightRaw)) : 10,
+      stroke_width: Number.isFinite(strokeWidthRaw) ? Math.max(1, Math.round(strokeWidthRaw)) : 1,
+      show_colors: Boolean(input.show_colors),
+    }
+  }
   return {}
-}
-
-async function applyFilterToBuffer(args: {
-  input: Buffer
-  format: string | null | undefined
-  filterType: SupportedFilterType
-  params: Record<string, unknown>
-}): Promise<{ buffer: Buffer; format: "jpeg" | "png" | "webp"; width: number; height: number }> {
-  const { input, format, filterType, params } = args
-  const outFormat: "jpeg" | "png" | "webp" = format === "jpg" || format === "jpeg" ? "jpeg" : format === "webp" ? "webp" : "png"
-  if (filterType !== "pixelate") {
-    throw new Error("Use dedicated /filters routes for non-pixelate filters")
-  }
-  const sourceMeta = await sharp(input).metadata()
-  const srcW = Number(sourceMeta.width ?? 0)
-  const srcH = Number(sourceMeta.height ?? 0)
-  if (!(srcW > 0 && srcH > 0)) throw new Error("Invalid source image dimensions")
-  const superW = Math.max(1, Number(params.superpixel_width ?? 10))
-  const superH = Math.max(1, Number(params.superpixel_height ?? 10))
-  const downW = Math.max(1, Math.floor(srcW / superW))
-  const downH = Math.max(1, Math.floor(srcH / superH))
-  let pipeline = sharp(input)
-    .resize(downW, downH, { kernel: "nearest", fit: "fill" })
-    .resize(srcW, srcH, { kernel: "nearest", fit: "fill" })
-  if (params.color_mode === "grayscale") pipeline = pipeline.grayscale()
-  const buffer = await pipeline.toFormat(outFormat).toBuffer()
-  const meta = await sharp(buffer).metadata()
-  const width = Number(meta.width ?? 0)
-  const height = Number(meta.height ?? 0)
-  if (!(width > 0 && height > 0)) {
-    throw new Error("Invalid filtered output dimensions")
-  }
-  return { buffer, format: outFormat, width, height }
 }
 
 async function createDerivedImageFromSource(args: {
@@ -119,71 +116,69 @@ async function createDerivedImageFromSource(args: {
   params: Record<string, unknown>
 }): Promise<{ ok: true; imageId: string; widthPx: number; heightPx: number; storagePath: string } | FilterOpFailure> {
   const { supabase, projectId, sourceImageId, filterType, params } = args
-  const { data: src, error: srcErr } = await supabase
-    .from("project_images")
-    .select("id,name,format,width_px,height_px,dpi,storage_bucket,storage_path,is_locked,deleted_at")
-    .eq("project_id", projectId)
-    .eq("id", sourceImageId)
-    .is("deleted_at", null)
-    .maybeSingle()
-  if (srcErr) return { ok: false, status: 400, stage: "active_lookup", reason: srcErr.message, code: (srcErr as { code?: string }).code }
-  if (!src?.storage_path) return { ok: false, status: 404, stage: "active_lookup", reason: "Source image not found" }
-  if (src.is_locked) return { ok: false, status: 409, stage: "lock_conflict", reason: "Active image is locked", code: "image_locked" }
-
-  const service = createSupabaseServiceRoleClient()
-  const sourceBucket = src.storage_bucket ?? "project_images"
-  const { data: blob, error: dlErr } = await service.storage.from(sourceBucket).download(src.storage_path)
-  if (dlErr || !blob) return { ok: false, status: 400, stage: "source_download", reason: dlErr?.message ?? "Failed to download source" }
-
-  let rendered: { buffer: Buffer; format: "jpeg" | "png" | "webp"; width: number; height: number }
-  try {
-    rendered = await applyFilterToBuffer({
-      input: Buffer.from(await blob.arrayBuffer()),
-      format: src.format,
-      filterType,
-      params,
+  if (filterType === "pixelate") {
+    const result = await pixelateImageAndActivate({
+      supabase,
+      projectId,
+      sourceImageId,
+      params: {
+        superpixelWidth: Number(params.superpixel_width),
+        superpixelHeight: Number(params.superpixel_height),
+        colorMode: String(params.color_mode ?? "rgb") === "grayscale" ? "grayscale" : "rgb",
+        numColors: Number(params.num_colors),
+      },
     })
-  } catch (e) {
-    return { ok: false, status: 400, stage: "filter_process", reason: e instanceof Error ? e.message : "Filter processing failed" }
+    if (!result.ok) return result
+    return {
+      ok: true,
+      imageId: result.id,
+      widthPx: result.widthPx,
+      heightPx: result.heightPx,
+      storagePath: result.storagePath,
+    }
   }
-
-  const imageId = crypto.randomUUID()
-  const objectPath = `projects/${projectId}/images/${imageId}`
-  const contentType = rendered.format === "jpeg" ? "image/jpeg" : rendered.format === "webp" ? "image/webp" : "image/png"
-  const { error: uploadErr } = await service.storage.from("project_images").upload(objectPath, rendered.buffer, {
-    upsert: false,
-    contentType,
-  })
-  if (uploadErr) return { ok: false, status: 400, stage: "storage_upload", reason: uploadErr.message, code: (uploadErr as { code?: string }).code }
-
-  const { error: insertErr } = await supabase.from("project_images").insert({
-    id: imageId,
-    project_id: projectId,
-    role: "asset",
-    kind: "filter_working_copy",
-    name: `${src.name} (${filterType})`,
-    format: rendered.format,
-    width_px: rendered.width,
-    height_px: rendered.height,
-    dpi: Number(src.dpi ?? 72),
-    storage_bucket: "project_images",
-    storage_path: objectPath,
-    file_size_bytes: rendered.buffer.byteLength,
-    is_active: false,
-    source_image_id: sourceImageId,
-    crop_rect_px: null,
-  })
-  if (insertErr) {
-    await service.storage.from("project_images").remove([objectPath])
-    return { ok: false, status: 400, stage: "db_insert", reason: insertErr.message, code: (insertErr as { code?: string }).code }
+  if (filterType === "lineart") {
+    const result = await lineArtImageAndActivate({
+      supabase,
+      projectId,
+      sourceImageId,
+      params: {
+        threshold1: Number(params.threshold1),
+        threshold2: Number(params.threshold2),
+        lineThickness: Number(params.line_thickness),
+        blurAmount: Number(params.blur_amount),
+        minContourArea: Number(params.min_contour_area),
+        invert: Boolean(params.invert),
+        smoothness: Number(params.smoothness),
+      },
+    })
+    if (!result.ok) return result
+    return {
+      ok: true,
+      imageId: result.id,
+      widthPx: result.widthPx,
+      heightPx: result.heightPx,
+      storagePath: result.storagePath,
+    }
   }
-
+  const result = await numerateImageAndActivate({
+    supabase,
+    projectId,
+    sourceImageId,
+    params: {
+      superpixelWidth: Number(params.superpixel_width),
+      superpixelHeight: Number(params.superpixel_height),
+      strokeWidth: Number(params.stroke_width),
+      showColors: Boolean(params.show_colors),
+    },
+  })
+  if (!result.ok) return result
   return {
     ok: true,
-    imageId,
-    widthPx: rendered.width,
-    heightPx: rendered.height,
-    storagePath: objectPath,
+    imageId: result.id,
+    widthPx: result.widthPx,
+    heightPx: result.heightPx,
+    storagePath: result.storagePath,
   }
 }
 
@@ -255,7 +250,8 @@ export async function applyProjectImageFilter(args: {
   const { supabase, projectId } = args
   const filterType = parseFilterType(args.filterType)
   if (!filterType) return { ok: false, status: 400, stage: "validation", reason: "Unsupported filter type" }
-  const params = normalizeFilterParams(filterType, args.filterParams)
+  const rawParams = (args.filterParams as Record<string, unknown> | null | undefined) ?? {}
+  const params = normalizeFilterParams(filterType, rawParams)
 
   const activeLookup = await getEditorTargetImageRow(supabase, projectId)
   if (activeLookup.error) {
@@ -269,12 +265,31 @@ export async function applyProjectImageFilter(args: {
   }
   const active = activeLookup.row
   if (!active?.id) return { ok: false, status: 404, stage: "active_lookup", reason: "No active image found" }
-  if (active.is_locked) return { ok: false, status: 409, stage: "lock_conflict", reason: "Active image is locked", code: "image_locked" }
+  const requestedSourceImageId =
+    typeof rawParams.source_image_id === "string" && rawParams.source_image_id.trim() ? rawParams.source_image_id.trim() : null
+  const sourceImageId = requestedSourceImageId ?? String(active.id)
+  if (sourceImageId === String(active.id) && active.is_locked) {
+    return { ok: false, status: 409, stage: "lock_conflict", reason: "Active image is locked", code: "image_locked" }
+  }
+  let sourceImageDpi = Number(active.dpi ?? 72)
+  if (sourceImageId !== String(active.id)) {
+    const { data: sourceRow, error: sourceErr } = await supabase
+      .from("project_images")
+      .select("dpi")
+      .eq("project_id", projectId)
+      .eq("id", sourceImageId)
+      .is("deleted_at", null)
+      .maybeSingle()
+    if (sourceErr || !sourceRow) {
+      return { ok: false, status: 404, stage: "source_lookup", reason: sourceErr?.message ?? "Source image not found" }
+    }
+    sourceImageDpi = Number(sourceRow.dpi ?? 72)
+  }
 
   const created = await createDerivedImageFromSource({
     supabase,
     projectId,
-    sourceImageId: String(active.id),
+    sourceImageId,
     filterType,
     params,
   })
@@ -283,7 +298,7 @@ export async function applyProjectImageFilter(args: {
   const appended = await appendProjectImageFilter({
     supabase,
     projectId,
-    inputImageId: String(active.id),
+    inputImageId: sourceImageId,
     outputImageId: created.imageId,
     filterType,
     filterParams: params,
@@ -321,13 +336,13 @@ export async function applyProjectImageFilter(args: {
     await supabase.from("project_image_filters").delete().eq("project_id", projectId).eq("output_image_id", created.imageId)
   }
 
-  const activation = await activateMasterWithState({
+  const activation = await activateProjectImage({
     supabase,
     projectId,
     imageId: created.imageId,
     widthPx: created.widthPx,
     heightPx: created.heightPx,
-    imageDpi: Number(active.dpi ?? 72),
+    imageDpi: sourceImageDpi,
   })
   if (!activation.ok) {
     await cleanupInsertedFilter()
@@ -428,7 +443,11 @@ export async function removeProjectImageFilter(args: {
     return { ok: false, status: 400, stage: "rebuild", reason: delFilterErr.message, code: (delFilterErr as { code?: string }).code }
   }
 
-  const { error: reorderErr } = await supabase.rpc("reorder_project_image_filters", {
+  const reorderFilters = supabase.rpc as unknown as (
+    fn: string,
+    args: Record<string, unknown>
+  ) => Promise<{ error: { message: string; code?: string } | null }>
+  const { error: reorderErr } = await reorderFilters("reorder_project_image_filters", {
     p_project_id: projectId,
   })
   if (reorderErr) {
@@ -453,7 +472,7 @@ export async function removeProjectImageFilter(args: {
     return { ok: false, status: 400, stage: "active_lookup", reason: activeRowErr?.message ?? "Active image row missing" }
   }
 
-  const activation = await activateMasterWithState({
+  const activation = await activateProjectImage({
     supabase,
     projectId,
     imageId: activeImageId,

@@ -6,8 +6,7 @@ Primary pipeline:
 
 - `ci.yml`
   - job `lint_test`:
-    - `npm run check:local`
-    - `npm run test:coverage:gate`
+    - `npm run gate:ci`
     - optional remote checks (`check:remote`, `verify:remote-migrations`, `verify:remote-rls`, `verify:types-synced`) gated by available secrets/env
   - job `e2e`:
     - Playwright install/cache
@@ -15,12 +14,16 @@ Primary pipeline:
 
 ### Local gate commands
 
-- `npm run check:local`
+- `npm run gate:local`
   - lint + unit/contract tests + schema/bootstrap/RLS checks
   - does **not** require linked Supabase access
-- `npm run check:local:linked`
-  - runs `check:local` plus `verify:types-synced` with `SUPABASE_VERIFY_TYPES_SYNC=1`
+- `npm run gate:linked`
+  - runs `gate:local` plus `verify:types-synced` with `SUPABASE_VERIFY_TYPES_SYNC=1`
   - use this when local env is linked/authenticated to Supabase
+- `npm run gate:ci`
+  - runs `gate:local` plus coverage
+- `npm run gate:pre-release`
+  - runs `gate:ci` plus remote migration/RLS/binding/type-sync checks
 
 ### Why `verify:types-synced` is optional by default
 

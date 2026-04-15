@@ -98,6 +98,7 @@ export function useEditorWorkflowAdapter(args: {
   } = args
   const [uploadSyncing, setUploadSyncing] = useState(false)
   const activeSourceImageIdRef = useRef<string | null>(null)
+  const loadedImageStateForImageIdRef = useRef<string | null>(null)
   const refreshInFlightRef = useRef<Promise<void> | null>(null)
   const refreshQueuedRef = useRef(false)
 
@@ -131,12 +132,24 @@ export function useEditorWorkflowAdapter(args: {
     activeSnapshotImageId ?? undefined
   )
 
+  useEffect(() => {
+    if (!activeSnapshotImageId) {
+      loadedImageStateForImageIdRef.current = null
+      return
+    }
+    if (loadedImageStateForImageIdRef.current === activeSnapshotImageId) return
+    loadedImageStateForImageIdRef.current = activeSnapshotImageId
+    void loadImageState()
+  }, [activeSnapshotImageId, loadImageState])
+
   const refreshEditorDataOnce = useCallback(async () => {
     await refreshMasterImage()
     await refreshProjectImages()
     await refreshFilterImage()
-    await loadImageState()
-  }, [loadImageState, refreshFilterImage, refreshMasterImage, refreshProjectImages])
+    if (activeSnapshotImageId) {
+      await loadImageState()
+    }
+  }, [activeSnapshotImageId, loadImageState, refreshFilterImage, refreshMasterImage, refreshProjectImages])
 
   const refreshEditorData = useCallback(async () => {
     if (refreshInFlightRef.current) {

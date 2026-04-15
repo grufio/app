@@ -3,9 +3,9 @@ import crypto from "node:crypto"
 import sharp from "sharp"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
+import { activateProjectImage } from "@/services/editor/server/activate-project-image"
 import { copyImageTransform } from "@/services/editor/server/copy-image-transform"
 import type { Database } from "@/lib/supabase/database.types"
-import { activateMasterWithState } from "@/lib/supabase/project-images"
 
 type CropFailStage =
   | "validation"
@@ -186,7 +186,7 @@ export async function cropImageAndActivate(args: {
   }
 
 
-  const activation = await activateMasterWithState({
+  const activation = await activateProjectImage({
     supabase,
     projectId,
     imageId,

@@ -15,8 +15,8 @@ vi.mock("@/lib/supabase/service-role", () => ({
   }),
 }))
 
-vi.mock("@/lib/supabase/project-images", () => ({
-  activateMasterWithState: vi.fn(),
+vi.mock("@/services/editor/server/activate-project-image", () => ({
+  activateProjectImage: vi.fn(),
 }))
 
 function makeSupabase(sourceRow: Record<string, unknown> | null) {

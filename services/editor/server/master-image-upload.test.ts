@@ -20,8 +20,8 @@ type MakeSupabaseOpts = {
   capture: { inserts: InsertPayload[]; deletes: number; stateUpserts: number }
 }
 
-vi.mock("@/lib/supabase/project-images", () => ({
-  activateMasterWithState: (...args: unknown[]) => activateSpy(...args),
+vi.mock("@/services/editor/server/activate-project-image", () => ({
+  activateProjectImage: (...args: unknown[]) => activateSpy(...args),
 }))
 
 function makeSupabase(opts: MakeSupabaseOpts) {

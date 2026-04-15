@@ -38,32 +38,10 @@ jobs:
             exit 1
           fi
 
-      - name: Verify local checks (lint + tests + schema markers + static RLS)
-        run: npm run check
-
-      - name: Verify remote migrations (required)
+      - name: Run pre-release lane
         env:
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-        run: npm run verify:remote-migrations
-
-      - name: Verify remote RLS + storage policies (required)
-        env:
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-        run: npm run verify:remote-rls
-
-      - name: Verify image-state binding rollout gate (required)
-        env:
-          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-        run: npm run verify:image-state-binding
-
-      - name: Verify filter-chain rollout gate (required)
-        env:
-          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-        run: npm run verify:filter-chain-binding
-
-      - name: Verify DB types are synced (required)
-        env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
           SUPABASE_VERIFY_TYPES_SYNC: "1"
-        run: npm run verify:types-synced
+        run: npm run gate:pre-release
 

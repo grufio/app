@@ -4,7 +4,7 @@
 
 ```bash
 npm ci
-npm run check
+npm run gate:local
 ```
 
 Optional smoke (recommended before demos/releases):
@@ -23,11 +23,7 @@ Notes:
 For pre-release/public rollout, run remote verification gates (CLI-first workflow from `docs/migrations.md`):
 
 ```bash
-npm run verify:remote-migrations
-npm run verify:remote-rls
-SUPABASE_DB_URL="postgresql://..." npm run verify:image-state-binding
-SUPABASE_DB_URL="postgresql://..." npm run verify:filter-chain-binding
-SUPABASE_VERIFY_TYPES_SYNC=1 npm run verify:types-synced
+SUPABASE_DB_PASSWORD="..." SUPABASE_DB_URL="postgresql://..." SUPABASE_VERIFY_TYPES_SYNC=1 npm run gate:pre-release
 ```
 
 `verify:image-state-binding` is the rollout gate for master image/state consistency. It fails if any of these conditions are detected:

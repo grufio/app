@@ -3,13 +3,11 @@
 import { useMemo, useReducer } from "react"
 
 export type EditorSidepanelTab = "image" | "filter" | "colors" | "output"
-export type EditorCanvasMode = "image" | "filter"
 
 export type SessionState = {
   restoreOpen: boolean
   deleteOpen: boolean
   leftPanelTab: EditorSidepanelTab
-  canvasMode: EditorCanvasMode
   hiddenFilterIds: Record<string, true>
 }
 
@@ -17,7 +15,6 @@ export type SessionAction =
   | { type: "setRestoreOpen"; open: boolean }
   | { type: "setDeleteOpen"; open: boolean }
   | { type: "setLeftPanelTab"; tab: EditorSidepanelTab }
-  | { type: "setCanvasMode"; mode: EditorCanvasMode }
   | { type: "toggleHiddenFilter"; filterId: string }
   | { type: "showFilter"; filterId: string }
   | { type: "hideFilter"; filterId: string }
@@ -34,9 +31,6 @@ export function editorSessionReducer(state: SessionState, action: SessionAction)
     case "setLeftPanelTab":
       if (state.leftPanelTab === action.tab) return state
       return { ...state, leftPanelTab: action.tab }
-    case "setCanvasMode":
-      if (state.canvasMode === action.mode) return state
-      return { ...state, canvasMode: action.mode }
     case "toggleHiddenFilter": {
       const next = { ...state.hiddenFilterIds }
       if (next[action.filterId]) delete next[action.filterId]
@@ -73,7 +67,6 @@ export function useEditorSessionState() {
     restoreOpen: false,
     deleteOpen: false,
     leftPanelTab: "image",
-    canvasMode: "image",
     hiddenFilterIds: {},
   })
 
@@ -84,7 +77,6 @@ export function useEditorSessionState() {
         setRestoreOpen: (open: boolean) => dispatch({ type: "setRestoreOpen", open }),
         setDeleteOpen: (open: boolean) => dispatch({ type: "setDeleteOpen", open }),
         setLeftPanelTab: (tab: EditorSidepanelTab) => dispatch({ type: "setLeftPanelTab", tab }),
-        setCanvasMode: (mode: EditorCanvasMode) => dispatch({ type: "setCanvasMode", mode }),
         toggleHiddenFilter: (filterId: string) => dispatch({ type: "toggleHiddenFilter", filterId }),
         showFilter: (filterId: string) => dispatch({ type: "showFilter", filterId }),
         hideFilter: (filterId: string) => dispatch({ type: "hideFilter", filterId }),

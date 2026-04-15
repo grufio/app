@@ -1,9 +1,8 @@
 ## Database migrations (Supabase)
 
-Active DB source of truth is `db/schema.sql`.
+Canonical migration history is `supabase/migrations/`.
+`db/schema.sql` is the derived runnable snapshot for auditability and SQL-editor fallback.
 Historical numbered SQL files are archived in `db/_archive/`.
-
-Going forward, **canonical migrations** are in `supabase/migrations/` and should be applied via Supabase CLI.
 
 ### CLI-first workflow (recommended)
 

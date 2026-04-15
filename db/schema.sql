@@ -1,7 +1,7 @@
 -- gruf.io Combined Schema
 --
--- This file is a runnable, derived snapshot for auditability and SQL-editor fallback.
--- Canonical migration history is `supabase/migrations/*.sql`.
+-- Canonical migration history is `supabase/migrations/`.
+-- This file is the derived runnable snapshot for auditability and SQL-editor fallback.
 -- Historical numbered files are archived in `db/_archive/`.
 
 -- =========================================================

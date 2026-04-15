@@ -7,16 +7,15 @@ function makeState(overrides?: Partial<SessionState>): SessionState {
     restoreOpen: false,
     deleteOpen: false,
     leftPanelTab: "image",
-    canvasMode: "image",
     hiddenFilterIds: {},
     ...overrides,
   }
 }
 
 describe("editorSessionReducer", () => {
-  it("switches canvas mode deterministically", () => {
-    const out = editorSessionReducer(makeState(), { type: "setCanvasMode", mode: "filter" })
-    expect(out.canvasMode).toBe("filter")
+  it("toggles restore dialog state deterministically", () => {
+    const out = editorSessionReducer(makeState(), { type: "setRestoreOpen", open: true })
+    expect(out.restoreOpen).toBe(true)
   })
 
   it("toggles filter visibility and supports explicit show", () => {

@@ -8,19 +8,12 @@
 import { NextResponse } from "next/server"
 
 import { createSupabaseServerClient } from "@/lib/supabase/server"
-import { getEditorTargetImageRow } from "@/lib/supabase/project-images"
+import { getEditorTargetImageRow, resolveImageStateRoleFromProjectImage } from "@/lib/supabase/project-images"
 import { loadBoundImageState, upsertBoundImageState } from "@/lib/supabase/image-state"
 import { isUuid, jsonError, readJson, requireUser } from "@/lib/api/route-guards"
 import { validateIncomingImageStateUpsert, type IncomingImageStatePayload } from "@/lib/editor/imageState"
 
 export const dynamic = "force-dynamic"
-
-function resolveImageStateRole(value: unknown): "master" | "working" | "asset" {
-  const role = String(value ?? "").toLowerCase()
-  if (role === "working") return "working"
-  if (role === "asset") return "asset"
-  return "master"
-}
 
 export async function GET(req: Request, { params }: { params: Promise<{ projectId: string }> }) {
   const url = new URL(req.url)
@@ -134,7 +127,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ project
   const upsert = await upsertBoundImageState(supabase, {
     project_id: baseRow.project_id,
     image_id: baseRow.image_id,
-    role: resolveImageStateRole(editorTargetImageRow?.role),
+    role: resolveImageStateRoleFromProjectImage(editorTargetImageRow),
     x_px_u: baseRow.x_px_u,
     y_px_u: baseRow.y_px_u,
     width_px_u: baseRow.width_px_u,

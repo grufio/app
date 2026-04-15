@@ -29,6 +29,7 @@ import { useEditorSessionState } from "@/lib/editor/use-editor-session-state"
 import { usePageBackgroundState } from "@/lib/editor/use-page-background-state"
 import { useProjectGrid } from "@/lib/editor/project-grid"
 import { useProjectWorkspace } from "@/lib/editor/project-workspace"
+import { reportError } from "@/lib/monitoring/error-reporting"
 import type { ImageState } from "@/lib/editor/use-image-state"
 import type { MasterImage } from "@/lib/editor/use-master-image"
 import { useMasterImage } from "@/lib/editor/use-master-image"
@@ -42,24 +43,6 @@ import { useEditorWorkflowAdapter } from "./editor-shell/use-editor-workflow-ada
 import { EditorDialogHost } from "./editor-shell/editor-dialog-host"
 import { useLeftPanelModel } from "./editor-shell/use-left-panel-model"
 import { isStaleSelectionDeleteError, resolveDeleteTargetImageId } from "./editor-shell/delete-target"
-
-function useImageStateLoadOrchestration(args: {
-  imageId: string | null
-  loadImageState: () => Promise<void>
-}) {
-  const { imageId, loadImageState } = args
-  const loadedImageStateForImageIdRef = useRef<string | null>(null)
-
-  useEffect(() => {
-    if (!imageId) {
-      loadedImageStateForImageIdRef.current = null
-      return
-    }
-    if (loadedImageStateForImageIdRef.current === imageId) return
-    loadedImageStateForImageIdRef.current = imageId
-    void loadImageState()
-  }, [imageId, loadImageState])
-}
 
 export function ProjectDetailPageClient({
   projectId,
@@ -111,13 +94,12 @@ export function ProjectDetailPageClient({
     refresh: refreshFilterImage,
   } = useFilterWorkingImage(projectId)
 
-  const [restoreOpen, setRestoreOpen] = useState(false)
   const {
     state: sessionState,
     actions: sessionActions,
   } = useEditorSessionState()
-  const { deleteOpen, leftPanelTab, canvasMode, hiddenFilterIds } = sessionState
-  const { setDeleteOpen, setLeftPanelTab, setCanvasMode, showFilter, toggleHiddenFilter, pruneHiddenFilters } = sessionActions
+  const { restoreOpen, deleteOpen, leftPanelTab, hiddenFilterIds } = sessionState
+  const { setRestoreOpen, setDeleteOpen, setLeftPanelTab, showFilter, toggleHiddenFilter, pruneHiddenFilters } = sessionActions
   const [numerateSuperpixelWidth] = useState(10)
   const [numerateSuperpixelHeight] = useState(10)
   const [gridVisible, setGridVisible] = useState(true)
@@ -130,7 +112,6 @@ export function ProjectDetailPageClient({
     sourceSnapshot,
     initialImageTransform,
     imageStateLoading,
-    loadImageState,
     workflow,
     editorImageSource,
     activeCanvasImageId,
@@ -157,9 +138,8 @@ export function ProjectDetailPageClient({
   const filterDialog = useFilterDialogSession(filterSourceImage)
 
   const handleFilterApplySuccess = useCallback(() => {
-    setCanvasMode("filter")
     filterDialog.reset()
-  }, [filterDialog, setCanvasMode])
+  }, [filterDialog])
 
   const handleFilterApplyError = useCallback(
     (error: Error) => {
@@ -221,9 +201,8 @@ export function ProjectDetailPageClient({
   const openFilterSelection = useCallback(() => {
     if (isAddFilterDisabled) return
     workflow.dismissError()
-    const opened = filterDialog.beginSelection()
-    if (opened) setCanvasMode("filter")
-  }, [filterDialog, isAddFilterDisabled, setCanvasMode, workflow])
+    filterDialog.beginSelection()
+  }, [filterDialog, isAddFilterDisabled, workflow])
 
   const initialImagePxU = useMemo(() => {
     if (!activeCanvasImageId || !initialImageTransform) return null
@@ -262,15 +241,10 @@ export function ProjectDetailPageClient({
     deleteGrid,
   })
 
-  const derivedCanvasMode = useMemo<"image" | "filter">(() => {
+  const canvasMode = useMemo<"image" | "filter">(() => {
     if (leftPanelTab === "filter" && editorImageSource.status === "ready") return "filter"
     return "image"
   }, [editorImageSource.status, leftPanelTab])
-
-  useEffect(() => {
-    if (canvasMode === derivedCanvasMode) return
-    setCanvasMode(derivedCanvasMode)
-  }, [canvasMode, derivedCanvasMode, setCanvasMode])
 
   const { toolbar, stageToolbar, applyCropSelection } = useStageInteractionPolicy({
     canvasRef,
@@ -308,10 +282,8 @@ export function ProjectDetailPageClient({
     }
     setDeleteOpen(false)
     setImagePxU(null)
-    await refreshProjectImages()
-    await refreshMasterImage()
-    await refreshFilterImage()
-  }, [deleteImageById, displayTarget.active_image_id, projectImages, refreshFilterImage, refreshMasterImage, refreshProjectImages, selectedImageId, setDeleteError, setDeleteOpen])
+    await workflow.refreshAndWait()
+  }, [deleteImageById, displayTarget.active_image_id, projectImages, refreshProjectImages, selectedImageId, setDeleteError, setDeleteOpen, workflow])
 
   const handleRestoreInitialImage = useCallback(async () => {
     if (workflow.isRestoring) return
@@ -319,7 +291,7 @@ export function ProjectDetailPageClient({
     workflow.restore()
     setRestoreOpen(false)
     toolbar.setTool("select")
-  }, [toolbar, workflow])
+  }, [setRestoreOpen, toolbar, workflow])
 
   const [leftPanelWidthRem, setLeftPanelWidthRem] = useState(20)
   const [rightPanelWidthRem, setRightPanelWidthRem] = useState(20)
@@ -376,30 +348,19 @@ export function ProjectDetailPageClient({
     void refreshProjectImages()
   }, [masterImage?.id, refreshProjectImages])
 
-  useImageStateLoadOrchestration({
-    imageId: activeCanvasImageId,
-    loadImageState,
-  })
-
-  const renderModel = useMemo(() => {
-    const readyImage = editorImageSource.status === "ready" ? editorImageSource.image : null
-    const baseImage = readyImage
-      ? {
-          id: readyImage.id,
-          signedUrl: readyImage.signedUrl,
-          name: readyImage.name,
-          width_px: readyImage.width_px,
-          height_px: readyImage.height_px,
-          dpi: null,
-          restore_base: null,
-        }
-      : null
-    return { baseImage }
-  }, [editorImageSource])
-
   const stageImage = useMemo(() => {
-    return renderModel.baseImage
-  }, [renderModel])
+    const readyImage = editorImageSource.status === "ready" ? editorImageSource.image : null
+    if (!readyImage) return null
+    return {
+      id: readyImage.id,
+      signedUrl: readyImage.signedUrl,
+      name: readyImage.name,
+      width_px: readyImage.width_px,
+      height_px: readyImage.height_px,
+      dpi: null,
+      restore_base: null,
+    }
+  }, [editorImageSource])
 
   const grid = useMemo(() => {
     if (!gridVisible) return null
@@ -416,10 +377,7 @@ export function ProjectDetailPageClient({
         activeDisplayFilterId={activeDisplayFilterId}
         isActiveDisplayFilterHidden={isActiveDisplayFilterHidden}
         isRemovingFilter={workflow.isRemovingFilter}
-        onSelectFilter={(filterId) => {
-          showFilter(filterId)
-          setCanvasMode("filter")
-        }}
+        onSelectFilter={showFilter}
         onToggleHidden={toggleHiddenFilter}
         onRemoveFilter={workflow.removeFilter}
         onOpenSelection={openFilterSelection}
@@ -433,7 +391,6 @@ export function ProjectDetailPageClient({
       isActiveDisplayFilterHidden,
       activeDisplayFilterId,
       openFilterSelection,
-      setCanvasMode,
       showFilter,
       toggleHiddenFilter,
       workflow,
