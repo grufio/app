@@ -43,24 +43,6 @@ import { EditorDialogHost } from "./editor-shell/editor-dialog-host"
 import { useLeftPanelModel } from "./editor-shell/use-left-panel-model"
 import { isStaleSelectionDeleteError, resolveDeleteTargetImageId } from "./editor-shell/delete-target"
 
-function useImageStateLoadOrchestration(args: {
-  imageId: string | null
-  loadImageState: () => Promise<void>
-}) {
-  const { imageId, loadImageState } = args
-  const loadedImageStateForImageIdRef = useRef<string | null>(null)
-
-  useEffect(() => {
-    if (!imageId) {
-      loadedImageStateForImageIdRef.current = null
-      return
-    }
-    if (loadedImageStateForImageIdRef.current === imageId) return
-    loadedImageStateForImageIdRef.current = imageId
-    void loadImageState()
-  }, [imageId, loadImageState])
-}
-
 export function ProjectDetailPageClient({
   projectId,
   initialProject,
@@ -130,7 +112,6 @@ export function ProjectDetailPageClient({
     sourceSnapshot,
     initialImageTransform,
     imageStateLoading,
-    loadImageState,
     workflow,
     editorImageSource,
     activeCanvasImageId,
@@ -301,17 +282,15 @@ export function ProjectDetailPageClient({
     const res = await deleteImageById(targetId)
     if (!res.ok) {
       if (isStaleSelectionDeleteError(res.error)) {
-        await refreshProjectImages()
+        await workflow.refreshAndWait()
       }
       setDeleteError(res.error)
       return
     }
     setDeleteOpen(false)
     setImagePxU(null)
-    await refreshProjectImages()
-    await refreshMasterImage()
-    await refreshFilterImage()
-  }, [deleteImageById, displayTarget.active_image_id, projectImages, refreshFilterImage, refreshMasterImage, refreshProjectImages, selectedImageId, setDeleteError, setDeleteOpen])
+    await workflow.refreshAndWait()
+  }, [deleteImageById, displayTarget.active_image_id, projectImages, selectedImageId, setDeleteError, setDeleteOpen, workflow])
 
   const handleRestoreInitialImage = useCallback(async () => {
     if (workflow.isRestoring) return
@@ -371,15 +350,6 @@ export function ProjectDetailPageClient({
       })
     })
   }, [masterImage?.id, projectImages])
-
-  useEffect(() => {
-    void refreshProjectImages()
-  }, [masterImage?.id, refreshProjectImages])
-
-  useImageStateLoadOrchestration({
-    imageId: activeCanvasImageId,
-    loadImageState,
-  })
 
   const renderModel = useMemo(() => {
     const readyImage = editorImageSource.status === "ready" ? editorImageSource.image : null

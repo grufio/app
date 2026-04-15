@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 
-import { createSupabaseServerClient } from "@/lib/supabase/server"
-import { isUuid, jsonError, readJson, requireUser } from "@/lib/api/route-guards"
+import { withProjectRouteAuth } from "@/lib/api/with-project-route-auth"
+import { isUuid, jsonError, readJson } from "@/lib/api/route-guards"
 
 export const dynamic = "force-dynamic"
 
@@ -14,7 +14,7 @@ export async function PATCH(
   { params }: { params: Promise<{ projectId: string; imageId: string }> }
 ) {
   const { projectId, imageId } = await params
-  if (!isUuid(String(projectId)) || !isUuid(String(imageId))) {
+  if (!isUuid(String(imageId))) {
     return jsonError("Invalid params", 400, { stage: "validation", where: "params" })
   }
 
@@ -25,43 +25,28 @@ export async function PATCH(
   }
   const isLocked = parsed.value.is_locked
 
-  const supabase = await createSupabaseServerClient()
-  const u = await requireUser(supabase)
-  if (!u.ok) return u.res
+  return withProjectRouteAuth(req, projectId, async (_projectReq, context) => {
+    const { data: row, error: queryErr } = await context.supabase
+      .from("project_images")
+      .select("id")
+      .eq("project_id", context.projectId)
+      .eq("id", imageId)
+      .eq("kind", "master")
+      .is("deleted_at", null)
+      .maybeSingle()
+    if (queryErr) return jsonError(queryErr.message, 400, { stage: "lock_query" })
+    if (!row?.id) return jsonError("Image not found", 404, { stage: "lock_query" })
 
-  // Explicit access check for clearer error staging (RLS still enforces owner-only).
-  const { data: projectRow, error: projectErr } = await supabase
-    .from("projects")
-    .select("id")
-    .eq("id", projectId)
-    .maybeSingle()
-  if (projectErr) {
-    return jsonError("Failed to verify project access", 400, { stage: "project_access" })
-  }
-  if (!projectRow?.id) {
-    return jsonError("Forbidden (project not accessible)", 403, { stage: "rls_denied", where: "project_access" })
-  }
+    const { error: updateErr } = await context.supabase
+      .from("project_images")
+      .update({ is_locked: isLocked })
+      .eq("project_id", context.projectId)
+      .eq("id", imageId)
+      .eq("kind", "master")
+      .is("deleted_at", null)
+    if (updateErr) return jsonError(updateErr.message, 400, { stage: "lock_update" })
 
-  const { data: row, error: queryErr } = await supabase
-    .from("project_images")
-    .select("id")
-    .eq("project_id", projectId)
-    .eq("id", imageId)
-    .eq("kind", "master")
-    .is("deleted_at", null)
-    .maybeSingle()
-  if (queryErr) return jsonError(queryErr.message, 400, { stage: "lock_query" })
-  if (!row?.id) return jsonError("Image not found", 404, { stage: "lock_query" })
-
-  const { error: updateErr } = await supabase
-    .from("project_images")
-    .update({ is_locked: isLocked })
-    .eq("project_id", projectId)
-    .eq("id", imageId)
-    .eq("kind", "master")
-    .is("deleted_at", null)
-  if (updateErr) return jsonError(updateErr.message, 400, { stage: "lock_update" })
-
-  return NextResponse.json({ ok: true, id: imageId, is_locked: isLocked })
+    return NextResponse.json({ ok: true, id: imageId, is_locked: isLocked })
+  })
 }
 

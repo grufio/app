@@ -14,6 +14,10 @@ const { uploadMasterImageMock, makeSupabaseMock } = vi.hoisted(() => ({
             if (table === "projects") return { data: { id: VALID_UUID }, error: null }
             return { data: null, error: { message: "unexpected table" } }
           },
+          maybeSingle: async () => {
+            if (table === "projects") return { data: { id: VALID_UUID }, error: null }
+            return { data: null, error: { message: "unexpected table" } }
+          },
         }),
       }),
     }),

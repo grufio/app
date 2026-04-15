@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 
-import { isUuid, jsonError, readJson, requireUser } from "@/lib/api/route-guards"
-import { createSupabaseServerClient } from "@/lib/supabase/server"
+import { withProjectRouteAuth } from "@/lib/api/with-project-route-auth"
+import { isUuid, jsonError, readJson } from "@/lib/api/route-guards"
 import { cropImageAndActivate } from "@/services/editor/server/crop-image"
 
 export const dynamic = "force-dynamic"
@@ -19,48 +19,37 @@ export async function POST(
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   const { projectId } = await params
-  if (!isUuid(String(projectId))) {
-    return jsonError("Invalid projectId", 400, { stage: "validation", where: "params" })
-  }
+  return withProjectRouteAuth(req, projectId, async (projectReq, context) => {
+    const parsed = await readJson<CropRequest>(projectReq, { stage: "validation" })
+    if (!parsed.ok) return parsed.res
+    const body = parsed.value ?? {}
+    const sourceImageId = String(body.source_image_id ?? "")
+    if (!isUuid(sourceImageId)) {
+      return jsonError("Invalid source_image_id", 400, { stage: "validation", where: "body" })
+    }
 
-  const supabase = await createSupabaseServerClient()
-  const u = await requireUser(supabase)
-  if (!u.ok) return u.res
+    const result = await cropImageAndActivate({
+      supabase: context.supabase,
+      projectId: context.projectId,
+      sourceImageId,
+      rect: {
+        x: Number(body.x),
+        y: Number(body.y),
+        w: Number(body.w),
+        h: Number(body.h),
+      },
+    })
 
-  // Explicit access check for better staged errors (RLS still enforces).
-  const { data: projectRow, error: projectErr } = await supabase.from("projects").select("id").eq("id", projectId).maybeSingle()
-  if (projectErr) return jsonError("Failed to verify project access", 400, { stage: "project_access" })
-  if (!projectRow?.id) return jsonError("Forbidden (project not accessible)", 403, { stage: "rls_denied", where: "project_access" })
+    if (!result.ok) {
+      return jsonError(result.reason, result.status, { stage: result.stage, code: result.code })
+    }
 
-  const parsed = await readJson<CropRequest>(req, { stage: "validation" })
-  if (!parsed.ok) return parsed.res
-  const body = parsed.value ?? {}
-  const sourceImageId = String(body.source_image_id ?? "")
-  if (!isUuid(sourceImageId)) {
-    return jsonError("Invalid source_image_id", 400, { stage: "validation", where: "body" })
-  }
-
-  const result = await cropImageAndActivate({
-    supabase,
-    projectId,
-    sourceImageId,
-    rect: {
-      x: Number(body.x),
-      y: Number(body.y),
-      w: Number(body.w),
-      h: Number(body.h),
-    },
-  })
-
-  if (!result.ok) {
-    return jsonError(result.reason, result.status, { stage: result.stage, code: result.code })
-  }
-
-  return NextResponse.json({
-    ok: true,
-    id: result.id,
-    storage_path: result.storagePath,
-    width_px: result.widthPx,
-    height_px: result.heightPx,
+    return NextResponse.json({
+      ok: true,
+      id: result.id,
+      storage_path: result.storagePath,
+      width_px: result.widthPx,
+      height_px: result.heightPx,
+    })
   })
 }

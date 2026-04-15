@@ -81,12 +81,13 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
   if (!pendingSlotRef.current) pendingSlotRef.current = createPendingSlot<ImageState>()
   const inflightRef = useRef<Promise<void> | null>(null)
   const loadInflightRef = useRef<Promise<void> | null>(null)
+  const loadInflightImageIdRef = useRef<string | undefined>(undefined)
   const requestSeqRef = useRef(0)
 
   const mapApiErrorToMessage = useCallback((e: ApiError, action: "load" | "save"): string => mapImageStateApiErrorToMessage(e, action), [])
 
   const loadImageState = useCallback(async () => {
-    if (loadInflightRef.current) return await loadInflightRef.current
+    if (loadInflightRef.current && loadInflightImageIdRef.current === imageId) return await loadInflightRef.current
     const p = (async () => {
     const seq = ++requestSeqRef.current
     setImageStateError((prev) => (prev === "" ? prev : ""))
@@ -137,10 +138,14 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
     }
     })()
     loadInflightRef.current = p
+    loadInflightImageIdRef.current = imageId
     try {
       await p
     } finally {
-      loadInflightRef.current = null
+      if (loadInflightRef.current === p) {
+        loadInflightRef.current = null
+        loadInflightImageIdRef.current = undefined
+      }
     }
   }, [imageId, logPrefix, mapApiErrorToMessage, projectId])
 
@@ -225,6 +230,7 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
     if (!enabled) {
       requestSeqRef.current++
       loadInflightRef.current = null
+      loadInflightImageIdRef.current = undefined
       lastLoadedSignatureRef.current = null
       setInitialImageTransform(null)
       setImageStateError((prev) => (prev === "" ? prev : ""))
