@@ -9,10 +9,10 @@
  */
 import React, { forwardRef } from "react"
 
-import { NumericFieldControl } from "@/components/ui/form-controls"
+import { FieldControl } from "@/components/ui/form-controls"
 import { sanitizeNumericInput, type NumericMode } from "@/lib/editor/numeric"
 
-type Props = Omit<React.ComponentPropsWithoutRef<typeof NumericFieldControl>, "onChange" | "value" | "inputMode"> & {
+type Props = Omit<React.ComponentPropsWithoutRef<typeof FieldControl>, "onChange" | "value" | "inputMode"> & {
   value: string
   mode?: NumericMode
   onValueChange: (next: string) => void
@@ -30,7 +30,7 @@ export const NumericInput = forwardRef<HTMLInputElement, Props>(function Numeric
   const inputMode = mode === "int" ? "numeric" : "decimal"
 
   return (
-    <NumericFieldControl
+    <FieldControl
       {...rest}
       ref={ref}
       value={value}

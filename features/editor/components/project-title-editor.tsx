@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 
 import { updateProjectTitleClient } from "@/services/projects/client/update-project-title"
-import { TextFieldControl } from "@/components/ui/form-controls"
+import { FieldControl } from "@/components/ui/form-controls"
 import { FieldGroup } from "@/components/ui/form-controls/field-group"
 
 type Props = {
@@ -62,7 +62,7 @@ export function ProjectTitleEditor({ projectId, initialTitle, onTitleUpdated }: 
   return (
     <div>
       <FieldGroup className="border-transparent bg-transparent shadow-none hover:border-muted-foreground/30">
-        <TextFieldControl
+        <FieldControl
           ref={inputRef}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}

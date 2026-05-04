@@ -5,10 +5,10 @@ import * as React from "react"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 
-export const NumericFieldControl = React.forwardRef<
+export const FieldControl = React.forwardRef<
   React.ElementRef<typeof Input>,
   React.ComponentPropsWithoutRef<typeof Input>
->(function NumericFieldControl({ className, ...rest }, ref) {
+>(function FieldControl({ className, ...rest }, ref) {
   return (
     <Input
       data-slot="input-group-control"
