@@ -11,6 +11,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { isUuid, jsonError, requireUser } from "@/lib/api/route-guards"
 import { computeDpiRelativePlacementPx, placementPxToMicroPx } from "@/lib/editor/image-placement"
 import { pxUToPxNumber } from "@/lib/editor/units"
+import { resetProjectFilterChain } from "@/services/editor/server/filter-chain-reset"
 
 export const dynamic = "force-dynamic"
 
@@ -129,6 +130,11 @@ export async function POST(
   })
   if (rpcErr) {
     return jsonError(rpcErr.message, 400, { stage: "restore_rpc" })
+  }
+
+  const filterReset = await resetProjectFilterChain({ supabase, projectId })
+  if (!filterReset.ok) {
+    return jsonError(filterReset.reason, 500, { stage: "filter_chain_reset", code: filterReset.code })
   }
 
   return NextResponse.json({ ok: true, image_id: String(baseMaster.id) })

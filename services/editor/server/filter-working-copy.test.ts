@@ -41,6 +41,17 @@ describe("getOrCreateFilterWorkingCopy", () => {
     const insertedRows: Array<Record<string, unknown>> = []
 
     const from = vi.fn((table: string) => {
+      if (table === "project_image_filters") {
+        // Empty filter chain: select awaits to no rows; delete is a no-op.
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(async () => ({ data: [], error: null })),
+          })),
+          delete: vi.fn(() => ({
+            eq: vi.fn(async () => ({ error: null })),
+          })),
+        }
+      }
       if (table !== "project_images") return {}
       return {
         select: vi.fn(() => {
@@ -57,13 +68,16 @@ describe("getOrCreateFilterWorkingCopy", () => {
           })
           return chain
         }),
-        update: vi.fn(() => ({
-          in: vi.fn(async (_key: string, ids: string[]) => {
+        update: vi.fn(() => {
+          const chain: Record<string, unknown> = {}
+          chain.in = vi.fn(async (_key: string, ids: string[]) => {
             removedIds.push(ids)
             return { error: null }
-          }),
-          eq: vi.fn(async () => ({ error: null })),
-        })),
+          })
+          chain.eq = vi.fn(() => chain)
+          chain.is = vi.fn(() => chain)
+          return chain
+        }),
         insert: vi.fn(async (row: Record<string, unknown>) => {
           insertedRows.push(row)
           return { error: null }
@@ -312,7 +326,7 @@ describe("getFilterPanelData", () => {
     }
   })
 
-  it("fails when stored filter rows are disconnected from working copy chain", async () => {
+  it("auto-resets disconnected filter chain and returns empty stack", async () => {
     const activeImage = {
       id: "active-image-id",
       name: "master.jpg",
@@ -347,6 +361,7 @@ describe("getFilterPanelData", () => {
     ]
 
     let projectImagesCall = 0
+    let filterDeleteCalled = false
     const from = vi.fn((table: string) => {
       if (table === "project_images") {
         projectImagesCall += 1
@@ -360,13 +375,38 @@ describe("getFilterPanelData", () => {
           q.limit = vi.fn(async () => ({ data: [workingCopy], error: null }))
           return q
         }
+        // Subsequent calls during reset (soft-delete of orphan outputs).
+        const u: Record<string, unknown> = {}
+        u.update = vi.fn(() => u)
+        u.eq = vi.fn(() => u)
+        u.is = vi.fn(() => u)
+        u.in = vi.fn(async () => ({ error: null }))
+        return u
       }
       if (table === "project_image_filters") {
-        const q: Record<string, unknown> = {}
-        q.select = vi.fn(() => q)
-        q.eq = vi.fn(() => q)
-        q.order = vi.fn(async () => ({ data: disconnectedFilterRows, error: null }))
-        return q
+        // Builds a query object that supports BOTH:
+        //   .select(...).eq(...).order(...) → resolves to filter rows (panel data fetch)
+        //   .select(...).eq(...) (awaitable) → resolves to filter rows (reset utility fetch)
+        const makeSelectChain = () => {
+          const chain: Record<string, unknown> = {}
+          const result = { data: disconnectedFilterRows, error: null }
+          chain.eq = vi.fn(() => {
+            const inner: Record<string, unknown> = {}
+            inner.order = vi.fn(async () => result)
+            inner.then = (resolve: (v: unknown) => unknown) => Promise.resolve(result).then(resolve)
+            return inner
+          })
+          return chain
+        }
+        return {
+          select: vi.fn(() => makeSelectChain()),
+          delete: vi.fn(() => ({
+            eq: vi.fn(async () => {
+              filterDeleteCalled = true
+              return { error: null }
+            }),
+          })),
+        }
       }
       return {}
     })
@@ -382,9 +422,11 @@ describe("getFilterPanelData", () => {
     } as unknown as SupabaseClient<Database>
 
     const result = await getFilterPanelData({ supabase, projectId: "project-1" })
-    expect(result.ok).toBe(false)
-    if (!result.ok) {
-      expect(result.stage).toBe("chain_invalid")
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.stack).toEqual([])
+      expect(result.display.id).toBe("working-copy-id")
     }
+    expect(filterDeleteCalled).toBe(true)
   })
 })

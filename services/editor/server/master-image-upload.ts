@@ -11,6 +11,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/lib/supabase/database.types"
 import { activateProjectImage } from "@/services/editor/server/activate-project-image"
 import { copyImageTransform } from "@/services/editor/server/copy-image-transform"
+import { resetProjectFilterChain } from "@/services/editor/server/filter-chain-reset"
 
 import { insertMasterWithCleanup } from "./master-image-upload/master-insert-flow"
 import { validateUploadInputs, validateUploadLimits } from "./master-image-upload/policy"
@@ -144,6 +145,23 @@ export async function uploadMasterImage(args: {
       stage: "db_upsert",
       reason: insertResult.reason,
       code: insertResult.code,
+    }
+  }
+
+  const filterReset = await resetProjectFilterChain({ supabase, projectId })
+  if (!filterReset.ok) {
+    await rollbackCreatedUploadRows({
+      supabase,
+      projectId,
+      masterImageId: imageId,
+      masterObjectPath: objectPath,
+    })
+    return {
+      ok: false,
+      status: 500,
+      stage: "db_upsert",
+      reason: filterReset.reason,
+      code: filterReset.code,
     }
   }
 

@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/lib/supabase/database.types"
 import { getEditorTargetImageRow } from "@/lib/supabase/project-images"
 import { copyImageTransform } from "@/services/editor/server/copy-image-transform"
+import { resetProjectFilterChain } from "@/services/editor/server/filter-chain-reset"
 
 type FailStage =
   | "active_lookup"
@@ -177,6 +178,12 @@ export async function getOrCreateFilterWorkingCopy(args: {
     const obsoleteIds = (existingCopies ?? [])
       .filter((copy) => copy.id !== reusableCopy.id)
       .map((copy) => copy.id)
+    if (obsoleteIds.length > 0) {
+      const reset = await resetProjectFilterChain({ supabase, projectId })
+      if (!reset.ok) {
+        return { ok: false, status: 500, stage: "soft_delete", reason: reset.reason, code: reset.code }
+      }
+    }
     const softDelete = await softDeleteCopies(supabase, obsoleteIds)
     if (!softDelete.ok) {
       return {
@@ -225,6 +232,11 @@ export async function getOrCreateFilterWorkingCopy(args: {
   }
 
   // No reusable copy: tombstone all historical candidates before creating a new one.
+  // Filter rows reference the old copies as input/output, so we must clear them too.
+  const reset = await resetProjectFilterChain({ supabase, projectId })
+  if (!reset.ok) {
+    return { ok: false, status: 500, stage: "soft_delete", reason: reset.reason, code: reset.code }
+  }
   const softDelete = await softDeleteCopies(
     supabase,
     (existingCopies ?? []).map((copy) => copy.id)
@@ -418,11 +430,14 @@ export async function getFilterPanelData(args: {
 
   if (!chain.length) {
     if ((filterRows ?? []).length > 0) {
-      return {
-        ok: false,
-        status: 409,
-        stage: "chain_invalid",
-        reason: "Stored filter rows do not form a chain from the current working copy",
+      console.warn("[filter-working-copy] orphaned chain detected, auto-resetting", {
+        projectId,
+        workingCopyId: working.id,
+        orphanCount: filterRows?.length ?? 0,
+      })
+      const reset = await resetProjectFilterChain({ supabase, projectId })
+      if (!reset.ok) {
+        return { ok: false, status: 500, stage: "chain_invalid", reason: reset.reason, code: reset.code }
       }
     }
     return {
@@ -435,11 +450,19 @@ export async function getFilterPanelData(args: {
   const chainRowIds = new Set(chain.map((node) => node.id))
   const hasDisconnectedRows = (filterRows ?? []).some((row) => !chainRowIds.has(String(row.id)))
   if (hasDisconnectedRows) {
+    console.warn("[filter-working-copy] disconnected chain segments detected, auto-resetting", {
+      projectId,
+      workingCopyId: working.id,
+      orphanCount: (filterRows ?? []).length - chain.length,
+    })
+    const reset = await resetProjectFilterChain({ supabase, projectId })
+    if (!reset.ok) {
+      return { ok: false, status: 500, stage: "chain_invalid", reason: reset.reason, code: reset.code }
+    }
     return {
-      ok: false,
-      status: 409,
-      stage: "chain_invalid",
-      reason: "Stored filter rows contain disconnected chain segments",
+      ok: true,
+      display: displayFromWorking,
+      stack: [],
     }
   }
 
