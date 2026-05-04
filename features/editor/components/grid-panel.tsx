@@ -141,7 +141,7 @@ export function GridPanel({
           aria-label={gridVisible ? "Hide grid" : "Show grid"}
           onClick={() => onGridVisibleChange(!gridVisible)}
         >
-          {gridVisible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+          {gridVisible ? <EyeOff className="size-4" strokeWidth={1} /> : <Eye className="size-4" strokeWidth={1} />}
         </Button>
       }
     >
@@ -154,7 +154,7 @@ export function GridPanel({
             value={draftW}
             ariaLabel={`Grid width (${effectiveUnit})`}
             disabled={controlsDisabled}
-            icon={<ArrowLeftRight aria-hidden="true" />}
+            icon={<ArrowLeftRight aria-hidden="true" strokeWidth={1} />}
             unit={effectiveUnit}
             onValueChange={(next) => setDraftW(next)}
             onKeyDown={(e) => {
@@ -173,7 +173,7 @@ export function GridPanel({
             value={draftH}
             ariaLabel={`Grid height (${effectiveUnit})`}
             disabled={controlsDisabled}
-            icon={<ArrowUpDown aria-hidden="true" />}
+            icon={<ArrowUpDown aria-hidden="true" strokeWidth={1} />}
             unit={effectiveUnit}
             onValueChange={(next) => setDraftH(next)}
             onKeyDown={(e) => {
@@ -213,7 +213,7 @@ export function GridPanel({
             mode="int"
             ariaLabel="Grid line opacity percent"
             disabled={controlsDisabled}
-            icon={<Percent aria-hidden="true" />}
+            icon={<Percent aria-hidden="true" strokeWidth={1} />}
             onValueChange={setDraftOpacity}
             numericProps={{
               onKeyDown: (e) => {

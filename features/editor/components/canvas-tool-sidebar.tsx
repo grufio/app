@@ -57,22 +57,22 @@ export function CanvasToolSidebar({ tool, onSelectTool, onZoomIn, onZoomOut, onF
   return (
     <div className="flex flex-col gap-1" role="toolbar" aria-label="Canvas tools">
       <ToolButton label="Select (Move Image)" active={tool === "select"} onClick={() => onSelectTool("select")}>
-        <MousePointer2 className="h-[16px] w-[16px]" />
+        <MousePointer2 className="size-4" strokeWidth={1} />
       </ToolButton>
       <ToolButton label="Hand (Move Artboard)" active={tool === "hand"} onClick={() => onSelectTool("hand")}>
-        <Hand className="h-[16px] w-[16px]" />
+        <Hand className="size-4" strokeWidth={1} />
       </ToolButton>
       <ToolButton label="Zoom in" onClick={onZoomIn}>
-        <ZoomIn className="h-[16px] w-[16px]" />
+        <ZoomIn className="size-4" strokeWidth={1} />
       </ToolButton>
       <ToolButton label="Zoom out" onClick={onZoomOut}>
-        <ZoomOut className="h-[16px] w-[16px]" />
+        <ZoomOut className="size-4" strokeWidth={1} />
       </ToolButton>
       <ToolButton label="Fit to screen" onClick={onFit}>
-        <Maximize2 className="h-[16px] w-[16px]" />
+        <Maximize2 className="size-4" strokeWidth={1} />
       </ToolButton>
       <ToolButton label="Rotate 90°" onClick={onRotate}>
-        <RotateCw className="h-[16px] w-[16px]" />
+        <RotateCw className="size-4" strokeWidth={1} />
       </ToolButton>
     </div>
   )
