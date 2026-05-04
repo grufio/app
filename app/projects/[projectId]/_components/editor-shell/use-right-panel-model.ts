@@ -9,8 +9,8 @@ import { mapSelectedNavIdToRightPanelSection } from "@/services/editor/panel-rou
 export function useRightPanelModel(args: {
   selectedNavId: string
   imageStateLoading: boolean
-  imagePxU: { w: bigint; h: bigint } | null
-  initialImagePxU: { w: bigint; h: bigint } | null
+  imageTxU: { x: bigint; y: bigint; w: bigint; h: bigint } | null
+  initialImageTxU: { x: bigint; y: bigint; w: bigint; h: bigint } | null
   workspaceLoading: boolean
   workspaceUnit: Unit | null
   masterImage: { signedUrl?: string | null; name?: string | null } | null
@@ -21,8 +21,8 @@ export function useRightPanelModel(args: {
   const {
     selectedNavId,
     imageStateLoading,
-    imagePxU,
-    initialImagePxU,
+    imageTxU,
+    initialImageTxU,
     workspaceLoading,
     workspaceUnit,
     masterImage,
@@ -41,10 +41,10 @@ export function useRightPanelModel(args: {
     [lockedImageById, selectedImageId]
   )
 
-  const panelImagePxU = useMemo(() => {
+  const panelImageTxU = useMemo(() => {
     if (imageStateLoading) return null
-    return imagePxU ?? initialImagePxU ?? null
-  }, [imagePxU, imageStateLoading, initialImagePxU])
+    return imageTxU ?? initialImageTxU ?? null
+  }, [imageStateLoading, imageTxU, initialImageTxU])
 
   const workspaceReady = computeWorkspaceReady({
     workspaceLoading,
@@ -55,7 +55,7 @@ export function useRightPanelModel(args: {
     workspaceReady,
     masterImage,
     imageStateLoading,
-    panelImagePxU,
+    panelImagePxU: panelImageTxU ? { w: panelImageTxU.w, h: panelImageTxU.h } : null,
   })
 
   const activeRightSection = mapSelectedNavIdToRightPanelSection(selectedNavId)
@@ -71,7 +71,7 @@ export function useRightPanelModel(args: {
   return {
     selectedImage,
     imagePanelLocked,
-    panelImagePxU,
+    panelImageTxU,
     workspaceReady,
     imagePanelReady,
     activeRightSection,

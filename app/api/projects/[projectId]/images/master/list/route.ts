@@ -10,7 +10,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { isUuid, jsonError, requireUser } from "@/lib/api/route-guards"
 import { resolveEditorTargetImageRows } from "@/lib/supabase/project-images"
 import { evaluateDeleteTarget } from "@/services/editor/server/delete-target-policy"
-import { resolveImageKind } from "@/services/editor/server/image-kind"
+import { IMAGE_KIND, resolveImageKind } from "@/services/editor/server/image-kind"
 
 export const dynamic = "force-dynamic"
 
@@ -51,7 +51,7 @@ export async function GET(
     return jsonError(error.message, 400, { stage: "list_master" })
   }
 
-  const uiItems = (data ?? []).filter((row) => resolveImageKind(row) !== "master")
+  const uiItems = (data ?? []).filter((row) => resolveImageKind(row) !== IMAGE_KIND.MASTER)
 
   const resolved = await resolveEditorTargetImageRows(supabase, projectId)
   if (resolved.error) {
@@ -65,10 +65,10 @@ export async function GET(
     targetImageId: effectiveActive?.id ? String(effectiveActive.id) : null,
     targetKind: effectiveActive ? resolveImageKind(effectiveActive) : null,
   })
-  let fallbackTarget: { image_id: string; kind: "working_copy" } | null = null
-  if (activeKind === "filter_working_copy") {
+  let fallbackTarget: { image_id: string; kind: typeof IMAGE_KIND.WORKING_COPY } | null = null
+  if (activeKind === IMAGE_KIND.FILTER_WORKING_COPY) {
     if (preferredWorking?.id && preferredWorking.id !== effectiveActive?.id) {
-      fallbackTarget = { image_id: String(preferredWorking.id), kind: "working_copy" }
+      fallbackTarget = { image_id: String(preferredWorking.id), kind: IMAGE_KIND.WORKING_COPY }
     }
   }
 

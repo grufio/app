@@ -76,7 +76,7 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
     lineWidthPx: number
     color: string
   } | null
-  handleImagePxChange: (w: bigint, h: bigint) => void
+  handleImageTransformChange: (tx: { xPxU: bigint; yPxU: bigint; widthPxU: bigint; heightPxU: bigint } | null) => void
   initialImageTransform: CanvasInitialImageTransform
   saveImageState?: CanvasTransformCommit
   onCropDblClick?: () => void
@@ -95,7 +95,7 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
     artboardHeightPx,
     artboardDpi,
     grid,
-    handleImagePxChange,
+    handleImageTransformChange,
     initialImageTransform,
     saveImageState,
     onCropDblClick,
@@ -179,7 +179,7 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
                 : undefined
             }
             grid={grid ?? null}
-            onImageSizeChange={handleImagePxChange}
+            onImageTransformChange={handleImageTransformChange}
             initialImageTransform={masterImage ? initialImageTransform : null}
             onImageTransformCommit={masterImage ? saveImageState : undefined}
             onCropDblClick={onCropDblClick}

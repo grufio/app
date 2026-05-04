@@ -32,6 +32,12 @@ describe("numeric", () => {
       expect(sanitizeNumericInput("  $1,250.00  ", "decimal")).toBe("1250.00")
       expect(sanitizeNumericInput("  1.250,00  ", "decimal")).toBe("1250.00")
     })
+
+    it("signedDecimal mode preserves one leading minus", () => {
+      expect(sanitizeNumericInput("-1.25", "signedDecimal")).toBe("-1.25")
+      expect(sanitizeNumericInput("--1.2.3", "signedDecimal")).toBe("-1.23")
+      expect(sanitizeNumericInput("1.250,00", "signedDecimal")).toBe("1250.00")
+    })
   })
 
   describe("parseNumericInput", () => {

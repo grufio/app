@@ -59,10 +59,6 @@
     "vercel:env:push:development": "node scripts/vercel-env-sync.mjs --file .env.vercel.development --target development"
   },
   "dependencies": {
-    "@emotion/react": "^11.14.0",
-    "@emotion/styled": "^11.14.1",
-    "@mui/material": "^7.3.7",
-    "@mui/x-tree-view": "^8.27.0",
     "@radix-ui/react-avatar": "^1.1.11",
     "@radix-ui/react-collapsible": "^1.1.12",
     "@radix-ui/react-dialog": "^1.1.15",

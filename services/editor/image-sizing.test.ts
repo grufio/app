@@ -9,6 +9,7 @@ import {
   computeLockedAspectOtherDimensionFromHeightInput,
   computeLockedAspectOtherDimensionFromWidthInput,
   parseAndClampImageSize,
+  parseSignedMicroPxFromUnitInput,
 } from "./image-sizing"
 
 describe("services/editor/image-sizing", () => {
@@ -36,6 +37,12 @@ describe("services/editor/image-sizing", () => {
     expect(out).not.toBeNull()
     const expected = divRoundHalfUp(unitToPxUFixed("10", unit) * ratio.wPxU, ratio.hPxU)
     expect(out!.nextWidthPxU).toBe(expected)
+  })
+
+  it("parseSignedMicroPxFromUnitInput preserves negative coordinate values", () => {
+    const unit: Unit = "mm"
+    expect(parseSignedMicroPxFromUnitInput("-12.5", unit)).toBe(-unitToPxUFixed("12.5", unit))
+    expect(parseSignedMicroPxFromUnitInput("0", unit)).toBe(0n)
   })
 })
 

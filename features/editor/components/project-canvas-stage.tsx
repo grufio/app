@@ -66,7 +66,7 @@ type Props = {
     lineWidthPx: number
     color: string
   } | null
-  onImageSizeChange?: (widthPxU: bigint, heightPxU: bigint) => void
+  onImageTransformChange?: (tx: { xPxU: bigint; yPxU: bigint; widthPxU: bigint; heightPxU: bigint } | null) => void
   initialImageTransform?: {
     imageId?: string
     xPxU?: bigint
@@ -113,6 +113,7 @@ export type ProjectCanvasStageHandle = {
    * Pass `NaN` for a dimension to keep that axis unchanged.
    */
   setImageSize: (widthPxU: bigint, heightPxU: bigint) => void
+  setImagePosition: (xPxU: bigint, yPxU: bigint) => void
   /**
    * Align the image position relative to the artboard.
    * Uses the image node's axis-aligned bounding box (includes rotation).
@@ -238,7 +239,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     restoreBaseHeightPx,
     restoreBaseDpi,
     grid = null,
-    onImageSizeChange,
+    onImageTransformChange,
     initialImageTransform,
     onImageTransformCommit,
     onCropDblClick,
@@ -300,12 +301,12 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   // Single RAF scheduler to batch pan/bounds work per frame.
   const panDeltaRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 })
   const zoomRef = useRef<{ factor: number; x: number; y: number } | null>(null)
-  const onImageSizeChangeRef = useRef<Props["onImageSizeChange"]>(onImageSizeChange)
+  const onImageTransformChangeRef = useRef<Props["onImageTransformChange"]>(onImageTransformChange)
   const dragPosRef = useRef<{ x: number; y: number } | null>(null)
 
   useEffect(() => {
-    onImageSizeChangeRef.current = onImageSizeChange
-  }, [onImageSizeChange])
+    onImageTransformChangeRef.current = onImageTransformChange
+  }, [onImageTransformChange])
 
   useEffect(() => {
     imageDraggableRef.current = Boolean(imageDraggable)
@@ -412,17 +413,15 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     autoFitKeyRef,
   })
 
-  const reportImageSize = useCallback((tx: { widthPxU: bigint; heightPxU: bigint } | null) => {
-    if (!tx) return
-    onImageSizeChangeRef.current?.(tx.widthPxU, tx.heightPxU)
+  const reportImageTransform = useCallback((tx: { xPxU: bigint; yPxU: bigint; widthPxU: bigint; heightPxU: bigint } | null) => {
+    onImageTransformChangeRef.current?.(tx)
   }, [])
 
-  // Report image size to the parent *after* state commits.
-  // Do NOT call `onImageSizeChange` inside state updaters; it can trigger
-  // "Cannot update a component while rendering a different component" in React.
+  // Report transform to the parent *after* state commits.
+  // Do NOT call inside state updaters — triggers "Cannot update a component while rendering a different component".
   useEffect(() => {
-    reportImageSize(imageTx)
-  }, [imageTx, reportImageSize])
+    reportImageTransform(imageTx)
+  }, [imageTx, reportImageTransform])
 
   const boundsControllerRef = useRef<ReturnType<typeof createBoundsController> | null>(null)
   if (!boundsControllerRef.current) {
@@ -525,6 +524,14 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     [artW, artH, hasArtboard, mutationsEnabled]
   )
 
+  const setImagePosition = useCallback(
+    (xPxU: bigint, yPxU: bigint) => {
+      if (!mutationsEnabled) return
+      transformControllerRef.current?.setImagePosition(xPxU, yPxU)
+    },
+    [mutationsEnabled]
+  )
+
   const restoreImageRaw = useRestoreImageController({
     artW,
     artH,
@@ -623,13 +630,14 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
       zoomOut,
       rotate90,
       setImageSize,
+      setImagePosition,
       alignImage,
       restoreImage,
       getCropSelection,
       getCropSelectionPx,
       resetCropSelection,
     }),
-    [alignImage, fitToView, getCropSelection, getCropSelectionPx, resetCropSelection, restoreImage, rotate90, setImageSize, zoomIn, zoomOut]
+    [alignImage, fitToView, getCropSelection, getCropSelectionPx, resetCropSelection, restoreImage, rotate90, setImagePosition, setImageSize, zoomIn, zoomOut]
   )
 
 

@@ -10,7 +10,7 @@ import { NextResponse } from "next/server"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { isUuid, jsonError, requireUser } from "@/lib/api/route-guards"
 import { evaluateDeleteTarget } from "@/services/editor/server/delete-target-policy"
-import { resolveImageKind } from "@/services/editor/server/image-kind"
+import { IMAGE_KIND, resolveImageKind } from "@/services/editor/server/image-kind"
 
 export const dynamic = "force-dynamic"
 
@@ -245,7 +245,7 @@ export async function DELETE(
     }
   }
 
-  let fallbackTarget: { image_id: string; kind: "working_copy" } | null = null
+  let fallbackTarget: { image_id: string; kind: typeof IMAGE_KIND.WORKING_COPY } | null = null
   let fallbackStage: "fallback_applied" | "no_working_copy" | "delete_ok" | "storage_cleanup_incomplete" = "delete_ok"
   if (storageCleanupFailures.length > 0) {
     fallbackStage = "storage_cleanup_incomplete"
@@ -268,8 +268,8 @@ export async function DELETE(
         .update({ is_active: true })
         .eq("id", promote.id)
       fallbackTarget =
-        kind === "working_copy"
-          ? { image_id: String(promote.id), kind: "working_copy" }
+        kind === IMAGE_KIND.WORKING_COPY
+          ? { image_id: String(promote.id), kind: IMAGE_KIND.WORKING_COPY }
           : null
       fallbackStage = fallbackTarget ? "fallback_applied" : "delete_ok"
     } else {

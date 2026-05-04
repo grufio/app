@@ -107,7 +107,7 @@ export function ProjectDetailPageClient({
   const canvasRef = useRef<ProjectCanvasStageHandle | null>(null)
   const lastFilterErrorToastRef = useRef("")
   const lastNoWorkingImageMetricRef = useRef("")
-  const [imagePxU, setImagePxU] = useState<{ w: bigint; h: bigint } | null>(null)
+  const [imageTxU, setImageTxU] = useState<{ x: bigint; y: bigint; w: bigint; h: bigint } | null>(null)
   const {
     sourceSnapshot,
     initialImageTransform,
@@ -204,18 +204,25 @@ export function ProjectDetailPageClient({
     filterDialog.beginSelection()
   }, [filterDialog, isAddFilterDisabled, workflow])
 
-  const initialImagePxU = useMemo(() => {
+  const initialImageTxU = useMemo(() => {
     if (!activeCanvasImageId || !initialImageTransform) return null
     const wU = initialImageTransform.widthPxU
     const hU = initialImageTransform.heightPxU
     if (!wU || !hU || wU <= 0n || hU <= 0n) return null
-    return { w: wU, h: hU }
+    return {
+      x: initialImageTransform.xPxU ?? 0n,
+      y: initialImageTransform.yPxU ?? 0n,
+      w: wU,
+      h: hU,
+    }
   }, [activeCanvasImageId, initialImageTransform])
 
-  const handleImagePxChange = useCallback((w: bigint, h: bigint) => {
-    setImagePxU((prev) => {
-      if (prev && prev.w === w && prev.h === h) return prev
-      return { w, h }
+  const handleImageTransformChange = useCallback((tx: { xPxU: bigint; yPxU: bigint; widthPxU: bigint; heightPxU: bigint } | null) => {
+    setImageTxU((prev) => {
+      if (!tx) return null
+      const next = { x: tx.xPxU, y: tx.yPxU, w: tx.widthPxU, h: tx.heightPxU }
+      if (prev && prev.x === next.x && prev.y === next.y && prev.w === next.w && prev.h === next.h) return prev
+      return next
     })
   }, [])
 
@@ -281,7 +288,7 @@ export function ProjectDetailPageClient({
       return
     }
     setDeleteOpen(false)
-    setImagePxU(null)
+    setImageTxU(null)
     await workflow.refreshAndWait()
   }, [deleteImageById, displayTarget.active_image_id, projectImages, refreshProjectImages, selectedImageId, setDeleteError, setDeleteOpen, workflow])
 
@@ -310,11 +317,11 @@ export function ProjectDetailPageClient({
     updateWorkspacePageBg,
   })
 
-  const { panelImagePxU, workspaceReady, imagePanelReady, imagePanelLocked, activeRightSection, panelImageMeta } = useRightPanelModel({
+  const { panelImageTxU, workspaceReady, imagePanelReady, imagePanelLocked, activeRightSection, panelImageMeta } = useRightPanelModel({
     selectedNavId,
     imageStateLoading,
-    imagePxU,
-    initialImagePxU,
+    imageTxU,
+    initialImageTxU,
     workspaceLoading,
     workspaceUnit,
     masterImage,
@@ -444,7 +451,7 @@ export function ProjectDetailPageClient({
               artboardHeightPx={artboardHeightPx ?? undefined}
               artboardDpi={workspaceDpi ?? undefined}
               grid={grid}
-              handleImagePxChange={handleImagePxChange}
+              handleImageTransformChange={handleImageTransformChange}
               initialImageTransform={initialImageTransform}
               saveImageState={saveImageStateBound}
               pageBgEnabled={pageBgEnabled}
@@ -484,7 +491,7 @@ export function ProjectDetailPageClient({
             handleDeleteMasterImage={handleDeleteMasterImage}
             onRequestDeleteImage={requestDeleteSelectedImage}
             canDeleteActiveImage={displayTarget.deletable}
-            panelImagePxU={panelImagePxU}
+            panelImageTxU={panelImageTxU}
             workspaceUnit={workspaceUnit ?? "cm"}
             workspaceReady={workspaceReady}
             imageStateLoading={imageStateLoading}

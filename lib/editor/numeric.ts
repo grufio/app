@@ -5,7 +5,7 @@
  * - Normalize user-entered numeric strings for editor inputs.
  * - Keep parsing rules consistent across panels (int vs decimal).
  */
-export type NumericMode = "int" | "decimal"
+export type NumericMode = "int" | "decimal" | "signedDecimal"
 
 /**
  * Sanitizes user input to numeric-only strings.
@@ -46,11 +46,19 @@ export function sanitizeNumericInput(raw: string, mode: NumericMode): string {
     return normalized.replace(/[^\d]/g, "")
   }
 
+  const allowLeadingMinus = mode === "signedDecimal"
+
   // decimal
-  // allow digits + one dot
+  // allow digits + one dot (+ optional leading minus for signedDecimal)
   let out = ""
   let seenDot = false
-  for (const ch of normalized) {
+  let seenSign = false
+  for (const [idx, ch] of Array.from(normalized).entries()) {
+    if (allowLeadingMinus && ch === "-" && idx === 0 && !seenSign && out === "") {
+      out += ch
+      seenSign = true
+      continue
+    }
     if (ch >= "0" && ch <= "9") {
       out += ch
       continue

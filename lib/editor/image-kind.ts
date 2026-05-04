@@ -1,5 +1,11 @@
 export type ImageKind = "master" | "working_copy" | "filter_working_copy"
 
+export const IMAGE_KIND = {
+  MASTER: "master",
+  WORKING_COPY: "working_copy",
+  FILTER_WORKING_COPY: "filter_working_copy",
+} as const satisfies Record<string, ImageKind>
+
 type Row = {
   role?: string | null
   kind?: string | null

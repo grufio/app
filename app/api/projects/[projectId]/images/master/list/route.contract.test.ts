@@ -6,7 +6,7 @@ describe("api contract: master list route ui targets", () => {
   it("filters out master kind from ui items", () => {
     const routePath = path.join(process.cwd(), "app/api/projects/[projectId]/images/master/list/route.ts")
     const code = fs.readFileSync(routePath, "utf8")
-    expect(code).toMatch(/resolveImageKind\(row\) !== "master"/)
+    expect(code).toMatch(/resolveImageKind\(row\) !== IMAGE_KIND\.MASTER/)
     expect(code).toMatch(/items:\s*uiItems/)
   })
 

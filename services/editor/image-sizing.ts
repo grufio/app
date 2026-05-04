@@ -24,6 +24,22 @@ export function parseMicroPxFromUnitInput(input: string, unit: Unit): bigint | n
   }
 }
 
+export function parseSignedMicroPxFromUnitInput(input: string, unit: Unit): bigint | null {
+  const raw = String(input ?? "").trim()
+  if (!raw) return null
+
+  const sign = raw.startsWith("-") ? -1n : 1n
+  const magnitudeInput = raw.startsWith("-") || raw.startsWith("+") ? raw.slice(1).trim() : raw
+  if (!magnitudeInput) return null
+
+  try {
+    const magnitude = unitToPxUFixed(magnitudeInput, unit)
+    return sign < 0n ? -magnitude : magnitude
+  } catch {
+    return null
+  }
+}
+
 export function parseAndClampImageSize(args: {
   draftW: string
   draftH: string

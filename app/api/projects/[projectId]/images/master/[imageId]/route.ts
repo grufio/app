@@ -12,7 +12,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { isUuid, jsonError, requireUser } from "@/lib/api/route-guards"
 import { getEditorTargetImageRow } from "@/lib/supabase/project-images"
 import { evaluateDeleteTarget } from "@/services/editor/server/delete-target-policy"
-import { resolveImageKind } from "@/services/editor/server/image-kind"
+import { IMAGE_KIND, resolveImageKind } from "@/services/editor/server/image-kind"
 
 export const dynamic = "force-dynamic"
 
@@ -136,7 +136,7 @@ export async function DELETE(
     }
   }
 
-  let fallbackTarget: { image_id: string; kind: "working_copy" } | null = null
+  let fallbackTarget: { image_id: string; kind: typeof IMAGE_KIND.WORKING_COPY } | null = null
   let fallbackStage: "fallback_applied" | "no_working_copy" | "delete_ok" = "delete_ok"
   // If we deleted the active image, promote working_copy only.
   if (wasActive) {
@@ -147,7 +147,7 @@ export async function DELETE(
       .is("deleted_at", null)
       .order("created_at", { ascending: true })
 
-    const working = (remainingImages ?? []).find((row) => resolveImageKind(row) === "working_copy")
+    const working = (remainingImages ?? []).find((row) => resolveImageKind(row) === IMAGE_KIND.WORKING_COPY)
     const promote = working
     if (promote) {
       const kind = resolveImageKind(promote)
@@ -162,8 +162,8 @@ export async function DELETE(
         })
       }
       fallbackTarget =
-        kind === "working_copy"
-          ? { image_id: String(promote.id), kind: "working_copy" }
+        kind === IMAGE_KIND.WORKING_COPY
+          ? { image_id: String(promote.id), kind: IMAGE_KIND.WORKING_COPY }
           : null
       fallbackStage = fallbackTarget ? "fallback_applied" : "delete_ok"
     } else {

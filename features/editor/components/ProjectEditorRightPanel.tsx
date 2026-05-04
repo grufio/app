@@ -72,7 +72,7 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
   handleDeleteMasterImage: () => void | Promise<void>
   onRequestDeleteImage: () => void
   canDeleteActiveImage: boolean
-  panelImagePxU: { w: bigint; h: bigint } | null
+  panelImageTxU: { x: bigint; y: bigint; w: bigint; h: bigint } | null
   workspaceUnit: Unit
   workspaceReady: boolean
   imageStateLoading: boolean
@@ -107,7 +107,7 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
     handleDeleteMasterImage,
     onRequestDeleteImage,
     canDeleteActiveImage,
-    panelImagePxU,
+    panelImageTxU,
     workspaceUnit,
     workspaceReady,
     imageStateLoading,
@@ -215,12 +215,15 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
                 }
               >
                 <ImagePanel
-                  widthPxU={panelImagePxU?.w}
-                  heightPxU={panelImagePxU?.h}
+                  widthPxU={panelImageTxU?.w}
+                  heightPxU={panelImageTxU?.h}
+                  xPxU={panelImageTxU?.x}
+                  yPxU={panelImageTxU?.y}
                   unit={workspaceUnit}
                   ready={imagePanelReady}
                   disabled={!masterImage || imageStateLoading || !workspaceReady || imagePanelLocked}
                   onCommit={(w, h) => canvasRef.current?.setImageSize(w, h)}
+                  onCommitPosition={(x, y) => canvasRef.current?.setImagePosition(x, y)}
                   onAlign={(opts) => canvasRef.current?.alignImage(opts)}
                 />
               </EditorSidebarSection>

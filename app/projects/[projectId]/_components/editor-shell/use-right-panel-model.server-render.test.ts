@@ -19,8 +19,8 @@ describe("useRightPanelModel", () => {
       const out = useRightPanelModel({
         selectedNavId: "app/api/img-1",
         imageStateLoading: false,
-        imagePxU: { w: 123n, h: 456n },
-        initialImagePxU: null,
+        imageTxU: { x: 11n, y: 22n, w: 123n, h: 456n },
+        initialImageTxU: null,
         workspaceLoading: false,
         workspaceUnit: "cm",
         masterImage: { signedUrl: "u", name: "Master" },
@@ -33,7 +33,9 @@ describe("useRightPanelModel", () => {
         activeRightSection: out.activeRightSection,
         imagePanelLocked: out.imagePanelLocked,
         panelImageName: out.panelImageMeta?.name ?? null,
-        panelImagePxU: out.panelImagePxU ? { w: String(out.panelImagePxU.w), h: String(out.panelImagePxU.h) } : null,
+        panelImageTxU: out.panelImageTxU
+          ? { x: String(out.panelImageTxU.x), y: String(out.panelImageTxU.y), w: String(out.panelImageTxU.w), h: String(out.panelImageTxU.h) }
+          : null,
       }
       return React.createElement("pre", null, JSON.stringify(serializable))
     }
@@ -44,12 +46,12 @@ describe("useRightPanelModel", () => {
       activeRightSection: string
       imagePanelLocked: boolean
       panelImageName: string | null
-      panelImagePxU: { w: string; h: string } | null
+      panelImageTxU: { x: string; y: string; w: string; h: string } | null
     }
 
     expect(parsed.activeRightSection).toBe("image")
     expect(parsed.imagePanelLocked).toBe(true)
     expect(parsed.panelImageName).toBe("Image One")
-    expect(parsed.panelImagePxU).toEqual({ w: "123", h: "456" })
+    expect(parsed.panelImageTxU).toEqual({ x: "11", y: "22", w: "123", h: "456" })
   })
 })

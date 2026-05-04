@@ -14,8 +14,8 @@ describe("api contract: master by-id delete route invariants", () => {
   it("restricts fallback target kind to working_copy", () => {
     const routePath = path.join(process.cwd(), "app/api/projects/[projectId]/images/master/[imageId]/route.ts")
     const code = fs.readFileSync(routePath, "utf8")
-    expect(code).toMatch(/kind:\s*"working_copy"/)
-    expect(code).not.toMatch(/kind:\s*"master"/)
+    expect(code).toMatch(/kind:\s*IMAGE_KIND\.WORKING_COPY/)
+    expect(code).not.toMatch(/kind:\s*IMAGE_KIND\.MASTER/)
   })
 
   it("handles stale selection via resolver-based 409 contract", () => {

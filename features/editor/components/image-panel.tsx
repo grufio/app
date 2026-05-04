@@ -31,6 +31,7 @@ import { pxUToUnitDisplayUiFixed, type Unit } from "@/lib/editor/units"
 import {
   computeLockedAspectOtherDimensionFromHeightInput,
   computeLockedAspectOtherDimensionFromWidthInput,
+  parseSignedMicroPxFromUnitInput,
 } from "@/services/editor/image-sizing"
 import { computeImageSizeCommit, computeLockedAspectRatioFromCurrentSize } from "@/services/editor/image-sizing-operations"
 
@@ -44,6 +45,7 @@ function SizeField({
   onBlur,
   addon,
   unit,
+  mode = "decimal",
 }: {
   value: string
   onValueChange: (next: string) => void
@@ -54,6 +56,7 @@ function SizeField({
   onBlur: () => void
   addon: ReactNode
   unit: Unit
+  mode?: "decimal" | "signedDecimal"
 }) {
   return (
     <FieldGroup>
@@ -62,7 +65,7 @@ function SizeField({
         onValueChange={onValueChange}
         disabled={disabled}
         aria-label={ariaLabel}
-        mode="decimal"
+        mode={mode}
         onFocus={onFocus}
         onKeyDown={onKeyDown}
         onBlur={onBlur}
@@ -75,6 +78,10 @@ function SizeField({
       </FieldGroupAddon>
     </FieldGroup>
   )
+}
+
+function PositionAxisBadge({ label }: { label: "x" | "Y" }) {
+  return <span className="text-xs font-medium leading-none">{label}</span>
 }
 
 function ImageSizeInputs({
@@ -260,9 +267,134 @@ function ImageSizeInputs({
   )
 }
 
+function ImagePositionInputs({
+  xPxU,
+  yPxU,
+  unit,
+  ready,
+  controlsDisabled,
+  onCommitPosition,
+}: {
+  xPxU?: bigint
+  yPxU?: bigint
+  unit: Unit
+  ready: boolean
+  controlsDisabled: boolean
+  onCommitPosition: (xPxU: bigint, yPxU: bigint) => void
+}) {
+  const [dirty, setDirty] = useState(false)
+  const draftXRef = useRef("")
+  const draftYRef = useRef("")
+  const [draftX, setDraftX] = useState("")
+  const [draftY, setDraftY] = useState("")
+
+  const computedX = useMemo(() => {
+    if (!ready || xPxU == null) return ""
+    return pxUToUnitDisplayUiFixed(xPxU, unit)
+  }, [ready, unit, xPxU])
+
+  const computedY = useMemo(() => {
+    if (!ready || yPxU == null) return ""
+    return pxUToUnitDisplayUiFixed(yPxU, unit)
+  }, [ready, unit, yPxU])
+
+  const beginEditSession = () => {
+    if (!ready) return
+    if (dirty) return
+    draftXRef.current = computedX
+    draftYRef.current = computedY
+    setDraftX(computedX)
+    setDraftY(computedY)
+  }
+
+  const resetDraft = () => {
+    draftXRef.current = computedX
+    draftYRef.current = computedY
+    setDraftX(computedX)
+    setDraftY(computedY)
+  }
+
+  const commit = () => {
+    if (!dirty) return
+    const nextX = parseSignedMicroPxFromUnitInput(draftXRef.current, unit)
+    const nextY = parseSignedMicroPxFromUnitInput(draftYRef.current, unit)
+    if (nextX == null || nextY == null) return
+    if (xPxU != null && yPxU != null && nextX === xPxU && nextY === yPxU) return
+    onCommitPosition(nextX, nextY)
+  }
+
+  return (
+    <PanelTwoFieldRow>
+      <SizeField
+        value={dirty ? draftX : computedX}
+        disabled={controlsDisabled}
+        ariaLabel={`Image x position (${unit})`}
+        addon={<PositionAxisBadge label="x" />}
+        unit={unit}
+        mode="signedDecimal"
+        onValueChange={(next) => {
+          beginEditSession()
+          setDirty(true)
+          draftXRef.current = next
+          setDraftX(next)
+        }}
+        onFocus={beginEditSession}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            commit()
+            setDirty(false)
+          }
+          if (e.key === "Escape") {
+            setDirty(false)
+            resetDraft()
+          }
+        }}
+        onBlur={() => {
+          commit()
+          setDirty(false)
+        }}
+      />
+
+      <SizeField
+        value={dirty ? draftY : computedY}
+        disabled={controlsDisabled}
+        ariaLabel={`Image y position (${unit})`}
+        addon={<PositionAxisBadge label="Y" />}
+        unit={unit}
+        mode="signedDecimal"
+        onValueChange={(next) => {
+          beginEditSession()
+          setDirty(true)
+          draftYRef.current = next
+          setDraftY(next)
+        }}
+        onFocus={beginEditSession}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            commit()
+            setDirty(false)
+          }
+          if (e.key === "Escape") {
+            setDirty(false)
+            resetDraft()
+          }
+        }}
+        onBlur={() => {
+          commit()
+          setDirty(false)
+        }}
+      />
+
+      <PanelIconSlot />
+    </PanelTwoFieldRow>
+  )
+}
+
 type Props = {
   widthPxU?: bigint
   heightPxU?: bigint
+  xPxU?: bigint
+  yPxU?: bigint
   unit: Unit
   /**
    * When false, inputs stay empty and commits are ignored.
@@ -271,6 +403,7 @@ type Props = {
   ready?: boolean
   disabled?: boolean
   onCommit: (widthPxU: bigint, heightPxU: bigint) => void
+  onCommitPosition: (xPxU: bigint, yPxU: bigint) => void
   onAlign: (opts: { x?: "left" | "center" | "right"; y?: "top" | "center" | "bottom" }) => void
 }
 
@@ -280,7 +413,7 @@ type Props = {
  * The UI displays image size in the artboard's unit,
  * but commits changes in pixels to the canvas (so scaling remains stable).
  */
-export function ImagePanel({ widthPxU, heightPxU, unit, ready = true, disabled, onCommit, onAlign }: Props) {
+export function ImagePanel({ widthPxU, heightPxU, xPxU, yPxU, unit, ready = true, disabled, onCommit, onCommitPosition, onAlign }: Props) {
   const controlsDisabled = Boolean(disabled) || !ready
   // Functional button bars (no selected visual state). We keep transient value just to satisfy Radix.
   const [alignXAction, setAlignXAction] = useState<string>("")
@@ -297,6 +430,15 @@ export function ImagePanel({ widthPxU, heightPxU, unit, ready = true, disabled, 
         ready={ready}
         controlsDisabled={controlsDisabled}
         onCommit={onCommit}
+      />
+
+      <ImagePositionInputs
+        xPxU={xPxU}
+        yPxU={yPxU}
+        unit={unit}
+        ready={ready}
+        controlsDisabled={controlsDisabled}
+        onCommitPosition={onCommitPosition}
       />
 
       {/* Alignment controls (like the screenshot): 3 icons under width and 3 under height */}
