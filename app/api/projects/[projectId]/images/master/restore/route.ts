@@ -2,7 +2,7 @@
  * API route: restore active image to initial uploaded master.
  *
  * Responsibilities:
- * - Resolve the initial master image for the project (earliest role='master').
+ * - Resolve the initial master image for the project (earliest kind='master').
  * - Activate it and reset persisted image state in one DB operation.
  */
 import { NextResponse } from "next/server"

@@ -8,6 +8,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
 
+import { IMAGE_KIND, resolveImageKind } from "@/lib/editor/image-kind"
 import { parseBigIntString } from "@/lib/editor/imageState"
 import type { Database } from "@/lib/supabase/database.types"
 
@@ -18,7 +19,7 @@ export type DashboardProjectRow = Pick<
   project_images: Array<
     Pick<
       Database["public"]["Tables"]["project_images"]["Row"],
-      "id" | "role" | "file_size_bytes" | "storage_path" | "name" | "format" | "width_px" | "height_px"
+      "id" | "kind" | "role" | "file_size_bytes" | "storage_path" | "name" | "format" | "width_px" | "height_px" | "source_image_id"
     >
   >
   project_workspace: Pick<Database["public"]["Tables"]["project_workspace"]["Row"], "width_px" | "height_px"> | null
@@ -53,7 +54,7 @@ export type DashboardProjectVM = {
 }
 
 export function mapDashboardRow(row: DashboardProjectRow, signedUrlByPath: Map<string, string>): DashboardProjectVM {
-  const master = row.project_images?.find((img) => img.role === "master") ?? null
+  const master = row.project_images?.find((img) => resolveImageKind(img) === IMAGE_KIND.MASTER) ?? null
   const bytes = master?.file_size_bytes ?? 0
   const fileSizeLabel = master ? `${Math.round(bytes / 1024)} kb` : undefined
   const hasThumbnail = Boolean(master)
@@ -96,7 +97,7 @@ export async function listDashboardProjects(
   const { data: rows, error } = await supabase
     .from("projects")
     .select(
-      "id,name,updated_at,status,project_images!project_images_project_id_fkey(id,role,file_size_bytes,storage_path,name,format,width_px,height_px),project_workspace(width_px,height_px),project_image_state(role,image_id,x_px_u,y_px_u,width_px_u,height_px_u,rotation_deg)"
+      "id,name,updated_at,status,project_images!project_images_project_id_fkey(id,kind,role,file_size_bytes,storage_path,name,format,width_px,height_px,source_image_id),project_workspace(width_px,height_px),project_image_state(role,image_id,x_px_u,y_px_u,width_px_u,height_px_u,rotation_deg)"
     )
     .order("updated_at", { ascending: false })
     .limit(100)
@@ -107,7 +108,7 @@ export async function listDashboardProjects(
   const masterPaths = Array.from(
     new Set(
       (rows ?? [])
-        .map((r) => r.project_images?.find((img) => img.role === "master")?.storage_path ?? null)
+        .map((r) => r.project_images?.find((img) => resolveImageKind(img) === IMAGE_KIND.MASTER)?.storage_path ?? null)
         .filter((p): p is string => typeof p === "string" && p.length > 0)
     )
   )

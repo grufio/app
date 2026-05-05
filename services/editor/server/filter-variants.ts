@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 
+import { IMAGE_KIND, resolveImageKind } from "@/lib/editor/image-kind"
 import type { Database } from "@/lib/supabase/database.types"
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role"
 import { getEditorTargetImageRow } from "@/lib/supabase/project-images"
@@ -192,10 +193,10 @@ async function removeImageRowsAndStorage(args: {
   const service = createSupabaseServiceRoleClient()
   const { data: rows } = await supabase
     .from("project_images")
-    .select("id,role,storage_bucket,storage_path")
+    .select("id,kind,role,storage_bucket,storage_path,name,source_image_id")
     .in("id", ids)
     .is("deleted_at", null)
-  const deletable = (rows ?? []).filter((r) => r.role !== "master")
+  const deletable = (rows ?? []).filter((r) => resolveImageKind(r) !== IMAGE_KIND.MASTER)
   if (!deletable.length) return
   for (const row of deletable) {
     if (row.storage_path) {

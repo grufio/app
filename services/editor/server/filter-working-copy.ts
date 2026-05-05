@@ -95,7 +95,7 @@ async function softDeleteCopies(
  *
  * Logic:
  * 1. Find current editor target image (filter/working preferred, never master)
- * 2. Check if a working copy already exists (role='asset', source_image_id=activeImageId, name ends with '(filter working)')
+ * 2. Check if a working copy already exists (kind='filter_working_copy', source_image_id=activeImageId, name ends with '(filter working)')
  * 3. If exists and points to current active image, return existing copy with fresh signed URL
  * 4. If exists but points to old image, soft-delete it and create new copy
  * 5. If not exists, download active image from storage, upload as new copy, insert DB row
