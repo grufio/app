@@ -5,22 +5,20 @@ import { attachWindowMouseDragSession, type WindowLike } from "./window-mouse-se
 function makeWindowStub() {
   type MouseListener = (evt: MouseEvent) => void
   const listeners = new Map<string, Set<MouseListener>>()
-  const addEventListener: WindowLike["addEventListener"] = (type, listener) => {
-    const key = String(type)
-    const set = listeners.get(key) ?? new Set()
+  const addEventListener = ((type: string, listener: EventListenerOrEventListenerObject | null) => {
+    const set = listeners.get(type) ?? new Set()
     if (typeof listener === "function") {
       set.add(listener as MouseListener)
-    } else {
+    } else if (listener) {
       set.add(((evt: MouseEvent) => listener.handleEvent(evt)) as MouseListener)
     }
-    listeners.set(key, set)
-  }
-  const removeEventListener: WindowLike["removeEventListener"] = (type, listener) => {
-    const key = String(type)
+    listeners.set(type, set)
+  }) as WindowLike["addEventListener"]
+  const removeEventListener = ((type: string, listener: EventListenerOrEventListenerObject | null) => {
     if (typeof listener === "function") {
-      listeners.get(key)?.delete(listener as MouseListener)
+      listeners.get(type)?.delete(listener as MouseListener)
     }
-  }
+  }) as WindowLike["removeEventListener"]
 
   const dispatch = (type: string, evt: MouseEvent) => {
     for (const fn of listeners.get(type) ?? []) fn(evt)

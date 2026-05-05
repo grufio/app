@@ -239,10 +239,10 @@ export async function setActiveProjectImageState(args: {
   supabase: SupabaseClient
   projectId: string
   imageId: string
-  xPxU: bigint
-  yPxU: bigint
-  widthPxU: bigint
-  heightPxU: bigint
+  xPxU: string
+  yPxU: string
+  widthPxU: string
+  heightPxU: string
 }): Promise<{ ok: true } | { ok: false; status: number; stage: "active_switch"; reason: string; code?: string }> {
   const { supabase, projectId, imageId, xPxU, yPxU, widthPxU, heightPxU } = args
   const { error } = await supabase.rpc("set_active_master_with_state", {

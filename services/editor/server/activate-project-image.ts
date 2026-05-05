@@ -102,7 +102,8 @@ export async function activateProjectImage(args: {
   }
 
   const placementU = placementPxToMicroPx(placement)
-  return setActiveProjectImageState(supabase, {
+  return setActiveProjectImageState({
+    supabase,
     projectId,
     imageId,
     xPxU: placementU.xPxU,

@@ -231,7 +231,7 @@ describe("master upload route delegation", () => {
       params: Promise.resolve({ projectId: VALID_UUID }),
     })
     expect(uploadMasterImageMock).toHaveBeenCalledTimes(1)
-    expect(uploadMasterImageMock.mock.calls[0]?.[0]).not.toHaveProperty("dpi")
+    expect(uploadMasterImageMock.mock.calls[0]?.[0]).toMatchObject({ dpi: null, bitDepth: null })
   })
 
   it("keeps single upload write route by removing master POST export", async () => {
