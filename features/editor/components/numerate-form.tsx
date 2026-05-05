@@ -1,8 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { AppButton, AppInput } from "@/components/ui/form-controls"
 import { Label } from "@/components/ui/label"
 import { Field, FieldGroup } from "@/components/ui/field"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -45,7 +44,7 @@ export function NumerateForm({ superpixelWidth, superpixelHeight, initialShowCol
       <FieldGroup>
         <Field>
           <Label htmlFor="stroke-width">Vector Line Width (px)</Label>
-          <Input
+          <AppInput
             id="stroke-width"
             type="number"
             min="1"
@@ -72,12 +71,12 @@ export function NumerateForm({ superpixelWidth, superpixelHeight, initialShowCol
       </FieldGroup>
 
       <div className="flex gap-2 justify-end">
-        <Button type="button" variant="outline" onClick={onCancel} disabled={busy}>
+        <AppButton type="button" variant="outline" onClick={onCancel} disabled={busy}>
           Cancel
-        </Button>
-        <Button type="submit" disabled={!isValid || busy}>
+        </AppButton>
+        <AppButton type="submit" disabled={!isValid || busy}>
           {busy ? "Applying..." : "Apply"}
-        </Button>
+        </AppButton>
       </div>
     </form>
   )

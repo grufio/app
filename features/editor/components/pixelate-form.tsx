@@ -1,11 +1,17 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Field, FieldGroup } from "@/components/ui/field"
+import {
+  AppButton,
+  AppInput,
+  AppSelect,
+  AppSelectContent,
+  AppSelectItem,
+  AppSelectTrigger,
+  AppSelectValue,
+} from "@/components/ui/form-controls"
 
 export type PixelateFormData = {
   superpixelWidth: number
@@ -65,7 +71,7 @@ export function PixelateForm({ imageWidth, imageHeight, onCancel, onApply, busy 
       <FieldGroup>
         <Field>
           <Label htmlFor="superpixel-width">Superpixel Width (px)</Label>
-          <Input
+          <AppInput
             id="superpixel-width"
             type="number"
             min="1"
@@ -77,7 +83,7 @@ export function PixelateForm({ imageWidth, imageHeight, onCancel, onApply, busy 
         
         <Field>
           <Label htmlFor="superpixel-height">Superpixel Height (px)</Label>
-          <Input
+          <AppInput
             id="superpixel-height"
             type="number"
             min="1"
@@ -89,7 +95,7 @@ export function PixelateForm({ imageWidth, imageHeight, onCancel, onApply, busy 
 
         <Field>
           <Label htmlFor="pixel-count-width">Pixel Count Width (calculated)</Label>
-          <Input
+          <AppInput
             id="pixel-count-width"
             type="number"
             value={pixelCountWidth}
@@ -100,7 +106,7 @@ export function PixelateForm({ imageWidth, imageHeight, onCancel, onApply, busy 
 
         <Field>
           <Label htmlFor="pixel-count-height">Pixel Count Height (calculated)</Label>
-          <Input
+          <AppInput
             id="pixel-count-height"
             type="number"
             value={pixelCountHeight}
@@ -111,20 +117,20 @@ export function PixelateForm({ imageWidth, imageHeight, onCancel, onApply, busy 
 
         <Field>
           <Label htmlFor="color-mode">Color Mode</Label>
-          <Select value={colorMode} onValueChange={(v) => setColorMode(v as "rgb" | "grayscale")} disabled={busy}>
-            <SelectTrigger id="color-mode">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="rgb">RGB</SelectItem>
-              <SelectItem value="grayscale">Grayscale</SelectItem>
-            </SelectContent>
-          </Select>
+          <AppSelect value={colorMode} onValueChange={(v) => setColorMode(v as "rgb" | "grayscale")} disabled={busy}>
+            <AppSelectTrigger id="color-mode">
+              <AppSelectValue />
+            </AppSelectTrigger>
+            <AppSelectContent>
+              <AppSelectItem value="rgb">RGB</AppSelectItem>
+              <AppSelectItem value="grayscale">Grayscale</AppSelectItem>
+            </AppSelectContent>
+          </AppSelect>
         </Field>
 
         <Field>
           <Label htmlFor="num-colors">Number of Colors</Label>
-          <Input
+          <AppInput
             id="num-colors"
             type="number"
             min="2"
@@ -137,12 +143,12 @@ export function PixelateForm({ imageWidth, imageHeight, onCancel, onApply, busy 
       </FieldGroup>
 
       <div className="flex gap-2 justify-end">
-        <Button type="button" variant="outline" onClick={onCancel} disabled={busy}>
+        <AppButton type="button" variant="outline" onClick={onCancel} disabled={busy}>
           Cancel
-        </Button>
-        <Button type="submit" disabled={!isValid || busy}>
+        </AppButton>
+        <AppButton type="submit" disabled={!isValid || busy}>
           {busy ? "Applying..." : "Apply"}
-        </Button>
+        </AppButton>
       </div>
     </form>
   )

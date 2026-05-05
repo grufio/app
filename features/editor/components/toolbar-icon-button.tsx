@@ -1,6 +1,6 @@
 "use client"
 
-import { Button } from "@/components/ui/button"
+import { AppButton } from "@/components/ui/form-controls"
 import { cn } from "@/lib/utils"
 
 type ToolbarIconButtonProps = Omit<React.ComponentProps<"button">, "children"> & {
@@ -22,7 +22,7 @@ export function ToolbarIconButton({ label, active = false, className, children, 
   )
 
   return (
-    <Button
+    <AppButton
       type="button"
       variant="ghost"
       size="icon"
@@ -33,6 +33,6 @@ export function ToolbarIconButton({ label, active = false, className, children, 
       {...props}
     >
       {children}
-    </Button>
+    </AppButton>
   )
 }

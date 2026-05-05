@@ -13,7 +13,7 @@ import { ArrowLeftRight, ArrowUpDown, Gauge, Link2, Ruler, Unlink2 } from "lucid
 
 import { fmt2, type Unit } from "@/lib/editor/units"
 import { parseNumericInput } from "@/lib/editor/numeric"
-import { SelectItem } from "@/components/ui/select"
+import { AppSelectItem as SelectItem } from "@/components/ui/form-controls"
 import { IconSelectField } from "./fields/icon-select-field"
 import { PanelSizeField } from "./fields/panel-size-field"
 import { PanelIconSlot, PanelTwoFieldRow } from "./panel-layout"
