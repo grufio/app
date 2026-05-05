@@ -14,6 +14,8 @@
 import fs from "node:fs"
 import path from "node:path"
 
+import { RLS_PROTECTED_TABLES } from "./_rls-tables.mjs"
+
 const root = process.cwd()
 
 function fail(message) {
@@ -158,24 +160,11 @@ function main() {
     if (!schema.includes(marker)) fail(`db/schema.sql missing marker: ${marker}`)
   }
 
-  // Critical tables: owner-only app data.
-  const publicTables = [
-    "projects",
-    "project_images",
-    "project_workspace",
-    "project_grid",
-    "project_image_state",
-    "project_vectorization_settings",
-    "project_pdfs",
-    "project_filter_settings",
-    "project_generation",
-  ]
-
-  for (const table of publicTables) verifyPublicTable(schema, table)
+  for (const table of RLS_PROTECTED_TABLES) verifyPublicTable(schema, table)
   verifyStoragePolicies(schema)
   verifyNoServiceRoleEnvUsage()
 
-  console.log(`OK: RLS + policy checks passed for ${publicTables.length} tables + storage.objects.`)
+  console.log(`OK: RLS + policy checks passed for ${RLS_PROTECTED_TABLES.length} tables + storage.objects.`)
 }
 
 main()
