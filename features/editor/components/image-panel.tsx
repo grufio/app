@@ -19,12 +19,10 @@ import {
   Link2,
   Unlink2,
 } from "lucide-react"
-import type { KeyboardEventHandler, ReactNode } from "react"
 import { useMemo, useRef, useState } from "react"
 
-import { FieldGroup, FieldGroupAddon, FieldGroupText } from "@/components/ui/form-controls/field-group"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { NumericInput } from "./numeric-input"
+import { PanelSizeField } from "./fields/panel-size-field"
 import { PanelIconSlot, PanelTwoFieldRow } from "./panel-layout"
 import { RightPanelToggleIconButton } from "./right-panel-controls"
 import { pxUToUnitDisplayUiFixed, type Unit } from "@/lib/editor/units"
@@ -35,52 +33,7 @@ import {
 } from "@/services/editor/image-sizing"
 import { computeImageSizeCommit, computeLockedAspectRatioFromCurrentSize } from "@/services/editor/image-sizing-operations"
 
-function SizeField({
-  value,
-  onValueChange,
-  disabled,
-  ariaLabel,
-  onFocus,
-  onKeyDown,
-  onBlur,
-  addon,
-  unit,
-  mode = "decimal",
-}: {
-  value: string
-  onValueChange: (next: string) => void
-  disabled: boolean
-  ariaLabel: string
-  onFocus: () => void
-  onKeyDown: KeyboardEventHandler<HTMLInputElement>
-  onBlur: () => void
-  addon: ReactNode
-  unit: Unit
-  mode?: "decimal" | "signedDecimal"
-}) {
-  return (
-    <FieldGroup>
-      <NumericInput
-        value={value}
-        onValueChange={onValueChange}
-        disabled={disabled}
-        aria-label={ariaLabel}
-        mode={mode}
-        onFocus={onFocus}
-        onKeyDown={onKeyDown}
-        onBlur={onBlur}
-      />
-      <FieldGroupAddon align="inline-start" aria-hidden="true">
-        {addon}
-      </FieldGroupAddon>
-      <FieldGroupAddon align="inline-end" className="pointer-events-none" aria-hidden="true">
-        <FieldGroupText>{unit}</FieldGroupText>
-      </FieldGroupAddon>
-    </FieldGroup>
-  )
-}
-
-function PositionAxisBadge({ label }: { label: "x" | "Y" }) {
+function PositionAxisBadge({ label }: { label: "x" | "y" }) {
   return <span className="text-xs font-medium leading-none">{label}</span>
 }
 
@@ -142,11 +95,11 @@ function ImageSizeInputs({
 
   return (
     <PanelTwoFieldRow>
-      <SizeField
+      <PanelSizeField
         value={dirty ? draftW : computedW}
         disabled={controlsDisabled}
         ariaLabel={`Image width (${unit})`}
-        addon={<ArrowLeftRight aria-hidden="true" />}
+        icon={<ArrowLeftRight aria-hidden="true" />}
         unit={unit}
         onValueChange={(next) => {
           beginEditSession()
@@ -192,11 +145,11 @@ function ImageSizeInputs({
         }}
       />
 
-      <SizeField
+      <PanelSizeField
         value={dirty ? draftH : computedH}
         disabled={controlsDisabled}
         ariaLabel={`Image height (${unit})`}
-        addon={<ArrowUpDown aria-hidden="true" />}
+        icon={<ArrowUpDown aria-hidden="true" />}
         unit={unit}
         onValueChange={(next) => {
           beginEditSession()
@@ -325,11 +278,11 @@ function ImagePositionInputs({
 
   return (
     <PanelTwoFieldRow>
-      <SizeField
+      <PanelSizeField
         value={dirty ? draftX : computedX}
         disabled={controlsDisabled}
         ariaLabel={`Image x position (${unit})`}
-        addon={<PositionAxisBadge label="x" />}
+        icon={<PositionAxisBadge label="x" />}
         unit={unit}
         mode="signedDecimal"
         onValueChange={(next) => {
@@ -355,11 +308,11 @@ function ImagePositionInputs({
         }}
       />
 
-      <SizeField
+      <PanelSizeField
         value={dirty ? draftY : computedY}
         disabled={controlsDisabled}
         ariaLabel={`Image y position (${unit})`}
-        addon={<PositionAxisBadge label="Y" />}
+        icon={<PositionAxisBadge label="y" />}
         unit={unit}
         mode="signedDecimal"
         onValueChange={(next) => {

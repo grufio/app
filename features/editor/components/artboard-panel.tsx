@@ -8,15 +8,14 @@
  * - Edit artboard DPI.
  * - Persist changes via `project_workspace` providers.
  */
-import { useEffect, useRef, type KeyboardEventHandler, type ReactNode } from "react"
+import { useEffect, useRef } from "react"
 import { ArrowLeftRight, ArrowUpDown, Gauge, Link2, Ruler, Unlink2 } from "lucide-react"
 
 import { fmt2, type Unit } from "@/lib/editor/units"
 import { parseNumericInput } from "@/lib/editor/numeric"
-import { FieldGroup, FieldGroupAddon, FieldGroupText } from "@/components/ui/form-controls/field-group"
 import { SelectItem } from "@/components/ui/select"
 import { IconSelectField } from "./fields/icon-select-field"
-import { NumericInput } from "./numeric-input"
+import { PanelSizeField } from "./fields/panel-size-field"
 import { PanelIconSlot, PanelTwoFieldRow } from "./panel-layout"
 import { RightPanelToggleIconButton } from "./right-panel-controls"
 import { useProjectWorkspace } from "@/lib/editor/project-workspace"
@@ -34,49 +33,6 @@ function labelForPreset(p: "high" | "medium" | "low"): string {
   if (p === "high") return "High (300 ppi)"
   if (p === "medium") return "Medium (150 ppi)"
   return "Low (72 ppi)"
-}
-
-function ArtboardSizeField({
-  value,
-  onValueChange,
-  ariaLabel,
-  disabled,
-  icon,
-  unit,
-  inputId,
-  onKeyDown,
-  onBlur,
-}: {
-  value: string
-  onValueChange: (next: string) => void
-  ariaLabel: string
-  disabled: boolean
-  icon: ReactNode
-  unit: Unit
-  inputId: string
-  onKeyDown: KeyboardEventHandler<HTMLInputElement>
-  onBlur: () => void
-}) {
-  return (
-    <FieldGroup>
-      <NumericInput
-        id={inputId}
-        value={value}
-        onValueChange={onValueChange}
-        aria-label={ariaLabel}
-        disabled={disabled}
-        mode="decimal"
-        onKeyDown={onKeyDown}
-        onBlur={onBlur}
-      />
-      <FieldGroupAddon align="inline-start" aria-hidden="true">
-        {icon}
-      </FieldGroupAddon>
-      <FieldGroupAddon align="inline-end" className="pointer-events-none" aria-hidden="true">
-        <FieldGroupText>{unit}</FieldGroupText>
-      </FieldGroupAddon>
-    </FieldGroup>
-  )
 }
 
 /**
@@ -274,7 +230,7 @@ export function ArtboardPanel() {
       {/* Rows follow a consistent layout:
           [field | field | icon-slot] so the UI stays aligned across rows. */}
       <PanelTwoFieldRow>
-        <ArtboardSizeField
+        <PanelSizeField
           value={draftWidth}
           onValueChange={(next) => {
             setDraftWidth(next)
@@ -293,7 +249,7 @@ export function ArtboardPanel() {
           disabled={sizeControlsDisabled}
           icon={<ArrowLeftRight aria-hidden="true" />}
           unit={draftUnit}
-          inputId="artboard-width"
+          id="artboard-width"
           onKeyDown={(e) => {
             if (e.key === "Enter") void saveSize()
           }}
@@ -306,7 +262,7 @@ export function ArtboardPanel() {
           }}
         />
 
-        <ArtboardSizeField
+        <PanelSizeField
           value={draftHeight}
           onValueChange={(next) => {
             setDraftHeight(next)
@@ -325,7 +281,7 @@ export function ArtboardPanel() {
           disabled={sizeControlsDisabled}
           icon={<ArrowUpDown aria-hidden="true" />}
           unit={draftUnit}
-          inputId="artboard-height"
+          id="artboard-height"
           onKeyDown={(e) => {
             if (e.key === "Enter") void saveSize()
           }}

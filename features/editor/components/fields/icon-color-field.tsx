@@ -10,7 +10,7 @@
  */
 import * as React from "react"
 
-import { ColorSwatchControl, TextFieldControl } from "@/components/ui/form-controls"
+import { ColorSwatchControl, FieldControl } from "@/components/ui/form-controls"
 import { IconInputGroup } from "./icon-input-group"
 
 /**
@@ -90,7 +90,7 @@ export function IconColorField({
         />
       }
     >
-      <TextFieldControl
+      <FieldControl
         type="text"
         value={draftHex}
         aria-label={ariaLabel}

@@ -7,61 +7,21 @@
  * - Configure grid spacing and line style for the editor artboard.
  * - Persist settings via `project_grid`.
  */
-import { useCallback, useEffect, useRef, type KeyboardEventHandler, type ReactNode } from "react"
+import { useCallback, useEffect, useRef } from "react"
 import { ArrowLeftRight, ArrowUpDown, Eye, EyeOff, Percent } from "lucide-react"
 
 import { IconColorField } from "./fields/icon-color-field"
 import { IconNumericField } from "./fields/icon-numeric-field"
-import { NumericInput } from "./numeric-input"
+import { PanelSizeField } from "./fields/panel-size-field"
 import { PanelIconSlot, PanelTwoFieldRow } from "./panel-layout"
 import { EditorSidebarSection } from "./sidebar/editor-sidebar-section"
 import { Button } from "@/components/ui/button"
-import { FieldGroup, FieldGroupAddon, FieldGroupText } from "@/components/ui/form-controls/field-group"
 import { useProjectGrid, type ProjectGridRow } from "@/lib/editor/project-grid"
 import { useProjectWorkspace } from "@/lib/editor/project-workspace"
 import { computeGridUpsert } from "@/services/editor"
 import { useKeyedDraft } from "@/lib/editor/use-keyed-draft"
 import { fmt2 } from "@/lib/editor/units"
 
-function GridSizeField({
-  value,
-  ariaLabel,
-  disabled,
-  icon,
-  unit,
-  onValueChange,
-  onBlur,
-  onKeyDown,
-}: {
-  value: string
-  ariaLabel: string
-  disabled: boolean
-  icon: ReactNode
-  unit: string
-  onValueChange: (next: string) => void
-  onBlur: () => void
-  onKeyDown: KeyboardEventHandler<HTMLInputElement>
-}) {
-  return (
-    <FieldGroup>
-      <NumericInput
-        value={value}
-        onValueChange={onValueChange}
-        aria-label={ariaLabel}
-        disabled={disabled}
-        mode="decimal"
-        onKeyDown={onKeyDown}
-        onBlur={onBlur}
-      />
-      <FieldGroupAddon align="inline-start" aria-hidden="true">
-        {icon}
-      </FieldGroupAddon>
-      <FieldGroupAddon align="inline-end" className="pointer-events-none" aria-hidden="true">
-        <FieldGroupText>{unit}</FieldGroupText>
-      </FieldGroupAddon>
-    </FieldGroup>
-  )
-}
 
 
 export function GridPanel({
@@ -150,7 +110,7 @@ export function GridPanel({
       ) : null}
       <div className="space-y-4">
         <PanelTwoFieldRow>
-          <GridSizeField
+          <PanelSizeField
             value={draftW}
             ariaLabel={`Grid width (${effectiveUnit})`}
             disabled={controlsDisabled}
@@ -169,7 +129,7 @@ export function GridPanel({
             }}
           />
 
-          <GridSizeField
+          <PanelSizeField
             value={draftH}
             ariaLabel={`Grid height (${effectiveUnit})`}
             disabled={controlsDisabled}
