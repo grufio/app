@@ -37,7 +37,7 @@ function ToolButton({
     <Button
       type="button"
       variant={active ? "secondary" : "ghost"}
-      size="icon"
+      size="icon-sm"
       onClick={onClick}
       aria-label={label}
       aria-pressed={Boolean(active)}
