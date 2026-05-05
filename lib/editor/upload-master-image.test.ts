@@ -16,15 +16,16 @@ describe("upload-master-image", () => {
     let capturedBody: FormData | null = null
 
     const fetchImpl = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
-      capturedBody = init?.body as FormData
+      capturedBody = (init?.body as FormData) ?? null
       return new Response(JSON.stringify({ ok: true }), { status: 200 })
     }) as unknown as typeof fetch
 
     const out = await uploadMasterImageClient({ projectId: "p1", file, fetchImpl })
     expect(out).toEqual({ ok: true })
-    expect(capturedBody?.get("width_px")).toBe("640")
-    expect(capturedBody?.get("height_px")).toBe("480")
-    expect(capturedBody?.get("dpi")).toBe("72")
+    const body = capturedBody as FormData | null
+    expect(body?.get("width_px")).toBe("640")
+    expect(body?.get("height_px")).toBe("480")
+    expect(body?.get("dpi")).toBe("72")
   })
 
   it("normalizes API error payload into a stable message", async () => {

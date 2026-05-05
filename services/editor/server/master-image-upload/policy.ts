@@ -1,12 +1,20 @@
 import type { UploadMasterImageFailure } from "./types"
 import { parseAllowedMimeList, parseOptionalPositiveInt } from "./validation"
 
+export type ValidatedUploadInputs = {
+  ok: true
+  widthPx: number
+  heightPx: number
+  dpi: number
+  bitDepth: number
+}
+
 export function validateUploadInputs(args: {
   widthPx: number | null
   heightPx: number | null
   dpi: number | null
   bitDepth: number | null
-}): UploadMasterImageFailure | null {
+}): ValidatedUploadInputs | UploadMasterImageFailure {
   const { widthPx, heightPx, dpi, bitDepth } = args
   if (!widthPx || !heightPx) {
     return {
@@ -26,7 +34,7 @@ export function validateUploadInputs(args: {
     }
   }
 
-  return null
+  return { ok: true, widthPx, heightPx, dpi, bitDepth }
 }
 
 export function validateUploadLimits(args: {

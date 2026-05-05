@@ -68,8 +68,8 @@ export async function POST(
     file,
     widthPx: width_px,
     heightPx: height_px,
-    ...(dpi != null ? { dpi } : {}),
-    ...(bitDepth != null ? { bitDepth } : {}),
+    dpi,
+    bitDepth,
     format,
   })
   if (!result.ok) {

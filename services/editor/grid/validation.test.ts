@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest"
 
 import { computeRenderableGrid } from "./validation"
 
+import type { ProjectGridRow } from "@/services/editor/grid/types"
+
 describe("computeRenderableGrid", () => {
-  const baseRow = {
+  const baseRow: ProjectGridRow = {
     project_id: "p1",
     unit: "cm",
     spacing_value: 1,
@@ -11,8 +13,6 @@ describe("computeRenderableGrid", () => {
     spacing_y_value: 1,
     line_width_value: 35,
     color: "#000000",
-    created_at: "2026-01-01T00:00:00.000Z",
-    updated_at: "2026-01-01T00:00:00.000Z",
   }
 
   it("returns a render model with fixed 1px line width", () => {

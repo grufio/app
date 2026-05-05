@@ -241,8 +241,9 @@ describe("createImageWorkflowMachine", () => {
     actor.send({ type: "FILTER_REMOVE", filterId: "f_1" })
     expect(services.removeFilter).toHaveBeenCalledTimes(0)
 
-    if (!releaseApply) throw new Error("apply filter release function not set")
-    releaseApply()
+    const release = releaseApply as (() => void) | null
+    if (!release) throw new Error("apply filter release function not set")
+    release()
     await waitFor(actor, (s) => s.matches({ operation: "idle" }))
     expect(services.applyFilter).toHaveBeenCalledTimes(1)
     expect(services.refreshAll).toHaveBeenCalledTimes(1)

@@ -4,7 +4,7 @@ export type CommitScheduler = {
 }
 
 export function createCommitScheduler(onFlush: (commitPosition: boolean) => void): CommitScheduler {
-  let commitTimer: number | null = null
+  let commitTimer: ReturnType<typeof setTimeout> | null = null
   let pending: { commitPosition: boolean } | null = null
 
   const cancel = () => {

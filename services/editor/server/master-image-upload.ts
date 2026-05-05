@@ -11,6 +11,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/lib/supabase/database.types"
 import { activateProjectImage } from "@/services/editor/server/activate-project-image"
 import { copyImageTransform } from "@/services/editor/server/copy-image-transform"
+import { resetProjectFilterChain } from "@/services/editor/server/filter-chain-reset"
 
 import { insertMasterWithCleanup } from "./master-image-upload/master-insert-flow"
 import { validateUploadInputs, validateUploadLimits } from "./master-image-upload/policy"
@@ -57,7 +58,7 @@ async function createWorkingCopyFromMaster(args: {
     contentType: file.type || undefined,
   })
   const uploadErr = (uploadResult as { error?: { message?: string; code?: string } } | null | undefined)?.error
-  if (uploadErr) return { ok: false, reason: uploadErr.message, code: (uploadErr as unknown as { code?: string })?.code }
+  if (uploadErr) return { ok: false, reason: uploadErr.message ?? "Upload failed", code: (uploadErr as unknown as { code?: string })?.code }
 
   const { error: insertErr } = await supabase.from("project_images").insert({
     id: imageId,
@@ -89,19 +90,20 @@ export async function uploadMasterImage(args: {
   file: File
   widthPx: number
   heightPx: number
-  dpi?: number
-  bitDepth: number
+  dpi?: number | null
+  bitDepth?: number | null
   format: string
 }): Promise<UploadMasterImageResult> {
   const { supabase, projectId, file, format } = args
 
-  const widthPx = normalizePositiveInt(args.widthPx)
-  const heightPx = normalizePositiveInt(args.heightPx)
-  const dpi = normalizePositiveInt(args.dpi ?? Number.NaN)
-  const bitDepth = normalizePositiveInt(args.bitDepth)
-
-  const inputError = validateUploadInputs({ widthPx, heightPx, dpi, bitDepth })
-  if (inputError) return inputError
+  const validated = validateUploadInputs({
+    widthPx: normalizePositiveInt(args.widthPx),
+    heightPx: normalizePositiveInt(args.heightPx),
+    dpi: normalizePositiveInt(args.dpi ?? Number.NaN),
+    bitDepth: normalizePositiveInt(args.bitDepth ?? Number.NaN),
+  })
+  if (!validated.ok) return validated
+  const { widthPx, heightPx, dpi, bitDepth } = validated
 
   const limitError = validateUploadLimits({ file, widthPx, heightPx })
   if (limitError) return limitError
@@ -131,9 +133,9 @@ export async function uploadMasterImage(args: {
     format,
     widthPx,
     heightPx,
-    dpiX: dpi as number,
-    dpiY: dpi as number,
-    imageDpi: dpi as number,
+    dpiX: dpi,
+    dpiY: dpi,
+    imageDpi: dpi,
     bitDepth,
     objectPath,
   })
@@ -147,6 +149,23 @@ export async function uploadMasterImage(args: {
     }
   }
 
+  const filterReset = await resetProjectFilterChain({ supabase, projectId })
+  if (!filterReset.ok) {
+    await rollbackCreatedUploadRows({
+      supabase,
+      projectId,
+      masterImageId: imageId,
+      masterObjectPath: objectPath,
+    })
+    return {
+      ok: false,
+      status: 500,
+      stage: "db_upsert",
+      reason: filterReset.reason,
+      code: filterReset.code,
+    }
+  }
+
   const working = await createWorkingCopyFromMaster({
     supabase,
     projectId,
@@ -154,7 +173,7 @@ export async function uploadMasterImage(args: {
     format,
     widthPx,
     heightPx,
-    dpi: dpi as number,
+    dpi,
     bitDepth,
     sourceMasterId: imageId,
   })
@@ -180,7 +199,7 @@ export async function uploadMasterImage(args: {
     imageId,
     widthPx,
     heightPx,
-    imageDpi: dpi as number,
+    imageDpi: dpi,
   })
   if (!activationResult.ok) {
     await rollbackCreatedUploadRows({
