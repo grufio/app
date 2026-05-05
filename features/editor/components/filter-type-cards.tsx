@@ -40,7 +40,7 @@ export function FilterTypeCards(props: {
           >
             <div className="relative aspect-[3/2] bg-muted">
               <div className="flex h-full w-full items-center justify-center text-muted-foreground">
-                <ImageOff className="size-5" />
+                <ImageOff className="size-5" strokeWidth={1} />
               </div>
             </div>
             <CardContent className="space-y-0.5 p-3">

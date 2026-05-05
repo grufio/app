@@ -61,7 +61,7 @@ export function AddImageMenuAction({
     <>
       <input data-testid="add-image-input" {...getInputProps()} />
       <SidebarMenuAction onClick={open} disabled={isUploading} aria-label="Add Image">
-        <Plus />
+        <Plus strokeWidth={1} />
       </SidebarMenuAction>
     </>
   )

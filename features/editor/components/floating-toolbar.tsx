@@ -16,8 +16,6 @@ import { ToolbarIconButton } from "./toolbar-icon-button"
 
 export type FloatingToolbarTool = EditorTool
 
-const TOOLBAR_ICON_STROKE_WIDTH = 1
-
 type Props = {
   leftSlot?: React.ReactNode
   tool: FloatingToolbarTool
@@ -98,26 +96,26 @@ export function FloatingToolbar({
           disabled={selectDisabled}
           onClick={() => onToolChange("select")}
         >
-          <MousePointer2 className="size-6" strokeWidth={TOOLBAR_ICON_STROKE_WIDTH} />
+          <MousePointer2 className="size-6" strokeWidth={1} />
         </IconButton>
         <IconButton label="Hand (Move Artboard)" active={tool === "hand"} onClick={() => onToolChange("hand")}>
-          <Hand className="size-6" strokeWidth={TOOLBAR_ICON_STROKE_WIDTH} />
+          <Hand className="size-6" strokeWidth={1} />
         </IconButton>
         <IconButton label="Crop" active={tool === "crop"} disabled={cropDisabled} onClick={() => onToolChange("crop")}>
-          <Crop className="size-6" strokeWidth={TOOLBAR_ICON_STROKE_WIDTH} />
+          <Crop className="size-6" strokeWidth={1} />
         </IconButton>
 
         <IconButton label="Zoom in" onClick={onZoomIn} disabled={actionsDisabled}>
-          <ZoomIn className="size-6" strokeWidth={TOOLBAR_ICON_STROKE_WIDTH} />
+          <ZoomIn className="size-6" strokeWidth={1} />
         </IconButton>
         <IconButton label="Zoom out" onClick={onZoomOut} disabled={actionsDisabled}>
-          <ZoomOut className="size-6" strokeWidth={TOOLBAR_ICON_STROKE_WIDTH} />
+          <ZoomOut className="size-6" strokeWidth={1} />
         </IconButton>
         <IconButton label="Fit to screen" onClick={onFit} disabled={actionsDisabled}>
-          <Maximize2 className="size-6" strokeWidth={TOOLBAR_ICON_STROKE_WIDTH} />
+          <Maximize2 className="size-6" strokeWidth={1} />
         </IconButton>
         <IconButton label="Rotate 90°" onClick={onRotate} disabled={actionsDisabled || rotateDisabled}>
-          <RotateCw className="size-6" strokeWidth={TOOLBAR_ICON_STROKE_WIDTH} />
+          <RotateCw className="size-6" strokeWidth={1} />
         </IconButton>
       </div>
     </TooltipProvider>

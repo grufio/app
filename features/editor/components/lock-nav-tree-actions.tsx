@@ -56,7 +56,7 @@ export function LockNavTreeActions({
         aria-label={locked ? "Unlock Image" : "Lock Image"}
         aria-pressed={locked}
       >
-        {locked ? <Lock /> : <LockOpen />}
+        {locked ? <Lock strokeWidth={1} /> : <LockOpen strokeWidth={1} />}
       </SidebarMenuAction>
       <SidebarMenuAction
         inline
@@ -70,7 +70,7 @@ export function LockNavTreeActions({
         }}
         aria-label="Delete Image"
       >
-        <Trash2 />
+        <Trash2 strokeWidth={1} />
       </SidebarMenuAction>
     </SidebarMenuActions>
   )

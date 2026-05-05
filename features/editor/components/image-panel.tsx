@@ -213,7 +213,7 @@ function ImageSizeInputs({
             })
           }}
         >
-          {lockAspect ? <Link2 className="h-[16px] w-[16px]" /> : <Unlink2 className="h-[16px] w-[16px]" />}
+          {lockAspect ? <Link2 className="size-4" strokeWidth={1} /> : <Unlink2 className="size-4" strokeWidth={1} />}
         </RightPanelToggleIconButton>
       </PanelIconSlot>
     </PanelTwoFieldRow>
@@ -408,13 +408,13 @@ export function ImagePanel({ widthPxU, heightPxU, xPxU, yPxU, unit, ready = true
             className="w-full justify-start"
           >
             <ToggleGroupItem value="left" size="sm" className="flex-1" aria-label="Align left" disabled={controlsDisabled}>
-              <AlignLeft className="h-[16px] w-[16px]" />
+              <AlignLeft className="size-4" strokeWidth={1} />
             </ToggleGroupItem>
             <ToggleGroupItem value="center" size="sm" className="flex-1" aria-label="Align center" disabled={controlsDisabled}>
-              <AlignCenter className="h-[16px] w-[16px]" />
+              <AlignCenter className="size-4" strokeWidth={1} />
             </ToggleGroupItem>
             <ToggleGroupItem value="right" size="sm" className="flex-1" aria-label="Align right" disabled={controlsDisabled}>
-              <AlignRight className="h-[16px] w-[16px]" />
+              <AlignRight className="size-4" strokeWidth={1} />
             </ToggleGroupItem>
           </ToggleGroup>
         </div>
@@ -431,13 +431,13 @@ export function ImagePanel({ widthPxU, heightPxU, xPxU, yPxU, unit, ready = true
             className="w-full justify-start"
           >
             <ToggleGroupItem value="top" size="sm" className="flex-1" aria-label="Align top" disabled={controlsDisabled}>
-              <AlignVerticalJustifyStart className="h-[16px] w-[16px]" />
+              <AlignVerticalJustifyStart className="size-4" strokeWidth={1} />
             </ToggleGroupItem>
             <ToggleGroupItem value="center" size="sm" className="flex-1" aria-label="Align middle" disabled={controlsDisabled}>
-              <AlignVerticalJustifyCenter className="h-[16px] w-[16px]" />
+              <AlignVerticalJustifyCenter className="size-4" strokeWidth={1} />
             </ToggleGroupItem>
             <ToggleGroupItem value="bottom" size="sm" className="flex-1" aria-label="Align bottom" disabled={controlsDisabled}>
-              <AlignVerticalJustifyEnd className="h-[16px] w-[16px]" />
+              <AlignVerticalJustifyEnd className="size-4" strokeWidth={1} />
             </ToggleGroupItem>
           </ToggleGroup>
         </div>

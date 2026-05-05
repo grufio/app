@@ -104,7 +104,7 @@ export function EditorNavTree(props: {
     <SidebarMenu>
       <SidebarMenuItem>
         <SidebarMenuButton isActive={selectedKind === "artboard"} className="text-xs" onClick={() => onSelect(artboardNavId)}>
-          <LayoutGrid />
+          <LayoutGrid strokeWidth={1} />
           <span>Artboard</span>
         </SidebarMenuButton>
       </SidebarMenuItem>
@@ -116,7 +116,7 @@ export function EditorNavTree(props: {
               className="text-xs"
               onClick={() => onSelect(imageTargetNavId)}
             >
-              <ImageIcon />
+              <ImageIcon strokeWidth={1} />
               <span>Image</span>
             </SidebarMenuButton>
             {imageTargetImageId ? (
@@ -141,16 +141,16 @@ export function EditorNavTree(props: {
                 onSelect(gridNavId)
               }}
             >
-              <Grid3x3 />
+              <Grid3x3 strokeWidth={1} />
               <span>Grid</span>
             </SidebarMenuButton>
             {hasGrid ? (
               <SidebarMenuAction showOnHover aria-label="Delete Grid" onClick={() => void onGridDeleteRequested()}>
-                <Trash2 />
+                <Trash2 strokeWidth={1} />
               </SidebarMenuAction>
             ) : (
               <SidebarMenuAction aria-label="Add Grid" onClick={() => void onGridCreateRequested()}>
-                <Plus />
+                <Plus strokeWidth={1} />
               </SidebarMenuAction>
             )}
           </SidebarMenuItem>
@@ -158,7 +158,7 @@ export function EditorNavTree(props: {
       ) : (
         <SidebarMenuItem>
           <SidebarMenuButton className="text-xs" disabled>
-            <ImageIcon />
+            <ImageIcon strokeWidth={1} />
             <span>Image</span>
           </SidebarMenuButton>
           <AddImageMenuAction projectId={projectId} onUploaded={onImageUploaded} />

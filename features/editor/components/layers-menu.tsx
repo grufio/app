@@ -142,11 +142,11 @@ export function LayersMenu({ root, selectedId, onSelect, className }: Props) {
                     }}
                     aria-hidden="true"
                   >
-                    {isExpanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
+                    {isExpanded ? <ChevronDown className="size-4" strokeWidth={1} /> : <ChevronRight className="size-4" strokeWidth={1} />}
                   </span>
                 ) : null}
               </span>
-              <Icon className="size-4 shrink-0 text-muted-foreground group-[aria-selected=true]:text-foreground" />
+              <Icon className="size-4 shrink-0 text-muted-foreground group-[aria-selected=true]:text-foreground" strokeWidth={1} />
               <span className="truncate">{node.label}</span>
             </button>
           </div>

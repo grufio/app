@@ -163,7 +163,7 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
                       value={String(pageBgOpacity)}
                       mode="int"
                       ariaLabel="Page background opacity percent"
-                      icon={<Percent aria-hidden="true" />}
+                      icon={<Percent aria-hidden="true" strokeWidth={1} />}
                       onValueChange={(next) => {
                         const n = Number(next)
                         const clamped = Math.max(0, Math.min(100, Number.isFinite(n) ? n : 0))
@@ -177,7 +177,7 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
                         aria-label="Hide page background"
                         onClick={() => onPageBgEnabledChange(false)}
                       >
-                        <EyeOff className="size-4" />
+                        <EyeOff className="size-4" strokeWidth={1} />
                       </RightPanelIconButton>
                     </PanelIconSlot>
                   </PanelTwoFieldRow>
@@ -201,7 +201,7 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
                       aria-label="Restore image"
                       onClick={() => setRestoreOpen(true)}
                     >
-                      <RotateCcw className="size-4" />
+                      <RotateCcw className="size-4" strokeWidth={1} />
                     </RightPanelIconButton>
                     <RightPanelIconButton
                       type="button"
@@ -209,7 +209,7 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
                       aria-label="Delete image"
                       onClick={onRequestDeleteImage}
                     >
-                      <Trash2 className="size-4" />
+                      <Trash2 className="size-4" strokeWidth={1} />
                     </RightPanelIconButton>
                   </>
                 }

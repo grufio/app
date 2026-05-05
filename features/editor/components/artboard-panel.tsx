@@ -312,7 +312,7 @@ export function ArtboardPanel() {
               })
             }}
           >
-            {lockAspect ? <Link2 className="h-[16px] w-[16px]" /> : <Unlink2 className="h-[16px] w-[16px]" />}
+            {lockAspect ? <Link2 className="size-4" strokeWidth={1} /> : <Unlink2 className="size-4" strokeWidth={1} />}
           </RightPanelToggleIconButton>
         </PanelIconSlot>
       </PanelTwoFieldRow>
