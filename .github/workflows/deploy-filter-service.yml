@@ -1,16 +1,16 @@
-name: Deploy Python Service
+name: Deploy Filter Service
 
 on:
   push:
     branches: [main]
     paths:
-      - "python-service/**"
-      - ".github/workflows/deploy-python-service.yml"
+      - "filter-service/**"
+      - ".github/workflows/deploy-filter-service.yml"
   workflow_dispatch: {}
 
 # Each commit is its own deploy; cancel any in-flight builds for older commits.
 concurrency:
-  group: deploy-python-service-${{ github.ref }}
+  group: deploy-filter-service-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -38,8 +38,8 @@ jobs:
 
       - name: Deploy to Cloud Run
         run: |
-          gcloud run deploy gruf-python-service \
-            --source python-service \
+          gcloud run deploy gruf-filter-service \
+            --source filter-service \
             --region europe-west3 \
             --allow-unauthenticated \
             --port 8001 \

@@ -1,9 +1,9 @@
 version: "3.8"
 
 services:
-  # Python image processing service
-  python-service:
-    build: ./python-service
+  # Image filtering service (FastAPI + OpenCV)
+  filter-service:
+    build: ./filter-service
     ports:
       - "8001:8001"
     environment:
@@ -22,7 +22,7 @@ services:
   #   ports:
   #     - "3000:3000"
   #   environment:
-  #     - PYTHON_SERVICE_URL=http://python-service:8001
+  #     - FILTER_SERVICE_URL=http://filter-service:8001
   #   depends_on:
-  #     - python-service
+  #     - filter-service
   #   restart: unless-stopped

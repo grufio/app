@@ -5,7 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/lib/supabase/database.types"
 import { copyImageTransform } from "@/services/editor/server/copy-image-transform"
 
-const PYTHON_SERVICE_URL = process.env.PYTHON_SERVICE_URL || "http://localhost:8001"
+const FILTER_SERVICE_URL = process.env.FILTER_SERVICE_URL || "http://localhost:8001"
 
 type LineArtFailStage =
   | "validation"
@@ -124,7 +124,7 @@ export async function lineArtImageAndActivate(args: {
     // Call Python service for line art
     const imageBase64 = srcBuffer.toString("base64")
 
-    const response = await fetch(`${PYTHON_SERVICE_URL}/filters/lineart`, {
+    const response = await fetch(`${FILTER_SERVICE_URL}/filters/lineart`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

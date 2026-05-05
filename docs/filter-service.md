@@ -1,6 +1,7 @@
-# Python Image Processing Service
+# Filter Service
 
-This document explains the Python service architecture for advanced image processing.
+The image filtering service (FastAPI + OpenCV) for advanced effects (pixelate,
+line art, numerate). Runs on Cloud Run in production, on `localhost:8001` in dev.
 
 ## Architecture
 
@@ -17,7 +18,7 @@ This document explains the Python service architecture for advanced image proces
 
 1. **Client** → Next.js API route (`/api/projects/[id]/filters/pixelate`)
 2. **Next.js** → Downloads source image from Supabase Storage
-3. **Next.js** → POST to Python service (`http://python-service:8001/filters/pixelate`)
+3. **Next.js** → POST to Python service (`http://filter-service:8001/filters/pixelate`)
 4. **Python** → Processes image (block-based pixelation with average colors)
 5. **Python** → Returns processed PNG
 6. **Next.js** → Uploads result to Supabase Storage, creates DB entry
@@ -62,7 +63,7 @@ This document explains the Python service architecture for advanced image proces
 ### Local Setup (Python Service)
 
 ```bash
-cd python-service
+cd filter-service
 
 # Create virtual environment
 python -m venv venv
@@ -81,7 +82,7 @@ uvicorn app.main:app --reload --port 8001
 
 ```bash
 # Add to .env.local
-PYTHON_SERVICE_URL=http://localhost:8001
+FILTER_SERVICE_URL=http://localhost:8001
 
 # Start Next.js
 npm run dev
@@ -103,13 +104,13 @@ docker-compose up
 
 Add environment variable:
 ```
-PYTHON_SERVICE_URL=https://your-python-service.com
+FILTER_SERVICE_URL=https://your-filter-service.com
 ```
 
 ### Python Service Deployment Options
 
 1. **Railway / Render / Fly.io**
-   - Deploy `python-service/` directory
+   - Deploy `filter-service/` directory
    - Dockerfile included
    - Set port to 8001
 
@@ -118,7 +119,7 @@ PYTHON_SERVICE_URL=https://your-python-service.com
    - Deploy as Lambda function
 
 3. **Google Cloud Run / Azure Container Apps**
-   - Build Docker image from `python-service/Dockerfile`
+   - Build Docker image from `filter-service/Dockerfile`
    - Deploy as container
 
 ## API Reference
@@ -155,13 +156,13 @@ This architecture makes it easy to add more filters:
 - **Face Detection** (OpenCV)
 - **Style Transfer** (Neural networks)
 
-Simply add new endpoints to `python-service/app/main.py`!
+Simply add new endpoints to `filter-service/app/main.py`!
 
 ## Testing
 
 ```bash
 # Python service tests (future)
-cd python-service
+cd filter-service
 pytest
 
 # Integration test (Next.js → Python)
@@ -183,7 +184,7 @@ npm test -- services/editor/server/pixelate-filter.test.ts
 curl http://localhost:8001/health
 
 # Check logs
-docker-compose logs python-service
+docker-compose logs filter-service
 ```
 
 **ModuleNotFoundError:**
@@ -195,5 +196,5 @@ pip install -r requirements.txt
 **Port already in use:**
 ```bash
 # Change port in docker-compose.yml
-# Update PYTHON_SERVICE_URL in .env.local
+# Update FILTER_SERVICE_URL in .env.local
 ```
