@@ -6,7 +6,7 @@ import { InputGroup, InputGroupAddon, InputGroupText } from "@/components/ui/for
 import { cn } from "@/lib/utils"
 
 const fieldGroupBase =
-  "dark:bg-input/30 border-input bg-transparent rounded-md border shadow-xs transition-[color,box-shadow] outline-none"
+  "border-input bg-transparent rounded-md border shadow-xs transition-[color,box-shadow] outline-none"
 
 // Hover-only affordance; focus/invalid are handled in state selectors below.
 const fieldGroupInteractive = "hover:border-muted-foreground/30"

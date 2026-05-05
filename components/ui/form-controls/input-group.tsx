@@ -70,7 +70,7 @@ function InputGroupText({ className, ...props }: React.ComponentProps<"span">) {
   return (
     <span
       data-slot="input-group-text"
-      className={cn("text-[12px] leading-[24px]", className)}
+      className={cn("text-panel", className)}
       {...props}
     />
   )

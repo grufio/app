@@ -31,7 +31,7 @@ function AppSelectTrigger({
     <SelectPrimitive.Trigger
       data-slot="select-trigger"
       className={cn(
-        "border-input bg-transparent text-foreground flex h-6 w-full items-center justify-between gap-2 rounded-md border px-3 py-0 text-[12px] leading-[24px] shadow-xs outline-none whitespace-nowrap",
+        "border-input bg-transparent text-foreground flex h-6 w-full items-center justify-between gap-2 rounded-md border px-3 py-0 text-panel shadow-xs outline-none whitespace-nowrap",
         "focus-visible:border-purple focus-visible:ring-purple/30 focus-visible:ring-[3px]",
         "disabled:cursor-not-allowed disabled:opacity-50",
         "[&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
