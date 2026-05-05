@@ -5,8 +5,10 @@
  *
  * Responsibilities:
  * - Trigger OAuth sign-in flows via Supabase Auth.
- * - Render a simple “welcome back” form shell.
+ * - Submit email/password credentials and route the user to /dashboard.
  */
+import { useState } from "react"
+
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
@@ -25,11 +27,34 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { signInWithGoogleOAuth } from "@/services/auth/client/oauth"
+import { signInWithPassword } from "@/services/auth/client/password"
 
 export function LoginForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    if (busy) return
+    setError(null)
+    setBusy(true)
+    try {
+      const result = await signInWithPassword({ email, password })
+      if (!result.ok) {
+        setError(result.error)
+        return
+      }
+      window.location.assign("/dashboard")
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <Card>
@@ -40,11 +65,7 @@ export function LoginForm({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault()
-            }}
-          >
+          <form onSubmit={onSubmit}>
             <FieldGroup>
               <Field>
                 <Button variant="outline" type="button">
@@ -83,6 +104,9 @@ export function LoginForm({
                   id="email"
                   type="email"
                   placeholder="m@example.com"
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   required
                 />
               </Field>
@@ -96,10 +120,24 @@ export function LoginForm({
                     Forgot your password?
                   </a>
                 </div>
-                <Input id="password" type="password" required />
+                <Input
+                  id="password"
+                  type="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
               </Field>
+              {error ? (
+                <p className="text-sm text-destructive" role="alert">
+                  {error}
+                </p>
+              ) : null}
               <Field>
-                <Button type="submit">Login</Button>
+                <Button type="submit" disabled={busy}>
+                  {busy ? "Signing in..." : "Login"}
+                </Button>
                 <FieldDescription className="text-center">
                   Don&apos;t have an account? <a href="#">Sign up</a>
                 </FieldDescription>
