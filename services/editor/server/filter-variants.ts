@@ -193,7 +193,7 @@ async function removeImageRowsAndStorage(args: {
   const service = createSupabaseServiceRoleClient()
   const { data: rows } = await supabase
     .from("project_images")
-    .select("id,kind,role,storage_bucket,storage_path,name,source_image_id")
+    .select("id,kind,storage_bucket,storage_path,name,source_image_id")
     .in("id", ids)
     .is("deleted_at", null)
   const deletable = (rows ?? []).filter((r) => resolveImageKind(r) !== IMAGE_KIND.MASTER)

@@ -165,7 +165,7 @@ export async function DELETE(
   // Fetch the active image to delete
   const { data: imageToDelete, error: fetchErr } = await supabase
     .from("project_images")
-    .select("id,storage_path,storage_bucket,is_active,is_locked,role,kind,source_image_id,name")
+    .select("id,storage_path,storage_bucket,is_active,is_locked,kind,source_image_id,name")
     .eq("project_id", projectId)
     .eq("is_active", true)
     .is("deleted_at", null)
@@ -254,7 +254,7 @@ export async function DELETE(
   if (wasActive) {
     const { data: remainingImages } = await supabase
       .from("project_images")
-      .select("id,role,kind,source_image_id,name")
+      .select("id,kind,source_image_id,name")
       .eq("project_id", projectId)
       .is("deleted_at", null)
       .order("created_at", { ascending: true })

@@ -115,7 +115,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ project
   }
   const { data: editorTargetImageRow, error: editorTargetImageErr } = await supabase
     .from("project_images")
-    .select("is_locked,role")
+    .select("is_locked,kind")
     .eq("project_id", projectId)
     .eq("id", editorTargetImageIdForWrite)
     .is("deleted_at", null)

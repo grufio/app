@@ -63,7 +63,6 @@ async function createWorkingCopyFromMaster(args: {
   const { error: insertErr } = await supabase.from("project_images").insert({
     id: imageId,
     project_id: projectId,
-    role: "asset",
     kind: "working_copy",
     name: `${file.name} (working copy)`,
     format,

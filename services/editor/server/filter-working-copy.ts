@@ -299,7 +299,6 @@ export async function getOrCreateFilterWorkingCopy(args: {
   const { error: insertErr } = await supabase.from("project_images").insert({
     id: workingCopyId,
     project_id: projectId,
-    role: "asset",
     kind: "filter_working_copy",
     name: workingCopyName,
     format: activeFormat,

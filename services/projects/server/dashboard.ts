@@ -19,7 +19,7 @@ export type DashboardProjectRow = Pick<
   project_images: Array<
     Pick<
       Database["public"]["Tables"]["project_images"]["Row"],
-      "id" | "kind" | "role" | "file_size_bytes" | "storage_path" | "name" | "format" | "width_px" | "height_px" | "source_image_id"
+      "id" | "kind" | "file_size_bytes" | "storage_path" | "name" | "format" | "width_px" | "height_px" | "source_image_id"
     >
   >
   project_workspace: Pick<Database["public"]["Tables"]["project_workspace"]["Row"], "width_px" | "height_px"> | null
@@ -97,7 +97,7 @@ export async function listDashboardProjects(
   const { data: rows, error } = await supabase
     .from("projects")
     .select(
-      "id,name,updated_at,status,project_images!project_images_project_id_fkey(id,kind,role,file_size_bytes,storage_path,name,format,width_px,height_px,source_image_id),project_workspace(width_px,height_px),project_image_state(role,image_id,x_px_u,y_px_u,width_px_u,height_px_u,rotation_deg)"
+      "id,name,updated_at,status,project_images!project_images_project_id_fkey(id,kind,file_size_bytes,storage_path,name,format,width_px,height_px,source_image_id),project_workspace(width_px,height_px),project_image_state(role,image_id,x_px_u,y_px_u,width_px_u,height_px_u,rotation_deg)"
     )
     .order("updated_at", { ascending: false })
     .limit(100)
