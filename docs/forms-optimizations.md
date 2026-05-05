@@ -178,9 +178,9 @@ Nicht durchgeführt. Quick-Checks:
 | Mittel | 6. AppFieldGroup-Rename | ✅ erledigt (Phase B2) |
 | Mittel | 8. Visual-Regression-Tests | ✅ erledigt — `e2e/forms.visual.spec.ts`, 3 Surfaces (Phase C1) |
 | Niedrig | 4. CVA-Sharing | ✅ erledigt — `buttonVariantClasses` (Phase B3) |
-| Niedrig | 5. text-panel Utility | offen |
-| Niedrig | 7. Filter-Modal Default vs App | offen |
-| Niedrig | 9. Dark Brand Color | offen |
-| Niedrig | 10. A11y-Audit | offen |
+| Niedrig | 5. text-panel Utility | ✅ erledigt — `.text-panel` in `app/globals.css`, applied across app-input/app-button/app-select/input-group |
+| Niedrig | 7. Filter-Modal Default vs App | ✅ entschieden — Filter-Dialoge nutzen App Forms (kompakt). Konsistent mit Editor-Inline. Restore/Delete-Confirm-Modale bleiben Default (sind Nicht-Editor-Modale). |
+| Niedrig | 9. Dark Brand Color | ✅ obsolet — Dark Mode komplett entfernt (kein ThemeProvider/Toggle, alle `dark:`-Klassen + `.dark{}`-Block + `@custom-variant dark` raus) |
+| Niedrig | 10. A11y-Audit | ✅ Quick-Audit erledigt — alle Filter-Form-Inputs haben `<Label htmlFor>`, alle Panel-Felder `aria-label`, Focus-Indikatoren mit hohem Kontrast (border-purple + ring). Keine Fixes nötig. |
 
-6 von 10 Punkten umgesetzt. Die verbleibenden 4 sind Geschmacks- oder Designerentscheidungen, die spätere Iterationen abwarten können.
+**Alle 10 Punkte erledigt.** Die Form-Architektur ist abgeschlossen.
