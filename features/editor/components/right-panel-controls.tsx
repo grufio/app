@@ -2,13 +2,13 @@
 
 import type { ComponentProps } from "react"
 
-import { Button } from "@/components/ui/button"
+import { AppButton } from "@/components/ui/form-controls"
 import { cn } from "@/lib/utils"
 
-type RightPanelIconButtonProps = Omit<ComponentProps<typeof Button>, "variant" | "size">
+type RightPanelIconButtonProps = Omit<ComponentProps<typeof AppButton>, "variant" | "size">
 
 export function RightPanelIconButton({ className, ...props }: RightPanelIconButtonProps) {
-  return <Button variant="ghost" size="icon" className={cn("h-6 w-6", className)} {...props} />
+  return <AppButton variant="ghost" size="icon" className={cn("h-6 w-6", className)} {...props} />
 }
 
 export function RightPanelToggleIconButton({

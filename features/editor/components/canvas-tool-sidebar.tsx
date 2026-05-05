@@ -9,7 +9,7 @@
  */
 import { Hand, Maximize2, MousePointer2, RotateCw, ZoomIn, ZoomOut } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
+import { AppButton } from "@/components/ui/form-controls"
 
 type Tool = "select" | "hand"
 
@@ -34,17 +34,17 @@ function ToolButton({
   children: React.ReactNode
 }) {
   return (
-    <Button
+    <AppButton
       type="button"
       variant={active ? "secondary" : "ghost"}
-      size="icon-sm"
+      size="icon"
       onClick={onClick}
       aria-label={label}
       aria-pressed={Boolean(active)}
       title={label}
     >
       {children}
-    </Button>
+    </AppButton>
   )
 }
 

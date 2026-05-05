@@ -8,8 +8,7 @@
  */
 import type * as React from "react"
 
-import { SelectFieldControl } from "@/components/ui/form-controls"
-import { Select, SelectContent, SelectValue } from "@/components/ui/select"
+import { AppSelect, AppSelectContent, AppSelectValue, SelectFieldControl } from "@/components/ui/form-controls"
 import { IconInputGroup } from "./icon-input-group"
 
 /**
@@ -39,17 +38,17 @@ export function IconSelectField({
 }) {
   return (
     <IconInputGroup addon={icon} addonAlign="inline-start">
-      <Select value={value} onValueChange={onValueChange}>
+      <AppSelect value={value} onValueChange={onValueChange}>
         <SelectFieldControl
           className={triggerClassName}
           disabled={disabled}
           aria-label={ariaLabel}
           onPointerDownCapture={triggerOnPointerDownCapture}
         >
-          <SelectValue className="truncate" />
+          <AppSelectValue className="truncate" />
         </SelectFieldControl>
-        <SelectContent>{children}</SelectContent>
-      </Select>
+        <AppSelectContent>{children}</AppSelectContent>
+      </AppSelect>
     </IconInputGroup>
   )
 }

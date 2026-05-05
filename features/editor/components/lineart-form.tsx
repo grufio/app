@@ -1,8 +1,7 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { AppButton, AppInput } from "@/components/ui/form-controls"
 import { Label } from "@/components/ui/label"
 import { Field, FieldGroup } from "@/components/ui/field"
 
@@ -59,7 +58,7 @@ export function LineArtForm({ onCancel, onApply, busy = false }: Props) {
       <FieldGroup>
         <Field>
           <Label htmlFor="threshold1">Low Threshold</Label>
-          <Input
+          <AppInput
             id="threshold1"
             type="number"
             min={0}
@@ -73,7 +72,7 @@ export function LineArtForm({ onCancel, onApply, busy = false }: Props) {
 
         <Field>
           <Label htmlFor="threshold2">High Threshold</Label>
-          <Input
+          <AppInput
             id="threshold2"
             type="number"
             min={0}
@@ -87,7 +86,7 @@ export function LineArtForm({ onCancel, onApply, busy = false }: Props) {
 
         <Field>
           <Label htmlFor="lineThickness">Line Thickness</Label>
-          <Input
+          <AppInput
             id="lineThickness"
             type="number"
             min={1}
@@ -101,7 +100,7 @@ export function LineArtForm({ onCancel, onApply, busy = false }: Props) {
 
         <Field>
           <Label htmlFor="blurAmount">Blur Amount</Label>
-          <Input
+          <AppInput
             id="blurAmount"
             type="number"
             min={0}
@@ -115,7 +114,7 @@ export function LineArtForm({ onCancel, onApply, busy = false }: Props) {
 
         <Field>
           <Label htmlFor="minContourArea">Min. Detail Size</Label>
-          <Input
+          <AppInput
             id="minContourArea"
             type="number"
             min={0}
@@ -130,7 +129,7 @@ export function LineArtForm({ onCancel, onApply, busy = false }: Props) {
 
         <Field>
           <Label htmlFor="smoothness">Smoothness</Label>
-          <Input
+          <AppInput
             id="smoothness"
             type="number"
             min={0}
@@ -162,12 +161,12 @@ export function LineArtForm({ onCancel, onApply, busy = false }: Props) {
       </FieldGroup>
 
       <div className="flex justify-end gap-2">
-        <Button type="button" variant="outline" onClick={onCancel} disabled={busy}>
+        <AppButton type="button" variant="outline" onClick={onCancel} disabled={busy}>
           Cancel
-        </Button>
-        <Button type="submit" disabled={!isValid || busy}>
+        </AppButton>
+        <AppButton type="submit" disabled={!isValid || busy}>
           {busy ? "Processing..." : "Apply"}
-        </Button>
+        </AppButton>
       </div>
     </form>
   )

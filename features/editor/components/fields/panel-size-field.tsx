@@ -9,7 +9,7 @@
  */
 import type { KeyboardEventHandler, ReactNode } from "react"
 
-import { FieldGroup, FieldGroupAddon, FieldGroupText } from "@/components/ui/form-controls/field-group"
+import { AppFieldGroup, AppFieldGroupAddon, AppFieldGroupText } from "@/components/ui/form-controls/field-group"
 import type { NumericMode } from "@/lib/editor/numeric"
 import { NumericInput } from "../numeric-input"
 
@@ -39,7 +39,7 @@ export function PanelSizeField({
   onBlur?: () => void
 }) {
   return (
-    <FieldGroup>
+    <AppFieldGroup>
       <NumericInput
         id={id}
         value={value}
@@ -51,12 +51,12 @@ export function PanelSizeField({
         onKeyDown={onKeyDown}
         onBlur={onBlur}
       />
-      <FieldGroupAddon align="inline-start" aria-hidden="true">
+      <AppFieldGroupAddon align="inline-start" aria-hidden="true">
         {icon}
-      </FieldGroupAddon>
-      <FieldGroupAddon align="inline-end" className="pointer-events-none" aria-hidden="true">
-        <FieldGroupText>{unit}</FieldGroupText>
-      </FieldGroupAddon>
-    </FieldGroup>
+      </AppFieldGroupAddon>
+      <AppFieldGroupAddon align="inline-end" className="pointer-events-none" aria-hidden="true">
+        <AppFieldGroupText>{unit}</AppFieldGroupText>
+      </AppFieldGroupAddon>
+    </AppFieldGroup>
   )
 }

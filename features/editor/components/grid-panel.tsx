@@ -15,7 +15,7 @@ import { IconNumericField } from "./fields/icon-numeric-field"
 import { PanelSizeField } from "./fields/panel-size-field"
 import { PanelIconSlot, PanelTwoFieldRow } from "./panel-layout"
 import { EditorSidebarSection } from "./sidebar/editor-sidebar-section"
-import { Button } from "@/components/ui/button"
+import { AppButton } from "@/components/ui/form-controls"
 import { useProjectGrid, type ProjectGridRow } from "@/lib/editor/project-grid"
 import { useProjectWorkspace } from "@/lib/editor/project-workspace"
 import { computeGridUpsert } from "@/services/editor"
@@ -92,17 +92,16 @@ export function GridPanel({
     <EditorSidebarSection
       title="Grid"
       headerActions={
-        <Button
+        <AppButton
           type="button"
           variant="ghost"
           size="icon"
-          className="h-6 w-6"
           disabled={loading || !row}
           aria-label={gridVisible ? "Hide grid" : "Show grid"}
           onClick={() => onGridVisibleChange(!gridVisible)}
         >
           {gridVisible ? <EyeOff className="size-4" strokeWidth={1} /> : <Eye className="size-4" strokeWidth={1} />}
-        </Button>
+        </AppButton>
       }
     >
       {!row && !loading && error ? (
