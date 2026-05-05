@@ -43,7 +43,7 @@ export async function cleanupExistingMasters(args: {
     .from("project_images")
     .select("id,storage_bucket,storage_path")
     .eq("project_id", projectId)
-    .eq("role", "master")
+    .eq("kind", "master")
     .is("deleted_at", null)
 
   if (error) return { ok: false, reason: error.message, code: (error as { code?: string }).code }
@@ -59,7 +59,7 @@ export async function cleanupExistingMasters(args: {
     .from("project_images")
     .delete()
     .eq("project_id", projectId)
-    .eq("role", "master")
+    .eq("kind", "master")
     .is("deleted_at", null)
 
   if (deleteErr) return { ok: false, reason: deleteErr.message, code: (deleteErr as { code?: string }).code }
