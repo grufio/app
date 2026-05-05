@@ -14,7 +14,7 @@ export const FieldControl = React.forwardRef<
       data-slot="input-group-control"
       ref={ref}
       className={cn(
-        "flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent",
+        "h-6 flex-1 rounded-none border-0 bg-transparent px-0 py-0 text-[12px] leading-[24px] shadow-none focus-visible:ring-0 dark:bg-transparent",
         className
       )}
       {...rest}

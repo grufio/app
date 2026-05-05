@@ -32,9 +32,20 @@ export default async function Page() {
   const { projects, error } = await listDashboardProjects(supabase)
   if (error) throw new Error(`Failed to load projects: ${error}`)
 
+  const { data: authData } = await supabase.auth.getUser()
+  const sidebarUser = {
+    name:
+      (authData.user?.user_metadata?.full_name as string | undefined) ??
+      (authData.user?.user_metadata?.name as string | undefined) ??
+      authData.user?.email?.split("@")[0] ??
+      "User",
+    email: authData.user?.email ?? "",
+    avatar: (authData.user?.user_metadata?.avatar_url as string | undefined) ?? "",
+  }
+
   return (
     <SidebarFrame>
-      <AppSidebarMain />
+      <AppSidebarMain user={sidebarUser} />
       <SidebarInset>
         <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
           <div className="flex w-full items-center gap-2 px-4">

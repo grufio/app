@@ -34,13 +34,14 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar"
 
+type SidebarUser = {
+  name: string
+  email: string
+  avatar: string
+}
+
 // This is sample data.
 const data = {
-  user: {
-    name: "shadcn",
-    email: "m@example.com",
-    avatar: "/avatars/shadcn.jpg",
-  },
   teams: [
     {
       name: "Acme Inc",
@@ -166,8 +167,9 @@ const data = {
 
 export function AppSidebarMain({
   className,
+  user,
   ...props
-}: React.ComponentProps<typeof Sidebar>) {
+}: React.ComponentProps<typeof Sidebar> & { user: SidebarUser }) {
   return (
     <Sidebar
       collapsible="icon"
@@ -182,7 +184,7 @@ export function AppSidebarMain({
         <NavProjects projects={data.projects} />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={data.user} />
+        <NavUser user={user} />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
