@@ -176,7 +176,6 @@ export async function pixelateImageAndActivate(args: {
     const { error: insertErr } = await supabase.from("project_images").insert({
       id: imageId,
       project_id: projectId,
-      role: "asset",
       kind: "filter_working_copy",
       name: `${src.name.replace(/ \(filter working\)| \(pixelate\)| \(line art\)| \(numerate\)/g, "")} (pixelate)`,
       format: outputFormat,

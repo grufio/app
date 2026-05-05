@@ -95,7 +95,7 @@ async function softDeleteCopies(
  *
  * Logic:
  * 1. Find current editor target image (filter/working preferred, never master)
- * 2. Check if a working copy already exists (role='asset', source_image_id=activeImageId, name ends with '(filter working)')
+ * 2. Check if a working copy already exists (kind='filter_working_copy', source_image_id=activeImageId, name ends with '(filter working)')
  * 3. If exists and points to current active image, return existing copy with fresh signed URL
  * 4. If exists but points to old image, soft-delete it and create new copy
  * 5. If not exists, download active image from storage, upload as new copy, insert DB row
@@ -153,7 +153,7 @@ export async function getOrCreateFilterWorkingCopy(args: {
     .from("project_images")
     .select("id,storage_bucket,storage_path,width_px,height_px,source_image_id,name,updated_at,created_at,kind")
     .eq("project_id", projectId)
-    .eq("role", "asset")
+    .eq("kind", "filter_working_copy")
     .like("name", "%(filter working)")
     .is("deleted_at", null)
     .order("updated_at", { ascending: false })
@@ -299,7 +299,6 @@ export async function getOrCreateFilterWorkingCopy(args: {
   const { error: insertErr } = await supabase.from("project_images").insert({
     id: workingCopyId,
     project_id: projectId,
-    role: "asset",
     kind: "filter_working_copy",
     name: workingCopyName,
     format: activeFormat,
@@ -473,7 +472,7 @@ export async function getFilterPanelData(args: {
     .from("project_images")
     .select("id,name,storage_bucket,storage_path,width_px,height_px,source_image_id")
     .eq("project_id", projectId)
-    .eq("role", "asset")
+    .eq("kind", "filter_working_copy")
     .in("id", outputImageIds)
     .is("deleted_at", null)
     .order("created_at", { ascending: false })

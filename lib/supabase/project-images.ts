@@ -37,14 +37,13 @@ export type ActiveProjectImageRow = {
   dpi: number | null
   source_image_id: string | null
   kind: string | null
-  role: string | null
   is_locked: boolean | null
 }
 
-export function resolveImageStateRoleFromProjectImage(row: Pick<ActiveProjectImageRow, "role"> | null | undefined): "master" | "working" | "asset" {
-  const role = String(row?.role ?? "").toLowerCase()
-  if (role === "working") return "working"
-  if (role === "asset") return "asset"
+export function resolveImageStateRoleFromProjectImage(row: Pick<ActiveProjectImageRow, "kind"> | null | undefined): "master" | "working" | "asset" {
+  const kind = String(row?.kind ?? "").toLowerCase()
+  if (kind === "working_copy") return "working"
+  if (kind === "filter_working_copy") return "asset"
   return "master"
 }
 
@@ -62,7 +61,6 @@ function toActiveProjectImageRow(data: Record<string, unknown>): ActiveProjectIm
     dpi: data.dpi == null ? null : Number(data.dpi),
     source_image_id: data.source_image_id == null ? null : String(data.source_image_id),
     kind: data.kind == null ? null : String(data.kind),
-    role: data.role == null ? null : String(data.role),
     is_locked: data.is_locked == null ? null : Boolean(data.is_locked),
   }
 }
@@ -92,7 +90,7 @@ export async function resolveEditorTargetImageRows(
 > {
   const { data, error } = await supabase
     .from("project_images")
-    .select("id,name,storage_bucket,storage_path,format,width_px,height_px,file_size_bytes,dpi,source_image_id,kind,role,is_locked,updated_at,created_at")
+    .select("id,name,storage_bucket,storage_path,format,width_px,height_px,file_size_bytes,dpi,source_image_id,kind,is_locked,updated_at,created_at")
     .eq("project_id", projectId)
     .is("deleted_at", null)
 
@@ -133,7 +131,7 @@ export async function getActiveProjectImageRow(
 ): Promise<{ row: ActiveProjectImageRow | null; error: null } | { row: null; error: { stage: "active_lookup"; reason: string; code?: string } }> {
   const { data, error } = await supabase
     .from("project_images")
-    .select("id,name,storage_bucket,storage_path,format,width_px,height_px,file_size_bytes,dpi,source_image_id,kind,role,is_locked")
+    .select("id,name,storage_bucket,storage_path,format,width_px,height_px,file_size_bytes,dpi,source_image_id,kind,is_locked")
     .eq("project_id", projectId)
     .eq("is_active", true)
     .is("deleted_at", null)
@@ -271,7 +269,7 @@ export async function getActiveMasterImage(
 ): Promise<{ image: ActiveMasterImage | null; error: string | null }> {
   const { data, error } = await supabase
     .from("project_images")
-    .select("id,storage_path,storage_bucket,name,width_px,height_px,role,is_active,deleted_at")
+    .select("id,storage_path,storage_bucket,name,width_px,height_px,kind,is_active,deleted_at")
     .eq("project_id", projectId)
     .eq("is_active", true)
     .is("deleted_at", null)

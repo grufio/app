@@ -47,7 +47,6 @@ export async function resetProjectFilterChain(args: {
     .update({ deleted_at: new Date().toISOString() })
     .eq("project_id", projectId)
     .eq("kind", "filter_working_copy")
-    .eq("role", "asset")
     .is("deleted_at", null)
     .in("id", outputImageIds)
 

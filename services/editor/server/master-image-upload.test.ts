@@ -183,7 +183,7 @@ describe("master-image-upload service", () => {
     expect(masterInsert?.bit_depth).toBe(8)
     expect(masterInsert?.width_px).toBe(400)
     expect(masterInsert?.height_px).toBe(200)
-    expect(workingInsert?.role).toBe("asset")
+    expect(workingInsert?.kind).toBe("working_copy")
     expect(workingInsert?.source_image_id).toBe(masterInsert?.id)
     expect(activateSpy).toHaveBeenCalledWith(
       expect.objectContaining({

@@ -42,7 +42,7 @@ export async function GET(
 
   const { data, error } = await supabase
     .from("project_images")
-    .select("id,name,format,width_px,height_px,dpi,storage_path,storage_bucket,file_size_bytes,is_active,is_locked,created_at,role,kind,source_image_id")
+    .select("id,name,format,width_px,height_px,dpi,storage_path,storage_bucket,file_size_bytes,is_active,is_locked,created_at,kind,source_image_id")
     .eq("project_id", projectId)
     .is("deleted_at", null)
     .order("created_at", { ascending: false })

@@ -150,7 +150,6 @@ export async function cropImageAndActivate(args: {
   const { error: insertErr } = await supabase.from("project_images").insert({
     id: imageId,
     project_id: projectId,
-    role: "asset",
     kind: "filter_working_copy",
     name: `${src.name} (crop)`,
     format: outputFormat,

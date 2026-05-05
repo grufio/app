@@ -23,7 +23,7 @@ export async function getMasterImageForEditor(
     .from("project_images")
     .select("id,width_px,height_px,dpi")
     .eq("project_id", projectId)
-    .eq("role", "master")
+    .eq("kind", "master")
     .is("deleted_at", null)
     .order("created_at", { ascending: true })
     .limit(1)

@@ -295,7 +295,6 @@ export type Database = {
           kind: Database["public"]["Enums"]["image_kind"]
           name: string
           project_id: string
-          role: Database["public"]["Enums"]["image_role"]
           source_image_id: string | null
           storage_bucket: string
           storage_path: string
@@ -320,7 +319,6 @@ export type Database = {
           kind: Database["public"]["Enums"]["image_kind"]
           name: string
           project_id: string
-          role: Database["public"]["Enums"]["image_role"]
           source_image_id?: string | null
           storage_bucket?: string
           storage_path: string
@@ -345,7 +343,6 @@ export type Database = {
           kind?: Database["public"]["Enums"]["image_kind"]
           name?: string
           project_id?: string
-          role?: Database["public"]["Enums"]["image_role"]
           source_image_id?: string | null
           storage_bucket?: string
           storage_path?: string

@@ -20,7 +20,6 @@ export async function insertMasterRow(args: {
   return supabase.from("project_images").insert({
     id: imageId,
     project_id: projectId,
-    role: "master",
     kind: "master",
     name: file.name,
     format,
