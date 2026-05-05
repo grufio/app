@@ -4,12 +4,14 @@
  * Input group UI primitive.
  *
  * Responsibilities:
- * - Compose inputs/selects with addons/buttons in one horizontal row.
+ * - Compose inputs/selects with addons in one horizontal row.
+ * - Sized chrome (border, focus highlight, invalid state) is added by the
+ *   `AppFieldGroup` wrapper that lives next door, so this layer is just
+ *   layout + addon slots.
  */
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
 
 /**
  * InputGroup
@@ -74,31 +76,4 @@ function InputGroupText({ className, ...props }: React.ComponentProps<"span">) {
   )
 }
 
-function InputGroupTextarea({ className, ...props }: React.ComponentProps<"textarea">) {
-  return (
-    <textarea
-      data-slot="input-group-control"
-      className={cn(
-        "flex field-sizing-content min-h-16 w-full resize-none",
-        "rounded-none border-0 bg-transparent px-3 py-0 text-[12px] leading-[24px] outline-none",
-        className
-      )}
-      {...props}
-    />
-  )
-}
-
-function InputGroupButton({
-  className,
-  ...props
-}: React.ComponentProps<typeof Button> & { "data-slot"?: string }) {
-  return (
-    <Button
-      data-slot="input-group-button"
-      className={cn("h-6 rounded-none", className)}
-      {...props}
-    />
-  )
-}
-
-export { InputGroup, InputGroupAddon, InputGroupButton, InputGroupText, InputGroupTextarea }
+export { InputGroup, InputGroupAddon, InputGroupText }

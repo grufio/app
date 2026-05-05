@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react"
 
 import { updateProjectTitleClient } from "@/services/projects/client/update-project-title"
 import { FieldControl } from "@/components/ui/form-controls"
-import { FieldGroup } from "@/components/ui/form-controls/field-group"
+import { AppFieldGroup } from "@/components/ui/form-controls/field-group"
 
 type Props = {
   projectId: string
@@ -61,7 +61,7 @@ export function ProjectTitleEditor({ projectId, initialTitle, onTitleUpdated }: 
 
   return (
     <div>
-      <FieldGroup className="border-transparent bg-transparent shadow-none hover:border-muted-foreground/30">
+      <AppFieldGroup className="border-transparent bg-transparent shadow-none hover:border-muted-foreground/30">
         <FieldControl
           ref={inputRef}
           value={draft}
@@ -95,7 +95,7 @@ export function ProjectTitleEditor({ projectId, initialTitle, onTitleUpdated }: 
             void save(draft)
           }}
         />
-      </FieldGroup>
+      </AppFieldGroup>
     </div>
   )
 }
