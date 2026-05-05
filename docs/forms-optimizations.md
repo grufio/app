@@ -168,19 +168,19 @@ Nicht durchgeführt. Quick-Checks:
 
 ---
 
-## Empfehlung — was zuerst
+## Status (Stand 2026-05-05)
 
-| Priorität | Punkt | Begründung |
+| Priorität | Punkt | Status |
 |---|---|---|
-| **Hoch** | 3. data-slot Lücke schließen | Defensive, niedrige Aufwand |
-| **Hoch** | 2. Focus-Ring im FieldGroup | Konsistente Visuals |
-| **Mittel** | 1. InputGroupButton/Textarea auf App* | Nächster Sägezahn potenziell |
-| **Mittel** | 6. AppFieldGroup-Rename | Naming-Klarheit |
-| **Mittel** | 8. Visual-Regression-Tests | Schutz für die Zukunft |
-| **Niedrig** | 4. CVA-Sharing | Code-Hygiene |
-| **Niedrig** | 5. text-panel Utility | Nice-to-have |
-| **Niedrig** | 7. Filter-Modal Default | UX-Geschmacksfrage |
-| **Niedrig** | 9. Dark Brand Color | Designer entscheidet |
-| **Niedrig** | 10. A11y-Audit | Wenn Public-Launch näher kommt |
+| Hoch | 2. Focus-Ring im FieldGroup | ✅ erledigt (Phase A1, Commit 12f447b7) |
+| Hoch | 3. data-slot Lücke schließen | ✅ erledigt (Phase A2, Commit 12f447b7) |
+| Mittel | 1. InputGroupButton/Textarea auf App* | ✅ erledigt — gelöscht (Phase B1) |
+| Mittel | 6. AppFieldGroup-Rename | ✅ erledigt (Phase B2) |
+| Mittel | 8. Visual-Regression-Tests | ✅ erledigt — `e2e/forms.visual.spec.ts`, 3 Surfaces (Phase C1) |
+| Niedrig | 4. CVA-Sharing | ✅ erledigt — `buttonVariantClasses` (Phase B3) |
+| Niedrig | 5. text-panel Utility | offen |
+| Niedrig | 7. Filter-Modal Default vs App | offen |
+| Niedrig | 9. Dark Brand Color | offen |
+| Niedrig | 10. A11y-Audit | offen |
 
-Quick-Wins (~30 Min total): **#2 + #3** geben sofortige Konsistenz für minimalen Aufwand. **#8 (Visual-Tests)** ist die strategischste Investition für künftige Stabilität.
+6 von 10 Punkten umgesetzt. Die verbleibenden 4 sind Geschmacks- oder Designerentscheidungen, die spätere Iterationen abwarten können.

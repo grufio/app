@@ -21,7 +21,7 @@
     "gate:local": "npm -s run lint && npm -s run typecheck && npm -s run test --silent && npm -s run check:db-schema && npm -s run check:bootstrap-migrations && npm -s run verify:rls",
     "gate:linked": "npm -s run gate:local && SUPABASE_VERIFY_TYPES_SYNC=1 npm -s run verify:types-synced",
     "gate:ci": "npm -s run gate:local && npm -s run test:coverage:gate",
-    "gate:pre-release": "npm -s run gate:ci && npm -s run verify:remote-migrations && npm -s run verify:remote-rls && npm -s run check:remote && SUPABASE_VERIFY_TYPES_SYNC=1 npm -s run verify:types-synced",
+    "gate:pre-release": "npm -s run gate:ci && npm -s run verify:remote-migrations && npm -s run verify:remote-rls && npm -s run check:remote && SUPABASE_VERIFY_TYPES_SYNC=1 npm -s run verify:types-synced && npm -s run test:e2e:visual",
     "check:local": "npm -s run gate:local",
     "check:local:linked": "npm -s run gate:linked",
     "check:remote": "npm -s run verify:image-state-binding && npm -s run verify:filter-chain-binding && npm -s run verify:image-version-invariants",
@@ -55,6 +55,8 @@
     "test:e2e:local:workflow:reuse": "PLAYWRIGHT_REUSE_EXISTING_SERVER=1 PLAYWRIGHT_HOST_ARCH=arm64 PLAYWRIGHT_BROWSERS_PATH=.playwright-browsers PLAYWRIGHT_BASE_URL=http://127.0.0.1:3110 node scripts/verify-playwright-env.mjs && PLAYWRIGHT_REUSE_EXISTING_SERVER=1 PLAYWRIGHT_HOST_ARCH=arm64 PLAYWRIGHT_BROWSERS_PATH=.playwright-browsers PLAYWRIGHT_BASE_URL=http://127.0.0.1:3110 playwright test e2e/editor.boot.spec.ts --grep \"smoke:|regression:\"",
     "test:e2e:full": "npm -s run test:e2e:local:full",
     "test:e2e:local:full": "npm -s run test:e2e:local:prepare && PLAYWRIGHT_REUSE_EXISTING_SERVER=0 PLAYWRIGHT_HOST_ARCH=arm64 PLAYWRIGHT_BROWSERS_PATH=.playwright-browsers PLAYWRIGHT_USE_WEBSERVER=1 PLAYWRIGHT_WEBSERVER_COMMAND='npm run start:e2e' PLAYWRIGHT_BASE_URL=http://127.0.0.1:3110 node scripts/verify-playwright-env.mjs && PLAYWRIGHT_REUSE_EXISTING_SERVER=0 PLAYWRIGHT_HOST_ARCH=arm64 PLAYWRIGHT_BROWSERS_PATH=.playwright-browsers PLAYWRIGHT_USE_WEBSERVER=1 PLAYWRIGHT_WEBSERVER_COMMAND='npm run start:e2e' PLAYWRIGHT_BASE_URL=http://127.0.0.1:3110 playwright test e2e/editor.boot.spec.ts",
+    "test:e2e:visual": "npm -s run test:e2e:local:prepare && PLAYWRIGHT_REUSE_EXISTING_SERVER=0 PLAYWRIGHT_HOST_ARCH=arm64 PLAYWRIGHT_BROWSERS_PATH=.playwright-browsers PLAYWRIGHT_USE_WEBSERVER=1 PLAYWRIGHT_WEBSERVER_COMMAND='npm run start:e2e' PLAYWRIGHT_BASE_URL=http://127.0.0.1:3110 playwright test e2e/forms.visual.spec.ts",
+    "test:e2e:visual:update": "PLAYWRIGHT_REUSE_EXISTING_SERVER=0 PLAYWRIGHT_HOST_ARCH=arm64 PLAYWRIGHT_BROWSERS_PATH=.playwright-browsers PLAYWRIGHT_USE_WEBSERVER=1 PLAYWRIGHT_WEBSERVER_COMMAND='npm run start:e2e' PLAYWRIGHT_BASE_URL=http://127.0.0.1:3110 playwright test e2e/forms.visual.spec.ts --update-snapshots",
     "vercel:env:push:production": "node scripts/vercel-env-sync.mjs --file .env.vercel.production --target production",
     "vercel:env:push:preview": "node scripts/vercel-env-sync.mjs --file .env.vercel.preview --target preview",
     "vercel:env:push:development": "node scripts/vercel-env-sync.mjs --file .env.vercel.development --target development"
