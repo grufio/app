@@ -3,7 +3,7 @@ import crypto from "node:crypto"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/lib/supabase/database.types"
-import { getEditorTargetImageRow } from "@/lib/supabase/project-images"
+import { resolveEditorTargetImageRows } from "@/lib/supabase/project-images"
 import { copyImageTransform } from "@/services/editor/server/copy-image-transform"
 import { resetProjectFilterChain } from "@/services/editor/server/filter-chain-reset"
 
@@ -106,18 +106,20 @@ export async function getOrCreateFilterWorkingCopy(args: {
 }): Promise<FilterWorkingCopyResult> {
   const { supabase, projectId } = args
 
-  // Resolve current editor target image.
-  const activeLookup = await getEditorTargetImageRow(supabase, projectId)
-  if (activeLookup.error) {
+  // The filter chain base is always derived from the project's working_copy, never from a
+  // filter output. Using the chain tip here would make every filter apply replace the base
+  // and orphan the freshly inserted filter row.
+  const lookup = await resolveEditorTargetImageRows(supabase, projectId)
+  if (lookup.error) {
     return {
       ok: false,
       status: 400,
       stage: "active_lookup",
-      reason: activeLookup.error.reason,
-      code: activeLookup.error.code,
+      reason: lookup.error.reason,
+      code: lookup.error.code,
     }
   }
-  const activeImage = activeLookup.row
+  const activeImage = lookup.preferredWorking
   if (!activeImage) {
     return {
       ok: false,

@@ -17,7 +17,12 @@ vi.mock("./copy-image-transform", () => ({
 }))
 
 vi.mock("@/lib/supabase/project-images", () => ({
-  getEditorTargetImageRow: (...args: unknown[]) => getEditorTargetImageRowMock(...args),
+  // Mock returns `{row, error}` style; adapt it to the multi-row shape the impl now uses.
+  resolveEditorTargetImageRows: async (...args: unknown[]) => {
+    const r = await getEditorTargetImageRowMock(...args)
+    if (r?.error) return { target: null, preferredWorking: null, error: r.error }
+    return { target: r?.row ?? null, preferredWorking: r?.row ?? null, error: null }
+  },
 }))
 
 describe("getOrCreateFilterWorkingCopy", () => {
