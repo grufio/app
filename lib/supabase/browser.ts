@@ -7,16 +7,12 @@
  */
 import { createBrowserClient } from "@supabase/ssr"
 
+import { getRequiredEnv } from "@/lib/env"
 import type { Database } from "@/lib/supabase/database.types"
 
 export function createSupabaseBrowserClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-  if (!url || !anonKey) {
-    throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY")
-  }
-
+  const url = getRequiredEnv("NEXT_PUBLIC_SUPABASE_URL")
+  const anonKey = getRequiredEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY")
   return createBrowserClient<Database>(url, anonKey)
 }
 
