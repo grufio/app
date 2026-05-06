@@ -1,6 +1,15 @@
 import type { UploadMasterImageFailure } from "./types"
 import { parseAllowedMimeList, parseOptionalPositiveInt } from "./validation"
 
+/**
+ * Hard defaults for upload limits. ENV (`USER_MAX_UPLOAD_BYTES`,
+ * `USER_UPLOAD_MAX_PIXELS`) overrides if set. Without these defaults a
+ * forgotten ENV would silently disable the cap and let a 100 MB / 100 MP
+ * image through to Konva, risking OOM on the client.
+ */
+export const DEFAULT_USER_MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+export const DEFAULT_USER_UPLOAD_MAX_PIXELS = 100_000_000
+
 export type ValidatedUploadInputs = {
   ok: true
   widthPx: number
@@ -44,8 +53,8 @@ export function validateUploadLimits(args: {
 }): UploadMasterImageFailure | null {
   const { file, widthPx, heightPx } = args
 
-  const maxUploadBytes = parseOptionalPositiveInt(process.env.USER_MAX_UPLOAD_BYTES)
-  if (maxUploadBytes != null && file.size > maxUploadBytes) {
+  const maxUploadBytes = parseOptionalPositiveInt(process.env.USER_MAX_UPLOAD_BYTES) ?? DEFAULT_USER_MAX_UPLOAD_BYTES
+  if (file.size > maxUploadBytes) {
     return {
       ok: false,
       status: 413,
@@ -75,21 +84,19 @@ export function validateUploadLimits(args: {
     }
   }
 
-  const maxPixels = parseOptionalPositiveInt(process.env.USER_UPLOAD_MAX_PIXELS)
-  if (maxPixels != null) {
-    const pixels = BigInt(widthPx) * BigInt(heightPx)
-    if (pixels > BigInt(maxPixels)) {
-      return {
-        ok: false,
-        status: 413,
-        stage: "upload_limits",
-        reason: "Image dimensions too large",
-        details: {
-          max_pixels: maxPixels,
-          width_px: widthPx,
-          height_px: heightPx,
-        },
-      }
+  const maxPixels = parseOptionalPositiveInt(process.env.USER_UPLOAD_MAX_PIXELS) ?? DEFAULT_USER_UPLOAD_MAX_PIXELS
+  const pixels = BigInt(widthPx) * BigInt(heightPx)
+  if (pixels > BigInt(maxPixels)) {
+    return {
+      ok: false,
+      status: 413,
+      stage: "upload_limits",
+      reason: "Image dimensions too large",
+      details: {
+        max_pixels: maxPixels,
+        width_px: widthPx,
+        height_px: heightPx,
+      },
     }
   }
 
