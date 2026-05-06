@@ -39,13 +39,18 @@ export function ProjectCardMenu({
 }) {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string>("")
 
   const deleteProject = useCallback(async () => {
     if (busy) return
     setBusy(true)
+    setError("")
     try {
-      const ok = await deleteProjectClient(projectId)
-      if (!ok) return
+      const result = await deleteProjectClient(projectId)
+      if (!result.ok) {
+        setError(result.error)
+        return
+      }
       setConfirmOpen(false)
       // MVP: simplest refresh for server-rendered dashboard list
       window.location.reload()
@@ -96,18 +101,29 @@ export function ProjectCardMenu({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+      <Dialog
+        open={confirmOpen}
+        onOpenChange={(open) => {
+          setConfirmOpen(open)
+          if (!open) setError("")
+        }}
+      >
         <DialogContent onClick={(e) => e.stopPropagation()}>
           <DialogHeader>
             <DialogTitle>Delete project?</DialogTitle>
             <DialogDescription>This cannot be undone.</DialogDescription>
           </DialogHeader>
+          {error ? (
+            <p className="text-sm text-destructive" role="alert">
+              {error}
+            </p>
+          ) : null}
           <DialogFooter>
             <Button type="button" variant="secondary" onClick={() => setConfirmOpen(false)} disabled={busy}>
               Cancel
             </Button>
             <Button type="button" variant="destructive" onClick={deleteProject} disabled={busy}>
-              Delete
+              {busy ? "Deleting…" : "Delete"}
             </Button>
           </DialogFooter>
         </DialogContent>

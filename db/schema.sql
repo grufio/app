@@ -4325,3 +4325,61 @@ $$;
 -- =========================================================
 -- END db/057_fix_filter_renumber_no_negative.sql
 -- =========================================================
+
+
+-- =========================================================
+-- BEGIN db/058_delete_project_atomic_rpc.sql
+-- =========================================================
+-- Fix: project deletion blocked by RESTRICT FKs.
+--
+-- `project_image_filters.input_image_id` and `output_image_id` reference
+-- `project_images` with ON DELETE RESTRICT (intentional — prevents
+-- accidentally orphaning a filter chain). When you delete a project,
+-- Postgres cascade-deletes `project_images` via the project FK; the
+-- RESTRICT check on filter rows fires *immediately* (not deferred), so
+-- the cascade aborts with 23503 even though filters are also slated to
+-- cascade-delete via their own project FK. Postgres does not coalesce
+-- those into a single transitive plan.
+--
+-- Fix: atomic RPC that deletes filters first, then the project (cascade
+-- handles the remaining children). Single advisory lock per project to
+-- match the existing filter-mutation locking convention.
+
+create or replace function public.delete_project(
+  p_project_id uuid
+)
+returns uuid
+language plpgsql
+as $$
+declare
+  v_owner uuid;
+  v_deleted uuid;
+begin
+  perform pg_advisory_xact_lock(hashtext(p_project_id::text));
+
+  select owner_id
+    into v_owner
+  from public.projects
+  where id = p_project_id;
+
+  if v_owner is null then
+    raise exception 'project not found' using errcode = 'P0002';
+  end if;
+
+  delete from public.project_image_filters
+   where project_id = p_project_id;
+
+  delete from public.projects
+   where id = p_project_id
+   returning id into v_deleted;
+
+  if v_deleted is null then
+    raise exception 'project not found' using errcode = 'P0002';
+  end if;
+
+  return v_deleted;
+end;
+$$;
+-- =========================================================
+-- END db/058_delete_project_atomic_rpc.sql
+-- =========================================================

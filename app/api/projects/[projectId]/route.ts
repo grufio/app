@@ -19,16 +19,22 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ proj
   const { projectId } = await params
   if (!isUuid(String(projectId))) return jsonError("Invalid projectId", 400, { stage: "validation", where: "params" })
 
-  const { data, error } = await supabase
-    .from("projects")
-    .delete()
-    .eq("id", projectId)
-    .eq("owner_id", u.user.id)
-    .select("id")
-    .maybeSingle()
+  // Use the atomic RPC: deletes project_image_filters first, then the
+  // project (cascade handles the rest). Going through `.delete()` directly
+  // hits a RESTRICT FK from filter rows to images while images are being
+  // cascade-deleted, aborting with 23503 even though filters are *also*
+  // cascading.
+  const { data, error } = await supabase.rpc("delete_project", { p_project_id: projectId })
 
-  if (error) return jsonError(error.message, 400, { stage: "delete_project" })
-  if (!data?.id) return jsonError("Not found", 404, { stage: "delete_project" })
+  if (error) {
+    // PGRST / PostgREST surfaces P0002 (not found) from the RPC body.
+    const code = (error as { code?: string }).code ?? ""
+    if (code === "P0002" || /not found/i.test(error.message ?? "")) {
+      return jsonError("Not found", 404, { stage: "delete_project", code })
+    }
+    return jsonError(error.message, 400, { stage: "delete_project", code })
+  }
+  if (!data) return jsonError("Not found", 404, { stage: "delete_project" })
 
   return NextResponse.json({ ok: true })
 }
