@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/lib/supabase/database.types"
 import { copyImageTransform } from "@/services/editor/server/copy-image-transform"
-import { toInt } from "./_helpers"
+import { filterServiceHeaders, toInt } from "./_helpers"
 
 const FILTER_SERVICE_URL = process.env.FILTER_SERVICE_URL || "http://localhost:8001"
 
@@ -111,9 +111,7 @@ export async function numerateImageAndActivate(args: {
 
     const response = await fetch(`${FILTER_SERVICE_URL}/filters/numerate`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: filterServiceHeaders(),
       body: JSON.stringify({
         image_base64: imageBase64,
         superpixel_width: superpixelWidth,

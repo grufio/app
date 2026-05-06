@@ -28,3 +28,16 @@ export function contentTypeFor(format: OutputFormat): string {
   if (format === "webp") return "image/webp"
   return "image/png"
 }
+
+/**
+ * Builds the headers for a request to the Python filter service. When
+ * `FILTER_SERVICE_TOKEN` is set, attaches `Authorization: Bearer <token>`
+ * — the service's middleware enforces that header on every endpoint
+ * except /health. Local-dev runs without the token and stay open.
+ */
+export function filterServiceHeaders(): Record<string, string> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" }
+  const token = (process.env.FILTER_SERVICE_TOKEN ?? "").trim()
+  if (token) headers["Authorization"] = `Bearer ${token}`
+  return headers
+}

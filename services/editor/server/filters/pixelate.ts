@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/lib/supabase/database.types"
 import { copyImageTransform } from "@/services/editor/server/copy-image-transform"
-import { contentTypeFor, pickOutputFormat, toInt } from "./_helpers"
+import { contentTypeFor, filterServiceHeaders, pickOutputFormat, toInt } from "./_helpers"
 
 const FILTER_SERVICE_URL = process.env.FILTER_SERVICE_URL || "http://localhost:8001"
 
@@ -116,9 +116,7 @@ export async function pixelateImageAndActivate(args: {
 
     const response = await fetch(`${FILTER_SERVICE_URL}/filters/pixelate`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: filterServiceHeaders(),
       body: JSON.stringify({
         image_base64: imageBase64,
         superpixel_width: superpixelWidth,

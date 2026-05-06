@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it } from "vitest"
 
-import { contentTypeFor, pickOutputFormat, toInt } from "./_helpers"
+import { contentTypeFor, filterServiceHeaders, pickOutputFormat, toInt } from "./_helpers"
 
 describe("toInt", () => {
   it("rounds finite positive numbers", () => {
@@ -42,5 +42,32 @@ describe("contentTypeFor", () => {
     expect(contentTypeFor("jpeg")).toBe("image/jpeg")
     expect(contentTypeFor("png")).toBe("image/png")
     expect(contentTypeFor("webp")).toBe("image/webp")
+  })
+})
+
+describe("filterServiceHeaders", () => {
+  const original = process.env.FILTER_SERVICE_TOKEN
+
+  afterEach(() => {
+    if (original == null) delete process.env.FILTER_SERVICE_TOKEN
+    else process.env.FILTER_SERVICE_TOKEN = original
+  })
+
+  it("returns Content-Type only when no token is set", () => {
+    delete process.env.FILTER_SERVICE_TOKEN
+    expect(filterServiceHeaders()).toEqual({ "Content-Type": "application/json" })
+  })
+
+  it("attaches Bearer token when FILTER_SERVICE_TOKEN is set", () => {
+    process.env.FILTER_SERVICE_TOKEN = "secret-abc"
+    expect(filterServiceHeaders()).toEqual({
+      "Content-Type": "application/json",
+      Authorization: "Bearer secret-abc",
+    })
+  })
+
+  it("treats empty/whitespace token as unset", () => {
+    process.env.FILTER_SERVICE_TOKEN = "   "
+    expect(filterServiceHeaders()).toEqual({ "Content-Type": "application/json" })
   })
 })
