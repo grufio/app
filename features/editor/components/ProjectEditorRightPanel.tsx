@@ -12,7 +12,7 @@ import dynamic from "next/dynamic"
 import { EyeOff, Percent, RotateCcw, Trash2 } from "lucide-react"
 
 import { SidebarFrame } from "@/components/navigation/SidebarFrame"
-import { Button } from "@/components/ui/button"
+import { AppButton } from "@/components/ui/form-controls"
 import {
   Dialog,
   DialogContent,
@@ -248,16 +248,16 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
           </DialogHeader>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setRestoreOpen(false)} disabled={restoreBusy}>
+            <AppButton type="button" variant="outline" onClick={() => setRestoreOpen(false)} disabled={restoreBusy}>
               Cancel
-            </Button>
-            <Button
+            </AppButton>
+            <AppButton
               type="button"
               onClick={onRestoreImage}
               disabled={restoreBusy}
             >
               {restoreBusy ? "Restoring…" : "Restore"}
-            </Button>
+            </AppButton>
           </DialogFooter>
           {restoreError ? <div className="text-sm text-destructive">{restoreError}</div> : null}
         </DialogContent>
@@ -276,12 +276,12 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
           {deleteError ? <div className="text-sm text-destructive">{deleteError}</div> : null}
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleteBusy}>
+            <AppButton type="button" variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleteBusy}>
               Cancel
-            </Button>
-            <Button type="button" variant="destructive" onClick={handleDeleteMasterImage} disabled={deleteBusy}>
+            </AppButton>
+            <AppButton type="button" variant="destructive" onClick={handleDeleteMasterImage} disabled={deleteBusy}>
               {deleteBusy ? "Deleting…" : "Delete"}
-            </Button>
+            </AppButton>
           </DialogFooter>
         </DialogContent>
       </Dialog>
