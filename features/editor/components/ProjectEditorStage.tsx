@@ -18,9 +18,21 @@ import {
 import type { ProjectCanvasStageHandle } from "./project-canvas-stage"
 
 // Code-split Konva-heavy canvas stage (no UI change, improves editor TTI).
+// While Konva is being downloaded the page used to show a blank box; now it
+// shows a centered framed Skeleton so the user can see "something is coming".
+function CanvasBootSkeleton() {
+  return (
+    <div className="flex h-full w-full items-center justify-center" aria-hidden="true">
+      <div className="aspect-[4/3] w-1/2 max-w-md min-w-[200px]">
+        <div className="bg-accent/40 h-full w-full animate-pulse rounded-md border border-border/40" />
+      </div>
+    </div>
+  )
+}
+
 const ProjectCanvasStage = dynamic(
   () => import("./project-canvas-stage").then((m) => m.ProjectCanvasStage),
-  { ssr: false, loading: () => <div className="h-full w-full" aria-hidden="true" /> }
+  { ssr: false, loading: () => <CanvasBootSkeleton /> }
 )
 
 type CanvasInitialImageTransform = React.ComponentProps<typeof ProjectCanvasStage>["initialImageTransform"]
@@ -137,8 +149,9 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
           />
         </div>
         {masterImage && imageStateLoading ? (
-          // Keep layout stable without "Loading…" text (per UX requirement).
-          <div className="h-full w-full" aria-hidden="true" />
+          // Image-state still loading: same Konva-frame skeleton as the
+          // dynamic-import fallback. Layout stable, but visible feedback.
+          <CanvasBootSkeleton />
         ) : (
           <ProjectCanvasStage
             ref={canvasRef}
