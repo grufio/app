@@ -4,6 +4,39 @@
  * Responsibilities:
  * - Stub Supabase PostgREST + Storage calls for editor flows.
  * - Provide deterministic test fixtures (project/workspace/image/image-state).
+ *
+ * Mock-mode contract (see lib/e2e.ts):
+ *   E2E_TEST=1                 — must be set in the server env (see
+ *                                dev:e2e / start:e2e in package.json) for
+ *                                the test bypasses to take effect.
+ *   x-e2e-test: "1"  header    — opts the request in to the
+ *                                PostgREST/Storage stubs installed by
+ *                                setupMockRoutes().
+ *   x-e2e-user: "1"  header    — request is treated as authenticated
+ *                                (proxy redirects /login → /dashboard,
+ *                                and protected routes stop bouncing to
+ *                                /login).
+ *
+ * Typical setup in a spec:
+ *
+ *   import { PROJECT_ID, setupMockRoutes } from "./_mocks"
+ *
+ *   test.beforeEach(async ({ page }) => {
+ *     await page.setExtraHTTPHeaders({ "x-e2e-test": "1", "x-e2e-user": "1" })
+ *     await setupMockRoutes(page, { withImage: true })
+ *   })
+ *
+ *   test("…", async ({ page }) => {
+ *     await page.goto(`/projects/${PROJECT_ID}`)
+ *   })
+ *
+ * Forgetting either header is the most common failure mode: without
+ * `x-e2e-user` the editor route 302s to /login; without `x-e2e-test` +
+ * `setupMockRoutes` the page hits real Supabase and fails 401.
+ *
+ * PROJECT_ID is a deterministic v4 UUID that the route handlers accept
+ * (`isUuid()` validates v1–v5). Use it everywhere a real project id
+ * would appear in URLs or payloads.
  */
 import type { Page } from "@playwright/test"
 
