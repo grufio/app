@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/lib/supabase/database.types"
 import { copyImageTransform } from "@/services/editor/server/copy-image-transform"
+import { toInt } from "./_helpers"
 
 const FILTER_SERVICE_URL = process.env.FILTER_SERVICE_URL || "http://localhost:8001"
 
@@ -41,13 +42,6 @@ type NumerateParams = {
   superpixelHeight: number
   strokeWidth: number
   showColors: boolean
-}
-
-function toInt(value: number): number | null {
-  if (!Number.isFinite(value)) return null
-  const n = Math.round(value)
-  if (n < 0) return null
-  return n
 }
 
 export async function numerateImageAndActivate(args: {
