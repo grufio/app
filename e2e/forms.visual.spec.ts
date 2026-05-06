@@ -92,18 +92,16 @@ test.describe("forms — visual regressions", () => {
     })
   })
 
-  // ---------------------------------------------------------------------------
-  // Expansion (S4): filter dialogs + project-create + restore/delete modals.
-  //
-  // These tests need baseline PNGs that don't exist yet. To enable:
-  //   1. Remove the `.skip` from each test below.
-  //   2. Run `npm run test:e2e:visual:update` locally.
-  //   3. Commit the generated baselines under
-  //      `e2e/forms.visual.spec.ts-snapshots/*-chromium-darwin.png`.
-  //   4. Verify `npm run test:e2e:visual` passes.
-  //
+  // S4 follow-up — left .skip'd: a baseline-generation pass on this branch
+  // hit "element is not enabled / not found" on every modal-trigger button
+  // because the selectors below (e.g. /pixelate/, /restore/, /delete/) were
+  // written without the live editor UI in front of us. Wiring these up needs
+  // someone with the actual flow open to:
+  //   1. find the real trigger (e.g. layers-tree menu, toolbar overflow)
+  //   2. update the .getByRole({ name: … }) lines below
+  //   3. run `npm run test:e2e:visual:update` and commit baselines
+  //   4. remove the .skip
   // Until then, leaving them skipped keeps the visual gate green.
-  // ---------------------------------------------------------------------------
 
   test.skip("filter dialog — pixelate", async ({ page }) => {
     await page.setExtraHTTPHeaders({ "x-e2e-test": "1", "x-e2e-user": "1" })
