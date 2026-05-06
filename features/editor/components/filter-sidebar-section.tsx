@@ -3,6 +3,7 @@
 import { Eye, EyeOff, Plus, SlidersHorizontal, Trash2 } from "lucide-react"
 
 import { SidebarMenu, SidebarMenuAction, SidebarMenuActions, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar"
+import { Skeleton } from "@/components/ui/skeleton"
 import { EditorSidebarSection } from "@/features/editor/components/sidebar/editor-sidebar-section"
 
 function getFilterLabel(filterType: string): string {
@@ -26,6 +27,8 @@ export function FilterSidebarSection(props: {
   activeDisplayFilterId: string | null
   isActiveDisplayFilterHidden: boolean
   isRemovingFilter: boolean
+  /** True while the filter chain is being fetched for the first time. */
+  isLoadingInitial?: boolean
   onSelectFilter: (filterId: string) => void
   onToggleHidden: (filterId: string) => void
   onRemoveFilter: (filterId: string) => void
@@ -39,11 +42,32 @@ export function FilterSidebarSection(props: {
     activeDisplayFilterId,
     isActiveDisplayFilterHidden,
     isRemovingFilter,
+    isLoadingInitial,
     onSelectFilter,
     onToggleHidden,
     onRemoveFilter,
     onOpenSelection,
   } = props
+
+  // First-load skeleton: show two placeholder rows so the sidebar doesn't feel
+  // empty while the chain is being fetched. Subsequent refreshes render the
+  // existing list (no flash to skeleton on every refetch).
+  if (isLoadingInitial && filterStack.length === 0) {
+    return (
+      <EditorSidebarSection title="Filter">
+        <SidebarMenu>
+          {[0, 1].map((i) => (
+            <SidebarMenuItem key={`filter-skeleton-${i}`}>
+              <div className="flex items-center gap-2 px-2 py-1.5">
+                <Skeleton className="size-4" />
+                <Skeleton className="h-3 w-20" />
+              </div>
+            </SidebarMenuItem>
+          ))}
+        </SidebarMenu>
+      </EditorSidebarSection>
+    )
+  }
 
   return (
     <EditorSidebarSection title="Filter">

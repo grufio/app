@@ -418,6 +418,7 @@ export function ProjectDetailPageClient({
         activeDisplayFilterId={activeDisplayFilterId}
         isActiveDisplayFilterHidden={isActiveDisplayFilterHidden}
         isRemovingFilter={workflow.isRemovingFilter}
+        isLoadingInitial={filterImageLoading && !filterImageLoadedOnce}
         onSelectFilter={showFilter}
         onToggleHidden={handleToggleHidden}
         onRemoveFilter={workflow.removeFilter}
@@ -427,6 +428,8 @@ export function ProjectDetailPageClient({
     [
       canvasMode,
       filterStack,
+      filterImageLoadedOnce,
+      filterImageLoading,
       hiddenFilterIds,
       isAddFilterDisabled,
       isActiveDisplayFilterHidden,

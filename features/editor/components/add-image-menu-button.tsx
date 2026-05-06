@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useState } from "react"
-import { Plus } from "lucide-react"
+import { Loader2, Plus } from "lucide-react"
 import { useDropzone } from "react-dropzone"
 import { toast } from "sonner"
 
@@ -62,8 +62,17 @@ export function AddImageMenuAction({
   return (
     <>
       <input data-testid="add-image-input" {...getInputProps()} />
-      <SidebarMenuAction onClick={open} disabled={isUploading} aria-label="Add Image">
-        <Plus strokeWidth={1} />
+      <SidebarMenuAction
+        onClick={open}
+        disabled={isUploading}
+        aria-label={isUploading ? "Uploading image" : "Add Image"}
+        aria-busy={isUploading}
+      >
+        {isUploading ? (
+          <Loader2 className="animate-spin" strokeWidth={1} />
+        ) : (
+          <Plus strokeWidth={1} />
+        )}
       </SidebarMenuAction>
     </>
   )
