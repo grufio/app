@@ -91,4 +91,100 @@ test.describe("forms — visual regressions", () => {
       maxDiffPixels: 200,
     })
   })
+
+  // ---------------------------------------------------------------------------
+  // Expansion (S4): filter dialogs + project-create + restore/delete modals.
+  //
+  // These tests need baseline PNGs that don't exist yet. To enable:
+  //   1. Remove the `.skip` from each test below.
+  //   2. Run `npm run test:e2e:visual:update` locally.
+  //   3. Commit the generated baselines under
+  //      `e2e/forms.visual.spec.ts-snapshots/*-chromium-darwin.png`.
+  //   4. Verify `npm run test:e2e:visual` passes.
+  //
+  // Until then, leaving them skipped keeps the visual gate green.
+  // ---------------------------------------------------------------------------
+
+  test.skip("filter dialog — pixelate", async ({ page }) => {
+    await page.setExtraHTTPHeaders({ "x-e2e-test": "1", "x-e2e-user": "1" })
+    await setupMockRoutes(page, { withImage: true })
+    await page.goto(`/projects/${PROJECT_ID}`)
+    await freezeAnimations(page)
+
+    await page.getByRole("button", { name: /pixelate/i }).first().click()
+    await expect(page.getByText(/superpixel width/i)).toBeVisible()
+
+    await expect(page.getByRole("dialog")).toHaveScreenshot("filter-pixelate-dialog.png", {
+      maxDiffPixels: 200,
+    })
+  })
+
+  test.skip("filter dialog — lineart", async ({ page }) => {
+    await page.setExtraHTTPHeaders({ "x-e2e-test": "1", "x-e2e-user": "1" })
+    await setupMockRoutes(page, { withImage: true })
+    await page.goto(`/projects/${PROJECT_ID}`)
+    await freezeAnimations(page)
+
+    await page.getByRole("button", { name: /line art|lineart/i }).first().click()
+    await expect(page.getByText(/low threshold/i)).toBeVisible()
+
+    await expect(page.getByRole("dialog")).toHaveScreenshot("filter-lineart-dialog.png", {
+      maxDiffPixels: 200,
+    })
+  })
+
+  test.skip("filter dialog — numerate", async ({ page }) => {
+    await page.setExtraHTTPHeaders({ "x-e2e-test": "1", "x-e2e-user": "1" })
+    await setupMockRoutes(page, { withImage: true })
+    await page.goto(`/projects/${PROJECT_ID}`)
+    await freezeAnimations(page)
+
+    await page.getByRole("button", { name: /numerate/i }).first().click()
+    await expect(page.getByText(/superpixel grid/i)).toBeVisible()
+
+    await expect(page.getByRole("dialog")).toHaveScreenshot("filter-numerate-dialog.png", {
+      maxDiffPixels: 200,
+    })
+  })
+
+  test.skip("dashboard — create project dialog", async ({ page }) => {
+    await page.setExtraHTTPHeaders({ "x-e2e-test": "1", "x-e2e-user": "1" })
+    await page.goto("/dashboard")
+    await freezeAnimations(page)
+
+    await page.getByRole("button", { name: /create project|new project/i }).first().click()
+    await expect(page.getByRole("dialog")).toBeVisible()
+
+    await expect(page.getByRole("dialog")).toHaveScreenshot("create-project-dialog.png", {
+      maxDiffPixels: 200,
+    })
+  })
+
+  test.skip("editor — restore confirm modal", async ({ page }) => {
+    await page.setExtraHTTPHeaders({ "x-e2e-test": "1", "x-e2e-user": "1" })
+    await setupMockRoutes(page, { withImage: true })
+    await page.goto(`/projects/${PROJECT_ID}`)
+    await freezeAnimations(page)
+
+    await page.getByRole("button", { name: /restore/i }).first().click()
+    await expect(page.getByRole("alertdialog")).toBeVisible()
+
+    await expect(page.getByRole("alertdialog")).toHaveScreenshot("restore-confirm-modal.png", {
+      maxDiffPixels: 200,
+    })
+  })
+
+  test.skip("editor — delete confirm modal", async ({ page }) => {
+    await page.setExtraHTTPHeaders({ "x-e2e-test": "1", "x-e2e-user": "1" })
+    await setupMockRoutes(page, { withImage: true })
+    await page.goto(`/projects/${PROJECT_ID}`)
+    await freezeAnimations(page)
+
+    await page.getByRole("button", { name: /delete/i }).first().click()
+    await expect(page.getByRole("alertdialog")).toBeVisible()
+
+    await expect(page.getByRole("alertdialog")).toHaveScreenshot("delete-confirm-modal.png", {
+      maxDiffPixels: 200,
+    })
+  })
 })
