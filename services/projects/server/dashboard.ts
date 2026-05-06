@@ -10,6 +10,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { IMAGE_KIND, resolveImageKind } from "@/lib/editor/image-kind"
 import { parseBigIntString } from "@/lib/editor/imageState"
+import { SIGNED_URL_TTL } from "@/lib/storage/signed-url-ttl"
 import type { Database } from "@/lib/supabase/database.types"
 
 export type DashboardProjectRow = Pick<
@@ -115,7 +116,7 @@ export async function listDashboardProjects(
 
   const signedUrlByPath = new Map<string, string>()
   if (masterPaths.length) {
-    const { data: signed, error: signedErr } = await supabase.storage.from("project_images").createSignedUrls(masterPaths, 60 * 10)
+    const { data: signed, error: signedErr } = await supabase.storage.from("project_images").createSignedUrls(masterPaths, SIGNED_URL_TTL.thumbnail)
     if (signedErr) {
       return { projects: [], error: signedErr.message }
     }

@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/lib/supabase/database.types"
 import { resolveEditorTargetImageRows } from "@/lib/supabase/project-images"
+import { SIGNED_URL_TTL } from "@/lib/storage/signed-url-ttl"
 import { copyImageTransform } from "@/services/editor/server/copy-image-transform"
 import { resetProjectFilterChain } from "@/services/editor/server/filter-chain-reset"
 
@@ -200,7 +201,7 @@ export async function getOrCreateFilterWorkingCopy(args: {
     // Return existing copy with fresh signed URL
     const { data: signedData } = await supabase.storage
       .from(String(reusableCopy.storage_bucket ?? "project_images"))
-      .createSignedUrl(String(reusableCopy.storage_path), 3600)
+      .createSignedUrl(String(reusableCopy.storage_path), SIGNED_URL_TTL.filterWorkingCopy)
 
     const transformSync = await copyImageTransform({
       supabase,
@@ -352,7 +353,7 @@ export async function getOrCreateFilterWorkingCopy(args: {
   // Get signed URL for the new copy
   const { data: signedData } = await supabase.storage
     .from("project_images")
-    .createSignedUrl(objectPath, 3600)
+    .createSignedUrl(objectPath, SIGNED_URL_TTL.filterWorkingCopy)
 
   return {
     ok: true,
@@ -519,7 +520,7 @@ export async function getFilterPanelData(args: {
   }
   const { data: signedData } = await supabase.storage
     .from(String(tipImage.storage_bucket ?? "project_images"))
-    .createSignedUrl(String(tipImage.storage_path), 3600)
+    .createSignedUrl(String(tipImage.storage_path), SIGNED_URL_TTL.filterWorkingCopy)
 
   return {
     ok: true,

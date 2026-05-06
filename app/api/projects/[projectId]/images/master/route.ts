@@ -9,6 +9,7 @@ import { NextResponse } from "next/server"
 
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { isUuid, jsonError, requireUser } from "@/lib/api/route-guards"
+import { SIGNED_URL_TTL } from "@/lib/storage/signed-url-ttl"
 import { evaluateDeleteTarget } from "@/services/editor/server/delete-target-policy"
 import { IMAGE_KIND, resolveImageKind } from "@/services/editor/server/image-kind"
 
@@ -17,7 +18,7 @@ export const dynamic = "force-dynamic"
 // Best-effort in-memory cache to reduce Storage signed URL churn.
 const signedUrlCache = new Map<string, { url: string; expiresAtMs: number }>()
 const SIGNED_URL_CACHE_MAX_ENTRIES = 500
-const SIGNED_URL_TTL_S = 60 * 10
+const SIGNED_URL_TTL_S = SIGNED_URL_TTL.thumbnail
 const SIGNED_URL_RENEW_BUFFER_MS = 60_000
 
 export async function GET(
