@@ -59,7 +59,9 @@ test.describe("forms — visual regressions", () => {
     await page.goto(`/projects/${PROJECT_ID}`)
     await freezeAnimations(page)
 
-    // Wait for the artboard panel to render with its size + dpi + unit fields.
+    // With an active image the Image nav item is selected by default; click
+    // the Artboard nav item so the right panel renders the Artboard section.
+    await page.getByRole("button", { name: "Artboard", exact: true }).first().click()
     await expect(page.getByTestId("editor-artboard-panel")).toBeVisible()
 
     // Snapshot just the right panel region — keeps the test independent of
@@ -92,98 +94,100 @@ test.describe("forms — visual regressions", () => {
     })
   })
 
-  // ---------------------------------------------------------------------------
-  // Expansion (S4): filter dialogs + project-create + restore/delete modals.
-  //
-  // These tests need baseline PNGs that don't exist yet. To enable:
-  //   1. Remove the `.skip` from each test below.
-  //   2. Run `npm run test:e2e:visual:update` locally.
-  //   3. Commit the generated baselines under
-  //      `e2e/forms.visual.spec.ts-snapshots/*-chromium-darwin.png`.
-  //   4. Verify `npm run test:e2e:visual` passes.
-  //
-  // Until then, leaving them skipped keeps the visual gate green.
-  // ---------------------------------------------------------------------------
+  // S4 follow-up: filter dialogs + create-project + restore/delete modals.
+  // Update baselines via `npm run test:e2e:visual:update`.
 
-  test.skip("filter dialog — pixelate", async ({ page }) => {
+  // Filter dialogs share a 4-step entry: switch to Filter tab → "Add filter"
+  // → click the filter card to select it → click "Select" to confirm.
+  async function openFilterDialog(page: import("@playwright/test").Page, name: "Pixelate" | "Line Art" | "Numerate") {
     await page.setExtraHTTPHeaders({ "x-e2e-test": "1", "x-e2e-user": "1" })
     await setupMockRoutes(page, { withImage: true })
     await page.goto(`/projects/${PROJECT_ID}`)
     await freezeAnimations(page)
 
-    await page.getByRole("button", { name: /pixelate/i }).first().click()
-    await expect(page.getByText(/superpixel width/i)).toBeVisible()
+    // The Layers panel is a tablist (Image / Filter / Colors / Output). The
+    // "Add filter" trigger lives inside the Filter tab.
+    await page.getByRole("tab", { name: "Filter" }).click()
+    await page.getByRole("button", { name: "Add filter" }).click()
+    // The picker dialog ("Filter") shows 3 cards — click selects, then the
+    // Select footer button opens the actual form dialog.
+    await page.getByRole("button", { name, exact: true }).click()
+    await page.getByRole("button", { name: "Select", exact: true }).click()
+    await expect(page.getByRole("heading", { name, exact: true })).toBeVisible()
+  }
 
-    await expect(page.getByRole("dialog")).toHaveScreenshot("filter-pixelate-dialog.png", {
+  test("filter dialog — pixelate", async ({ page }) => {
+    await openFilterDialog(page, "Pixelate")
+    await expect(page.getByRole("dialog", { name: "Pixelate" })).toHaveScreenshot("filter-pixelate-dialog.png", {
       maxDiffPixels: 200,
     })
   })
 
-  test.skip("filter dialog — lineart", async ({ page }) => {
-    await page.setExtraHTTPHeaders({ "x-e2e-test": "1", "x-e2e-user": "1" })
-    await setupMockRoutes(page, { withImage: true })
-    await page.goto(`/projects/${PROJECT_ID}`)
-    await freezeAnimations(page)
-
-    await page.getByRole("button", { name: /line art|lineart/i }).first().click()
-    await expect(page.getByText(/low threshold/i)).toBeVisible()
-
-    await expect(page.getByRole("dialog")).toHaveScreenshot("filter-lineart-dialog.png", {
+  test("filter dialog — lineart", async ({ page }) => {
+    await openFilterDialog(page, "Line Art")
+    await expect(page.getByRole("dialog", { name: "Line Art" })).toHaveScreenshot("filter-lineart-dialog.png", {
       maxDiffPixels: 200,
     })
   })
 
-  test.skip("filter dialog — numerate", async ({ page }) => {
-    await page.setExtraHTTPHeaders({ "x-e2e-test": "1", "x-e2e-user": "1" })
-    await setupMockRoutes(page, { withImage: true })
-    await page.goto(`/projects/${PROJECT_ID}`)
-    await freezeAnimations(page)
-
-    await page.getByRole("button", { name: /numerate/i }).first().click()
-    await expect(page.getByText(/superpixel grid/i)).toBeVisible()
-
-    await expect(page.getByRole("dialog")).toHaveScreenshot("filter-numerate-dialog.png", {
+  test("filter dialog — numerate", async ({ page }) => {
+    await openFilterDialog(page, "Numerate")
+    await expect(page.getByRole("dialog", { name: "Numerate" })).toHaveScreenshot("filter-numerate-dialog.png", {
       maxDiffPixels: 200,
     })
   })
 
+  // Skipped: /dashboard is server-rendered. listDashboardProjects() runs on
+  // the server and reaches Supabase before any Playwright page.route() can
+  // intercept it; without a mocked session the page renders the global
+  // error boundary ("Something went wrong"). Wiring a server-side mock for
+  // the dashboard listing is out of scope for this PR — needs e2e/_mocks.ts
+  // to grow a counterpart, or the dashboard to gain a mock-mode bypass.
   test.skip("dashboard — create project dialog", async ({ page }) => {
     await page.setExtraHTTPHeaders({ "x-e2e-test": "1", "x-e2e-user": "1" })
     await page.goto("/dashboard")
     await freezeAnimations(page)
 
-    await page.getByRole("button", { name: /create project|new project/i }).first().click()
-    await expect(page.getByRole("dialog")).toBeVisible()
+    await page.getByRole("button", { name: "New project" }).click()
+    await expect(page.getByRole("heading", { name: "Create project" })).toBeVisible()
 
-    await expect(page.getByRole("dialog")).toHaveScreenshot("create-project-dialog.png", {
+    await expect(page.getByRole("dialog", { name: "Create project" })).toHaveScreenshot("create-project-dialog.png", {
       maxDiffPixels: 200,
     })
   })
 
-  test.skip("editor — restore confirm modal", async ({ page }) => {
+  test("editor — restore confirm modal", async ({ page }) => {
     await page.setExtraHTTPHeaders({ "x-e2e-test": "1", "x-e2e-user": "1" })
     await setupMockRoutes(page, { withImage: true })
     await page.goto(`/projects/${PROJECT_ID}`)
     await freezeAnimations(page)
 
-    await page.getByRole("button", { name: /restore/i }).first().click()
-    await expect(page.getByRole("alertdialog")).toBeVisible()
+    // The Image tab is selected by default in the Layers panel — the Restore
+    // image button lives in its right-panel section.
+    await page.getByRole("button", { name: "Restore image" }).click()
+    await expect(page.getByRole("heading", { name: "Restore image?" })).toBeVisible()
 
-    await expect(page.getByRole("alertdialog")).toHaveScreenshot("restore-confirm-modal.png", {
+    await expect(page.getByRole("dialog", { name: "Restore image?" })).toHaveScreenshot("restore-confirm-modal.png", {
       maxDiffPixels: 200,
     })
   })
 
+  // Skipped: the "Delete image" button is disabled until there's a
+  // deletable variant (working copy or filter result). The current mock
+  // (setupMockRoutes withImage:true) only seeds a single master image, so
+  // delete remains disabled. Enabling this baseline needs the mock to
+  // additionally seed a filter_working_copy row + image — a meaningful
+  // mock extension that's out of scope for this PR.
   test.skip("editor — delete confirm modal", async ({ page }) => {
     await page.setExtraHTTPHeaders({ "x-e2e-test": "1", "x-e2e-user": "1" })
     await setupMockRoutes(page, { withImage: true })
     await page.goto(`/projects/${PROJECT_ID}`)
     await freezeAnimations(page)
 
-    await page.getByRole("button", { name: /delete/i }).first().click()
-    await expect(page.getByRole("alertdialog")).toBeVisible()
+    await page.getByRole("button", { name: "Delete image" }).click()
+    await expect(page.getByRole("heading", { name: "Delete image?" })).toBeVisible()
 
-    await expect(page.getByRole("alertdialog")).toHaveScreenshot("delete-confirm-modal.png", {
+    await expect(page.getByRole("dialog", { name: "Delete image?" })).toHaveScreenshot("delete-confirm-modal.png", {
       maxDiffPixels: 200,
     })
   })
