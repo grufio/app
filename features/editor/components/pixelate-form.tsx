@@ -4,7 +4,6 @@ import { useState, useMemo } from "react"
 import { Label } from "@/components/ui/label"
 import { Field, FieldGroup } from "@/components/ui/field"
 import {
-  AppButton,
   AppInput,
   AppSelect,
   AppSelectContent,
@@ -12,6 +11,7 @@ import {
   AppSelectTrigger,
   AppSelectValue,
 } from "@/components/ui/form-controls"
+import { FilterFormFooter } from "./filter-forms/filter-form-footer"
 
 export type PixelateFormData = {
   superpixelWidth: number
@@ -142,14 +142,7 @@ export function PixelateForm({ imageWidth, imageHeight, onCancel, onApply, busy 
         </Field>
       </FieldGroup>
 
-      <div className="flex gap-2 justify-end">
-        <AppButton type="button" variant="outline" onClick={onCancel} disabled={busy}>
-          Cancel
-        </AppButton>
-        <AppButton type="submit" disabled={!isValid || busy}>
-          {busy ? "Applying..." : "Apply"}
-        </AppButton>
-      </div>
+      <FilterFormFooter onCancel={onCancel} isValid={isValid} busy={busy} />
     </form>
   )
 }
