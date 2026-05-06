@@ -29,39 +29,19 @@ function resolveBrowsersBaseDir() {
   return path.isAbsolute(configured) ? configured : path.resolve(process.cwd(), configured)
 }
 
-function newestVersionedDir(baseDir, prefix) {
-  if (!fs.existsSync(baseDir)) return null
-  const candidates = fs
-    .readdirSync(baseDir, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && entry.name.startsWith(prefix))
-    .map((entry) => entry.name)
-    .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }))
-  return candidates[0] ? path.join(baseDir, candidates[0]) : null
-}
-
-function resolveChromiumBinary(baseDir, hostArch) {
-  const chromiumDir = newestVersionedDir(baseDir, "chromium-")
-  if (!chromiumDir) return null
-  const candidates = []
-  if (process.platform === "darwin") {
-    const macDir = path.join(chromiumDir, `chrome-mac-${hostArch}`)
-    candidates.push(
-      path.join(macDir, "Google Chrome for Testing.app", "Contents", "MacOS", "Google Chrome for Testing"),
-      path.join(macDir, "Chromium.app", "Contents", "MacOS", "Chromium")
-    )
-  } else if (process.platform === "linux") {
-    const linuxDir = path.join(chromiumDir, "chrome-linux")
-    candidates.push(
-      path.join(linuxDir, "chrome"),
-      path.join(linuxDir, "chrome-wrapper")
-    )
-  } else if (process.platform === "win32") {
-    const winDir = path.join(chromiumDir, "chrome-win")
-    candidates.push(
-      path.join(winDir, "chrome.exe")
-    )
+async function resolveChromiumBinary() {
+  // Use Playwright's own executablePath() so we don't have to track the
+  // browser folder layout per platform — Playwright 1.55+ shifted Linux
+  // contents around and our hand-rolled discovery was missing the new
+  // location, even though the install step succeeded.
+  try {
+    const { chromium } = await import("@playwright/test")
+    const candidate = chromium.executablePath()
+    if (candidate && fs.existsSync(candidate)) return candidate
+  } catch {
+    // fall through — playwright not installed yet, treat as missing
   }
-  return candidates.find((candidate) => fs.existsSync(candidate)) ?? null
+  return null
 }
 
 async function canReachUrl(url) {
@@ -123,11 +103,11 @@ async function main() {
   }
 
   const browsersBaseDir = resolveBrowsersBaseDir()
-  const chromiumBinary = resolveChromiumBinary(browsersBaseDir, hostArch)
+  const chromiumBinary = await resolveChromiumBinary()
   if (!chromiumBinary) {
     fail(
       "ENV_BROWSER",
-      `No Chromium binary found for arch=${hostArch} in ${browsersBaseDir}. Run npm run test:e2e:install`
+      `No Chromium binary found (looked under ${browsersBaseDir}). Run npm run test:e2e:install`
     )
   }
   info(`Chromium binary: ${chromiumBinary}`)
