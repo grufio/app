@@ -44,12 +44,12 @@ type SidebarUser = {
 const data = {
   teams: [
     {
-      name: "Acme Inc",
+      name: "Grufio",
       logo: GalleryVerticalEnd,
       plan: "Enterprise",
     },
     {
-      name: "Acme Corp.",
+      name: "Grufio Studio",
       logo: AudioWaveform,
       plan: "Startup",
     },
