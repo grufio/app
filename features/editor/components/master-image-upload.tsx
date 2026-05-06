@@ -43,9 +43,16 @@ export function MasterImageUpload({
   const [isUploading, setIsUploading] = useState(false)
   const [error, setError] = useState<string>("")
 
+  // When projectId changes, reset to "checking" at render time so the
+  // effect below doesn't have to setState inside its body.
+  const [lastProjectId, setLastProjectId] = useState(projectId)
+  if (projectId !== lastProjectId) {
+    setLastProjectId(projectId)
+    setStatus("checking")
+  }
+
   useEffect(() => {
     let cancelled = false
-    setStatus("checking")
     hasMasterImage(projectId).then((exists) => {
       if (cancelled) return
       setStatus(exists ? "hide" : "show")
