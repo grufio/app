@@ -1,10 +1,10 @@
 /**
- * Unit tests for dashboard row mapping.
+ * Unit tests for dashboard row mapping + listing.
  */
 import { describe, expect, it } from "vitest"
 
 import type { DashboardProjectRow } from "./dashboard"
-import { mapDashboardRow } from "./dashboard"
+import { listDashboardProjects, mapDashboardRow } from "./dashboard"
 
 describe("mapDashboardRow", () => {
   it("maps master thumbnail url when present", () => {
@@ -64,6 +64,29 @@ describe("mapDashboardRow", () => {
     })
   })
 
+  it("falls back to undefined fileSizeLabel when no master image is present", () => {
+    const row = {
+      id: "p2",
+      name: "Empty",
+      updated_at: "2026-04-30T12:00:00.000Z",
+      status: "draft",
+      project_images: [],
+      project_workspace: null,
+      project_image_state: [],
+    } as unknown as DashboardProjectRow
+    const vm = mapDashboardRow(row, new Map())
+    expect(vm.hasThumbnail).toBe(false)
+    expect(vm.fileSizeLabel).toBeUndefined()
+    expect(vm.statusLabel).toBeUndefined()
+    expect(vm.thumbUrl).toBeNull()
+    expect(vm.artboardWidthPx).toBeUndefined()
+    expect(vm.artboardHeightPx).toBeUndefined()
+    expect(vm.initialImageTransform).toBeNull()
+    // dateLabel is locale-formatted; just assert it's a non-empty string.
+    expect(typeof vm.dateLabel).toBe("string")
+    expect(vm.dateLabel?.length).toBeGreaterThan(0)
+  })
+
   it("returns null transform when no state row matches master image id", () => {
     const row = {
       id: "p1",
@@ -87,6 +110,134 @@ describe("mapDashboardRow", () => {
 
     const vm = mapDashboardRow(row, new Map([["x", "signed"]]))
     expect(vm.initialImageTransform).toBeNull()
+  })
+})
+
+// Lightweight fake supabase shape — only the methods listDashboardProjects calls.
+function makeFakeSupabase(args: {
+  selectResult: { data: DashboardProjectRow[] | null; error: { message: string } | null }
+  signResult: {
+    data: Array<{ path: string | null; signedUrl: string | null }> | null
+    error: { message: string } | null
+  }
+}) {
+  return {
+    from() {
+      return {
+        select() {
+          return {
+            order() {
+              return {
+                limit() {
+                  return {
+                    returns: async () => args.selectResult,
+                  }
+                },
+              }
+            },
+          }
+        },
+      }
+    },
+    storage: {
+      from() {
+        return {
+          createSignedUrls: async () => args.signResult,
+        }
+      },
+    },
+  } as unknown as Parameters<typeof listDashboardProjects>[0]
+}
+
+describe("listDashboardProjects", () => {
+  it("returns the mapped projects with batched signed URLs", async () => {
+    const supabase = makeFakeSupabase({
+      selectResult: {
+        data: [
+          {
+            id: "p1",
+            name: "Proj",
+            updated_at: null,
+            status: "completed",
+            project_images: [
+              { id: "img-1", kind: "master", file_size_bytes: 2048, storage_path: "path/a", name: "n", format: "png", width_px: 1, height_px: 1 },
+            ],
+            project_workspace: { width_px: 10, height_px: 20 },
+            project_image_state: [],
+          } as unknown as DashboardProjectRow,
+        ],
+        error: null,
+      },
+      signResult: {
+        data: [{ path: "path/a", signedUrl: "https://signed/a" }],
+        error: null,
+      },
+    })
+
+    const { projects, error } = await listDashboardProjects(supabase)
+    expect(error).toBeNull()
+    expect(projects).toHaveLength(1)
+    expect(projects[0]?.thumbUrl).toBe("https://signed/a")
+  })
+
+  it("propagates the select error and returns no projects", async () => {
+    const supabase = makeFakeSupabase({
+      selectResult: { data: null, error: { message: "rls denied" } },
+      signResult: { data: null, error: null },
+    })
+    const { projects, error } = await listDashboardProjects(supabase)
+    expect(error).toBe("rls denied")
+    expect(projects).toEqual([])
+  })
+
+  it("propagates the signed-url error and returns no projects", async () => {
+    const supabase = makeFakeSupabase({
+      selectResult: {
+        data: [
+          {
+            id: "p1",
+            name: "Proj",
+            updated_at: null,
+            status: "draft",
+            project_images: [
+              { id: "img-1", kind: "master", file_size_bytes: 0, storage_path: "path/a", name: "n", format: "png", width_px: 1, height_px: 1 },
+            ],
+            project_workspace: null,
+            project_image_state: [],
+          } as unknown as DashboardProjectRow,
+        ],
+        error: null,
+      },
+      signResult: { data: null, error: { message: "storage error" } },
+    })
+    const { projects, error } = await listDashboardProjects(supabase)
+    expect(error).toBe("storage error")
+    expect(projects).toEqual([])
+  })
+
+  it("skips signing when no project has a master storage_path", async () => {
+    const supabase = makeFakeSupabase({
+      selectResult: {
+        data: [
+          {
+            id: "p1",
+            name: "Proj",
+            updated_at: null,
+            status: "draft",
+            project_images: [],
+            project_workspace: null,
+            project_image_state: [],
+          } as unknown as DashboardProjectRow,
+        ],
+        error: null,
+      },
+      // signResult unused — createSignedUrls should not be called.
+      signResult: { data: null, error: { message: "should-not-be-called" } },
+    })
+    const { projects, error } = await listDashboardProjects(supabase)
+    expect(error).toBeNull()
+    expect(projects).toHaveLength(1)
+    expect(projects[0]?.thumbUrl).toBeNull()
   })
 })
 
