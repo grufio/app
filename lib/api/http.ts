@@ -16,7 +16,7 @@ export type FetchJsonResult<T> =
 // Notes:
 // - This is per-tab (module scope) and best-effort only.
 // - We only cache successful GETs for a short TTL; non-2xx results are not cached.
-const GET_TTL_MS = 2_000
+const GET_TTL_MS = 5_000
 const inflight = new Map<string, Promise<FetchJsonResult<unknown>>>()
 const cache = new Map<string, { at: number; value: FetchJsonResult<unknown> }>()
 
