@@ -6,6 +6,7 @@ import { useDropzone } from "react-dropzone"
 import { toast } from "sonner"
 
 import { SidebarMenuAction } from "@/components/ui/sidebar"
+import { normalizeApiError } from "@/lib/api/error-normalizer"
 import { uploadMasterImageClient } from "@/lib/editor/upload-master-image"
 
 export function AddImageMenuAction({
@@ -24,13 +25,14 @@ export function AddImageMenuAction({
       try {
         const out = await uploadMasterImageClient({ projectId, file: nextFile })
         if (!out.ok) {
-          toast.error(out.error)
+          const normalized = normalizeApiError(out.error)
+          toast.error(normalized.title, normalized.detail ? { description: normalized.detail } : undefined)
           return
         }
         await onUploaded()
       } catch (error) {
-        const message = error instanceof Error && error.message.trim() ? error.message : "Upload failed"
-        toast.error(message)
+        const normalized = normalizeApiError(error)
+        toast.error(normalized.title, normalized.detail ? { description: normalized.detail } : undefined)
       } finally {
         setIsUploading(false)
       }

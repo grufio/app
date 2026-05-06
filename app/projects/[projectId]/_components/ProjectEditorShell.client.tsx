@@ -23,6 +23,7 @@ import {
 import { buildNavId } from "@/features/editor/navigation/nav-id"
 import { recoverSelectedNavId } from "@/features/editor/navigation/selection-recovery"
 import { FilterSidebarSection } from "@/features/editor/components/filter-sidebar-section"
+import { normalizeApiError } from "@/lib/api/error-normalizer"
 import { setProjectImageFilterHidden } from "@/lib/api/project-images"
 import { useFilterWorkingImage } from "@/lib/editor/use-filter-working-image"
 import { useFilterDialogSession } from "@/lib/editor/use-filter-dialog-session"
@@ -160,7 +161,8 @@ export function ProjectDetailPageClient({
     }
     if (lastFilterErrorToastRef.current === filterPanelError) return
     lastFilterErrorToastRef.current = filterPanelError
-    toast.error(filterPanelError)
+    const normalized = normalizeApiError(filterPanelError)
+    toast.error(normalized.title, normalized.detail ? { description: normalized.detail } : undefined)
   }, [filterPanelError])
 
   useEffect(() => {
@@ -399,7 +401,8 @@ export function ProjectDetailPageClient({
       } catch (e) {
         // Revert optimistic toggle, surface a toast with the upstream message.
         toggleHiddenFilter(filterId)
-        toast.error(e instanceof Error ? e.message : "Could not update filter visibility")
+        const normalized = normalizeApiError(e)
+        toast.error(normalized.title, normalized.detail ? { description: normalized.detail } : undefined)
       }
     },
     [filterStack, projectId, refreshFilterImage, toggleHiddenFilter]
