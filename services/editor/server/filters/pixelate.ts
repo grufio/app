@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/lib/supabase/database.types"
 import { copyImageTransform } from "@/services/editor/server/copy-image-transform"
+import { contentTypeFor, pickOutputFormat, toInt } from "./_helpers"
 
 const FILTER_SERVICE_URL = process.env.FILTER_SERVICE_URL || "http://localhost:8001"
 
@@ -41,26 +42,6 @@ type PixelateParams = {
   superpixelHeight: number
   colorMode: "rgb" | "grayscale"
   numColors: number
-}
-
-function toInt(value: number): number | null {
-  if (!Number.isFinite(value)) return null
-  const n = Math.round(value)
-  if (n < 0) return null
-  return n
-}
-
-function pickOutputFormat(format: string | null | undefined): "jpeg" | "png" | "webp" {
-  const f = String(format ?? "").toLowerCase()
-  if (f === "jpg" || f === "jpeg") return "jpeg"
-  if (f === "webp") return "webp"
-  return "png"
-}
-
-function contentTypeFor(format: "jpeg" | "png" | "webp"): string {
-  if (format === "jpeg") return "image/jpeg"
-  if (format === "webp") return "image/webp"
-  return "image/png"
 }
 
 export async function pixelateImageAndActivate(args: {

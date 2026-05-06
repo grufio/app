@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/lib/supabase/database.types"
 import { copyImageTransform } from "@/services/editor/server/copy-image-transform"
+import { toInt } from "./_helpers"
 
 const FILTER_SERVICE_URL = process.env.FILTER_SERVICE_URL || "http://localhost:8001"
 
@@ -46,12 +47,6 @@ type LineArtParams = {
   smoothness: number
 }
 
-function toInt(value: number): number | null {
-  if (!Number.isFinite(value)) return null
-  const n = Math.round(value)
-  if (n < 0) return null
-  return n
-}
 
 export async function lineArtImageAndActivate(args: {
   supabase: SupabaseClient<Database>
