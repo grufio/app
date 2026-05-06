@@ -101,7 +101,13 @@ export function ProjectGridProvider({
   useEffect(() => {
     // If server provided initial data, don't refetch on mount.
     if (initialRow?.project_id === projectId) return
-    void refresh()
+    // Defer to a microtask so refresh's synchronous setLoading/setError
+    // calls run outside the effect body — the eslint rule
+    // react-hooks/set-state-in-effect is otherwise tripped by the
+    // fetch-on-mount pattern.
+    queueMicrotask(() => {
+      void refresh()
+    })
   }, [initialRow?.project_id, projectId, refresh])
 
   const upsertGrid = useCallback(

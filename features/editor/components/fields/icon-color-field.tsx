@@ -55,9 +55,14 @@ export function IconColorField({
 
   const [draftHex, setDraftHex] = React.useState<string>(displayHex)
 
-  React.useEffect(() => {
+  // Sync the upstream displayHex into the local draft at render time —
+  // calling setState inside an effect for this triggers a cascading
+  // render that the eslint rule flags.
+  const [lastSyncedDisplay, setLastSyncedDisplay] = React.useState(displayHex)
+  if (displayHex !== lastSyncedDisplay) {
+    setLastSyncedDisplay(displayHex)
     setDraftHex(displayHex)
-  }, [displayHex])
+  }
 
   const draftPreviewHex = normalizeHexInput(draftHex)
   // Preview typed values when valid; otherwise keep the persisted value.

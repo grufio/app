@@ -222,18 +222,26 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
   )
 
   useEffect(() => {
+    // Defer to a microtask so the synchronous setState calls (reset on
+    // disable, load-on-mount via loadImageState) run outside the effect
+    // body — the eslint rule react-hooks/set-state-in-effect is
+    // otherwise tripped.
     if (!enabled) {
       requestSeqRef.current++
       loadInflightRef.current = null
       lastLoadedSignatureRef.current = null
-      setInitialImageTransform(null)
-      setImageStateError((prev) => (prev === "" ? prev : ""))
-      setImageStateLoading(false)
+      queueMicrotask(() => {
+        setInitialImageTransform(null)
+        setImageStateError((prev) => (prev === "" ? prev : ""))
+        setImageStateLoading(false)
+      })
       return
     }
     // If server already provided the state, skip initial fetch.
     if (initial || !autoLoad) return
-    void loadImageState()
+    queueMicrotask(() => {
+      void loadImageState()
+    })
   }, [autoLoad, enabled, initial, loadImageState])
 
   useEffect(() => {

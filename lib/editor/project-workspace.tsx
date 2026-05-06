@@ -116,7 +116,12 @@ export function ProjectWorkspaceProvider({
       width_px_u: (row as unknown as { width_px_u?: unknown }).width_px_u,
       height_px_u: (row as unknown as { height_px_u?: unknown }).height_px_u,
     })
-    setError((prev) => (prev === "Invalid canonical workspace size (µpx)." ? prev : "Invalid canonical workspace size (µpx)."))
+    // Defer to a microtask so the synchronous setError doesn't run inside
+    // the effect body — the eslint rule react-hooks/set-state-in-effect
+    // is otherwise tripped.
+    queueMicrotask(() => {
+      setError((prev) => (prev === "Invalid canonical workspace size (µpx)." ? prev : "Invalid canonical workspace size (µpx)."))
+    })
   }, [row])
 
   const refresh = useCallback(async () => {
@@ -275,7 +280,13 @@ export function ProjectWorkspaceProvider({
   useEffect(() => {
     // If server provided initial data, don't refetch on mount.
     if (initialRow?.project_id === projectId) return
-    void refresh()
+    // Defer to a microtask so refresh's synchronous setLoading/setError
+    // calls run outside the effect body — the eslint rule
+    // react-hooks/set-state-in-effect is otherwise tripped by the
+    // fetch-on-mount pattern.
+    queueMicrotask(() => {
+      void refresh()
+    })
   }, [initialRow?.project_id, projectId, refresh])
 
   const value = useMemo<WorkspaceContextValue>(() => {

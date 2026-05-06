@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useRef, useState } from "react"
 
 import { updateProjectTitleClient } from "@/services/projects/client/update-project-title"
 import { FieldControl } from "@/components/ui/form-controls"
@@ -22,12 +22,20 @@ export function ProjectTitleEditor({ projectId, initialTitle, onTitleUpdated }: 
   const inputRef = useRef<HTMLInputElement | null>(null)
   const lastSubmittedRef = useRef<string | null>(null)
 
-  useEffect(() => {
-    if (typeof initialTitle !== "string") return
-    const next = initialTitle.trim() || "Untitled"
-    setTitle(next)
-    if (!isFocused) setDraft(next)
-  }, [initialTitle, isFocused])
+  // Sync prop change into local state without an effect — render-phase
+  // detection via sentinel state is the React-blessed pattern for
+  // "external prop changes should reset internal state". No cascading
+  // render: React notices same setState calls in the same render and
+  // restarts the render synchronously.
+  const [lastSyncedInitial, setLastSyncedInitial] = useState(initialTitle)
+  if (initialTitle !== lastSyncedInitial) {
+    setLastSyncedInitial(initialTitle)
+    if (typeof initialTitle === "string") {
+      const next = initialTitle.trim() || "Untitled"
+      setTitle(next)
+      if (!isFocused) setDraft(next)
+    }
+  }
 
   const save = async (nextRaw: string) => {
     const next = nextRaw.trim() || "Untitled"
