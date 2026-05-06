@@ -2,6 +2,8 @@
 
 import { ReactNode, useState } from "react"
 import { toast } from "sonner"
+
+import { normalizeApiError } from "@/lib/api/error-normalizer"
 import {
   Dialog,
   DialogContent,
@@ -110,17 +112,10 @@ export function BaseFilterController<TFormData>({
         onError(error)
         return
       }
-      // The chain_invalid stage is fired when the working_copy's filter
-      // chain has gotten out of sync with the active image (e.g. another
-      // tab applied/removed a filter, then auto-self-healed). The user
-      // doesn't need to see a stack-trace-y dialog — a toast that hints
-      // at "reload" is friendlier than `alert()`.
-      const isChainInvalid = error.message.includes("stage=chain_invalid")
-      if (isChainInvalid) {
-        toast.error("Filter chain is out of sync — close this dialog and re-open the project.")
-      } else {
-        toast.error(error.message || "Failed to apply filter")
-      }
+      // Single source of truth for stage→friendly-copy mapping lives in
+      // lib/api/error-normalizer; just render what it gives us.
+      const normalized = normalizeApiError(error)
+      toast.error(normalized.title, normalized.detail ? { description: normalized.detail } : undefined)
     } finally {
       setBusy(false)
     }
