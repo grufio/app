@@ -1,10 +1,11 @@
 "use client"
 
 import { useState } from "react"
-import { AppButton, AppInput } from "@/components/ui/form-controls"
+import { AppInput } from "@/components/ui/form-controls"
 import { Label } from "@/components/ui/label"
 import { Field, FieldGroup } from "@/components/ui/field"
 import { Checkbox } from "@/components/ui/checkbox"
+import { FilterFormFooter } from "./filter-forms/filter-form-footer"
 
 export type NumerateFormData = {
   strokeWidth: number
@@ -70,14 +71,7 @@ export function NumerateForm({ superpixelWidth, superpixelHeight, initialShowCol
         </Field>
       </FieldGroup>
 
-      <div className="flex gap-2 justify-end">
-        <AppButton type="button" variant="outline" onClick={onCancel} disabled={busy}>
-          Cancel
-        </AppButton>
-        <AppButton type="submit" disabled={!isValid || busy}>
-          {busy ? "Applying..." : "Apply"}
-        </AppButton>
-      </div>
+      <FilterFormFooter onCancel={onCancel} isValid={isValid} busy={busy} />
     </form>
   )
 }

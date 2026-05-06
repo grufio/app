@@ -1,9 +1,10 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { AppButton, AppInput } from "@/components/ui/form-controls"
+import { AppInput } from "@/components/ui/form-controls"
 import { Label } from "@/components/ui/label"
 import { Field, FieldGroup } from "@/components/ui/field"
+import { FilterFormFooter } from "./filter-forms/filter-form-footer"
 
 export type LineArtFormData = {
   threshold1: number
@@ -160,14 +161,7 @@ export function LineArtForm({ onCancel, onApply, busy = false }: Props) {
         </Field>
       </FieldGroup>
 
-      <div className="flex justify-end gap-2">
-        <AppButton type="button" variant="outline" onClick={onCancel} disabled={busy}>
-          Cancel
-        </AppButton>
-        <AppButton type="submit" disabled={!isValid || busy}>
-          {busy ? "Processing..." : "Apply"}
-        </AppButton>
-      </div>
+      <FilterFormFooter onCancel={onCancel} isValid={isValid} busy={busy} applyingLabel="Processing..." />
     </form>
   )
 }
