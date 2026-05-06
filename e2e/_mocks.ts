@@ -47,6 +47,12 @@ export const PROJECT_ID = "00000000-0000-4000-8000-000000000001"
 
 export type SetupMockRoutesOpts = {
   withImage: boolean
+  /**
+   * When true, the list response reports the active image as a deletable
+   * filter_working_copy (kind != master). The right-panel "Delete image"
+   * button enables; defaults to false (master-only mock = immutable).
+   */
+  deletableActive?: boolean
   workspace?: Partial<{
     unit: "mm" | "cm" | "pt" | "px"
     width_value: number
@@ -98,6 +104,7 @@ export async function setupMockRoutes(page: Page, opts: SetupMockRoutesOpts) {
     "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%2220%22%20height%3D%2210%22%3E%3Crect%20width%3D%2220%22%20height%3D%2210%22%20fill%3D%22%23ff3b30%22/%3E%3C/svg%3E"
 
   let hasImage = Boolean(opts.withImage)
+  const deletableActive = Boolean(opts.deletableActive)
   const activeImageId = "11111111-1111-4111-8111-111111111111"
   let currentImageId = activeImageId
   let imageCounter = 0
@@ -182,30 +189,34 @@ export async function setupMockRoutes(page: Page, opts: SetupMockRoutesOpts) {
 
     // Internal API: list project images (used by tree + lock state).
     if (url.includes(`/api/projects/${PROJECT_ID}/images/master/list`)) {
-      return route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          items: hasImage
-            ? [
-                {
-                  id: activeImageId,
-                  name: "test.svg",
-                  format: "svg",
-                  width_px: 20,
-                  height_px: 10,
-                  dpi: 300,
-                  storage_path: `projects/${PROJECT_ID}/master/mock-upload.svg`,
-                  storage_bucket: "project-images",
-                  file_size_bytes: 128,
-                  is_active: true,
-                  is_locked: false,
-                  created_at: "2026-01-01T00:00:00.000Z",
-                },
-              ]
-            : [],
-        }),
-      })
+      const baseBody = {
+        items: hasImage
+          ? [
+              {
+                id: activeImageId,
+                name: "test.svg",
+                format: "svg",
+                width_px: 20,
+                height_px: 10,
+                dpi: 300,
+                storage_path: `projects/${PROJECT_ID}/master/mock-upload.svg`,
+                storage_bucket: "project-images",
+                file_size_bytes: 128,
+                is_active: true,
+                is_locked: false,
+                created_at: "2026-01-01T00:00:00.000Z",
+              },
+            ]
+          : [],
+      }
+      // Tests that want the right-panel "Delete image" button enabled (e.g.
+      // delete-confirm visual snapshot) flip `deletableActive`. We only
+      // attach a `display_target` in that case, leaving the default mock
+      // shape unchanged for the master/restore happy path.
+      const body = deletableActive
+        ? { ...baseBody, display_target: { active_image_id: activeImageId, kind: "filter_working_copy", deletable: true, reason: null }, fallback_target: null }
+        : baseBody
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) })
     }
 
     // Internal API: master image exists + signed URL
