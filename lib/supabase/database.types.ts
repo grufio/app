@@ -147,6 +147,7 @@ export type Database = {
           filter_type: string
           id: string
           input_image_id: string
+          is_hidden: boolean
           output_image_id: string
           project_id: string
           stack_order: number
@@ -158,6 +159,7 @@ export type Database = {
           filter_type: string
           id?: string
           input_image_id: string
+          is_hidden?: boolean
           output_image_id: string
           project_id: string
           stack_order: number
@@ -169,6 +171,7 @@ export type Database = {
           filter_type?: string
           id?: string
           input_image_id?: string
+          is_hidden?: boolean
           output_image_id?: string
           project_id?: string
           stack_order?: number
@@ -588,6 +591,18 @@ export type Database = {
           p_project_id: string
         }
         Returns: string
+      }
+      remove_project_image_filter: {
+        Args: {
+          p_filter_id: string
+          p_project_id: string
+          p_rewires?: Json
+        }
+        Returns: undefined
+      }
+      reorder_project_image_filters: {
+        Args: { p_project_id: string }
+        Returns: undefined
       }
       collect_project_image_delete_targets: {
         Args: { p_project_id: string; p_root_image_id: string }

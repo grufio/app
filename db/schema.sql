@@ -4061,3 +4061,142 @@ create unique index if not exists project_images_active_working_copy_kind_uidx
 -- =========================================================
 -- END db/055_project_images_kind_constraints.sql
 -- =========================================================
+
+
+-- =========================================================
+-- BEGIN db/056_filter_remove_rpc_and_is_hidden.sql
+-- =========================================================
+-- Filter chain bug-fix bundle (bug/filter):
+--   1. Adds the previously phantom `reorder_project_image_filters` RPC.
+--   2. Adds an atomic `remove_project_image_filter` RPC that takes the
+--      pre-built downstream rewires and performs UPDATE + DELETE +
+--      stack_order reset under one advisory lock.
+--   3. Adds `is_hidden boolean NOT NULL DEFAULT false` on
+--      project_image_filters so the show/hide toggle in the filter
+--      sidebar persists across reloads.
+
+alter table public.project_image_filters
+  add column if not exists is_hidden boolean not null default false;
+
+create or replace function public.reorder_project_image_filters(
+  p_project_id uuid
+)
+returns void
+language plpgsql
+as $$
+declare
+  v_row record;
+  v_next integer := 1;
+begin
+  perform pg_advisory_xact_lock(hashtext(p_project_id::text));
+
+  for v_row in
+    select id
+    from public.project_image_filters
+    where project_id = p_project_id
+    order by stack_order asc, created_at asc, id asc
+  loop
+    update public.project_image_filters
+       set stack_order = -v_next
+     where id = v_row.id;
+    v_next := v_next + 1;
+  end loop;
+
+  v_next := 1;
+  for v_row in
+    select id
+    from public.project_image_filters
+    where project_id = p_project_id
+    order by stack_order desc
+  loop
+    update public.project_image_filters
+       set stack_order = v_next
+     where id = v_row.id;
+    v_next := v_next + 1;
+  end loop;
+end;
+$$;
+
+create or replace function public.remove_project_image_filter(
+  p_project_id uuid,
+  p_filter_id uuid,
+  p_rewires jsonb default '[]'::jsonb
+)
+returns void
+language plpgsql
+as $$
+declare
+  v_target_project uuid;
+  v_rewire jsonb;
+  v_filter_id uuid;
+  v_input uuid;
+  v_output uuid;
+  v_row record;
+  v_next integer := 1;
+begin
+  perform pg_advisory_xact_lock(hashtext(p_project_id::text));
+
+  select project_id
+    into v_target_project
+  from public.project_image_filters
+  where id = p_filter_id;
+
+  if v_target_project is null then
+    raise exception 'filter not found' using errcode = 'P0002';
+  end if;
+
+  if v_target_project is distinct from p_project_id then
+    raise exception 'filter does not belong to project' using errcode = '23503';
+  end if;
+
+  for v_rewire in select * from jsonb_array_elements(coalesce(p_rewires, '[]'::jsonb))
+  loop
+    v_filter_id := (v_rewire ->> 'id')::uuid;
+    v_input := (v_rewire ->> 'input_image_id')::uuid;
+    v_output := (v_rewire ->> 'output_image_id')::uuid;
+
+    update public.project_image_filters
+       set input_image_id = v_input,
+           output_image_id = v_output
+     where id = v_filter_id
+       and project_id = p_project_id;
+
+    if not found then
+      raise exception 'rewire target filter % not found in project', v_filter_id
+        using errcode = 'P0002';
+    end if;
+  end loop;
+
+  delete from public.project_image_filters
+   where id = p_filter_id
+     and project_id = p_project_id;
+
+  for v_row in
+    select id
+    from public.project_image_filters
+    where project_id = p_project_id
+    order by stack_order asc, created_at asc, id asc
+  loop
+    update public.project_image_filters
+       set stack_order = -v_next
+     where id = v_row.id;
+    v_next := v_next + 1;
+  end loop;
+
+  v_next := 1;
+  for v_row in
+    select id
+    from public.project_image_filters
+    where project_id = p_project_id
+    order by stack_order desc
+  loop
+    update public.project_image_filters
+       set stack_order = v_next
+     where id = v_row.id;
+    v_next := v_next + 1;
+  end loop;
+end;
+$$;
+-- =========================================================
+-- END db/056_filter_remove_rpc_and_is_hidden.sql
+-- =========================================================
