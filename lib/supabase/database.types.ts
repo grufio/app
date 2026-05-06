@@ -592,18 +592,6 @@ export type Database = {
         }
         Returns: string
       }
-      remove_project_image_filter: {
-        Args: {
-          p_filter_id: string
-          p_project_id: string
-          p_rewires?: Json
-        }
-        Returns: undefined
-      }
-      reorder_project_image_filters: {
-        Args: { p_project_id: string }
-        Returns: undefined
-      }
       collect_project_image_delete_targets: {
         Args: { p_project_id: string; p_root_image_id: string }
         Returns: {
@@ -611,6 +599,14 @@ export type Database = {
           storage_bucket: string
           storage_path: string
         }[]
+      }
+      remove_project_image_filter: {
+        Args: { p_filter_id: string; p_project_id: string; p_rewires?: Json }
+        Returns: undefined
+      }
+      reorder_project_image_filters: {
+        Args: { p_project_id: string }
+        Returns: undefined
       }
       set_active_image: {
         Args: { p_image_id: string; p_project_id: string }
