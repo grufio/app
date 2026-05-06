@@ -69,4 +69,99 @@ describe("lineArtImageAndActivate validation contract", () => {
       expect(result.stage).toBe("source_lookup")
     }
   })
+
+  it("rejects when threshold1 >= threshold2 (must be strictly less)", async () => {
+    const result = await lineArtImageAndActivate({
+      supabase: mockSupabase,
+      projectId,
+      sourceImageId,
+      params: {
+        threshold1: 200,
+        threshold2: 200,
+        lineThickness: 2,
+        invert: false,
+        blurAmount: 3,
+        minContourArea: 200,
+        smoothness: 0.005,
+      },
+    })
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.stage).toBe("validation")
+  })
+
+  it("rejects negative threshold values", async () => {
+    const result = await lineArtImageAndActivate({
+      supabase: mockSupabase,
+      projectId,
+      sourceImageId,
+      params: {
+        threshold1: -1,
+        threshold2: 100,
+        lineThickness: 2,
+        invert: false,
+        blurAmount: 3,
+        minContourArea: 200,
+        smoothness: 0.005,
+      },
+    })
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.stage).toBe("validation")
+  })
+
+  it("rejects lineThickness > 10", async () => {
+    const result = await lineArtImageAndActivate({
+      supabase: mockSupabase,
+      projectId,
+      sourceImageId,
+      params: {
+        threshold1: 50,
+        threshold2: 200,
+        lineThickness: 11,
+        invert: false,
+        blurAmount: 3,
+        minContourArea: 200,
+        smoothness: 0.005,
+      },
+    })
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.stage).toBe("validation")
+  })
+
+  it("rejects blurAmount > 20", async () => {
+    const result = await lineArtImageAndActivate({
+      supabase: mockSupabase,
+      projectId,
+      sourceImageId,
+      params: {
+        threshold1: 50,
+        threshold2: 200,
+        lineThickness: 2,
+        invert: false,
+        blurAmount: 21,
+        minContourArea: 200,
+        smoothness: 0.005,
+      },
+    })
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.stage).toBe("validation")
+  })
+
+  it("rejects negative minContourArea", async () => {
+    const result = await lineArtImageAndActivate({
+      supabase: mockSupabase,
+      projectId,
+      sourceImageId,
+      params: {
+        threshold1: 50,
+        threshold2: 200,
+        lineThickness: 2,
+        invert: false,
+        blurAmount: 3,
+        minContourArea: -1,
+        smoothness: 0.005,
+      },
+    })
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.stage).toBe("validation")
+  })
 })
