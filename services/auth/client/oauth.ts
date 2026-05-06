@@ -8,6 +8,12 @@
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { safeOAuthCallbackRedirectTo } from "@/lib/auth/redirect"
 
+/**
+ * Initiates Google OAuth sign-in and redirects the browser to Google's
+ * consent screen. The provided `redirectTo` is constrained to a
+ * same-origin `/auth/callback` URL; anything else falls back to a safe
+ * default to prevent open-redirect via OAuth state.
+ */
 export async function signInWithGoogleOAuth(opts: { redirectTo: string }): Promise<void> {
   const supabase = createSupabaseBrowserClient()
   const redirectTo = (() => {

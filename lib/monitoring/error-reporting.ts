@@ -38,6 +38,11 @@ function getIngestUrl(): string | null {
   }
 }
 
+/**
+ * Logs the error locally and, when `NEXT_PUBLIC_ERROR_INGEST_URL` is set,
+ * POSTs a structured `ErrorEvent` to the ingest endpoint. Best-effort:
+ * never throws and never blocks the caller — fetch failures are swallowed.
+ */
 export async function reportError(
   error: unknown,
   event?: Omit<ErrorEvent, "message" | "stack" | "name" | "schemaVersion" | "timestamp">
