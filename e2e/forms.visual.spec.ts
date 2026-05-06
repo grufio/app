@@ -137,13 +137,10 @@ test.describe("forms — visual regressions", () => {
     })
   })
 
-  // Skipped: /dashboard is server-rendered. listDashboardProjects() runs on
-  // the server and reaches Supabase before any Playwright page.route() can
-  // intercept it; without a mocked session the page renders the global
-  // error boundary ("Something went wrong"). Wiring a server-side mock for
-  // the dashboard listing is out of scope for this PR — needs e2e/_mocks.ts
-  // to grow a counterpart, or the dashboard to gain a mock-mode bypass.
-  test.skip("dashboard — create project dialog", async ({ page }) => {
+  test("dashboard — create project dialog", async ({ page }) => {
+    // /dashboard is server-rendered. The x-e2e-test header triggers the
+    // server-side bypass in app/dashboard/page.tsx that returns a
+    // deterministic empty dashboard (no Supabase needed).
     await page.setExtraHTTPHeaders({ "x-e2e-test": "1", "x-e2e-user": "1" })
     await page.goto("/dashboard")
     await freezeAnimations(page)
@@ -162,8 +159,12 @@ test.describe("forms — visual regressions", () => {
     await page.goto(`/projects/${PROJECT_ID}`)
     await freezeAnimations(page)
 
-    // The Image tab is selected by default in the Layers panel — the Restore
-    // image button lives in its right-panel section.
+    // Explicit click on the Image nav item — the auto-switch from "artboard"
+    // to "image" can race with the screenshot in CI; clicking is robust.
+    const layers = page.getByLabel("Layers")
+    await expect(layers).toBeVisible()
+    await layers.getByRole("button", { name: "Image", exact: true }).first().click()
+
     await page.getByRole("button", { name: "Restore image" }).click()
     await expect(page.getByRole("heading", { name: "Restore image?" })).toBeVisible()
 
@@ -172,19 +173,23 @@ test.describe("forms — visual regressions", () => {
     })
   })
 
-  // Skipped: the "Delete image" button is disabled until there's a
-  // deletable variant (working copy or filter result). The current mock
-  // (setupMockRoutes withImage:true) only seeds a single master image, so
-  // delete remains disabled. Enabling this baseline needs the mock to
-  // additionally seed a filter_working_copy row + image — a meaningful
-  // mock extension that's out of scope for this PR.
-  test.skip("editor — delete confirm modal", async ({ page }) => {
+  test("editor — delete confirm modal", async ({ page }) => {
     await page.setExtraHTTPHeaders({ "x-e2e-test": "1", "x-e2e-user": "1" })
-    await setupMockRoutes(page, { withImage: true })
+    // deletableActive seeds the active image as a filter_working_copy in the
+    // list response so the right-panel Delete button is enabled.
+    await setupMockRoutes(page, { withImage: true, deletableActive: true })
     await page.goto(`/projects/${PROJECT_ID}`)
     await freezeAnimations(page)
 
-    await page.getByRole("button", { name: "Delete image" }).click()
+    // With a working_copy displayTarget the editor doesn't auto-switch to the
+    // image section the way it does for a master image — explicit click.
+    const layers = page.getByLabel("Layers")
+    await expect(layers).toBeVisible()
+    await layers.getByRole("button", { name: "Image", exact: true }).first().click()
+
+    // Two "Delete" buttons exist on the page (sidebar menu-action and right-panel
+    // icon); use exact: true to disambiguate to the right-panel lowercase one.
+    await page.getByRole("button", { name: "Delete image", exact: true }).click()
     await expect(page.getByRole("heading", { name: "Delete image?" })).toBeVisible()
 
     await expect(page.getByRole("dialog", { name: "Delete image?" })).toHaveScreenshot("delete-confirm-modal.png", {

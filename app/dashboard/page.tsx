@@ -5,9 +5,12 @@
  * - Server-render the project list for the signed-in user.
  * - Provide entrypoints for creating and opening projects.
  */
+import { headers } from "next/headers"
+
 import { AppSidebarMain } from "@/components/navigation/AppSidebarMain"
 import { ProjectPreviewCard } from "@/components/app-card-project"
 import { CreateProjectDialog } from "@/app/dashboard/create-project-dialog"
+import { isE2ETestRequest } from "@/lib/e2e"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { SidebarFrame } from "@/components/navigation/SidebarFrame"
 import {
@@ -24,10 +27,26 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar"
 import { listDashboardProjects } from "@/services/projects"
+import type { DashboardProjectVM } from "@/services/projects/server/dashboard"
 
 export const dynamic = "force-dynamic"
 
+const E2E_FAKE_USER = { name: "E2E", email: "e2e@example.com", avatar: "" }
+const E2E_FAKE_PROJECTS: DashboardProjectVM[] = []
+
 export default async function Page() {
+  const reqHeaders = await headers()
+  const e2eRequest = isE2ETestRequest(reqHeaders)
+
+  // E2E bypass: /dashboard is server-rendered and Playwright's page.route()
+  // can't intercept the supabase calls that happen on the Node side. When
+  // E2E_TEST=1 + x-e2e-test header is set, render a deterministic empty
+  // dashboard so visual specs (e.g. create-project dialog) can snapshot the
+  // page without a live Supabase backend.
+  if (e2eRequest) {
+    return renderDashboard({ projects: E2E_FAKE_PROJECTS, sidebarUser: E2E_FAKE_USER })
+  }
+
   const supabase = await createSupabaseServerClient()
   const { projects, error } = await listDashboardProjects(supabase)
   if (error) throw new Error(`Failed to load projects: ${error}`)
@@ -42,6 +61,16 @@ export default async function Page() {
     email: authData.user?.email ?? "",
     avatar: (authData.user?.user_metadata?.avatar_url as string | undefined) ?? "",
   }
+  return renderDashboard({ projects: projects ?? [], sidebarUser })
+}
+
+function renderDashboard({
+  projects,
+  sidebarUser,
+}: {
+  projects: DashboardProjectVM[]
+  sidebarUser: { name: string; email: string; avatar: string }
+}) {
 
   return (
     <SidebarFrame>
@@ -73,7 +102,7 @@ export default async function Page() {
         </header>
         <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
           <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
-            {(projects ?? []).map((row) => {
+            {projects.map((row) => {
               return (
                 <ProjectPreviewCard
                   key={row.id}

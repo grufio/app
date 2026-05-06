@@ -69,13 +69,16 @@ PNGs are committed.
 Status of the 5 follow-ups, addressed by branch `sys-update`
 (commits f5ac1990 / cda309bb / 093f15dd / b3b6f5d8):
 
-1. 🟡 **Visual-regression baselines** — partial. Tried generating on
-   sys-update; the 3 already-active tests pass, the 6 expanded ones
-   all failed at the modal-trigger click step because the selectors
-   (`/pixelate/`, `/restore/`, `/delete/`, …) were guesses. The specs
-   stay `.skip`'d with an in-file note explaining what someone with
-   the live UI in front of them needs to update to enable them. Not
-   blocking the gate.
+1. ✅ **Visual-regression baselines** — done. All 9 specs active.
+   First sys-update pass left 6 `.skip`'d. test/visual-baselines-from-code
+   traced 4 of them (3 filter dialogs + restore-confirm) by reading
+   the editor sources. test/visual-mock-infra closed the remaining 2
+   by extending `e2e/_mocks.ts` with a `deletableActive` opt
+   (filter_working_copy display_target so the right-panel Delete
+   button enables) and adding a tiny e2e bypass in
+   `app/dashboard/page.tsx` (gated on `isE2ETestRequest`) so the
+   server-rendered dashboard returns a deterministic empty list
+   instead of hitting Supabase.
 2. 🟡 **B4 (canvas-stage split)** — partial. Two more low-risk
    extractions landed: `canvas-stage/grid-overlay.tsx` and
    `canvas-stage/artboard-border.tsx`. Host file: 835 → 799 LOC. The
