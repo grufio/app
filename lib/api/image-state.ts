@@ -35,6 +35,7 @@ function normalizeApiErrorPayload(payload: unknown, status: number) {
   }
 }
 
+/** GET /api/projects/[projectId]/image-state — fetches the persisted image transform for the project (or a specific image). Throws `ApiError` on non-2xx. */
 export async function getImageState(projectId: string, imageId?: string): Promise<GetImageStateResponse> {
   const res = await fetchJson<GetImageStateResponse>(buildImageStateUrl(projectId, imageId), {
     method: "GET",
@@ -51,6 +52,7 @@ export async function getImageState(projectId: string, imageId?: string): Promis
   return res.data
 }
 
+/** POST /api/projects/[projectId]/image-state — persists the image transform (size + position + rotation). Throws `ApiError` on non-2xx. */
 export async function saveImageState(projectId: string, body: SaveImageStateBody, imageId?: string): Promise<void> {
   const res = await fetchJson<unknown>(buildImageStateUrl(projectId, imageId), {
     method: "POST",

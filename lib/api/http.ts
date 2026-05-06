@@ -80,6 +80,11 @@ export async function fetchJson<T>(input: RequestInfo | URL, init?: RequestInit)
   }
 }
 
+/**
+ * Punches through the per-tab GET cache. Call on the success path of any
+ * mutation that invalidates a previously-cached read. Pass no argument to
+ * clear everything, or a substring / RegExp to drop matching keys.
+ */
 export function invalidateFetchJsonGetCache(match?: string | RegExp): void {
   if (!match) {
     cache.clear()

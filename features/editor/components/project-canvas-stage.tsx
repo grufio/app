@@ -8,7 +8,7 @@
  * - Delegate RAF/bounds/transform persistence to controller modules.
  */
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react"
-import { Group, Image as KonvaImage, Layer, Line, Rect, Stage } from "react-konva"
+import { Group, Image as KonvaImage, Layer, Rect, Stage } from "react-konva"
 import type Konva from "konva"
 
 import { pxUToPxNumber } from "@/lib/editor/units"
@@ -23,11 +23,12 @@ import { useSelectionCropController } from "./canvas-stage/selection-crop-contro
 import { useStageEventsController } from "./canvas-stage/stage-events-controller"
 import { pickIntrinsicSize } from "./canvas-stage/placement"
 import { createStateSyncGuard } from "./canvas-stage/state-sync-guard"
-import { getStaticLineRenderProps } from "./canvas-stage/line-rendering"
 import { snapWorldToDeviceHalfPixel as snapHalfPixel } from "./canvas-stage/pixel-snap"
 import { useRestoreImageController, type RestoreBaseSpec, type RestoreImageResult } from "./canvas-stage/restore-controller"
 import type { CropRectWorld } from "./canvas-stage/crop-controller"
 import type { ResizeHandle } from "./canvas-stage/select-controller"
+import { ArtboardBorder } from "./canvas-stage/artboard-border"
+import { GridOverlay } from "./canvas-stage/grid-overlay"
 import { SelectionOverlay } from "./canvas-stage/selection-overlay"
 import { useWheelZoomGuard } from "./canvas-stage/stage-lifecycle-controller"
 import { createTransformController } from "./canvas-stage/transform-controller"
@@ -677,18 +678,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
             ) : null}
 
             {/* Grid overlay (under selection frame). */}
-            {snappedGridLines && snappedGridLines.lines.length ? (
-              <>
-                {snappedGridLines.lines.map((l) => (
-                  <Line
-                    key={l.key}
-                    points={l.points}
-                    stroke={snappedGridLines.stroke}
-                    {...getStaticLineRenderProps(snappedGridLines.strokeWidth)}
-                  />
-                ))}
-              </>
-            ) : null}
+            <GridOverlay snappedGridLines={snappedGridLines} />
 
             {/* Default selection frame (shown when the Select tool is active) */}
             {renderArtboard && imageDraggable && !cropEnabled && !isDraggingImage ? (
@@ -792,40 +782,13 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
           </Group>
 
           {drawArtboard ? (
-            <>
-              {/* Artboard border as 4 independent lines (1px, not scaling) */}
-              {(() => {
-                const xL = snapWorldToDeviceHalfPixel(0, "x")
-                const xR = snapWorldToDeviceHalfPixel(artW, "x")
-                const yT = snapWorldToDeviceHalfPixel(0, "y")
-                const yB = snapWorldToDeviceHalfPixel(artH, "y")
-
-                return (
-                  <>
-                    <Line
-                      points={[xL, 0, xL, artH]}
-                      stroke={borderColor}
-                      {...getStaticLineRenderProps(borderWidth)}
-                    />
-                    <Line
-                      points={[xR, 0, xR, artH]}
-                      stroke={borderColor}
-                      {...getStaticLineRenderProps(borderWidth)}
-                    />
-                    <Line
-                      points={[0, yT, artW, yT]}
-                      stroke={borderColor}
-                      {...getStaticLineRenderProps(borderWidth)}
-                    />
-                    <Line
-                      points={[0, yB, artW, yB]}
-                      stroke={borderColor}
-                      {...getStaticLineRenderProps(borderWidth)}
-                    />
-                  </>
-                )
-              })()}
-            </>
+            <ArtboardBorder
+              artW={artW}
+              artH={artH}
+              borderColor={borderColor}
+              borderWidth={borderWidth}
+              snapWorldToDeviceHalfPixel={snapWorldToDeviceHalfPixel}
+            />
           ) : null}
         </Layer>
       </Stage>

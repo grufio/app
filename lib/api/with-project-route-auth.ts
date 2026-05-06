@@ -20,6 +20,13 @@ type ProjectRouteHandler<T = unknown> = (
   context: ProjectRouteContext
 ) => Promise<NextResponse<T> | NextResponse<RouteErrorPayload>>
 
+/**
+ * Auth + project-access wrapper for /api/projects/[projectId]/* route
+ * handlers. Validates the UUID, attaches the authed user, and verifies
+ * project membership before invoking `handler` with a typed
+ * `ProjectRouteContext`. Returns the standard `RouteErrorPayload` shape
+ * on any guard failure.
+ */
 export async function withProjectRouteAuth<T = unknown>(
   req: Request,
   projectId: string,

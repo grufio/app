@@ -66,16 +66,36 @@ PNGs are committed.
 
 ## Next steps (already-flagged follow-ups)
 
-1. **Generate visual-regression baselines** for the 6 skipped specs in
-   `e2e/forms.visual.spec.ts`. Run `npm run test:e2e:visual:update`,
-   commit PNGs, remove `.skip`.
-2. **Continue B4** — split `project-canvas-stage.tsx` into wrapper /
-   image-layer / selection-overlay / controls-sync incrementally,
-   each behind canvas-interaction E2E coverage.
-3. **Coverage threshold** climbs to 30 / 40 / 50 over follow-up PRs as
-   more services pick up unit tests (start with the master-image-upload
-   handler and `services/projects/server/dashboard.ts`).
-4. **Expand JSDoc rule scope** from `services/auth + lib/auth + lib/monitoring`
-   outward, file by file, flipping `warn → error` when a slice is clean.
-5. **Address func-style warnings** in steady state — 56 const-arrow
-   exports in `.ts` files want migration to declarations.
+Status of the 5 follow-ups, addressed by branch `sys-update`
+(commits f5ac1990 / cda309bb / 093f15dd / b3b6f5d8):
+
+1. 🟡 **Visual-regression baselines** — partial. Tried generating on
+   sys-update; the 3 already-active tests pass, the 6 expanded ones
+   all failed at the modal-trigger click step because the selectors
+   (`/pixelate/`, `/restore/`, `/delete/`, …) were guesses. The specs
+   stay `.skip`'d with an in-file note explaining what someone with
+   the live UI in front of them needs to update to enable them. Not
+   blocking the gate.
+2. 🟡 **B4 (canvas-stage split)** — partial. Two more low-risk
+   extractions landed: `canvas-stage/grid-overlay.tsx` and
+   `canvas-stage/artboard-border.tsx`. Host file: 835 → 799 LOC. The
+   bigger split (event handlers / lifecycle / xstate sync) still
+   waits on canvas-interaction E2E coverage.
+3. ✅ **Coverage threshold** — first step complete.
+   `vitest.config.ts` now at 24 / 24 / 72 / 73 (lines / statements /
+   branches / functions). Two new test files added
+   (validation.test.ts, dashboard listing tests). Actuals 24.72%
+   lines, 72.32% branches, 73.34% functions. Next bump waits on
+   master-image-upload handler + filter-working-copy tests.
+4. ✅ **JSDoc rule scope expansion** — complete for this round.
+   Scope now covers `services/auth + lib/auth + lib/monitoring +
+   lib/api + lib/storage + lib/env`. 26 newly-flagged exports got
+   JSDoc; 0 jsdoc warnings on the expanded scope. Future rounds
+   should pull in `services/editor/server/**` next, then flip
+   `warn → error` once each slice is clean.
+5. 🚫 **func-style warnings** — closed without code changes (PR #22
+   commit `5eff0013`). Empirical re-check: 0 of 56 warnings were on
+   top-level exports; all 56 fired on local closure helpers, which
+   the rule wasn't designed to catch. Top-level exports already use
+   `function` declarations, so the rule was solving a non-problem
+   and was removed.
