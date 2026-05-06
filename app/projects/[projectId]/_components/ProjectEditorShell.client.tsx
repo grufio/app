@@ -23,6 +23,7 @@ import {
 import { buildNavId } from "@/features/editor/navigation/nav-id"
 import { recoverSelectedNavId } from "@/features/editor/navigation/selection-recovery"
 import { FilterSidebarSection } from "@/features/editor/components/filter-sidebar-section"
+import { setProjectImageFilterHidden } from "@/lib/api/project-images"
 import { useFilterWorkingImage } from "@/lib/editor/use-filter-working-image"
 import { useFilterDialogSession } from "@/lib/editor/use-filter-dialog-session"
 import { useEditorSessionState } from "@/lib/editor/use-editor-session-state"
@@ -99,7 +100,7 @@ export function ProjectDetailPageClient({
     actions: sessionActions,
   } = useEditorSessionState()
   const { restoreOpen, deleteOpen, leftPanelTab, hiddenFilterIds } = sessionState
-  const { setRestoreOpen, setDeleteOpen, setLeftPanelTab, showFilter, toggleHiddenFilter, pruneHiddenFilters } = sessionActions
+  const { setRestoreOpen, setDeleteOpen, setLeftPanelTab, showFilter, hideFilter, toggleHiddenFilter, pruneHiddenFilters } = sessionActions
   const [numerateSuperpixelWidth] = useState(10)
   const [numerateSuperpixelHeight] = useState(10)
   const [gridVisible, setGridVisible] = useState(true)
@@ -190,6 +191,16 @@ export function ProjectDetailPageClient({
   useEffect(() => {
     pruneHiddenFilters(new Set(filterStack.map((item) => item.id)))
   }, [filterStack, pruneHiddenFilters])
+
+  // Hydrate the session-state hidden set from the server-side is_hidden
+  // column after each filterStack refresh. Local toggles still drive the
+  // UI optimistically; a refresh re-syncs us with the persisted truth.
+  useEffect(() => {
+    for (const item of filterStack) {
+      if (item.is_hidden) hideFilter(item.id)
+      else showFilter(item.id)
+    }
+  }, [filterStack, hideFilter, showFilter])
 
 
   const saveImageStateBound = useCallback(async (t: { xPxU?: bigint; yPxU?: bigint; widthPxU: bigint; heightPxU: bigint; rotationDeg: number }) => {
@@ -374,6 +385,26 @@ export function ProjectDetailPageClient({
     return computeRenderableGrid({ row: gridRow, spacingXPx, spacingYPx, lineWidthPx })
   }, [gridRow, gridVisible, lineWidthPx, spacingXPx, spacingYPx])
 
+  const handleToggleHidden = useCallback(
+    async (filterId: string) => {
+      const current = filterStack.find((f) => f.id === filterId)
+      if (!current) return
+      const nextHidden = !current.is_hidden
+      // Optimistic local toggle so the UI flips immediately…
+      toggleHiddenFilter(filterId)
+      try {
+        await setProjectImageFilterHidden({ projectId, filterId, isHidden: nextHidden })
+        // …then refresh so the persisted value confirms (or rolls back).
+        await refreshFilterImage()
+      } catch (e) {
+        // Revert optimistic toggle, surface a toast with the upstream message.
+        toggleHiddenFilter(filterId)
+        toast.error(e instanceof Error ? e.message : "Could not update filter visibility")
+      }
+    },
+    [filterStack, projectId, refreshFilterImage, toggleHiddenFilter]
+  )
+
   const filterSidebarContent = useMemo(
     () => (
       <FilterSidebarSection
@@ -385,7 +416,7 @@ export function ProjectDetailPageClient({
         isActiveDisplayFilterHidden={isActiveDisplayFilterHidden}
         isRemovingFilter={workflow.isRemovingFilter}
         onSelectFilter={showFilter}
-        onToggleHidden={toggleHiddenFilter}
+        onToggleHidden={handleToggleHidden}
         onRemoveFilter={workflow.removeFilter}
         onOpenSelection={openFilterSelection}
       />
@@ -399,7 +430,7 @@ export function ProjectDetailPageClient({
       activeDisplayFilterId,
       openFilterSelection,
       showFilter,
-      toggleHiddenFilter,
+      handleToggleHidden,
       workflow,
     ]
   )

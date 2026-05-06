@@ -42,6 +42,7 @@ export type FilterStackItem = {
   filter_type: SupportedFilterType
   filter_params: Record<string, unknown>
   stack_order: number
+  is_hidden: boolean
   created_at: string
 }
 
@@ -219,7 +220,7 @@ export async function listProjectImageFilters(args: {
   const { supabase, projectId } = args
   const { data, error } = await supabase
     .from("project_image_filters")
-    .select("id,input_image_id,output_image_id,filter_type,filter_params,stack_order,created_at")
+    .select("id,input_image_id,output_image_id,filter_type,filter_params,stack_order,is_hidden,created_at")
     .eq("project_id", projectId)
     .order("stack_order", { ascending: true })
   if (error) return { ok: false, status: 400, stage: "filter_lookup", reason: error.message, code: (error as { code?: string }).code }
@@ -236,6 +237,7 @@ export async function listProjectImageFilters(args: {
       filter_type: filterType,
       filter_params: (row.filter_params as Record<string, unknown> | null) ?? {},
       stack_order: Number(row.stack_order),
+      is_hidden: Boolean(row.is_hidden),
       created_at: String(row.created_at),
     })
   }
@@ -311,7 +313,7 @@ export async function applyProjectImageFilter(args: {
 
   const { data: inserted, error: filterErr } = await supabase
     .from("project_image_filters")
-    .select("id,input_image_id,output_image_id,filter_type,filter_params,stack_order,created_at")
+    .select("id,input_image_id,output_image_id,filter_type,filter_params,stack_order,is_hidden,created_at")
     .eq("project_id", projectId)
     .eq("output_image_id", created.imageId)
     .order("created_at", { ascending: false })
@@ -360,6 +362,7 @@ export async function applyProjectImageFilter(args: {
       filter_type: filterType,
       filter_params: (inserted.filter_params as Record<string, unknown> | null) ?? {},
       stack_order: Number(inserted.stack_order),
+      is_hidden: Boolean(inserted.is_hidden),
       created_at: String(inserted.created_at),
     },
     image_id: created.imageId,
@@ -415,49 +418,32 @@ export async function removeProjectImageFilter(args: {
     currentImageId = created.imageId
   }
 
-  // Rewire existing filter rows to the rebuilt outputs.
-  for (let i = 0; i < after.length; i++) {
-    const f = after[i]
+  // Build the rewire payload for the atomic RPC. Each entry is a
+  // downstream filter that needs its (input, output) updated to the
+  // freshly-rebuilt artifact. The RPC then deletes the target row and
+  // compacts stack_order to 1..N — all within one advisory lock.
+  const rewires = after.map((f, i) => {
     const prevImageId = i === 0 ? (idx > 0 ? filters[idx - 1].output_image_id : target.input_image_id) : newArtifacts[i - 1].imageId
-    const nextImageId = newArtifacts[i].imageId
-    const { error: updErr } = await supabase
-      .from("project_image_filters")
-      .update({
-        input_image_id: prevImageId,
-        output_image_id: nextImageId,
-      })
-      .eq("id", f.id)
-      .eq("project_id", projectId)
-    if (updErr) {
-      await removeImageRowsAndStorage({ supabase, imageIds: newArtifacts.map((x) => x.imageId) })
-      return { ok: false, status: 400, stage: "rebuild", reason: updErr.message, code: (updErr as { code?: string }).code }
+    return {
+      id: f.id,
+      input_image_id: prevImageId,
+      output_image_id: newArtifacts[i].imageId,
     }
-  }
-
-  const { error: delFilterErr } = await supabase
-    .from("project_image_filters")
-    .delete()
-    .eq("id", target.id)
-    .eq("project_id", projectId)
-  if (delFilterErr) {
-    await removeImageRowsAndStorage({ supabase, imageIds: newArtifacts.map((x) => x.imageId) })
-    return { ok: false, status: 400, stage: "rebuild", reason: delFilterErr.message, code: (delFilterErr as { code?: string }).code }
-  }
-
-  const reorderFilters = supabase.rpc as unknown as (
-    fn: string,
-    args: Record<string, unknown>
-  ) => Promise<{ error: { message: string; code?: string } | null }>
-  const { error: reorderErr } = await reorderFilters("reorder_project_image_filters", {
-    p_project_id: projectId,
   })
-  if (reorderErr) {
-    // fallback in case RPC does not exist yet
-    const fresh = await listProjectImageFilters({ supabase, projectId })
-    if (!fresh.ok) return fresh
-    for (let i = 0; i < fresh.items.length; i++) {
-      const { error } = await supabase.from("project_image_filters").update({ stack_order: i + 1 }).eq("id", fresh.items[i].id)
-      if (error) return { ok: false, status: 400, stage: "rebuild", reason: error.message, code: (error as { code?: string }).code }
+
+  const { error: removeErr } = await supabase.rpc("remove_project_image_filter", {
+    p_project_id: projectId,
+    p_filter_id: target.id,
+    p_rewires: rewires,
+  })
+  if (removeErr) {
+    await removeImageRowsAndStorage({ supabase, imageIds: newArtifacts.map((x) => x.imageId) })
+    return {
+      ok: false,
+      status: 400,
+      stage: "rebuild",
+      reason: removeErr.message,
+      code: (removeErr as { code?: string }).code,
     }
   }
 

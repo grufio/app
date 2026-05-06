@@ -1,6 +1,7 @@
 "use client"
 
 import { ReactNode, useState } from "react"
+import { toast } from "sonner"
 import {
   Dialog,
   DialogContent,
@@ -107,8 +108,18 @@ export function BaseFilterController<TFormData>({
       console.error("Failed to apply filter:", error)
       if (onError) {
         onError(error)
+        return
+      }
+      // The chain_invalid stage is fired when the working_copy's filter
+      // chain has gotten out of sync with the active image (e.g. another
+      // tab applied/removed a filter, then auto-self-healed). The user
+      // doesn't need to see a stack-trace-y dialog — a toast that hints
+      // at "reload" is friendlier than `alert()`.
+      const isChainInvalid = error.message.includes("stage=chain_invalid")
+      if (isChainInvalid) {
+        toast.error("Filter chain is out of sync — close this dialog and re-open the project.")
       } else {
-        alert(error.message || "Failed to apply filter")
+        toast.error(error.message || "Failed to apply filter")
       }
     } finally {
       setBusy(false)

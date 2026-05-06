@@ -49,6 +49,7 @@ export type FilterPanelStackItem = {
   name: string
   filterType: "pixelate" | "lineart" | "numerate" | "unknown"
   source_image_id: string | null
+  is_hidden: boolean
 }
 
 export type FilterPanelDataResult =
@@ -377,7 +378,7 @@ export async function getFilterPanelData(args: {
 
   const { data: filterRows, error: filterErr } = await supabase
     .from("project_image_filters")
-    .select("id,input_image_id,output_image_id,filter_type,stack_order")
+    .select("id,input_image_id,output_image_id,filter_type,stack_order,is_hidden")
     .eq("project_id", projectId)
     .order("stack_order", { ascending: true })
 
@@ -414,6 +415,7 @@ export async function getFilterPanelData(args: {
     input_image_id: string
     output_image_id: string
     filter_type: string
+    is_hidden: boolean
   }> = []
   let cursorImageId = working.id
   for (const row of filterRows ?? []) {
@@ -426,6 +428,7 @@ export async function getFilterPanelData(args: {
       input_image_id: input,
       output_image_id: output,
       filter_type: String(row.filter_type ?? ""),
+      is_hidden: Boolean(row.is_hidden),
     })
     cursorImageId = output
   }
@@ -505,6 +508,7 @@ export async function getFilterPanelData(args: {
       name: image.name,
       filterType: parseFilterType(node.filter_type),
       source_image_id: node.input_image_id,
+      is_hidden: Boolean(node.is_hidden),
     })
   }
 
