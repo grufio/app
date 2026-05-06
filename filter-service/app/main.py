@@ -1,7 +1,9 @@
 """
 FastAPI service for image processing filters.
 """
-from fastapi import FastAPI, HTTPException
+import os
+
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -13,6 +15,30 @@ import base64
 from typing import Literal
 
 app = FastAPI(title="Image Processing Service")
+
+# Bearer-token auth between Next.js and this service. The token is a
+# shared secret distributed via the deploy environment (Vercel + Cloud
+# Run env vars). When unset, the service runs in "open" mode for local
+# development — production deploys MUST set this.
+_FILTER_SERVICE_TOKEN = os.environ.get("FILTER_SERVICE_TOKEN", "").strip()
+
+
+@app.middleware("http")
+async def require_bearer_token(request: Request, call_next):
+    # /health is intentionally exempt so Cloud Run / load-balancer probes
+    # don't need the secret.
+    if request.url.path == "/health" or not _FILTER_SERVICE_TOKEN:
+        return await call_next(request)
+    auth = request.headers.get("authorization", "")
+    expected = f"Bearer {_FILTER_SERVICE_TOKEN}"
+    if auth != expected:
+        return Response(
+            status_code=401,
+            content='{"detail":"Unauthorized"}',
+            media_type="application/json",
+        )
+    return await call_next(request)
+
 
 app.add_middleware(
     CORSMiddleware,
