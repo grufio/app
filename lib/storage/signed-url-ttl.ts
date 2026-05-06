@@ -10,6 +10,7 @@
  *                  Cloudflare/CDN cache.
  */
 
+/** Map of signed-URL TTL constants in seconds, keyed by audience. */
 export const SIGNED_URL_TTL = {
   /**
    * Master-image thumbnails on the dashboard / editor lists.

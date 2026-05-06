@@ -9,6 +9,7 @@
  * test suite that imports a server module without the var set still loads.
  */
 
+/** Reads `name` from `process.env` and throws an actionable error when missing/empty. */
 export function getRequiredEnv(name: string): string {
   const value = process.env[name]
   if (typeof value !== "string" || value.length === 0) {
@@ -19,11 +20,13 @@ export function getRequiredEnv(name: string): string {
   return value
 }
 
+/** Returns `process.env[name]` or `null` when unset / empty string. */
 export function getOptionalEnv(name: string): string | null {
   const value = process.env[name]
   return typeof value === "string" && value.length > 0 ? value : null
 }
 
+/** Reads `name` as a positive integer (returns `null` for missing / non-int / ≤ 0). */
 export function getOptionalPositiveIntEnv(name: string): number | null {
   const raw = getOptionalEnv(name)
   if (raw == null) return null

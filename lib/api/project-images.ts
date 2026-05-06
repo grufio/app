@@ -89,6 +89,7 @@ export type ProjectImageFilterItem = {
   created_at: string
 }
 
+/** GET /api/projects/[projectId]/images/master — active master image + signed URL. */
 export async function getMasterImage(projectId: string): Promise<MasterImageResponse> {
   const res = await fetchJson<MasterImageResponse>(`/api/projects/${projectId}/images/master`, {
     method: "GET",
@@ -100,6 +101,7 @@ export async function getMasterImage(projectId: string): Promise<MasterImageResp
   return res.data
 }
 
+/** GET /api/projects/[projectId]/images/master/exists — boolean check, cheaper than `getMasterImage`. */
 export async function hasMasterImage(projectId: string): Promise<boolean> {
   const res = await fetchJson<{ exists?: boolean }>(`/api/projects/${projectId}/images/master/exists`, {
     method: "GET",
@@ -109,6 +111,7 @@ export async function hasMasterImage(projectId: string): Promise<boolean> {
   return Boolean(res.data?.exists)
 }
 
+/** DELETE /api/projects/[projectId]/images/master — soft-deletes the active non-master variant + cascades. */
 export async function deleteMasterImage(projectId: string): Promise<void> {
   const res = await fetchJson<unknown>(`/api/projects/${projectId}/images/master`, {
     method: "DELETE",
@@ -119,6 +122,7 @@ export async function deleteMasterImage(projectId: string): Promise<void> {
   }
 }
 
+/** GET /api/projects/[projectId]/images/master/list — all non-deleted images + display/fallback targets. */
 export async function listMasterImages(projectId: string): Promise<{ items: ProjectImageItem[]; displayTarget: ProjectImageDisplayTarget; fallbackTarget: ProjectImageFallbackTarget }> {
   const res = await fetchJson<{ items?: ProjectImageItem[]; display_target?: Partial<ProjectImageDisplayTarget>; fallback_target?: ProjectImageFallbackTarget }>(`/api/projects/${projectId}/images/master/list`, {
     method: "GET",
@@ -154,6 +158,7 @@ export async function listMasterImages(projectId: string): Promise<{ items: Proj
   }
 }
 
+/** DELETE /api/projects/[projectId]/images/master/[imageId] — soft-delete a specific image. */
 export async function deleteMasterImageById(projectId: string, imageId: string): Promise<void> {
   const masterListPath = `/api/projects/${projectId}/images/master/list`
   const masterPath = `/api/projects/${projectId}/images/master`
@@ -177,6 +182,7 @@ export async function deleteMasterImageById(projectId: string, imageId: string):
   invalidateFetchJsonGetCache(masterPath)
 }
 
+/** PATCH /api/projects/[projectId]/images/master/[imageId]/lock — toggles is_locked. */
 export async function setProjectImageLocked(
   projectId: string,
   imageId: string,
@@ -203,6 +209,7 @@ export async function setProjectImageLocked(
   }
 }
 
+/** POST /api/projects/[projectId]/images/crop — creates a cropped variant of an existing image. */
 export async function cropImageVariant(args: {
   projectId: string
   sourceImageId: string
@@ -242,6 +249,7 @@ export async function cropImageVariant(args: {
   }
 }
 
+/** POST /api/projects/[projectId]/images/master/restore — re-activates the original master and tombstones derived images. */
 export async function restoreInitialMasterImage(projectId: string): Promise<{ image_id: string }> {
   const res = await fetchJson<{ ok?: boolean; image_id?: string }>(`/api/projects/${projectId}/images/master/restore`, {
     method: "POST",
@@ -258,6 +266,7 @@ export async function restoreInitialMasterImage(projectId: string): Promise<{ im
   return { image_id: String(res.data.image_id) }
 }
 
+/** GET /api/projects/[projectId]/images/filters — applied filters in chain order. */
 export async function listProjectImageFilters(projectId: string): Promise<ProjectImageFilterItem[]> {
   const res = await fetchJson<{ items?: ProjectImageFilterItem[] }>(`/api/projects/${projectId}/images/filters`, {
     method: "GET",
@@ -269,6 +278,7 @@ export async function listProjectImageFilters(projectId: string): Promise<Projec
   return Array.isArray(res.data?.items) ? res.data.items : []
 }
 
+/** POST /api/projects/[projectId]/filters/{type} — runs the named filter against the working copy. */
 export async function applyProjectImageFilter(args: {
   projectId: string
   filterType: FilterType
@@ -307,6 +317,7 @@ export async function applyProjectImageFilter(args: {
   }
 }
 
+/** DELETE /api/projects/[projectId]/images/filters/[filterId] — drops one filter row + reslices the chain. */
 export async function removeProjectImageFilter(args: {
   projectId: string
   filterId: string
@@ -328,6 +339,7 @@ export async function removeProjectImageFilter(args: {
   return { active_image_id: String(res.data.active_image_id) }
 }
 
+/** POST /api/projects/[projectId]/images/filter-working-copy — ensures a working copy exists for the filter chain. */
 export async function getOrCreateFilterWorkingCopy(projectId: string): Promise<
   | {
       exists: false

@@ -9,6 +9,11 @@ function stageFromPayload(payload: ApiErrorPayload): string | null {
   return stage ? stage : null
 }
 
+/**
+ * Builds a stable error code like `prefix.action.stage` (or
+ * `prefix.action.http_<status>` if the payload didn't carry a stage),
+ * suitable for telemetry grouping and error-boundary routing.
+ */
 export function makeApiErrorCode(prefix: string, action: string, status: number, payload: ApiErrorPayload): string {
   const stage = stageFromPayload(payload)
   return `${prefix}.${action}.${stage ?? `http_${status}`}`
