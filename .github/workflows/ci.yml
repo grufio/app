@@ -10,6 +10,13 @@ on:
   push:
     branches: [ main ]
 
+# Force JS-based actions onto Node 24 ahead of GitHub's June-2026 default flip.
+# Until upload-artifact (and others) ship a release whose runtime is Node 24,
+# this env var is the official opt-in path that silences the deprecation
+# warning and lets us catch any incompatibility early.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true

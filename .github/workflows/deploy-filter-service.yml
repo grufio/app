@@ -8,6 +8,10 @@ on:
       - ".github/workflows/deploy-filter-service.yml"
   workflow_dispatch: {}
 
+# Force JS actions onto Node 24 (see ci.yml note).
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 # Each commit is its own deploy; cancel any in-flight builds for older commits.
 concurrency:
   group: deploy-filter-service-${{ github.ref }}

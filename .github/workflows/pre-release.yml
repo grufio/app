@@ -8,6 +8,10 @@ name: Pre-release gates
 on:
   workflow_dispatch:
 
+# Force JS actions onto Node 24 (see ci.yml note).
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   pre_release:
     runs-on: ubuntu-latest
