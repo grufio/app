@@ -5,7 +5,7 @@ import { useEffect, type MutableRefObject } from "react"
 import { numberToMicroPx } from "@/lib/editor/konva"
 import { pickIntrinsicSize, shouldApplyPersistedTransform } from "./placement"
 import type { RestoreBaseSpec } from "./restore-controller"
-import type { ImageState } from "@/lib/editor/use-image-state"
+import type { ImageState } from "@/lib/editor/hooks/use-image-state"
 import type { createStateSyncGuard } from "./state-sync-guard"
 
 export function useImagePlacementSync(args: {

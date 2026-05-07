@@ -7,7 +7,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
 
-import type { MasterImage } from "@/lib/editor/use-master-image"
+import type { MasterImage } from "@/lib/editor/hooks/use-master-image"
 import { SIGNED_URL_TTL } from "@/lib/storage/signed-url-ttl"
 import { getEditorTargetImageRow } from "@/lib/supabase/project-images"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"

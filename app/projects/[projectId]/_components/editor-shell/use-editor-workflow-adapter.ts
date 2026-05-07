@@ -4,8 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { applyProjectImageFilter, cropImageVariant, removeProjectImageFilter, restoreInitialMasterImage } from "@/lib/api/project-images"
 import { useImageWorkflowMachine } from "@/lib/editor/machines/use-image-workflow-machine"
-import type { ImageState } from "@/lib/editor/use-image-state"
-import { useImageState } from "@/lib/editor/use-image-state"
+import type { ImageState } from "@/lib/editor/hooks/use-image-state"
+import { useImageState } from "@/lib/editor/hooks/use-image-state"
 
 export type EditorImageSourceState =
   | { status: "loading"; image: null; error: "" }
