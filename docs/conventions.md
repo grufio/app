@@ -110,3 +110,16 @@ open) impossible at a glance.
 
 A small gate (`scripts/check-review-status-banner.mjs`) verifies that
 every dated review has a status banner, so the rule sticks.
+
+## CODEOWNERS
+
+`.github/CODEOWNERS` declares review-required paths for security-sensitive
+surfaces — the service-role allowlist, env helpers, the error-ingest route,
+DB schema and migrations, and the CI gate scripts themselves. Any PR that
+touches one of those paths automatically pulls the listed owner in as a
+required reviewer, regardless of who opened it.
+
+The list intentionally stays narrow. Adding a path to CODEOWNERS is a
+statement that "this file's purpose is to be a chokepoint" — most code
+doesn't need that. Reach for it only when getting it wrong has security or
+data-integrity consequences.
