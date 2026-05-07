@@ -18,10 +18,10 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: "gruf.io",
-    template: "%s | gruf.io",
+    default: "Grufio",
+    template: "%s | Grufio",
   },
-  description: "gruf.io",
+  description: "Turn your photos into oil paintings — premium paint-by-numbers kits.",
 }
 
 export default function RootLayout({
