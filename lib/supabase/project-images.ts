@@ -8,8 +8,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { resolveImageKind } from "@/lib/editor/image-kind"
+import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 
-export const PROJECT_IMAGES_BUCKET = "project_images"
+// Re-exported for backwards-compatibility with existing call sites that
+// imported from this module. Canonical home is `@/lib/storage/buckets`.
+export { PROJECT_IMAGES_BUCKET }
 
 type RawProjectImageRow = Record<string, unknown> & {
   updated_at?: string | null

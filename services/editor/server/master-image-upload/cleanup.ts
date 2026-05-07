@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/lib/supabase/database.types"
 
 import type { ExistingMasterRow } from "./types"
+import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 
 async function removeStorageObjectsByBucket(
   supabase: SupabaseClient<Database>,
@@ -11,7 +12,7 @@ async function removeStorageObjectsByBucket(
   const pathsByBucket = new Map<string, string[]>()
   for (const row of rows) {
     if (!row.storage_path) continue
-    const bucket = row.storage_bucket ?? "project_images"
+    const bucket = row.storage_bucket ?? PROJECT_IMAGES_BUCKET
     const paths = pathsByBucket.get(bucket)
     if (paths) {
       paths.push(row.storage_path)

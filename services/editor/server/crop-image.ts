@@ -6,6 +6,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { activateProjectImage } from "@/services/editor/server/activate-project-image"
 import { copyImageTransform } from "@/services/editor/server/copy-image-transform"
 import type { Database } from "@/lib/supabase/database.types"
+import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 
 type CropFailStage =
   | "validation"
@@ -106,7 +107,7 @@ export async function cropImageAndActivate(args: {
     return { ok: false, status: 400, stage: "validation", reason: "Crop rect out of source bounds" }
   }
 
-  const sourceBucket = src.storage_bucket ?? "project_images"
+  const sourceBucket = src.storage_bucket ?? PROJECT_IMAGES_BUCKET
   const { data: srcBlob, error: downloadErr } = await supabase.storage
     .from(String(sourceBucket))
     .download(String(src.storage_path))
@@ -139,7 +140,7 @@ export async function cropImageAndActivate(args: {
 
   const imageId = crypto.randomUUID()
   const objectPath = `projects/${projectId}/images/${imageId}`
-  const { error: uploadErr } = await supabase.storage.from("project_images").upload(objectPath, outputBuffer, {
+  const { error: uploadErr } = await supabase.storage.from(PROJECT_IMAGES_BUCKET).upload(objectPath, outputBuffer, {
     contentType: contentTypeFor(outputFormat),
     upsert: false,
   })
@@ -156,7 +157,7 @@ export async function cropImageAndActivate(args: {
     width_px: w,
     height_px: h,
     dpi: Number(src.dpi ?? 72),
-    storage_bucket: "project_images",
+    storage_bucket: PROJECT_IMAGES_BUCKET,
     storage_path: objectPath,
     file_size_bytes: outputBuffer.byteLength,
     is_active: false,
@@ -164,7 +165,7 @@ export async function cropImageAndActivate(args: {
     crop_rect_px: { x, y, w, h },
   })
   if (insertErr) {
-    await supabase.storage.from("project_images").remove([objectPath])
+    await supabase.storage.from(PROJECT_IMAGES_BUCKET).remove([objectPath])
     return { ok: false, status: 400, stage: "db_insert", reason: insertErr.message, code: (insertErr as { code?: string }).code }
   }
   // Copy transform from source to cropped image
@@ -180,7 +181,7 @@ export async function cropImageAndActivate(args: {
   })
   if (!transformCopy.ok) {
     await supabase.from("project_images").delete().eq("id", imageId)
-    await supabase.storage.from("project_images").remove([objectPath])
+    await supabase.storage.from(PROJECT_IMAGES_BUCKET).remove([objectPath])
     return { ok: false, status: 500, stage: "transform_sync", reason: transformCopy.reason }
   }
 
@@ -195,7 +196,7 @@ export async function cropImageAndActivate(args: {
   })
   if (!activation.ok) {
     await supabase.from("project_images").delete().eq("id", imageId)
-    await supabase.storage.from("project_images").remove([objectPath])
+    await supabase.storage.from(PROJECT_IMAGES_BUCKET).remove([objectPath])
     return { ok: false, status: activation.status, stage: activation.stage, reason: activation.reason, code: activation.code }
   }
 

@@ -12,6 +12,7 @@ import { IMAGE_KIND, resolveImageKind } from "@/lib/editor/image-kind"
 import { parseBigIntString } from "@/lib/editor/imageState"
 import { SIGNED_URL_TTL } from "@/lib/storage/signed-url-ttl"
 import type { Database } from "@/lib/supabase/database.types"
+import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 
 export type DashboardProjectRow = Pick<
   Database["public"]["Tables"]["projects"]["Row"],
@@ -116,7 +117,7 @@ export async function listDashboardProjects(
 
   const signedUrlByPath = new Map<string, string>()
   if (masterPaths.length) {
-    const { data: signed, error: signedErr } = await supabase.storage.from("project_images").createSignedUrls(masterPaths, SIGNED_URL_TTL.thumbnail)
+    const { data: signed, error: signedErr } = await supabase.storage.from(PROJECT_IMAGES_BUCKET).createSignedUrls(masterPaths, SIGNED_URL_TTL.thumbnail)
     if (signedErr) {
       return { projects: [], error: signedErr.message }
     }

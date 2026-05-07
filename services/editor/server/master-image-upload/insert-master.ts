@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/lib/supabase/database.types"
+import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 
 export async function insertMasterRow(args: {
   supabase: SupabaseClient<Database>
@@ -29,7 +30,7 @@ export async function insertMasterRow(args: {
     dpi_y: dpiY,
     dpi: imageDpi,
     bit_depth: bitDepth,
-    storage_bucket: "project_images",
+    storage_bucket: PROJECT_IMAGES_BUCKET,
     storage_path: objectPath,
     file_size_bytes: file.size,
     is_active: false,

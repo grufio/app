@@ -12,6 +12,7 @@ import { isUuid, jsonError, requireUser } from "@/lib/api/route-guards"
 import { SIGNED_URL_TTL } from "@/lib/storage/signed-url-ttl"
 import { evaluateDeleteTarget } from "@/services/editor/server/delete-target-policy"
 import { IMAGE_KIND, resolveImageKind } from "@/services/editor/server/image-kind"
+import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 
 export const dynamic = "force-dynamic"
 
@@ -89,7 +90,7 @@ export async function GET(
   const dpi = Number.isFinite(dpiRaw) && dpiRaw > 0 ? Math.round(dpiRaw) : null
 
   const now = Date.now()
-  const bucket = img.storage_bucket ?? "project_images"
+  const bucket = img.storage_bucket ?? PROJECT_IMAGES_BUCKET
   const cacheKey = `${u.user.id}:${bucket}:${img.storage_path}`
   const cached = signedUrlCache.get(cacheKey)
   if (cached && cached.expiresAtMs - SIGNED_URL_RENEW_BUFFER_MS > now) {
