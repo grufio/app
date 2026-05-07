@@ -9,7 +9,7 @@
  */
 import * as React from "react"
 import dynamic from "next/dynamic"
-import { EyeOff, Percent, RotateCcw, Trash2 } from "lucide-react"
+import { Eye, EyeOff, Percent, RotateCcw, Trash2 } from "lucide-react"
 
 import { SidebarFrame } from "@/components/navigation/SidebarFrame"
 import { AppButton, FormField } from "@/components/ui/form-controls"
@@ -38,7 +38,7 @@ const ImagePanel = dynamic(() => import("./image-panel").then((m) => m.ImagePane
 })
 import type { ProjectCanvasStageHandle } from "./project-canvas-stage"
 import { PanelIconSlot, PanelTwoFieldRow } from "./panel-layout"
-import { RightPanelIconButton } from "./right-panel-controls"
+import { RightPanelIconButton, RightPanelToggleIconButton } from "./right-panel-controls"
 import { EditorSidebarSection } from "./sidebar/editor-sidebar-section"
 import { useResizableSidebar } from "./use-resizable-sidebar"
 import type { Unit } from "@/lib/editor/units"
@@ -87,6 +87,7 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
     maxPanelRem,
     onPanelWidthRemChange,
     activeSection,
+    pageBgEnabled,
     pageBgColor,
     pageBgOpacity,
     onPageBgEnabledChange,
@@ -178,13 +179,18 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
                     />
 
                     <PanelIconSlot>
-                      <RightPanelIconButton
+                      <RightPanelToggleIconButton
                         type="button"
-                        aria-label="Hide page background"
-                        onClick={() => onPageBgEnabledChange(false)}
+                        active={pageBgEnabled}
+                        aria-label={pageBgEnabled ? "Hide page background" : "Show page background"}
+                        onClick={() => onPageBgEnabledChange(!pageBgEnabled)}
                       >
-                        <EyeOff className="size-4" strokeWidth={1} />
-                      </RightPanelIconButton>
+                        {pageBgEnabled ? (
+                          <EyeOff className="size-4" strokeWidth={1} />
+                        ) : (
+                          <Eye className="size-4" strokeWidth={1} />
+                        )}
+                      </RightPanelToggleIconButton>
                     </PanelIconSlot>
                   </PanelTwoFieldRow>
                 </EditorSidebarSection>
