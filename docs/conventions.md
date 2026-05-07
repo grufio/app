@@ -123,3 +123,26 @@ The list intentionally stays narrow. Adding a path to CODEOWNERS is a
 statement that "this file's purpose is to be a chokepoint" — most code
 doesn't need that. Reach for it only when getting it wrong has security or
 data-integrity consequences.
+
+## Hooks
+
+### Where hooks live
+
+| Hook scope | Location |
+|---|---|
+| Reusable across features (UI primitives, generic domain) | `lib/<domain>/use-*.ts` |
+| Feature-specific (editor, dashboard, …) | `lib/editor/use-*.ts` (existing pattern) — or `features/<feature>/use-*.ts` for new features |
+| Tied to a single component | colocate: `same-folder/use-*.ts` |
+
+A top-level `hooks/` directory is **deprecated**. We retired it in
+2026-05-07; its only file (`use-mobile.ts`) moved to `lib/ui/`. New
+hooks go directly into the closest `lib/<domain>/` folder so the
+import path mirrors the dependency graph.
+
+### Naming
+
+- Always `use-<thing>.ts` (kebab-case, leading `use-`).
+- The exported hook is `useThing` (camelCase, leading `use`).
+- Tests next to the hook: `use-thing.test.ts`.
+- Pure decision logic (no React) goes in a sibling file
+  `<thing>-decision.ts` so it can be unit-tested without `renderHook`.
