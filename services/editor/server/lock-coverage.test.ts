@@ -18,6 +18,11 @@ import { describe, expect, it } from "vitest"
  * `pg_advisory_xact_lock(hashtext(p_project_id::text))`. New RPCs must
  * either take the lock or be added to the `EXEMPT` allowlist with a
  * one-line reason.
+ *
+ * Note: as of 2026-05-07 `db/schema.sql` is a `pg_dump` snapshot —
+ * uppercase DDL with quoted identifiers (`CREATE OR REPLACE FUNCTION
+ * "public"."<name>"(...)`). There is at most one definition per RPC, so
+ * we no longer need to pick "the last block".
  */
 
 const PROJECT_MUTATING_RPCS = [
@@ -31,24 +36,23 @@ const PROJECT_MUTATING_RPCS = [
   "set_active_master_with_state",
 ] as const
 
-const ADVISORY_LOCK_RE = /perform\s+pg_advisory_xact_lock\s*\(\s*hashtext\s*\(\s*p_project_id::text\s*\)\s*\)/i
+const ADVISORY_LOCK_RE = /PERFORM\s+"?pg_advisory_xact_lock"?\s*\(\s*"?hashtext"?\s*\([^)]*p_project_id[^)]*\)\s*\)/i
 
 describe("project advisory lock coverage", () => {
   const schema = readFileSync(resolve(process.cwd(), "db/schema.sql"), "utf8")
 
   it.each(PROJECT_MUTATING_RPCS)("%s holds pg_advisory_xact_lock on the project key", (rpcName) => {
-    // Extract the *last* `create or replace function public.<name>(...)`
-    // body in the file — db/schema.sql is a stacked snapshot, the latest
-    // block wins at runtime.
+    // Match the function header — quoted or unquoted, case-insensitive — then
+    // greedy-grab through the dollar-quoted body. pg_dump uses `AS $_$ … $_$`
+    // (with optional inner tag); hand-edited variants use `AS $$ … $$`.
     const fnRe = new RegExp(
-      `create or replace function public\\.${rpcName}\\s*\\([^)]*\\)\\s*returns[\\s\\S]+?\\$\\$\\s*[\\s\\S]+?\\$\\$`,
-      "gi",
+      `CREATE\\s+(?:OR\\s+REPLACE\\s+)?FUNCTION\\s+"?public"?\\."?${rpcName}"?\\s*\\([^)]*\\)[\\s\\S]+?\\$([_a-zA-Z]*)\\$[\\s\\S]+?\\$\\1\\$`,
+      "i",
     )
-    const matches = schema.match(fnRe) ?? []
-    expect(matches.length, `expected at least one definition of ${rpcName}`).toBeGreaterThan(0)
-    const latest = matches[matches.length - 1]
+    const m = fnRe.exec(schema)
+    expect(m, `expected at least one definition of ${rpcName} in db/schema.sql`).not.toBeNull()
     expect(
-      ADVISORY_LOCK_RE.test(latest),
+      ADVISORY_LOCK_RE.test(m![0]),
       `${rpcName} must call pg_advisory_xact_lock(hashtext(p_project_id::text))`,
     ).toBe(true)
   })

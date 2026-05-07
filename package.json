@@ -41,6 +41,8 @@
     "check:bundle-size": "node scripts/check-bundle-size.mjs",
     "db:pull": "supabase db pull --linked",
     "db:push": "supabase db push --linked",
+    "db:dump": "supabase db dump --linked --schema public,storage > db/schema.sql",
+    "verify:schema-drift": "node scripts/verify-schema-drift.mjs",
     "types:gen": "supabase gen types typescript --linked --schema public > lib/supabase/database.types.ts",
     "test:e2e:doctor": "PLAYWRIGHT_HOST_ARCH=arm64 PLAYWRIGHT_BROWSERS_PATH=.playwright-browsers PLAYWRIGHT_USE_WEBSERVER=1 PLAYWRIGHT_BASE_URL=http://127.0.0.1:3110 node scripts/verify-playwright-env.mjs",
     "test:e2e:install": "PLAYWRIGHT_HOST_ARCH=arm64 PLAYWRIGHT_BROWSERS_PATH=.playwright-browsers playwright install chromium",

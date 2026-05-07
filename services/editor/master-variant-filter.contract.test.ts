@@ -23,14 +23,31 @@ describe("db contract: master immutable + filter stack", () => {
     expect(sql).toMatch(/constraint project_image_filters_project_stack_order_uidx unique \(project_id, stack_order\)/)
   })
 
-  it("schema.sql and bootstrap include migration markers", () => {
+  it("schema.sql reflects the master-variant-filter contract from migration 037", () => {
+    // Note: the old assertion grepped for `BEGIN db/037_…` markers in
+    // `schema.sql`. Since 2026-05-07 the schema is a consolidated `pg_dump`
+    // (no per-migration markers), so we now assert the *structural* items
+    // migration 037 introduced are present in the dump — that's what we
+    // actually care about.
     const schema = fs.readFileSync(path.join(process.cwd(), "db", "schema.sql"), "utf8")
     const bootstrap = fs.readFileSync(
       path.join(process.cwd(), "supabase", "migrations", "20260129111414_bootstrap_from_db_folder.sql"),
       "utf8"
     )
-    expect(schema).toContain("BEGIN db/037_master_variant_filter_contract.sql")
-    expect(schema).toContain("END db/037_master_variant_filter_contract.sql")
+
+    // master-immutable guard function present
+    expect(schema).toMatch(/CREATE\s+OR\s+REPLACE\s+FUNCTION\s+"?public"?\."?guard_master_immutable"?/i)
+
+    // master-immutable trigger wired up on project_images
+    expect(schema).toMatch(
+      /CREATE\s+(?:OR\s+REPLACE\s+)?TRIGGER\s+"?trg_project_images_guard_master_immutable"?/i,
+    )
+
+    // project_image_filters table exists with stack_order unique constraint
+    expect(schema).toMatch(/CREATE\s+TABLE[\s\S]+?"?public"?\."?project_image_filters"?/i)
+    expect(schema).toMatch(/UNIQUE[\s\S]{0,80}?\(\s*"?project_id"?\s*,\s*"?stack_order"?\s*\)/i)
+
+    // bootstrap migration still references the original file (audit chain).
     expect(bootstrap).toContain("db/037_master_variant_filter_contract.sql")
   })
 })
