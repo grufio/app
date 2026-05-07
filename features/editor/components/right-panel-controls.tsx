@@ -22,7 +22,7 @@ export function RightPanelToggleIconButton({
       className={cn(
         active
           ? "bg-black text-white hover:bg-black/90 hover:text-white"
-          : "bg-muted text-foreground hover:bg-muted/80",
+          : "bg-transparent text-foreground hover:bg-accent hover:text-accent-foreground",
         className
       )}
       {...props}
