@@ -3,20 +3,15 @@
 /**
  * Editor field: select dropdown with leading icon.
  *
- * Responsibilities:
- * - Provide a compact select control within the shared input-group chrome.
+ * Phase 2 of the form-fields unification (see plan
+ * /Users/christian/.claude/plans/form-fields-unification.md).
+ * Thin wrapper over the unified <FormField variant="select">.
  */
 import type * as React from "react"
 
-import { AppSelect, AppSelectContent, AppSelectValue, SelectFieldControl } from "@/components/ui/form-controls"
-import { IconInputGroup } from "./icon-input-group"
+import { FormField } from "@/components/ui/form-controls"
+import type { SelectFieldControl } from "@/components/ui/form-controls/select-field-control"
 
-/**
- * Select (dropdown) field with leading icon, rendered via InputGroup.
- *
- * IMPORTANT: Keep DOM structure aligned with existing usage:
- * IconInputGroup -> Select -> SelectTrigger -> SelectValue -> SelectContent
- */
 export function IconSelectField({
   value,
   onValueChange,
@@ -37,19 +32,18 @@ export function IconSelectField({
   children: React.ReactNode
 }) {
   return (
-    <IconInputGroup addon={icon} addonAlign="inline-start">
-      <AppSelect value={value} onValueChange={onValueChange}>
-        <SelectFieldControl
-          className={triggerClassName}
-          disabled={disabled}
-          aria-label={ariaLabel}
-          onPointerDownCapture={triggerOnPointerDownCapture}
-        >
-          <AppSelectValue className="truncate" />
-        </SelectFieldControl>
-        <AppSelectContent>{children}</AppSelectContent>
-      </AppSelect>
-    </IconInputGroup>
+    <FormField
+      variant="select"
+      label={ariaLabel}
+      labelVisuallyHidden
+      iconStart={icon}
+      value={value}
+      onCommit={onValueChange}
+      disabled={disabled}
+      inputClassName={triggerClassName}
+      triggerOnPointerDownCapture={triggerOnPointerDownCapture}
+    >
+      {children}
+    </FormField>
   )
 }
-

@@ -3,15 +3,21 @@
 /**
  * Shared size/position field for editor panels.
  *
- * Responsibilities:
- * - Provide a consistent numeric input with a leading icon and trailing unit label.
- * - Used by image-panel, artboard-panel, and grid-panel.
+ * Phase 2 of the form-fields unification (see plan
+ * /Users/christian/.claude/plans/form-fields-unification.md).
+ * Now a thin wrapper over the unified <FormField>. Public API is
+ * unchanged so callers (artboard, grid, image-size-inputs) continue
+ * to compile and behave the same way.
+ *
+ * Lifecycle mapping:
+ *   - old `onValueChange` (every keystroke) → `onDraftChange`
+ *   - `onCommit` is a no-op here because callers handle save via
+ *     their own `onBlur` / `onKeyDown` (passed through `inputProps`)
  */
 import type { KeyboardEventHandler, ReactNode } from "react"
 
-import { AppFieldGroup, AppFieldGroupAddon, AppFieldGroupText } from "@/components/ui/form-controls/field-group"
+import { FormField } from "@/components/ui/form-controls"
 import type { NumericMode } from "@/lib/editor/numeric"
-import { NumericInput } from "../numeric-input"
 
 export function PanelSizeField({
   value,
@@ -39,24 +45,21 @@ export function PanelSizeField({
   onBlur?: () => void
 }) {
   return (
-    <AppFieldGroup>
-      <NumericInput
-        id={id}
-        value={value}
-        onValueChange={onValueChange}
-        aria-label={ariaLabel}
-        disabled={disabled}
-        mode={mode}
-        onFocus={onFocus}
-        onKeyDown={onKeyDown}
-        onBlur={onBlur}
-      />
-      <AppFieldGroupAddon align="inline-start" aria-hidden="true">
-        {icon}
-      </AppFieldGroupAddon>
-      <AppFieldGroupAddon align="inline-end" className="pointer-events-none" aria-hidden="true">
-        <AppFieldGroupText>{unit}</AppFieldGroupText>
-      </AppFieldGroupAddon>
-    </AppFieldGroup>
+    <FormField
+      variant="numeric"
+      numericMode={mode}
+      label={ariaLabel}
+      labelVisuallyHidden
+      iconStart={icon}
+      unit={unit}
+      value={value}
+      onCommit={() => {
+        /* no-op — caller drives the save via inputProps.onBlur */
+      }}
+      onDraftChange={onValueChange}
+      inputProps={{ onFocus, onBlur, onKeyDown }}
+      disabled={disabled}
+      id={id}
+    />
   )
 }
