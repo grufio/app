@@ -1,11 +1,10 @@
 /**
  * Tests for pixelate filter service - validation and error handling.
  */
-import { describe, it, expect, beforeEach, vi } from "vitest"
-import type { SupabaseClient } from "@supabase/supabase-js"
+import { describe, it, expect, vi } from "vitest"
 
+import { makeMockSupabase } from "@/lib/supabase/__mocks__/make-mock-supabase"
 import { pixelateImageAndActivate } from "./pixelate"
-import type { Database } from "@/lib/supabase/database.types"
 
 // Mock sharp - skip actual image processing in tests
 vi.mock("sharp", () => ({
@@ -22,32 +21,32 @@ vi.mock("sharp", () => ({
   },
 }))
 
+/**
+ * Source-image fixture used when the production code reaches the
+ * lookup stage. Tests vary `is_locked` to exercise the lock-conflict
+ * path. Storage download is rigged to fail so we never hit sharp/pixel
+ * processing — these are validation/lookup contract tests, not
+ * end-to-end pipelines.
+ */
+function buildMockSupabase(opts: { source?: Record<string, unknown> | null } = {}) {
+  return makeMockSupabase({
+    tables: {
+      project_images: {
+        select: { data: opts.source ?? null, error: null },
+      },
+    },
+    storage: {
+      project_images: {
+        download: { data: null, error: { message: "download failed" } },
+      },
+    },
+  })
+}
+
 describe("pixelateImageAndActivate - validation", () => {
-  let mockSupabase: SupabaseClient<Database>
   const projectId = "test-project-id"
   const sourceImageId = "source-image-id"
-
-  beforeEach(() => {
-    mockSupabase = {
-      from: vi.fn(() => ({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            is: vi.fn(() => ({
-              maybeSingle: vi.fn(),
-            })),
-          })),
-        })),
-        insert: vi.fn(),
-      })),
-      storage: {
-        from: vi.fn(() => ({
-          download: vi.fn(async () => ({ data: null, error: { message: "download failed" } })),
-          upload: vi.fn(),
-          remove: vi.fn(),
-        })),
-      },
-    } as unknown as SupabaseClient<Database>
-  })
+  const mockSupabase = buildMockSupabase()
 
   it("should validate params and return error for invalid superpixel size", async () => {
     const result = await pixelateImageAndActivate({
@@ -110,21 +109,8 @@ describe("pixelateImageAndActivate - validation", () => {
   })
 
   it("should return error when source image not found", async () => {
-    const mockFrom = mockSupabase.from as unknown as ReturnType<typeof vi.fn>
-    mockFrom.mockReturnValue({
-      select: vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            is: vi.fn().mockReturnValue({
-              maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-            }),
-          }),
-        }),
-      }),
-    })
-
     const result = await pixelateImageAndActivate({
-      supabase: mockSupabase,
+      supabase: buildMockSupabase({ source: null }),
       projectId,
       sourceImageId,
       params: {
@@ -143,33 +129,21 @@ describe("pixelateImageAndActivate - validation", () => {
   })
 
   it("should return error when source image is locked", async () => {
-    const mockFrom = mockSupabase.from as unknown as ReturnType<typeof vi.fn>
-    mockFrom.mockReturnValue({
-      select: vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            is: vi.fn().mockReturnValue({
-              maybeSingle: vi.fn().mockResolvedValue({
-                data: {
-                  id: sourceImageId,
-                  name: "test.jpg",
-                  storage_bucket: "project_images",
-                  storage_path: "path/to/test.jpg",
-                  format: "jpeg",
-                  width_px: 1000,
-                  height_px: 800,
-                  is_locked: true,
-                },
-                error: null,
-              }),
-            }),
-          }),
-        }),
-      }),
+    const lockedSupabase = buildMockSupabase({
+      source: {
+        id: sourceImageId,
+        name: "test.jpg",
+        storage_bucket: "project_images",
+        storage_path: "path/to/test.jpg",
+        format: "jpeg",
+        width_px: 1000,
+        height_px: 800,
+        is_locked: true,
+      },
     })
 
     const result = await pixelateImageAndActivate({
-      supabase: mockSupabase,
+      supabase: lockedSupabase,
       projectId,
       sourceImageId,
       params: {
@@ -187,48 +161,22 @@ describe("pixelateImageAndActivate - validation", () => {
     }
   })
 
-  it("should calculate correct grid dimensions from superpixel size", async () => {
-    const mockFrom = mockSupabase.from as unknown as ReturnType<typeof vi.fn>
-    mockFrom.mockReturnValue({
-      select: vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            is: vi.fn().mockReturnValue({
-              maybeSingle: vi.fn().mockResolvedValue({
-                data: {
-                  id: sourceImageId,
-                  name: "test.jpg",
-                  storage_bucket: "project_images",
-                  storage_path: "path/to/test.jpg",
-                  format: "jpeg",
-                  width_px: 1000,
-                  height_px: 800,
-                  is_locked: false,
-                },
-                error: null,
-              }),
-            }),
-          }),
-        }),
-      }),
-    })
-
-    // Superpixel 10x10 on 1000x800 image = 100x80 grid
-    await pixelateImageAndActivate({
-      supabase: mockSupabase,
-      projectId,
-      sourceImageId,
-      params: {
-        superpixelWidth: 10,
-        superpixelHeight: 10,
-        colorMode: "rgb",
-        numColors: 16,
+  it("should fail when superpixel size exceeds source dimensions", async () => {
+    const unlockedSupabase = buildMockSupabase({
+      source: {
+        id: sourceImageId,
+        name: "test.jpg",
+        storage_bucket: "project_images",
+        storage_path: "path/to/test.jpg",
+        format: "jpeg",
+        width_px: 1000,
+        height_px: 800,
+        is_locked: false,
       },
     })
 
-    // The test validates that superpixel size too large returns error
-    const result2 = await pixelateImageAndActivate({
-      supabase: mockSupabase,
+    const result = await pixelateImageAndActivate({
+      supabase: unlockedSupabase,
       projectId,
       sourceImageId,
       params: {
@@ -239,7 +187,6 @@ describe("pixelateImageAndActivate - validation", () => {
       },
     })
 
-    // This should fail validation at the grid calculation stage
-    expect(result2.ok).toBe(false)
+    expect(result.ok).toBe(false)
   })
 })

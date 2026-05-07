@@ -1,6 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it } from "vitest"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
+import { makeMockSupabase } from "@/lib/supabase/__mocks__/make-mock-supabase"
 import type { Database } from "@/lib/supabase/database.types"
 import { lineArtImageAndActivate } from "./lineart"
 
@@ -10,19 +11,12 @@ describe("lineArtImageAndActivate validation contract", () => {
   const sourceImageId = "source-image-id"
 
   beforeEach(() => {
-    mockSupabase = {
-      from: vi.fn(() => ({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              is: vi.fn(() => ({
-                maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-              })),
-            })),
-          })),
-        })),
-      })),
-    } as unknown as SupabaseClient<Database>
+    // Source-lookup terminal returns no data — every test in this file
+    // either fails validation before the lookup or expects a
+    // `source_lookup` failure.
+    mockSupabase = makeMockSupabase({
+      tables: { project_images: { select: { data: null, error: null } } },
+    })
   })
 
   it("rejects smoothness values above 0.1", async () => {
