@@ -6,23 +6,23 @@
  * Responsibilities:
  * - Configure grid spacing and line style for the editor artboard.
  * - Persist settings via `project_grid`.
+ *
+ * Phase 3.1 of the form-fields unification: each field is now a
+ * <FormField> with a one-shot onCommit callback. The previous
+ * external draft state (useKeyedDraft) and dedup ref (lastSubmitRef)
+ * are gone — FormField's internal draft handles preservation across
+ * tabs, and the reducer skips commits when draft equals value, which
+ * is enough dedup for this panel.
  */
-import { useCallback, useEffect, useRef } from "react"
+import { useCallback } from "react"
 import { ArrowLeftRight, ArrowUpDown, Eye, EyeOff, Percent } from "lucide-react"
 
-import { IconColorField } from "./fields/icon-color-field"
-import { IconNumericField } from "./fields/icon-numeric-field"
-import { PanelSizeField } from "./fields/panel-size-field"
 import { PanelIconSlot, PanelTwoFieldRow } from "./panel-layout"
 import { EditorSidebarSection } from "./sidebar/editor-sidebar-section"
-import { AppButton } from "@/components/ui/form-controls"
+import { AppButton, FormField } from "@/components/ui/form-controls"
 import { useProjectGrid, type ProjectGridRow } from "@/lib/editor/project-grid"
 import { useProjectWorkspace } from "@/lib/editor/project-workspace"
-import { computeGridUpsert } from "@/services/editor"
-import { useKeyedDraft } from "@/lib/editor/hooks/use-keyed-draft"
 import { fmt2 } from "@/lib/editor/units"
-
-
 
 export function GridPanel({
   gridVisible,
@@ -31,7 +31,7 @@ export function GridPanel({
   gridVisible: boolean
   onGridVisibleChange: (v: boolean) => void
 }) {
-  const { projectId, row, loading, saving, error, upsertGrid } = useProjectGrid()
+  const { row, loading, saving, error, upsertGrid } = useProjectGrid()
   const { unit: workspaceUnit } = useProjectWorkspace()
 
   const effectiveUnit = workspaceUnit ?? row?.unit ?? "cm"
@@ -40,53 +40,50 @@ export function GridPanel({
   const computedH = row ? fmt2(Number(row.spacing_y_value)) : ""
   const computedOpacity = String(Math.max(0, Math.min(100, Number(row?.line_width_value ?? 100))))
 
-  const { value: draftW, setValue: setDraftW } = useKeyedDraft(projectId ?? null, computedW)
-  const { value: draftH, setValue: setDraftH } = useKeyedDraft(projectId ?? null, computedH)
-  const { value: draftOpacity, setValue: setDraftOpacity } = useKeyedDraft(projectId ?? null, computedOpacity)
-
-  const lastSubmitRef = useRef<string | null>(null)
-  const ignoreNextBlurSaveRef = useRef(false)
-
-  useEffect(() => {
-    // Reset drafts when switching projects.
-    lastSubmitRef.current = null
-  }, [projectId])
-
   const controlsDisabled = loading || !row || saving
 
-  const saveWith = useCallback(
-    async (next: ProjectGridRow) => {
+  // Each field commits its own changed value; the unchanged fields are
+  // read straight off the current `row` (the upstream source of truth).
+  const saveOne = useCallback(
+    (patch: Partial<ProjectGridRow>) => {
       if (!row) return
-      if (saving) return
-
-      const { next: merged, signature } = computeGridUpsert(next, row)
-      if (lastSubmitRef.current === signature) return
-      lastSubmitRef.current = signature
-
-      await upsertGrid(merged)
+      const merged: ProjectGridRow = { ...row, unit: effectiveUnit, ...patch }
+      // Keep legacy NOT NULL `spacing_value` consistent with x spacing.
+      merged.spacing_value = merged.spacing_x_value
+      void upsertGrid(merged)
     },
-    [row, saving, upsertGrid]
+    [row, effectiveUnit, upsertGrid]
   )
 
-  const save = useCallback(async () => {
-    if (!row) return
-    const w = Number(draftW)
-    const h = Number(draftH)
-    const opacityRaw = Number(draftOpacity)
-    if (!Number.isFinite(w) || w <= 0) return
-    if (!Number.isFinite(h) || h <= 0) return
-    if (!Number.isFinite(opacityRaw)) return
-    const opacity = Math.max(0, Math.min(100, Math.round(opacityRaw)))
+  const onCommitW = useCallback(
+    (next: string) => {
+      const w = Number(next)
+      if (!Number.isFinite(w) || w <= 0) return
+      saveOne({ spacing_x_value: w })
+    },
+    [saveOne]
+  )
 
-    await saveWith({
-      ...row,
-      unit: effectiveUnit,
-      spacing_value: w,
-      spacing_x_value: w,
-      spacing_y_value: h,
-      line_width_value: opacity,
-    })
-  }, [draftH, draftOpacity, draftW, effectiveUnit, row, saveWith])
+  const onCommitH = useCallback(
+    (next: string) => {
+      const h = Number(next)
+      if (!Number.isFinite(h) || h <= 0) return
+      saveOne({ spacing_y_value: h })
+    },
+    [saveOne]
+  )
+
+  const onCommitOpacity = useCallback(
+    (next: string) => {
+      const opacityRaw = Number(next)
+      if (!Number.isFinite(opacityRaw)) return
+      const opacity = Math.max(0, Math.min(100, Math.round(opacityRaw)))
+      saveOne({ line_width_value: opacity })
+    },
+    [saveOne]
+  )
+
+  const onCommitColor = useCallback((next: string) => saveOne({ color: next }), [saveOne])
 
   return (
     <EditorSidebarSection
@@ -109,83 +106,53 @@ export function GridPanel({
       ) : null}
       <div className="space-y-4">
         <PanelTwoFieldRow>
-          <PanelSizeField
-            value={draftW}
-            ariaLabel={`Grid width (${effectiveUnit})`}
-            disabled={controlsDisabled}
-            icon={<ArrowLeftRight aria-hidden="true" strokeWidth={1} />}
+          <FormField
+            variant="numeric"
+            numericMode="decimal"
+            label={`Grid width (${effectiveUnit})`}
+            labelVisuallyHidden
+            iconStart={<ArrowLeftRight aria-hidden="true" strokeWidth={1} />}
             unit={effectiveUnit}
-            onValueChange={(next) => setDraftW(next)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") void save()
-            }}
-            onBlur={() => {
-              if (ignoreNextBlurSaveRef.current) {
-                ignoreNextBlurSaveRef.current = false
-                return
-              }
-              void save()
-            }}
+            value={computedW}
+            onCommit={onCommitW}
+            disabled={controlsDisabled}
           />
 
-          <PanelSizeField
-            value={draftH}
-            ariaLabel={`Grid height (${effectiveUnit})`}
-            disabled={controlsDisabled}
-            icon={<ArrowUpDown aria-hidden="true" strokeWidth={1} />}
+          <FormField
+            variant="numeric"
+            numericMode="decimal"
+            label={`Grid height (${effectiveUnit})`}
+            labelVisuallyHidden
+            iconStart={<ArrowUpDown aria-hidden="true" strokeWidth={1} />}
             unit={effectiveUnit}
-            onValueChange={(next) => setDraftH(next)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") void save()
-            }}
-            onBlur={() => {
-              if (ignoreNextBlurSaveRef.current) {
-                ignoreNextBlurSaveRef.current = false
-                return
-              }
-              void save()
-            }}
+            value={computedH}
+            onCommit={onCommitH}
+            disabled={controlsDisabled}
           />
 
           <PanelIconSlot />
         </PanelTwoFieldRow>
 
         <PanelTwoFieldRow>
-          <IconColorField
+          <FormField
+            variant="color"
+            label="Grid line color"
+            labelVisuallyHidden
             value={row?.color ?? "#000000"}
-            onChange={(next) => {
-              void saveWith({
-                ...(row as ProjectGridRow),
-                unit: effectiveUnit,
-                spacing_value: (row as ProjectGridRow).spacing_x_value,
-                color: next,
-                line_width_value: Math.max(0, Math.min(100, Number(draftOpacity))),
-              })
-            }}
-            ariaLabel="Grid line color"
+            onCommit={onCommitColor}
             disabled={controlsDisabled}
             inputClassName="cursor-pointer"
           />
 
-          <IconNumericField
-            value={draftOpacity}
-            mode="int"
-            ariaLabel="Grid line opacity percent"
+          <FormField
+            variant="numeric"
+            numericMode="int"
+            label="Grid line opacity percent"
+            labelVisuallyHidden
+            iconStart={<Percent aria-hidden="true" strokeWidth={1} />}
+            value={computedOpacity}
+            onCommit={onCommitOpacity}
             disabled={controlsDisabled}
-            icon={<Percent aria-hidden="true" strokeWidth={1} />}
-            onValueChange={setDraftOpacity}
-            numericProps={{
-              onKeyDown: (e) => {
-                if (e.key === "Enter") void save()
-              },
-              onBlur: () => {
-                if (ignoreNextBlurSaveRef.current) {
-                  ignoreNextBlurSaveRef.current = false
-                  return
-                }
-                void save()
-              },
-            }}
           />
 
           <PanelIconSlot />
@@ -194,4 +161,3 @@ export function GridPanel({
     </EditorSidebarSection>
   )
 }
-

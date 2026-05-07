@@ -1,5 +1,5 @@
 {
-  "budget": 53,
+  "budget": 51,
   "note": "Hard ceiling for `as unknown as` in production code (excludes *.test.ts/.tsx). Gate fails if count exceeds budget. Lower this number deliberately as the codebase improves.",
   "last_updated": "2026-05-07",
   "top_offenders": [

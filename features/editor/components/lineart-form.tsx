@@ -1,9 +1,10 @@
 "use client"
 
-import { useState, useMemo } from "react"
-import { AppInput } from "@/components/ui/form-controls"
+import { useMemo, useState } from "react"
+import type * as React from "react"
+
 import { Label } from "@/components/ui/label"
-import { Field, FieldGroup } from "@/components/ui/field"
+import { FormField } from "@/components/ui/form-controls"
 import { FilterFormFooter } from "./filter-forms/filter-form-footer"
 
 export type LineArtFormData = {
@@ -32,12 +33,7 @@ export function LineArtForm({ onCancel, onApply, busy = false }: Props) {
   const [smoothness, setSmoothness] = useState(0.002)
 
   const isValid = useMemo(() => {
-    return (
-      threshold1 >= 0 &&
-      threshold2 > threshold1 &&
-      lineThickness >= 1 &&
-      lineThickness <= 10
-    )
+    return threshold1 >= 0 && threshold2 > threshold1 && lineThickness >= 1 && lineThickness <= 10
   }, [threshold1, threshold2, lineThickness])
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -54,96 +50,93 @@ export function LineArtForm({ onCancel, onApply, busy = false }: Props) {
     })
   }
 
+  const setNumeric = (set: (n: number) => void) => (raw: string) => {
+    const n = Number(raw)
+    if (Number.isFinite(n)) set(n)
+  }
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <FieldGroup>
-        <Field>
-          <Label htmlFor="threshold1">Low Threshold</Label>
-          <AppInput
-            id="threshold1"
-            type="number"
-            min={0}
-            max={500}
-            value={threshold1}
-            onChange={(e) => setThreshold1(Number(e.target.value))}
-            disabled={busy}
-          />
-          <p className="text-xs text-muted-foreground">Lower value = more edges detected (0-500)</p>
-        </Field>
+      <div className="flex flex-col gap-7">
+        <FormField
+          variant="numeric"
+          numericMode="int"
+          label="Low Threshold"
+          id="threshold1"
+          value={String(threshold1)}
+          onCommit={setNumeric(setThreshold1)}
+          onDraftChange={setNumeric(setThreshold1)}
+          description="Lower value = more edges detected (0-500)"
+          disabled={busy}
+          inputProps={{ min: 0, max: 500 }}
+        />
 
-        <Field>
-          <Label htmlFor="threshold2">High Threshold</Label>
-          <AppInput
-            id="threshold2"
-            type="number"
-            min={0}
-            max={500}
-            value={threshold2}
-            onChange={(e) => setThreshold2(Number(e.target.value))}
-            disabled={busy}
-          />
-          <p className="text-xs text-muted-foreground">Must be higher than low threshold</p>
-        </Field>
+        <FormField
+          variant="numeric"
+          numericMode="int"
+          label="High Threshold"
+          id="threshold2"
+          value={String(threshold2)}
+          onCommit={setNumeric(setThreshold2)}
+          onDraftChange={setNumeric(setThreshold2)}
+          description="Must be higher than low threshold"
+          disabled={busy}
+          inputProps={{ min: 0, max: 500 }}
+        />
 
-        <Field>
-          <Label htmlFor="lineThickness">Line Thickness</Label>
-          <AppInput
-            id="lineThickness"
-            type="number"
-            min={1}
-            max={10}
-            value={lineThickness}
-            onChange={(e) => setLineThickness(Number(e.target.value))}
-            disabled={busy}
-          />
-          <p className="text-xs text-muted-foreground">Thickness in pixels (1-10)</p>
-        </Field>
+        <FormField
+          variant="numeric"
+          numericMode="int"
+          label="Line Thickness"
+          id="lineThickness"
+          value={String(lineThickness)}
+          onCommit={setNumeric(setLineThickness)}
+          onDraftChange={setNumeric(setLineThickness)}
+          description="Thickness in pixels (1-10)"
+          disabled={busy}
+          inputProps={{ min: 1, max: 10 }}
+        />
 
-        <Field>
-          <Label htmlFor="blurAmount">Blur Amount</Label>
-          <AppInput
-            id="blurAmount"
-            type="number"
-            min={0}
-            max={20}
-            value={blurAmount}
-            onChange={(e) => setBlurAmount(Number(e.target.value))}
-            disabled={busy}
-          />
-          <p className="text-xs text-muted-foreground">Smoothing before edge detection (0-20, 0=no blur)</p>
-        </Field>
+        <FormField
+          variant="numeric"
+          numericMode="int"
+          label="Blur Amount"
+          id="blurAmount"
+          value={String(blurAmount)}
+          onCommit={setNumeric(setBlurAmount)}
+          onDraftChange={setNumeric(setBlurAmount)}
+          description="Smoothing before edge detection (0-20, 0=no blur)"
+          disabled={busy}
+          inputProps={{ min: 0, max: 20 }}
+        />
 
-        <Field>
-          <Label htmlFor="minContourArea">Min. Detail Size</Label>
-          <AppInput
-            id="minContourArea"
-            type="number"
-            min={0}
-            max={10000}
-            step={50}
-            value={minContourArea}
-            onChange={(e) => setMinContourArea(Number(e.target.value))}
-            disabled={busy}
-          />
-          <p className="text-xs text-muted-foreground">Minimum contour area in pixels (removes small details)</p>
-        </Field>
+        <FormField
+          variant="numeric"
+          numericMode="int"
+          label="Min. Detail Size"
+          id="minContourArea"
+          value={String(minContourArea)}
+          onCommit={setNumeric(setMinContourArea)}
+          onDraftChange={setNumeric(setMinContourArea)}
+          description="Minimum contour area in pixels (removes small details)"
+          disabled={busy}
+          inputProps={{ min: 0, max: 10000, step: 50 }}
+        />
 
-        <Field>
-          <Label htmlFor="smoothness">Smoothness</Label>
-          <AppInput
-            id="smoothness"
-            type="number"
-            min={0}
-            max={0.05}
-            step={0.001}
-            value={smoothness}
-            onChange={(e) => setSmoothness(Number(e.target.value))}
-            disabled={busy}
-          />
-          <p className="text-xs text-muted-foreground">Curve smoothing (0=sharp corners, 0.02=very smooth)</p>
-        </Field>
+        <FormField
+          variant="numeric"
+          numericMode="decimal"
+          label="Smoothness"
+          id="smoothness"
+          value={String(smoothness)}
+          onCommit={setNumeric(setSmoothness)}
+          onDraftChange={setNumeric(setSmoothness)}
+          description="Curve smoothing (0=sharp corners, 0.02=very smooth)"
+          disabled={busy}
+          inputProps={{ min: 0, max: 0.05, step: 0.001 }}
+        />
 
-        <Field>
+        <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2">
             <input
               id="invert"
@@ -158,8 +151,8 @@ export function LineArtForm({ onCancel, onApply, busy = false }: Props) {
             </Label>
           </div>
           <p className="text-xs text-muted-foreground">Unchecked = white lines on black</p>
-        </Field>
-      </FieldGroup>
+        </div>
+      </div>
 
       <FilterFormFooter onCancel={onCancel} isValid={isValid} busy={busy} applyingLabel="Processing..." />
     </form>

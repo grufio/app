@@ -23,10 +23,6 @@ export * from "./master-image-upload"
 
 export * from "./panel-layout"
 export * from "./sidebar/editor-sidebar-section"
-export * from "./fields/icon-color-field"
-export * from "./fields/icon-input-group"
-export * from "./fields/icon-numeric-field"
-export * from "./fields/icon-select-field"
 
 // Types only: avoid exporting Konva-heavy canvas stage into non-editor bundles.
 export type { ProjectCanvasStageHandle } from "./project-canvas-stage"

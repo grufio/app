@@ -59,6 +59,8 @@ export type FormFieldHandle = {
 type CommonFormFieldProps = {
   label: string
   labelVisuallyHidden?: boolean
+  /** Helper text shown below the field (filter-form usage). */
+  description?: React.ReactNode
   id?: string
   iconStart?: React.ReactNode
   iconEnd?: React.ReactNode
@@ -143,42 +145,41 @@ export const FormField = React.forwardRef<FormFieldHandle, FormFieldProps>(funct
     </Label>
   )
 
+  const descriptionId = props.description ? `${id}-description` : undefined
+  const descriptionEl = props.description ? (
+    <p id={descriptionId} className="text-xs text-muted-foreground">
+      {props.description}
+    </p>
+  ) : null
+
   // Render via variant. Each branch wires the appropriate primitive +
   // (for non-select) the draft hook, plus the imperative handle.
-  if (props.variant === "select") {
-    return (
-      <div className={cn("flex flex-col gap-1", props.className)}>
-        {labelEl}
-        <SelectVariant {...props} id={id} ref={ref} />
-      </div>
-    )
-  }
-
-  if (props.variant === "color") {
-    return (
-      <div className={cn("flex flex-col gap-1", props.className)}>
-        {labelEl}
-        <ColorVariant {...props} id={id} ref={ref} />
-      </div>
-    )
-  }
-
-  return (
+  const wrap = (variantEl: React.ReactNode) => (
     <div className={cn("flex flex-col gap-1", props.className)}>
       {labelEl}
-      <NumericOrTextVariant {...props} id={id} ref={ref} />
+      {variantEl}
+      {descriptionEl}
     </div>
   )
+
+  if (props.variant === "select") {
+    return wrap(<SelectVariant {...props} id={id} descriptionId={descriptionId} ref={ref} />)
+  }
+  if (props.variant === "color") {
+    return wrap(<ColorVariant {...props} id={id} descriptionId={descriptionId} ref={ref} />)
+  }
+  return wrap(<NumericOrTextVariant {...props} id={id} descriptionId={descriptionId} ref={ref} />)
 })
 
 // --- Numeric / Text variant ---------------------------------------------
 
 const NumericOrTextVariant = React.forwardRef<
   FormFieldHandle,
-  (NumericVariantProps | TextVariantProps) & { id: string }
+  (NumericVariantProps | TextVariantProps) & { id: string; descriptionId?: string }
 >(function NumericOrTextVariant(props, ref) {
   const {
     id,
+    descriptionId,
     label,
     labelVisuallyHidden,
     iconStart,
@@ -223,6 +224,7 @@ const NumericOrTextVariant = React.forwardRef<
         type="text"
         inputMode={inputMode}
         aria-label={labelVisuallyHidden ? label : undefined}
+        aria-describedby={descriptionId}
         disabled={disabled}
         className={inputClassName}
         value={draft.draft}
@@ -264,9 +266,11 @@ function stripWrapperKeys(
 
 // --- Color variant ------------------------------------------------------
 
-const ColorVariant = React.forwardRef<FormFieldHandle, ColorVariantProps & { id: string }>(
-  function ColorVariant(props, ref) {
-    const { id, label, labelVisuallyHidden, disabled, inputClassName, value, onCommit } = props
+const ColorVariant = React.forwardRef<
+  FormFieldHandle,
+  ColorVariantProps & { id: string; descriptionId?: string }
+>(function ColorVariant(props, ref) {
+  const { id, descriptionId, label, labelVisuallyHidden, disabled, inputClassName, value, onCommit } = props
 
     const normalized = normalizeHex(value) ?? "#000000"
     const display = normalized.toUpperCase()
@@ -325,6 +329,7 @@ const ColorVariant = React.forwardRef<FormFieldHandle, ColorVariantProps & { id:
           id={id}
           type="text"
           aria-label={labelVisuallyHidden ? label : undefined}
+          aria-describedby={descriptionId}
           disabled={disabled}
           className={inputClassName}
           value={draft}
@@ -357,21 +362,24 @@ const ColorVariant = React.forwardRef<FormFieldHandle, ColorVariantProps & { id:
 
 // --- Select variant -----------------------------------------------------
 
-const SelectVariant = React.forwardRef<FormFieldHandle, SelectVariantProps & { id: string }>(
-  function SelectVariant(props, ref) {
-    const {
-      id,
-      label,
-      labelVisuallyHidden,
-      iconStart,
-      iconEnd,
-      disabled,
-      inputClassName,
-      value,
-      onCommit,
-      children,
-      triggerOnPointerDownCapture,
-    } = props
+const SelectVariant = React.forwardRef<
+  FormFieldHandle,
+  SelectVariantProps & { id: string; descriptionId?: string }
+>(function SelectVariant(props, ref) {
+  const {
+    id,
+    descriptionId,
+    label,
+    labelVisuallyHidden,
+    iconStart,
+    iconEnd,
+    disabled,
+    inputClassName,
+    value,
+    onCommit,
+    children,
+    triggerOnPointerDownCapture,
+  } = props
 
     // Select has no internal draft — the dropdown either commits or cancels.
     React.useImperativeHandle(
@@ -398,6 +406,7 @@ const SelectVariant = React.forwardRef<FormFieldHandle, SelectVariantProps & { i
             className={inputClassName}
             disabled={disabled}
             aria-label={labelVisuallyHidden ? label : undefined}
+            aria-describedby={descriptionId}
             onPointerDownCapture={triggerOnPointerDownCapture}
           >
             <AppSelectValue className="truncate" />

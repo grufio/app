@@ -12,7 +12,7 @@ import dynamic from "next/dynamic"
 import { EyeOff, Percent, RotateCcw, Trash2 } from "lucide-react"
 
 import { SidebarFrame } from "@/components/navigation/SidebarFrame"
-import { AppButton } from "@/components/ui/form-controls"
+import { AppButton, FormField } from "@/components/ui/form-controls"
 import {
   Dialog,
   DialogContent,
@@ -39,8 +39,6 @@ const ImagePanel = dynamic(() => import("./image-panel").then((m) => m.ImagePane
 import type { ProjectCanvasStageHandle } from "./project-canvas-stage"
 import { PanelIconSlot, PanelTwoFieldRow } from "./panel-layout"
 import { RightPanelIconButton } from "./right-panel-controls"
-import { IconColorField } from "./fields/icon-color-field"
-import { IconNumericField } from "./fields/icon-numeric-field"
 import { EditorSidebarSection } from "./sidebar/editor-sidebar-section"
 import { useResizableSidebar } from "./use-resizable-sidebar"
 import type { Unit } from "@/lib/editor/units"
@@ -156,19 +154,23 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
               <>
                 <EditorSidebarSection title="Page">
                   <PanelTwoFieldRow>
-                    <IconColorField
+                    <FormField
+                      variant="color"
+                      label="Page background color"
+                      labelVisuallyHidden
                       value={pageBgColor}
-                      onChange={onPageBgColorChange}
-                      ariaLabel="Page background color"
+                      onCommit={onPageBgColorChange}
                       inputClassName="cursor-pointer"
                     />
 
-                    <IconNumericField
+                    <FormField
+                      variant="numeric"
+                      numericMode="int"
+                      label="Page background opacity percent"
+                      labelVisuallyHidden
+                      iconStart={<Percent aria-hidden="true" strokeWidth={1} />}
                       value={String(pageBgOpacity)}
-                      mode="int"
-                      ariaLabel="Page background opacity percent"
-                      icon={<Percent aria-hidden="true" strokeWidth={1} />}
-                      onValueChange={(next) => {
+                      onCommit={(next) => {
                         const n = Number(next)
                         const clamped = Math.max(0, Math.min(100, Number.isFinite(n) ? n : 0))
                         onPageBgOpacityChange(clamped)

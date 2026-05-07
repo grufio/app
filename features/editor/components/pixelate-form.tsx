@@ -1,16 +1,19 @@
 "use client"
 
-import { useState, useMemo } from "react"
-import { Label } from "@/components/ui/label"
-import { Field, FieldGroup } from "@/components/ui/field"
-import {
-  AppInput,
-  AppSelect,
-  AppSelectContent,
-  AppSelectItem,
-  AppSelectTrigger,
-  AppSelectValue,
-} from "@/components/ui/form-controls"
+/**
+ * Phase 3.5 of the form-fields unification: migrate from shadcn
+ * Field/FieldGroup/Label + AppInput to <FormField> with visible
+ * labels. Same A11y model as the right-panel fields, just with
+ * `labelVisuallyHidden={false}` (the default).
+ *
+ * The form has its own Apply submit button, so onCommit is a no-op
+ * for the editable fields — onDraftChange drives the local state
+ * that the validity check + submit handler read.
+ */
+import { useMemo, useState } from "react"
+import type * as React from "react"
+
+import { AppSelectItem, FormField } from "@/components/ui/form-controls"
 import { FilterFormFooter } from "./filter-forms/filter-form-footer"
 
 export type PixelateFormData = {
@@ -38,7 +41,7 @@ export function PixelateForm({ imageWidth, imageHeight, onCancel, onApply, busy 
     () => Math.floor(imageWidth / Math.max(1, superpixelWidth)),
     [imageWidth, superpixelWidth]
   )
-  
+
   const pixelCountHeight = useMemo(
     () => Math.floor(imageHeight / Math.max(1, superpixelHeight)),
     [imageHeight, superpixelHeight]
@@ -58,89 +61,85 @@ export function PixelateForm({ imageWidth, imageHeight, onCancel, onApply, busy 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!isValid || busy) return
-    onApply({
-      superpixelWidth,
-      superpixelHeight,
-      colorMode,
-      numColors,
-    })
+    onApply({ superpixelWidth, superpixelHeight, colorMode, numColors })
+  }
+
+  const setIntFromDraft = (set: (n: number) => void) => (raw: string) => {
+    const n = Number(raw)
+    if (Number.isFinite(n)) set(n)
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <FieldGroup>
-        <Field>
-          <Label htmlFor="superpixel-width">Superpixel Width (px)</Label>
-          <AppInput
-            id="superpixel-width"
-            type="number"
-            min="1"
-            value={superpixelWidth}
-            onChange={(e) => setSuperpixelWidth(Number(e.target.value))}
-            disabled={busy}
-          />
-        </Field>
-        
-        <Field>
-          <Label htmlFor="superpixel-height">Superpixel Height (px)</Label>
-          <AppInput
-            id="superpixel-height"
-            type="number"
-            min="1"
-            value={superpixelHeight}
-            onChange={(e) => setSuperpixelHeight(Number(e.target.value))}
-            disabled={busy}
-          />
-        </Field>
+      <div className="flex flex-col gap-7">
+        <FormField
+          variant="numeric"
+          numericMode="int"
+          label="Superpixel Width (px)"
+          id="superpixel-width"
+          value={String(superpixelWidth)}
+          onCommit={setIntFromDraft(setSuperpixelWidth)}
+          onDraftChange={setIntFromDraft(setSuperpixelWidth)}
+          disabled={busy}
+        />
 
-        <Field>
-          <Label htmlFor="pixel-count-width">Pixel Count Width (calculated)</Label>
-          <AppInput
-            id="pixel-count-width"
-            type="number"
-            value={pixelCountWidth}
-            readOnly
-            disabled
-          />
-        </Field>
+        <FormField
+          variant="numeric"
+          numericMode="int"
+          label="Superpixel Height (px)"
+          id="superpixel-height"
+          value={String(superpixelHeight)}
+          onCommit={setIntFromDraft(setSuperpixelHeight)}
+          onDraftChange={setIntFromDraft(setSuperpixelHeight)}
+          disabled={busy}
+        />
 
-        <Field>
-          <Label htmlFor="pixel-count-height">Pixel Count Height (calculated)</Label>
-          <AppInput
-            id="pixel-count-height"
-            type="number"
-            value={pixelCountHeight}
-            readOnly
-            disabled
-          />
-        </Field>
+        <FormField
+          variant="numeric"
+          numericMode="int"
+          label="Pixel Count Width (calculated)"
+          id="pixel-count-width"
+          value={String(pixelCountWidth)}
+          onCommit={() => {}}
+          disabled
+          inputProps={{ readOnly: true }}
+        />
 
-        <Field>
-          <Label htmlFor="color-mode">Color Mode</Label>
-          <AppSelect value={colorMode} onValueChange={(v) => setColorMode(v as "rgb" | "grayscale")} disabled={busy}>
-            <AppSelectTrigger id="color-mode">
-              <AppSelectValue />
-            </AppSelectTrigger>
-            <AppSelectContent>
-              <AppSelectItem value="rgb">RGB</AppSelectItem>
-              <AppSelectItem value="grayscale">Grayscale</AppSelectItem>
-            </AppSelectContent>
-          </AppSelect>
-        </Field>
+        <FormField
+          variant="numeric"
+          numericMode="int"
+          label="Pixel Count Height (calculated)"
+          id="pixel-count-height"
+          value={String(pixelCountHeight)}
+          onCommit={() => {}}
+          disabled
+          inputProps={{ readOnly: true }}
+        />
 
-        <Field>
-          <Label htmlFor="num-colors">Number of Colors</Label>
-          <AppInput
-            id="num-colors"
-            type="number"
-            min="2"
-            max="256"
-            value={numColors}
-            onChange={(e) => setNumColors(Number(e.target.value))}
-            disabled={busy}
-          />
-        </Field>
-      </FieldGroup>
+        <FormField
+          variant="select"
+          label="Color Mode"
+          id="color-mode"
+          value={colorMode}
+          onCommit={(v) => setColorMode(v as "rgb" | "grayscale")}
+          disabled={busy}
+        >
+          <AppSelectItem value="rgb">RGB</AppSelectItem>
+          <AppSelectItem value="grayscale">Grayscale</AppSelectItem>
+        </FormField>
+
+        <FormField
+          variant="numeric"
+          numericMode="int"
+          label="Number of Colors"
+          id="num-colors"
+          value={String(numColors)}
+          onCommit={setIntFromDraft(setNumColors)}
+          onDraftChange={setIntFromDraft(setNumColors)}
+          disabled={busy}
+          inputProps={{ min: 2, max: 256 }}
+        />
+      </div>
 
       <FilterFormFooter onCancel={onCancel} isValid={isValid} busy={busy} />
     </form>

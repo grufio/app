@@ -1,8 +1,17 @@
 "use client"
 
-import { useMemo, useRef, useState } from "react"
+/**
+ * Image position inputs (X / Y in user-facing units).
+ *
+ * Phase 3.3 of the form-fields unification: each axis is a
+ * <FormField variant="numeric"> with its own onCommit. When X commits
+ * we send the new X with the current upstream Y, and vice versa —
+ * functionally equivalent to the old "commit both at once" behaviour,
+ * just with one save per axis edit instead of one combined save.
+ */
+import { useMemo } from "react"
 
-import { PanelSizeField } from "../fields/panel-size-field"
+import { FormField } from "@/components/ui/form-controls"
 import { PanelIconSlot, PanelTwoFieldRow } from "../panel-layout"
 import { pxUToUnitDisplayUiFixed, type Unit } from "@/lib/editor/units"
 import { parseSignedMicroPxFromUnitInput } from "@/services/editor/image-sizing"
@@ -26,12 +35,6 @@ export function ImagePositionInputs({
   controlsDisabled: boolean
   onCommitPosition: (xPxU: bigint, yPxU: bigint) => void
 }) {
-  const [dirty, setDirty] = useState(false)
-  const draftXRef = useRef("")
-  const draftYRef = useRef("")
-  const [draftX, setDraftX] = useState("")
-  const [draftY, setDraftY] = useState("")
-
   const computedX = useMemo(() => {
     if (!ready || xPxU == null) return ""
     return pxUToUnitDisplayUiFixed(xPxU, unit)
@@ -42,91 +45,44 @@ export function ImagePositionInputs({
     return pxUToUnitDisplayUiFixed(yPxU, unit)
   }, [ready, unit, yPxU])
 
-  const beginEditSession = () => {
-    if (!ready) return
-    if (dirty) return
-    draftXRef.current = computedX
-    draftYRef.current = computedY
-    setDraftX(computedX)
-    setDraftY(computedY)
+  const onCommitX = (next: string) => {
+    const parsedX = parseSignedMicroPxFromUnitInput(next, unit)
+    if (parsedX == null || yPxU == null) return
+    if (parsedX === xPxU) return
+    onCommitPosition(parsedX, yPxU)
   }
 
-  const resetDraft = () => {
-    draftXRef.current = computedX
-    draftYRef.current = computedY
-    setDraftX(computedX)
-    setDraftY(computedY)
-  }
-
-  const commit = () => {
-    if (!dirty) return
-    const nextX = parseSignedMicroPxFromUnitInput(draftXRef.current, unit)
-    const nextY = parseSignedMicroPxFromUnitInput(draftYRef.current, unit)
-    if (nextX == null || nextY == null) return
-    if (xPxU != null && yPxU != null && nextX === xPxU && nextY === yPxU) return
-    onCommitPosition(nextX, nextY)
+  const onCommitY = (next: string) => {
+    const parsedY = parseSignedMicroPxFromUnitInput(next, unit)
+    if (parsedY == null || xPxU == null) return
+    if (parsedY === yPxU) return
+    onCommitPosition(xPxU, parsedY)
   }
 
   return (
     <PanelTwoFieldRow>
-      <PanelSizeField
-        value={dirty ? draftX : computedX}
-        disabled={controlsDisabled}
-        ariaLabel={`Image x position (${unit})`}
-        icon={<PositionAxisBadge label="x" />}
+      <FormField
+        variant="numeric"
+        numericMode="signedDecimal"
+        label={`Image x position (${unit})`}
+        labelVisuallyHidden
+        iconStart={<PositionAxisBadge label="x" />}
         unit={unit}
-        mode="signedDecimal"
-        onValueChange={(next) => {
-          beginEditSession()
-          setDirty(true)
-          draftXRef.current = next
-          setDraftX(next)
-        }}
-        onFocus={beginEditSession}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            commit()
-            setDirty(false)
-          }
-          if (e.key === "Escape") {
-            setDirty(false)
-            resetDraft()
-          }
-        }}
-        onBlur={() => {
-          commit()
-          setDirty(false)
-        }}
+        value={computedX}
+        onCommit={onCommitX}
+        disabled={controlsDisabled}
       />
 
-      <PanelSizeField
-        value={dirty ? draftY : computedY}
-        disabled={controlsDisabled}
-        ariaLabel={`Image y position (${unit})`}
-        icon={<PositionAxisBadge label="y" />}
+      <FormField
+        variant="numeric"
+        numericMode="signedDecimal"
+        label={`Image y position (${unit})`}
+        labelVisuallyHidden
+        iconStart={<PositionAxisBadge label="y" />}
         unit={unit}
-        mode="signedDecimal"
-        onValueChange={(next) => {
-          beginEditSession()
-          setDirty(true)
-          draftYRef.current = next
-          setDraftY(next)
-        }}
-        onFocus={beginEditSession}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            commit()
-            setDirty(false)
-          }
-          if (e.key === "Escape") {
-            setDirty(false)
-            resetDraft()
-          }
-        }}
-        onBlur={() => {
-          commit()
-          setDirty(false)
-        }}
+        value={computedY}
+        onCommit={onCommitY}
+        disabled={controlsDisabled}
       />
 
       <PanelIconSlot />

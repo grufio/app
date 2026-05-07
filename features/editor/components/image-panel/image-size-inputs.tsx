@@ -1,9 +1,31 @@
 "use client"
 
+/**
+ * Image width / height inputs with optional aspect-ratio lock.
+ *
+ * Phase 3.4 of the form-fields unification — the most complex caller
+ * because of the aspect-lock + lock-button-cancel interaction. The
+ * old version had ~120 lines of draft / dirty / ignoreNextBlur
+ * mechanics; FormField + its imperative `cancelPendingCommit`
+ * handle replace it cleanly.
+ *
+ * Lifecycle:
+ *  - Each FormField has its own internal draft (commit on blur/Enter).
+ *  - When aspect-lock is ON, `onDraftChange` from one field computes
+ *    the locked partner dimension and updates the partner's local
+ *    draft state, which the partner FormField syncs into its own
+ *    internal draft (since it isn't focused).
+ *  - On commit, we compute the canonical bigint µpx pair from the
+ *    LATEST drafts of *both* axes (read from local state) and call
+ *    onCommit with both.
+ *  - The lock button click cancels the pending blur-commit on both
+ *    fields via the imperative ref, so toggling the lock doesn't
+ *    accidentally save a stale in-flight draft.
+ */
 import { ArrowLeftRight, ArrowUpDown, Link2, Unlink2 } from "lucide-react"
-import { useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
-import { PanelSizeField } from "../fields/panel-size-field"
+import { FormField, type FormFieldHandle } from "@/components/ui/form-controls"
 import { PanelIconSlot, PanelTwoFieldRow } from "../panel-layout"
 import { RightPanelToggleIconButton } from "../right-panel-controls"
 import { pxUToUnitDisplayUiFixed, type Unit } from "@/lib/editor/units"
@@ -11,7 +33,10 @@ import {
   computeLockedAspectOtherDimensionFromHeightInput,
   computeLockedAspectOtherDimensionFromWidthInput,
 } from "@/services/editor/image-sizing"
-import { computeImageSizeCommit, computeLockedAspectRatioFromCurrentSize } from "@/services/editor/image-sizing-operations"
+import {
+  computeImageSizeCommit,
+  computeLockedAspectRatioFromCurrentSize,
+} from "@/services/editor/image-sizing-operations"
 
 export function ImageSizeInputs({
   widthPxU,
@@ -28,147 +53,131 @@ export function ImageSizeInputs({
   controlsDisabled: boolean
   onCommit: (widthPxU: bigint, heightPxU: bigint) => void
 }) {
-  const [dirty, setDirty] = useState(false)
-  const ignoreNextBlurCommitRef = useRef(false)
-  const lockRatioRef = useRef<{ w: bigint; h: bigint } | null>(null)
-  const draftWRef = useRef("")
-  const draftHRef = useRef("")
-  const [draftW, setDraftW] = useState("")
-  const [draftH, setDraftH] = useState("")
-  const [lockAspect, setLockAspect] = useState(false)
-
   const computedW = useMemo(() => {
-    if (!ready) return ""
-    if (!widthPxU) return ""
+    if (!ready || !widthPxU) return ""
     return pxUToUnitDisplayUiFixed(widthPxU, unit)
   }, [ready, unit, widthPxU])
 
   const computedH = useMemo(() => {
-    if (!ready) return ""
-    if (!heightPxU) return ""
+    if (!ready || !heightPxU) return ""
     return pxUToUnitDisplayUiFixed(heightPxU, unit)
   }, [heightPxU, ready, unit])
 
-  const beginEditSession = () => {
-    if (!ready) return
-    if (dirty) return
-    draftWRef.current = computedW
-    draftHRef.current = computedH
-    setDraftW(computedW)
-    setDraftH(computedH)
-  }
+  const [draftW, setDraftW] = useState(computedW)
+  const [draftH, setDraftH] = useState(computedH)
+  const [lockAspect, setLockAspect] = useState(false)
+  const lockRatioRef = useRef<{ w: bigint; h: bigint } | null>(null)
+  const widthRef = useRef<FormFieldHandle>(null)
+  const heightRef = useRef<FormFieldHandle>(null)
 
-  const commit = () => {
-    if (!dirty) return
-    // Use refs so blur/tab commits always see the latest typed value
-    // (React state can be one render behind when events batch).
-    // Invariants: docs/specs/sizing-invariants.mdx (round once at input conversion).
-    const parsed = computeImageSizeCommit({ ready, draftW: draftWRef.current, draftH: draftHRef.current, unit })
-    if (!parsed) return
-    if (widthPxU && heightPxU && parsed.wPxU === widthPxU && parsed.hPxU === heightPxU) return
-    onCommit(parsed.wPxU, parsed.hPxU)
-  }
+  // Sync local drafts to upstream when upstream changes. FormField's
+  // own draft has the same logic; we mirror it here so the cross-axis
+  // partner lookups in onDraftChange always see fresh values.
+  useEffect(() => {
+    setDraftW(computedW)
+  }, [computedW])
+  useEffect(() => {
+    setDraftH(computedH)
+  }, [computedH])
+
+  const commitFromDrafts = useCallback(
+    (nextDraftW: string, nextDraftH: string) => {
+      const parsed = computeImageSizeCommit({
+        ready,
+        draftW: nextDraftW,
+        draftH: nextDraftH,
+        unit,
+      })
+      if (!parsed) return
+      if (widthPxU && heightPxU && parsed.wPxU === widthPxU && parsed.hPxU === heightPxU) return
+      onCommit(parsed.wPxU, parsed.hPxU)
+    },
+    [ready, unit, widthPxU, heightPxU, onCommit]
+  )
+
+  const onDraftW = useCallback(
+    (next: string) => {
+      setDraftW(next)
+      if (!lockAspect) return
+      const r = lockRatioRef.current ?? computeLockedAspectRatioFromCurrentSize({ widthPxU, heightPxU })
+      if (!r) return
+      lockRatioRef.current = r
+      const out = computeLockedAspectOtherDimensionFromWidthInput({
+        nextWidthInput: next,
+        unit,
+        ratio: { wPxU: r.w, hPxU: r.h },
+      })
+      if (!out) return
+      setDraftH(out.nextHeightDisplay)
+    },
+    [lockAspect, unit, widthPxU, heightPxU]
+  )
+
+  const onDraftH = useCallback(
+    (next: string) => {
+      setDraftH(next)
+      if (!lockAspect) return
+      const r = lockRatioRef.current ?? computeLockedAspectRatioFromCurrentSize({ widthPxU, heightPxU })
+      if (!r) return
+      lockRatioRef.current = r
+      const out = computeLockedAspectOtherDimensionFromHeightInput({
+        nextHeightInput: next,
+        unit,
+        ratio: { wPxU: r.w, hPxU: r.h },
+      })
+      if (!out) return
+      setDraftW(out.nextWidthDisplay)
+    },
+    [lockAspect, unit, widthPxU, heightPxU]
+  )
+
+  const onCommitW = useCallback(
+    (nextW: string) => {
+      setDraftW(nextW)
+      commitFromDrafts(nextW, draftH)
+    },
+    [commitFromDrafts, draftH]
+  )
+
+  const onCommitH = useCallback(
+    (nextH: string) => {
+      setDraftH(nextH)
+      commitFromDrafts(draftW, nextH)
+    },
+    [commitFromDrafts, draftW]
+  )
+
+  const cancelPendingCommits = useCallback(() => {
+    widthRef.current?.cancelPendingCommit()
+    heightRef.current?.cancelPendingCommit()
+  }, [])
 
   return (
     <PanelTwoFieldRow>
-      <PanelSizeField
-        value={dirty ? draftW : computedW}
-        disabled={controlsDisabled}
-        ariaLabel={`Image width (${unit})`}
-        icon={<ArrowLeftRight aria-hidden="true" />}
+      <FormField
+        ref={widthRef}
+        variant="numeric"
+        label={`Image width (${unit})`}
+        labelVisuallyHidden
+        iconStart={<ArrowLeftRight aria-hidden="true" />}
         unit={unit}
-        onValueChange={(next) => {
-          beginEditSession()
-          setDirty(true)
-          draftWRef.current = next
-          setDraftW(next)
-          if (!lockAspect) return
-          const r = lockRatioRef.current ?? computeLockedAspectRatioFromCurrentSize({ widthPxU, heightPxU })
-          if (!r) return
-          lockRatioRef.current = r
-          const out = computeLockedAspectOtherDimensionFromWidthInput({
-            nextWidthInput: next,
-            unit,
-            ratio: { wPxU: r.w, hPxU: r.h },
-          })
-          if (!out) return
-          draftHRef.current = out.nextHeightDisplay
-          setDraftH(out.nextHeightDisplay)
-        }}
-        onFocus={() => {
-          beginEditSession()
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            commit()
-            setDirty(false)
-          }
-          if (e.key === "Escape") {
-            setDirty(false)
-            draftWRef.current = computedW
-            draftHRef.current = computedH
-            setDraftW(computedW)
-            setDraftH(computedH)
-          }
-        }}
-        onBlur={() => {
-          if (ignoreNextBlurCommitRef.current) {
-            ignoreNextBlurCommitRef.current = false
-            return
-          }
-          commit()
-          setDirty(false)
-        }}
+        value={draftW}
+        onDraftChange={onDraftW}
+        onCommit={onCommitW}
+        disabled={controlsDisabled}
       />
 
-      <PanelSizeField
-        value={dirty ? draftH : computedH}
-        disabled={controlsDisabled}
-        ariaLabel={`Image height (${unit})`}
-        icon={<ArrowUpDown aria-hidden="true" />}
+      <FormField
+        ref={heightRef}
+        variant="numeric"
+        label={`Image height (${unit})`}
+        labelVisuallyHidden
+        iconStart={<ArrowUpDown aria-hidden="true" />}
         unit={unit}
-        onValueChange={(next) => {
-          beginEditSession()
-          setDirty(true)
-          draftHRef.current = next
-          setDraftH(next)
-          if (!lockAspect) return
-          const r = lockRatioRef.current ?? computeLockedAspectRatioFromCurrentSize({ widthPxU, heightPxU })
-          if (!r) return
-          lockRatioRef.current = r
-          const out = computeLockedAspectOtherDimensionFromHeightInput({
-            nextHeightInput: next,
-            unit,
-            ratio: { wPxU: r.w, hPxU: r.h },
-          })
-          if (!out) return
-          draftWRef.current = out.nextWidthDisplay
-          setDraftW(out.nextWidthDisplay)
-        }}
-        onFocus={() => {
-          beginEditSession()
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            commit()
-            setDirty(false)
-          }
-          if (e.key === "Escape") {
-            setDirty(false)
-            draftWRef.current = computedW
-            draftHRef.current = computedH
-            setDraftW(computedW)
-            setDraftH(computedH)
-          }
-        }}
-        onBlur={() => {
-          if (ignoreNextBlurCommitRef.current) {
-            ignoreNextBlurCommitRef.current = false
-            return
-          }
-          commit()
-          setDirty(false)
-        }}
+        value={draftH}
+        onDraftChange={onDraftH}
+        onCommit={onCommitH}
+        disabled={controlsDisabled}
       />
 
       <PanelIconSlot>
@@ -177,10 +186,7 @@ export function ImageSizeInputs({
           active={lockAspect}
           aria-label={lockAspect ? "Unlock proportional image scaling" : "Lock proportional image scaling"}
           disabled={controlsDisabled}
-          onPointerDownCapture={() => {
-            // Prevent blur-commit firing when clicking the lock button.
-            ignoreNextBlurCommitRef.current = true
-          }}
+          onPointerDownCapture={cancelPendingCommits}
           onClick={() => {
             setLockAspect((prev) => {
               const next = !prev
