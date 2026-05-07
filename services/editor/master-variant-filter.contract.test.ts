@@ -30,10 +30,20 @@ describe("db contract: master immutable + filter stack", () => {
     // migration 037 introduced are present in the dump — that's what we
     // actually care about.
     const schema = fs.readFileSync(path.join(process.cwd(), "db", "schema.sql"), "utf8")
-    const bootstrap = fs.readFileSync(
-      path.join(process.cwd(), "supabase", "migrations", "20260129111414_bootstrap_from_db_folder.sql"),
-      "utf8"
-    )
+    // Bootstrap is split into two files since 2026-05-07: part 1
+    // creates the enum + adds the 'asset' value (commits), part 2
+    // applies everything that *uses* 'asset'. The 037 audit reference
+    // sits in part 2.
+    const bootstrap = [
+      fs.readFileSync(
+        path.join(process.cwd(), "supabase", "migrations", "20260129111414_bootstrap_from_db_folder.sql"),
+        "utf8"
+      ),
+      fs.readFileSync(
+        path.join(process.cwd(), "supabase", "migrations", "20260129111415_bootstrap_part2_post_asset_enum.sql"),
+        "utf8"
+      ),
+    ].join("\n")
 
     // master-immutable guard function present
     expect(schema).toMatch(/CREATE\s+OR\s+REPLACE\s+FUNCTION\s+"?public"?\."?guard_master_immutable"?/i)

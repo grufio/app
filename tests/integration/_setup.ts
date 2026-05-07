@@ -20,6 +20,8 @@
 import { createClient } from "@supabase/supabase-js"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import crypto from "node:crypto"
+import { Client as PgClient } from "pg"
+import ws from "ws"
 
 import type { Database } from "@/lib/supabase/database.types"
 
@@ -27,6 +29,13 @@ import type { Database } from "@/lib/supabase/database.types"
 // against a non-standard local instance.
 const SUPABASE_URL = process.env.SUPABASE_INTEGRATION_URL ?? "http://127.0.0.1:54321"
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_INTEGRATION_SERVICE_KEY ?? ""
+// Direct Postgres connection — used to insert auth.users rows. The
+// PostgREST gateway only exposes `public`, and the local gotrue's
+// admin endpoint rejects HS256 service-role JWTs in newer CLI
+// versions. Going through `pg` sidesteps both.
+const SUPABASE_DB_URL =
+  process.env.SUPABASE_INTEGRATION_DB_URL ??
+  "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
 
 /**
  * Returns a service-role Supabase client that bypasses RLS. Suitable
@@ -43,6 +52,10 @@ export function getServiceClient(): SupabaseClient<Database> {
   }
   return createClient<Database>(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
+    // Node 20 doesn't ship native WebSocket; the realtime client crashes
+    // on construction without an explicit transport. We don't use realtime
+    // in integration tests, but supabase-js initialises it eagerly.
+    realtime: { transport: ws as unknown as never },
   })
 }
 
@@ -50,10 +63,12 @@ export function getServiceClient(): SupabaseClient<Database> {
  * Seeds an auth user + project. Returns the UUIDs so tests can use
  * them as foreign keys for further inserts.
  *
- * The auth user is inserted via the `auth.users` table directly — the
- * normal sign-up flow goes through Supabase Auth's HTTP API which would
- * be slow + flaky for hundreds of test runs. The service role can
- * insert directly.
+ * `auth.users` is inserted directly via a `pg` connection because
+ *   1. PostgREST only exposes the `public` schema
+ *   2. gotrue's admin endpoint in the local stack uses ES256 keys,
+ *      while the CLI hands out an HS256 service-role JWT — they don't
+ *      match, every admin call returns "bad_jwt"
+ * The direct insert bypasses both layers.
  */
 export async function seedProject(args: {
   supabase: SupabaseClient<Database>
@@ -64,15 +79,16 @@ export async function seedProject(args: {
   const projectId = crypto.randomUUID()
   const ownerEmail = args.ownerEmail ?? `test-${ownerId}@integration.test`
 
-  // Insert into auth.users via the admin API (service-role only).
-  // Local Supabase exposes this via the Auth Admin SDK.
-  const { error: userErr } = await supabase.auth.admin.createUser({
-    id: ownerId,
-    email: ownerEmail,
-    email_confirm: true,
-  })
-  if (userErr) {
-    throw new Error(`seedProject: createUser failed: ${userErr.message}`)
+  const pg = new PgClient({ connectionString: SUPABASE_DB_URL })
+  await pg.connect()
+  try {
+    await pg.query(
+      `insert into auth.users (id, instance_id, aud, role, email, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
+       values ($1, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', $2, now(), '{}'::jsonb, '{}'::jsonb, now(), now())`,
+      [ownerId, ownerEmail],
+    )
+  } finally {
+    await pg.end()
   }
 
   const { error: projErr } = await supabase
@@ -80,7 +96,13 @@ export async function seedProject(args: {
     .insert({ id: projectId, name: "integration-test", owner_id: ownerId })
   if (projErr) {
     // Best-effort cleanup of the auth user before throwing.
-    await supabase.auth.admin.deleteUser(ownerId).catch(() => {})
+    const cleanup = new PgClient({ connectionString: SUPABASE_DB_URL })
+    await cleanup.connect()
+    try {
+      await cleanup.query("delete from auth.users where id = $1", [ownerId])
+    } finally {
+      await cleanup.end()
+    }
     throw new Error(`seedProject: insert project failed: ${projErr.message}`)
   }
 
@@ -144,9 +166,15 @@ export async function cleanupProject(args: {
   await swallow(supabase.from("project_image_state").delete().eq("project_id", projectId))
   await swallow(supabase.from("project_images").delete().eq("project_id", projectId))
   await swallow(supabase.from("projects").delete().eq("id", projectId))
+  // auth.users delete cascades to projects, but we delete projects first
+  // to keep the order deterministic if FKs change.
+  const pg = new PgClient({ connectionString: SUPABASE_DB_URL })
   try {
-    await supabase.auth.admin.deleteUser(ownerId)
+    await pg.connect()
+    await pg.query("delete from auth.users where id = $1", [ownerId])
   } catch {
     /* best-effort cleanup */
+  } finally {
+    await pg.end().catch(() => {})
   }
 }
