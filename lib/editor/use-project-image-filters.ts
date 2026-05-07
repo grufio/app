@@ -10,7 +10,7 @@ import {
   type ProjectImageFilterItem,
 } from "@/lib/api/project-images"
 import { createSerialWriteChannel, isSupersededWriteError } from "@/lib/utils/serial-write-channel"
-import { reportError } from "@/lib/monitoring/error-reporting"
+import { reportClientError } from "@/lib/monitoring/with-error-reporting"
 
 export function useProjectImageFilters(projectId: string) {
   const [items, setItems] = useState<ProjectImageFilterItem[]>([])
@@ -41,11 +41,10 @@ export function useProjectImageFilters(projectId: string) {
           setItems([])
           setError(e instanceof Error ? e.message : "Failed to load filters")
         }
-        void reportError(e instanceof Error ? e : new Error(String(e)), {
+        reportClientError(e, {
           scope: "editor",
           code: "PROJECT_FILTERS_LOAD_FAILED",
           stage: "load",
-          severity: "warn",
           context: { projectId },
         })
       } finally {

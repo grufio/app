@@ -34,6 +34,7 @@ import { usePageBackgroundState } from "@/lib/editor/use-page-background-state"
 import { useProjectGrid } from "@/lib/editor/project-grid"
 import { useProjectWorkspace } from "@/lib/editor/project-workspace"
 import { reportError } from "@/lib/monitoring/error-reporting"
+import { reportClientError } from "@/lib/monitoring/with-error-reporting"
 import type { ImageState } from "@/lib/editor/use-image-state"
 import type { MasterImage } from "@/lib/editor/use-master-image"
 import { useMasterImage } from "@/lib/editor/use-master-image"
@@ -424,6 +425,12 @@ export function ProjectDetailPageClient({
         toggleHiddenFilter(filterId)
         const normalized = normalizeApiError(e)
         toast.error(normalized.title, normalized.detail ? { description: normalized.detail } : undefined)
+        reportClientError(e, {
+          scope: "editor",
+          code: "FILTER_HIDDEN_TOGGLE_FAILED",
+          stage: "save",
+          context: { projectId, filterId },
+        })
       }
     },
     [filterStack, projectId, refreshFilterImage, toggleHiddenFilter]

@@ -12,6 +12,7 @@ import {
 import { AddImageMenuAction } from "./add-image-menu-button"
 import { LockNavTreeActions, type MenuActionResult } from "./lock-nav-tree-actions"
 import { buildNavId, parseNavId } from "@/features/editor/navigation/nav-id"
+import { reportClientError } from "@/lib/monitoring/with-error-reporting"
 
 type EditorNavImage = { id: string; label: string }
 
@@ -94,6 +95,12 @@ export function EditorNavTree(props: {
         setActionError("")
         return { ok: true }
       } catch (e) {
+        reportClientError(e, {
+          scope: "editor",
+          code: "NAV_TREE_DELETE_FAILED",
+          stage: "delete",
+          context: { imageId },
+        })
         return { ok: false, reason: e instanceof Error ? e.message : "Delete failed" }
       }
     },

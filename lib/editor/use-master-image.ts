@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 
 import { deleteMasterImage, getMasterImage } from "@/lib/api/project-images"
-import { reportError } from "@/lib/monitoring/error-reporting"
+import { reportClientError } from "@/lib/monitoring/with-error-reporting"
 
 export type MasterImage = {
   id: string
@@ -112,11 +112,10 @@ export function useMasterImage(projectId: string, initialMasterImage?: MasterIma
           setMasterImage(null)
           setMasterImageError(e instanceof Error ? e.message : "Failed to load image")
         }
-        void reportError(e instanceof Error ? e : new Error(String(e)), {
+        reportClientError(e, {
           scope: "editor",
           code: "MASTER_IMAGE_LOAD_FAILED",
           stage: "load",
-          severity: "warn",
           context: { projectId },
         })
       } finally {
@@ -145,6 +144,12 @@ export function useMasterImage(projectId: string, initialMasterImage?: MasterIma
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Failed to delete image"
       if (mountedRef.current) setDeleteError(msg)
+      reportClientError(e, {
+        scope: "editor",
+        code: "MASTER_IMAGE_DELETE_FAILED",
+        stage: "delete",
+        context: { projectId },
+      })
       return { ok: false as const, error: msg }
     } finally {
       if (mountedRef.current) setDeleteBusy(false)

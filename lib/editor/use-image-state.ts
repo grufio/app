@@ -12,6 +12,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { getImageState, saveImageState as saveImageStateApi } from "@/lib/api/image-state"
 import { ApiError } from "@/lib/api/api-error"
 import { parseBigIntString, toSaveImageStateBody } from "@/lib/editor/imageState"
+import { reportClientError } from "@/lib/monitoring/with-error-reporting"
 
 export type ImageState = {
   imageId?: string
@@ -129,6 +130,12 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
         console.error(`${logPrefix} load failed`, e)
         setImageStateError(e instanceof Error ? e.message : "Failed to load image state.")
       }
+      reportClientError(e, {
+        scope: "editor",
+        code: "IMAGE_STATE_LOAD_FAILED",
+        stage: "load",
+        context: { projectId, imageId },
+      })
       lastLoadedSignatureRef.current = null
       setInitialImageTransform(null)
     } finally {
@@ -216,9 +223,15 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
           console.error(`${logPrefix} save failed`, e)
           setImageStateError(e instanceof Error ? e.message : "Failed to save image state.")
         }
+        reportClientError(e, {
+          scope: "editor",
+          code: "IMAGE_STATE_SAVE_FAILED",
+          stage: "save",
+          context: { projectId, imageId },
+        })
       }
     },
-    [flush, logPrefix, mapApiErrorToMessage]
+    [flush, imageId, logPrefix, mapApiErrorToMessage, projectId]
   )
 
   useEffect(() => {
