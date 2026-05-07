@@ -1,8 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import type { SupabaseClient } from "@supabase/supabase-js"
 
+import { makeMockSupabase } from "@/lib/supabase/__mocks__/make-mock-supabase"
 import { uploadMasterImage } from "./master-image-upload"
 
+// Storage spies are module-level so individual tests can attach
+// mockResolvedValue / mockResolvedValueOnce per scenario. The factory's
+// own storage handlers don't expose the underlying vi.fn for external
+// configuration, so we plug these in by overriding `supabase.storage`.
 const uploadSpy = vi.fn()
 const removeSpy = vi.fn()
 const activateSpy = vi.fn()
@@ -42,62 +46,48 @@ function makeSupabase(opts: MakeSupabaseOpts) {
     upsertStateError = null,
   } = opts
   let insertCall = 0
-  const from = (table: string) => {
-    if (table === "project_image_state") {
-      return {
-        select: () => {
-          const chain = {
-            eq: () => chain,
-            maybeSingle: async () => ({
-              data: stateRow,
-              error: null,
-            }),
-          }
-          return chain
-        },
-        upsert: async () => {
-          capture.stateUpserts += 1
-          return { error: upsertStateError }
-        },
-      }
-    }
-    return {
-      select: () => ({
-        eq: () => ({
-          eq: () => ({
-            is: async () => ({
-              data: selectData,
-              error: selectError,
-            }),
-          }),
-        }),
-      }),
-      insert: async (payload: InsertPayload) => {
-        capture.inserts.push(payload)
-        const nextError = insertCall < insertErrors.length ? insertErrors[insertCall] : insertError
-        insertCall += 1
-        return { error: nextError }
-      },
-      delete: () => {
-        capture.deletes += 1
-        const chain = {
-          eq: () => chain,
-          is: async () => ({ error: deleteError }),
-        }
-        return chain
-      },
-    }
-  }
 
-  return {
-    storage: {
-      from: () => ({
-        upload: uploadSpy,
-        remove: removeSpy,
-      }),
+  const supabase = makeMockSupabase({
+    tables: {
+      project_images: {
+        // The cleanup query is `.eq().eq().is()` (no maybeSingle) and
+        // expects a list. Always return the configured array.
+        select: { data: selectData, error: selectError },
+        // Sequential insert behaviour: index N gets insertErrors[N], or
+        // falls back to the global insertError. Lets one test seed a
+        // mid-batch failure (e.g. master insert succeeds, working copy
+        // fails). Capture the row payload via opArgs[0].
+        insert: ({ opArgs }) => {
+          capture.inserts.push(opArgs[0] as InsertPayload)
+          const nextError = insertCall < insertErrors.length ? insertErrors[insertCall] : insertError
+          insertCall += 1
+          return { data: null, error: nextError ?? null }
+        },
+        delete: () => {
+          capture.deletes += 1
+          return { data: null, error: deleteError ?? null }
+        },
+      },
+      project_image_state: {
+        select: { data: stateRow, error: null },
+        upsert: () => {
+          capture.stateUpserts += 1
+          return { data: null, error: upsertStateError ?? null }
+        },
+      },
     },
-    from,
-  } as unknown as SupabaseClient
+  })
+
+  // Override the factory-provided storage handlers with the external
+  // spies so each test can configure them via `mockResolvedValue` etc.
+  supabase.storage = {
+    from: () => ({
+      upload: uploadSpy,
+      remove: removeSpy,
+    }),
+  } as unknown as typeof supabase.storage
+
+  return supabase
 }
 
 describe("master-image-upload service", () => {
