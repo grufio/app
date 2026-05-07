@@ -27,7 +27,7 @@ import {
   normalizeUnit,
 } from "@/services/editor/workspace-operations"
 import { computeWorkspaceSizeSaveFromDisplay } from "@/services/editor/workspace-unit-controller"
-import { useKeyedDraft } from "@/lib/editor/use-keyed-draft"
+import { useKeyedDraft } from "@/lib/editor/hooks/use-keyed-draft"
 
 function labelForPreset(p: "high" | "medium" | "low"): string {
   if (p === "high") return "High (300 ppi)"

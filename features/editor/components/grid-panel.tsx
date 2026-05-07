@@ -19,7 +19,7 @@ import { AppButton } from "@/components/ui/form-controls"
 import { useProjectGrid, type ProjectGridRow } from "@/lib/editor/project-grid"
 import { useProjectWorkspace } from "@/lib/editor/project-workspace"
 import { computeGridUpsert } from "@/services/editor"
-import { useKeyedDraft } from "@/lib/editor/use-keyed-draft"
+import { useKeyedDraft } from "@/lib/editor/hooks/use-keyed-draft"
 import { fmt2 } from "@/lib/editor/units"
 
 

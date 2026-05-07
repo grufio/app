@@ -7,7 +7,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
 
-import type { ImageState } from "@/lib/editor/use-image-state"
+import type { ImageState } from "@/lib/editor/hooks/use-image-state"
 import { parseBigIntString } from "@/lib/editor/imageState"
 import { loadBoundImageState } from "@/lib/supabase/image-state"
 

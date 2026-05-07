@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { editorSessionReducer, type SessionState } from "@/lib/editor/use-editor-session-state"
+import { editorSessionReducer, type SessionState } from "@/lib/editor/hooks/use-editor-session-state"
 
 function makeState(overrides?: Partial<SessionState>): SessionState {
   return {
