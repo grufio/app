@@ -18,9 +18,9 @@ import { useCallback } from "react"
 import { ArrowLeftRight, ArrowUpDown, Eye, EyeOff, Percent } from "lucide-react"
 
 import { PanelIconSlot, PanelTwoFieldRow } from "./panel-layout"
-import { RightPanelToggleIconButton } from "./right-panel-controls"
 import { EditorSidebarSection } from "./sidebar/editor-sidebar-section"
-import { FormField } from "@/components/ui/form-controls"
+import { AppButton, FormField } from "@/components/ui/form-controls"
+import { cn } from "@/lib/utils"
 import { useProjectGrid, type ProjectGridRow } from "@/lib/editor/project-grid"
 import { useProjectWorkspace } from "@/lib/editor/project-workspace"
 import { fmt2 } from "@/lib/editor/units"
@@ -90,15 +90,20 @@ export function GridPanel({
     <EditorSidebarSection
       title="Grid"
       headerActions={
-        <RightPanelToggleIconButton
+        <AppButton
           type="button"
-          active={gridVisible}
-          disabled={loading || !row}
+          variant="ghost"
+          size="icon"
+          aria-pressed={gridVisible}
           aria-label={gridVisible ? "Hide grid" : "Show grid"}
+          disabled={loading || !row}
+          className={cn(
+            gridVisible && "bg-black text-white hover:bg-black/90 hover:text-white"
+          )}
           onClick={() => onGridVisibleChange(!gridVisible)}
         >
           {gridVisible ? <EyeOff className="size-4" strokeWidth={1} /> : <Eye className="size-4" strokeWidth={1} />}
-        </RightPanelToggleIconButton>
+        </AppButton>
       }
     >
       {!row && !loading && error ? (
