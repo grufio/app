@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
+import { makeMockSupabase } from "@/lib/supabase/__mocks__/make-mock-supabase"
 import type { Database } from "@/lib/supabase/database.types"
 
 // activateProjectImage and createSupabaseServiceRoleClient are only reached
@@ -42,49 +43,39 @@ function makeSupabase(args: {
 }): { supabase: SupabaseClient<Database>; rpcCalls: Array<{ fn: string; args: unknown }> } {
   const rpcCalls: Array<{ fn: string; args: unknown }> = []
 
-  const from = vi.fn((table: string) => {
-    if (table === "project_image_filters") {
-      return {
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            order: vi.fn(async () => {
-              if (args.filtersError) return { data: null, error: args.filtersError }
-              return { data: args.filters ?? [], error: null }
-            }),
-          })),
-        })),
-      }
-    }
-    if (table === "project_images") {
-      return {
-        select: vi.fn(() => {
-          // chain supports both `.eq().is().maybeSingle()` (active-row lookup)
-          // and `.in().is()` (cleanup query that returns rows).
-          const chain: Record<string, unknown> = {}
-          chain.eq = vi.fn(() => chain)
-          chain.is = vi.fn(() => Object.assign(Promise.resolve({ data: [], error: null }), chain))
-          chain.in = vi.fn(() => chain)
-          chain.maybeSingle = vi.fn(async () => {
-            if (!args.activeRow) return { data: null, error: null }
-            return { data: args.activeRow, error: null }
-          })
-          return chain
-        }),
-      }
-    }
-    return {}
+  const supabase = makeMockSupabase({
+    tables: {
+      project_image_filters: {
+        select: args.filtersError
+          ? { data: null, error: args.filtersError }
+          : { data: args.filters ?? [], error: null },
+      },
+      project_images: {
+        // The production code awaits one chain on this table for
+        // active-row lookup (`.maybeSingle()`) and another for the
+        // cleanup query (`.in().is()` resolves to an array). Branch
+        // on the terminal so each gets its own shape.
+        select: ({ ops }) => {
+          if (ops.includes("maybeSingle")) {
+            return { data: args.activeRow ?? null, error: null }
+          }
+          return { data: [], error: null }
+        },
+      },
+    },
+    rpcs: {
+      remove_project_image_filter: {
+        data: null,
+        error: args.rpcError ?? null,
+        onCall: ({ opArgs }) => {
+          const [fn, rpcArgs] = opArgs as [string, unknown]
+          rpcCalls.push({ fn, args: rpcArgs })
+        },
+      },
+    },
   })
 
-  const rpc = vi.fn(async (fn: string, rpcArgs: unknown) => {
-    rpcCalls.push({ fn, args: rpcArgs })
-    if (args.rpcError) return { data: null, error: args.rpcError }
-    return { data: null, error: null }
-  })
-
-  return {
-    supabase: { from, rpc } as unknown as SupabaseClient<Database>,
-    rpcCalls,
-  }
+  return { supabase: supabase as SupabaseClient<Database>, rpcCalls }
 }
 
 const PROJECT_ID = "00000000-0000-4000-8000-000000000001"

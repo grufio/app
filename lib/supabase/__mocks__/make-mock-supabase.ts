@@ -37,17 +37,33 @@ export type MockResult<T = unknown> = {
    * Optional spy: invoked with the chain args before the result resolves.
    * Useful when the test wants to assert *which* filters / ids the
    * production code passed.
+   *
+   * Fields:
+   *  - opArgs: arguments passed to the *initial* operation
+   *    (e.g. `.upsert(row, opts)` -> opArgs = [row, opts]).
+   *    `select` and `delete` take no args, so opArgs is `[]` for those.
+   *  - args: arg-arrays for each chain method invocation, in order.
+   *    `[[col, val], [col, val]]` for `.eq(col, val).eq(col, val)`.
+   *  - ops: the chain method names, including the initial op and any
+   *    terminal `.single` / `.maybeSingle`.
    */
-  onCall?: (chain: { args: unknown[]; ops: string[] }) => void
+  onCall?: (chain: { opArgs: unknown[]; args: unknown[]; ops: string[] }) => void
 }
 
-/** Per-table operation handlers. Each one is the *terminal* chain value. */
+/** Per-table operation handlers. Each one is the *terminal* chain value.
+ *
+ * The function form is evaluated lazily at terminal time and receives
+ * the chain context. Useful when one production callsite varies its
+ * terminal between `.maybeSingle()` (single row) and `await chain`
+ * (array) — the function can branch on `ops.includes("maybeSingle")`.
+ */
+type ChainCtx = { opArgs: unknown[]; args: unknown[]; ops: string[] }
 export type MockTableOps = {
-  select?: MockResult | (() => MockResult)
-  insert?: MockResult | (() => MockResult)
-  update?: MockResult | (() => MockResult)
-  delete?: MockResult | (() => MockResult)
-  upsert?: MockResult | (() => MockResult)
+  select?: MockResult | ((chain: ChainCtx) => MockResult)
+  insert?: MockResult | ((chain: ChainCtx) => MockResult)
+  update?: MockResult | ((chain: ChainCtx) => MockResult)
+  delete?: MockResult | ((chain: ChainCtx) => MockResult)
+  upsert?: MockResult | ((chain: ChainCtx) => MockResult)
 }
 
 export type MockStorageOps = {
@@ -69,8 +85,18 @@ export type MakeMockSupabaseArgs = {
 
 // --- Internals -----------------------------------------------------------
 
-function resolveResult(spec: MockResult | (() => MockResult) | undefined): MockResult {
-  if (typeof spec === "function") return spec()
+/**
+ * Resolves a spec lazily at terminal time so the function-form has
+ * access to the chain context. Lets tests vary the response based on
+ * whether the production code awaited the chain (array form) or
+ * called `.maybeSingle()` (single-row form).
+ */
+type ChainContext = { opArgs: unknown[]; args: unknown[]; ops: string[] }
+function resolveResult(
+  spec: MockResult | ((chain: ChainContext) => MockResult) | undefined,
+  ctx: ChainContext,
+): MockResult {
+  if (typeof spec === "function") return spec(ctx)
   return spec ?? { data: null, error: null }
 }
 
@@ -79,10 +105,13 @@ function resolveResult(spec: MockResult | (() => MockResult) | undefined): MockR
  * .order, .limit) returns the same proxy and records the call. The
  * terminal `await` (or `.then`) returns the configured result.
  */
-function makeChain(opName: string, spec: MockResult | (() => MockResult) | undefined) {
+function makeChain(
+  opName: string,
+  opArgs: unknown[],
+  spec: MockResult | ((chain: ChainContext) => MockResult) | undefined,
+) {
   const ops: string[] = [opName]
   const args: unknown[] = []
-  const result = resolveResult(spec)
 
   // Use a Proxy so every method we don't explicitly handle still
   // returns the same chain — this keeps tests compiling when the
@@ -92,7 +121,9 @@ function makeChain(opName: string, spec: MockResult | (() => MockResult) | undef
       if (prop === "then") {
         // Make the chain thenable: resolves to the configured result.
         return (resolve: (v: unknown) => unknown) => {
-          if (result.onCall) result.onCall({ args, ops })
+          const ctx = { opArgs, args, ops }
+          const result = resolveResult(spec, ctx)
+          if (result.onCall) result.onCall(ctx)
           return Promise.resolve({
             data: result.data ?? null,
             error: result.error ?? null,
@@ -101,7 +132,9 @@ function makeChain(opName: string, spec: MockResult | (() => MockResult) | undef
       }
       if (prop === "single" || prop === "maybeSingle") {
         return async () => {
-          if (result.onCall) result.onCall({ args, ops: [...ops, prop as string] })
+          const ctx = { opArgs, args, ops: [...ops, prop as string] }
+          const result = resolveResult(spec, ctx)
+          if (result.onCall) result.onCall(ctx)
           return { data: result.data ?? null, error: result.error ?? null }
         }
       }
@@ -120,11 +153,11 @@ function makeChain(opName: string, spec: MockResult | (() => MockResult) | undef
 
 function makeTableQuery(tableName: string, opsConfig: MockTableOps | undefined) {
   return {
-    select: vi.fn(() => makeChain("select", opsConfig?.select)),
-    insert: vi.fn((..._args: unknown[]) => makeChain("insert", opsConfig?.insert)),
-    update: vi.fn((..._args: unknown[]) => makeChain("update", opsConfig?.update)),
-    delete: vi.fn(() => makeChain("delete", opsConfig?.delete)),
-    upsert: vi.fn((..._args: unknown[]) => makeChain("upsert", opsConfig?.upsert)),
+    select: vi.fn((...callArgs: unknown[]) => makeChain("select", callArgs, opsConfig?.select)),
+    insert: vi.fn((...callArgs: unknown[]) => makeChain("insert", callArgs, opsConfig?.insert)),
+    update: vi.fn((...callArgs: unknown[]) => makeChain("update", callArgs, opsConfig?.update)),
+    delete: vi.fn((...callArgs: unknown[]) => makeChain("delete", callArgs, opsConfig?.delete)),
+    upsert: vi.fn((...callArgs: unknown[]) => makeChain("upsert", callArgs, opsConfig?.upsert)),
   }
 }
 
@@ -159,8 +192,9 @@ function makeStorageBucket(bucketName: string, ops: MockStorageOps | undefined) 
 export function makeMockSupabase(args: MakeMockSupabaseArgs = {}): SupabaseClient<Database> {
   const fromFn = vi.fn((table: string) => makeTableQuery(table, args.tables?.[table]))
   const storageFromFn = vi.fn((bucket: string) => makeStorageBucket(bucket, args.storage?.[bucket]))
-  const rpcFn = vi.fn(async (name: string) => {
+  const rpcFn = vi.fn(async (name: string, rpcArgs?: unknown) => {
     const spec = args.rpcs?.[name]
+    if (spec?.onCall) spec.onCall({ opArgs: [name, rpcArgs], args: [], ops: ["rpc"] })
     return {
       data: spec?.data ?? null,
       error: spec?.error ?? null,

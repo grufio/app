@@ -1,18 +1,15 @@
-import { describe, expect, it, vi } from "vitest"
-import type { SupabaseClient } from "@supabase/supabase-js"
+import { describe, expect, it } from "vitest"
 
-import type { Database } from "@/lib/supabase/database.types"
+import { makeMockSupabase } from "@/lib/supabase/__mocks__/make-mock-supabase"
 import { copyImageTransform } from "@/services/editor/server/copy-image-transform"
 
 describe("copyImageTransform", () => {
   it("fails deterministically when source transform is missing", async () => {
-    const maybeSingle = vi.fn(async () => ({ data: null, error: null }))
-    const eq2 = vi.fn(() => ({ maybeSingle }))
-    const eq1 = vi.fn(() => ({ eq: eq2 }))
-    const select = vi.fn(() => ({ eq: eq1 }))
-    const from = vi.fn(() => ({ select }))
-
-    const supabase = { from } as unknown as SupabaseClient<Database>
+    const supabase = makeMockSupabase({
+      tables: {
+        project_image_state: { select: { data: null, error: null } },
+      },
+    })
 
     const result = await copyImageTransform({
       supabase,
@@ -32,14 +29,19 @@ describe("copyImageTransform", () => {
   })
 
   it("writes deterministic fallback transform when enabled and source is missing", async () => {
-    const maybeSingle = vi.fn(async () => ({ data: null, error: null }))
-    const eq2 = vi.fn(() => ({ maybeSingle }))
-    const eq1 = vi.fn(() => ({ eq: eq2 }))
-    const select = vi.fn(() => ({ eq: eq1 }))
-    const upsert = vi.fn(async () => ({ error: null }))
-    const from = vi.fn((table: string) => (table === "project_image_state" ? { select, upsert } : { select }))
-
-    const supabase = { from } as unknown as SupabaseClient<Database>
+    const upsertCalls: unknown[][] = []
+    const supabase = makeMockSupabase({
+      tables: {
+        project_image_state: {
+          select: { data: null, error: null },
+          upsert: {
+            data: null,
+            error: null,
+            onCall: ({ opArgs }) => upsertCalls.push(opArgs),
+          },
+        },
+      },
+    })
 
     const result = await copyImageTransform({
       supabase,
@@ -54,17 +56,18 @@ describe("copyImageTransform", () => {
     })
 
     expect(result).toEqual({ ok: true })
-    expect(upsert).toHaveBeenCalledTimes(1)
-    expect(upsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        image_id: "target-1",
-        x_px_u: "0",
-        y_px_u: "0",
-        width_px_u: "640000000",
-        height_px_u: "480000000",
-        rotation_deg: 0,
-      }),
-      { onConflict: "project_id,image_id" }
-    )
+    expect(upsertCalls).toHaveLength(1)
+    // upsertCalls[0] is the args array of the *upsert call itself*; the
+    // first slot is the row, the second is options.
+    const [row, opts] = upsertCalls[0] as [Record<string, unknown>, Record<string, unknown>]
+    expect(row).toMatchObject({
+      image_id: "target-1",
+      x_px_u: "0",
+      y_px_u: "0",
+      width_px_u: "640000000",
+      height_px_u: "480000000",
+      rotation_deg: 0,
+    })
+    expect(opts).toEqual({ onConflict: "project_id,image_id" })
   })
 })

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
-import type { SupabaseClient } from "@supabase/supabase-js"
 
+import { makeMockSupabase } from "@/lib/supabase/__mocks__/make-mock-supabase"
 import { cropImageAndActivate } from "./crop-image"
 
 vi.mock("@/lib/supabase/service-role", () => ({
@@ -20,23 +20,15 @@ vi.mock("@/services/editor/server/activate-project-image", () => ({
 }))
 
 function makeSupabase(sourceRow: Record<string, unknown> | null) {
-  return {
-    from: () => ({
-      select: () => ({
-        eq: () => ({
-          eq: () => ({
-            is: () => ({
-              maybeSingle: async () => ({ data: sourceRow, error: null }),
-            }),
-          }),
-        }),
-      }),
-      insert: async () => ({ error: null }),
-      delete: () => ({
-        eq: async () => ({ error: null }),
-      }),
-    }),
-  } as unknown as SupabaseClient
+  return makeMockSupabase({
+    tables: {
+      project_images: {
+        select: { data: sourceRow, error: null },
+        insert: { data: null, error: null },
+        delete: { data: null, error: null },
+      },
+    },
+  })
 }
 
 describe("crop-image lock and missing guards", () => {
