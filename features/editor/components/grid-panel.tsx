@@ -94,15 +94,15 @@ export function GridPanel({
           type="button"
           variant="ghost"
           size="icon"
-          aria-pressed={gridVisible}
+          aria-pressed={!gridVisible}
           aria-label={gridVisible ? "Hide grid" : "Show grid"}
           disabled={loading || !row}
           className={cn(
-            gridVisible && "bg-black text-white hover:bg-black/90 hover:text-white"
+            !gridVisible && "bg-black text-white hover:bg-black/90 hover:text-white"
           )}
           onClick={() => onGridVisibleChange(!gridVisible)}
         >
-          {gridVisible ? <EyeOff className="size-4" strokeWidth={1} /> : <Eye className="size-4" strokeWidth={1} />}
+          {gridVisible ? <Eye className="size-4" strokeWidth={1} /> : <EyeOff className="size-4" strokeWidth={1} />}
         </AppButton>
       }
     >

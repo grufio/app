@@ -181,14 +181,14 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
                     <PanelIconSlot>
                       <RightPanelToggleIconButton
                         type="button"
-                        active={pageBgEnabled}
+                        active={!pageBgEnabled}
                         aria-label={pageBgEnabled ? "Hide page background" : "Show page background"}
                         onClick={() => onPageBgEnabledChange(!pageBgEnabled)}
                       >
                         {pageBgEnabled ? (
-                          <EyeOff className="size-4" strokeWidth={1} />
-                        ) : (
                           <Eye className="size-4" strokeWidth={1} />
+                        ) : (
+                          <EyeOff className="size-4" strokeWidth={1} />
                         )}
                       </RightPanelToggleIconButton>
                     </PanelIconSlot>
