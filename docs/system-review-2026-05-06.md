@@ -64,8 +64,11 @@ Historie.
 ### Build + Dependencies
 
 - ✅ TypeScript strict, `npm run typecheck` grün.
-- ⚠️ **243 `@ts-expect-error`/`@ts-ignore`** im Repo (Großteil
-  Node-Types/Playwright-Compat, ~20% in app/lib/services).
+- ✅ **`@ts-expect-error`/`@ts-ignore`**: Nachzählung am 2026-05-07
+  ergab **0 Suppressions im Source-Tree** (`app/`, `lib/`, `services/`,
+  `features/`, `components/`, `scripts/`). Die 243 in der ersten
+  Inventur waren `node_modules`-Anteile, die nicht sauber gefiltert
+  waren. Nichts zu tun.
 - ✅ ESLint: 0 warnings, 0 errors.
 - ⚠️ **3 Major-Dep-Updates pending**: `@supabase/ssr` (0.8 → 0.10,
   SSR-Cookie-Handling), `@types/node` (20 → 25), `@supabase/supabase-js`
