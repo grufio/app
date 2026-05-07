@@ -1,4 +1,10 @@
-# App Review — gruf.io (2026-05-05)
+# App Review — Grufio (2026-05-05)
+
+> ✅ **Status: closed (2026-05-06)** — all 26 findings (4 Blockers + 12 Smells +
+> 10 Nits) addressed via the sys-update branch chain. This file is a dated
+> historical snapshot; do not edit it after closure. Track open work in the
+> latest dated review (currently `system-review-2026-05-06.md`) or in the
+> sustainability plan at `~/.claude/plans/rosy-zooming-turing.md`.
 
 Ganzheitliche Bestandsaufnahme. Drei parallele Reviews (Architektur/Code-Quality, Performance/Dependencies, Tests/Security/DX) zusammengefasst und priorisiert.
 

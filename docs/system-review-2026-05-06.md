@@ -1,5 +1,10 @@
 # System Review — Stabilität, UX, DB (2026-05-06)
 
+> ✅ **Status: closed (2026-05-07)** — all 13 sprint items merged across the
+> branch chain on main. The follow-on sustainability review is tracked in
+> the plan at `~/.claude/plans/rosy-zooming-turing.md`. This file is a
+> dated historical snapshot; do not edit it after closure.
+
 ## Context
 
 Stand zwei Wochen nach dem ersten ganzheitlichen App-Review

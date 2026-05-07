@@ -84,3 +84,29 @@ Three pipelines (see [package.json](package.json) — `gate:*`):
 
 `gate:linked` exists for local runs that have a linked Supabase
 project; it adds the live types-sync check.
+
+## Dated review documents
+
+`docs/app-review-*.md` and `docs/system-review-YYYY-MM-DD.md` files are
+**dated historical snapshots**. They capture the state of the codebase
+on the day the review was written. They are not living documents.
+
+### Status banner convention
+
+Each dated review file should carry a one-line `> Status:` banner
+directly under the H1, in one of three forms:
+
+- `> ✅ **Status: closed (YYYY-MM-DD)** — short summary, link to
+  successor doc or plan.`
+- `> ⏳ **Status: in progress** — link to the active plan / branch
+  list.`
+- `> 🟡 **Status: archived** — partially actioned, see superseding
+  review.`
+
+Once a review is `closed`, do not edit its body — file new findings in
+a fresh dated review instead. The status banner makes stale-doc
+inversion (someone reading an old review and assuming items are still
+open) impossible at a glance.
+
+A small gate (`scripts/check-review-status-banner.mjs`) verifies that
+every dated review has a status banner, so the rule sticks.
