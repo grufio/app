@@ -15,6 +15,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:integration:ci": "node scripts/run-integration-tests.mjs",
     "test:coverage": "vitest run --coverage",
     "test:coverage:gate": "vitest run --coverage",
     "check:image-workflow": "npm -s run test --silent -- lib/editor/machines/image-workflow.machine.test.ts services/editor/server/filter-working-copy.test.ts services/editor/server/filter-chain.test.ts && npm -s run test:e2e:local:workflow && npm -s run verify:image-state-binding && npm -s run verify:filter-chain-binding && npm -s run verify:image-version-invariants",
