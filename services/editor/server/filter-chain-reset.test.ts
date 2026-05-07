@@ -39,6 +39,18 @@ function makeSupabase(args: {
     }
     if (table === "project_images") {
       return {
+        // The chain calls .select(...).eq().eq().is().in() to look up
+        // (storage_bucket, storage_path) before the tombstone update so
+        // it can clean up storage objects synchronously. In tests we
+        // return empty rows — the storage-cleanup loop short-circuits
+        // and the service-role client never instantiates.
+        select: vi.fn(() => {
+          const chain: Record<string, unknown> = {}
+          chain.eq = vi.fn(() => chain)
+          chain.is = vi.fn(() => chain)
+          chain.in = vi.fn(async () => ({ data: [], error: null }))
+          return chain
+        }),
         update: vi.fn(() => {
           const chain: Record<string, unknown> = {}
           chain.eq = vi.fn(() => chain)

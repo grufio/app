@@ -71,6 +71,13 @@ describe("getOrCreateFilterWorkingCopy", () => {
           chain.limit = vi.fn(async () => {
             return { data: args.copies ?? [], error: null }
           })
+          // softDeleteCopies looks up storage paths via .select(...).in().is()
+          // before the tombstone update. Empty rows ⇒ skip storage cleanup.
+          chain.in = vi.fn(() => {
+            const tail: Record<string, unknown> = {}
+            tail.is = vi.fn(async () => ({ data: [], error: null }))
+            return tail
+          })
           return chain
         }),
         update: vi.fn(() => {
@@ -380,12 +387,16 @@ describe("getFilterPanelData", () => {
           q.limit = vi.fn(async () => ({ data: [workingCopy], error: null }))
           return q
         }
-        // Subsequent calls during reset (soft-delete of orphan outputs).
+        // Subsequent calls during reset (storage-path lookup + soft-delete
+        // of orphan outputs). The reset path now does a select(...) chain
+        // before update(...), terminating in .in(ids) — return empty so the
+        // storage-cleanup loop is skipped in the test.
         const u: Record<string, unknown> = {}
+        u.select = vi.fn(() => u)
         u.update = vi.fn(() => u)
         u.eq = vi.fn(() => u)
         u.is = vi.fn(() => u)
-        u.in = vi.fn(async () => ({ error: null }))
+        u.in = vi.fn(async () => ({ data: [], error: null }))
         return u
       }
       if (table === "project_image_filters") {
