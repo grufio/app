@@ -26,6 +26,7 @@ import { FilterSidebarSection } from "@/features/editor/components/filter-sideba
 import { normalizeApiError } from "@/lib/api/error-normalizer"
 import { setProjectImageFilterHidden } from "@/lib/api/project-images"
 import { useFilterWorkingImage } from "@/lib/editor/use-filter-working-image"
+import { useEditorKeyboard } from "@/lib/editor/use-editor-keyboard"
 import { useFilterDialogSession } from "@/lib/editor/use-filter-dialog-session"
 import { useEditorSessionState } from "@/lib/editor/use-editor-session-state"
 import { usePageBackgroundState } from "@/lib/editor/use-page-background-state"
@@ -312,6 +313,15 @@ export function ProjectDetailPageClient({
     setRestoreOpen(false)
     toolbar.setTool("select")
   }, [setRestoreOpen, toolbar, workflow])
+
+  // Delete / Backspace → open the existing delete-image confirmation dialog.
+  // Mirrors the trash-icon click path; the actual destructive call still
+  // requires a click on the dialog's "Delete" button.
+  useEditorKeyboard({
+    enabled: true,
+    canDelete: displayTarget.deletable,
+    onDelete: requestDeleteSelectedImage,
+  })
 
   const [leftPanelWidthRem, setLeftPanelWidthRem] = useState(20)
   const [rightPanelWidthRem, setRightPanelWidthRem] = useState(20)
