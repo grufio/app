@@ -15,7 +15,7 @@
  * commits via the imperative `cancelPendingCommit()` handle on each
  * field, replacing the old `ignoreNextBlurSaveRef` pattern.
  */
-import { useCallback, useEffect, useRef, useState } from "react"
+import { memo, useCallback, useEffect, useRef, useState } from "react"
 import { ArrowLeftRight, ArrowUpDown, Gauge, Link2, Ruler, Unlink2 } from "lucide-react"
 
 import { fmt2, type Unit } from "@/lib/editor/units"
@@ -67,7 +67,7 @@ function presetOptions(
   ]
 }
 
-export function ArtboardPanel() {
+export const ArtboardPanel = memo(function ArtboardPanel() {
   const { row, loading, saving, updateWorkspaceDpi, updateWorkspaceGeometry, widthPxU, heightPxU } =
     useProjectWorkspace()
 
@@ -317,4 +317,4 @@ export function ArtboardPanel() {
       </PanelTwoFieldRow>
     </div>
   )
-}
+})
