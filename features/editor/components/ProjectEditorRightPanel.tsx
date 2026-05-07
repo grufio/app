@@ -269,7 +269,7 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
               {restoreBusy ? "Restoring…" : "Restore"}
             </AppButton>
           </DialogFooter>
-          {restoreError ? <div className="text-sm text-destructive">{restoreError}</div> : null}
+          {restoreError ? <div role="alert" className="text-sm text-destructive">{restoreError}</div> : null}
         </DialogContent>
       </Dialog>
 
@@ -283,7 +283,7 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
             </DialogDescription>
           </DialogHeader>
 
-          {deleteError ? <div className="text-sm text-destructive">{deleteError}</div> : null}
+          {deleteError ? <div role="alert" className="text-sm text-destructive">{deleteError}</div> : null}
 
           <DialogFooter>
             <AppButton type="button" variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleteBusy}>
