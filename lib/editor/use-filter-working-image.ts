@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 
 import { getOrCreateFilterWorkingCopy } from "@/lib/api/project-images"
+import { reportError } from "@/lib/monitoring/error-reporting"
 
 export type FilterDisplayImage = {
   id: string
@@ -93,6 +94,13 @@ export function useFilterWorkingImage(projectId: string) {
         setStack([])
         setEmptyReason(null)
         setError(e instanceof Error ? e.message : "Failed to load filter working image")
+        void reportError(e instanceof Error ? e : new Error(String(e)), {
+          scope: "editor",
+          code: "FILTER_WORKING_IMAGE_LOAD_FAILED",
+          stage: "load",
+          severity: "warn",
+          context: { projectId },
+        })
       } finally {
         if (seq === requestSeqRef.current && mountedRef.current) {
           setLoading(false)
