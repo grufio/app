@@ -10,6 +10,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { MasterImage } from "@/lib/editor/use-master-image"
 import { SIGNED_URL_TTL } from "@/lib/storage/signed-url-ttl"
 import { getEditorTargetImageRow } from "@/lib/supabase/project-images"
+import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 
 export async function getMasterImageForEditor(
   supabase: SupabaseClient,
@@ -31,7 +32,7 @@ export async function getMasterImageForEditor(
     .maybeSingle()
   if (restoreBaseErr) return { masterImage: null, error: restoreBaseErr.message }
 
-  const bucket = img.storage_bucket ?? "project_images"
+  const bucket = img.storage_bucket ?? PROJECT_IMAGES_BUCKET
   const { data: signed, error: signedErr } = await supabase.storage.from(bucket).createSignedUrl(img.storage_path, SIGNED_URL_TTL.thumbnail)
   if (signedErr || !signed?.signedUrl) {
     // Signing issues should not prevent editor boot.

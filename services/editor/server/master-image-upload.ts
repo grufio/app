@@ -17,6 +17,7 @@ import { insertMasterWithCleanup } from "./master-image-upload/master-insert-flo
 import { validateUploadInputs, validateUploadLimits } from "./master-image-upload/policy"
 import type { UploadMasterImageResult } from "./master-image-upload/types"
 import { normalizePositiveInt } from "./master-image-upload/validation"
+import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 
 export type { UploadMasterImageFailure, UploadMasterImageSuccess, UploadMasterImageResult } from "./master-image-upload/types"
 
@@ -33,10 +34,10 @@ async function rollbackCreatedUploadRows(args: {
     await supabase.from("project_images").delete().eq("id", workingImageId).eq("project_id", projectId)
   }
   if (workingObjectPath) {
-    await supabase.storage.from("project_images").remove([workingObjectPath])
+    await supabase.storage.from(PROJECT_IMAGES_BUCKET).remove([workingObjectPath])
   }
   await supabase.from("project_images").delete().eq("id", masterImageId).eq("project_id", projectId)
-  await supabase.storage.from("project_images").remove([masterObjectPath])
+  await supabase.storage.from(PROJECT_IMAGES_BUCKET).remove([masterObjectPath])
 }
 
 async function createWorkingCopyFromMaster(args: {
@@ -53,7 +54,7 @@ async function createWorkingCopyFromMaster(args: {
   const { supabase, projectId, file, format, widthPx, heightPx, dpi, bitDepth, sourceMasterId } = args
   const imageId = crypto.randomUUID()
   const objectPath = `projects/${projectId}/images/${imageId}`
-  const uploadResult = await supabase.storage.from("project_images").upload(objectPath, file, {
+  const uploadResult = await supabase.storage.from(PROJECT_IMAGES_BUCKET).upload(objectPath, file, {
     upsert: true,
     contentType: file.type || undefined,
   })
@@ -70,14 +71,14 @@ async function createWorkingCopyFromMaster(args: {
     height_px: heightPx,
     dpi,
     bit_depth: bitDepth,
-    storage_bucket: "project_images",
+    storage_bucket: PROJECT_IMAGES_BUCKET,
     storage_path: objectPath,
     file_size_bytes: file.size,
     is_active: false,
     source_image_id: sourceMasterId,
   })
   if (insertErr) {
-    await supabase.storage.from("project_images").remove([objectPath])
+    await supabase.storage.from(PROJECT_IMAGES_BUCKET).remove([objectPath])
     return { ok: false, reason: insertErr.message, code: (insertErr as unknown as { code?: string })?.code }
   }
   return { ok: true, imageId, objectPath }
@@ -110,7 +111,7 @@ export async function uploadMasterImage(args: {
   const imageId = crypto.randomUUID()
   const objectPath = `projects/${projectId}/images/${imageId}`
 
-  const { error: uploadErr } = await supabase.storage.from("project_images").upload(objectPath, file, {
+  const { error: uploadErr } = await supabase.storage.from(PROJECT_IMAGES_BUCKET).upload(objectPath, file, {
     upsert: true,
     contentType: file.type || undefined,
   })

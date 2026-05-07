@@ -8,6 +8,7 @@ import { SIGNED_URL_TTL } from "@/lib/storage/signed-url-ttl"
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role"
 import { copyImageTransform } from "@/services/editor/server/copy-image-transform"
 import { resetProjectFilterChain } from "@/services/editor/server/filter-chain-reset"
+import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 
 type FailStage =
   | "active_lookup"
@@ -112,7 +113,7 @@ async function softDeleteCopies(
       if (!row.storage_path) continue
       try {
         await service.storage
-          .from(row.storage_bucket ?? "project_images")
+          .from(row.storage_bucket ?? PROJECT_IMAGES_BUCKET)
           .remove([row.storage_path])
       } catch {
         // Swallow per-row to keep behaviour close-to-eventual; row is
@@ -233,7 +234,7 @@ export async function getOrCreateFilterWorkingCopy(args: {
 
     // Return existing copy with fresh signed URL
     const { data: signedData } = await supabase.storage
-      .from(String(reusableCopy.storage_bucket ?? "project_images"))
+      .from(String(reusableCopy.storage_bucket ?? PROJECT_IMAGES_BUCKET))
       .createSignedUrl(String(reusableCopy.storage_path), SIGNED_URL_TTL.filterWorkingCopy)
 
     const transformSync = await copyImageTransform({
@@ -289,7 +290,7 @@ export async function getOrCreateFilterWorkingCopy(args: {
 
   // Download active image from storage
   const { data: srcBlob, error: downloadErr } = await supabase.storage
-    .from(String(activeImage.storage_bucket ?? "project_images"))
+    .from(String(activeImage.storage_bucket ?? PROJECT_IMAGES_BUCKET))
     .download(String(activeImage.storage_path))
 
   if (downloadErr || !srcBlob) {
@@ -315,7 +316,7 @@ export async function getOrCreateFilterWorkingCopy(args: {
   }
   const contentType = contentTypeMap[activeFormat.toLowerCase()] ?? "application/octet-stream"
 
-  const { error: uploadErr } = await supabase.storage.from("project_images").upload(objectPath, srcBuffer, {
+  const { error: uploadErr } = await supabase.storage.from(PROJECT_IMAGES_BUCKET).upload(objectPath, srcBuffer, {
     contentType,
     upsert: false,
   })
@@ -338,7 +339,7 @@ export async function getOrCreateFilterWorkingCopy(args: {
     format: activeFormat,
     width_px: activeWidthPx,
     height_px: activeHeightPx,
-    storage_bucket: "project_images",
+    storage_bucket: PROJECT_IMAGES_BUCKET,
     storage_path: objectPath,
     file_size_bytes: activeFileSizeBytes,
     is_active: false,
@@ -346,7 +347,7 @@ export async function getOrCreateFilterWorkingCopy(args: {
   })
 
   if (insertErr) {
-    await supabase.storage.from("project_images").remove([objectPath])
+    await supabase.storage.from(PROJECT_IMAGES_BUCKET).remove([objectPath])
     return {
       ok: false,
       status: 400,
@@ -371,7 +372,7 @@ export async function getOrCreateFilterWorkingCopy(args: {
       .from("project_images")
       .update({ deleted_at: new Date().toISOString() })
       .eq("id", workingCopyId)
-    await supabase.storage.from("project_images").remove([objectPath])
+    await supabase.storage.from(PROJECT_IMAGES_BUCKET).remove([objectPath])
     const reason = softDeleteErr
       ? `${transformSync.reason}; failed to tombstone working copy: ${softDeleteErr.message}`
       : transformSync.reason
@@ -555,7 +556,7 @@ export async function getFilterPanelData(args: {
     }
   }
   const { data: signedData } = await supabase.storage
-    .from(String(tipImage.storage_bucket ?? "project_images"))
+    .from(String(tipImage.storage_bucket ?? PROJECT_IMAGES_BUCKET))
     .createSignedUrl(String(tipImage.storage_path), SIGNED_URL_TTL.filterWorkingCopy)
 
   return {

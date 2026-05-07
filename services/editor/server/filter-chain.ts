@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database, Json } from "@/lib/supabase/database.types"
+import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 
 export async function appendProjectImageFilter(args: {
   supabase: SupabaseClient<Database>
@@ -33,6 +34,6 @@ export async function cleanupOrphanFilterImage(args: {
   storagePath: string
 }): Promise<void> {
   const { supabase, projectId, imageId, storagePath } = args
-  await supabase.storage.from("project_images").remove([storagePath])
+  await supabase.storage.from(PROJECT_IMAGES_BUCKET).remove([storagePath])
   await supabase.from("project_images").delete().eq("project_id", projectId).eq("id", imageId)
 }

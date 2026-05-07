@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { activateProjectImage } from "@/services/editor/server/activate-project-image"
 import type { Database } from "@/lib/supabase/database.types"
+import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 
 export async function activateInsertedMaster(args: {
   supabase: SupabaseClient<Database>
@@ -23,7 +24,7 @@ export async function activateInsertedMaster(args: {
   })
   if (!activation.ok) {
     await supabase.from("project_images").delete().eq("id", imageId).eq("project_id", projectId)
-    await supabase.storage.from("project_images").remove([objectPath])
+    await supabase.storage.from(PROJECT_IMAGES_BUCKET).remove([objectPath])
     return activation
   }
 

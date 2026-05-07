@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/lib/supabase/database.types"
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role"
+import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 
 type ResetResult =
   | { ok: true; deletedFilterRows: number; softDeletedOutputs: number }
@@ -73,7 +74,7 @@ export async function resetProjectFilterChain(args: {
       if (!row.storage_path) continue
       try {
         await service.storage
-          .from(row.storage_bucket ?? "project_images")
+          .from(row.storage_bucket ?? PROJECT_IMAGES_BUCKET)
           .remove([row.storage_path])
       } catch {
         // Best effort. Tombstone is committed — orphan is auditable.

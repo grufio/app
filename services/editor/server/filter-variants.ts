@@ -9,6 +9,7 @@ import { appendProjectImageFilter } from "@/services/editor/server/filter-chain"
 import { lineArtImageAndActivate } from "@/services/editor/server/filters/lineart"
 import { numerateImageAndActivate } from "@/services/editor/server/filters/numerate"
 import { pixelateImageAndActivate } from "@/services/editor/server/filters/pixelate"
+import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 
 export type SupportedFilterType = "pixelate" | "lineart" | "numerate"
 
@@ -203,7 +204,7 @@ async function removeImageRowsAndStorage(args: {
   if (!deletable.length) return
   for (const row of deletable) {
     if (row.storage_path) {
-      await service.storage.from(row.storage_bucket ?? "project_images").remove([row.storage_path])
+      await service.storage.from(row.storage_bucket ?? PROJECT_IMAGES_BUCKET).remove([row.storage_path])
     }
   }
   await supabase

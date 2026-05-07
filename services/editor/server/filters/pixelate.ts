@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/lib/supabase/database.types"
 import { copyImageTransform } from "@/services/editor/server/copy-image-transform"
 import { callFilterService, contentTypeFor, pickOutputFormat, toInt } from "./_helpers"
+import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 
 type PixelateFailStage =
   | "validation"
@@ -98,7 +99,7 @@ export async function pixelateImageAndActivate(args: {
   }
 
   const { data: srcBlob, error: downloadErr } = await supabase.storage
-    .from(String(src.storage_bucket ?? "project_images"))
+    .from(String(src.storage_bucket ?? PROJECT_IMAGES_BUCKET))
     .download(String(src.storage_path))
 
   if (downloadErr || !srcBlob) {
@@ -157,7 +158,7 @@ export async function pixelateImageAndActivate(args: {
       format: outputFormat,
       width_px: origWidth,
       height_px: origHeight,
-      storage_bucket: "project_images",
+      storage_bucket: PROJECT_IMAGES_BUCKET,
       storage_path: objectPath,
       file_size_bytes: outputBuffer.byteLength,
       is_active: false,
@@ -165,7 +166,7 @@ export async function pixelateImageAndActivate(args: {
     })
 
     if (insertErr) {
-      await supabase.storage.from("project_images").remove([objectPath])
+      await supabase.storage.from(PROJECT_IMAGES_BUCKET).remove([objectPath])
       return { ok: false, status: 400, stage: "db_insert", reason: insertErr.message, code: insertErr.code }
     }
 
@@ -182,7 +183,7 @@ export async function pixelateImageAndActivate(args: {
     })
     if (!transformCopy.ok) {
       await supabase.from("project_images").delete().eq("id", imageId)
-      await supabase.storage.from("project_images").remove([objectPath])
+      await supabase.storage.from(PROJECT_IMAGES_BUCKET).remove([objectPath])
       return { ok: false, status: 500, stage: "transform_sync", reason: transformCopy.reason }
     }
 
