@@ -27,6 +27,7 @@ import { normalizeApiError } from "@/lib/api/error-normalizer"
 import { setProjectImageFilterHidden } from "@/lib/api/project-images"
 import { useFilterWorkingImage } from "@/lib/editor/use-filter-working-image"
 import { useEditorKeyboard } from "@/lib/editor/use-editor-keyboard"
+import { useMutationLeaveGuard } from "@/lib/editor/use-mutation-leave-guard"
 import { useFilterDialogSession } from "@/lib/editor/use-filter-dialog-session"
 import { useEditorSessionState } from "@/lib/editor/use-editor-session-state"
 import { usePageBackgroundState } from "@/lib/editor/use-page-background-state"
@@ -321,6 +322,16 @@ export function ProjectDetailPageClient({
     enabled: true,
     canDelete: displayTarget.deletable,
     onDelete: requestDeleteSelectedImage,
+  })
+
+  // Warn before tab close / external nav while a server-side mutation
+  // is in flight (filter-apply, crop, restore). Otherwise the server
+  // side may finish, the client never reconciles, and a stale
+  // filter_working_copy row + storage object are left behind for the
+  // eventual-consistent cleanup. Internal Next.js nav stays inside the
+  // editor and isn't blocked.
+  useMutationLeaveGuard({
+    active: workflow.isApplyingFilter || workflow.isCropping || workflow.isRestoring,
   })
 
   const [leftPanelWidthRem, setLeftPanelWidthRem] = useState(20)
