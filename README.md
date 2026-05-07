@@ -1,4 +1,6 @@
-## gruf.io
+# Grufio
+
+Premium paint-by-numbers oil-painting kits, generated from your photos. Live at **[gruf.app](https://gruf.app)**.
 
 Next.js + Supabase app with a lightweight Illustrator-style editor for project images (pan/zoom/artboard + image transform).
 
