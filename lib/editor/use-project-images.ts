@@ -18,6 +18,7 @@ import {
   type ProjectImageItem,
 } from "@/lib/api/project-images"
 import { createSerialWriteChannel, isSupersededWriteError } from "@/lib/utils/serial-write-channel"
+import { reportError } from "@/lib/monitoring/error-reporting"
 
 function imageListSignature(projectId: string, items: ProjectImageItem[]): string {
   return `${projectId}::${items
@@ -78,6 +79,13 @@ export function useProjectImages(projectId: string) {
           setFallbackTarget(null)
           setError(e instanceof Error ? e.message : "Failed to load images")
         }
+        void reportError(e instanceof Error ? e : new Error(String(e)), {
+          scope: "editor",
+          code: "PROJECT_IMAGES_LOAD_FAILED",
+          stage: "load",
+          severity: "warn",
+          context: { projectId },
+        })
       } finally {
         if (mountedRef.current) setLoading(false)
       }

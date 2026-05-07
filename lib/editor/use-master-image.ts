@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 
 import { deleteMasterImage, getMasterImage } from "@/lib/api/project-images"
+import { reportError } from "@/lib/monitoring/error-reporting"
 
 export type MasterImage = {
   id: string
@@ -111,6 +112,13 @@ export function useMasterImage(projectId: string, initialMasterImage?: MasterIma
           setMasterImage(null)
           setMasterImageError(e instanceof Error ? e.message : "Failed to load image")
         }
+        void reportError(e instanceof Error ? e : new Error(String(e)), {
+          scope: "editor",
+          code: "MASTER_IMAGE_LOAD_FAILED",
+          stage: "load",
+          severity: "warn",
+          context: { projectId },
+        })
       } finally {
         if (mountedRef.current) setMasterImageLoading(false)
       }
