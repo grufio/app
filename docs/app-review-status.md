@@ -1,5 +1,9 @@
 # App Review — Status (2026-05-06)
 
+> ✅ **Status: closed (2026-05-06)** — all 26 rows merged. Frozen tracker;
+> superseded by `system-review-2026-05-06.md` and the sustainability plan
+> at `~/.claude/plans/rosy-zooming-turing.md`.
+
 Status of items from `docs/app-review.md` (see PR #1 once merged).
 Rows mark which branch addresses each finding.
 
