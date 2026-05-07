@@ -47,6 +47,11 @@ const STAGE_COPY: Record<string, { title: string; detail?: string; retriable: bo
     detail: "The image could not be saved. Please try again.",
     retriable: true,
   },
+  service_unavailable: {
+    title: "Filter service is temporarily unavailable",
+    detail: "The render service is starting up or briefly down. Try again in a moment.",
+    retriable: true,
+  },
   validation: {
     title: "Invalid request",
     retriable: false,
