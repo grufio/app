@@ -22,6 +22,15 @@ describe("normalizeApiError", () => {
     expect(out.retriable).toBe(false)
   })
 
+  it("maps service_unavailable stage to retriable filter-service copy", () => {
+    const out = normalizeApiError(
+      new Error("Failed to apply filter (HTTP 503, stage=service_unavailable): Filter service is temporarily unavailable. Please try again.")
+    )
+    expect(out.title).toBe("Filter service is temporarily unavailable")
+    expect(out.stage).toBe("service_unavailable")
+    expect(out.retriable).toBe(true)
+  })
+
   it("maps upload_limits stage", () => {
     const out = normalizeApiError(
       new Error("Upload too large (HTTP 413, stage=upload_limits): Image dimensions too large")

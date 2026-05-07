@@ -24,6 +24,8 @@ export type FilterOpFailure = {
     | "pixelate_process"
     | "lineart_process"
     | "numerate_process"
+    | "service_unavailable"
+    | "auth"
     | "storage_upload"
     | "db_insert"
     | "chain_append"

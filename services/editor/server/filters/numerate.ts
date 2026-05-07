@@ -4,9 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/lib/supabase/database.types"
 import { copyImageTransform } from "@/services/editor/server/copy-image-transform"
-import { filterServiceHeaders, toInt } from "./_helpers"
-
-const FILTER_SERVICE_URL = process.env.FILTER_SERVICE_URL || "http://localhost:8001"
+import { callFilterService, toInt } from "./_helpers"
 
 type NumerateFailStage =
   | "validation"
@@ -14,6 +12,8 @@ type NumerateFailStage =
   | "lock_conflict"
   | "source_download"
   | "numerate_process"
+  | "service_unavailable"
+  | "auth"
   | "storage_upload"
   | "db_insert"
   | "transform_sync"
@@ -109,29 +109,27 @@ export async function numerateImageAndActivate(args: {
   try {
     const imageBase64 = srcBuffer.toString("base64")
 
-    const response = await fetch(`${FILTER_SERVICE_URL}/filters/numerate`, {
-      method: "POST",
-      headers: filterServiceHeaders(),
-      body: JSON.stringify({
+    const callResult = await callFilterService({
+      path: "/filters/numerate",
+      body: {
         image_base64: imageBase64,
         superpixel_width: superpixelWidth,
         superpixel_height: superpixelHeight,
         stroke_width: strokeWidth,
         show_colors: params.showColors,
-      }),
+      },
     })
 
-    if (!response.ok) {
-      const error = await response.text()
+    if (!callResult.ok) {
       return {
         ok: false,
-        status: response.status,
-        stage: "numerate_process",
-        reason: `Python service error: ${error}`,
+        status: callResult.status,
+        stage: callResult.stage === "service_unavailable" ? "service_unavailable" : callResult.stage === "auth" ? "auth" : "numerate_process",
+        reason: callResult.reason,
       }
     }
 
-    const outputBuffer = Buffer.from(await response.arrayBuffer())
+    const outputBuffer = Buffer.from(callResult.bytes)
 
     const imageId = crypto.randomUUID()
     const objectPath = `projects/${projectId}/images/${imageId}`

@@ -4,9 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/lib/supabase/database.types"
 import { copyImageTransform } from "@/services/editor/server/copy-image-transform"
-import { filterServiceHeaders, toInt } from "./_helpers"
-
-const FILTER_SERVICE_URL = process.env.FILTER_SERVICE_URL || "http://localhost:8001"
+import { callFilterService, toInt } from "./_helpers"
 
 type LineArtFailStage =
   | "validation"
@@ -14,6 +12,8 @@ type LineArtFailStage =
   | "lock_conflict"
   | "source_download"
   | "lineart_process"
+  | "service_unavailable"
+  | "auth"
   | "storage_upload"
   | "db_insert"
   | "transform_sync"
@@ -116,13 +116,11 @@ export async function lineArtImageAndActivate(args: {
   const srcBuffer = Buffer.from(await srcBlob.arrayBuffer())
 
   try {
-    // Call Python service for line art
     const imageBase64 = srcBuffer.toString("base64")
 
-    const response = await fetch(`${FILTER_SERVICE_URL}/filters/lineart`, {
-      method: "POST",
-      headers: filterServiceHeaders(),
-      body: JSON.stringify({
+    const callResult = await callFilterService({
+      path: "/filters/lineart",
+      body: {
         image_base64: imageBase64,
         threshold1: threshold1,
         threshold2: threshold2,
@@ -131,28 +129,30 @@ export async function lineArtImageAndActivate(args: {
         blur_amount: blurAmount,
         min_contour_area: minContourArea,
         smoothness: smoothness,
-      }),
+      },
     })
 
-    if (!response.ok) {
-      let error = await response.text()
+    if (!callResult.ok) {
+      let reason = callResult.reason
+      // Lineart's terminal-failure case formerly unwrapped `{ detail }`
+      // payloads from FastAPI. Preserve that.
       try {
-        const parsed = JSON.parse(error) as { detail?: unknown }
+        const parsed = JSON.parse(reason) as { detail?: unknown }
         if (typeof parsed.detail === "string" && parsed.detail.trim()) {
-          error = parsed.detail
+          reason = parsed.detail
         }
       } catch {
-        // Keep raw response text for non-JSON error payloads.
+        // non-JSON, keep raw
       }
       return {
         ok: false,
-        status: response.status,
-        stage: "lineart_process",
-        reason: `Python service error: ${error}`,
+        status: callResult.status,
+        stage: callResult.stage === "service_unavailable" ? "service_unavailable" : callResult.stage === "auth" ? "auth" : "lineart_process",
+        reason,
       }
     }
 
-    const outputBuffer = Buffer.from(await response.arrayBuffer())
+    const outputBuffer = Buffer.from(callResult.bytes)
 
     const imageId = crypto.randomUUID()
     const objectPath = `projects/${projectId}/images/${imageId}`
