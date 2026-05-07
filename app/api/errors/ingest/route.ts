@@ -7,6 +7,13 @@
  * the structured payload via `console.error` so Vercel function logs / GCP
  * Logging captures it without a third-party SDK.
  *
+ * Optional Slack fan-out
+ * ----------------------
+ * When `SLACK_ALERT_WEBHOOK_URL` is set, error/warn events also POST to
+ * the configured Slack incoming-webhook so the team gets pinged. Unset →
+ * console-log only (the original behaviour). The fan-out is fire-and-
+ * forget: a slow / failed Slack call never delays the ingest response.
+ *
  * Future: pipe to Sentry / Better Stack / a `error_events` Supabase table.
  */
 import { NextResponse } from "next/server"
@@ -97,5 +104,42 @@ export async function POST(req: Request) {
   // grep-ability — `clientIp` deliberately on its own field so log queries
   // can filter abusive sources.
   console.error("[error-ingest]", JSON.stringify({ ...event, clientIp: ip }))
+
+  // Optional Slack fan-out — fire-and-forget, never blocks the response.
+  void postToSlack(event).catch(() => {
+    // Best-effort; the console.error above already captured the event.
+  })
+
   return new NextResponse(null, { status: 204 })
+}
+
+/** Severity emoji for the Slack message header — visual triage at a glance. */
+function severityEmoji(severity: unknown): string {
+  if (severity === "error") return "🔴"
+  if (severity === "warn") return "🟡"
+  return "🔵"
+}
+
+async function postToSlack(event: Record<string, unknown>): Promise<void> {
+  const url = process.env.SLACK_ALERT_WEBHOOK_URL
+  if (!url) return
+  // Only fan out user-actionable severities. `info` events would flood.
+  const severity = event.severity
+  if (severity !== "error" && severity !== "warn") return
+
+  const lines: string[] = []
+  lines.push(`${severityEmoji(severity)} *${String(severity).toUpperCase()}* — ${String(event.scope ?? "?")} / ${String(event.code ?? "?")}`)
+  if (event.stage) lines.push(`stage: \`${String(event.stage)}\``)
+  if (event.message) lines.push(`> ${String(event.message).slice(0, 600)}`)
+  if (event.context && typeof event.context === "object") {
+    const compact = JSON.stringify(event.context).slice(0, 800)
+    lines.push("```json\n" + compact + "\n```")
+  }
+
+  await fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ text: lines.join("\n") }),
+    cache: "no-store",
+  })
 }
