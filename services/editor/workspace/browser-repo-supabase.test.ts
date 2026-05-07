@@ -1,28 +1,30 @@
-import { describe, expect, it, vi } from "vitest"
-import type { SupabaseClient } from "@supabase/supabase-js"
+import { describe, expect, it } from "vitest"
 
+import { makeMockSupabase } from "@/lib/supabase/__mocks__/make-mock-supabase"
 import { updateWorkspaceDpi, updateWorkspaceGeometry } from "./browser-repo-supabase"
 
 function makeSupabaseSpy() {
-  const update = vi.fn(() => {
-    throw new Error("update() should not be called for invalid payloads")
+  // Track whether update() was reached. The whole point of these tests
+  // is that the validation guards return BEFORE any DB write.
+  const updateCalls: number[] = []
+  const supabase = makeMockSupabase({
+    tables: {
+      project_workspace: {
+        update: {
+          data: null,
+          error: null,
+          onCall: () => updateCalls.push(updateCalls.length + 1),
+        },
+        select: { data: null, error: null },
+      },
+    },
   })
-
-  const from = vi.fn(() => ({
-    update,
-    eq: vi.fn(() => ({
-      select: vi.fn(() => ({
-        single: vi.fn(async () => ({ data: null, error: null })),
-      })),
-    })),
-  }))
-
-  return { supabase: { from } as unknown as SupabaseClient, from, update }
+  return { supabase, updateCalls }
 }
 
 describe("workspace browser repo guards", () => {
   it("updateWorkspaceDpi rejects geometry fields in payload", async () => {
-    const { supabase, update } = makeSupabaseSpy()
+    const { supabase, updateCalls } = makeSupabaseSpy()
 
     const res = await updateWorkspaceDpi(supabase, {
       projectId: "p",
@@ -33,11 +35,11 @@ describe("workspace browser repo guards", () => {
 
     expect(res.row).toBe(null)
     expect(res.error).toContain("invalid_payload_for_dpi_update")
-    expect(update).not.toHaveBeenCalled()
+    expect(updateCalls).toHaveLength(0)
   })
 
   it("updateWorkspaceGeometry rejects dpi/output fields in payload", async () => {
-    const { supabase, update } = makeSupabaseSpy()
+    const { supabase, updateCalls } = makeSupabaseSpy()
 
     const res = await updateWorkspaceGeometry(supabase, {
       projectId: "p",
@@ -53,7 +55,6 @@ describe("workspace browser repo guards", () => {
 
     expect(res.row).toBe(null)
     expect(res.error).toContain("invalid_payload_for_geometry_update")
-    expect(update).not.toHaveBeenCalled()
+    expect(updateCalls).toHaveLength(0)
   })
 })
-

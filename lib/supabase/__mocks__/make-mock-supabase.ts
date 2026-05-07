@@ -71,7 +71,9 @@ export type MockStorageOps = {
   download?: MockResult<Blob>
   remove?: MockResult
   createSignedUrl?: MockResult<{ signedUrl: string }>
-  createSignedUrls?: MockResult<Array<{ signedUrl: string; path: string }>>
+  // Matches supabase-js storage shape — both fields can be null when
+  // the underlying object lookup failed for a specific path.
+  createSignedUrls?: MockResult<Array<{ signedUrl: string | null; path: string | null; error?: string | null }>>
 }
 
 export type MakeMockSupabaseArgs = {
@@ -172,7 +174,7 @@ function makeStorageBucket(bucketName: string, ops: MockStorageOps | undefined) 
     download: wrap<Blob>(ops?.download),
     remove: wrap(ops?.remove),
     createSignedUrl: wrap<{ signedUrl: string }>(ops?.createSignedUrl),
-    createSignedUrls: wrap<Array<{ signedUrl: string; path: string }>>(ops?.createSignedUrls),
+    createSignedUrls: wrap<Array<{ signedUrl: string | null; path: string | null; error?: string | null }>>(ops?.createSignedUrls),
   }
 }
 

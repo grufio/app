@@ -113,7 +113,12 @@ describe("mapDashboardRow", () => {
   })
 })
 
-// Lightweight fake supabase shape — only the methods listDashboardProjects calls.
+// Migrated to the shared makeMockSupabase factory. Production calls
+// `.select(...).order(...).limit(...).returns<...>()` then awaits, so
+// the chain has six methods including the terminal awaited via the
+// proxy's `.then`.
+import { makeMockSupabase } from "@/lib/supabase/__mocks__/make-mock-supabase"
+
 function makeFakeSupabase(args: {
   selectResult: { data: DashboardProjectRow[] | null; error: { message: string } | null }
   signResult: {
@@ -121,32 +126,19 @@ function makeFakeSupabase(args: {
     error: { message: string } | null
   }
 }) {
-  return {
-    from() {
-      return {
-        select() {
-          return {
-            order() {
-              return {
-                limit() {
-                  return {
-                    returns: async () => args.selectResult,
-                  }
-                },
-              }
-            },
-          }
-        },
-      }
-    },
-    storage: {
-      from() {
-        return {
-          createSignedUrls: async () => args.signResult,
-        }
+  const supabase = makeMockSupabase({
+    tables: {
+      projects: {
+        select: { data: args.selectResult.data, error: args.selectResult.error },
       },
     },
-  } as unknown as Parameters<typeof listDashboardProjects>[0]
+    storage: {
+      project_images: {
+        createSignedUrls: { data: args.signResult.data, error: args.signResult.error },
+      },
+    },
+  })
+  return supabase as unknown as Parameters<typeof listDashboardProjects>[0]
 }
 
 describe("listDashboardProjects", () => {
