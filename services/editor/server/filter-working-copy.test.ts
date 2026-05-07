@@ -2,10 +2,9 @@
  * Tests for filter working copy creation and management.
  */
 import { describe, it, expect, beforeEach, vi } from "vitest"
-import type { SupabaseClient } from "@supabase/supabase-js"
 
+import { makeMockSupabase } from "@/lib/supabase/__mocks__/make-mock-supabase"
 import { getFilterPanelData, getOrCreateFilterWorkingCopy } from "./filter-working-copy"
-import type { Database } from "@/lib/supabase/database.types"
 import { copyImageTransform } from "./copy-image-transform"
 
 const { getEditorTargetImageRowMock } = vi.hoisted(() => ({
@@ -25,8 +24,24 @@ vi.mock("@/lib/supabase/project-images", () => ({
   },
 }))
 
+/**
+ * Storage handlers used across both describe blocks. Returns canned
+ * data for download / upload / createSignedUrl / remove. The factory
+ * doesn't expose its own storage vi.fn for external configuration, so
+ * we override `supabase.storage` after construction.
+ */
+function makeStorage() {
+  return {
+    from: vi.fn(() => ({
+      download: vi.fn(async () => ({ data: new Blob([new Uint8Array([1, 2, 3])]), error: null })),
+      upload: vi.fn(async () => ({ error: null })),
+      createSignedUrl: vi.fn(async () => ({ data: { signedUrl: "https://signed-url.test/img.jpg" }, error: null })),
+      remove: vi.fn(async () => ({ error: null })),
+    })),
+  }
+}
+
 describe("getOrCreateFilterWorkingCopy", () => {
-  let mockSupabase: SupabaseClient<Database>
   const projectId = "test-project-id"
   const activeImageId = "active-image-id"
   const activeImage = {
@@ -45,77 +60,53 @@ describe("getOrCreateFilterWorkingCopy", () => {
     const removedIds: string[][] = []
     const insertedRows: Array<Record<string, unknown>> = []
 
-    const from = vi.fn((table: string) => {
-      if (table === "project_image_filters") {
-        // Empty filter chain: select awaits to no rows; delete is a no-op.
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn(async () => ({ data: [], error: null })),
-          })),
-          delete: vi.fn(() => ({
-            eq: vi.fn(async () => ({ error: null })),
-          })),
-        }
-      }
-      if (table !== "project_images") return {}
-      return {
-        select: vi.fn(() => {
-          const chain: Record<string, unknown> = {}
-          chain.eq = vi.fn((key: string) => {
-            if (key === "role") return chain
-            return chain
-          })
-          chain.is = vi.fn(() => chain)
-          chain.like = vi.fn(() => chain)
-          chain.order = vi.fn(() => chain)
-          chain.limit = vi.fn(async () => {
+    const supabase = makeMockSupabase({
+      tables: {
+        project_image_filters: {
+          select: { data: [], error: null },
+          delete: { data: null, error: null },
+        },
+        project_images: {
+          // Two terminal styles on the SAME .select() callsite:
+          //   - `.limit()` resolves with the working-copy candidates
+          //   - `.in(...).is(...)` resolves with [] for the storage-cleanup
+          //     short-circuit before the soft-delete update
+          // The factory's function-form spec lets us inspect `ops` so each
+          // terminal returns its own shape.
+          select: ({ ops }) => {
+            if (ops.includes("in")) return { data: [], error: null }
             return { data: args.copies ?? [], error: null }
-          })
-          // softDeleteCopies looks up storage paths via .select(...).in().is()
-          // before the tombstone update. Empty rows ⇒ skip storage cleanup.
-          chain.in = vi.fn(() => {
-            const tail: Record<string, unknown> = {}
-            tail.is = vi.fn(async () => ({ data: [], error: null }))
-            return tail
-          })
-          return chain
-        }),
-        update: vi.fn(() => {
-          const chain: Record<string, unknown> = {}
-          chain.in = vi.fn(async (_key: string, ids: string[]) => {
-            removedIds.push(ids)
-            return { error: null }
-          })
-          chain.eq = vi.fn(() => chain)
-          chain.is = vi.fn(() => chain)
-          return chain
-        }),
-        insert: vi.fn(async (row: Record<string, unknown>) => {
-          insertedRows.push(row)
-          return { error: null }
-        }),
-      }
+          },
+          // soft-delete tombstone update: `.update(...).in("id", ids)`. The
+          // `in` call is a chain method, so its args land in `chain.args`.
+          update: {
+            data: null,
+            error: null,
+            onCall: ({ args: chainArgs }) => {
+              for (const callArgs of chainArgs as unknown[][]) {
+                if (callArgs.length === 2 && callArgs[0] === "id" && Array.isArray(callArgs[1])) {
+                  removedIds.push(callArgs[1] as string[])
+                }
+              }
+            },
+          },
+          insert: {
+            data: null,
+            error: null,
+            onCall: ({ opArgs }) => {
+              insertedRows.push(opArgs[0] as Record<string, unknown>)
+            },
+          },
+        },
+      },
     })
 
-    const storageFrom = vi.fn(() => ({
-      download: vi.fn(async () => ({ data: new Blob([new Uint8Array([1, 2, 3])]), error: null })),
-      upload: vi.fn(async () => ({ error: null })),
-      createSignedUrl: vi.fn(async () => ({ data: { signedUrl: "https://signed-url.test/img.jpg" }, error: null })),
-      remove: vi.fn(async () => ({ error: null })),
-    }))
+    supabase.storage = makeStorage() as unknown as typeof supabase.storage
 
-    return {
-      supabase: {
-        from,
-        storage: { from: storageFrom },
-      } as unknown as SupabaseClient<Database>,
-      removedIds,
-      insertedRows,
-    }
+    return { supabase, removedIds, insertedRows }
   }
 
   beforeEach(() => {
-    mockSupabase = {} as SupabaseClient<Database>
     vi.mocked(copyImageTransform).mockClear()
     getEditorTargetImageRowMock.mockReset()
     getEditorTargetImageRowMock.mockResolvedValue({ row: activeImage, error: null })
@@ -150,9 +141,8 @@ describe("getOrCreateFilterWorkingCopy", () => {
         },
       ],
     })
-    mockSupabase = setup.supabase
 
-    const result = await getOrCreateFilterWorkingCopy({ supabase: mockSupabase, projectId })
+    const result = await getOrCreateFilterWorkingCopy({ supabase: setup.supabase, projectId })
 
     expect(result.ok).toBe(true)
     if (result.ok) {
@@ -181,9 +171,8 @@ describe("getOrCreateFilterWorkingCopy", () => {
         },
       ],
     })
-    mockSupabase = setup.supabase
 
-    const result = await getOrCreateFilterWorkingCopy({ supabase: mockSupabase, projectId })
+    const result = await getOrCreateFilterWorkingCopy({ supabase: setup.supabase, projectId })
 
     expect(result.ok).toBe(true)
     if (result.ok) expect(result.sourceImageId).toBe(activeImageId)
@@ -198,9 +187,8 @@ describe("getOrCreateFilterWorkingCopy", () => {
       reason: "Source image transform is missing",
     })
     const setup = makeSupabase({ copies: [] })
-    mockSupabase = setup.supabase
 
-    const result = await getOrCreateFilterWorkingCopy({ supabase: mockSupabase, projectId })
+    const result = await getOrCreateFilterWorkingCopy({ supabase: setup.supabase, projectId })
 
     expect(result.ok).toBe(false)
     if (!result.ok) {
@@ -212,9 +200,8 @@ describe("getOrCreateFilterWorkingCopy", () => {
   it("returns not found when no active image exists", async () => {
     getEditorTargetImageRowMock.mockResolvedValueOnce({ row: null, error: null })
     const setup = makeSupabase({ copies: [] })
-    mockSupabase = setup.supabase
 
-    const result = await getOrCreateFilterWorkingCopy({ supabase: mockSupabase, projectId })
+    const result = await getOrCreateFilterWorkingCopy({ supabase: setup.supabase, projectId })
 
     expect(result.ok).toBe(false)
     if (!result.ok) {
@@ -225,30 +212,35 @@ describe("getOrCreateFilterWorkingCopy", () => {
 })
 
 describe("getFilterPanelData", () => {
+  const activeImage = {
+    id: "active-image-id",
+    name: "master.jpg",
+    storage_bucket: "project_images",
+    storage_path: "projects/p/images/master",
+    format: "jpeg",
+    width_px: 1000,
+    height_px: 800,
+    file_size_bytes: 50000,
+    source_image_id: null,
+  }
+  const workingCopy = {
+    id: "working-copy-id",
+    storage_bucket: "project_images",
+    storage_path: "projects/p/images/working",
+    width_px: 1000,
+    height_px: 800,
+    source_image_id: "active-image-id",
+    name: "master.jpg (filter working)",
+    updated_at: "2026-01-01T00:00:00Z",
+    created_at: "2026-01-01T00:00:00Z",
+  }
+
+  beforeEach(() => {
+    getEditorTargetImageRowMock.mockReset()
+    getEditorTargetImageRowMock.mockResolvedValue({ row: activeImage, error: null })
+  })
+
   it("prefers canonical project_image_filters order over name heuristics", async () => {
-    const activeImage = {
-      id: "active-image-id",
-      name: "master.jpg",
-      storage_bucket: "project_images",
-      storage_path: "projects/p/images/master",
-      format: "jpeg",
-      width_px: 1000,
-      height_px: 800,
-      file_size_bytes: 50000,
-      source_image_id: null,
-    }
-    getEditorTargetImageRowMock.mockResolvedValueOnce({ row: activeImage, error: null })
-    const workingCopy = {
-      id: "working-copy-id",
-      storage_bucket: "project_images",
-      storage_path: "projects/p/images/working",
-      width_px: 1000,
-      height_px: 800,
-      source_image_id: "active-image-id",
-      name: "master.jpg (filter working)",
-      updated_at: "2026-01-01T00:00:00Z",
-      created_at: "2026-01-01T00:00:00Z",
-    }
     const filterRows = [
       {
         id: "f1",
@@ -286,47 +278,24 @@ describe("getFilterPanelData", () => {
       },
     ]
 
-    let projectImagesCall = 0
-    const from = vi.fn((table: string) => {
-      if (table === "project_images") {
-        projectImagesCall += 1
-        if (projectImagesCall === 1) {
-          const q: Record<string, unknown> = {}
-          q.select = vi.fn(() => q)
-          q.eq = vi.fn(() => q)
-          q.like = vi.fn(() => q)
-          q.is = vi.fn(() => q)
-          q.order = vi.fn(() => q)
-          q.limit = vi.fn(async () => ({ data: [workingCopy], error: null }))
-          return q
-        }
-        const q: Record<string, unknown> = {}
-        q.select = vi.fn(() => q)
-        q.eq = vi.fn(() => q)
-        q.in = vi.fn(() => q)
-        q.is = vi.fn(() => q)
-        q.order = vi.fn(async () => ({ data: outputImages, error: null }))
-        return q
-      }
-      if (table === "project_image_filters") {
-        const q: Record<string, unknown> = {}
-        q.select = vi.fn(() => q)
-        q.eq = vi.fn(() => q)
-        q.order = vi.fn(async () => ({ data: filterRows, error: null }))
-        return q
-      }
-      return {}
-    })
-
-    const supabase = {
-      from,
-      storage: {
-        from: vi.fn(() => ({
-          createSignedUrl: vi.fn(async () => ({ data: { signedUrl: "https://signed-url.test/img.jpg" }, error: null })),
-          download: vi.fn(async () => ({ data: new Blob([new Uint8Array([1, 2, 3])]), error: null })),
-        })),
+    const supabase = makeMockSupabase({
+      tables: {
+        project_images: {
+          // Two distinct selects:
+          //   - working-copy lookup: `.eq().like().is().order().limit()` -> [workingCopy]
+          //   - output-image batch: `.eq().in().is().order()` -> outputImages
+          // Branch on whether `.in()` participated in the chain.
+          select: ({ ops }) => {
+            if (ops.includes("in")) return { data: outputImages, error: null }
+            return { data: [workingCopy], error: null }
+          },
+        },
+        project_image_filters: {
+          select: { data: filterRows, error: null },
+        },
       },
-    } as unknown as SupabaseClient<Database>
+    })
+    supabase.storage = makeStorage() as unknown as typeof supabase.storage
 
     const result = await getFilterPanelData({ supabase, projectId: "project-1" })
     expect(result.ok).toBe(true)
@@ -339,29 +308,6 @@ describe("getFilterPanelData", () => {
   })
 
   it("auto-resets disconnected filter chain and returns empty stack", async () => {
-    const activeImage = {
-      id: "active-image-id",
-      name: "master.jpg",
-      storage_bucket: "project_images",
-      storage_path: "projects/p/images/master",
-      format: "jpeg",
-      width_px: 1000,
-      height_px: 800,
-      file_size_bytes: 50000,
-      source_image_id: null,
-    }
-    getEditorTargetImageRowMock.mockResolvedValueOnce({ row: activeImage, error: null })
-    const workingCopy = {
-      id: "working-copy-id",
-      storage_bucket: "project_images",
-      storage_path: "projects/p/images/working",
-      width_px: 1000,
-      height_px: 800,
-      source_image_id: "active-image-id",
-      name: "master.jpg (filter working)",
-      updated_at: "2026-01-01T00:00:00Z",
-      created_at: "2026-01-01T00:00:00Z",
-    }
     const disconnectedFilterRows = [
       {
         id: "f1",
@@ -372,70 +318,34 @@ describe("getFilterPanelData", () => {
       },
     ]
 
-    let projectImagesCall = 0
     let filterDeleteCalled = false
-    const from = vi.fn((table: string) => {
-      if (table === "project_images") {
-        projectImagesCall += 1
-        if (projectImagesCall === 1) {
-          const q: Record<string, unknown> = {}
-          q.select = vi.fn(() => q)
-          q.eq = vi.fn(() => q)
-          q.like = vi.fn(() => q)
-          q.is = vi.fn(() => q)
-          q.order = vi.fn(() => q)
-          q.limit = vi.fn(async () => ({ data: [workingCopy], error: null }))
-          return q
-        }
-        // Subsequent calls during reset (storage-path lookup + soft-delete
-        // of orphan outputs). The reset path now does a select(...) chain
-        // before update(...), terminating in .in(ids) — return empty so the
-        // storage-cleanup loop is skipped in the test.
-        const u: Record<string, unknown> = {}
-        u.select = vi.fn(() => u)
-        u.update = vi.fn(() => u)
-        u.eq = vi.fn(() => u)
-        u.is = vi.fn(() => u)
-        u.in = vi.fn(async () => ({ data: [], error: null }))
-        return u
-      }
-      if (table === "project_image_filters") {
-        // Builds a query object that supports BOTH:
-        //   .select(...).eq(...).order(...) → resolves to filter rows (panel data fetch)
-        //   .select(...).eq(...) (awaitable) → resolves to filter rows (reset utility fetch)
-        const makeSelectChain = () => {
-          const chain: Record<string, unknown> = {}
-          const result = { data: disconnectedFilterRows, error: null }
-          chain.eq = vi.fn(() => {
-            const inner: Record<string, unknown> = {}
-            inner.order = vi.fn(async () => result)
-            inner.then = (resolve: (v: unknown) => unknown) => Promise.resolve(result).then(resolve)
-            return inner
-          })
-          return chain
-        }
-        return {
-          select: vi.fn(() => makeSelectChain()),
-          delete: vi.fn(() => ({
-            eq: vi.fn(async () => {
+    const supabase = makeMockSupabase({
+      tables: {
+        project_images: {
+          // First call (panel-data, working-copy lookup): chain ends in
+          // .limit() -> [workingCopy]. Subsequent calls during the auto-
+          // reset hit .in() / .is() to look up storage paths -> [] so
+          // storage cleanup short-circuits.
+          select: ({ ops }) => {
+            if (ops.includes("in") || ops.includes("update")) return { data: [], error: null }
+            return { data: [workingCopy], error: null }
+          },
+          // The reset path calls update(...) -> resolve to no error.
+          update: { data: null, error: null },
+        },
+        project_image_filters: {
+          select: { data: disconnectedFilterRows, error: null },
+          delete: {
+            data: null,
+            error: null,
+            onCall: () => {
               filterDeleteCalled = true
-              return { error: null }
-            }),
-          })),
-        }
-      }
-      return {}
-    })
-
-    const supabase = {
-      from,
-      storage: {
-        from: vi.fn(() => ({
-          createSignedUrl: vi.fn(async () => ({ data: { signedUrl: "https://signed-url.test/img.jpg" }, error: null })),
-          download: vi.fn(async () => ({ data: new Blob([new Uint8Array([1, 2, 3])]), error: null })),
-        })),
+            },
+          },
+        },
       },
-    } as unknown as SupabaseClient<Database>
+    })
+    supabase.storage = makeStorage() as unknown as typeof supabase.storage
 
     const result = await getFilterPanelData({ supabase, projectId: "project-1" })
     expect(result.ok).toBe(true)
