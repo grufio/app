@@ -15,6 +15,24 @@ import { cn } from "@/lib/utils"
 // (components/ui/form-controls/app-button.tsx). Keep colors/affordances in
 // one place; sizing differs between the two so each declares its own size
 // scale.
+//
+// Picking a variant:
+//   default     — primary CTA on a surface (Login, Apply, Save, Add).
+//   destructive — irreversible action that deletes/clears data.
+//   outline     — secondary CTA in dialogs (Cancel) or panels (Add filter
+//                 next to a primary). Visible at rest, less weight than
+//                 the filled `default`.
+//   secondary   — *active* state of a toggle/tool button. Filled muted
+//                 background reads as "selected" without competing with
+//                 `default`'s primary color. Pair with `ghost` for the
+//                 inactive state (see canvas-tool-sidebar).
+//   ghost       — chromeless trigger that only reveals itself on hover
+//                 (icon buttons in toolbars, dropdown menu items, the
+//                 inactive state of a `secondary` toggle).
+//
+// Removed (2026-05-07): `link` had zero consumers. `secondary` was
+// briefly removed and re-added once the toolbar-toggle use-case
+// surfaced — keep it scoped to that pattern.
 export const buttonVariantClasses = {
   default: "bg-primary text-primary-foreground hover:bg-primary/90",
   destructive:
@@ -23,7 +41,6 @@ export const buttonVariantClasses = {
     "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground",
   secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
   ghost: "hover:bg-accent hover:text-accent-foreground",
-  link: "text-primary underline-offset-4 hover:underline",
 } as const
 
 const buttonVariants = cva(
