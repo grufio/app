@@ -19,6 +19,8 @@ const NEEDLE = "createSupabaseServiceRoleClient("
 const ALLOWLIST = new Set([
   "lib/supabase/service-role.ts", // the definition itself
   "services/editor/server/filter-variants.ts", // delegates storage cleanup after soft-delete
+  "services/editor/server/filter-working-copy.ts", // soft-delete + sync storage cleanup of working copies
+  "services/editor/server/filter-chain-reset.ts", // soft-delete + sync storage cleanup of chain outputs
 ])
 
 // Scan production code only — scripts/, e2e/, tests are tooling.

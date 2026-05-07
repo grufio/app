@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/lib/supabase/database.types"
+import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role"
 
 type ResetResult =
   | { ok: true; deletedFilterRows: number; softDeletedOutputs: number }
@@ -42,6 +43,18 @@ export async function resetProjectFilterChain(args: {
     return { ok: true, deletedFilterRows: rows.length, softDeletedOutputs: 0 }
   }
 
+  // Look up storage paths before the soft-delete so we can clean them up
+  // in the same call (no eventual-consistent storage debt). RLS on the
+  // tombstoned rows denies the auth client subsequent reads, so the
+  // service role removes the objects.
+  const { data: rowsToTombstone } = await supabase
+    .from("project_images")
+    .select("id,storage_bucket,storage_path")
+    .eq("project_id", projectId)
+    .eq("kind", "filter_working_copy")
+    .is("deleted_at", null)
+    .in("id", outputImageIds)
+
   const { error: updateErr } = await supabase
     .from("project_images")
     .update({ deleted_at: new Date().toISOString() })
@@ -52,6 +65,20 @@ export async function resetProjectFilterChain(args: {
 
   if (updateErr) {
     return { ok: false, reason: updateErr.message, code: updateErr.code }
+  }
+
+  if (rowsToTombstone && rowsToTombstone.length > 0) {
+    const service = createSupabaseServiceRoleClient()
+    for (const row of rowsToTombstone) {
+      if (!row.storage_path) continue
+      try {
+        await service.storage
+          .from(row.storage_bucket ?? "project_images")
+          .remove([row.storage_path])
+      } catch {
+        // Best effort. Tombstone is committed — orphan is auditable.
+      }
+    }
   }
 
   return { ok: true, deletedFilterRows: rows.length, softDeletedOutputs: outputImageIds.length }
