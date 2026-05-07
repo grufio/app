@@ -15,15 +15,15 @@
  * commits via the imperative `cancelPendingCommit()` handle on each
  * field, replacing the old `ignoreNextBlurSaveRef` pattern.
  */
-import { memo, useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { ArrowLeftRight, ArrowUpDown, Gauge, Link2, Ruler, Unlink2 } from "lucide-react"
 
 import { fmt2, type Unit } from "@/lib/editor/units"
 import { parseNumericInput } from "@/lib/editor/numeric"
 import {
-  AppSelectItem as SelectItem,
   FormField,
   type FormFieldHandle,
+  type SelectFieldOption,
 } from "@/components/ui/form-controls"
 import { PanelIconSlot, PanelTwoFieldRow } from "./panel-layout"
 import { RightPanelToggleIconButton } from "./right-panel-controls"
@@ -43,7 +43,31 @@ function labelForPreset(p: "high" | "medium" | "low"): string {
   return "Low (72 ppi)"
 }
 
-export const ArtboardPanel = memo(function ArtboardPanel() {
+const UNIT_OPTIONS: ReadonlyArray<SelectFieldOption> = [
+  { value: "mm", label: "mm" },
+  { value: "cm", label: "cm" },
+  { value: "pt", label: "pt" },
+  { value: "px", label: "px" },
+]
+
+const PRESET_OPTIONS_BASE: ReadonlyArray<SelectFieldOption> = [
+  { value: "high", label: labelForPreset("high") },
+  { value: "medium", label: labelForPreset("medium") },
+  { value: "low", label: labelForPreset("low") },
+]
+
+function presetOptions(
+  current: "high" | "medium" | "low" | "custom",
+  outputDpi: number,
+): ReadonlyArray<SelectFieldOption> {
+  if (current !== "custom") return PRESET_OPTIONS_BASE
+  return [
+    ...PRESET_OPTIONS_BASE,
+    { value: "custom", label: `Custom (${outputDpi || "?"} ppi)` },
+  ]
+}
+
+export function ArtboardPanel() {
   const { row, loading, saving, updateWorkspaceDpi, updateWorkspaceGeometry, widthPxU, heightPxU } =
     useProjectWorkspace()
 
@@ -271,17 +295,11 @@ export const ArtboardPanel = memo(function ArtboardPanel() {
           labelVisuallyHidden
           iconStart={<Gauge aria-hidden="true" />}
           value={computedPreset}
+          options={presetOptions(computedPreset, computedOutputDpi)}
           onCommit={onPresetChange}
           disabled={controlsDisabled}
           triggerOnPointerDownCapture={cancelPendingCommits}
-        >
-          <SelectItem value="high">{labelForPreset("high")}</SelectItem>
-          <SelectItem value="medium">{labelForPreset("medium")}</SelectItem>
-          <SelectItem value="low">{labelForPreset("low")}</SelectItem>
-          {computedPreset === "custom" ? (
-            <SelectItem value="custom">{`Custom (${computedOutputDpi || "?"} ppi)`}</SelectItem>
-          ) : null}
-        </FormField>
+        />
 
         <FormField
           variant="select"
@@ -289,18 +307,14 @@ export const ArtboardPanel = memo(function ArtboardPanel() {
           labelVisuallyHidden
           iconStart={<Ruler aria-hidden="true" />}
           value={computedUnit}
+          options={UNIT_OPTIONS}
           onCommit={(v) => onUnitChange(v as Unit)}
           disabled={controlsDisabled}
           triggerOnPointerDownCapture={cancelPendingCommits}
-        >
-          <SelectItem value="mm">mm</SelectItem>
-          <SelectItem value="cm">cm</SelectItem>
-          <SelectItem value="pt">pt</SelectItem>
-          <SelectItem value="px">px</SelectItem>
-        </FormField>
+        />
 
         <PanelIconSlot />
       </PanelTwoFieldRow>
     </div>
   )
-})
+}

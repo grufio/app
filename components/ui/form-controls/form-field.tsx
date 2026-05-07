@@ -45,7 +45,7 @@ import { useFieldDraft } from "@/lib/forms/use-field-draft"
 import { cn } from "@/lib/utils"
 
 import { AppFieldGroup, AppFieldGroupAddon, AppFieldGroupText } from "./field-group"
-import { AppSelect, AppSelectContent, AppSelectValue } from "./app-select"
+import { AppSelect, AppSelectContent, AppSelectItem, AppSelectValue } from "./app-select"
 import { ColorSwatchControl } from "./color-swatch-control"
 import { FieldControl } from "./field-control"
 import { SelectFieldControl } from "./select-field-control"
@@ -96,12 +96,24 @@ type ColorVariantProps = CommonFormFieldProps & {
   onCommit: (next: string) => void
 }
 
+export type SelectFieldOption = {
+  value: string
+  label: React.ReactNode
+  disabled?: boolean
+}
+
 type SelectVariantProps = CommonFormFieldProps & {
   variant: "select"
   value: string
   /** For select variant, fires immediately on user selection. */
   onCommit: (next: string) => void
-  children: React.ReactNode
+  /**
+   * Structured option list. We render the trigger's display text directly
+   * from this list (instead of letting Radix portal it from the selected
+   * <SelectItem>). The portal path was visibly flickering on parent re-
+   * renders because Radix re-creates the portal on each item re-render.
+   */
+  options: ReadonlyArray<SelectFieldOption>
   /**
    * Native pointer-down-capture on the trigger — used by callers that need
    * to suppress sibling field commits while the dropdown opens.
@@ -377,49 +389,67 @@ const SelectVariant = React.forwardRef<
     inputClassName,
     value,
     onCommit,
-    children,
+    options,
     triggerOnPointerDownCapture,
   } = props
 
-    // Select has no internal draft — the dropdown either commits or cancels.
-    React.useImperativeHandle(
-      ref,
-      () => ({
-        commit: () => {},
-        cancelPendingCommit: () => {},
-        focus: () => {},
-      }),
-      []
-    )
+  // Select has no internal draft — the dropdown either commits or cancels.
+  React.useImperativeHandle(
+    ref,
+    () => ({
+      commit: () => {},
+      cancelPendingCommit: () => {},
+      focus: () => {},
+    }),
+    []
+  )
 
-    return (
-      <AppFieldGroup>
-        {iconStart ? (
-          <AppFieldGroupAddon align="inline-start" aria-hidden="true">
-            {iconStart}
-          </AppFieldGroupAddon>
-        ) : null}
+  // Look up the active option's label so we can render it as the trigger's
+  // own children. This bypasses Radix's portal-based text projection
+  // (`createPortal(itemTextProps.children, valueNode)`), which re-creates
+  // the portal on every item re-render and visibly flickers the trigger
+  // content when the parent component re-renders for unrelated reasons.
+  // Setting children on AppSelectValue makes Radix's
+  // `valueNodeHasChildren` flag true, which short-circuits the portal.
+  const selectedLabel = React.useMemo(
+    () => options.find((opt) => opt.value === value)?.label ?? null,
+    [options, value]
+  )
 
-        <AppSelect value={value} onValueChange={onCommit}>
-          <SelectFieldControl
-            id={id}
-            className={inputClassName}
-            disabled={disabled}
-            aria-label={labelVisuallyHidden ? label : undefined}
-            aria-describedby={descriptionId}
-            onPointerDownCapture={triggerOnPointerDownCapture}
-          >
-            <AppSelectValue className="truncate" />
-          </SelectFieldControl>
-          <AppSelectContent>{children}</AppSelectContent>
-        </AppSelect>
+  return (
+    <AppFieldGroup>
+      {iconStart ? (
+        <AppFieldGroupAddon align="inline-start" aria-hidden="true">
+          {iconStart}
+        </AppFieldGroupAddon>
+      ) : null}
 
-        {iconEnd ? (
-          <AppFieldGroupAddon align="inline-end" aria-hidden="true">
-            {iconEnd}
-          </AppFieldGroupAddon>
-        ) : null}
-      </AppFieldGroup>
-    )
-  }
+      <AppSelect value={value} onValueChange={onCommit}>
+        <SelectFieldControl
+          id={id}
+          className={inputClassName}
+          disabled={disabled}
+          aria-label={labelVisuallyHidden ? label : undefined}
+          aria-describedby={descriptionId}
+          onPointerDownCapture={triggerOnPointerDownCapture}
+        >
+          <AppSelectValue className="truncate">{selectedLabel}</AppSelectValue>
+        </SelectFieldControl>
+        <AppSelectContent>
+          {options.map((opt) => (
+            <AppSelectItem key={opt.value} value={opt.value} disabled={opt.disabled}>
+              {opt.label}
+            </AppSelectItem>
+          ))}
+        </AppSelectContent>
+      </AppSelect>
+
+      {iconEnd ? (
+        <AppFieldGroupAddon align="inline-end" aria-hidden="true">
+          {iconEnd}
+        </AppFieldGroupAddon>
+      ) : null}
+    </AppFieldGroup>
+  )
+}
 )

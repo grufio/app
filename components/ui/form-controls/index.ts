@@ -1,5 +1,10 @@
 export { FieldControl } from "./field-control"
-export { FormField, type FormFieldHandle, type FormFieldProps } from "./form-field"
+export {
+  FormField,
+  type FormFieldHandle,
+  type FormFieldProps,
+  type SelectFieldOption,
+} from "./form-field"
 export { SelectFieldControl } from "./select-field-control"
 export { ColorSwatchControl } from "./color-swatch-control"
 export { AppFieldGroup, AppFieldGroupAddon, AppFieldGroupText } from "./field-group"
