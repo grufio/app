@@ -1,0 +1,47 @@
+{
+  "budget": 53,
+  "note": "Hard ceiling for `as unknown as` in production code (excludes *.test.ts/.tsx). Gate fails if count exceeds budget. Lower this number deliberately as the codebase improves.",
+  "last_updated": "2026-05-07",
+  "top_offenders": [
+    {
+      "file": "lib/editor/project-workspace.tsx",
+      "perFile": 11
+    },
+    {
+      "file": "lib/supabase/project-images.ts",
+      "perFile": 7
+    },
+    {
+      "file": "services/editor/workspace/browser-repo-supabase.ts",
+      "perFile": 5
+    },
+    {
+      "file": "features/editor/components/artboard-panel.tsx",
+      "perFile": 5
+    },
+    {
+      "file": "features/editor/components/project-canvas-stage.tsx",
+      "perFile": 4
+    },
+    {
+      "file": "lib/editor/project-grid.tsx",
+      "perFile": 3
+    },
+    {
+      "file": "services/editor/grid/browser-repo-supabase.ts",
+      "perFile": 3
+    },
+    {
+      "file": "services/editor/server/master-image-upload.ts",
+      "perFile": 3
+    },
+    {
+      "file": "app/auth/callback/route.ts",
+      "perFile": 2
+    },
+    {
+      "file": "app/projects/[projectId]/page.tsx",
+      "perFile": 2
+    }
+  ]
+}
