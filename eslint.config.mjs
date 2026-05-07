@@ -22,6 +22,18 @@ const eslintConfig = defineConfig([
   {
     rules: {
       "react-hooks/set-state-in-effect": "warn",
+      // Treat `_`-prefixed args/vars as intentionally unused (matches the
+      // common JS convention; helpful for vi.fn signatures where we keep
+      // the parameter to satisfy a typed call shape but don't read it).
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+          destructuredArrayIgnorePattern: "^_",
+        },
+      ],
     },
   },
   // JSDoc rule available for opt-in. Currently scoped to the smallest, most
