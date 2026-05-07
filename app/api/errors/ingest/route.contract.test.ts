@@ -68,4 +68,74 @@ describe("POST /api/errors/ingest", () => {
     const overflow = await POST(makeRequest({ message: "boom" }, { ip }))
     expect(overflow.status).toBe(429)
   })
+
+  describe("Slack fan-out", () => {
+    const originalWebhook = process.env.SLACK_ALERT_WEBHOOK_URL
+    let fetchMock: ReturnType<typeof vi.fn>
+
+    beforeAll(() => {
+      // Stub global fetch so we can assert what (and whether) the route
+      // POSTs to Slack. Returning a 200 keeps the route out of its
+      // catch-all error swallow.
+      fetchMock = vi.fn(async () => new Response(null, { status: 200 }))
+      global.fetch = fetchMock as unknown as typeof fetch
+    })
+
+    afterAll(() => {
+      // Vitest runs the global afterAll() above which restoreAllMocks();
+      // we just need to drop our env-var override.
+      if (originalWebhook == null) delete process.env.SLACK_ALERT_WEBHOOK_URL
+      else process.env.SLACK_ALERT_WEBHOOK_URL = originalWebhook
+    })
+
+    it("does NOT fan out to Slack when SLACK_ALERT_WEBHOOK_URL is unset", async () => {
+      delete process.env.SLACK_ALERT_WEBHOOK_URL
+      fetchMock.mockClear()
+      const res = await POST(
+        makeRequest({ message: "hello", severity: "error", scope: "editor", code: "X" }, { ip: "1.1.1.1" })
+      )
+      expect(res.status).toBe(204)
+      // Allow the void-promise to resolve before asserting fetch was not called.
+      await new Promise((r) => setTimeout(r, 10))
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it("fans out to Slack on severity=error when webhook is set", async () => {
+      process.env.SLACK_ALERT_WEBHOOK_URL = "https://hooks.slack.test/services/AAA/BBB/ccc"
+      fetchMock.mockClear()
+      const res = await POST(
+        makeRequest(
+          {
+            message: "Filter chain corrupt",
+            severity: "error",
+            scope: "editor",
+            code: "FILTER_CHAIN_CORRUPT",
+            stage: "apply",
+            context: { projectId: "p-1" },
+          },
+          { ip: "1.1.1.2" },
+        ),
+      )
+      expect(res.status).toBe(204)
+      await new Promise((r) => setTimeout(r, 10))
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      const [calledUrl, init] = fetchMock.mock.calls[0] ?? []
+      expect(calledUrl).toBe("https://hooks.slack.test/services/AAA/BBB/ccc")
+      const body = JSON.parse(String((init as RequestInit).body))
+      expect(body.text).toContain("ERROR")
+      expect(body.text).toContain("FILTER_CHAIN_CORRUPT")
+      expect(body.text).toContain("Filter chain corrupt")
+    })
+
+    it("does NOT fan out for severity=info even with webhook set", async () => {
+      process.env.SLACK_ALERT_WEBHOOK_URL = "https://hooks.slack.test/services/AAA/BBB/ccc"
+      fetchMock.mockClear()
+      const res = await POST(
+        makeRequest({ message: "fyi", severity: "info", scope: "client" }, { ip: "1.1.1.3" })
+      )
+      expect(res.status).toBe(204)
+      await new Promise((r) => setTimeout(r, 10))
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+  })
 })
