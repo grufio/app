@@ -26,6 +26,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { useDialogFocusReturn } from "@/lib/dialog/use-dialog-focus-return"
 import { deleteProjectClient } from "@/services/projects/client/delete-project"
 
 export function ProjectCardMenu({
@@ -40,6 +41,7 @@ export function ProjectCardMenu({
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>("")
+  const focusReturn = useDialogFocusReturn()
 
   const deleteProject = useCallback(async () => {
     if (busy) return
@@ -93,6 +95,7 @@ export function ProjectCardMenu({
             className="text-[12px]"
             onSelect={(e) => {
               e.preventDefault()
+              focusReturn.captureOnOpen()
               setConfirmOpen(true)
             }}
           >
@@ -108,7 +111,7 @@ export function ProjectCardMenu({
           if (!open) setError("")
         }}
       >
-        <DialogContent onClick={(e) => e.stopPropagation()}>
+        <DialogContent onClick={(e) => e.stopPropagation()} onCloseAutoFocus={focusReturn.onCloseAutoFocus}>
           <DialogHeader>
             <DialogTitle>Delete project?</DialogTitle>
             <DialogDescription>This cannot be undone.</DialogDescription>

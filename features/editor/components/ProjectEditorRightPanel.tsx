@@ -21,6 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { useDialogFocusReturn } from "@/lib/dialog/use-dialog-focus-return"
 import { SidebarContent } from "@/components/ui/sidebar"
 // Code-split non-canvas panels to reduce initial editor bundle cost.
 const GridPanel = dynamic(() => import("./grid-panel").then((m) => m.GridPanel), {
@@ -118,6 +119,9 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
     canvasRef,
   } = props
 
+  const restoreFocusReturn = useDialogFocusReturn()
+  const deleteFocusReturn = useDialogFocusReturn()
+
   const clamp = (v: number) => Math.max(minPanelRem, Math.min(maxPanelRem, v))
   const startResize = useResizableSidebar()
 
@@ -199,7 +203,10 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
                       type="button"
                       disabled={!masterImage || masterImageLoading || deleteBusy || restoreBusy}
                       aria-label="Restore image"
-                      onClick={() => setRestoreOpen(true)}
+                      onClick={() => {
+                        restoreFocusReturn.captureOnOpen()
+                        setRestoreOpen(true)
+                      }}
                     >
                       <RotateCcw className="size-4" strokeWidth={1} />
                     </RightPanelIconButton>
@@ -207,7 +214,10 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
                       type="button"
                       disabled={!masterImage || masterImageLoading || deleteBusy || !canDeleteActiveImage}
                       aria-label="Delete image"
-                      onClick={onRequestDeleteImage}
+                      onClick={() => {
+                        deleteFocusReturn.captureOnOpen()
+                        onRequestDeleteImage()
+                      }}
                     >
                       <Trash2 className="size-4" strokeWidth={1} />
                     </RightPanelIconButton>
@@ -238,7 +248,7 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
 
       {/* Restore confirmation dialog */}
       <Dialog open={restoreOpen} onOpenChange={setRestoreOpen}>
-        <DialogContent>
+        <DialogContent onCloseAutoFocus={restoreFocusReturn.onCloseAutoFocus}>
           <DialogHeader>
             <DialogTitle>Restore image?</DialogTitle>
             <DialogDescription>
@@ -265,7 +275,7 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
 
       {/* Delete confirmation dialog */}
       <Dialog open={deleteOpen} onOpenChange={(o) => (deleteBusy ? null : setDeleteOpen(o))}>
-        <DialogContent>
+        <DialogContent onCloseAutoFocus={deleteFocusReturn.onCloseAutoFocus}>
           <DialogHeader>
             <DialogTitle>Delete image?</DialogTitle>
             <DialogDescription>
