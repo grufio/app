@@ -119,7 +119,7 @@ export function ProjectCardMenu({
             </p>
           ) : null}
           <DialogFooter>
-            <Button type="button" variant="secondary" onClick={() => setConfirmOpen(false)} disabled={busy}>
+            <Button type="button" variant="outline" onClick={() => setConfirmOpen(false)} disabled={busy}>
               Cancel
             </Button>
             <Button type="button" variant="destructive" onClick={deleteProject} disabled={busy}>
