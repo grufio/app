@@ -38,7 +38,17 @@ function* walk(dir) {
   for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, ent.name)
     if (ent.isDirectory()) {
-      if (ent.name === "node_modules" || ent.name === ".next" || ent.name === ".git") continue
+      // `__mocks__/` is test tooling by convention (vitest / jest both
+      // honour the folder name). The casts there fake external interfaces
+      // for tests; they don't ship to users.
+      if (
+        ent.name === "node_modules" ||
+        ent.name === ".next" ||
+        ent.name === ".git" ||
+        ent.name === "__mocks__"
+      ) {
+        continue
+      }
       yield* walk(full)
     } else if (ent.isFile()) {
       yield full

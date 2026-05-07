@@ -37,17 +37,10 @@ function readText(filePath) {
   return fs.readFileSync(filePath, "utf8")
 }
 
-/**
- * Build a regex that matches a fragment in either `pg_dump` form
- * (`ALTER TABLE "public"."x" ENABLE ROW LEVEL SECURITY;`) or plain form
- * (`alter table public.x enable row level security;`). Identifiers are
- * matched optionally-quoted; whitespace and case are flexible.
- */
-function buildMatcher(template) {
-  // Tokens to interpolate: `<table>`, `<schema>`. Whitespace flexible.
-  return template
-}
-
+// Pattern matchers tolerate either `pg_dump` form
+// (`ALTER TABLE "public"."x" ENABLE ROW LEVEL SECURITY;`) or plain form
+// (`alter table public.x enable row level security;`). Identifiers are
+// matched optionally-quoted; whitespace and case are flexible.
 function rxRlsEnable(table) {
   return new RegExp(
     `ALTER\\s+TABLE\\s+"?public"?\\."?${table}"?\\s+ENABLE\\s+ROW\\s+LEVEL\\s+SECURITY`,

@@ -1,12 +1,17 @@
 import { describe, it, expect, vi } from "vitest"
-import type { SupabaseClient } from "@supabase/supabase-js"
 
-import type { Database } from "@/lib/supabase/database.types"
+import { makeMockSupabase } from "@/lib/supabase/__mocks__/make-mock-supabase"
 import { resetProjectFilterChain } from "./filter-chain-reset"
 
 type FilterRow = { id: string; output_image_id: string }
 
-function makeSupabase(args: {
+/**
+ * Tests use the shared `makeMockSupabase` factory (lib/supabase/__mocks__/).
+ * Migrated 2026-05-07 from a per-file hand-rolled `from()`-chain — see
+ * the C1 PR notes for the migration rationale (mock-drift across tests
+ * when the production code grew a new chain method).
+ */
+function setup(args: {
   rows: FilterRow[]
   selectErr?: { message: string; code?: string } | null
   deleteErr?: { message: string; code?: string } | null
@@ -18,63 +23,53 @@ function makeSupabase(args: {
     updateImagesIds: [] as string[],
   }
 
-  const from = vi.fn((table: string) => {
-    if (table === "project_image_filters") {
-      return {
-        select: vi.fn(() => ({
-          eq: vi.fn(async () => {
+  const supabase = makeMockSupabase({
+    tables: {
+      project_image_filters: {
+        select: () => ({
+          data: args.rows,
+          error: args.selectErr ?? null,
+          onCall: () => {
             calls.selectFilters += 1
-            return args.selectErr
-              ? { data: null, error: args.selectErr }
-              : { data: args.rows, error: null }
-          }),
-        })),
-        delete: vi.fn(() => ({
-          eq: vi.fn(async () => {
+          },
+        }),
+        delete: () => ({
+          data: null,
+          error: args.deleteErr ?? null,
+          onCall: () => {
             calls.deleteFilters += 1
-            return args.deleteErr ? { error: args.deleteErr } : { error: null }
-          }),
-        })),
-      }
-    }
-    if (table === "project_images") {
-      return {
-        // The chain calls .select(...).eq().eq().is().in() to look up
-        // (storage_bucket, storage_path) before the tombstone update so
-        // it can clean up storage objects synchronously. In tests we
-        // return empty rows — the storage-cleanup loop short-circuits
-        // and the service-role client never instantiates.
-        select: vi.fn(() => {
-          const chain: Record<string, unknown> = {}
-          chain.eq = vi.fn(() => chain)
-          chain.is = vi.fn(() => chain)
-          chain.in = vi.fn(async () => ({ data: [], error: null }))
-          return chain
+          },
         }),
-        update: vi.fn(() => {
-          const chain: Record<string, unknown> = {}
-          chain.eq = vi.fn(() => chain)
-          chain.is = vi.fn(() => chain)
-          chain.in = vi.fn(async (_key: string, ids: string[]) => {
-            calls.updateImagesIds = ids
-            return args.updateErr ? { error: args.updateErr } : { error: null }
-          })
-          return chain
-        }),
-      }
-    }
-    return {}
+      },
+      project_images: {
+        // Storage-path lookup before the tombstone update — return empty
+        // so the storage-cleanup loop short-circuits and the service-
+        // role client never instantiates.
+        select: { data: [], error: null },
+        update: {
+          data: null,
+          error: args.updateErr ?? null,
+          onCall: ({ args: chainArgs }) => {
+            // The terminal in the production code is `.in("id", ids)` —
+            // chainArgs records each chain invocation as its arg array.
+            // We pluck the in() invocation by looking for [string, array].
+            for (const callArgs of chainArgs as unknown[][]) {
+              if (callArgs.length === 2 && Array.isArray(callArgs[1])) {
+                calls.updateImagesIds = callArgs[1] as string[]
+              }
+            }
+          },
+        },
+      },
+    },
   })
 
-  return {
-    supabase: { from } as unknown as SupabaseClient<Database>,
-    calls,
-  }
+  return { supabase, calls }
 }
 
 describe("resetProjectFilterChain", () => {
   it("returns no-op result when no filter rows exist", async () => {
-    const { supabase, calls } = makeSupabase({ rows: [] })
+    const { supabase, calls } = setup({ rows: [] })
     const result = await resetProjectFilterChain({ supabase, projectId: "p1" })
     expect(result.ok).toBe(true)
     if (result.ok) {
@@ -86,7 +81,7 @@ describe("resetProjectFilterChain", () => {
   })
 
   it("deletes filter rows and soft-deletes their outputs", async () => {
-    const { supabase, calls } = makeSupabase({
+    const { supabase, calls } = setup({
       rows: [
         { id: "f1", output_image_id: "out-1" },
         { id: "f2", output_image_id: "out-2" },
@@ -103,7 +98,7 @@ describe("resetProjectFilterChain", () => {
   })
 
   it("deduplicates output image ids before update", async () => {
-    const { supabase, calls } = makeSupabase({
+    const { supabase, calls } = setup({
       rows: [
         { id: "f1", output_image_id: "out-x" },
         { id: "f2", output_image_id: "out-x" },
@@ -115,7 +110,7 @@ describe("resetProjectFilterChain", () => {
   })
 
   it("propagates select error", async () => {
-    const { supabase } = makeSupabase({
+    const { supabase } = setup({
       rows: [],
       selectErr: { message: "boom", code: "X" },
     })
@@ -128,7 +123,7 @@ describe("resetProjectFilterChain", () => {
   })
 
   it("propagates delete error", async () => {
-    const { supabase } = makeSupabase({
+    const { supabase } = setup({
       rows: [{ id: "f1", output_image_id: "out-1" }],
       deleteErr: { message: "del-fail" },
     })
@@ -138,7 +133,7 @@ describe("resetProjectFilterChain", () => {
   })
 
   it("propagates update error", async () => {
-    const { supabase } = makeSupabase({
+    const { supabase } = setup({
       rows: [{ id: "f1", output_image_id: "out-1" }],
       updateErr: { message: "upd-fail" },
     })
@@ -148,7 +143,7 @@ describe("resetProjectFilterChain", () => {
   })
 
   it("skips output update when all rows have empty output_image_id", async () => {
-    const { supabase, calls } = makeSupabase({
+    const { supabase, calls } = setup({
       rows: [{ id: "f1", output_image_id: "" }],
     })
     const result = await resetProjectFilterChain({ supabase, projectId: "p1" })
@@ -157,3 +152,6 @@ describe("resetProjectFilterChain", () => {
     expect(calls.updateImagesIds).toEqual([])
   })
 })
+
+// Silence unused-import warning until we add a vi.spyOn assertion.
+void vi
