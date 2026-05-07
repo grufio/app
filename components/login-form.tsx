@@ -107,6 +107,8 @@ export function LoginForm({
                   autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  aria-invalid={error ? true : undefined}
+                  aria-describedby={error ? "login-form-error" : undefined}
                   required
                 />
               </Field>
@@ -126,11 +128,13 @@ export function LoginForm({
                   autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  aria-invalid={error ? true : undefined}
+                  aria-describedby={error ? "login-form-error" : undefined}
                   required
                 />
               </Field>
               {error ? (
-                <p className="text-sm text-destructive" role="alert">
+                <p id="login-form-error" className="text-sm text-destructive" role="alert">
                   {error}
                 </p>
               ) : null}
