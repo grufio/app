@@ -58,4 +58,20 @@ if (offenders.length > 0) {
   process.exit(1)
 }
 
+// Soft cap: the allowlist is meant to be small. Past five entries it stops
+// being a curated exception list and starts being "yet another permission
+// surface". Warn loud (CI annotation when running on GitHub Actions) so the
+// reviewer at least sees the trend.
+const SOFT_CAP = 5
+if (ALLOWLIST.size > SOFT_CAP) {
+  const msg =
+    `Service-role allowlist now has ${ALLOWLIST.size} entries (soft cap ${SOFT_CAP}). ` +
+    `Re-evaluate whether the boundary is still meaningful — consider extracting a single ` +
+    `cleanup-orchestrator helper, or splitting service-role usage into a smaller, named API.`
+  if (process.env.GITHUB_ACTIONS === "true") {
+    process.stdout.write(`::warning title=Service-role allowlist exceeds soft cap::${msg}\n`)
+  }
+  console.warn(`[verify-service-role-usage] WARN: ${msg}`)
+}
+
 console.log(`OK: service-role usage limited to ${ALLOWLIST.size} allowlisted file(s).`)

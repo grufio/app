@@ -1,0 +1,39 @@
+# Code owners — review-required paths.
+#
+# GitHub matches paths against a single CODEOWNERS line per file (last match
+# wins). Owners listed here automatically become required reviewers when a PR
+# touches the matched path, regardless of who opened it.
+#
+# Today this is mostly symbolic — solo project, single owner. Once a second
+# committer joins this stops being theatre and starts gating real reviews.
+# Keep the list focused on security-sensitive surfaces.
+
+# ---- security-critical: service-role bypasses RLS ----
+# Any expansion of the service-role allowlist or change to the client factory
+# itself must be reviewed by the repo owner. The whole point of the allowlist
+# is that aspiration drift past five entries is a smell — see
+# `scripts/verify-service-role-usage.mjs` soft-cap.
+/scripts/verify-service-role-usage.mjs   @grufio
+/lib/supabase/service-role.ts            @grufio
+
+# ---- security-critical: env-var helpers ----
+# `getRequiredEnv` and friends govern how secrets are read. A change here
+# affects every server-side bootstrap path.
+/lib/env.ts                              @grufio
+
+# ---- security-critical: error-ingest endpoint ----
+# Receives client-reported error payloads. Misconfigured rate-limits or
+# data-exposure rules here would leak request shapes to anyone with the URL.
+/app/api/errors/ingest/route.ts          @grufio
+
+# ---- DB migration & schema ----
+# Schema changes ship state to production. Reviewer signs off on the
+# migration *and* the corresponding `db/schema.sql` update.
+/supabase/migrations/                    @grufio
+/db/schema.sql                           @grufio
+
+# ---- CI / gate scripts ----
+# Changing the gate is changing what we believe before we ship. Reviewer
+# verifies that no checks have been silently weakened or removed.
+/scripts/                                @grufio
+/.github/workflows/                      @grufio
