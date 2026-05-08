@@ -126,5 +126,8 @@ design".
 
 - **Plan:** `/Users/christian/.claude/plans/forms-components-review.md`
 - **Demo page (dev only):** [/dev/form-primitives](http://localhost:3000/dev/form-primitives) — 404s in production
+- **Decision tree:** [forms-decision-tree.md](forms-decision-tree.md) — which primitive to reach for
+- **Sizing tokens:** [forms-sizing-tokens.md](forms-sizing-tokens.md) — `text-panel`, `h-6`, etc.
+- **Findings:** [forms-primitives-findings.md](forms-primitives-findings.md) — refactor backlog
 - **Two-family rationale:** [forms-review.md](forms-review.md)
 - **Performance history:** [forms-optimizations.md](forms-optimizations.md)

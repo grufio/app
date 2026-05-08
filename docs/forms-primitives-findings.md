@@ -230,9 +230,21 @@ this is *not* yet covered.
 3. Uncomment the test
 4. Verify CI passes
 
-## Out of Scope
+## Phase 4 — Documentation ✓
 
-- Doc updates / decision tree → **Phase 4**
+- New decision tree: [`forms-decision-tree.md`](forms-decision-tree.md).
+  Walks contributors through "default vs custom?" → "FormField vs lower
+  primitive?" → "which variant?" with explicit anti-patterns.
+- New sizing-token glossary:
+  [`forms-sizing-tokens.md`](forms-sizing-tokens.md). Single source of
+  truth for `text-panel` / `text-panel-tight` / `h-6` / `px-3` /
+  `pr-2` / `pr-1` / state-colour mappings.
+- Cross-link comment added to
+  [`input-group.tsx`](../components/ui/form-controls/input-group.tsx#L58)
+  on the addon `px-2` so future readers find the
+  `numeric-variant-classes.ts` override pattern instead of hand-fixing
+  the gap from one side.
+- Inventory doc's "Quick links" updated to point at the new docs.
 
 ---
 
@@ -250,6 +262,10 @@ this is *not* yet covered.
 | F2.3 A11y | no gaps found | — |
 | F3.1 Pure-helper extraction | ✓ Phase 1 | — |
 | F3.2 Gallery visual regression | reachable in E2E; baseline pending | follow-up |
+| F4.1 Decision tree | ✓ Phase 4 | — |
+| F4.2 Sizing-token glossary | ✓ Phase 4 | — |
+| F1.3.b Cross-link addon padding comment | ✓ Phase 4 | — |
+| F1.3.a Merge field-group.tsx | open | future PR (XS) |
 | F1.2.b Keep two-layer trigger | decided | — |
 | F1.3.a Merge field-group.tsx into input-group.tsx | open | Phase 4 |
 | F1.3.b Cross-link addon padding comment | open | Phase 4 |
