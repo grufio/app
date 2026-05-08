@@ -325,7 +325,10 @@ export function ProjectDetailPageClient({
       if (!imageTxU) return
       const dxPxU = BigInt(Math.round(dxPx)) * 1_000_000n
       const dyPxU = BigInt(Math.round(dyPx)) * 1_000_000n
-      canvasRef.current?.setImagePosition(imageTxU.x + dxPxU, imageTxU.y + dyPxU)
+      canvasRef.current?.setImagePosition({
+        xPxU: imageTxU.x + dxPxU,
+        yPxU: imageTxU.y + dyPxU,
+      })
     },
     [imageTxU],
   )

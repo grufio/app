@@ -125,6 +125,116 @@ describe("createTransformController", () => {
     }
   })
 
+  it("setImagePosition with only xPxU emits a commit that omits yPxU", () => {
+    const commits: Array<{ xPxU?: bigint; yPxU?: bigint; widthPxU: bigint; heightPxU: bigint }> = []
+    let tx: { xPxU: bigint; yPxU: bigint; widthPxU: bigint; heightPxU: bigint } | null = {
+      xPxU: 100n,
+      yPxU: 200n,
+      widthPxU: 3_000_000n,
+      heightPxU: 4_000_000n,
+    }
+    const c = createTransformController({
+      getImageNode: () => null,
+      getLayer: () => null,
+      getRotationDeg: () => 0,
+      setRotationDeg: () => {},
+      getImageTx: () => tx,
+      setImageTx: (n) => {
+        tx = n
+      },
+      markUserChanged: () => {},
+      onCommit: (t) => commits.push({ xPxU: t.xPxU, yPxU: t.yPxU, widthPxU: t.widthPxU, heightPxU: t.heightPxU }),
+    })
+
+    c.setImagePosition({ xPxU: 500n })
+    expect(commits.length).toBe(1)
+    expect(commits[0].xPxU).toBe(500n)
+    // Y must NOT be in the payload — downstream persistence preserves it.
+    expect(commits[0].yPxU).toBeUndefined()
+    // Local canvas state still carries both axes (Y unchanged).
+    expect(tx?.xPxU).toBe(500n)
+    expect(tx?.yPxU).toBe(200n)
+  })
+
+  it("setImagePosition with only yPxU emits a commit that omits xPxU", () => {
+    const commits: Array<{ xPxU?: bigint; yPxU?: bigint }> = []
+    let tx: { xPxU: bigint; yPxU: bigint; widthPxU: bigint; heightPxU: bigint } | null = {
+      xPxU: 100n,
+      yPxU: 200n,
+      widthPxU: 3_000_000n,
+      heightPxU: 4_000_000n,
+    }
+    const c = createTransformController({
+      getImageNode: () => null,
+      getLayer: () => null,
+      getRotationDeg: () => 0,
+      setRotationDeg: () => {},
+      getImageTx: () => tx,
+      setImageTx: (n) => {
+        tx = n
+      },
+      markUserChanged: () => {},
+      onCommit: (t) => commits.push({ xPxU: t.xPxU, yPxU: t.yPxU }),
+    })
+
+    c.setImagePosition({ yPxU: 999n })
+    expect(commits.length).toBe(1)
+    expect(commits[0].xPxU).toBeUndefined()
+    expect(commits[0].yPxU).toBe(999n)
+    expect(tx?.xPxU).toBe(100n)
+    expect(tx?.yPxU).toBe(999n)
+  })
+
+  it("setImagePosition with both axes emits a full commit", () => {
+    const commits: Array<{ xPxU?: bigint; yPxU?: bigint }> = []
+    let tx: { xPxU: bigint; yPxU: bigint; widthPxU: bigint; heightPxU: bigint } | null = {
+      xPxU: 100n,
+      yPxU: 200n,
+      widthPxU: 3_000_000n,
+      heightPxU: 4_000_000n,
+    }
+    const c = createTransformController({
+      getImageNode: () => null,
+      getLayer: () => null,
+      getRotationDeg: () => 0,
+      setRotationDeg: () => {},
+      getImageTx: () => tx,
+      setImageTx: (n) => {
+        tx = n
+      },
+      markUserChanged: () => {},
+      onCommit: (t) => commits.push({ xPxU: t.xPxU, yPxU: t.yPxU }),
+    })
+
+    c.setImagePosition({ xPxU: 1n, yPxU: 2n })
+    expect(commits.length).toBe(1)
+    expect(commits[0].xPxU).toBe(1n)
+    expect(commits[0].yPxU).toBe(2n)
+  })
+
+  it("setImagePosition with no axes is a no-op (no commit)", () => {
+    const commits: Array<{ xPxU?: bigint; yPxU?: bigint }> = []
+    const tx: { xPxU: bigint; yPxU: bigint; widthPxU: bigint; heightPxU: bigint } | null = {
+      xPxU: 100n,
+      yPxU: 200n,
+      widthPxU: 3_000_000n,
+      heightPxU: 4_000_000n,
+    }
+    const c = createTransformController({
+      getImageNode: () => null,
+      getLayer: () => null,
+      getRotationDeg: () => 0,
+      setRotationDeg: () => {},
+      getImageTx: () => tx,
+      setImageTx: () => {},
+      markUserChanged: () => {},
+      onCommit: (t) => commits.push({ xPxU: t.xPxU, yPxU: t.yPxU }),
+    })
+
+    c.setImagePosition({})
+    expect(commits.length).toBe(0)
+  })
+
   it("restoreImage cancels any pending scheduled commits", async () => {
     vi.useFakeTimers()
     try {

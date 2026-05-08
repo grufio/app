@@ -16,6 +16,11 @@ export type BoundImageStateRow = {
   rotation_deg: number
 }
 
+/**
+ * Full row written by `upsertBoundImageState`. Per-axis preservation is
+ * resolved upstream (in the API route) by reading the existing row and
+ * filling in unchanged axes; this layer always writes a complete row.
+ */
 export type BoundImageStateUpsert = {
   project_id: string
   image_id: string

@@ -115,7 +115,12 @@ export type ProjectCanvasStageHandle = {
    * Pass `NaN` for a dimension to keep that axis unchanged.
    */
   setImageSize: (widthPxU: bigint, heightPxU: bigint) => void
-  setImagePosition: (xPxU: bigint, yPxU: bigint) => void
+  /**
+   * Move the image. Pass only the axis you want to change; the omitted
+   * axis is preserved both in canvas state and in the commit payload
+   * (downstream persistence will preserve the existing DB value).
+   */
+  setImagePosition: (opts: { xPxU?: bigint; yPxU?: bigint }) => void
   /**
    * Align the image position relative to the artboard.
    * Uses the image node's axis-aligned bounding box (includes rotation).
@@ -453,9 +458,9 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   )
 
   const setImagePosition = useCallback(
-    (xPxU: bigint, yPxU: bigint) => {
+    (opts: { xPxU?: bigint; yPxU?: bigint }) => {
       if (!mutationsEnabled) return
-      transformControllerRef.current?.setImagePosition(xPxU, yPxU)
+      transformControllerRef.current?.setImagePosition(opts)
     },
     [mutationsEnabled]
   )

@@ -36,7 +36,13 @@ export type TransformController = {
   dispose: () => void
   rotate90: () => void
   setImageSize: (widthPxU: MicroPx, heightPxU: MicroPx, fallbackCenterPx?: { x: number; y: number } | null) => void
-  setImagePosition: (xPxU: MicroPx, yPxU: MicroPx) => void
+  /**
+   * Set image position. Each axis is optional — passing `undefined` for an
+   * axis preserves the previous value in canvas state and omits it from the
+   * commit payload, so the persistence layer can preserve the existing DB
+   * value for that axis (per-axis edit semantics).
+   */
+  setImagePosition: (opts: { xPxU?: MicroPx; yPxU?: MicroPx }) => void
   alignImage: (opts: AlignImageOpts) => void
   restoreImage: (opts: {
     placement: ImagePlacementPx
@@ -97,10 +103,13 @@ export function createTransformController(deps: TransformControllerDeps): Transf
     deps.onCommit?.({ xPxU: next.xPxU, yPxU: next.yPxU, widthPxU: next.widthPxU, heightPxU: next.heightPxU, rotationDeg: deps.getRotationDeg() })
   }
 
-  const setImagePosition = (xPxU: MicroPx, yPxU: MicroPx) => {
+  const setImagePosition = (opts: { xPxU?: MicroPx; yPxU?: MicroPx }) => {
     scheduler.cancel()
     const prev = deps.getImageTx()
     if (!prev) return
+    if (opts.xPxU === undefined && opts.yPxU === undefined) return
+    const xPxU = (opts.xPxU ?? prev.xPxU) as MicroPx
+    const yPxU = (opts.yPxU ?? prev.yPxU) as MicroPx
     const next: ImageTx = {
       xPxU,
       yPxU,
@@ -111,7 +120,15 @@ export function createTransformController(deps: TransformControllerDeps): Transf
     if (node) applyMicroPxPositionToNode(node, xPxU, yPxU)
     deps.markUserChanged()
     deps.setImageTx(next)
-    deps.onCommit?.({ xPxU: next.xPxU, yPxU: next.yPxU, widthPxU: next.widthPxU, heightPxU: next.heightPxU, rotationDeg: deps.getRotationDeg() })
+    // Emit only the axes the caller actually changed. Downstream
+    // persistence treats omitted axes as "preserve existing".
+    deps.onCommit?.({
+      xPxU: opts.xPxU,
+      yPxU: opts.yPxU,
+      widthPxU: next.widthPxU,
+      heightPxU: next.heightPxU,
+      rotationDeg: deps.getRotationDeg(),
+    })
   }
 
   const alignImage = (opts: AlignImageOpts) => {

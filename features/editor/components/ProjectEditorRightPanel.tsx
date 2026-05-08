@@ -220,7 +220,7 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
                 ready={imagePanelReady}
                 disabled={!imagePanelEnabled.enabled}
                 onCommit={(w, h) => canvasRef.current?.setImageSize(w, h)}
-                onCommitPosition={(x, y) => canvasRef.current?.setImagePosition(x, y)}
+                onCommitPosition={(opts) => canvasRef.current?.setImagePosition(opts)}
                 onAlign={(opts) => canvasRef.current?.alignImage(opts)}
                 canRestore={Boolean(masterImage) && !masterImageLoading && !deleteBusy && !restoreBusy}
                 canDelete={Boolean(masterImage) && !masterImageLoading && !deleteBusy && canDeleteActiveImage}
