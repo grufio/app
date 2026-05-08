@@ -14,7 +14,7 @@ import { useMemo, useState } from "react"
 import type * as React from "react"
 
 import { FormField, type SelectFieldOption } from "@/components/ui/form-controls"
-import { pixelateSchema, type PixelateParams } from "@/lib/editor/filters/pixelate"
+import { pixelateFilter, pixelateSchema, type PixelateParams } from "@/lib/editor/filters/pixelate"
 
 const COLOR_MODE_OPTIONS: ReadonlyArray<SelectFieldOption> = [
   { value: "rgb", label: "RGB" },
@@ -142,7 +142,7 @@ export function PixelateForm({ imageWidth, imageHeight, onCancel, onApply, busy 
           onCommit={setIntFromDraft(setNumColors)}
           onDraftChange={setIntFromDraft(setNumColors)}
           disabled={busy}
-          inputProps={{ min: 2, max: 256 }}
+          inputProps={pixelateFilter.ui.num_colors}
         />
       </div>
 

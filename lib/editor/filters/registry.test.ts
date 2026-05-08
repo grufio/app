@@ -5,6 +5,65 @@ import { numerateSchema } from "./numerate"
 import { pixelateSchema } from "./pixelate"
 import { FILTER_REGISTRY } from "./registry"
 
+describe("FILTER_REGISTRY UI hints", () => {
+  it("each ui-hint field has a matching schema field", () => {
+    for (const filter of Object.values(FILTER_REGISTRY)) {
+      if (!filter.ui) continue
+      for (const fieldName of Object.keys(filter.ui)) {
+        const ok = filter.schema.safeParse({ [fieldName]: undefined }).success ||
+          filter.schema.safeParse({}).success
+        expect(ok, `${filter.id}.${fieldName}`).toBe(true)
+      }
+    }
+  })
+
+  it("each ui-hint accepts the schema's default value", () => {
+    for (const filter of Object.values(FILTER_REGISTRY)) {
+      if (!filter.ui) continue
+      const defaults = filter.schema.parse({}) as Record<string, unknown>
+      for (const [fieldName, hint] of Object.entries(filter.ui)) {
+        const v = defaults[fieldName]
+        if (typeof v !== "number") continue
+        if (hint.min != null) expect(v, `${filter.id}.${fieldName} default below ui.min`).toBeGreaterThanOrEqual(hint.min)
+        if (hint.max != null) expect(v, `${filter.id}.${fieldName} default above ui.max`).toBeLessThanOrEqual(hint.max)
+      }
+    }
+  })
+
+  it("each ui-hint min/max value is accepted by the schema (per-field bounds only)", () => {
+    // Cross-field refines (e.g. lineart.threshold1 < threshold2) cannot be
+    // tested here without varying the partner field — so we look for
+    // numeric type/range issues only on the field-of-interest path.
+    const isPerFieldBoundIssue = (
+      issues: Array<{ path: ReadonlyArray<PropertyKey>; code?: string }>,
+      fieldName: string,
+    ) => issues.some((i) => i.path[0] === fieldName && i.code !== "custom")
+    for (const filter of Object.values(FILTER_REGISTRY)) {
+      if (!filter.ui) continue
+      for (const [fieldName, hint] of Object.entries(filter.ui)) {
+        if (hint.min != null) {
+          const r = filter.schema.safeParse({ [fieldName]: hint.min })
+          if (!r.success) {
+            expect(
+              isPerFieldBoundIssue(r.error.issues, fieldName),
+              `${filter.id}.${fieldName}.min=${hint.min} fails per-field bound`,
+            ).toBe(false)
+          }
+        }
+        if (hint.max != null) {
+          const r = filter.schema.safeParse({ [fieldName]: hint.max })
+          if (!r.success) {
+            expect(
+              isPerFieldBoundIssue(r.error.issues, fieldName),
+              `${filter.id}.${fieldName}.max=${hint.max} fails per-field bound`,
+            ).toBe(false)
+          }
+        }
+      }
+    }
+  })
+})
+
 describe("FILTER_REGISTRY", () => {
   it("exposes pixelate with id, label, and schema", () => {
     expect(FILTER_REGISTRY.pixelate.id).toBe("pixelate")

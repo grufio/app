@@ -6,7 +6,7 @@ import type * as React from "react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { FormField } from "@/components/ui/form-controls"
-import { numerateSchema } from "@/lib/editor/filters/numerate"
+import { numerateFilter, numerateSchema } from "@/lib/editor/filters/numerate"
 import { FilterFormFooter } from "./filter-forms/filter-form-footer"
 
 const DEFAULT_PARAMS = numerateSchema.parse({})
@@ -73,7 +73,7 @@ export function NumerateForm({
           onCommit={setIntStroke}
           onDraftChange={setIntStroke}
           disabled={busy}
-          inputProps={{ min: 1, max: 20 }}
+          inputProps={numerateFilter.ui.stroke_width}
         />
 
         <div className="flex items-center space-x-2">

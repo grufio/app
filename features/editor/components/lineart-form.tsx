@@ -5,7 +5,7 @@ import type * as React from "react"
 
 import { Label } from "@/components/ui/label"
 import { FormField } from "@/components/ui/form-controls"
-import { lineartSchema, type LineartParams } from "@/lib/editor/filters/lineart"
+import { lineartFilter, lineartSchema, type LineartParams } from "@/lib/editor/filters/lineart"
 import { FilterFormFooter } from "./filter-forms/filter-form-footer"
 
 const DEFAULT_PARAMS = lineartSchema.parse({})
@@ -69,9 +69,9 @@ export function LineArtForm({ onCancel, onApply, busy = false }: Props) {
           value={String(threshold1)}
           onCommit={setNumeric(setThreshold1)}
           onDraftChange={setNumeric(setThreshold1)}
-          description="Lower value = more edges detected (0-500)"
+          description={lineartFilter.ui.threshold1.description}
           disabled={busy}
-          inputProps={{ min: 0, max: 500 }}
+          inputProps={{ min: lineartFilter.ui.threshold1.min, max: lineartFilter.ui.threshold1.max }}
         />
 
         <FormField
@@ -82,9 +82,9 @@ export function LineArtForm({ onCancel, onApply, busy = false }: Props) {
           value={String(threshold2)}
           onCommit={setNumeric(setThreshold2)}
           onDraftChange={setNumeric(setThreshold2)}
-          description="Must be higher than low threshold"
+          description={lineartFilter.ui.threshold2.description}
           disabled={busy}
-          inputProps={{ min: 0, max: 500 }}
+          inputProps={{ min: lineartFilter.ui.threshold2.min, max: lineartFilter.ui.threshold2.max }}
         />
 
         <FormField
@@ -95,9 +95,9 @@ export function LineArtForm({ onCancel, onApply, busy = false }: Props) {
           value={String(lineThickness)}
           onCommit={setNumeric(setLineThickness)}
           onDraftChange={setNumeric(setLineThickness)}
-          description="Thickness in pixels (1-10)"
+          description={lineartFilter.ui.line_thickness.description}
           disabled={busy}
-          inputProps={{ min: 1, max: 10 }}
+          inputProps={{ min: lineartFilter.ui.line_thickness.min, max: lineartFilter.ui.line_thickness.max }}
         />
 
         <FormField
@@ -108,9 +108,9 @@ export function LineArtForm({ onCancel, onApply, busy = false }: Props) {
           value={String(blurAmount)}
           onCommit={setNumeric(setBlurAmount)}
           onDraftChange={setNumeric(setBlurAmount)}
-          description="Smoothing before edge detection (0-20, 0=no blur)"
+          description={lineartFilter.ui.blur_amount.description}
           disabled={busy}
-          inputProps={{ min: 0, max: 20 }}
+          inputProps={{ min: lineartFilter.ui.blur_amount.min, max: lineartFilter.ui.blur_amount.max }}
         />
 
         <FormField
@@ -121,9 +121,9 @@ export function LineArtForm({ onCancel, onApply, busy = false }: Props) {
           value={String(minContourArea)}
           onCommit={setNumeric(setMinContourArea)}
           onDraftChange={setNumeric(setMinContourArea)}
-          description="Minimum contour area in pixels (removes small details)"
+          description={lineartFilter.ui.min_contour_area.description}
           disabled={busy}
-          inputProps={{ min: 0, max: 10000, step: 50 }}
+          inputProps={{ min: lineartFilter.ui.min_contour_area.min, max: lineartFilter.ui.min_contour_area.max, step: lineartFilter.ui.min_contour_area.step }}
         />
 
         <FormField
@@ -134,9 +134,9 @@ export function LineArtForm({ onCancel, onApply, busy = false }: Props) {
           value={String(smoothness)}
           onCommit={setNumeric(setSmoothness)}
           onDraftChange={setNumeric(setSmoothness)}
-          description="Curve smoothing (0=sharp corners, 0.02=very smooth)"
+          description={lineartFilter.ui.smoothness.description}
           disabled={busy}
-          inputProps={{ min: 0, max: 0.05, step: 0.001 }}
+          inputProps={{ min: lineartFilter.ui.smoothness.min, max: lineartFilter.ui.smoothness.max, step: lineartFilter.ui.smoothness.step }}
         />
 
         <div className="flex flex-col gap-1">
