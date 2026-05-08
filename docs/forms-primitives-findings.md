@@ -202,9 +202,36 @@ exists because tabs *are* clickable buttons.
 
 No A11y gaps found that need code action this round.
 
+## Phase 3 — Coverage + visual regression
+
+### F3.1 Pure-helper extraction ✓ (Phase 1)
+12 new tests landed in Phase 1 (`chain-handlers`, `strip-wrapper-keys`,
+`numeric-variant-classes`). Coverage moved from 71.81% to 74.27%
+functions — well above the 73% gate.
+
+### F3.2 Visual regression for the gallery — placeholder
+The dev gallery is now reachable in E2E builds
+(`E2E_TEST=1` toggles past the production-`notFound()` gate in
+[`page.tsx`](../app/dev/form-primitives/page.tsx)). The visual
+regression test lives commented-out in
+[`forms.visual.spec.ts`](../e2e/forms.visual.spec.ts) until a
+baseline PNG is generated via
+`npx playwright test e2e/forms.visual.spec.ts --update-snapshots`.
+
+The reason it's commented rather than `test.skip`'d: skipped tests
+still report as warnings in CI, and a warning that's permanent
+becomes invisible. A commented stub with a clear TODO is honest:
+this is *not* yet covered.
+
+**DoD when ready:**
+1. Run snapshot-update locally
+2. Commit `form-primitives-gallery.png` in
+   `e2e/forms.visual.spec.ts-snapshots/`
+3. Uncomment the test
+4. Verify CI passes
+
 ## Out of Scope
 
-- Visual regression tests → **Phase 3**
 - Doc updates / decision tree → **Phase 4**
 
 ---
@@ -221,6 +248,8 @@ No A11y gaps found that need code action this round.
 | F2.1 TabsSidepanel hover token | deferred (no good `--hover-bg`) | future |
 | F2.2 State consistency | clean (no hover on inputs is intentional) | — |
 | F2.3 A11y | no gaps found | — |
+| F3.1 Pure-helper extraction | ✓ Phase 1 | — |
+| F3.2 Gallery visual regression | reachable in E2E; baseline pending | follow-up |
 | F1.2.b Keep two-layer trigger | decided | — |
 | F1.3.a Merge field-group.tsx into input-group.tsx | open | Phase 4 |
 | F1.3.b Cross-link addon padding comment | open | Phase 4 |
