@@ -12,7 +12,7 @@ export function TabsSidepanel(props: {
 
   // Local sidepanel-only styling, does not affect global shadcn tabs.
   const sidePanelTabsListClass =
-    "inline-grid h-8 w-fit grid-flow-col auto-cols-max gap-1 rounded-md bg-muted/60 p-1"
+    "inline-grid h-8 w-fit grid-flow-col auto-cols-max gap-1 rounded-md bg-transparent p-0"
   const sidePanelTabsTriggerClass =
     "h-6 rounded-sm px-2 text-xs font-medium data-[state=active]:bg-black data-[state=active]:text-white data-[state=active]:shadow-sm"
 
