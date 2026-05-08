@@ -55,7 +55,10 @@ function InputGroupAddon({
         // (Input keeps px-3; addon overlays into that space.)
         align === "inline-start" ? "order-first -mr-3" : null,
         align === "inline-end" ? "order-last ml-auto" : null,
-        // Padding
+        // Padding. Consumers that need a tighter gap (e.g. numeric
+        // inputs with a trailing unit) override this on a per-instance
+        // basis — see `lib/forms/numeric-variant-classes.ts` for the
+        // canonical pattern (input pr-2 + addon !pl-0 → 8px gap).
         "px-2",
         // Icon sizing
         "[&_svg]:size-4",
