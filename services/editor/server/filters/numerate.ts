@@ -3,6 +3,7 @@ import crypto from "node:crypto"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/lib/supabase/database.types"
+import { numerateSchema, type NumerateParams } from "@/lib/editor/filters/numerate"
 import { copyImageTransform } from "@/services/editor/server/copy-image-transform"
 import { callFilterService, toInt } from "./_helpers"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
@@ -38,13 +39,6 @@ type NumerateSuccess = {
 
 export type NumerateFilterResult = NumerateSuccess | NumerateFailure
 
-type NumerateParams = {
-  superpixelWidth: number
-  superpixelHeight: number
-  strokeWidth: number
-  showColors: boolean
-}
-
 export async function numerateImageAndActivate(args: {
   supabase: SupabaseClient<Database>
   projectId: string
@@ -52,21 +46,16 @@ export async function numerateImageAndActivate(args: {
   params: NumerateParams
 }): Promise<NumerateFilterResult> {
   const { supabase, projectId, sourceImageId, params } = args
-  const superpixelWidth = toInt(params.superpixelWidth)
-  const superpixelHeight = toInt(params.superpixelHeight)
-  const strokeWidth = toInt(params.strokeWidth)
-
-  if (
-    superpixelWidth == null ||
-    superpixelHeight == null ||
-    superpixelWidth < 1 ||
-    superpixelHeight < 1 ||
-    strokeWidth == null ||
-    strokeWidth < 1 ||
-    strokeWidth > 20
-  ) {
+  const parsed = numerateSchema.safeParse(params)
+  if (!parsed.success) {
     return { ok: false, status: 400, stage: "validation", reason: "Invalid numerate params" }
   }
+  const {
+    superpixel_width: superpixelWidth,
+    superpixel_height: superpixelHeight,
+    stroke_width: strokeWidth,
+    show_colors: showColors,
+  } = parsed.data
 
   const { data: src, error: srcErr } = await supabase
     .from("project_images")
@@ -117,7 +106,7 @@ export async function numerateImageAndActivate(args: {
         superpixel_width: superpixelWidth,
         superpixel_height: superpixelHeight,
         stroke_width: strokeWidth,
-        show_colors: params.showColors,
+        show_colors: showColors,
       },
     })
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { lineartSchema } from "./lineart"
+import { numerateSchema } from "./numerate"
 import { pixelateSchema } from "./pixelate"
 import { FILTER_REGISTRY } from "./registry"
 
@@ -15,6 +16,35 @@ describe("FILTER_REGISTRY", () => {
     expect(FILTER_REGISTRY.lineart.id).toBe("lineart")
     expect(FILTER_REGISTRY.lineart.label).toBe("Line Art")
     expect(FILTER_REGISTRY.lineart.schema).toBe(lineartSchema)
+  })
+
+  it("exposes numerate with id, label, and schema", () => {
+    expect(FILTER_REGISTRY.numerate.id).toBe("numerate")
+    expect(FILTER_REGISTRY.numerate.label).toBe("Numerate")
+    expect(FILTER_REGISTRY.numerate.schema).toBe(numerateSchema)
+  })
+})
+
+describe("numerateSchema", () => {
+  it("applies defaults matching frontend + Python (stroke_width=2, not the prior TS-Backend 1)", () => {
+    expect(numerateSchema.parse({})).toEqual({
+      superpixel_width: 10,
+      superpixel_height: 10,
+      stroke_width: 2,
+      show_colors: true,
+    })
+  })
+
+  it("rejects stroke_width < 1", () => {
+    expect(numerateSchema.safeParse({ stroke_width: 0 }).success).toBe(false)
+  })
+
+  it("rejects stroke_width > 20", () => {
+    expect(numerateSchema.safeParse({ stroke_width: 21 }).success).toBe(false)
+  })
+
+  it("rejects superpixel_width < 1", () => {
+    expect(numerateSchema.safeParse({ superpixel_width: 0 }).success).toBe(false)
   })
 })
 
