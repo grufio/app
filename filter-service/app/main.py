@@ -85,42 +85,31 @@ async def pixelate_filter(request: PixelateRequest):
         if grid_width < 1 or grid_height < 1:
             raise HTTPException(status_code=400, detail=f"Superpixel size too large for image")
         
-        result = Image.new(img.mode, (width, height))
-        pixels = img.load()
-        result_pixels = result.load()
-        
-        for block_y in range(grid_height):
-            for block_x in range(grid_width):
-                x_start = block_x * request.superpixel_width
-                y_start = block_y * request.superpixel_height
-                x_end = min(x_start + request.superpixel_width, width)
-                y_end = min(y_start + request.superpixel_height, height)
-                
-                r_sum, g_sum, b_sum = 0, 0, 0
-                pixel_count = 0
-                
-                for y in range(y_start, y_end):
-                    for x in range(x_start, x_end):
-                        pixel = pixels[x, y]
-                        if img.mode == "RGB":
-                            r_sum += pixel[0]
-                            g_sum += pixel[1]
-                            b_sum += pixel[2]
-                        else:
-                            r_sum += pixel
-                            g_sum += pixel
-                            b_sum += pixel
-                        pixel_count += 1
-                
-                if pixel_count > 0:
-                    if img.mode == "RGB":
-                        avg_color = (r_sum // pixel_count, g_sum // pixel_count, b_sum // pixel_count)
-                    else:
-                        avg_color = r_sum // pixel_count
-                
-                for y in range(y_start, y_end):
-                    for x in range(x_start, x_end):
-                        result_pixels[x, y] = avg_color
+        # Vectorized superpixel averaging via numpy reshape+mean.
+        # Equivalent to the prior nested-loop implementation but ~10-100×
+        # faster on large images. Edge handling matches the original:
+        # the right-/bottom-most partial superpixels (when the image
+        # dimensions aren't an exact multiple of the superpixel size)
+        # remain at the result's default value (zero), as before.
+        sw = request.superpixel_width
+        sh = request.superpixel_height
+        h_crop = grid_height * sh
+        w_crop = grid_width * sw
+        img_array = np.array(img)
+        result_array = np.zeros_like(img_array)
+        if img.mode == "RGB":
+            cropped = img_array[:h_crop, :w_crop]
+            # (grid_h, sh, grid_w, sw, 3) → mean over axes 1 and 3.
+            # `astype(uint8)` truncates floats, matching the prior `//` behaviour.
+            block_means = cropped.reshape(grid_height, sh, grid_width, sw, 3).mean(axis=(1, 3)).astype(np.uint8)
+            expanded = block_means.repeat(sh, axis=0).repeat(sw, axis=1)
+            result_array[:h_crop, :w_crop] = expanded
+        else:
+            cropped = img_array[:h_crop, :w_crop]
+            block_means = cropped.reshape(grid_height, sh, grid_width, sw).mean(axis=(1, 3)).astype(np.uint8)
+            expanded = block_means.repeat(sh, axis=0).repeat(sw, axis=1)
+            result_array[:h_crop, :w_crop] = expanded
+        result = Image.fromarray(result_array, mode=img.mode)
         
         if request.color_mode == "grayscale":
             result = result.convert("L")
@@ -192,51 +181,45 @@ async def numerate_filter(request: NumerateRequest):
         if grid_width < 1 or grid_height < 1:
             raise HTTPException(status_code=400, detail="Superpixel size too large for image")
         
-        pixels = img.load()
         svg_paths = []
-        
-        # Generate superpixel colors and rectangles
-        for block_y in range(grid_height):
-            for block_x in range(grid_width):
-                x_start = block_x * request.superpixel_width
-                y_start = block_y * request.superpixel_height
-                x_end = min(x_start + request.superpixel_width, width)
-                y_end = min(y_start + request.superpixel_height, height)
-                
-                # Calculate average color
-                if request.show_colors:
-                    r_sum, g_sum, b_sum = 0, 0, 0
-                    pixel_count = 0
-                    
-                    for y in range(y_start, y_end):
-                        for x in range(x_start, x_end):
-                            pixel = pixels[x, y]
-                            if img.mode == "RGB":
-                                r_sum += pixel[0]
-                                g_sum += pixel[1]
-                                b_sum += pixel[2]
-                            else:
-                                r_sum += pixel
-                                g_sum += pixel
-                                b_sum += pixel
-                            pixel_count += 1
-                    
-                    if pixel_count > 0:
-                        if img.mode == "RGB":
-                            avg_r = r_sum // pixel_count
-                            avg_g = g_sum // pixel_count
-                            avg_b = b_sum // pixel_count
-                            color = f"rgb({avg_r},{avg_g},{avg_b})"
-                        else:
-                            avg_gray = r_sum // pixel_count
-                            color = f"rgb({avg_gray},{avg_gray},{avg_gray})"
-                        
-                        # Add colored rectangle
-                        svg_paths.append(
-                            f'<rect x="{x_start}" y="{y_start}" '
-                            f'width="{x_end - x_start}" height="{y_end - y_start}" '
-                            f'fill="{color}" />'
-                        )
+
+        # Vectorized superpixel mean computation. Same edge behaviour as
+        # before: only full-size grid cells get filled rectangles; right-
+        # and bottom-most partial cells (when image isn't an exact multiple
+        # of the superpixel size) are skipped, matching the prior loop's
+        # `range(grid_height/grid_width)` bounds.
+        if request.show_colors:
+            sw = request.superpixel_width
+            sh = request.superpixel_height
+            h_crop = grid_height * sh
+            w_crop = grid_width * sw
+            img_array = np.array(img)
+            if img.mode == "RGB":
+                block_means = (
+                    img_array[:h_crop, :w_crop]
+                    .reshape(grid_height, sh, grid_width, sw, 3)
+                    .mean(axis=(1, 3))
+                    .astype(np.uint8)
+                )
+            else:
+                block_means_l = (
+                    img_array[:h_crop, :w_crop]
+                    .reshape(grid_height, sh, grid_width, sw)
+                    .mean(axis=(1, 3))
+                    .astype(np.uint8)
+                )
+                # Promote grayscale to (H, W, 3) so SVG color formatting is uniform.
+                block_means = np.stack([block_means_l, block_means_l, block_means_l], axis=-1)
+            for block_y in range(grid_height):
+                for block_x in range(grid_width):
+                    x_start = block_x * sw
+                    y_start = block_y * sh
+                    avg_r, avg_g, avg_b = block_means[block_y, block_x]
+                    svg_paths.append(
+                        f'<rect x="{x_start}" y="{y_start}" '
+                        f'width="{sw}" height="{sh}" '
+                        f'fill="rgb({avg_r},{avg_g},{avg_b})" />'
+                    )
         
         # Generate grid lines
         grid_lines = []
