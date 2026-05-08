@@ -124,12 +124,28 @@ export async function POST(req: Request, { params }: { params: Promise<{ project
   if (editorTargetImageRow?.is_locked) {
     return jsonError("Editor target image is locked", 409, { stage: "lock_conflict", reason: "image_locked" })
   }
+  // Per-axis preservation: when the payload omits x_px_u or y_px_u
+  // (validator returns `undefined`), read the current row and fill in the
+  // unchanged axis from there. We only do the read when needed so the
+  // common full-payload case (drag-end, alignImage, restoreImage) keeps a
+  // single round-trip.
+  let resolvedXPxU: string | null = baseRow.x_px_u ?? null
+  let resolvedYPxU: string | null = baseRow.y_px_u ?? null
+  if (baseRow.x_px_u === undefined || baseRow.y_px_u === undefined) {
+    const existing = await loadBoundImageState(supabase, projectId, baseRow.image_id)
+    if (existing.error) {
+      return jsonError(existing.error, 400, { stage: "select_existing_for_merge" })
+    }
+    if (baseRow.x_px_u === undefined) resolvedXPxU = existing.row?.x_px_u ?? null
+    if (baseRow.y_px_u === undefined) resolvedYPxU = existing.row?.y_px_u ?? null
+  }
+
   const upsert = await upsertBoundImageState(supabase, {
     project_id: baseRow.project_id,
     image_id: baseRow.image_id,
     role: resolveImageStateRoleFromProjectImage(editorTargetImageRow),
-    x_px_u: baseRow.x_px_u,
-    y_px_u: baseRow.y_px_u,
+    x_px_u: resolvedXPxU,
+    y_px_u: resolvedYPxU,
     width_px_u: baseRow.width_px_u,
     height_px_u: baseRow.height_px_u,
     rotation_deg: baseRow.rotation_deg,

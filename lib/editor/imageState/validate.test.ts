@@ -54,5 +54,72 @@ describe("validateIncomingImageStateUpsert", () => {
     })
     expect(res).toBeNull()
   })
+
+  it("accepts partial position payloads (x omitted preserves existing row)", () => {
+    const res = validateIncomingImageStateUpsert({
+      role: "master",
+      image_id: "2e306bed-0f1a-4124-a1c7-2702d85c21e7",
+      // x_px_u omitted — caller wants to preserve existing axis.
+      y_px_u: "5000000",
+      width_px_u: "1000000",
+      height_px_u: "1000000",
+      rotation_deg: 0,
+    })
+    expect(res).not.toBeNull()
+    expect(res?.x_px_u).toBeUndefined()
+    expect(res?.y_px_u).toBe("5000000")
+  })
+
+  it("accepts partial position payloads (y omitted preserves existing row)", () => {
+    const res = validateIncomingImageStateUpsert({
+      role: "master",
+      image_id: "2e306bed-0f1a-4124-a1c7-2702d85c21e7",
+      x_px_u: "5000000",
+      // y_px_u omitted.
+      width_px_u: "1000000",
+      height_px_u: "1000000",
+      rotation_deg: 0,
+    })
+    expect(res).not.toBeNull()
+    expect(res?.x_px_u).toBe("5000000")
+    expect(res?.y_px_u).toBeUndefined()
+  })
+
+  it("rejects explicit null axes (callers must omit the key to preserve)", () => {
+    const xNull = validateIncomingImageStateUpsert({
+      role: "master",
+      image_id: "2e306bed-0f1a-4124-a1c7-2702d85c21e7",
+      x_px_u: null,
+      y_px_u: "0",
+      width_px_u: "1000000",
+      height_px_u: "1000000",
+      rotation_deg: 0,
+    })
+    expect(xNull).toBeNull()
+
+    const yNull = validateIncomingImageStateUpsert({
+      role: "master",
+      image_id: "2e306bed-0f1a-4124-a1c7-2702d85c21e7",
+      x_px_u: "0",
+      y_px_u: null,
+      width_px_u: "1000000",
+      height_px_u: "1000000",
+      rotation_deg: 0,
+    })
+    expect(yNull).toBeNull()
+  })
+
+  it("rejects out-of-bounds axes when provided", () => {
+    const res = validateIncomingImageStateUpsert({
+      role: "master",
+      image_id: "2e306bed-0f1a-4124-a1c7-2702d85c21e7",
+      x_px_u: "999999999999999999999",
+      y_px_u: "0",
+      width_px_u: "1000000",
+      height_px_u: "1000000",
+      rotation_deg: 0,
+    })
+    expect(res).toBeNull()
+  })
 })
 

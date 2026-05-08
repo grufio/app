@@ -32,7 +32,7 @@ type Props = {
   ready?: boolean
   disabled?: boolean
   onCommit: (widthPxU: bigint, heightPxU: bigint) => void
-  onCommitPosition: (xPxU: bigint, yPxU: bigint) => void
+  onCommitPosition: (opts: { xPxU?: bigint; yPxU?: bigint }) => void
   onAlign: (opts: { x?: "left" | "center" | "right"; y?: "top" | "center" | "bottom" }) => void
 }
 

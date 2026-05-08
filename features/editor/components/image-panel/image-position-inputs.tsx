@@ -3,11 +3,10 @@
 /**
  * Image position inputs (X / Y in user-facing units).
  *
- * Phase 3.3 of the form-fields unification: each axis is a
- * <FormField variant="numeric"> with its own onCommit. When X commits
- * we send the new X with the current upstream Y, and vice versa —
- * functionally equivalent to the old "commit both at once" behaviour,
- * just with one save per axis edit instead of one combined save.
+ * Each axis is a <FormField variant="numeric"> with its own onCommit.
+ * Per-axis commits send only the changed axis to the canvas: the unchanged
+ * axis is preserved end-to-end (canvas state, network payload, DB row), so
+ * a Y-edit no longer sends an X column update at all.
  */
 import { useMemo } from "react"
 
@@ -33,7 +32,7 @@ export function ImagePositionInputs({
   unit: Unit
   ready: boolean
   controlsDisabled: boolean
-  onCommitPosition: (xPxU: bigint, yPxU: bigint) => void
+  onCommitPosition: (opts: { xPxU?: bigint; yPxU?: bigint }) => void
 }) {
   const computedX = useMemo(() => {
     if (!ready || xPxU == null) return ""
@@ -47,16 +46,16 @@ export function ImagePositionInputs({
 
   const onCommitX = (next: string) => {
     const parsedX = parseSignedMicroPxFromUnitInput(next, unit)
-    if (parsedX == null || yPxU == null) return
+    if (parsedX == null) return
     if (parsedX === xPxU) return
-    onCommitPosition(parsedX, yPxU)
+    onCommitPosition({ xPxU: parsedX })
   }
 
   const onCommitY = (next: string) => {
     const parsedY = parseSignedMicroPxFromUnitInput(next, unit)
-    if (parsedY == null || xPxU == null) return
+    if (parsedY == null) return
     if (parsedY === yPxU) return
-    onCommitPosition(xPxU, parsedY)
+    onCommitPosition({ yPxU: parsedY })
   }
 
   return (
