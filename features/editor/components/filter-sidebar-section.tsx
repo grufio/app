@@ -4,19 +4,11 @@ import { Eye, EyeOff, Plus, SlidersHorizontal, Trash2 } from "lucide-react"
 
 import { SidebarMenu, SidebarMenuAction, SidebarMenuActions, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar"
 import { Skeleton } from "@/components/ui/skeleton"
+import { FILTER_REGISTRY } from "@/lib/editor/filters/registry"
 import { EditorSidebarSection } from "@/features/editor/components/sidebar/editor-sidebar-section"
 
 function getFilterLabel(filterType: string): string {
-  switch (filterType) {
-    case "pixelate":
-      return "Pixelate"
-    case "lineart":
-      return "Line Art"
-    case "numerate":
-      return "Numerate"
-    default:
-      return "Filter"
-  }
+  return (FILTER_REGISTRY as Record<string, { label: string } | undefined>)[filterType]?.label ?? "Filter"
 }
 
 export function FilterSidebarSection(props: {

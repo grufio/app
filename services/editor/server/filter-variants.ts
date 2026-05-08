@@ -13,8 +13,9 @@ import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 import { lineartSchema } from "@/lib/editor/filters/lineart"
 import { numerateSchema } from "@/lib/editor/filters/numerate"
 import { pixelateSchema } from "@/lib/editor/filters/pixelate"
+import { FILTER_REGISTRY, type RegisteredFilterId } from "@/lib/editor/filters/registry"
 
-export type SupportedFilterType = "pixelate" | "lineart" | "numerate"
+export type SupportedFilterType = RegisteredFilterId
 
 export type FilterOpFailure = {
   ok: false
@@ -67,8 +68,7 @@ export type FilterRemoveSuccess = {
 
 function parseFilterType(value: unknown): SupportedFilterType | null {
   const v = String(value ?? "").trim().toLowerCase()
-  if (v === "pixelate" || v === "lineart" || v === "numerate") return v
-  return null
+  return v in FILTER_REGISTRY ? (v as SupportedFilterType) : null
 }
 
 function normalizeFilterParams(filterType: SupportedFilterType, params: unknown): Record<string, unknown> {
