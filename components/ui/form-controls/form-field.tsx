@@ -374,10 +374,10 @@ const ColorVariant = React.forwardRef<
 
 // --- Select variant -----------------------------------------------------
 
-const SelectVariant = React.forwardRef<
+const SelectVariantInner = React.forwardRef<
   FormFieldHandle,
   SelectVariantProps & { id: string; descriptionId?: string }
->(function SelectVariant(props, ref) {
+>(function SelectVariantInner(props, ref) {
   const {
     id,
     descriptionId,
@@ -416,6 +416,27 @@ const SelectVariant = React.forwardRef<
     [options, value]
   )
 
+  // Stable onValueChange so the memo wrapper above can ignore onCommit's
+  // identity churn. The wrapper always reads the latest onCommit via ref.
+  const onCommitRef = React.useRef(onCommit)
+  React.useEffect(() => {
+    onCommitRef.current = onCommit
+  })
+  const stableOnValueChange = React.useCallback((next: string) => {
+    onCommitRef.current(next)
+  }, [])
+
+  const triggerOnPointerDownCaptureRef = React.useRef(triggerOnPointerDownCapture)
+  React.useEffect(() => {
+    triggerOnPointerDownCaptureRef.current = triggerOnPointerDownCapture
+  })
+  const stableTriggerOnPointerDownCapture = React.useCallback(
+    (e: React.PointerEvent<HTMLButtonElement>) => {
+      triggerOnPointerDownCaptureRef.current?.(e)
+    },
+    []
+  )
+
   return (
     <AppFieldGroup>
       {iconStart ? (
@@ -424,14 +445,14 @@ const SelectVariant = React.forwardRef<
         </AppFieldGroupAddon>
       ) : null}
 
-      <AppSelect value={value} onValueChange={onCommit}>
+      <AppSelect value={value} onValueChange={stableOnValueChange}>
         <SelectFieldControl
           id={id}
           className={inputClassName}
           disabled={disabled}
           aria-label={labelVisuallyHidden ? label : undefined}
           aria-describedby={descriptionId}
-          onPointerDownCapture={triggerOnPointerDownCapture}
+          onPointerDownCapture={stableTriggerOnPointerDownCapture}
         >
           <AppSelectValue className="truncate">{selectedLabel}</AppSelectValue>
         </SelectFieldControl>
@@ -451,5 +472,26 @@ const SelectVariant = React.forwardRef<
       ) : null}
     </AppFieldGroup>
   )
-}
-)
+})
+
+// Memo wrapper with custom comparator. We deliberately ignore callback /
+// children identity (callbacks come from useCallback'd parents whose deps
+// often change due to upstream object reference churn — e.g. workspaceRow
+// updates), and instead key on the props that actually affect what's
+// rendered. The latest callback identity is captured in a ref inside
+// SelectVariant so the dropdown's onValueChange always fires the freshest
+// implementation even when memo skips a re-render.
+const SelectVariant = React.memo(SelectVariantInner, (prev, next) => {
+  return (
+    prev.value === next.value &&
+    prev.disabled === next.disabled &&
+    prev.label === next.label &&
+    prev.labelVisuallyHidden === next.labelVisuallyHidden &&
+    prev.id === next.id &&
+    prev.descriptionId === next.descriptionId &&
+    prev.inputClassName === next.inputClassName &&
+    prev.options === next.options &&
+    prev.iconStart === next.iconStart &&
+    prev.iconEnd === next.iconEnd
+  )
+}) as typeof SelectVariantInner

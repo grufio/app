@@ -43,6 +43,14 @@ function labelForPreset(p: "high" | "medium" | "low"): string {
   return "Low (72 ppi)"
 }
 
+// Module-level icon JSX so identity stays stable across re-renders. The
+// FormField select variant memoizes on iconStart identity; an inline
+// `<Gauge aria-hidden />` would invalidate the memo every render.
+const ICON_GAUGE = <Gauge aria-hidden="true" />
+const ICON_RULER = <Ruler aria-hidden="true" />
+const ICON_LR = <ArrowLeftRight aria-hidden="true" />
+const ICON_UD = <ArrowUpDown aria-hidden="true" />
+
 const UNIT_OPTIONS: ReadonlyArray<SelectFieldOption> = [
   { value: "mm", label: "mm" },
   { value: "cm", label: "cm" },
@@ -245,7 +253,7 @@ export const ArtboardPanel = memo(function ArtboardPanel() {
           variant="numeric"
           label="Artboard width"
           labelVisuallyHidden
-          iconStart={<ArrowLeftRight aria-hidden="true" />}
+          iconStart={ICON_LR}
           unit={computedUnit}
           id="artboard-width"
           value={draftWidth}
@@ -259,7 +267,7 @@ export const ArtboardPanel = memo(function ArtboardPanel() {
           variant="numeric"
           label="Artboard height"
           labelVisuallyHidden
-          iconStart={<ArrowUpDown aria-hidden="true" />}
+          iconStart={ICON_UD}
           unit={computedUnit}
           id="artboard-height"
           value={draftHeight}
@@ -293,7 +301,7 @@ export const ArtboardPanel = memo(function ArtboardPanel() {
           variant="select"
           label="Raster effects resolution"
           labelVisuallyHidden
-          iconStart={<Gauge aria-hidden="true" />}
+          iconStart={ICON_GAUGE}
           value={computedPreset}
           options={presetOptions(computedPreset, computedOutputDpi)}
           onCommit={onPresetChange}
@@ -305,7 +313,7 @@ export const ArtboardPanel = memo(function ArtboardPanel() {
           variant="select"
           label="Artboard unit"
           labelVisuallyHidden
-          iconStart={<Ruler aria-hidden="true" />}
+          iconStart={ICON_RULER}
           value={computedUnit}
           options={UNIT_OPTIONS}
           onCommit={(v) => onUnitChange(v as Unit)}
