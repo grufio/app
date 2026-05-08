@@ -29,15 +29,7 @@ export function LineArtFilterController({
       applyFilter={async (data) => {
         await onApplyFilter({
           filterType: "lineart",
-          filterParams: {
-            threshold1: data.threshold1,
-            threshold2: data.threshold2,
-            line_thickness: data.lineThickness,
-            blur_amount: data.blurAmount,
-            min_contour_area: data.minContourArea,
-            invert: data.invert,
-            smoothness: data.smoothness,
-          },
+          filterParams: data,
         })
       }}
     >

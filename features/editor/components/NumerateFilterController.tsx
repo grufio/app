@@ -36,8 +36,7 @@ export function NumerateFilterController({
           filterParams: {
             superpixel_width: superpixelWidth,
             superpixel_height: superpixelHeight,
-            stroke_width: data.strokeWidth,
-            show_colors: data.showColors,
+            ...data,
           },
         })
       }}
