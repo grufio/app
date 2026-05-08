@@ -238,7 +238,18 @@ const NumericOrTextVariant = React.forwardRef<
         aria-label={labelVisuallyHidden ? label : undefined}
         aria-describedby={descriptionId}
         disabled={disabled}
-        className={inputClassName}
+        className={cn(
+          // For numeric variants with a trailing unit, shrink the input to
+          // its content so the unit label can sit ~8px to the right of the
+          // typed value instead of being pushed to the cell's right edge.
+          // `field-sizing: content` is native CSS (Chrome 123+ / FF 123+ /
+          // Safari 17.4+); older browsers fall back to the default
+          // flex-1 width — functionally identical, just less compact.
+          props.variant === "numeric" && unit
+            ? "field-sizing-content !w-auto !flex-none min-w-[2ch]"
+            : null,
+          inputClassName,
+        )}
         value={draft.draft}
         onChange={(e) => {
           const next =
@@ -254,7 +265,14 @@ const NumericOrTextVariant = React.forwardRef<
       />
 
       {unit ? (
-        <AppFieldGroupAddon align="inline-end" className="pointer-events-none" aria-hidden="true">
+        // ml-0 overrides the addon's default `ml-auto` so the unit
+        // label sits directly after the (now content-sized) input
+        // rather than being pushed to the cell's right edge.
+        <AppFieldGroupAddon
+          align="inline-end"
+          className="pointer-events-none ml-0"
+          aria-hidden="true"
+        >
           <AppFieldGroupText>{unit}</AppFieldGroupText>
         </AppFieldGroupAddon>
       ) : null}
