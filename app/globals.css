@@ -120,10 +120,18 @@
  * sidepanel, toolbar, filter dialogs). 12px font over a 24px line so it
  * lines up with h-6 inputs/buttons. Replaces a repeated `text-[12px]
  * leading-[24px]` literal across app-input/app-button/app-select/etc.
+ *
+ * `.text-panel-tight` is the same typography for elements that already
+ * sit inside their own row (dropdown items, listbox labels) where the
+ * 24px line-height alone would overshoot. py-0.5 keeps a 28px row that
+ * still clears the trigger's 24px height.
  */
 @layer utilities {
   .text-panel {
     @apply text-[12px] leading-[24px];
+  }
+  .text-panel-tight {
+    @apply text-[12px] leading-[24px] py-0.5;
   }
 }
 
