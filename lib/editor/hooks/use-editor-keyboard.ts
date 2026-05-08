@@ -3,7 +3,13 @@
 /**
  * Editor-shell keyboard shortcuts.
  *
- * Currently only Delete/Backspace → request delete of the active master.
+ * Currently:
+ *  - Delete / Backspace → request delete of the active master.
+ *  - Arrow keys         → nudge active image position
+ *      • bare arrow:           ±1 px
+ *      • Shift+arrow:          ±10 px
+ *      • Cmd/Ctrl+arrow:       ±50 px
+ *
  * Escape is handled natively by Radix dialogs; Cmd/Ctrl-Z (undo) needs a
  * real transaction log and is intentionally out of scope here — adding
  * a stub that pretends to undo is worse than nothing.
@@ -24,20 +30,46 @@ export type EditorKeyboardDecisionInput = {
   canDelete: boolean
 }
 
-export type EditorKeyboardAction = "delete" | null
+export type EditorKeyboardAction =
+  | { kind: "delete" }
+  | { kind: "nudge"; dxPx: number; dyPx: number }
+  | null
+
+const NUDGE_BASE = 1
+const NUDGE_SHIFT = 10
+const NUDGE_META = 50
+
+function nudgeStep(input: EditorKeyboardDecisionInput): number {
+  if (input.metaKey || input.ctrlKey) return NUDGE_META
+  if (input.shiftKey) return NUDGE_SHIFT
+  return NUDGE_BASE
+}
 
 export function decideEditorKeyboardAction(input: EditorKeyboardDecisionInput): EditorKeyboardAction {
-  // Modifier combos belong to other shortcuts (Cmd-Z, Cmd-S, browser
-  // shortcuts). We only own bare keys.
-  if (input.metaKey || input.ctrlKey || input.altKey) return null
-  // Don't intercept Backspace/Delete inside text fields — that breaks
-  // every input on the page.
+  // Inside text fields / contenteditable: let the browser handle native
+  // text editing (caret movement on arrows, native undo). We must not
+  // hijack arrow keys in inputs.
   if (input.isEditableTarget) return null
-  // While a confirm dialog is open, don't open another one.
+  // While a confirm dialog is open, don't dispatch editor shortcuts.
   if (input.isDialogOpen) return null
 
+  // Arrow nudges.
+  if (input.altKey) {
+    // Alt is reserved for OS shortcuts (e.g. word-jumps in some apps);
+    // skip to avoid conflicts.
+    return null
+  }
+  const step = nudgeStep(input)
+  if (input.key === "ArrowLeft") return { kind: "nudge", dxPx: -step, dyPx: 0 }
+  if (input.key === "ArrowRight") return { kind: "nudge", dxPx: step, dyPx: 0 }
+  if (input.key === "ArrowUp") return { kind: "nudge", dxPx: 0, dyPx: -step }
+  if (input.key === "ArrowDown") return { kind: "nudge", dxPx: 0, dyPx: step }
+
+  // Bare-key actions (no modifier — Delete uses raw key).
+  if (input.metaKey || input.ctrlKey) return null
+
   if ((input.key === "Delete" || input.key === "Backspace") && input.canDelete) {
-    return "delete"
+    return { kind: "delete" }
   }
   return null
 }
@@ -65,8 +97,9 @@ export function useEditorKeyboard(opts: {
   enabled: boolean
   canDelete: boolean
   onDelete: () => void
+  onNudge?: (dxPx: number, dyPx: number) => void
 }): void {
-  const { enabled, canDelete, onDelete } = opts
+  const { enabled, canDelete, onDelete, onNudge } = opts
 
   useEffect(() => {
     if (!enabled) return
@@ -83,9 +116,15 @@ export function useEditorKeyboard(opts: {
         canDelete,
       })
 
-      if (action === "delete") {
+      if (!action) return
+
+      if (action.kind === "delete") {
         e.preventDefault()
         onDelete()
+      } else if (action.kind === "nudge") {
+        if (!onNudge) return
+        e.preventDefault()
+        onNudge(action.dxPx, action.dyPx)
       }
     }
 
@@ -93,5 +132,5 @@ export function useEditorKeyboard(opts: {
     return () => {
       document.removeEventListener("keydown", handler)
     }
-  }, [enabled, canDelete, onDelete])
+  }, [enabled, canDelete, onDelete, onNudge])
 }

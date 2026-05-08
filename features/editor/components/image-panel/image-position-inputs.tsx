@@ -8,11 +8,16 @@
  * we send the new X with the current upstream Y, and vice versa —
  * functionally equivalent to the old "commit both at once" behaviour,
  * just with one save per axis edit instead of one combined save.
+ *
+ * The third icon-slot hosts a "Center on artboard" quick-action,
+ * mirroring the size row's lock-aspect toggle for visual consistency.
  */
+import { Crosshair } from "lucide-react"
 import { useMemo } from "react"
 
 import { FormField } from "@/components/ui/form-controls"
 import { PanelIconSlot, PanelTwoFieldRow } from "../panel-layout"
+import { RightPanelIconButton } from "../right-panel-controls"
 import { pxUToUnitDisplayUiFixed, type Unit } from "@/lib/editor/units"
 import { parseSignedMicroPxFromUnitInput } from "@/services/editor/image-sizing"
 
@@ -27,6 +32,7 @@ export function ImagePositionInputs({
   ready,
   controlsDisabled,
   onCommitPosition,
+  onAlign,
 }: {
   xPxU?: bigint
   yPxU?: bigint
@@ -34,6 +40,7 @@ export function ImagePositionInputs({
   ready: boolean
   controlsDisabled: boolean
   onCommitPosition: (xPxU: bigint, yPxU: bigint) => void
+  onAlign: (opts: { x?: "left" | "center" | "right"; y?: "top" | "center" | "bottom" }) => void
 }) {
   const computedX = useMemo(() => {
     if (!ready || xPxU == null) return ""
@@ -85,7 +92,16 @@ export function ImagePositionInputs({
         disabled={controlsDisabled}
       />
 
-      <PanelIconSlot />
+      <PanelIconSlot>
+        <RightPanelIconButton
+          type="button"
+          aria-label="Center on artboard"
+          disabled={controlsDisabled}
+          onClick={() => onAlign({ x: "center", y: "center" })}
+        >
+          <Crosshair className="size-4" strokeWidth={1} />
+        </RightPanelIconButton>
+      </PanelIconSlot>
     </PanelTwoFieldRow>
   )
 }

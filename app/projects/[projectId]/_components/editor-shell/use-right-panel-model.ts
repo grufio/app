@@ -13,7 +13,12 @@ export function useRightPanelModel(args: {
   initialImageTxU: { x: bigint; y: bigint; w: bigint; h: bigint } | null
   workspaceLoading: boolean
   workspaceUnit: Unit | null
-  masterImage: { signedUrl?: string | null; name?: string | null } | null
+  masterImage: {
+    signedUrl?: string | null
+    name?: string | null
+    width_px?: number
+    height_px?: number
+  } | null
   projectImages: Array<{ id: string; name?: string | null }>
   selectedImageId: string | null
   lockedImageById: Record<string, boolean>
@@ -65,6 +70,8 @@ export function useRightPanelModel(args: {
     return {
       signedUrl: masterImage?.signedUrl ?? null,
       name: selectedImage.name ?? "Image",
+      width_px: masterImage?.width_px,
+      height_px: masterImage?.height_px,
     }
   }, [masterImage, selectedImage])
 
