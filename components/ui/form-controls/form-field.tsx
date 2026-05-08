@@ -50,7 +50,7 @@ import { stripWrapperKeys } from "@/lib/forms/strip-wrapper-keys"
 import { useFieldDraft } from "@/lib/forms/use-field-draft"
 import { cn } from "@/lib/utils"
 
-import { AppFieldGroup, AppFieldGroupAddon, AppFieldGroupText } from "./field-group"
+import { AppFieldGroup, AppFieldGroupAddon, AppFieldGroupText } from "./input-group"
 import { AppSelect, AppSelectContent, AppSelectItem, AppSelectValue } from "./app-select"
 import { ColorSwatchControl } from "./color-swatch-control"
 import { FieldControl } from "./field-control"

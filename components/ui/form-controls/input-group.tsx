@@ -5,9 +5,8 @@
  *
  * Responsibilities:
  * - Compose inputs/selects with addons in one horizontal row.
- * - Sized chrome (border, focus highlight, invalid state) is added by the
- *   `AppFieldGroup` wrapper that lives next door, so this layer is just
- *   layout + addon slots.
+ * - Provide the App-flavoured wrapper (`AppFieldGroup*`) that adds the
+ *   editor-panel border/focus/invalid chrome on top of the bare layout.
  */
 import * as React from "react"
 
@@ -79,4 +78,75 @@ function InputGroupText({ className, ...props }: React.ComponentProps<"span">) {
   )
 }
 
-export { InputGroup, InputGroupAddon, InputGroupText }
+// --- AppFieldGroup family ----------------------------------------------
+//
+// Editor-panel-flavoured wrapper around `InputGroup` with the chrome that
+// shadcn ships separately: border, focus ring, hover affordance, invalid
+// state. Co-located here (instead of a sibling file) so the `data-slot`
+// selectors and the bare `InputGroup` stay in one place.
+//
+// `AppFieldGroupAddon` and `AppFieldGroupText` are aliases — the addon /
+// text primitives don't need any extra chrome.
+
+const fieldGroupBase =
+  "border-input bg-transparent rounded-md border shadow-xs transition-[color,box-shadow] outline-none"
+
+// Hover-only affordance; focus/invalid are handled in state selectors below.
+const fieldGroupInteractive = "hover:border-muted-foreground/30"
+
+// State selectors react to any of the supported control slots:
+// - "input-group-control" set by FieldControl (the standard wrapper)
+// - "app-input"           set by AppInput when used directly without FieldControl
+// - "select-trigger"      set by AppSelectTrigger / SelectTrigger
+const fieldGroupStateFocus =
+  "has-[[data-slot=input-group-control]:focus]:border-purple has-[[data-slot=input-group-control]:focus]:ring-purple/30 has-[[data-slot=input-group-control]:focus]:ring-[3px] " +
+  "has-[[data-slot=app-input]:focus]:border-purple has-[[data-slot=app-input]:focus]:ring-purple/30 has-[[data-slot=app-input]:focus]:ring-[3px] " +
+  "has-[[data-slot=select-trigger]:focus]:border-purple has-[[data-slot=select-trigger]:focus]:ring-purple/30 has-[[data-slot=select-trigger]:focus]:ring-[3px]"
+
+const fieldGroupStateFocusVisible =
+  "has-[[data-slot=input-group-control]:focus-visible]:border-purple has-[[data-slot=input-group-control]:focus-visible]:ring-purple/30 has-[[data-slot=input-group-control]:focus-visible]:ring-[3px] " +
+  "has-[[data-slot=app-input]:focus-visible]:border-purple has-[[data-slot=app-input]:focus-visible]:ring-purple/30 has-[[data-slot=app-input]:focus-visible]:ring-[3px] " +
+  "has-[[data-slot=select-trigger]:focus-visible]:border-purple has-[[data-slot=select-trigger]:focus-visible]:ring-purple/30 has-[[data-slot=select-trigger]:focus-visible]:ring-[3px]"
+
+const fieldGroupStateInvalid =
+  "has-[[data-slot=input-group-control][aria-invalid=true]]:border-destructive " +
+  "has-[[data-slot=app-input][aria-invalid=true]]:border-destructive " +
+  "has-[[data-slot=select-trigger][aria-invalid=true]]:border-destructive"
+
+const fieldGroupState = cn(fieldGroupStateFocus, fieldGroupStateFocusVisible, fieldGroupStateInvalid)
+
+// Child slots must not create inner corner radii inside the shared group chrome.
+const fieldGroupSlotShape = cn(
+  "[&>[data-slot=input-group-control]]:rounded-none",
+  "[&>[data-slot=app-input]]:rounded-none",
+  "[&>[data-slot=input-group-addon]]:rounded-none",
+  "[&>[data-slot=input-group-button]]:rounded-none",
+  "[&>[data-slot=select-trigger]]:rounded-none"
+)
+
+function AppFieldGroup({ className, ...props }: React.ComponentProps<typeof InputGroup>) {
+  return (
+    <InputGroup
+      className={cn(
+        fieldGroupBase,
+        fieldGroupInteractive,
+        fieldGroupState,
+        fieldGroupSlotShape,
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+const AppFieldGroupAddon = InputGroupAddon
+const AppFieldGroupText = InputGroupText
+
+export {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupText,
+  AppFieldGroup,
+  AppFieldGroupAddon,
+  AppFieldGroupText,
+}

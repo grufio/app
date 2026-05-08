@@ -16,7 +16,7 @@ shadcn-default family used elsewhere see [`forms-review.md`](forms-review.md).
 | `FormField` | [form-field.tsx](../components/ui/form-controls/form-field.tsx) | Composite — `numeric` / `text` / `color` / `select` variants on top of the lower primitives + `useFieldDraft` lifecycle | ✓ | 0/6 | Most-used entry point. Imperative handle (`commit/cancelPendingCommit/focus`) used by image-size lock-toggle. Numeric+unit special-case (`!pr-2` + addon `!pl-0`) lives inline. |
 | `AppInput` | [app-input.tsx](../components/ui/form-controls/app-input.tsx) | 24px text input — `h-6`, `text-panel`, `px-3`, `py-0` | ✓ | 0/1 | Used directly only when `FormField` doesn't fit (rare). |
 | `FieldControl` | [field-control.tsx](../components/ui/form-controls/field-control.tsx) | Border-stripped input variant for embedding inside a `FieldGroup` | ✓ | 0/1 | Thin wrapper. Could merge into `AppInput` with a `borderless` prop — see plan F1.5. |
-| `AppFieldGroup` + `Addon` + `Text` | [field-group.tsx](../components/ui/form-controls/field-group.tsx) | Border + focus chrome wrapper for input groups (icon + input + addon) | ✓ | 0/1 | Re-exports `InputGroup*` from `input-group.tsx` plus a `text-panel` text helper. Two-layer wrap with `input-group.tsx`. |
+| `AppFieldGroup` + `Addon` + `Text` | [input-group.tsx](../components/ui/form-controls/input-group.tsx) | Border + focus chrome wrapper for input groups (icon + input + addon). Co-located with the bare `InputGroup*` primitives. | ✓ | (rolled up below) | Merged into `input-group.tsx` in the autonomous follow-up — was previously a separate `field-group.tsx`. |
 | `InputGroup*` | [input-group.tsx](../components/ui/form-controls/input-group.tsx) | Layout-only flex row with addon slots (`block-start` / `inline-start` / etc.) | ✓ (`px-2` baked in) | 0/3 | Owner of the `px-2` addon padding that interacted with the F1.5 8px-gap saga. |
 | `AppSelect` (re-export) | [app-select.tsx](../components/ui/form-controls/app-select.tsx) | Re-exports radix `Select` building blocks | ✓ | — | Pure re-export. |
 | `AppSelectTrigger` | [app-select.tsx](../components/ui/form-controls/app-select.tsx) | 24px select trigger — `h-6`, `text-panel`, with `ChevronDown` indicator | ✓ | (in 0/3 above) | Used standalone when no FieldGroup. Trigger pad: `px-3` (still — `SelectFieldControl` overrides to `pr-1` for embedded use). |
@@ -108,7 +108,6 @@ leading-[24px]` instead — see plan F1.2 (token candidate
 | `app-button.tsx` | 0/1 | Renderer logic |
 | `app-input.tsx` | 0/1 | Renderer logic |
 | `field-control.tsx` | 0/1 | Renderer logic |
-| `field-group.tsx` | 0/1 | Re-export wrapper |
 | `select-field-control.tsx` | 0/1 | Renderer logic |
 | `color-swatch-control.tsx` | 0/1 | Renderer logic |
 
