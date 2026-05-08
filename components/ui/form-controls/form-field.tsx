@@ -238,24 +238,25 @@ const NumericOrTextVariant = React.forwardRef<
         aria-label={labelVisuallyHidden ? label : undefined}
         aria-describedby={descriptionId}
         disabled={disabled}
-        className={cn(
-          // Numeric inputs with a trailing unit shrink to their content
-          // (via native `field-sizing: content`) up to the cell's width.
-          // The addon's `ml-0` override keeps the unit glued to the
-          // input's right edge — gap is just the addon's px-2 (8px),
-          // never larger. When text exceeds the available width, it
-          // scrolls inside the input instead of growing the field
-          // (max-w-full caps growth at the parent).
-          //
-          // `field-sizing: content` is supported in Chrome 123+, FF 123+,
-          // Safari 17.4+. Older browsers fall back to the default flex
-          // sizing — functionally identical, just with the original
-          // wider gap on resize.
+        className={inputClassName}
+        // Numeric+unit: shrink input to its content via native
+        // `field-sizing: content` so the unit label can sit directly
+        // after the typed value (gap = addon's 8px), but capped at the
+        // cell's width so long text scrolls inside instead of overflowing.
+        // Inline style is used to bypass tailwind-merge ordering issues
+        // with !w-auto / !flex-initial that weren't beating w-full /
+        // flex-1 from AppInput / FieldControl.
+        style={
           props.variant === "numeric" && unit
-            ? "field-sizing-content min-w-[2ch] max-w-full !w-auto !flex-initial"
-            : null,
-          inputClassName,
-        )}
+            ? {
+                width: "auto",
+                flex: "0 1 auto",
+                fieldSizing: "content",
+                minWidth: "2ch",
+                maxWidth: "100%",
+              }
+            : undefined
+        }
         value={draft.draft}
         onChange={(e) => {
           const next =
@@ -271,12 +272,15 @@ const NumericOrTextVariant = React.forwardRef<
       />
 
       {unit ? (
-        // ml-0 overrides the addon's default `ml-auto` so the unit
-        // label sits directly after the (now content-sized) input
-        // rather than being pushed to the cell's right edge.
+        // !ml-0 overrides the addon's default `ml-auto` (set by
+        // InputGroupAddon for inline-end addons) so the unit label
+        // sits directly after the content-sized input, with the gap
+        // = the addon's px-2 (8px). Plain `ml-0` was being beaten by
+        // `ml-auto` in cn/tailwind-merge ordering — `!important`
+        // makes the override explicit.
         <AppFieldGroupAddon
           align="inline-end"
-          className="pointer-events-none ml-0"
+          className="pointer-events-none !ml-0"
           aria-hidden="true"
         >
           <AppFieldGroupText>{unit}</AppFieldGroupText>
