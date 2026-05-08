@@ -9,7 +9,7 @@
  */
 import * as React from "react"
 import dynamic from "next/dynamic"
-import { Eye, EyeOff, Percent, RotateCcw, Trash2 } from "lucide-react"
+import { Eye, EyeOff, Percent } from "lucide-react"
 
 import { SidebarFrame } from "@/components/navigation/SidebarFrame"
 import { AppButton, FormField } from "@/components/ui/form-controls"
@@ -38,10 +38,11 @@ const ImagePanel = dynamic(() => import("./image-panel").then((m) => m.ImagePane
 })
 import type { ProjectCanvasStageHandle } from "./project-canvas-stage"
 import { PanelIconSlot, PanelTwoFieldRow } from "./panel-layout"
-import { RightPanelIconButton, RightPanelToggleIconButton } from "./right-panel-controls"
+import { RightPanelToggleIconButton } from "./right-panel-controls"
 import { EditorSidebarSection } from "./sidebar/editor-sidebar-section"
 import { useResizableSidebar } from "./use-resizable-sidebar"
 import type { Unit } from "@/lib/editor/units"
+import { useImagePanelEnabled } from "@/lib/editor/hooks/use-image-panel-enabled"
 import type { EditorRightPanelSection } from "@/services/editor/section-registry"
 
 export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPanel(props: {
@@ -120,6 +121,13 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
 
   const restoreFocusReturn = useDialogFocusReturn()
   const deleteFocusReturn = useDialogFocusReturn()
+
+  const imagePanelEnabled = useImagePanelEnabled({
+    hasMasterImage: Boolean(masterImage),
+    imageStateLoading,
+    workspaceReady,
+    imagePanelLocked,
+  })
 
   const clamp = (v: number) => Math.max(minPanelRem, Math.min(maxPanelRem, v))
   const startResize = useResizableSidebar()
@@ -203,48 +211,28 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
               <GridPanel gridVisible={gridVisible} onGridVisibleChange={onGridVisibleChange} />
             ) : null}
             {activeSection === "image" ? (
-              <EditorSidebarSection
-                title="Image"
-                headerActions={
-                  <>
-                    <RightPanelIconButton
-                      type="button"
-                      disabled={!masterImage || masterImageLoading || deleteBusy || restoreBusy}
-                      aria-label="Restore image"
-                      onClick={() => {
-                        restoreFocusReturn.captureOnOpen()
-                        setRestoreOpen(true)
-                      }}
-                    >
-                      <RotateCcw className="size-4" strokeWidth={1} />
-                    </RightPanelIconButton>
-                    <RightPanelIconButton
-                      type="button"
-                      disabled={!masterImage || masterImageLoading || deleteBusy || !canDeleteActiveImage}
-                      aria-label="Delete image"
-                      onClick={() => {
-                        deleteFocusReturn.captureOnOpen()
-                        onRequestDeleteImage()
-                      }}
-                    >
-                      <Trash2 className="size-4" strokeWidth={1} />
-                    </RightPanelIconButton>
-                  </>
-                }
-              >
-                <ImagePanel
-                  widthPxU={panelImageTxU?.w}
-                  heightPxU={panelImageTxU?.h}
-                  xPxU={panelImageTxU?.x}
-                  yPxU={panelImageTxU?.y}
-                  unit={workspaceUnit}
-                  ready={imagePanelReady}
-                  disabled={!masterImage || imageStateLoading || !workspaceReady || imagePanelLocked}
-                  onCommit={(w, h) => canvasRef.current?.setImageSize(w, h)}
-                  onCommitPosition={(x, y) => canvasRef.current?.setImagePosition(x, y)}
-                  onAlign={(opts) => canvasRef.current?.alignImage(opts)}
-                />
-              </EditorSidebarSection>
+              <ImagePanel
+                widthPxU={panelImageTxU?.w}
+                heightPxU={panelImageTxU?.h}
+                xPxU={panelImageTxU?.x}
+                yPxU={panelImageTxU?.y}
+                unit={workspaceUnit}
+                ready={imagePanelReady}
+                disabled={!imagePanelEnabled.enabled}
+                onCommit={(w, h) => canvasRef.current?.setImageSize(w, h)}
+                onCommitPosition={(x, y) => canvasRef.current?.setImagePosition(x, y)}
+                onAlign={(opts) => canvasRef.current?.alignImage(opts)}
+                canRestore={Boolean(masterImage) && !masterImageLoading && !deleteBusy && !restoreBusy}
+                canDelete={Boolean(masterImage) && !masterImageLoading && !deleteBusy && canDeleteActiveImage}
+                onRestore={() => {
+                  restoreFocusReturn.captureOnOpen()
+                  setRestoreOpen(true)
+                }}
+                onDelete={() => {
+                  deleteFocusReturn.captureOnOpen()
+                  onRequestDeleteImage()
+                }}
+              />
             ) : null}
 
             <div className="flex-1 overflow-auto p-4">

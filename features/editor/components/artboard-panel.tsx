@@ -38,9 +38,13 @@ import {
 import { computeWorkspaceSizeSaveFromDisplay } from "@/services/editor/workspace-unit-controller"
 
 function labelForPreset(p: "high" | "medium" | "low"): string {
-  if (p === "high") return "High (300 ppi)"
-  if (p === "medium") return "Medium (150 ppi)"
-  return "Low (72 ppi)"
+  // Trigger + dropdown both use just the dpi number — the High / Medium /
+  // Low names + parentheses were redundant and made the trigger longer than
+  // the sibling Unit select, breaking the 50/50 grid layout in the
+  // PanelTwoFieldRow.
+  if (p === "high") return "300 ppi"
+  if (p === "medium") return "150 ppi"
+  return "72 ppi"
 }
 
 // Module-level icon JSX so identity stays stable across re-renders. The
@@ -71,7 +75,7 @@ function presetOptions(
   if (current !== "custom") return PRESET_OPTIONS_BASE
   return [
     ...PRESET_OPTIONS_BASE,
-    { value: "custom", label: `Custom (${outputDpi || "?"} ppi)` },
+    { value: "custom", label: `${outputDpi || "?"} ppi` },
   ]
 }
 

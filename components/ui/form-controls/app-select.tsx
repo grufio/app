@@ -2,10 +2,9 @@
  * AppSelect — compact 24px select for editor panels and dense layouts.
  *
  * Re-exports the radix-based building blocks from `@/components/ui/select` so
- * call sites use a single import surface. Only the trigger needs to change
- * size — items/labels in the open dropdown stay at the standard `text-sm`
- * since the dropdown floats above panel chrome and benefits from being
- * readable.
+ * call sites use a single import surface. The trigger, items, and labels are
+ * all sized to `.text-panel` (12px/24px) so the open dropdown matches the
+ * trigger and the rest of the editor's compact form chrome.
  */
 import * as React from "react"
 import * as SelectPrimitive from "@radix-ui/react-select"
@@ -21,6 +20,25 @@ import {
   SelectSeparator,
   SelectValue,
 } from "@/components/ui/select"
+
+/**
+ * Compact item for editor/panel dropdowns. Overrides the default `text-sm`
+ * so dropdown items match the trigger's `.text-panel` (12px/24px).
+ */
+function AppSelectItem({
+  className,
+  ...props
+}: React.ComponentProps<typeof SelectItem>) {
+  return <SelectItem className={cn("text-[12px] leading-[24px] py-0.5", className)} {...props} />
+}
+
+/** Compact label for editor/panel dropdowns — matches `.text-panel`. */
+function AppSelectLabel({
+  className,
+  ...props
+}: React.ComponentProps<typeof SelectLabel>) {
+  return <SelectLabel className={cn("text-[12px] leading-[24px] py-0.5", className)} {...props} />
+}
 
 function AppSelectTrigger({
   className,
@@ -51,8 +69,8 @@ export {
   Select as AppSelect,
   SelectContent as AppSelectContent,
   SelectGroup as AppSelectGroup,
-  SelectItem as AppSelectItem,
-  SelectLabel as AppSelectLabel,
+  AppSelectItem,
+  AppSelectLabel,
   SelectSeparator as AppSelectSeparator,
   AppSelectTrigger,
   SelectValue as AppSelectValue,

@@ -238,7 +238,16 @@ const NumericOrTextVariant = React.forwardRef<
         aria-label={labelVisuallyHidden ? label : undefined}
         aria-describedby={descriptionId}
         disabled={disabled}
-        className={inputClassName}
+        className={cn(
+          // Numeric inputs with a trailing unit: tighten structural
+          // spacing between the input's right edge and the unit label.
+          // Default AppInput has px-3 (12px); pr-2 reduces right padding
+          // to 8px so when the input is filled with text, the gap from
+          // the text-end to the unit is exactly 8px (combined with the
+          // addon's pl-0 below).
+          props.variant === "numeric" && unit ? "!pr-2" : null,
+          inputClassName,
+        )}
         value={draft.draft}
         onChange={(e) => {
           const next =
@@ -254,7 +263,11 @@ const NumericOrTextVariant = React.forwardRef<
       />
 
       {unit ? (
-        <AppFieldGroupAddon align="inline-end" className="pointer-events-none" aria-hidden="true">
+        <AppFieldGroupAddon
+          align="inline-end"
+          className="pointer-events-none !pl-0"
+          aria-hidden="true"
+        >
           <AppFieldGroupText>{unit}</AppFieldGroupText>
         </AppFieldGroupAddon>
       ) : null}

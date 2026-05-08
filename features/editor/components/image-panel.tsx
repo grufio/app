@@ -5,19 +5,29 @@
  *
  * Responsibilities:
  * - Edit the working image size and alignment in the editor.
+ * - Render the section header with Restore + Delete actions.
  * - Dispatch commits to the canvas stage imperative API.
  *
  * The panel is split into three sub-components for testability and so each
  * one stays focused on a single concern:
  * - ImageSizeInputs       (width/height + lock-aspect)
- * - ImagePositionInputs   (x/y in artboard units)
+ * - ImagePositionInputs   (x/y in artboard units + center-on-artboard)
  * - ImageAlignmentControls (left/center/right + top/center/bottom)
+ *
+ * The header (Restore / Delete buttons) lives here too — visually it's
+ * part of the section, and keeping the actions adjacent to the panel
+ * means the right-panel shell doesn't need to know about image
+ * lifecycle ops.
  */
+import { RotateCcw, Trash2 } from "lucide-react"
+
 import type { Unit } from "@/lib/editor/units"
 
+import { EditorSidebarSection } from "./sidebar/editor-sidebar-section"
 import { ImageAlignmentControls } from "./image-panel/image-alignment-controls"
 import { ImagePositionInputs } from "./image-panel/image-position-inputs"
 import { ImageSizeInputs } from "./image-panel/image-size-inputs"
+import { RightPanelIconButton } from "./right-panel-controls"
 
 type Props = {
   widthPxU?: bigint
@@ -34,6 +44,11 @@ type Props = {
   onCommit: (widthPxU: bigint, heightPxU: bigint) => void
   onCommitPosition: (xPxU: bigint, yPxU: bigint) => void
   onAlign: (opts: { x?: "left" | "center" | "right"; y?: "top" | "center" | "bottom" }) => void
+  // Header actions — restore (open dialog) and delete (request delete).
+  canRestore?: boolean
+  canDelete?: boolean
+  onRestore?: () => void
+  onDelete?: () => void
 }
 
 /**
@@ -42,30 +57,69 @@ type Props = {
  * The UI displays image size in the artboard's unit,
  * but commits changes in pixels to the canvas (so scaling remains stable).
  */
-export function ImagePanel({ widthPxU, heightPxU, xPxU, yPxU, unit, ready = true, disabled, onCommit, onCommitPosition, onAlign }: Props) {
+export function ImagePanel({
+  widthPxU,
+  heightPxU,
+  xPxU,
+  yPxU,
+  unit,
+  ready = true,
+  disabled,
+  onCommit,
+  onCommitPosition,
+  onAlign,
+  canRestore = false,
+  canDelete = false,
+  onRestore,
+  onDelete,
+}: Props) {
   const controlsDisabled = Boolean(disabled) || !ready
 
   return (
-    <div className="space-y-4">
-      <ImageSizeInputs
-        widthPxU={widthPxU}
-        heightPxU={heightPxU}
-        unit={unit}
-        ready={ready}
-        controlsDisabled={controlsDisabled}
-        onCommit={onCommit}
-      />
+    <EditorSidebarSection
+      title="Image"
+      headerActions={
+        <>
+          <RightPanelIconButton
+            type="button"
+            aria-label="Restore image"
+            disabled={!canRestore}
+            onClick={onRestore}
+          >
+            <RotateCcw className="size-4" strokeWidth={1} />
+          </RightPanelIconButton>
+          <RightPanelIconButton
+            type="button"
+            aria-label="Delete image"
+            disabled={!canDelete}
+            onClick={onDelete}
+          >
+            <Trash2 className="size-4" strokeWidth={1} />
+          </RightPanelIconButton>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <ImageSizeInputs
+          widthPxU={widthPxU}
+          heightPxU={heightPxU}
+          unit={unit}
+          ready={ready}
+          controlsDisabled={controlsDisabled}
+          onCommit={onCommit}
+        />
 
-      <ImagePositionInputs
-        xPxU={xPxU}
-        yPxU={yPxU}
-        unit={unit}
-        ready={ready}
-        controlsDisabled={controlsDisabled}
-        onCommitPosition={onCommitPosition}
-      />
+        <ImagePositionInputs
+          xPxU={xPxU}
+          yPxU={yPxU}
+          unit={unit}
+          ready={ready}
+          controlsDisabled={controlsDisabled}
+          onCommitPosition={onCommitPosition}
+        />
 
-      <ImageAlignmentControls controlsDisabled={controlsDisabled} onAlign={onAlign} />
-    </div>
+        <ImageAlignmentControls controlsDisabled={controlsDisabled} onAlign={onAlign} />
+      </div>
+    </EditorSidebarSection>
   )
 }

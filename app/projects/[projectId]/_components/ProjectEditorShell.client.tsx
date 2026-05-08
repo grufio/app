@@ -316,13 +316,27 @@ export function ProjectDetailPageClient({
     toolbar.setTool("select")
   }, [setRestoreOpen, toolbar, workflow])
 
+  // Arrow-key nudge handler. Reads current image transform off the
+  // imageTxU state and dispatches a setImagePosition with the delta.
+  // The keyboard hook's `isEditableTarget` check ensures arrow keys in
+  // text inputs still move the caret rather than the image.
+  const handleNudge = useCallback(
+    (dxPx: number, dyPx: number) => {
+      if (!imageTxU) return
+      const dxPxU = BigInt(Math.round(dxPx)) * 1_000_000n
+      const dyPxU = BigInt(Math.round(dyPx)) * 1_000_000n
+      canvasRef.current?.setImagePosition(imageTxU.x + dxPxU, imageTxU.y + dyPxU)
+    },
+    [imageTxU],
+  )
+
   // Delete / Backspace → open the existing delete-image confirmation dialog.
-  // Mirrors the trash-icon click path; the actual destructive call still
-  // requires a click on the dialog's "Delete" button.
+  // Arrow keys → nudge active image.
   useEditorKeyboard({
     enabled: true,
     canDelete: displayTarget.deletable,
     onDelete: requestDeleteSelectedImage,
+    onNudge: handleNudge,
   })
 
   // Warn before tab close / external nav while a server-side mutation

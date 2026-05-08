@@ -8,11 +8,19 @@ import {
   AlignVerticalJustifyEnd,
   AlignVerticalJustifyStart,
 } from "lucide-react"
-import { useState } from "react"
 
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { PanelIconSlot, PanelTwoFieldRow } from "../panel-layout"
+import { RightPanelIconButton } from "../right-panel-controls"
 
+/**
+ * Alignment controls (Image-Panel).
+ *
+ * Six single-shot buttons — three for X-axis (left/center/right), three
+ * for Y-axis (top/middle/bottom). Was a Radix ToggleGroup with
+ * immediately-cleared state; that was a semantic hack since the buttons
+ * never persist a "selected" state, they just dispatch the action and
+ * are done. Plain icon buttons match the actual behaviour.
+ */
 export function ImageAlignmentControls({
   controlsDisabled,
   onAlign,
@@ -20,59 +28,62 @@ export function ImageAlignmentControls({
   controlsDisabled: boolean
   onAlign: (opts: { x?: "left" | "center" | "right"; y?: "top" | "center" | "bottom" }) => void
 }) {
-  // Functional button bars (no selected visual state). We keep transient value just to satisfy Radix.
-  const [alignXAction, setAlignXAction] = useState<string>("")
-  const [alignYAction, setAlignYAction] = useState<string>("")
-
   return (
     <PanelTwoFieldRow>
-      <div className="flex items-center">
-        <ToggleGroup
-          type="single"
-          value={alignXAction}
-          onValueChange={(v) => {
-            if (!v) return
-            onAlign({ x: v as "left" | "center" | "right" })
-            setAlignXAction("")
-          }}
-          className="w-full justify-start"
+      <div className="flex w-full [&>button]:flex-1">
+        <RightPanelIconButton
+          type="button"
+          aria-label="Align left"
+          disabled={controlsDisabled}
+          onClick={() => onAlign({ x: "left" })}
         >
-          <ToggleGroupItem value="left" size="sm" className="flex-1" aria-label="Align left" disabled={controlsDisabled}>
-            <AlignLeft className="size-4" strokeWidth={1} />
-          </ToggleGroupItem>
-          <ToggleGroupItem value="center" size="sm" className="flex-1" aria-label="Align center" disabled={controlsDisabled}>
-            <AlignCenter className="size-4" strokeWidth={1} />
-          </ToggleGroupItem>
-          <ToggleGroupItem value="right" size="sm" className="flex-1" aria-label="Align right" disabled={controlsDisabled}>
-            <AlignRight className="size-4" strokeWidth={1} />
-          </ToggleGroupItem>
-        </ToggleGroup>
+          <AlignLeft className="size-4" strokeWidth={1} />
+        </RightPanelIconButton>
+        <RightPanelIconButton
+          type="button"
+          aria-label="Align center"
+          disabled={controlsDisabled}
+          onClick={() => onAlign({ x: "center" })}
+        >
+          <AlignCenter className="size-4" strokeWidth={1} />
+        </RightPanelIconButton>
+        <RightPanelIconButton
+          type="button"
+          aria-label="Align right"
+          disabled={controlsDisabled}
+          onClick={() => onAlign({ x: "right" })}
+        >
+          <AlignRight className="size-4" strokeWidth={1} />
+        </RightPanelIconButton>
       </div>
 
-      <div className="flex items-center">
-        <ToggleGroup
-          type="single"
-          value={alignYAction}
-          onValueChange={(v) => {
-            if (!v) return
-            onAlign({ y: v as "top" | "center" | "bottom" })
-            setAlignYAction("")
-          }}
-          className="w-full justify-start"
+      <div className="flex w-full [&>button]:flex-1">
+        <RightPanelIconButton
+          type="button"
+          aria-label="Align top"
+          disabled={controlsDisabled}
+          onClick={() => onAlign({ y: "top" })}
         >
-          <ToggleGroupItem value="top" size="sm" className="flex-1" aria-label="Align top" disabled={controlsDisabled}>
-            <AlignVerticalJustifyStart className="size-4" strokeWidth={1} />
-          </ToggleGroupItem>
-          <ToggleGroupItem value="center" size="sm" className="flex-1" aria-label="Align middle" disabled={controlsDisabled}>
-            <AlignVerticalJustifyCenter className="size-4" strokeWidth={1} />
-          </ToggleGroupItem>
-          <ToggleGroupItem value="bottom" size="sm" className="flex-1" aria-label="Align bottom" disabled={controlsDisabled}>
-            <AlignVerticalJustifyEnd className="size-4" strokeWidth={1} />
-          </ToggleGroupItem>
-        </ToggleGroup>
+          <AlignVerticalJustifyStart className="size-4" strokeWidth={1} />
+        </RightPanelIconButton>
+        <RightPanelIconButton
+          type="button"
+          aria-label="Align middle"
+          disabled={controlsDisabled}
+          onClick={() => onAlign({ y: "center" })}
+        >
+          <AlignVerticalJustifyCenter className="size-4" strokeWidth={1} />
+        </RightPanelIconButton>
+        <RightPanelIconButton
+          type="button"
+          aria-label="Align bottom"
+          disabled={controlsDisabled}
+          onClick={() => onAlign({ y: "bottom" })}
+        >
+          <AlignVerticalJustifyEnd className="size-4" strokeWidth={1} />
+        </RightPanelIconButton>
       </div>
 
-      {/* icon-slot placeholder */}
       <PanelIconSlot />
     </PanelTwoFieldRow>
   )

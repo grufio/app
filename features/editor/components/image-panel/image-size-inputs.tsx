@@ -37,6 +37,7 @@ import {
   computeImageSizeCommit,
   computeLockedAspectRatioFromCurrentSize,
 } from "@/services/editor/image-sizing-operations"
+import { useLocalStorageBoolean } from "@/lib/storage/use-local-storage-boolean"
 
 export function ImageSizeInputs({
   widthPxU,
@@ -65,7 +66,7 @@ export function ImageSizeInputs({
 
   const [draftW, setDraftW] = useState(computedW)
   const [draftH, setDraftH] = useState(computedH)
-  const [lockAspect, setLockAspect] = useState(false)
+  const [lockAspect, setLockAspect] = useLocalStorageBoolean("editor:lock-aspect", false)
   const lockRatioRef = useRef<{ w: bigint; h: bigint } | null>(null)
   const widthRef = useRef<FormFieldHandle>(null)
   const heightRef = useRef<FormFieldHandle>(null)
