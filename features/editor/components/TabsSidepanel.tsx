@@ -13,8 +13,13 @@ export function TabsSidepanel(props: {
   // Local sidepanel-only styling, does not affect global shadcn tabs.
   const sidePanelTabsListClass =
     "inline-grid h-8 w-fit grid-flow-col auto-cols-max gap-1 rounded-md bg-transparent p-0"
+  // Active-tab colours use the inverted-foreground tokens
+  // (bg-foreground / text-background) so dark mode flips automatically.
+  // Hover on inactive tabs uses the explicit zinc-200 shade because the
+  // `--accent` token (oklch 0.97) is too light to be visible against the
+  // panel background — see docs/forms-primitives-findings.md F2.1.
   const sidePanelTabsTriggerClass =
-    "h-6 rounded-sm px-2 text-xs font-medium hover:bg-zinc-200 disabled:hover:bg-transparent data-[state=active]:bg-black data-[state=active]:text-white data-[state=active]:shadow-sm data-[state=active]:hover:bg-black"
+    "h-6 rounded-sm px-2 text-xs font-medium hover:bg-zinc-200 disabled:hover:bg-transparent data-[state=active]:bg-foreground data-[state=active]:text-background data-[state=active]:shadow-sm data-[state=active]:hover:bg-foreground"
 
   return (
     <div className="border-b px-4 py-3">

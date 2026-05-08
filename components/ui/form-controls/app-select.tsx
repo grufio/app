@@ -23,21 +23,22 @@ import {
 
 /**
  * Compact item for editor/panel dropdowns. Overrides the default `text-sm`
- * so dropdown items match the trigger's `.text-panel` (12px/24px).
+ * so dropdown items match the trigger's `.text-panel` (12px/24px) using
+ * the `.text-panel-tight` utility (12/24/py-0.5 = 28px row).
  */
 function AppSelectItem({
   className,
   ...props
 }: React.ComponentProps<typeof SelectItem>) {
-  return <SelectItem className={cn("text-[12px] leading-[24px] py-0.5", className)} {...props} />
+  return <SelectItem className={cn("text-panel-tight", className)} {...props} />
 }
 
-/** Compact label for editor/panel dropdowns — matches `.text-panel`. */
+/** Compact label for editor/panel dropdowns — matches `.text-panel-tight`. */
 function AppSelectLabel({
   className,
   ...props
 }: React.ComponentProps<typeof SelectLabel>) {
-  return <SelectLabel className={cn("text-[12px] leading-[24px] py-0.5", className)} {...props} />
+  return <SelectLabel className={cn("text-panel-tight", className)} {...props} />
 }
 
 function AppSelectTrigger({

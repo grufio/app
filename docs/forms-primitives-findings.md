@@ -59,18 +59,11 @@ reduction, low priority.
 
 ## F1.2 — `app-select.tsx` + `select-field-control.tsx`
 
-### F1.2.a Item/Label sizing uses arbitrary Tailwind values
-`AppSelectItem` and `AppSelectLabel` apply `text-[12px]
-leading-[24px] py-0.5`. The intent is "match the trigger's
-`.text-panel`". A new utility token (e.g. `.text-panel-tight` =
-`text-panel py-0.5`) would centralise this.
-
-**DoD:** define `.text-panel-tight` in
-[`globals.css`](../app/globals.css#L124), replace the arbitrary
-classes in `app-select.tsx`. Demo page proves the height stays at
-28px.
-
-**Size:** S (~20 min). **Belongs in Phase 2 (token migration).**
+### F1.2.a Item/Label sizing uses arbitrary Tailwind values ✓ (Phase 2)
+`AppSelectItem` and `AppSelectLabel` previously applied `text-[12px]
+leading-[24px] py-0.5`. Now consolidated as the
+[`.text-panel-tight`](../app/globals.css) utility (text-panel +
+py-0.5 = 28px row).
 
 ### F1.2.b Two-layer trigger: `AppSelectTrigger` vs `SelectFieldControl`
 Today: `AppSelectTrigger` is the standalone 24px trigger;
@@ -165,12 +158,54 @@ is fiddly enough to deserve its own file; inlining would obscure
 
 ---
 
-## Out of Scope for Phase 1
+## Phase 2 — Theme tokens + state consistency
 
-- Token migration (`bg-zinc-200` etc.) → **Phase 2**
+### F2.1 Theme-token migration ✓ (this PR)
+- Added `.text-panel-tight` utility in
+  [`globals.css`](../app/globals.css). Replaces the arbitrary
+  `text-[12px] leading-[24px] py-0.5` literal in
+  [`app-select.tsx`](../components/ui/form-controls/app-select.tsx)
+  for `AppSelectItem` and `AppSelectLabel`.
+- `TabsSidepanel`: active-tab colours migrated from `bg-black` /
+  `text-white` to `bg-foreground` / `text-background`. Dark mode
+  (when added) will flip automatically.
+- `TabsSidepanel`: inactive-tab hover stays on `bg-zinc-200`. Reason
+  is documented inline: the standard `--accent` token (oklch 0.97)
+  is too light to be visible. A future `--hover-bg` token (or a
+  bumped `--accent`) would let us migrate this away — explicitly
+  out of scope for now since `--accent` is used by other shadcn
+  primitives where its current lightness is fine.
+
+### F2.2 State consistency audit
+Compact-form primitives state matrix as of this PR:
+
+| Control | hover | focus-visible | disabled | active |
+|---|---|---|---|---|
+| `AppInput` / `FieldControl` | — | `border-purple` ring | opacity 50% | n/a |
+| `AppSelectTrigger` | — | `border-purple` ring | opacity 50% | n/a |
+| `AppButton` | per-variant | `border-purple` ring | opacity 50% | per-variant |
+| `TabsSidepanel` trigger | `bg-zinc-200` | (default) | no hover | `bg-foreground/text-background` |
+| `RightPanelIconButton` | per-variant | per-variant | per-variant | n/a |
+
+**Decision:** no hover on `AppInput` / `AppSelectTrigger` is
+intentional — text inputs typically don't need hover affordance and
+the select trigger's chevron is enough cue. `TabsSidepanel`'s hover
+exists because tabs *are* clickable buttons.
+
+### F2.3 A11y check
+- All editor `FormField` consumers pass a `label` prop and use
+  `labelVisuallyHidden` for sr-only — verified via grep of
+  `<FormField` in `features/editor/`.
+- `TabsTrigger`s carry explicit `id` + `aria-controls` for sr nav.
+- `disabled` HTML attribute carries through Radix to native button,
+  which sets `aria-disabled` automatically.
+
+No A11y gaps found that need code action this round.
+
+## Out of Scope
+
 - Visual regression tests → **Phase 3**
 - Doc updates / decision tree → **Phase 4**
-- Disabled/hover/focus consistency audit → **Phase 2**
 
 ---
 
@@ -181,7 +216,11 @@ is fiddly enough to deserve its own file; inlining would obscure
 | F1.1.a Pure helpers extracted | ✓ this PR | — |
 | F1.1.b Variant sub-file split | open | future PR (L) |
 | F1.1.c Drop unused `focus()` from handle | open | future PR (S) |
-| F1.2.a `.text-panel-tight` token | open | Phase 2 |
+| F1.2.a `.text-panel-tight` token | ✓ Phase 2 | — |
+| F2.1 TabsSidepanel active → tokens | ✓ Phase 2 | — |
+| F2.1 TabsSidepanel hover token | deferred (no good `--hover-bg`) | future |
+| F2.2 State consistency | clean (no hover on inputs is intentional) | — |
+| F2.3 A11y | no gaps found | — |
 | F1.2.b Keep two-layer trigger | decided | — |
 | F1.3.a Merge field-group.tsx into input-group.tsx | open | Phase 4 |
 | F1.3.b Cross-link addon padding comment | open | Phase 4 |
