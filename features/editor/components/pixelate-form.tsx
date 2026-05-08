@@ -14,12 +14,15 @@ import { useMemo, useState } from "react"
 import type * as React from "react"
 
 import { FormField, type SelectFieldOption } from "@/components/ui/form-controls"
+import { pixelateSchema } from "@/lib/editor/filters/pixelate"
 
 const COLOR_MODE_OPTIONS: ReadonlyArray<SelectFieldOption> = [
   { value: "rgb", label: "RGB" },
   { value: "grayscale", label: "Grayscale" },
 ]
 import { FilterFormFooter } from "./filter-forms/filter-form-footer"
+
+const DEFAULT_PARAMS = pixelateSchema.parse({})
 
 export type PixelateFormData = {
   superpixelWidth: number
@@ -37,10 +40,10 @@ type Props = {
 }
 
 export function PixelateForm({ imageWidth, imageHeight, onCancel, onApply, busy = false }: Props) {
-  const [superpixelWidth, setSuperpixelWidth] = useState(10)
-  const [superpixelHeight, setSuperpixelHeight] = useState(10)
-  const [colorMode, setColorMode] = useState<"rgb" | "grayscale">("rgb")
-  const [numColors, setNumColors] = useState(16)
+  const [superpixelWidth, setSuperpixelWidth] = useState(DEFAULT_PARAMS.superpixel_width)
+  const [superpixelHeight, setSuperpixelHeight] = useState(DEFAULT_PARAMS.superpixel_height)
+  const [colorMode, setColorMode] = useState<"rgb" | "grayscale">(DEFAULT_PARAMS.color_mode)
+  const [numColors, setNumColors] = useState(DEFAULT_PARAMS.num_colors)
 
   const pixelCountWidth = useMemo(
     () => Math.floor(imageWidth / Math.max(1, superpixelWidth)),
@@ -53,15 +56,14 @@ export function PixelateForm({ imageWidth, imageHeight, onCancel, onApply, busy 
   )
 
   const isValid = useMemo(() => {
-    return (
-      superpixelWidth >= 1 &&
-      superpixelHeight >= 1 &&
-      numColors >= 2 &&
-      numColors <= 256 &&
-      pixelCountWidth >= 1 &&
-      pixelCountHeight >= 1
-    )
-  }, [superpixelWidth, superpixelHeight, numColors, pixelCountWidth, pixelCountHeight])
+    const parsed = pixelateSchema.safeParse({
+      superpixel_width: superpixelWidth,
+      superpixel_height: superpixelHeight,
+      color_mode: colorMode,
+      num_colors: numColors,
+    })
+    return parsed.success && pixelCountWidth >= 1 && pixelCountHeight >= 1
+  }, [superpixelWidth, superpixelHeight, colorMode, numColors, pixelCountWidth, pixelCountHeight])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()

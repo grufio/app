@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import { isUuid, jsonError, readJson } from "@/lib/api/route-guards"
 import { withFilterRouteAuth } from "@/lib/api/with-filter-route-auth"
+import { pixelateSchema } from "@/lib/editor/filters/pixelate"
 import { appendProjectImageFilter, cleanupOrphanFilterImage } from "@/services/editor/server/filter-chain"
 import { pixelateImageAndActivate } from "@/services/editor/server/filters/pixelate"
 
@@ -30,21 +31,17 @@ export async function POST(
       return jsonError("Invalid source_image_id", 400, { stage: "validation", where: "body" })
     }
 
-    const colorMode = String(body.color_mode ?? "rgb")
-    if (colorMode !== "rgb" && colorMode !== "grayscale") {
-      return jsonError("Invalid color_mode (must be rgb or grayscale)", 400, { stage: "validation", where: "body" })
+    const paramsParsed = pixelateSchema.safeParse(body)
+    if (!paramsParsed.success) {
+      return jsonError("Invalid pixelate params", 400, { stage: "validation", where: "body" })
     }
+    const filterParams = paramsParsed.data
 
     const result = await pixelateImageAndActivate({
       supabase: context.supabase,
       projectId: context.projectId,
       sourceImageId,
-      params: {
-        superpixelWidth: Number(body.superpixel_width),
-        superpixelHeight: Number(body.superpixel_height),
-        colorMode: colorMode as "rgb" | "grayscale",
-        numColors: Number(body.num_colors),
-      },
+      params: filterParams,
     })
 
     if (!result.ok) {
@@ -57,12 +54,7 @@ export async function POST(
       inputImageId: sourceImageId,
       outputImageId: result.id,
       filterType: "pixelate",
-      filterParams: {
-        superpixel_width: Number(body.superpixel_width),
-        superpixel_height: Number(body.superpixel_height),
-        color_mode: colorMode,
-        num_colors: Number(body.num_colors),
-      },
+      filterParams,
     })
     if (!chain.ok) {
       await cleanupOrphanFilterImage({
