@@ -14,15 +14,14 @@ shadcn-default family used elsewhere see [`forms-review.md`](forms-review.md).
 | Primitive | File | Purpose | Tokens (theme-conform) | Func coverage | Notes |
 |---|---|---|---|---|---|
 | `FormField` | [form-field.tsx](../components/ui/form-controls/form-field.tsx) | Composite — `numeric` / `text` / `color` / `select` variants on top of the lower primitives + `useFieldDraft` lifecycle | ✓ | 0/6 | Most-used entry point. Imperative handle (`commit/cancelPendingCommit/focus`) used by image-size lock-toggle. Numeric+unit special-case (`!pr-2` + addon `!pl-0`) lives inline. |
-| `AppInput` | [app-input.tsx](../components/ui/form-controls/app-input.tsx) | 24px text input — `h-6`, `text-panel`, `px-3`, `py-0` | ✓ | 0/1 | Used directly only when `FormField` doesn't fit (rare). |
-| `FieldControl` | [field-control.tsx](../components/ui/form-controls/field-control.tsx) | Border-stripped input variant for embedding inside a `FieldGroup` | ✓ | 0/1 | Thin wrapper. Could merge into `AppInput` with a `borderless` prop — see plan F1.5. |
+| `AppInput` | [app-input.tsx](../components/ui/form-controls/app-input.tsx) | 24px text input — `h-6`, `text-panel`, `px-3`, `py-0`. Optional `borderless` prop strips chrome + sets `data-slot="input-group-control"` for FieldGroup embedding. | ✓ | 0/1 | Used directly when `FormField` doesn't fit (rare); used internally by `FormField` numeric/text/color variants via `borderless`. |
 | `AppFieldGroup` + `Addon` + `Text` | [input-group.tsx](../components/ui/form-controls/input-group.tsx) | Border + focus chrome wrapper for input groups (icon + input + addon). Co-located with the bare `InputGroup*` primitives. | ✓ | (rolled up below) | Merged into `input-group.tsx` in the autonomous follow-up — was previously a separate `field-group.tsx`. |
 | `InputGroup*` | [input-group.tsx](../components/ui/form-controls/input-group.tsx) | Layout-only flex row with addon slots (`block-start` / `inline-start` / etc.) | ✓ (`px-2` baked in) | 0/3 | Owner of the `px-2` addon padding that interacted with the F1.5 8px-gap saga. |
 | `AppSelect` (re-export) | [app-select.tsx](../components/ui/form-controls/app-select.tsx) | Re-exports radix `Select` building blocks | ✓ | — | Pure re-export. |
 | `AppSelectTrigger` | [app-select.tsx](../components/ui/form-controls/app-select.tsx) | 24px select trigger — `h-6`, `text-panel`, with `ChevronDown` indicator | ✓ | (in 0/3 above) | Used standalone when no FieldGroup. Trigger pad: `px-3` (still — `SelectFieldControl` overrides to `pr-1` for embedded use). |
 | `AppSelectItem` | [app-select.tsx](../components/ui/form-controls/app-select.tsx) | Dropdown item with explicit 12px / 24px line / `py-0.5` to match the trigger | ✓ (arbitrary `text-[12px]`) | (in 0/3 above) | Was a plain re-export until 2026-05-08 — items inherited shadcn's `text-sm py-1.5`. Now an actual component. **Sizing uses arbitrary Tailwind values, not a token.** |
 | `AppSelectLabel` | [app-select.tsx](../components/ui/form-controls/app-select.tsx) | Group-label twin of `AppSelectItem` | ✓ (arbitrary) | (in 0/3 above) | Same arbitrary-value note as `AppSelectItem`. |
-| `SelectFieldControl` | [select-field-control.tsx](../components/ui/form-controls/select-field-control.tsx) | `AppSelectTrigger` variant with border/bg stripped for FieldGroup embedding (also `pr-1` for tight chevron) | ✓ | 0/1 | The "embedded" twin of `AppSelectTrigger`. Same two-layer pattern as `FieldControl` ↔ `AppInput`. |
+| `SelectFieldControl` | [select-field-control.tsx](../components/ui/form-controls/select-field-control.tsx) | `AppSelectTrigger` variant with border/bg stripped for FieldGroup embedding (also `pr-1` for tight chevron) | ✓ | 0/1 | The "embedded" twin of `AppSelectTrigger` — analogous to `<AppInput borderless>` for inputs. |
 | `ColorSwatchControl` | [color-swatch-control.tsx](../components/ui/form-controls/color-swatch-control.tsx) | Native `<input type="color">` styled to fit a `FieldGroup` | ✓ | 0/1 | Used only via `FormField variant="color"`. Could be inlined. |
 | `AppButton` | [app-button.tsx](../components/ui/form-controls/app-button.tsx) | 24px-style button with variants (default/destructive/outline/ghost) and sizes | ✓ | 0/1 | All sizes are `h-6` per `forms-review.md`. Most mature primitive — no known issues. |
 
@@ -107,7 +106,6 @@ leading-[24px]` instead — see plan F1.2 (token candidate
 | `input-group.tsx` | 0/3 | Renderer logic |
 | `app-button.tsx` | 0/1 | Renderer logic |
 | `app-input.tsx` | 0/1 | Renderer logic |
-| `field-control.tsx` | 0/1 | Renderer logic |
 | `select-field-control.tsx` | 0/1 | Renderer logic |
 | `color-swatch-control.tsx` | 0/1 | Renderer logic |
 

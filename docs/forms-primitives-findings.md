@@ -110,21 +110,15 @@ plus icon variants) match what's actually used. No findings.
 
 ## F1.5 — `field-control.tsx` + `color-swatch-control.tsx` + `app-input.tsx`
 
-### F1.5.a `field-control.tsx` is a borderless `AppInput` clone
-Both files reach the same end state (an `<input>` styled to fit a
-FieldGroup) by different paths. `FieldControl` strips chrome from
-shadcn's base `Input`; `AppInput` is the standalone 24px-style input.
-
-**DoD:** make `AppInput` accept a `borderless` prop (or detect that
-it's nested inside a `FieldGroup` via context) and delete
-`field-control.tsx`.
-
-**Size:** S (~30 min). Touches `form-field.tsx` (uses `FieldControl`
-internally) and `app-select.tsx` indirectly (via `SelectFieldControl`
-which uses `AppSelectTrigger`).
-
-**Not done in this PR** — touches more consumers; keep for a
-dedicated cleanup PR.
+### F1.5.a `field-control.tsx` merged into `AppInput` ✓ (autonomous follow-up)
+`AppInput` now accepts a `borderless` prop that strips the chrome
+(`rounded-none border-0 bg-transparent shadow-none
+focus-visible:ring-0`) for FieldGroup-embedded use. The
+`data-slot="input-group-control"` attribute is preserved when
+`borderless` is set so the existing FieldGroup CSS selectors keep
+working. `field-control.tsx` deleted; the three consumer call-sites
+(`form-field.tsx`, `numeric-input.tsx`, `project-title-editor.tsx`)
+were migrated to `<AppInput borderless …>`.
 
 ### F1.5.b `color-swatch-control.tsx` only used inside FormField
 Used exclusively by `FormField variant="color"`. Could be inlined.
@@ -249,5 +243,5 @@ this is *not* yet covered.
 | F1.3.a Merge field-group.tsx into input-group.tsx | ✓ autonomous | — |
 | F1.3.b Cross-link addon padding comment | open | Phase 4 |
 | F1.4 app-button | clean | — |
-| F1.5.a Merge `FieldControl` into `AppInput` | open | future PR (S) |
+| F1.5.a Merge `FieldControl` into `AppInput` | ✓ autonomous | — |
 | F1.5.b Inline color-swatch-control | decided | — |
