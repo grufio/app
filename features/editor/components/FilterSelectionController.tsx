@@ -11,9 +11,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { FILTER_REGISTRY, type RegisteredFilterId } from "@/lib/editor/filters/registry"
 import { FilterTypeCards } from "./filter-type-cards"
 
-type FilterType = "pixelate" | "lineart" | "numerate"
+type FilterType = RegisteredFilterId
 
 type Props = {
   workingImageUrl: string | null
@@ -22,11 +23,10 @@ type Props = {
   onSelect: (filterType: FilterType) => void
 }
 
-const FILTER_CARD_ITEMS = [
-  { id: "pixelate" as const, label: "Pixelate" },
-  { id: "lineart" as const, label: "Line Art" },
-  { id: "numerate" as const, label: "Numerate" },
-]
+const FILTER_CARD_ITEMS = Object.values(FILTER_REGISTRY).map((f) => ({
+  id: f.id as FilterType,
+  label: f.label,
+}))
 
 export function FilterSelectionController({
   workingImageUrl,
