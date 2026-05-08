@@ -27,10 +27,10 @@ describe("lineArtImageAndActivate validation contract", () => {
       params: {
         threshold1: 50,
         threshold2: 200,
-        lineThickness: 2,
+        line_thickness: 2,
         invert: true,
-        blurAmount: 3,
-        minContourArea: 200,
+        blur_amount: 3,
+        min_contour_area: 200,
         smoothness: 0.11,
       },
     })
@@ -50,10 +50,10 @@ describe("lineArtImageAndActivate validation contract", () => {
       params: {
         threshold1: 50,
         threshold2: 200,
-        lineThickness: 2,
+        line_thickness: 2,
         invert: true,
-        blurAmount: 3,
-        minContourArea: 200,
+        blur_amount: 3,
+        min_contour_area: 200,
         smoothness: 0.1,
       },
     })
@@ -72,10 +72,10 @@ describe("lineArtImageAndActivate validation contract", () => {
       params: {
         threshold1: 200,
         threshold2: 200,
-        lineThickness: 2,
+        line_thickness: 2,
         invert: false,
-        blurAmount: 3,
-        minContourArea: 200,
+        blur_amount: 3,
+        min_contour_area: 200,
         smoothness: 0.005,
       },
     })
@@ -91,10 +91,10 @@ describe("lineArtImageAndActivate validation contract", () => {
       params: {
         threshold1: -1,
         threshold2: 100,
-        lineThickness: 2,
+        line_thickness: 2,
         invert: false,
-        blurAmount: 3,
-        minContourArea: 200,
+        blur_amount: 3,
+        min_contour_area: 200,
         smoothness: 0.005,
       },
     })
@@ -110,10 +110,10 @@ describe("lineArtImageAndActivate validation contract", () => {
       params: {
         threshold1: 50,
         threshold2: 200,
-        lineThickness: 11,
+        line_thickness: 11,
         invert: false,
-        blurAmount: 3,
-        minContourArea: 200,
+        blur_amount: 3,
+        min_contour_area: 200,
         smoothness: 0.005,
       },
     })
@@ -129,10 +129,10 @@ describe("lineArtImageAndActivate validation contract", () => {
       params: {
         threshold1: 50,
         threshold2: 200,
-        lineThickness: 2,
+        line_thickness: 2,
         invert: false,
-        blurAmount: 21,
-        minContourArea: 200,
+        blur_amount: 21,
+        min_contour_area: 200,
         smoothness: 0.005,
       },
     })
@@ -148,10 +148,10 @@ describe("lineArtImageAndActivate validation contract", () => {
       params: {
         threshold1: 50,
         threshold2: 200,
-        lineThickness: 2,
+        line_thickness: 2,
         invert: false,
-        blurAmount: 3,
-        minContourArea: -1,
+        blur_amount: 3,
+        min_contour_area: -1,
         smoothness: 0.005,
       },
     })

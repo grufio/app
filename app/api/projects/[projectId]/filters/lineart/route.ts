@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import { isUuid, jsonError, readJson } from "@/lib/api/route-guards"
 import { withFilterRouteAuth } from "@/lib/api/with-filter-route-auth"
+import { lineartSchema } from "@/lib/editor/filters/lineart"
 import { appendProjectImageFilter, cleanupOrphanFilterImage } from "@/services/editor/server/filter-chain"
 import { lineArtImageAndActivate } from "@/services/editor/server/filters/lineart"
 
@@ -33,27 +34,17 @@ export async function POST(
     return jsonError("Invalid source_image_id", 400, { stage: "validation", where: "body" })
   }
 
-  const threshold1 = Number(body.threshold1 ?? 100)
-  const threshold2 = Number(body.threshold2 ?? 200)
-  const lineThickness = Number(body.line_thickness ?? 2)
-  const invert = Boolean(body.invert)
-  const blurAmount = Number(body.blur_amount ?? 3)
-  const minContourArea = Number(body.min_contour_area ?? 200)
-  const smoothness = Number(body.smoothness ?? 0.005)
+  const paramsParsed = lineartSchema.safeParse(body)
+  if (!paramsParsed.success) {
+    return jsonError("Invalid line art params", 400, { stage: "validation", where: "body" })
+  }
+  const filterParams = paramsParsed.data
 
   const result = await lineArtImageAndActivate({
     supabase: context.supabase,
     projectId: context.projectId,
     sourceImageId,
-    params: {
-      threshold1,
-      threshold2,
-      lineThickness,
-      blurAmount,
-      minContourArea,
-      invert,
-      smoothness,
-    },
+    params: filterParams,
   })
 
   if (!result.ok) {
@@ -66,15 +57,7 @@ export async function POST(
     inputImageId: sourceImageId,
     outputImageId: result.id,
     filterType: "lineart",
-    filterParams: {
-      threshold1,
-      threshold2,
-      line_thickness: lineThickness,
-      blur_amount: blurAmount,
-      min_contour_area: minContourArea,
-      invert,
-      smoothness,
-    },
+    filterParams,
   })
   if (!chain.ok) {
     await cleanupOrphanFilterImage({
