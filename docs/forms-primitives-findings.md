@@ -39,21 +39,11 @@ re-exports stay stable so callers don't change.
 **Not done in this PR** — would balloon the diff and the helper
 extraction (F1.1.a) addresses the highest-friction part already.
 
-### F1.1.c Imperative-handle audit
-`FormFieldHandle` exposes `commit`, `cancelPendingCommit`, `focus`.
-Consumers using each:
-- `commit()` — `image-size-inputs.tsx` (lock-toggle pre-commit).
-- `cancelPendingCommit()` — same call-site (suppress blur-commit when
-  lock-button stole focus).
-- `focus()` — none found via grep.
-
-**DoD:** drop `focus` from the imperative handle; the underlying
-input already accepts a ref through normal React conventions if a
-caller really needs it.
-
-**Size:** S (~10 min). Requires checking that nothing transitive
-imports it via `FormFieldHandle`. Not done in this PR — pure
-reduction, low priority.
+### F1.1.c Imperative-handle audit ✓ (autonomous follow-up)
+`focus` removed from `FormFieldHandle`. Imperative API now exposes
+only `commit()` and `cancelPendingCommit()`. The underlying input
+remains accessible via the normal React `ref` patterns if a caller
+ever needs it.
 
 ---
 
@@ -254,7 +244,7 @@ this is *not* yet covered.
 |---|---|---|
 | F1.1.a Pure helpers extracted | ✓ this PR | — |
 | F1.1.b Variant sub-file split | open | future PR (L) |
-| F1.1.c Drop unused `focus()` from handle | open | future PR (S) |
+| F1.1.c Drop unused `focus()` from handle | ✓ autonomous | — |
 | F1.2.a `.text-panel-tight` token | ✓ Phase 2 | — |
 | F2.1 TabsSidepanel active → tokens | ✓ Phase 2 | — |
 | F2.1 TabsSidepanel hover token | deferred (no good `--hover-bg`) | future |
