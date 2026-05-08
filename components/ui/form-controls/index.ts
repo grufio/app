@@ -7,7 +7,7 @@ export {
 } from "./form-field"
 export { SelectFieldControl } from "./select-field-control"
 export { ColorSwatchControl } from "./color-swatch-control"
-export { AppFieldGroup, AppFieldGroupAddon, AppFieldGroupText } from "./field-group"
+export { AppFieldGroup, AppFieldGroupAddon, AppFieldGroupText } from "./input-group"
 export { AppInput } from "./app-input"
 export { AppButton, appButtonVariants } from "./app-button"
 export {

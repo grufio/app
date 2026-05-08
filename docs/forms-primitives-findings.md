@@ -83,25 +83,14 @@ chrome-vs-no-chrome distinction.
 
 ## F1.3 — `input-group.tsx` + `field-group.tsx`
 
-### F1.3.a Layer responsibility
-- `input-group.tsx` — pure layout (flex row + addon slots, `px-2` on
-  addons, `[&_svg]:size-4` icon sizing).
-- `field-group.tsx` — re-exports `InputGroup*` as `AppFieldGroup*`
-  plus a `text-panel`-sized text helper.
-
-`field-group.tsx` is 90% re-export. The renames have a meaning
-(`AppFieldGroup` is the editor-panel-flavoured wrapper), but the
-indirection costs an extra file to grep through.
-
-**DoD:** merge `field-group.tsx` into `input-group.tsx`, export both
-the raw `InputGroup*` names AND the `AppFieldGroup*` aliases from one
-file. Consumers continue importing `AppFieldGroup` from
-`@/components/ui/form-controls` (the index re-export is unchanged).
-
-**Size:** XS (~10 min, no API surface change).
-
-**Not done in this PR** — saving for Phase 4 cleanup along with the
-other small touches.
+### F1.3.a Layer responsibility ✓ (autonomous follow-up)
+`field-group.tsx` merged into
+[`input-group.tsx`](../components/ui/form-controls/input-group.tsx).
+Both the raw `InputGroup*` primitives and the `AppFieldGroup*` chrome
+wrapper now live in one file. Consumer imports through the package
+index are unchanged. Two direct deep-imports
+(`form-field.tsx`, `project-title-editor.tsx`) were updated from
+`./field-group` to `./input-group`.
 
 ### F1.3.b Addon padding interacts with input padding
 The addon's `px-2` (8px) plus the input's default `px-3` (12px) added
@@ -265,9 +254,9 @@ this is *not* yet covered.
 | F4.1 Decision tree | ✓ Phase 4 | — |
 | F4.2 Sizing-token glossary | ✓ Phase 4 | — |
 | F1.3.b Cross-link addon padding comment | ✓ Phase 4 | — |
-| F1.3.a Merge field-group.tsx | open | future PR (XS) |
+| F1.3.a Merge field-group.tsx | ✓ autonomous | — |
 | F1.2.b Keep two-layer trigger | decided | — |
-| F1.3.a Merge field-group.tsx into input-group.tsx | open | Phase 4 |
+| F1.3.a Merge field-group.tsx into input-group.tsx | ✓ autonomous | — |
 | F1.3.b Cross-link addon padding comment | open | Phase 4 |
 | F1.4 app-button | clean | — |
 | F1.5.a Merge `FieldControl` into `AppInput` | open | future PR (S) |
