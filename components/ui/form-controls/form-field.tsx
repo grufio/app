@@ -239,15 +239,15 @@ const NumericOrTextVariant = React.forwardRef<
         aria-describedby={descriptionId}
         disabled={disabled}
         className={cn(
-          // For numeric variants with a trailing unit, shrink the input to
-          // its content so the unit label can sit ~8px to the right of the
-          // typed value instead of being pushed to the cell's right edge.
-          // `field-sizing: content` is native CSS (Chrome 123+ / FF 123+ /
-          // Safari 17.4+); older browsers fall back to the default
-          // flex-1 width — functionally identical, just less compact.
-          props.variant === "numeric" && unit
-            ? "field-sizing-content !w-auto !flex-none min-w-[2ch]"
-            : null,
+          // Numeric inputs with a trailing unit get a fixed width so the
+          // unit label can sit ~8px to the right of the typed value instead
+          // of being pushed to the cell's right edge. Width is sized for
+          // typical numbers in mm/cm/px (up to ~7 characters); longer
+          // values scroll horizontally inside the input. The previous
+          // `field-sizing: content` approach was unbounded — typing
+          // "210.05222454444" grew the input until it overlapped the
+          // adjacent cell.
+          props.variant === "numeric" && unit ? "!w-[7ch] !flex-none" : null,
           inputClassName,
         )}
         value={draft.draft}
