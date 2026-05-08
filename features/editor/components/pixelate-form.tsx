@@ -14,7 +14,7 @@ import { useMemo, useState } from "react"
 import type * as React from "react"
 
 import { FormField, type SelectFieldOption } from "@/components/ui/form-controls"
-import { pixelateSchema } from "@/lib/editor/filters/pixelate"
+import { pixelateSchema, type PixelateParams } from "@/lib/editor/filters/pixelate"
 
 const COLOR_MODE_OPTIONS: ReadonlyArray<SelectFieldOption> = [
   { value: "rgb", label: "RGB" },
@@ -24,12 +24,7 @@ import { FilterFormFooter } from "./filter-forms/filter-form-footer"
 
 const DEFAULT_PARAMS = pixelateSchema.parse({})
 
-export type PixelateFormData = {
-  superpixelWidth: number
-  superpixelHeight: number
-  colorMode: "rgb" | "grayscale"
-  numColors: number
-}
+export type PixelateFormData = PixelateParams
 
 type Props = {
   imageWidth: number
@@ -68,7 +63,12 @@ export function PixelateForm({ imageWidth, imageHeight, onCancel, onApply, busy 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!isValid || busy) return
-    onApply({ superpixelWidth, superpixelHeight, colorMode, numColors })
+    onApply({
+      superpixel_width: superpixelWidth,
+      superpixel_height: superpixelHeight,
+      color_mode: colorMode,
+      num_colors: numColors,
+    })
   }
 
   const setIntFromDraft = (set: (n: number) => void) => (raw: string) => {

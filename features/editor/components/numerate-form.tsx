@@ -12,8 +12,8 @@ import { FilterFormFooter } from "./filter-forms/filter-form-footer"
 const DEFAULT_PARAMS = numerateSchema.parse({})
 
 export type NumerateFormData = {
-  strokeWidth: number
-  showColors: boolean
+  stroke_width: number
+  show_colors: boolean
 }
 
 type Props = {
@@ -46,7 +46,7 @@ export function NumerateForm({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!isValid || busy) return
-    onApply({ strokeWidth, showColors })
+    onApply({ stroke_width: strokeWidth, show_colors: showColors })
   }
 
   const setIntStroke = (raw: string) => {

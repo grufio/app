@@ -5,20 +5,12 @@ import type * as React from "react"
 
 import { Label } from "@/components/ui/label"
 import { FormField } from "@/components/ui/form-controls"
-import { lineartSchema } from "@/lib/editor/filters/lineart"
+import { lineartSchema, type LineartParams } from "@/lib/editor/filters/lineart"
 import { FilterFormFooter } from "./filter-forms/filter-form-footer"
 
 const DEFAULT_PARAMS = lineartSchema.parse({})
 
-export type LineArtFormData = {
-  threshold1: number
-  threshold2: number
-  lineThickness: number
-  invert: boolean
-  blurAmount: number
-  minContourArea: number
-  smoothness: number
-}
+export type LineArtFormData = LineartParams
 
 type Props = {
   onCancel: () => void
@@ -53,10 +45,10 @@ export function LineArtForm({ onCancel, onApply, busy = false }: Props) {
     onApply({
       threshold1,
       threshold2,
-      lineThickness,
+      line_thickness: lineThickness,
       invert,
-      blurAmount,
-      minContourArea,
+      blur_amount: blurAmount,
+      min_contour_area: minContourArea,
       smoothness,
     })
   }

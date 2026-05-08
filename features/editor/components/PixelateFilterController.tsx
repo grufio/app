@@ -33,12 +33,7 @@ export function PixelateFilterController({
       applyFilter={async (data) => {
         await onApplyFilter({
           filterType: "pixelate",
-          filterParams: {
-            superpixel_width: data.superpixelWidth,
-            superpixel_height: data.superpixelHeight,
-            color_mode: data.colorMode,
-            num_colors: data.numColors,
-          },
+          filterParams: data,
         })
       }}
     >
