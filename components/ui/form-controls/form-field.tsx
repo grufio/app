@@ -34,7 +34,6 @@
  *   - `cancelPendingCommit()` — suppress the next blur-commit, used
  *     when a sibling button click would otherwise blur+commit
  *     unintentionally (image-size lock button is the canonical case)
- *   - `focus()` — focus the underlying input
  */
 import * as React from "react"
 
@@ -59,7 +58,6 @@ import { SelectFieldControl } from "./select-field-control"
 export type FormFieldHandle = {
   commit: () => void
   cancelPendingCommit: () => void
-  focus: () => void
 }
 
 type CommonFormFieldProps = {
@@ -207,7 +205,6 @@ const NumericOrTextVariant = React.forwardRef<
     () => ({
       commit: () => draft.commit(),
       cancelPendingCommit: () => draft.cancelPendingCommit(),
-      focus: () => inputRef.current?.focus(),
     }),
     [draft]
   )
@@ -308,7 +305,6 @@ const ColorVariant = React.forwardRef<
         cancelPendingCommit: () => {
           cancelPendingRef.current = true
         },
-        focus: () => inputRef.current?.focus(),
       }),
       [commit]
     )
@@ -390,7 +386,6 @@ const SelectVariantInner = React.forwardRef<
     () => ({
       commit: () => {},
       cancelPendingCommit: () => {},
-      focus: () => {},
     }),
     []
   )
