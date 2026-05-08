@@ -57,12 +57,7 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
   onPageBgEnabledChange: (v: boolean) => void
   onPageBgColorChange: (v: string) => void
   onPageBgOpacityChange: (v: number) => void
-  masterImage: {
-    signedUrl?: string | null
-    name?: string | null
-    width_px?: number
-    height_px?: number
-  } | null
+  masterImage: { signedUrl?: string | null; name?: string | null } | null
   masterImageLoading: boolean
   deleteBusy: boolean
   deleteError: string
@@ -237,8 +232,6 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
                   deleteFocusReturn.captureOnOpen()
                   onRequestDeleteImage()
                 }}
-                nativeWidthPx={masterImage?.width_px}
-                nativeHeightPx={masterImage?.height_px}
               />
             ) : null}
 

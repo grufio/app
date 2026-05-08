@@ -22,13 +22,13 @@
  *    fields via the imperative ref, so toggling the lock doesn't
  *    accidentally save a stale in-flight draft.
  */
-import { ArrowLeftRight, ArrowUpDown, Link2, Maximize, Unlink2 } from "lucide-react"
+import { ArrowLeftRight, ArrowUpDown, Link2, Unlink2 } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { FormField, type FormFieldHandle } from "@/components/ui/form-controls"
 import { PanelIconSlot, PanelTwoFieldRow } from "../panel-layout"
-import { RightPanelIconButton, RightPanelToggleIconButton } from "../right-panel-controls"
-import { PX_U_SCALE, pxUToUnitDisplayUiFixed, type Unit } from "@/lib/editor/units"
+import { RightPanelToggleIconButton } from "../right-panel-controls"
+import { pxUToUnitDisplayUiFixed, type Unit } from "@/lib/editor/units"
 import {
   computeLockedAspectOtherDimensionFromHeightInput,
   computeLockedAspectOtherDimensionFromWidthInput,
@@ -46,8 +46,6 @@ export function ImageSizeInputs({
   ready,
   controlsDisabled,
   onCommit,
-  nativeWidthPx,
-  nativeHeightPx,
 }: {
   widthPxU?: bigint
   heightPxU?: bigint
@@ -55,10 +53,6 @@ export function ImageSizeInputs({
   ready: boolean
   controlsDisabled: boolean
   onCommit: (widthPxU: bigint, heightPxU: bigint) => void
-  /** Native pixel dims of the master image. When present, enables the
-   * "reset to native size" quick-action. */
-  nativeWidthPx?: number
-  nativeHeightPx?: number
 }) {
   const computedW = useMemo(() => {
     if (!ready || !widthPxU) return ""
@@ -159,25 +153,6 @@ export function ImageSizeInputs({
     heightRef.current?.cancelPendingCommit()
   }, [])
 
-  const canResetToNative =
-    !controlsDisabled &&
-    typeof nativeWidthPx === "number" &&
-    typeof nativeHeightPx === "number" &&
-    Number.isFinite(nativeWidthPx) &&
-    Number.isFinite(nativeHeightPx) &&
-    nativeWidthPx > 0 &&
-    nativeHeightPx > 0
-
-  const onResetToNative = useCallback(() => {
-    if (!canResetToNative) return
-    const nw = nativeWidthPx as number
-    const nh = nativeHeightPx as number
-    const wPxU = BigInt(Math.round(nw)) * PX_U_SCALE
-    const hPxU = BigInt(Math.round(nh)) * PX_U_SCALE
-    if (widthPxU === wPxU && heightPxU === hPxU) return
-    onCommit(wPxU, hPxU)
-  }, [canResetToNative, nativeWidthPx, nativeHeightPx, widthPxU, heightPxU, onCommit])
-
   return (
     <PanelTwoFieldRow>
       <FormField
@@ -207,16 +182,6 @@ export function ImageSizeInputs({
       />
 
       <PanelIconSlot>
-        {canResetToNative ? (
-          <RightPanelIconButton
-            type="button"
-            aria-label="Reset to native pixel size"
-            onPointerDownCapture={cancelPendingCommits}
-            onClick={onResetToNative}
-          >
-            <Maximize className="size-4" strokeWidth={1} />
-          </RightPanelIconButton>
-        ) : null}
         <RightPanelToggleIconButton
           type="button"
           active={lockAspect}

@@ -49,10 +49,6 @@ type Props = {
   canDelete?: boolean
   onRestore?: () => void
   onDelete?: () => void
-  // Native pixel dimensions of the master image. When provided, the
-  // size row shows a "reset to native size" quick-action.
-  nativeWidthPx?: number
-  nativeHeightPx?: number
 }
 
 /**
@@ -76,8 +72,6 @@ export function ImagePanel({
   canDelete = false,
   onRestore,
   onDelete,
-  nativeWidthPx,
-  nativeHeightPx,
 }: Props) {
   const controlsDisabled = Boolean(disabled) || !ready
 
@@ -106,21 +100,6 @@ export function ImagePanel({
       }
     >
       <div className="space-y-4">
-        {nativeWidthPx && nativeHeightPx ? (
-          <details className="group text-xs text-muted-foreground">
-            <summary className="cursor-pointer select-none list-none">
-              <span className="group-open:hidden">Details</span>
-              <span className="hidden group-open:inline">Hide details</span>
-            </summary>
-            <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5">
-              <dt>Native</dt>
-              <dd>
-                {nativeWidthPx} × {nativeHeightPx} px
-              </dd>
-            </dl>
-          </details>
-        ) : null}
-
         <ImageSizeInputs
           widthPxU={widthPxU}
           heightPxU={heightPxU}
@@ -128,8 +107,6 @@ export function ImagePanel({
           ready={ready}
           controlsDisabled={controlsDisabled}
           onCommit={onCommit}
-          nativeWidthPx={nativeWidthPx}
-          nativeHeightPx={nativeHeightPx}
         />
 
         <ImagePositionInputs
@@ -139,7 +116,6 @@ export function ImagePanel({
           ready={ready}
           controlsDisabled={controlsDisabled}
           onCommitPosition={onCommitPosition}
-          onAlign={onAlign}
         />
 
         <ImageAlignmentControls controlsDisabled={controlsDisabled} onAlign={onAlign} />
