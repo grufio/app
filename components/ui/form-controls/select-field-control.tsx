@@ -17,6 +17,9 @@ export function SelectFieldControl(props: React.ComponentProps<typeof AppSelectT
     <AppSelectTrigger
       className={cn(
         "flex-1 min-w-0 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 overflow-hidden whitespace-nowrap",
+        // Tighten right padding so the chevron sits closer to the cell's
+        // right edge.
+        "!pr-1",
         className
       )}
       {...rest}
