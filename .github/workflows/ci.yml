@@ -79,12 +79,47 @@ jobs:
         run: npm ci
 
       - name: Setup Supabase CLI
+        id: setup-supabase
         uses: supabase/setup-cli@v1
         with:
           version: latest
 
+      # `supabase start` pulls ~10 service container images (~1.5 GB total)
+      # on every cold runner. Caching them keeps the integration job to a
+      # single full pull whenever supabase/config.toml changes; subsequent
+      # runs `docker load` from the cached tarball instead of pulling.
+      - name: Resolve Supabase CLI version
+        id: supabase-version
+        run: echo "version=$(supabase --version | tr -d '[:space:]')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Supabase Docker images
+        id: docker-cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/supabase-images.tar
+          key: supabase-images-${{ runner.os }}-${{ steps.supabase-version.outputs.version }}-${{ hashFiles('supabase/config.toml') }}
+
+      - name: Load cached Docker images
+        if: steps.docker-cache.outputs.cache-hit == 'true'
+        run: docker load -i /tmp/supabase-images.tar
+
       - name: Run integration tests against local Supabase
         run: npm run test:integration:ci
+
+      - name: Save Docker images for next run
+        if: steps.docker-cache.outputs.cache-hit != 'true'
+        run: |
+          # Snapshot every image `supabase start` pulled. The grep tolerates
+          # both `public.ecr.aws/supabase/...` and the legacy `supabase/...`
+          # repository prefixes.
+          imgs=$(docker images --format '{{.Repository}}:{{.Tag}}' | grep -E 'supabase|postgres|kong|gotrue|postgrest|imgproxy|inbucket|edge-runtime|logflare|vector|realtime|studio|pg_meta|pg-meta' || true)
+          if [ -n "$imgs" ]; then
+            docker save $imgs -o /tmp/supabase-images.tar
+            echo "Cached $(echo "$imgs" | wc -l) image(s) to /tmp/supabase-images.tar ($(du -h /tmp/supabase-images.tar | cut -f1))"
+          else
+            echo "No matching images found to cache" >&2
+            exit 1
+          fi
 
   e2e:
     needs: lint_test
