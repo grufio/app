@@ -54,10 +54,10 @@ describe("pixelateImageAndActivate - validation", () => {
       projectId,
       sourceImageId,
       params: {
-        superpixelWidth: 0,
-        superpixelHeight: 10,
-        colorMode: "rgb",
-        numColors: 16,
+        superpixel_width: 0,
+        superpixel_height: 10,
+        color_mode: "rgb",
+        num_colors: 16,
       },
     })
 
@@ -74,10 +74,10 @@ describe("pixelateImageAndActivate - validation", () => {
       projectId,
       sourceImageId,
       params: {
-        superpixelWidth: 10,
-        superpixelHeight: 10,
-        colorMode: "rgb",
-        numColors: 1, // Too low
+        superpixel_width: 10,
+        superpixel_height: 10,
+        color_mode: "rgb",
+        num_colors: 1, // Too low
       },
     })
 
@@ -94,10 +94,10 @@ describe("pixelateImageAndActivate - validation", () => {
       projectId,
       sourceImageId,
       params: {
-        superpixelWidth: 10,
-        superpixelHeight: 10,
-        colorMode: "rgb",
-        numColors: 300, // Too high
+        superpixel_width: 10,
+        superpixel_height: 10,
+        color_mode: "rgb",
+        num_colors: 300, // Too high
       },
     })
 
@@ -114,10 +114,10 @@ describe("pixelateImageAndActivate - validation", () => {
       projectId,
       sourceImageId,
       params: {
-        superpixelWidth: 10,
-        superpixelHeight: 10,
-        colorMode: "rgb",
-        numColors: 16,
+        superpixel_width: 10,
+        superpixel_height: 10,
+        color_mode: "rgb",
+        num_colors: 16,
       },
     })
 
@@ -147,10 +147,10 @@ describe("pixelateImageAndActivate - validation", () => {
       projectId,
       sourceImageId,
       params: {
-        superpixelWidth: 10,
-        superpixelHeight: 10,
-        colorMode: "rgb",
-        numColors: 16,
+        superpixel_width: 10,
+        superpixel_height: 10,
+        color_mode: "rgb",
+        num_colors: 16,
       },
     })
 
@@ -180,10 +180,10 @@ describe("pixelateImageAndActivate - validation", () => {
       projectId,
       sourceImageId,
       params: {
-        superpixelWidth: 2000, // Larger than image
-        superpixelHeight: 10,
-        colorMode: "rgb",
-        numColors: 16,
+        superpixel_width: 2000, // Larger than image
+        superpixel_height: 10,
+        color_mode: "rgb",
+        num_colors: 16,
       },
     })
 

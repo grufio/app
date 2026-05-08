@@ -6,6 +6,7 @@ import type { Database } from "@/lib/supabase/database.types"
 import { copyImageTransform } from "@/services/editor/server/copy-image-transform"
 import { callFilterService, contentTypeFor, pickOutputFormat, toInt } from "./_helpers"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
+import { pixelateSchema, type PixelateParams } from "@/lib/editor/filters/pixelate"
 
 type PixelateFailStage =
   | "validation"
@@ -38,13 +39,6 @@ type PixelateSuccess = {
 
 export type PixelateFilterResult = PixelateSuccess | PixelateFailure
 
-type PixelateParams = {
-  superpixelWidth: number
-  superpixelHeight: number
-  colorMode: "rgb" | "grayscale"
-  numColors: number
-}
-
 export async function pixelateImageAndActivate(args: {
   supabase: SupabaseClient<Database>
   projectId: string
@@ -52,21 +46,11 @@ export async function pixelateImageAndActivate(args: {
   params: PixelateParams
 }): Promise<PixelateFilterResult> {
   const { supabase, projectId, sourceImageId, params } = args
-  const superpixelWidth = toInt(params.superpixelWidth)
-  const superpixelHeight = toInt(params.superpixelHeight)
-  const numColors = toInt(params.numColors)
-
-  if (
-    superpixelWidth == null ||
-    superpixelHeight == null ||
-    superpixelWidth < 1 ||
-    superpixelHeight < 1 ||
-    numColors == null ||
-    numColors < 2 ||
-    numColors > 256
-  ) {
+  const parsed = pixelateSchema.safeParse(params)
+  if (!parsed.success) {
     return { ok: false, status: 400, stage: "validation", reason: "Invalid pixelate params" }
   }
+  const { superpixel_width: superpixelWidth, superpixel_height: superpixelHeight, num_colors: numColors, color_mode: colorMode } = parsed.data
 
   const { data: src, error: srcErr } = await supabase
     .from("project_images")
@@ -120,7 +104,7 @@ export async function pixelateImageAndActivate(args: {
         image_base64: imageBase64,
         superpixel_width: superpixelWidth,
         superpixel_height: superpixelHeight,
-        color_mode: params.colorMode,
+        color_mode: colorMode,
         num_colors: numColors,
       },
     })

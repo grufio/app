@@ -10,6 +10,7 @@ import { lineArtImageAndActivate } from "@/services/editor/server/filters/linear
 import { numerateImageAndActivate } from "@/services/editor/server/filters/numerate"
 import { pixelateImageAndActivate } from "@/services/editor/server/filters/pixelate"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
+import { pixelateSchema } from "@/lib/editor/filters/pixelate"
 
 export type SupportedFilterType = "pixelate" | "lineart" | "numerate"
 
@@ -126,12 +127,7 @@ async function createDerivedImageFromSource(args: {
       supabase,
       projectId,
       sourceImageId,
-      params: {
-        superpixelWidth: Number(params.superpixel_width),
-        superpixelHeight: Number(params.superpixel_height),
-        colorMode: String(params.color_mode ?? "rgb") === "grayscale" ? "grayscale" : "rgb",
-        numColors: Number(params.num_colors),
-      },
+      params: pixelateSchema.parse(params),
     })
     if (!result.ok) return result
     return {
