@@ -15,4 +15,9 @@ export const pixelateFilter = {
   id: "pixelate",
   label: "Pixelate",
   schema: pixelateSchema,
+  ui: {
+    superpixel_width: { min: 1 },
+    superpixel_height: { min: 1 },
+    num_colors: { min: 2, max: 256 },
+  },
 } as const satisfies FilterDefinition<typeof pixelateSchema>

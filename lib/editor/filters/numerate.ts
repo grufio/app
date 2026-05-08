@@ -15,4 +15,9 @@ export const numerateFilter = {
   id: "numerate",
   label: "Numerate",
   schema: numerateSchema,
+  ui: {
+    superpixel_width: { min: 1 },
+    superpixel_height: { min: 1 },
+    stroke_width: { min: 1, max: 20 },
+  },
 } as const satisfies FilterDefinition<typeof numerateSchema>

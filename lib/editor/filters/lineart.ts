@@ -23,4 +23,12 @@ export const lineartFilter = {
   id: "lineart",
   label: "Line Art",
   schema: lineartSchema,
+  ui: {
+    threshold1: { min: 0, max: 500, description: "Lower value = more edges detected (0-500)" },
+    threshold2: { min: 0, max: 500, description: "Must be higher than low threshold" },
+    line_thickness: { min: 1, max: 10, description: "Thickness in pixels (1-10)" },
+    blur_amount: { min: 0, max: 20, description: "Smoothing before edge detection (0-20, 0=no blur)" },
+    min_contour_area: { min: 0, max: 10000, step: 50, description: "Minimum contour area in pixels (removes small details)" },
+    smoothness: { min: 0, max: 0.05, step: 0.001, description: "Curve smoothing (0=sharp corners, 0.02=very smooth)" },
+  },
 } as const satisfies FilterDefinition<typeof lineartSchema>
