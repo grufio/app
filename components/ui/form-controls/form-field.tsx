@@ -40,7 +40,13 @@ import * as React from "react"
 
 import { Label } from "@/components/ui/label"
 import { sanitizeNumericInput, type NumericMode } from "@/lib/editor/numeric"
+import { chainHandlers } from "@/lib/forms/chain-handlers"
 import { normalizeHex } from "@/lib/forms/normalize-hex"
+import {
+  numericInputClassWhenUnit,
+  numericUnitAddonClass,
+} from "@/lib/forms/numeric-variant-classes"
+import { stripWrapperKeys } from "@/lib/forms/strip-wrapper-keys"
 import { useFieldDraft } from "@/lib/forms/use-field-draft"
 import { cn } from "@/lib/utils"
 
@@ -126,19 +132,6 @@ export type FormFieldProps =
   | TextVariantProps
   | ColorVariantProps
   | SelectVariantProps
-
-/** Chain a built-in handler with a user-provided one. Built-in fires first. */
-function chainHandlers<E>(
-  builtin: ((e: E) => void) | undefined,
-  user: ((e: E) => void) | undefined
-): ((e: E) => void) | undefined {
-  if (!builtin) return user
-  if (!user) return builtin
-  return (e: E) => {
-    builtin(e)
-    user(e)
-  }
-}
 
 export const FormField = React.forwardRef<FormFieldHandle, FormFieldProps>(function FormField(
   props,
@@ -239,13 +232,7 @@ const NumericOrTextVariant = React.forwardRef<
         aria-describedby={descriptionId}
         disabled={disabled}
         className={cn(
-          // Numeric inputs with a trailing unit: tighten structural
-          // spacing between the input's right edge and the unit label.
-          // Default AppInput has px-3 (12px); pr-2 reduces right padding
-          // to 8px so when the input is filled with text, the gap from
-          // the text-end to the unit is exactly 8px (combined with the
-          // addon's pl-0 below).
-          props.variant === "numeric" && unit ? "!pr-2" : null,
+          props.variant === "numeric" ? numericInputClassWhenUnit(unit) : null,
           inputClassName,
         )}
         value={draft.draft}
@@ -265,7 +252,7 @@ const NumericOrTextVariant = React.forwardRef<
       {unit ? (
         <AppFieldGroupAddon
           align="inline-end"
-          className="pointer-events-none !pl-0"
+          className={numericUnitAddonClass}
           aria-hidden="true"
         >
           <AppFieldGroupText>{unit}</AppFieldGroupText>
@@ -279,15 +266,6 @@ const NumericOrTextVariant = React.forwardRef<
     </AppFieldGroup>
   )
 })
-
-// Strip handlers we already chained so we don't double-spread them.
-function stripWrapperKeys(
-  inputProps: CommonFormFieldProps["inputProps"]
-): React.InputHTMLAttributes<HTMLInputElement> | undefined {
-  if (!inputProps) return undefined
-  const { onFocus: _f, onBlur: _b, onKeyDown: _k, ...rest } = inputProps
-  return rest
-}
 
 // --- Color variant ------------------------------------------------------
 
