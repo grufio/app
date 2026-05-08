@@ -14,7 +14,7 @@ export function TabsSidepanel(props: {
   const sidePanelTabsListClass =
     "inline-grid h-8 w-fit grid-flow-col auto-cols-max gap-1 rounded-md bg-transparent p-0"
   const sidePanelTabsTriggerClass =
-    "h-6 rounded-sm px-2 text-xs font-medium hover:bg-muted disabled:hover:bg-transparent data-[state=active]:bg-black data-[state=active]:text-white data-[state=active]:shadow-sm data-[state=active]:hover:bg-black"
+    "h-6 rounded-sm px-2 text-xs font-medium hover:bg-zinc-200 disabled:hover:bg-transparent data-[state=active]:bg-black data-[state=active]:text-white data-[state=active]:shadow-sm data-[state=active]:hover:bg-black"
 
   return (
     <div className="border-b px-4 py-3">
