@@ -146,3 +146,79 @@ import path mirrors the dependency graph.
 - Tests next to the hook: `use-thing.test.ts`.
 - Pure decision logic (no React) goes in a sibling file
   `<thing>-decision.ts` so it can be unit-tested without `renderHook`.
+
+## Forms
+
+### `<FormField>` is the only entry point
+
+All form fields — right-panel inputs, dialog forms, anywhere a user
+edits a value — use `<FormField>` from `components/ui/form-controls/`.
+
+Four variants cover every case we have today:
+
+```tsx
+<FormField variant="numeric" numericMode="int" .../>
+<FormField variant="text"    .../>
+<FormField variant="color"   .../>   // hex; auto-normalises 3-digit input
+<FormField variant="select"  options={...} .../>
+```
+
+Common props: `label`, `labelVisuallyHidden` (for dense panels —
+label still rendered, sr-only), `iconStart`, `iconEnd`, `unit`
+(numeric), `description` (helper text under the field), `disabled`.
+
+### Lifecycle
+
+```tsx
+<FormField
+  value={persisted}
+  onCommit={(next) => save(next)}        // blur, Enter, programmatic
+  onDraftChange={(next) => mirror(next)} // optional, every keystroke
+/>
+```
+
+- `onCommit` fires when the user *finishes* editing (blur or Enter)
+  and `draft !== value`. Single source of truth for the persist call.
+- `onDraftChange` is optional; use only for live binding (aspect-
+  ratio lock: typing in width updates height as you go).
+- Escape reverts the draft. The full lifecycle lives in
+  `lib/forms/field-draft-reducer.ts` as a pure reducer, unit-tested
+  without React.
+
+**Don't** roll your own `useState` + `onBlur` + commit logic. The
+hook `useFieldDraft` already covers it — including the
+`cancelPendingCommit()` imperative handle for cases where a sibling
+button click would otherwise blur+commit unintentionally (the
+image-size lock button is the canonical case).
+
+### Select performance
+
+For `variant="select"`, pass `options: { value, label }[]` rather
+than inline `<SelectItem>` JSX children. We render the trigger's
+display text directly from the matched option, which short-circuits
+Radix's `createPortal`-based text projection — that portal re-
+creates on every parent re-render and visibly flickers the trigger
+content otherwise.
+
+Stable option arrays go to module scope:
+
+```ts
+const UNIT_OPTIONS: ReadonlyArray<SelectFieldOption> = [
+  { value: "mm", label: "mm" },
+  { value: "cm", label: "cm" },
+]
+```
+
+Dynamic option lists use `useMemo` with the right deps. Inline
+`<Gauge aria-hidden />` icons used as `iconStart` should also be
+hoisted to module-level consts when the parent re-renders often —
+the FormField select variant memoises on `iconStart` identity.
+
+### Don't disable selects during async saves
+
+`disabled:opacity-50` plus Tailwind's transition animates a visible
+gray-out when a save flips `saving=true→false`. Selects don't need
+the lock — picking a new value queues the next save behind the
+current one. Reserve `disabled` for cases where the action would
+genuinely fail (no row, controls not ready), not for "in-flight"
+state.
