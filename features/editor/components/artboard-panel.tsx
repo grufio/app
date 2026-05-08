@@ -243,7 +243,13 @@ export const ArtboardPanel = memo(function ArtboardPanel() {
   )
 
   const sizeControlsDisabled = loading || !row || !widthPxU || !heightPxU
-  const controlsDisabled = sizeControlsDisabled || saving
+  // Selects don't include `saving` in their disabled state. A workspace
+  // save (e.g. page-bg toggle) lasts a few hundred ms; flipping the
+  // select to disabled and back animates the `disabled:opacity-50`
+  // transition, which reads as a gray flicker on the trigger text +
+  // chevron. Selects queue a new selection past the in-flight save
+  // anyway, so locking them is unnecessary.
+  const selectsDisabled = sizeControlsDisabled
 
   return (
     <div className="space-y-4">
@@ -305,7 +311,7 @@ export const ArtboardPanel = memo(function ArtboardPanel() {
           value={computedPreset}
           options={presetOptions(computedPreset, computedOutputDpi)}
           onCommit={onPresetChange}
-          disabled={controlsDisabled}
+          disabled={selectsDisabled}
           triggerOnPointerDownCapture={cancelPendingCommits}
         />
 
@@ -317,7 +323,7 @@ export const ArtboardPanel = memo(function ArtboardPanel() {
           value={computedUnit}
           options={UNIT_OPTIONS}
           onCommit={(v) => onUnitChange(v as Unit)}
-          disabled={controlsDisabled}
+          disabled={selectsDisabled}
           triggerOnPointerDownCapture={cancelPendingCommits}
         />
 
