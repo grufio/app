@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import { isUuid, jsonError, readJson } from "@/lib/api/route-guards"
 import { withFilterRouteAuth } from "@/lib/api/with-filter-route-auth"
+import { numerateSchema } from "@/lib/editor/filters/numerate"
 import { appendProjectImageFilter, cleanupOrphanFilterImage } from "@/services/editor/server/filter-chain"
 import { numerateImageAndActivate } from "@/services/editor/server/filters/numerate"
 
@@ -30,21 +31,17 @@ export async function POST(
       return jsonError("Invalid source_image_id", 400, { stage: "validation", where: "body" })
     }
 
-    const superpixelWidth = Number(body.superpixel_width ?? 10)
-    const superpixelHeight = Number(body.superpixel_height ?? 10)
-    const strokeWidth = Number(body.stroke_width ?? 2)
-    const showColors = Boolean(body.show_colors ?? true)
+    const paramsParsed = numerateSchema.safeParse(body)
+    if (!paramsParsed.success) {
+      return jsonError("Invalid numerate params", 400, { stage: "validation", where: "body" })
+    }
+    const filterParams = paramsParsed.data
 
     const result = await numerateImageAndActivate({
       supabase: context.supabase,
       projectId: context.projectId,
       sourceImageId,
-      params: {
-        superpixelWidth,
-        superpixelHeight,
-        strokeWidth,
-        showColors,
-      },
+      params: filterParams,
     })
 
     if (!result.ok) {
@@ -57,12 +54,7 @@ export async function POST(
       inputImageId: sourceImageId,
       outputImageId: result.id,
       filterType: "numerate",
-      filterParams: {
-        superpixel_width: superpixelWidth,
-        superpixel_height: superpixelHeight,
-        stroke_width: strokeWidth,
-        show_colors: showColors,
-      },
+      filterParams,
     })
     if (!chain.ok) {
       await cleanupOrphanFilterImage({

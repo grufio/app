@@ -11,6 +11,7 @@ import { numerateImageAndActivate } from "@/services/editor/server/filters/numer
 import { pixelateImageAndActivate } from "@/services/editor/server/filters/pixelate"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 import { lineartSchema } from "@/lib/editor/filters/lineart"
+import { numerateSchema } from "@/lib/editor/filters/numerate"
 import { pixelateSchema } from "@/lib/editor/filters/pixelate"
 
 export type SupportedFilterType = "pixelate" | "lineart" | "numerate"
@@ -81,15 +82,8 @@ function normalizeFilterParams(filterType: SupportedFilterType, params: unknown)
     return parsed.success ? parsed.data : lineartSchema.parse({})
   }
   if (filterType === "numerate") {
-    const superpixelWidthRaw = Number(input.superpixel_width ?? 10)
-    const superpixelHeightRaw = Number(input.superpixel_height ?? 10)
-    const strokeWidthRaw = Number(input.stroke_width ?? 1)
-    return {
-      superpixel_width: Number.isFinite(superpixelWidthRaw) ? Math.max(1, Math.round(superpixelWidthRaw)) : 10,
-      superpixel_height: Number.isFinite(superpixelHeightRaw) ? Math.max(1, Math.round(superpixelHeightRaw)) : 10,
-      stroke_width: Number.isFinite(strokeWidthRaw) ? Math.max(1, Math.round(strokeWidthRaw)) : 1,
-      show_colors: Boolean(input.show_colors),
-    }
+    const parsed = numerateSchema.safeParse(input)
+    return parsed.success ? parsed.data : numerateSchema.parse({})
   }
   return {}
 }
@@ -138,12 +132,7 @@ async function createDerivedImageFromSource(args: {
     supabase,
     projectId,
     sourceImageId,
-    params: {
-      superpixelWidth: Number(params.superpixel_width),
-      superpixelHeight: Number(params.superpixel_height),
-      strokeWidth: Number(params.stroke_width),
-      showColors: Boolean(params.show_colors),
-    },
+    params: numerateSchema.parse(params),
   })
   if (!result.ok) return result
   return {

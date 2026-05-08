@@ -6,7 +6,10 @@ import type * as React from "react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { FormField } from "@/components/ui/form-controls"
+import { numerateSchema } from "@/lib/editor/filters/numerate"
 import { FilterFormFooter } from "./filter-forms/filter-form-footer"
+
+const DEFAULT_PARAMS = numerateSchema.parse({})
 
 export type NumerateFormData = {
   strokeWidth: number
@@ -25,15 +28,20 @@ type Props = {
 export function NumerateForm({
   superpixelWidth,
   superpixelHeight,
-  initialShowColors = true,
+  initialShowColors = DEFAULT_PARAMS.show_colors,
   onCancel,
   onApply,
   busy = false,
 }: Props) {
-  const [strokeWidth, setStrokeWidth] = useState(2)
+  const [strokeWidth, setStrokeWidth] = useState(DEFAULT_PARAMS.stroke_width)
   const [showColors, setShowColors] = useState(initialShowColors)
 
-  const isValid = strokeWidth >= 1 && strokeWidth <= 20
+  const isValid = numerateSchema.safeParse({
+    superpixel_width: superpixelWidth,
+    superpixel_height: superpixelHeight,
+    stroke_width: strokeWidth,
+    show_colors: showColors,
+  }).success
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
