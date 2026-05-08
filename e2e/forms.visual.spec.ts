@@ -39,6 +39,22 @@ async function freezeAnimations(page: import("@playwright/test").Page) {
 }
 
 test.describe("forms — visual regressions", () => {
+  // TODO(Phase 3 follow-up): visual regression test for the dev gallery
+  // at `/dev/form-primitives`. Run
+  // `npx playwright test e2e/forms.visual.spec.ts --update-snapshots`
+  // once the gallery render is final to generate
+  // `form-primitives-gallery.png` and uncomment the spec below.
+  //
+  // test("dev gallery — every form-control variant", async ({ page }) => {
+  //   await page.goto("/dev/form-primitives")
+  //   await freezeAnimations(page)
+  //   await expect(page.getByRole("heading", { name: "Form primitives gallery" })).toBeVisible()
+  //   await expect(page).toHaveScreenshot("form-primitives-gallery.png", {
+  //     fullPage: true,
+  //     maxDiffPixels: 400,
+  //   })
+  // })
+
   test("login form (Default Forms)", async ({ page }) => {
     await page.goto("/login")
     await freezeAnimations(page)
