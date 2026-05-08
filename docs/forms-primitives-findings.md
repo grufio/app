@@ -24,20 +24,19 @@ addressed in this PR are marked ✓.
 file, future "let me just bump that padding" edits can't accidentally
 break only one half.
 
-### F1.1.b Variant split into sub-files
-Today: 4 variants (numeric/text/color/select) live in one ~480-LOC
-file with 3 internal `forwardRef` components and shared types at the
-top.
+### F1.1.b Variant split into sub-files ✓ (autonomous follow-up)
+The single 488-LOC `form-field.tsx` is now a directory:
+- `form-field/index.tsx` — thin dispatcher + the doc-block JSDoc
+- `form-field/types.ts` — `FormFieldHandle`, `FormFieldProps`,
+  variant prop types, `SelectFieldOption`
+- `form-field/numeric-text.tsx` — `NumericOrTextVariant`
+- `form-field/color.tsx` — `ColorVariant`
+- `form-field/select.tsx` — `SelectVariantInner` + memoised
+  `SelectVariant`
 
-**DoD:** `components/ui/form-controls/form-field/{numeric.tsx,
-color.tsx, select.tsx, types.ts}` plus a thin `form-field.tsx` that
-owns the variant union and dispatches.
-
-**Size:** L (~3-4 h). Touches imports across 14 consumers, but the
-re-exports stay stable so callers don't change.
-
-**Not done in this PR** — would balloon the diff and the helper
-extraction (F1.1.a) addresses the highest-friction part already.
+External imports through `@/components/ui/form-controls` are
+unchanged. The directory replaced the old file outright (no parallel
+existence).
 
 ### F1.1.c Imperative-handle audit ✓ (autonomous follow-up)
 `focus` removed from `FormFieldHandle`. Imperative API now exposes
@@ -226,7 +225,7 @@ this is *not* yet covered.
 | Finding | Status | Phase to land in |
 |---|---|---|
 | F1.1.a Pure helpers extracted | ✓ this PR | — |
-| F1.1.b Variant sub-file split | open | future PR (L) |
+| F1.1.b Variant sub-file split | ✓ autonomous | — |
 | F1.1.c Drop unused `focus()` from handle | ✓ autonomous | — |
 | F1.2.a `.text-panel-tight` token | ✓ Phase 2 | — |
 | F2.1 TabsSidepanel active → tokens | ✓ Phase 2 | — |
