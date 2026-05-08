@@ -239,24 +239,6 @@ const NumericOrTextVariant = React.forwardRef<
         aria-describedby={descriptionId}
         disabled={disabled}
         className={inputClassName}
-        // Numeric+unit: shrink input to its content via native
-        // `field-sizing: content` so the unit label can sit directly
-        // after the typed value (gap = addon's 8px), but capped at the
-        // cell's width so long text scrolls inside instead of overflowing.
-        // Inline style is used to bypass tailwind-merge ordering issues
-        // with !w-auto / !flex-initial that weren't beating w-full /
-        // flex-1 from AppInput / FieldControl.
-        style={
-          props.variant === "numeric" && unit
-            ? {
-                width: "auto",
-                flex: "0 1 auto",
-                fieldSizing: "content",
-                minWidth: "2ch",
-                maxWidth: "100%",
-              }
-            : undefined
-        }
         value={draft.draft}
         onChange={(e) => {
           const next =
@@ -272,17 +254,7 @@ const NumericOrTextVariant = React.forwardRef<
       />
 
       {unit ? (
-        // !ml-0 overrides the addon's default `ml-auto` (set by
-        // InputGroupAddon for inline-end addons) so the unit label
-        // sits directly after the content-sized input, with the gap
-        // = the addon's px-2 (8px). Plain `ml-0` was being beaten by
-        // `ml-auto` in cn/tailwind-merge ordering — `!important`
-        // makes the override explicit.
-        <AppFieldGroupAddon
-          align="inline-end"
-          className="pointer-events-none !ml-0"
-          aria-hidden="true"
-        >
+        <AppFieldGroupAddon align="inline-end" className="pointer-events-none" aria-hidden="true">
           <AppFieldGroupText>{unit}</AppFieldGroupText>
         </AppFieldGroupAddon>
       ) : null}
