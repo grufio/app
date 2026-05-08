@@ -5,7 +5,10 @@ import type * as React from "react"
 
 import { Label } from "@/components/ui/label"
 import { FormField } from "@/components/ui/form-controls"
+import { lineartSchema } from "@/lib/editor/filters/lineart"
 import { FilterFormFooter } from "./filter-forms/filter-form-footer"
+
+const DEFAULT_PARAMS = lineartSchema.parse({})
 
 export type LineArtFormData = {
   threshold1: number
@@ -24,17 +27,25 @@ type Props = {
 }
 
 export function LineArtForm({ onCancel, onApply, busy = false }: Props) {
-  const [threshold1, setThreshold1] = useState(50)
-  const [threshold2, setThreshold2] = useState(200)
-  const [lineThickness, setLineThickness] = useState(2)
-  const [invert, setInvert] = useState(true)
-  const [blurAmount, setBlurAmount] = useState(3)
-  const [minContourArea, setMinContourArea] = useState(500)
-  const [smoothness, setSmoothness] = useState(0.002)
+  const [threshold1, setThreshold1] = useState(DEFAULT_PARAMS.threshold1)
+  const [threshold2, setThreshold2] = useState(DEFAULT_PARAMS.threshold2)
+  const [lineThickness, setLineThickness] = useState(DEFAULT_PARAMS.line_thickness)
+  const [invert, setInvert] = useState(DEFAULT_PARAMS.invert)
+  const [blurAmount, setBlurAmount] = useState(DEFAULT_PARAMS.blur_amount)
+  const [minContourArea, setMinContourArea] = useState(DEFAULT_PARAMS.min_contour_area)
+  const [smoothness, setSmoothness] = useState(DEFAULT_PARAMS.smoothness)
 
   const isValid = useMemo(() => {
-    return threshold1 >= 0 && threshold2 > threshold1 && lineThickness >= 1 && lineThickness <= 10
-  }, [threshold1, threshold2, lineThickness])
+    return lineartSchema.safeParse({
+      threshold1,
+      threshold2,
+      line_thickness: lineThickness,
+      blur_amount: blurAmount,
+      min_contour_area: minContourArea,
+      invert,
+      smoothness,
+    }).success
+  }, [threshold1, threshold2, lineThickness, blurAmount, minContourArea, invert, smoothness])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()

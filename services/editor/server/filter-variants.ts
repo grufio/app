@@ -10,6 +10,7 @@ import { lineArtImageAndActivate } from "@/services/editor/server/filters/linear
 import { numerateImageAndActivate } from "@/services/editor/server/filters/numerate"
 import { pixelateImageAndActivate } from "@/services/editor/server/filters/pixelate"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
+import { lineartSchema } from "@/lib/editor/filters/lineart"
 import { pixelateSchema } from "@/lib/editor/filters/pixelate"
 
 export type SupportedFilterType = "pixelate" | "lineart" | "numerate"
@@ -72,33 +73,12 @@ function parseFilterType(value: unknown): SupportedFilterType | null {
 function normalizeFilterParams(filterType: SupportedFilterType, params: unknown): Record<string, unknown> {
   const input = (params as Record<string, unknown> | null | undefined) ?? {}
   if (filterType === "pixelate") {
-    const superpixelWidthRaw = Number(input.superpixel_width ?? 10)
-    const superpixelHeightRaw = Number(input.superpixel_height ?? 10)
-    const numColorsRaw = Number(input.num_colors ?? 16)
-    const colorMode = String(input.color_mode ?? "rgb").toLowerCase() === "grayscale" ? "grayscale" : "rgb"
-    return {
-      superpixel_width: Number.isFinite(superpixelWidthRaw) ? Math.max(1, Math.round(superpixelWidthRaw)) : 10,
-      superpixel_height: Number.isFinite(superpixelHeightRaw) ? Math.max(1, Math.round(superpixelHeightRaw)) : 10,
-      num_colors: Number.isFinite(numColorsRaw) ? Math.min(256, Math.max(2, Math.round(numColorsRaw))) : 16,
-      color_mode: colorMode,
-    }
+    const parsed = pixelateSchema.safeParse(input)
+    return parsed.success ? parsed.data : pixelateSchema.parse({})
   }
   if (filterType === "lineart") {
-    const threshold1Raw = Number(input.threshold1 ?? 100)
-    const threshold2Raw = Number(input.threshold2 ?? 200)
-    const lineThicknessRaw = Number(input.line_thickness ?? 2)
-    const blurAmountRaw = Number(input.blur_amount ?? 3)
-    const minContourAreaRaw = Number(input.min_contour_area ?? 200)
-    const smoothnessRaw = Number(input.smoothness ?? 0.005)
-    return {
-      threshold1: Number.isFinite(threshold1Raw) ? Math.round(threshold1Raw) : 100,
-      threshold2: Number.isFinite(threshold2Raw) ? Math.round(threshold2Raw) : 200,
-      line_thickness: Number.isFinite(lineThicknessRaw) ? Math.max(1, Math.round(lineThicknessRaw)) : 2,
-      blur_amount: Number.isFinite(blurAmountRaw) ? Math.max(0, Math.round(blurAmountRaw)) : 3,
-      min_contour_area: Number.isFinite(minContourAreaRaw) ? Math.max(0, Math.round(minContourAreaRaw)) : 200,
-      invert: Boolean(input.invert),
-      smoothness: Number.isFinite(smoothnessRaw) ? smoothnessRaw : 0.005,
-    }
+    const parsed = lineartSchema.safeParse(input)
+    return parsed.success ? parsed.data : lineartSchema.parse({})
   }
   if (filterType === "numerate") {
     const superpixelWidthRaw = Number(input.superpixel_width ?? 10)
@@ -143,15 +123,7 @@ async function createDerivedImageFromSource(args: {
       supabase,
       projectId,
       sourceImageId,
-      params: {
-        threshold1: Number(params.threshold1),
-        threshold2: Number(params.threshold2),
-        lineThickness: Number(params.line_thickness),
-        blurAmount: Number(params.blur_amount),
-        minContourArea: Number(params.min_contour_area),
-        invert: Boolean(params.invert),
-        smoothness: Number(params.smoothness),
-      },
+      params: lineartSchema.parse(params),
     })
     if (!result.ok) return result
     return {

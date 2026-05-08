@@ -3,6 +3,7 @@ import crypto from "node:crypto"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/lib/supabase/database.types"
+import { lineartSchema, type LineartParams } from "@/lib/editor/filters/lineart"
 import { copyImageTransform } from "@/services/editor/server/copy-image-transform"
 import { callFilterService, toInt } from "./_helpers"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
@@ -38,51 +39,26 @@ type LineArtSuccess = {
 
 export type LineArtFilterResult = LineArtSuccess | LineArtFailure
 
-type LineArtParams = {
-  threshold1: number
-  threshold2: number
-  lineThickness: number
-  invert: boolean
-  blurAmount: number
-  minContourArea: number
-  smoothness: number
-}
-
-
 export async function lineArtImageAndActivate(args: {
   supabase: SupabaseClient<Database>
   projectId: string
   sourceImageId: string
-  params: LineArtParams
+  params: LineartParams
 }): Promise<LineArtFilterResult> {
   const { supabase, projectId, sourceImageId, params } = args
-  const threshold1 = toInt(params.threshold1)
-  const threshold2 = toInt(params.threshold2)
-  const blurAmount = toInt(params.blurAmount)
-  const minContourArea = toInt(params.minContourArea)
-  const lineThickness = toInt(params.lineThickness)
-  const smoothness = params.smoothness
-
-  if (
-    threshold1 == null ||
-    threshold2 == null ||
-    threshold1 < 0 ||
-    threshold2 < 0 ||
-    threshold1 >= threshold2 ||
-    blurAmount == null ||
-    blurAmount < 0 ||
-    blurAmount > 20 ||
-    minContourArea == null ||
-    minContourArea < 0 ||
-    lineThickness == null ||
-    lineThickness < 1 ||
-    lineThickness > 10 ||
-    !Number.isFinite(smoothness) ||
-    smoothness < 0 ||
-    smoothness > 0.1
-  ) {
+  const parsed = lineartSchema.safeParse(params)
+  if (!parsed.success) {
     return { ok: false, status: 400, stage: "validation", reason: "Invalid line art params" }
   }
+  const {
+    threshold1,
+    threshold2,
+    line_thickness: lineThickness,
+    blur_amount: blurAmount,
+    min_contour_area: minContourArea,
+    invert,
+    smoothness,
+  } = parsed.data
 
   const { data: src, error: srcErr } = await supabase
     .from("project_images")
@@ -123,13 +99,13 @@ export async function lineArtImageAndActivate(args: {
       path: "/filters/lineart",
       body: {
         image_base64: imageBase64,
-        threshold1: threshold1,
-        threshold2: threshold2,
+        threshold1,
+        threshold2,
         line_thickness: lineThickness,
-        invert: params.invert,
+        invert,
         blur_amount: blurAmount,
         min_contour_area: minContourArea,
-        smoothness: smoothness,
+        smoothness,
       },
     })
 
