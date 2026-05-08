@@ -50,9 +50,9 @@ import { useFieldDraft } from "@/lib/forms/use-field-draft"
 import { cn } from "@/lib/utils"
 
 import { AppFieldGroup, AppFieldGroupAddon, AppFieldGroupText } from "./input-group"
+import { AppInput } from "./app-input"
 import { AppSelect, AppSelectContent, AppSelectItem, AppSelectValue } from "./app-select"
 import { ColorSwatchControl } from "./color-swatch-control"
-import { FieldControl } from "./field-control"
 import { SelectFieldControl } from "./select-field-control"
 
 export type FormFieldHandle = {
@@ -220,7 +220,8 @@ const NumericOrTextVariant = React.forwardRef<
         </AppFieldGroupAddon>
       ) : null}
 
-      <FieldControl
+      <AppInput
+        borderless
         ref={inputRef}
         id={id}
         type="text"
@@ -323,7 +324,8 @@ const ColorVariant = React.forwardRef<
             }}
           />
         </AppFieldGroupAddon>
-        <FieldControl
+        <AppInput
+          borderless
           ref={inputRef}
           id={id}
           type="text"

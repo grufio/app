@@ -9,17 +9,17 @@
  */
 import React, { forwardRef } from "react"
 
-import { FieldControl } from "@/components/ui/form-controls"
+import { AppInput } from "@/components/ui/form-controls"
 import { sanitizeNumericInput, type NumericMode } from "@/lib/editor/numeric"
 
-type Props = Omit<React.ComponentPropsWithoutRef<typeof FieldControl>, "onChange" | "value" | "inputMode"> & {
+type Props = Omit<React.ComponentPropsWithoutRef<typeof AppInput>, "onChange" | "value" | "inputMode" | "borderless"> & {
   value: string
   mode?: NumericMode
   onValueChange: (next: string) => void
 }
 
 /**
- * Thin wrapper around shadcn `Input` that:
+ * Thin wrapper around `AppInput borderless` that:
  * - enforces numeric-only text
  * - keeps value as a string (callers decide when/how to parse+commit)
  */
@@ -30,7 +30,8 @@ export const NumericInput = forwardRef<HTMLInputElement, Props>(function Numeric
   const inputMode = mode === "int" ? "numeric" : "decimal"
 
   return (
-    <FieldControl
+    <AppInput
+      borderless
       {...rest}
       ref={ref}
       value={value}

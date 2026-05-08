@@ -1,4 +1,3 @@
-export { FieldControl } from "./field-control"
 export {
   FormField,
   type FormFieldHandle,
