@@ -2,7 +2,9 @@
 
 import { useCallback, useMemo, useState } from "react"
 
-export type FilterType = "pixelate" | "lineart" | "numerate"
+import type { RegisteredFilterId } from "@/lib/editor/filters/registry"
+
+export type FilterType = RegisteredFilterId
 type FilterDialogSourceImage = {
   id: string
   width_px: number

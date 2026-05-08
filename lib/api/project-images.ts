@@ -6,6 +6,7 @@
  * - Perform existence checks and deletion via API routes.
  */
 import { fetchJson, invalidateFetchJsonGetCache } from "@/lib/api/http"
+import type { RegisteredFilterId } from "@/lib/editor/filters/registry"
 
 type ApiErrorPayload = Record<string, unknown> | null
 
@@ -77,7 +78,7 @@ export type SetProjectImageLockedResponse = {
   is_locked: boolean
 }
 
-export type FilterType = "pixelate" | "lineart" | "numerate"
+export type FilterType = RegisteredFilterId
 
 export type ProjectImageFilterItem = {
   id: string
