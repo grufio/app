@@ -103,8 +103,8 @@ export type Database = {
           line_width_value: number
           project_id: string
           spacing_value: number
-          spacing_x_value: number | null
-          spacing_y_value: number | null
+          spacing_x_value: number
+          spacing_y_value: number
           unit: Database["public"]["Enums"]["measure_unit"]
           updated_at: string
         }
@@ -114,8 +114,8 @@ export type Database = {
           line_width_value: number
           project_id: string
           spacing_value: number
-          spacing_x_value?: number | null
-          spacing_y_value?: number | null
+          spacing_x_value: number
+          spacing_y_value: number
           unit?: Database["public"]["Enums"]["measure_unit"]
           updated_at?: string
         }
@@ -125,8 +125,8 @@ export type Database = {
           line_width_value?: number
           project_id?: string
           spacing_value?: number
-          spacing_x_value?: number | null
-          spacing_y_value?: number | null
+          spacing_x_value?: number
+          spacing_y_value?: number
           unit?: Database["public"]["Enums"]["measure_unit"]
           updated_at?: string
         }
@@ -206,7 +206,7 @@ export type Database = {
           created_at: string
           dpi: number | null
           height_px: number | null
-          height_px_u: string | null
+          height_px_u: string
           image_id: string
           project_id: string
           role: Database["public"]["Enums"]["image_role"]
@@ -216,7 +216,7 @@ export type Database = {
           unit: Database["public"]["Enums"]["measure_unit"] | null
           updated_at: string
           width_px: number | null
-          width_px_u: string | null
+          width_px_u: string
           x: number
           x_px_u: string | null
           y: number
@@ -226,7 +226,7 @@ export type Database = {
           created_at?: string
           dpi?: number | null
           height_px?: number | null
-          height_px_u?: string | null
+          height_px_u: string
           image_id: string
           project_id: string
           role: Database["public"]["Enums"]["image_role"]
@@ -236,7 +236,7 @@ export type Database = {
           unit?: Database["public"]["Enums"]["measure_unit"] | null
           updated_at?: string
           width_px?: number | null
-          width_px_u?: string | null
+          width_px_u: string
           x?: number
           x_px_u?: string | null
           y?: number
@@ -246,7 +246,7 @@ export type Database = {
           created_at?: string
           dpi?: number | null
           height_px?: number | null
-          height_px_u?: string | null
+          height_px_u?: string
           image_id?: string
           project_id?: string
           role?: Database["public"]["Enums"]["image_role"]
@@ -256,7 +256,7 @@ export type Database = {
           unit?: Database["public"]["Enums"]["measure_unit"] | null
           updated_at?: string
           width_px?: number | null
-          width_px_u?: string | null
+          width_px_u?: string
           x?: number
           x_px_u?: string | null
           y?: number
