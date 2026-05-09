@@ -86,11 +86,20 @@ function normalize(sql) {
   return sql.toLowerCase().replace(/"/g, "")
 }
 
+// pg_dump emits the table identifier in many places (CREATE INDEX, CREATE
+// TRIGGER, GRANT, ALTER TABLE, CREATE POLICY). The first match for an anchor
+// like "on public.projects" is usually a CREATE INDEX line with no policy
+// body afterwards. Walk every occurrence and return true as soon as any
+// 2000-char window contains auth.uid(); only fail if no occurrence does.
 function hasAuthUidNear(haystack, needle) {
-  const idx = haystack.indexOf(needle)
-  if (idx < 0) return false
-  const window = haystack.slice(idx, idx + 2000)
-  return window.includes("auth.uid()")
+  let from = 0
+  while (true) {
+    const idx = haystack.indexOf(needle, from)
+    if (idx < 0) return false
+    const window = haystack.slice(idx, idx + 2000)
+    if (window.includes("auth.uid()")) return true
+    from = idx + needle.length
+  }
 }
 
 function verifyStoragePolicies(sql) {
