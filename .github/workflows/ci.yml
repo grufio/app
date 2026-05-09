@@ -60,7 +60,10 @@ jobs:
         if: ${{ env.SUPABASE_PROJECT_REF != '' }}
         uses: supabase/setup-cli@v1
         with:
-          version: latest
+          # Pin to the version that verify:* npm scripts spawn via npx,
+          # otherwise `supabase link` and `npx supabase migration list
+          # --linked` use different config dirs and don't share state.
+          version: 2.98.2
 
       - name: Link Supabase project (optional)
         if: ${{ env.SUPABASE_PROJECT_REF != '' }}

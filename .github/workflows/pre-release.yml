@@ -44,10 +44,12 @@ jobs:
           done
           [ "$missing" = "0" ]
 
+      # Pin to match the version that verify:* npm scripts spawn via
+      # `npx -y supabase@<version>` so both share the linked-project state.
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.98.2
 
       - name: Link Supabase project
         env:

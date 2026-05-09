@@ -85,10 +85,15 @@ jobs:
       - name: Install
         run: npm ci
 
+      # Pin to the same version the verify:* npm scripts spawn via
+      # `npx -y supabase@<version>`. Different minor versions write the
+      # linked-project state to slightly different paths, so a `supabase
+      # link` from the PATH-installed CLI is not visible to the npx-spawned
+      # CLI used by verify:remote-migrations / verify:types-synced.
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.98.2
 
       - name: Require deploy secrets
         run: |
