@@ -98,7 +98,11 @@ jobs:
         run: npm run verify:types-synced
 
   integration:
-    needs: lint_test
+    # Runs in parallel to lint_test/remote_verify/e2e — integration tests
+    # exercise real code paths against a local Supabase, orthogonal to the
+    # static gates. Wall-time saved on every CI run; the trade-off (integration
+    # may run a few minutes before lint_test reveals a syntax error) is paid in
+    # GHA minutes, not in feedback latency.
     runs-on: ubuntu-latest
     steps:
       - name: Free disk space
@@ -174,7 +178,8 @@ jobs:
           fi
 
   e2e:
-    needs: lint_test
+    # Same rationale as integration above — Playwright runs against a real
+    # webserver build, doesn't share signal with the static gates.
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
