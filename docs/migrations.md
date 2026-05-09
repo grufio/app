@@ -67,7 +67,10 @@ after a transient failure without a no-op commit.
 #### One-time setup (already wired)
 
 - Repo secrets: `SUPABASE_PROJECT_REF`, `SUPABASE_DB_PASSWORD`, `SUPABASE_DB_URL`,
-  `VERCEL_DEPLOY_HOOK_URL`. Optional: `SLACK_ALERT_WEBHOOK_URL`.
+  `SUPABASE_ACCESS_TOKEN` (account-level token from
+  https://supabase.com/dashboard/account/tokens; needed by `supabase link` and
+  any `--linked` CLI call), `VERCEL_DEPLOY_HOOK_URL`. Optional:
+  `SLACK_ALERT_WEBHOOK_URL`.
 - GitHub Environment `production-db` with required reviewers.
 - Vercel auto-deploy on `main` disabled via "Ignored Build Step: `exit 0`";
   prod deploys only run via the deploy hook above.

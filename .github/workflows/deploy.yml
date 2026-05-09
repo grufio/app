@@ -68,6 +68,9 @@ jobs:
       SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      # Account-level token, needed by `supabase link` and any `--linked` CLI
+      # call that hits the management API. Distinct from the DB password.
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
 
     steps:
       - name: Checkout
@@ -90,7 +93,7 @@ jobs:
       - name: Require deploy secrets
         run: |
           missing=0
-          for var in SUPABASE_PROJECT_REF SUPABASE_DB_PASSWORD SUPABASE_DB_URL; do
+          for var in SUPABASE_PROJECT_REF SUPABASE_DB_PASSWORD SUPABASE_DB_URL SUPABASE_ACCESS_TOKEN; do
             if [ -z "${!var}" ]; then
               echo "Missing required secret: $var"
               missing=1
