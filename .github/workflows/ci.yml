@@ -101,6 +101,23 @@ jobs:
     needs: lint_test
     runs-on: ubuntu-latest
     steps:
+      - name: Free disk space
+        # ubuntu-latest ships with ~14 GB pre-installed software (.NET,
+        # Haskell GHC, Android SDK, CodeQL bundles). The Supabase image
+        # tarball (~1.5 GB) plus its extracted docker layers (~3 GB) plus
+        # node_modules (~500 MB) plus build caches push us past the
+        # default disk limit on cold runs — `docker load` then dies
+        # mid-extraction with "no space left on device". Trim the
+        # pre-installed bloat we don't use.
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/.ghcup
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          df -h /
+
       - name: Checkout
         uses: actions/checkout@v5
 
