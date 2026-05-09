@@ -54,29 +54,50 @@ if (!base) {
   process.exit(0)
 }
 
-const diff = git(["diff", "--name-only", `${base.ref}...HEAD`])
+const diff = git(["diff", "--name-status", `${base.ref}...HEAD`])
 if (!diff.ok) {
   console.log(`SKIP: git diff against ${base.ref} failed: ${diff.err}`)
   process.exit(0)
 }
 
-const changed = diff.out.split("\n").map(s => s.trim()).filter(Boolean)
-const migrationChanges = changed.filter(p => p.startsWith(MIGRATIONS_DIR) && p.endsWith(".sql"))
+const lines = diff.out.split("\n").map(s => s.trim()).filter(Boolean)
+const entries = lines.map((line) => {
+  const [status, ...rest] = line.split(/\s+/)
+  return { status, path: rest[rest.length - 1] }
+})
+
+const changed = entries.map((e) => e.path)
+const migrationEntries = entries.filter((e) => e.path.startsWith(MIGRATIONS_DIR) && e.path.endsWith(".sql"))
+const migrationsAdded = migrationEntries.filter((e) => e.status === "A")
+const migrationsModified = migrationEntries.filter((e) => e.status === "M")
+const migrationsDeleted = migrationEntries.filter((e) => e.status === "D")
 const typesTouched = changed.includes(TYPES_FILE)
 
-if (migrationChanges.length === 0) {
+if (migrationEntries.length === 0) {
   console.log(`OK: no migrations changed since ${base.source} (${base.ref}).`)
   process.exit(0)
 }
 
 if (typesTouched) {
-  console.log(`OK: ${migrationChanges.length} migration(s) changed and ${TYPES_FILE} was updated.`)
+  console.log(`OK: ${migrationEntries.length} migration(s) changed and ${TYPES_FILE} was updated.`)
+  process.exit(0)
+}
+
+// Squash heuristic: many deletions plus at most one modification (the latest
+// migration file is the conventional landing spot for `supabase migration
+// squash` output) and no additions means the change is a refactor of the
+// migration history, not a new schema delta. Types regeneration would produce
+// no diff in that case, so requiring `typesTouched` would be a false positive.
+if (migrationsAdded.length === 0 && migrationsModified.length <= 1 && migrationsDeleted.length > 0) {
+  console.log(
+    `OK: ${migrationsDeleted.length} deleted + ${migrationsModified.length} modified migration(s), no additions — looks like a squash, types regen produces no semantic diff.`
+  )
   process.exit(0)
 }
 
 console.error("Schema drift risk: migration(s) changed but database.types.ts was not regenerated.")
 console.error("\nChanged migrations:")
-for (const p of migrationChanges) console.error(`  - ${p}`)
+for (const e of migrationEntries) console.error(`  ${e.status}  ${e.path}`)
 console.error(`\nFix: run \`npm run types:gen\` and commit ${TYPES_FILE}.`)
 console.error(`(Diff base: ${base.source} → ${base.ref})`)
 process.exit(1)
