@@ -23,6 +23,10 @@ export const lineartFilter = {
   id: "lineart",
   label: "Line Art",
   schema: lineartSchema,
+  meta: {
+    title: "Line Art",
+    description: "Create comic-style outlines with edge detection.",
+  },
   ui: {
     threshold1: { min: 0, max: 500, description: "Lower value = more edges detected (0-500)" },
     threshold2: { min: 0, max: 500, description: "Must be higher than low threshold" },

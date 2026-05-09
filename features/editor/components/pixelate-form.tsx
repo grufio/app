@@ -13,13 +13,9 @@
 import { useMemo, useState } from "react"
 import type * as React from "react"
 
-import { FormField, type SelectFieldOption } from "@/components/ui/form-controls"
+import { FormField } from "@/components/ui/form-controls"
 import { pixelateFilter, pixelateSchema, type PixelateParams } from "@/lib/editor/filters/pixelate"
 
-const COLOR_MODE_OPTIONS: ReadonlyArray<SelectFieldOption> = [
-  { value: "rgb", label: "RGB" },
-  { value: "grayscale", label: "Grayscale" },
-]
 import { FilterFormFooter } from "./filter-forms/filter-form-footer"
 
 const DEFAULT_PARAMS = pixelateSchema.parse({})
@@ -128,7 +124,7 @@ export function PixelateForm({ imageWidth, imageHeight, onCancel, onApply, busy 
           label="Color Mode"
           id="color-mode"
           value={colorMode}
-          options={COLOR_MODE_OPTIONS}
+          options={pixelateFilter.ui.color_mode.options}
           onCommit={(v) => setColorMode(v as "rgb" | "grayscale")}
           disabled={busy}
         />

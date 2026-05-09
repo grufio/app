@@ -15,6 +15,10 @@ export const numerateFilter = {
   id: "numerate",
   label: "Numerate",
   schema: numerateSchema,
+  meta: {
+    title: "Numerate",
+    description: "Create a vector grid overlay from pixelated superpixels.",
+  },
   ui: {
     superpixel_width: { min: 1 },
     superpixel_height: { min: 1 },

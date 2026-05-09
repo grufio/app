@@ -1,5 +1,7 @@
 "use client"
 
+import { numerateFilter } from "@/lib/editor/filters/numerate"
+
 import { BaseFilterController } from "./BaseFilterController"
 import { NumerateForm, type NumerateFormData } from "./numerate-form"
 
@@ -28,8 +30,8 @@ export function NumerateFilterController({
       onClose={onClose}
       onSuccess={onSuccess}
       onError={onError}
-      title="Numerate"
-      description="Create a vector grid overlay from pixelated superpixels."
+      title={numerateFilter.meta.title}
+      description={numerateFilter.meta.description}
       applyFilter={async (data) => {
         await onApplyFilter({
           filterType: "numerate",

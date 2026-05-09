@@ -4,40 +4,11 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/lib/supabase/database.types"
 import { copyImageTransform } from "@/services/editor/server/copy-image-transform"
-import { callFilterService, contentTypeFor, pickOutputFormat, toInt } from "./_helpers"
+import { callFilterService, contentTypeFor, pickOutputFormat, toInt, type FilterResult } from "./_helpers"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 import { pixelateSchema, type PixelateParams } from "@/lib/editor/filters/pixelate"
 
-type PixelateFailStage =
-  | "validation"
-  | "source_lookup"
-  | "lock_conflict"
-  | "source_download"
-  | "pixelate_process"
-  | "service_unavailable"
-  | "auth"
-  | "storage_upload"
-  | "db_insert"
-  | "transform_sync"
-  | "active_switch"
-
-type PixelateFailure = {
-  ok: false
-  status: number
-  stage: PixelateFailStage
-  reason: string
-  code?: string
-}
-
-type PixelateSuccess = {
-  ok: true
-  id: string
-  storagePath: string
-  widthPx: number
-  heightPx: number
-}
-
-export type PixelateFilterResult = PixelateSuccess | PixelateFailure
+export type PixelateFilterResult = FilterResult<"pixelate_process">
 
 export async function pixelateImageAndActivate(args: {
   supabase: SupabaseClient<Database>

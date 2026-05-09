@@ -5,39 +5,10 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/lib/supabase/database.types"
 import { numerateSchema, type NumerateParams } from "@/lib/editor/filters/numerate"
 import { copyImageTransform } from "@/services/editor/server/copy-image-transform"
-import { callFilterService, toInt } from "./_helpers"
+import { callFilterService, toInt, type FilterResult } from "./_helpers"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 
-type NumerateFailStage =
-  | "validation"
-  | "source_lookup"
-  | "lock_conflict"
-  | "source_download"
-  | "numerate_process"
-  | "service_unavailable"
-  | "auth"
-  | "storage_upload"
-  | "db_insert"
-  | "transform_sync"
-  | "active_switch"
-
-type NumerateFailure = {
-  ok: false
-  status: number
-  stage: NumerateFailStage
-  reason: string
-  code?: string
-}
-
-type NumerateSuccess = {
-  ok: true
-  id: string
-  storagePath: string
-  widthPx: number
-  heightPx: number
-}
-
-export type NumerateFilterResult = NumerateSuccess | NumerateFailure
+export type NumerateFilterResult = FilterResult<"numerate_process">
 
 export async function numerateImageAndActivate(args: {
   supabase: SupabaseClient<Database>
