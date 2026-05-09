@@ -58,14 +58,22 @@ enabled = true
 sql_paths = ["./seed.sql"]
 
 [realtime]
-enabled = true
+# Disabled — integration tests don't subscribe (supabase-js initialises
+# the realtime client but tests/integration/_setup.ts never calls .channel()
+# or .on()). Disabling skips the docker container, shrinks the cached
+# image tarball, and reduces CI disk pressure. Re-enable if a feature
+# starts using channels/presence.
+enabled = false
 # Bind realtime via either IPv4 or IPv6. (default: IPv4)
 # ip_version = "IPv6"
 # The maximum length in bytes of HTTP request headers. (default: 4096)
 # max_header_length = 4096
 
 [studio]
-enabled = true
+# Disabled — Studio is the admin web UI, not used by automated tests.
+# Local dev re-enables on demand via Supabase Dashboard or by flipping
+# this back. No production impact (config.toml is local-only).
+enabled = false
 # Port to use for Supabase Studio.
 port = 54323
 # External URL of the API server that frontend connects to.
@@ -76,7 +84,11 @@ openai_api_key = "env(OPENAI_API_KEY)"
 # Email testing server. Emails sent with the local dev setup are not actually sent - rather, they
 # are monitored, and you can view the emails that would have been sent from the web interface.
 [inbucket]
-enabled = true
+# Disabled — integration tests bypass email-confirm by inserting users
+# with `email_confirmed_at = now()` directly (see tests/integration/_setup.ts).
+# No test or local-dev flow currently relies on inspecting outbound
+# emails; re-enable if an auth/email flow is added.
+enabled = false
 # Port to use for the email testing server web interface.
 port = 54324
 # Uncomment to expose additional ports for testing user applications that send emails.
