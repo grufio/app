@@ -37,11 +37,10 @@ Notes:
 - If you run locally, export these env vars before executing the commands.
 - `verify:types-synced` requires a linked/authenticated Supabase CLI context.
 
-If migrations are missing:
-
-```bash
-supabase db push --linked
-```
+Pending migrations are applied automatically by the `Deploy` workflow on push to `main`,
+gated by the `production-db` GitHub Environment (required reviewer). See
+[`docs/migrations.md`](migrations.md#auto-deploy-pipeline) for the full flow. The
+manual `supabase db push --linked` step is no longer part of the release path.
 
 ### 3) Manual QA (editor)
 

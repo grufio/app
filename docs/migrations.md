@@ -27,11 +27,9 @@ supabase link --project-ref "<your-project-ref>" --password "$SUPABASE_DB_PASSWO
 
 #### Day-to-day
 
-- Apply pending migrations to hosted DB:
-
-```bash
-npm run db:push
-```
+- Pending migrations are applied to prod **automatically** by the `Deploy` workflow
+  on push to `main` — see [Auto-deploy pipeline](#auto-deploy-pipeline) below. The
+  `npm run db:push` command remains available for emergency / out-of-band use only.
 
 - Pull hosted schema changes into a new migration file (remote-aligned snapshot):
 
@@ -44,6 +42,35 @@ npm run db:pull
 ```bash
 npm run types:gen
 ```
+
+### Auto-deploy pipeline
+
+`.github/workflows/deploy.yml` is the single source of truth for prod deploys. On
+every push to `main`:
+
+1. A **detect** job inspects the diff. If any file under `supabase/migrations/`
+   changed, the **migrations** path runs; otherwise **frontend-only** runs.
+2. **migrations** path:
+   - Gated by the `production-db` GitHub Environment (required reviewer).
+   - Runs `verify:schema-drift` to confirm `db/schema.sql` still matches current
+     prod schema *before* pushing — catches a hand-edited prod schema.
+   - Applies pending migrations via `supabase db push --linked`.
+   - Confirms via `verify:remote-migrations` and `verify:types-synced` that the
+     post-push state is consistent.
+   - Triggers the Vercel production deploy hook only on success.
+3. **frontend-only** path:
+   - No migration changes — triggers the Vercel deploy hook immediately.
+
+`workflow_dispatch` always runs the migrations path, so an operator can re-deploy
+after a transient failure without a no-op commit.
+
+#### One-time setup (already wired)
+
+- Repo secrets: `SUPABASE_PROJECT_REF`, `SUPABASE_DB_PASSWORD`, `SUPABASE_DB_URL`,
+  `VERCEL_DEPLOY_HOOK_URL`. Optional: `SLACK_ALERT_WEBHOOK_URL`.
+- GitHub Environment `production-db` with required reviewers.
+- Vercel auto-deploy on `main` disabled via "Ignored Build Step: `exit 0`";
+  prod deploys only run via the deploy hook above.
 
 ### SQL editor workflow (fallback)
 

@@ -1,0 +1,160 @@
+## Production deploy workflow
+#
+# Responsibilities:
+# - Replace the manual `supabase db push --linked` step from the release checklist.
+# - Apply DB migrations to prod behind a required-reviewer environment gate.
+# - Trigger Vercel production deploy exactly once per push (after migrations succeed,
+#   or immediately if the push contains no migration changes).
+#
+# Prerequisites (one-time setup, see docs/migrations.md):
+# - GitHub Environment `production-db` with required reviewers.
+# - Repo secrets: SUPABASE_PROJECT_REF, SUPABASE_DB_PASSWORD, SUPABASE_DB_URL,
+#   VERCEL_DEPLOY_HOOK_URL, optional SLACK_ALERT_WEBHOOK_URL.
+# - Vercel auto-deploy on `main` disabled via "Ignored Build Step: exit 0";
+#   prod deploys only happen via the deploy hook triggered here.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Force JS actions onto Node 24 (see ci.yml note).
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+# Serialize deploys per ref. Never cancel a running migration deploy.
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      has-migrations: ${{ steps.diff.outputs.has-migrations }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+
+      - name: Detect migration changes
+        id: diff
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            # Manual trigger always runs the migration path so an operator can
+            # re-deploy after a transient failure without a no-op commit.
+            echo "has-migrations=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if git diff --name-only HEAD~1..HEAD 2>/dev/null | grep -qE '^supabase/migrations/'; then
+            echo "has-migrations=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has-migrations=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  migrations:
+    needs: detect
+    if: needs.detect.outputs.has-migrations == 'true'
+    runs-on: ubuntu-latest
+    environment: production-db
+    timeout-minutes: 30
+    env:
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Require deploy secrets
+        run: |
+          missing=0
+          for var in SUPABASE_PROJECT_REF SUPABASE_DB_PASSWORD SUPABASE_DB_URL; do
+            if [ -z "${!var}" ]; then
+              echo "Missing required secret: $var"
+              missing=1
+            fi
+          done
+          [ "$missing" = "0" ]
+
+      - name: Link Supabase project
+        run: supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+
+      - name: Audit — list pending migrations
+        run: supabase migration list --linked --password "$SUPABASE_DB_PASSWORD"
+
+      - name: Pre-flight — verify committed schema matches current prod
+        run: npm run verify:schema-drift
+
+      - name: Apply pending migrations
+        run: supabase db push --linked --password "$SUPABASE_DB_PASSWORD"
+
+      - name: Post-push — verify all migrations applied
+        run: npm run verify:remote-migrations
+
+      - name: Post-push — verify generated types match new schema
+        env:
+          SUPABASE_VERIFY_TYPES_SYNC: "1"
+        run: npm run verify:types-synced
+
+      - name: Trigger Vercel production deploy
+        env:
+          HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "VERCEL_DEPLOY_HOOK_URL not set — skipping Vercel trigger."
+            exit 0
+          fi
+          curl -fsSL -X POST "$HOOK" -o /dev/null
+          echo "Triggered Vercel production deploy."
+
+      - name: Slack alert on failure
+        if: failure()
+        env:
+          WEBHOOK: ${{ secrets.SLACK_ALERT_WEBHOOK_URL }}
+        run: |
+          if [ -z "$WEBHOOK" ]; then
+            exit 0
+          fi
+          payload=$(printf '{"text":":rotating_light: Migration deploy failed on `%s` @ `%s`\n%s/%s/actions/runs/%s"}' \
+            "${{ github.ref_name }}" "${{ github.sha }}" \
+            "${{ github.server_url }}" "${{ github.repository }}" "${{ github.run_id }}")
+          curl -fsSL -X POST -H 'Content-Type: application/json' -d "$payload" "$WEBHOOK" || true
+
+  frontend-only:
+    needs: detect
+    if: needs.detect.outputs.has-migrations == 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger Vercel production deploy (no migrations in push)
+        env:
+          HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "VERCEL_DEPLOY_HOOK_URL not set — skipping Vercel trigger."
+            exit 0
+          fi
+          curl -fsSL -X POST "$HOOK" -o /dev/null
+          echo "Triggered Vercel production deploy (frontend-only path)."
