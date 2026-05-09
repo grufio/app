@@ -46,6 +46,10 @@ jobs:
         env:
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          # Account-level token for `--linked` Supabase CLI calls (management
+          # API). Required by gate:pre-release even though gate:local doesn't
+          # need it.
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_VERIFY_TYPES_SYNC: "1"
         run: npm run gate:pre-release
 
