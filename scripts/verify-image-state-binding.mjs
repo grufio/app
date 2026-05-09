@@ -65,7 +65,7 @@ function main() {
     `
       select project_id::text || E'\\t' || count(*)::text
       from public.project_images
-      where role = 'master'
+      where kind = 'master'
         and is_active is true
         and deleted_at is null
       group by project_id
@@ -83,7 +83,7 @@ function main() {
         on pis.project_id = pi.project_id
        and pis.role = 'master'
        and pis.image_id = pi.id
-      where pi.role = 'master'
+      where pi.kind = 'master'
         and pi.is_active is true
         and pi.deleted_at is null
         and pis.project_id is null
@@ -98,7 +98,7 @@ function main() {
       from public.project_image_state pis
       join public.project_images pi
         on pi.project_id = pis.project_id
-       and pi.role = 'master'
+       and pi.kind = 'master'
        and pi.is_active is true
        and pi.deleted_at is null
       where pis.role = 'master'

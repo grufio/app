@@ -54,7 +54,7 @@ function main() {
       and not exists (
         select 1 from public.project_images pi
         where pi.project_id = p.id
-          and pi.role = 'master'
+          and pi.kind = 'master'
           and pi.deleted_at is null
       )
       order by p.id;
@@ -139,7 +139,7 @@ function main() {
       with recursive roots as (
         select project_id, id
         from public.project_images
-        where role = 'master'
+        where kind = 'master'
           and deleted_at is null
       ),
       chain as (

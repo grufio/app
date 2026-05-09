@@ -77,56 +77,69 @@ function runSupabaseDbDump(schemaName) {
   return { ok: true, sql, outFile, stdout: res.stdout ?? "", stderr: res.stderr ?? "" }
 }
 
-function hasAuthUidNear(sql, needle) {
-  const idx = sql.indexOf(needle)
-  if (idx < 0) return false
-  const window = sql.slice(idx, idx + 2000)
-  return window.includes("auth.uid()")
+// pg_dump output varies in casing and identifier quoting across CLI versions
+// (e.g. `ALTER TABLE "storage"."objects"` vs `alter table storage.objects`).
+// Normalise once here so all `.includes()` checks below can use a single
+// canonical lower-case, unquoted form. Single-quoted string literals (e.g.
+// 'project_images') are preserved by only stripping double quotes.
+function normalize(sql) {
+  return sql.toLowerCase().replace(/"/g, "")
+}
+
+// pg_dump emits the table identifier in many places (CREATE INDEX, CREATE
+// TRIGGER, GRANT, ALTER TABLE, CREATE POLICY). The first match for an anchor
+// like "on public.projects" is usually a CREATE INDEX line with no policy
+// body afterwards. Walk every occurrence and return true as soon as any
+// 2000-char window contains auth.uid(); only fail if no occurrence does.
+function hasAuthUidNear(haystack, needle) {
+  let from = 0
+  while (true) {
+    const idx = haystack.indexOf(needle, from)
+    if (idx < 0) return false
+    const window = haystack.slice(idx, idx + 2000)
+    if (window.includes("auth.uid()")) return true
+    from = idx + needle.length
+  }
 }
 
 function verifyStoragePolicies(sql) {
+  const haystack = normalize(sql)
   const rlsNeedle = "alter table storage.objects enable row level security;"
-  if (!sql.includes(rlsNeedle)) {
+  if (!haystack.includes(rlsNeedle)) {
     fail(`Remote storage RLS missing: expected "${rlsNeedle}" in storage schema dump`)
   }
 
   const ops = ["select", "insert", "update", "delete"]
   for (const op of ops) {
     const needle = `on storage.objects for ${op}`
-    if (!sql.includes(needle)) {
+    if (!haystack.includes(needle)) {
       fail(`Remote storage policies missing: expected "${needle}" in storage schema dump`)
     }
   }
 
-  if (!sql.includes("bucket_id = 'project_images'")) {
+  if (!haystack.includes("bucket_id = 'project_images'")) {
     fail("Remote storage policies incomplete: expected bucket_id = 'project_images' restriction")
   }
 
   // Require auth guard to exist near at least one policy.
   const anyPolicyNeedle = "on storage.objects for select"
-  if (!hasAuthUidNear(sql, anyPolicyNeedle)) {
+  if (!hasAuthUidNear(haystack, anyPolicyNeedle)) {
     fail(`Remote storage policies incomplete: expected auth.uid() near "${anyPolicyNeedle}"`)
   }
 }
 
 function verifyPublicTablePolicies(sql, table) {
-  const rlsNeedle = `alter table "public"."${table}" enable row level security;`
-  const rlsAltNeedle = `alter table public.${table} enable row level security;`
-  if (!sql.includes(rlsNeedle) && !sql.includes(rlsAltNeedle)) {
-    fail(`Remote RLS missing for public.${table}: expected "${rlsAltNeedle}" in public schema dump`)
+  const haystack = normalize(sql)
+  const rlsNeedle = `alter table public.${table} enable row level security;`
+  if (!haystack.includes(rlsNeedle)) {
+    fail(`Remote RLS missing for public.${table}: expected "${rlsNeedle}" in public schema dump`)
   }
 
-  // Look for at least one CREATE POLICY ... ON public.<table> with auth.uid() nearby.
-  // pg_dump may emit either `on "public"."<table>"` or `on public.<table>`.
-  const policyAnchors = [
-    `on "public"."${table}"`,
-    `on public.${table}`,
-  ]
-  const anchor = policyAnchors.find((needle) => sql.includes(needle))
-  if (!anchor) {
+  const anchor = `on public.${table}`
+  if (!haystack.includes(anchor)) {
     fail(`Remote policies missing for public.${table}: expected at least one CREATE POLICY ... ON public.${table}`)
   }
-  if (!hasAuthUidNear(sql, anchor)) {
+  if (!hasAuthUidNear(haystack, anchor)) {
     fail(`Remote policies incomplete for public.${table}: expected auth.uid() near "${anchor}"`)
   }
 }
