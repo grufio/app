@@ -14,9 +14,16 @@
  * (`verify:types-synced`) is the backstop.
  */
 import { spawnSync } from "node:child_process"
+import fs from "node:fs"
 
 const TYPES_FILE = "lib/supabase/database.types.ts"
 const MIGRATIONS_DIR = "supabase/migrations/"
+// Migrations whose first 50 lines contain this marker are treated as
+// pure backfills of state that prod already has — committed types
+// (regenerated from prod) remain accurate, so a types-regen is not
+// required for this PR. Used for "close-drift" / "align-to-prod" style
+// migrations whose every statement is idempotent and a no-op on prod.
+const BACKFILL_MARKER = "@intent-backfill-migration"
 
 function git(args) {
   const res = spawnSync("git", args, { encoding: "utf8" })
@@ -93,6 +100,32 @@ if (migrationsAdded.length === 0 && migrationsModified.length <= 1 && migrations
     `OK: ${migrationsDeleted.length} deleted + ${migrationsModified.length} modified migration(s), no additions — looks like a squash, types regen produces no semantic diff.`
   )
   process.exit(0)
+}
+
+// Backfill-marker heuristic: migrations whose first 50 lines contain the
+// `@intent-backfill-migration` marker declare themselves no-ops on prod
+// (prod already has the state; the migration just brings local migration
+// intent into alignment). Committed types remain accurate because they
+// were regenerated from prod. Skip the require-types-touched gate for
+// these migrations.
+const addedAndModified = [...migrationsAdded, ...migrationsModified]
+if (addedAndModified.length > 0) {
+  const markerHits = addedAndModified.filter((e) => {
+    try {
+      const content = fs.readFileSync(e.path, "utf8")
+      const head = content.split("\n").slice(0, 50).join("\n")
+      return head.includes(BACKFILL_MARKER)
+    } catch {
+      return false
+    }
+  })
+  if (markerHits.length === addedAndModified.length) {
+    const names = markerHits.map((e) => e.path).join(", ")
+    console.log(
+      `OK: every changed migration carries ${BACKFILL_MARKER} (${names}) — committed types reflect prod, regen not required.`
+    )
+    process.exit(0)
+  }
 }
 
 console.error("Schema drift risk: migration(s) changed but database.types.ts was not regenerated.")
