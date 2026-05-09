@@ -51,5 +51,8 @@ supabase/.temp/
 # cursor
 .cursor/
 
+# claude code (per-developer local settings + runtime files)
+.claude/
+
 # allow committed Vercel env template
 !.env.vercel.production.example
