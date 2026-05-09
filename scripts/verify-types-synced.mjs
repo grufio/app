@@ -33,10 +33,10 @@ const tmpFile = path.join(tmpDir, "database.types.ts")
 // Use Supabase CLI (requires `supabase link` in repo and auth in CI).
 const args = ["gen", "types", "typescript", "--linked", "--schema", "public"]
 
-const cliArgs = ["-y", "supabase@2.84.2", ...args]
+const cliArgs = ["-y", "supabase@2.98.2", ...args]
 const res = spawnSync("npx", cliArgs, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] })
 if (res.error || res.status !== 0) {
-  console.error("Failed to generate types via Supabase CLI (npx supabase@2.84.2).")
+  console.error("Failed to generate types via Supabase CLI (npx supabase@2.98.2).")
   if (res.stderr) console.error(res.stderr.trim())
   console.error("\nTip: ensure the project is linked and CI has required auth (SUPABASE_DB_PASSWORD or access token).")
   process.exit(1)

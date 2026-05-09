@@ -49,7 +49,7 @@ jobs:
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
         with:
-          version: 2.84.2
+          version: 2.98.2
 
       - name: Link Supabase project
         env:

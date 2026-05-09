@@ -72,7 +72,7 @@ function runSupabaseMigrationListJson() {
   const args = ["migration", "list", "--linked", "--output", "json"]
   const pw = (process.env.SUPABASE_DB_PASSWORD ?? process.env.SUPABASE_DB_PASS ?? "").trim()
   if (pw) args.push("--password", pw)
-  const cliArgs = ["-y", "supabase@2.84.2", ...args]
+  const cliArgs = ["-y", "supabase@2.98.2", ...args]
 
   const res = spawnSync("npx", cliArgs, {
     cwd: root,
