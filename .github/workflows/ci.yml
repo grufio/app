@@ -24,14 +24,6 @@ concurrency:
 jobs:
   lint_test:
     runs-on: ubuntu-latest
-    env:
-      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
-      # Account-level token for any `--linked` Supabase CLI call (management
-      # API). Distinct from the DB password. The optional steps below all
-      # need it; without it the CLI errors with "Access token not provided".
-      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -48,16 +40,39 @@ jobs:
       - name: Run CI lane
         run: npm run gate:ci
 
-      - name: Check remote DB invariants (optional)
-        if: ${{ env.SUPABASE_DB_URL != '' }}
-        run: npm run check:remote
+  # remote_verify holds the optional checks that need a linked Supabase
+  # project (Supabase CLI on PATH, `supabase link`, the four verify:* npm
+  # scripts that hit the management API + DB). It runs in parallel to
+  # lint_test, so the integration/e2e jobs (which only depend on lint_test
+  # via `needs:`) start as soon as the offline gate passes — saving ~2 min
+  # of wall time per PR vs. the previous serialised flow.
+  #
+  # Gated on SUPABASE_PROJECT_REF so PR runs without secrets (forks,
+  # drafts) skip cleanly.
+  remote_verify:
+    runs-on: ubuntu-latest
+    # Skip the entire job for fork PRs (where secrets are not exposed).
+    # Single-user repo, so this is also effectively "always run on grufio/app PRs".
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
 
-      # The four optional steps below all hit the linked Supabase project. They
-      # need: Supabase CLI on PATH, `supabase link` cached state, plus the
-      # secrets above. We gate every step on SUPABASE_PROJECT_REF so PR runs
-      # without secrets (forks, drafts) skip cleanly.
-      - name: Setup Supabase CLI (optional)
-        if: ${{ env.SUPABASE_PROJECT_REF != '' }}
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
         with:
           # Pin to the version that verify:* npm scripts spawn via npx,
@@ -65,20 +80,19 @@ jobs:
           # --linked` use different config dirs and don't share state.
           version: 2.98.2
 
-      - name: Link Supabase project (optional)
-        if: ${{ env.SUPABASE_PROJECT_REF != '' }}
+      - name: Link Supabase project
         run: supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
 
-      - name: Verify remote migrations (optional)
-        if: ${{ env.SUPABASE_PROJECT_REF != '' }}
+      - name: Check remote DB invariants
+        run: npm run check:remote
+
+      - name: Verify remote migrations
         run: npm run verify:remote-migrations
 
-      - name: Verify remote RLS + storage policies (optional)
-        if: ${{ env.SUPABASE_PROJECT_REF != '' }}
+      - name: Verify remote RLS + storage policies
         run: npm run verify:remote-rls
 
-      - name: Verify DB types are synced (optional)
-        if: ${{ env.SUPABASE_PROJECT_REF != '' }}
+      - name: Verify DB types are synced
         env:
           SUPABASE_VERIFY_TYPES_SYNC: "1"
         run: npm run verify:types-synced
