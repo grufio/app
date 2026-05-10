@@ -43,7 +43,7 @@ env-driven.
 
 ---
 
-## Findings (18 items: 14 actionable + 4 deferred/declined/obsolete)
+## Findings (19 items)
 
 | ID | Title | Size | Status | PR |
 |---|---|---|---|---|
@@ -52,7 +52,8 @@ env-driven.
 | F3 | 3-way Dispatch-Duplikation in `filter-variants.ts` | S | ✓ done | PR 1 |
 | F12 | Generic `FilterResult<T>` Type | S | ✓ done | PR 1 |
 | F10 | Numerate-Tests auf Pixelate-Niveau | S | ✓ done | PR 1 |
-| F18 | Numerate-Performance-Profiling (User-Pain) | S | open | PR P |
+| F18 | Numerate-Performance-Profiling (User-Pain) | S | ✓ done | PR P |
+| F19 | Collapse Numerate SVG rect spam (1.49 MB → ~30 KB) | M | open | TBD |
 | F11 | E2E-Filter-Chain-Roundtrip-Test | M | ✓ done | PR 2 |
 | F5 | Inkonsistente Registry-Metadata in Forms | M | ✓ done | PR 3 |
 | F7 | Generic `<FilterForm>` aus 3 Form-Files | L | ✓ done | PR 4 |
@@ -60,8 +61,8 @@ env-driven.
 | F4 | Schema 2-3x parsed pro Request | M | absorbed in F9 | — |
 | F9 | Generic `applyHttpFilter()` aus 3 Server-Filtern | L | open | PR 5 |
 | F13 | `filter-working-copy.ts` (576 LOC) splitten | M | open | PR 6opt |
-| F16 | `callFilterService()` Config per-Filter overridable | S | hot if F18 zeigt Timeout-Pain | PR 7opt |
-| F15 | Base64 → Streaming für große Bilder | M | hot if F18 zeigt Transit-Pain | deferred |
+| F16 | `callFilterService()` Config per-Filter overridable | S | deferred (F18: Python = 51 ms, no timeout-pain) | PR 7opt |
+| F15 | Base64 → Streaming für große Bilder | M | deferred (F18: input encode = 0.1 ms, no transit-pain) | deferred |
 | F6 | Redundante API-Surface (per-filter + generisch) | M | deferred | — |
 | F17 | Live-Preview während Slider-Drag | L | declined (feature) | — |
 | F14 | Snake_case-Destructuring-Pattern | XS | obsolete (in F9) | — |
@@ -167,19 +168,61 @@ Safety-Net für F4/F9-Refactors.
 
 **Files:** neuer/erweiterter Integration-Test.
 
-### F18 — Numerate-Performance-Profiling
-User-Pain: „Numerate ist sehr langsam" (Stand 2026-05-09). Pixelate
-nutzt vergleichbare Pipeline aber ist messbar schneller. Vor jeder
-Performance-Optimierung (F15, F16) muss klar sein wo die Latenz
-herkommt: Node-Pre/Post (Base64, Upload), Python-Algorithmus (edge,
-stroke, superpixel), oder Service-Transit.
+### F18 — Numerate-Performance-Profiling *(✓ done — diagnosis below)*
 
-Output: konkrete ms-Verteilung über die Pipeline-Phasen, daraus
-folgt welche der späteren Items von „deferred" auf „hot" wandern.
+**Stand:** 2026-05-10. Profiled with `scripts/profile-filters.mjs`
+against the local Python service, fixture
+`scripts/profile-fixtures/profile-1920x1080.png` (1920×1080,
+gradient + 3 colored circles), 5 warm runs, default superpixel
+10×10.
 
-**Files:** `services/editor/server/filters/numerate.ts` (Node-Timing,
-Cleanup vor Push), Filter-Service Python (Phase-Timing in Response-
-Header), `e2e/fixtures/profile-image.png` (NEU, deterministisch).
+**Median per-call (Python service only, no Node pipeline):**
+
+| filter   | total | decode | mean+expand / rects | quantize / lines | encode / serialize | output bytes |
+|----------|-------|--------|---------------------|------------------|--------------------|--------------|
+| pixelate | 167 ms | 0.1 ms | 37 ms (mean+expand) | 53 ms (quantize) | 75 ms (PNG encode) | 13 KB        |
+| numerate | 51 ms  | 0.1 ms | 47 ms (rects loop)  | 0.1 ms (lines)   | 0.1 ms (serialize) | 1.49 MB      |
+
+**Counter-intuitive:** Python is ~3× *faster* for numerate than for
+pixelate. The user-felt slowness is not in Python's algorithm — it's
+the **47 ms `rects` string-assembly loop driving a 1.49 MB SVG
+output (110× larger than pixelate's 13 KB PNG)**. Confirmation:
+`show_colors=false` drops numerate to 2 ms total / 23 KB output.
+
+**Where the wall-clock goes** (qualitative, beyond Python):
+- Output SVG transit: 1.49 MB Cloud Run → Vercel + Vercel → Supabase
+  Storage upload + Storage → Browser fetch. Each leg dominated by
+  payload size.
+- Browser render of an SVG containing 20,736 `<rect>` elements
+  (192×108 grid) plus ~300 `<line>`s — heavy for the DOM, paints in
+  the few-hundred-ms range on default-density screens.
+
+**Implications for queued items:**
+- **F15 (Base64→Streaming)** — was *deferred*; profile shows
+  base64-encode is 0.1 ms (negligible on the input side). Not hot
+  for input. Output-side streaming is more interesting because that
+  carries the 1.49 MB payload, but the wins are on storage/network,
+  not Python. **Status: stay deferred**.
+- **F16 (per-filter timeout override)** — was *hot if F18 zeigt
+  Timeout-Pain*. Python finishes in 51 ms. The 30 s default isn't
+  the constraint. **Status: deferred / yagni**.
+- **NEW finding F19 — collapse SVG rect spam** *(open, M)*: replace
+  the 20K-rect color layer with either (a) a `<image>` referencing
+  the pixelated PNG inlined as data-URL (huge size cut, small
+  decode hit on the client), or (b) numpy-vectorised string
+  assembly (drops the 47 ms loop to <5 ms). Either independently
+  cuts the pain.
+
+**Files involved:**
+- `services/editor/server/filters/{numerate,pixelate}.ts` —
+  Node-side phase marks gated by `PROFILE_FILTERS=1` (no overhead
+  when off).
+- `filter-service/app/main.py` — `PhaseTimer` always-on, returns
+  `X-Profile-Phases` response header (sub-µs per mark).
+- `scripts/profile-filters.mjs` — driver, requires the local
+  service running.
+- `scripts/profile-fixtures/profile-1920x1080.png` — deterministic
+  input image.
 
 ### F12 — Generic `FilterResult<T>` Type
 Jeder der 3 Server-Filter definiert lokal `Success`/`Failure`-Types.

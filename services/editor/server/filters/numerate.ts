@@ -5,7 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/lib/supabase/database.types"
 import { numerateSchema, type NumerateParams } from "@/lib/editor/filters/numerate"
 import { copyImageTransform } from "@/services/editor/server/copy-image-transform"
-import { callFilterService, toInt, type FilterResult } from "./_helpers"
+import { callFilterService, startFilterProfiler, toInt, type FilterResult } from "./_helpers"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 
 export type NumerateFilterResult = FilterResult<"numerate_process">
@@ -17,6 +17,7 @@ export async function numerateImageAndActivate(args: {
   params: NumerateParams
 }): Promise<NumerateFilterResult> {
   const { supabase, projectId, sourceImageId, params } = args
+  const profiler = startFilterProfiler()
   const parsed = numerateSchema.safeParse(params)
   if (!parsed.success) {
     return { ok: false, status: 400, stage: "validation", reason: "Invalid numerate params" }
@@ -35,6 +36,7 @@ export async function numerateImageAndActivate(args: {
     .eq("project_id", projectId)
     .is("deleted_at", null)
     .maybeSingle()
+  profiler.mark("source_lookup")
 
   if (srcErr || !src) {
     return { ok: false, status: 404, stage: "source_lookup", reason: "Source image not found", code: srcErr?.code }
@@ -66,9 +68,11 @@ export async function numerateImageAndActivate(args: {
   }
 
   const srcBuffer = Buffer.from(await srcBlob.arrayBuffer())
+  profiler.mark("source_download")
 
   try {
     const imageBase64 = srcBuffer.toString("base64")
+    profiler.mark("base64_encode")
 
     const callResult = await callFilterService({
       path: "/filters/numerate",
@@ -80,6 +84,7 @@ export async function numerateImageAndActivate(args: {
         show_colors: showColors,
       },
     })
+    profiler.mark("filter_service")
 
     if (!callResult.ok) {
       return {
@@ -105,6 +110,7 @@ export async function numerateImageAndActivate(args: {
     if (uploadErr) {
       return { ok: false, status: 500, stage: "storage_upload", reason: "Failed to upload numerate image" }
     }
+    profiler.mark("storage_upload")
 
     const { error: insertErr } = await supabase.from("project_images").insert({
       id: imageId,
@@ -125,6 +131,7 @@ export async function numerateImageAndActivate(args: {
       await supabase.storage.from(PROJECT_IMAGES_BUCKET).remove([objectPath])
       return { ok: false, status: 400, stage: "db_insert", reason: insertErr.message, code: insertErr.code }
     }
+    profiler.mark("db_insert")
     // Copy transform from source to filter image
     const transformCopy = await copyImageTransform({
       supabase,
@@ -141,7 +148,14 @@ export async function numerateImageAndActivate(args: {
       await supabase.storage.from(PROJECT_IMAGES_BUCKET).remove([objectPath])
       return { ok: false, status: 500, stage: "transform_sync", reason: transformCopy.reason }
     }
+    profiler.mark("transform_copy")
 
+    profiler.report("numerate", {
+      python_phases: callResult.phases,
+      output_bytes: outputBuffer.byteLength,
+      width: origWidth,
+      height: origHeight,
+    })
 
     return {
       ok: true,

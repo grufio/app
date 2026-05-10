@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/lib/supabase/database.types"
 import { copyImageTransform } from "@/services/editor/server/copy-image-transform"
-import { callFilterService, contentTypeFor, pickOutputFormat, toInt, type FilterResult } from "./_helpers"
+import { callFilterService, contentTypeFor, pickOutputFormat, startFilterProfiler, toInt, type FilterResult } from "./_helpers"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 import { pixelateSchema, type PixelateParams } from "@/lib/editor/filters/pixelate"
 
@@ -17,6 +17,7 @@ export async function pixelateImageAndActivate(args: {
   params: PixelateParams
 }): Promise<PixelateFilterResult> {
   const { supabase, projectId, sourceImageId, params } = args
+  const profiler = startFilterProfiler()
   const parsed = pixelateSchema.safeParse(params)
   if (!parsed.success) {
     return { ok: false, status: 400, stage: "validation", reason: "Invalid pixelate params" }
@@ -30,6 +31,7 @@ export async function pixelateImageAndActivate(args: {
     .eq("project_id", projectId)
     .is("deleted_at", null)
     .maybeSingle()
+  profiler.mark("source_lookup")
 
   if (srcErr || !src) {
     return { ok: false, status: 404, stage: "source_lookup", reason: "Source image not found", code: srcErr?.code }
@@ -62,12 +64,14 @@ export async function pixelateImageAndActivate(args: {
   }
 
   const srcBuffer = Buffer.from(await srcBlob.arrayBuffer())
+  profiler.mark("source_download")
 
   // Determine output format
   const outputFormat = pickOutputFormat(src.format)
 
   try {
     const imageBase64 = srcBuffer.toString("base64")
+    profiler.mark("base64_encode")
 
     const callResult = await callFilterService({
       path: "/filters/pixelate",
@@ -79,6 +83,7 @@ export async function pixelateImageAndActivate(args: {
         num_colors: numColors,
       },
     })
+    profiler.mark("filter_service")
 
     if (!callResult.ok) {
       return {
@@ -104,6 +109,7 @@ export async function pixelateImageAndActivate(args: {
     if (uploadErr) {
       return { ok: false, status: 500, stage: "storage_upload", reason: "Failed to upload pixelated image" }
     }
+    profiler.mark("storage_upload")
 
     const { error: insertErr } = await supabase.from("project_images").insert({
       id: imageId,
@@ -124,6 +130,7 @@ export async function pixelateImageAndActivate(args: {
       await supabase.storage.from(PROJECT_IMAGES_BUCKET).remove([objectPath])
       return { ok: false, status: 400, stage: "db_insert", reason: insertErr.message, code: insertErr.code }
     }
+    profiler.mark("db_insert")
 
     // Copy transform from source to filter image
     const transformCopy = await copyImageTransform({
@@ -141,6 +148,14 @@ export async function pixelateImageAndActivate(args: {
       await supabase.storage.from(PROJECT_IMAGES_BUCKET).remove([objectPath])
       return { ok: false, status: 500, stage: "transform_sync", reason: transformCopy.reason }
     }
+    profiler.mark("transform_copy")
+
+    profiler.report("pixelate", {
+      python_phases: callResult.phases,
+      output_bytes: outputBuffer.byteLength,
+      width: origWidth,
+      height: origHeight,
+    })
 
     return {
       ok: true,

@@ -80,8 +80,55 @@ export function filterServiceHeaders(): Record<string, string> {
  *   retry.
  */
 export type CallFilterServiceResult =
-  | { ok: true; bytes: ArrayBuffer }
+  | { ok: true; bytes: ArrayBuffer; phases?: string }
   | { ok: false; status: number; stage: "service_unavailable" | "filter_failed" | "auth"; reason: string }
+
+/**
+ * Phase-timing helper for filter pipelines (F18).
+ *
+ * Off by default; flips on when `PROFILE_FILTERS=1` (or `true`) is set
+ * in the env. When on, it returns a timer that records per-phase
+ * deltas and, on `.report(filterId, extra?)`, emits a single JSON line
+ * to stdout the profile script (`scripts/profile-filters.mjs`)
+ * collects. When off, every method is a cheap no-op so production
+ * paths stay free of monitoring overhead.
+ */
+type FilterProfiler = {
+  mark: (phase: string) => void
+  report: (filterId: string, extra?: Record<string, unknown>) => void
+}
+
+const PROFILE_FILTERS_ON = ["1", "true"].includes((process.env.PROFILE_FILTERS ?? "").toLowerCase())
+
+const NOOP_PROFILER: FilterProfiler = {
+  mark: () => {},
+  report: () => {},
+}
+
+export function startFilterProfiler(): FilterProfiler {
+  if (!PROFILE_FILTERS_ON) return NOOP_PROFILER
+  const t0 = performance.now()
+  let last = t0
+  const phases: Array<{ name: string; ms: number }> = []
+  return {
+    mark(phase) {
+      const now = performance.now()
+      phases.push({ name: phase, ms: now - last })
+      last = now
+    },
+    report(filterId, extra) {
+      const total = performance.now() - t0
+      const out = {
+        kind: "filter-profile",
+        filter: filterId,
+        total_ms: Number(total.toFixed(1)),
+        phases: phases.map((p) => ({ ...p, ms: Number(p.ms.toFixed(1)) })),
+        ...extra,
+      }
+      console.log(JSON.stringify(out))
+    },
+  }
+}
 
 /** Decision: should this fetch outcome be retried? Pure for unit testing. */
 export function isTransientFilterServiceFailure(input: {
@@ -160,8 +207,9 @@ export async function callFilterService(opts: {
     }
 
     if (res?.ok) {
+      const phases = res.headers.get("X-Profile-Phases") ?? undefined
       const bytes = await res.arrayBuffer()
-      return { ok: true, bytes }
+      return { ok: true, bytes, phases }
     }
 
     if (res && res.status === 401) {
