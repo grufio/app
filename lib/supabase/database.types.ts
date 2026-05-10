@@ -7,6 +7,11 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.1"
+  }
   public: {
     Tables: {
       project_filter_settings: {
@@ -658,27 +663,17 @@ export type Database = {
         Args: { p_project_id: string }
         Returns: undefined
       }
-      set_active_master_with_state:
-        | {
-            Args: {
-              p_height_px: number
-              p_image_id: string
-              p_project_id: string
-              p_width_px: number
-            }
-            Returns: undefined
-          }
-        | {
-            Args: {
-              p_height_px_u: string
-              p_image_id: string
-              p_project_id: string
-              p_width_px_u: string
-              p_x_px_u: string
-              p_y_px_u: string
-            }
-            Returns: undefined
-          }
+      set_active_master_with_state: {
+        Args: {
+          p_height_px_u: string
+          p_image_id: string
+          p_project_id: string
+          p_width_px_u: string
+          p_x_px_u: string
+          p_y_px_u: string
+        }
+        Returns: undefined
+      }
       workspace_value_to_px_u: {
         Args: {
           dpi: number
@@ -831,4 +826,3 @@ export const Constants = {
     },
   },
 } as const
-
