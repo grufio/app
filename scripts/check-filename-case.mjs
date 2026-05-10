@@ -62,9 +62,7 @@ const PASCAL_CASE_ALLOWLIST = new Set([
   "features/editor/components/ProjectEditorRightPanel.tsx",
   "features/editor/components/BaseFilterController.tsx",
   "features/editor/components/FilterSelectionController.tsx",
-  "features/editor/components/NumerateFilterController.tsx",
-  "features/editor/components/LineArtFilterController.tsx",
-  "features/editor/components/PixelateFilterController.tsx",
+  "features/editor/components/TraceSelectionController.tsx",
   "features/editor/components/TabsSidepanel.tsx",
   "app/projects/[projectId]/_components/ProjectEditorShell.client.tsx",
 ])
