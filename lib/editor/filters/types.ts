@@ -50,20 +50,19 @@ export type FilterDialogMeta = {
 }
 
 /**
- * Per-render context the GenericFilterForm hands to the registry's
- * optional hooks. Filters that need contextual data (current image
- * dimensions, prior-filter outputs) read from here instead of the
- * controller having to know about each filter individually.
+ * Per-render context the GenericFilterForm hands to bitmap-filter
+ * hooks. Filters get image dimensions; that's all the bitmap side
+ * needs. Trace operations (numerate, lineart) have their own
+ * `TraceRenderContext` in `lib/editor/trace/types.ts` — kept
+ * separate so the two surfaces can't cross-leak via the context
+ * shape.
  */
 export type FilterRenderContext = {
   imageWidth: number
   imageHeight: number
-  /** Pixelate-supplied superpixel grid the chained Numerate filter inherits. */
-  numerateSuperpixelWidth: number
-  numerateSuperpixelHeight: number
 }
 
-export type FilterDefinition<TSchema extends z.ZodType> = {
+export type FilterDefinition<TSchema extends z.ZodType, TCtx = FilterRenderContext> = {
   id: string
   label: string
   schema: TSchema
@@ -87,14 +86,14 @@ export type FilterDefinition<TSchema extends z.ZodType> = {
    * driven fields. Pixelate uses it to surface the live "pixel count"
    * grid; numerate to show the inherited Pixelate superpixel banner.
    */
-  helperState?: (args: { params: z.infer<TSchema>; ctx: FilterRenderContext }) => ReactNode
+  helperState?: (args: { params: z.infer<TSchema>; ctx: TCtx }) => ReactNode
   /**
    * Optional pre-submit transform. Lets a filter inject context-only
    * params (e.g. numerate inherits superpixel_width/_height from
    * Pixelate) without exposing them as form fields. Returned object
    * replaces the form-collected params before `onApply`.
    */
-  transformBeforeSubmit?: (args: { params: z.infer<TSchema>; ctx: FilterRenderContext }) => z.infer<TSchema>
+  transformBeforeSubmit?: (args: { params: z.infer<TSchema>; ctx: TCtx }) => z.infer<TSchema>
 }
 
-export type FilterParamsOf<TDef extends FilterDefinition<z.ZodType>> = z.infer<TDef["schema"]>
+export type FilterParamsOf<TDef extends FilterDefinition<z.ZodType, unknown>> = z.infer<TDef["schema"]>

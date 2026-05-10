@@ -194,7 +194,7 @@ export function useEditorWorkflowAdapter(args: {
     await restoreInitialMasterImage(projectId)
   }, [projectId])
   const applyFilterService = useCallback(
-    async (op: { filterType: "pixelate" | "lineart" | "numerate"; filterParams: Record<string, unknown> }) => {
+    async (op: { filterType: "pixelate"; filterParams: Record<string, unknown> }) => {
       const sourceImageId = activeSourceImageIdRef.current
       if (!sourceImageId) {
         throw new Error("No active image available for filtering.")
@@ -242,7 +242,7 @@ export function useEditorWorkflowAdapter(args: {
   )
 
   const handleApplyFilter = useCallback(
-    async (op: { filterType: "pixelate" | "lineart" | "numerate"; filterParams: Record<string, unknown> }) => {
+    async (op: { filterType: "pixelate"; filterParams: Record<string, unknown> }) => {
       await workflow.applyFilter(op)
     },
     [workflow]

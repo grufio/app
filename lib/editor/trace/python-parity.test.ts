@@ -1,20 +1,17 @@
 /**
- * Parity test: TypeScript registry defaults must match the Pydantic
- * defaults declared in `filter-service/app/main.py`.
+ * Parity test: TypeScript trace registry defaults must match the
+ * Pydantic defaults declared in `filter-service/app/main.py`.
  *
- * Why this test exists: the filter registry is the single source of
- * truth in TS, but the Python service has its own Pydantic models
- * with their own defaults. Drift between them is exactly the bug
- * class the registry refactor was meant to eliminate.
- *
- * Trace-side parity (numerate, lineart) lives in
- * `lib/editor/trace/python-parity.test.ts`.
+ * Sister to `lib/editor/filters/python-parity.test.ts` — split so
+ * filter and trace each enforce their own contract against the
+ * Python service.
  */
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 
-import { pixelateSchema } from "./pixelate"
+import { lineartSchema } from "./lineart"
+import { numerateSchema } from "./numerate"
 
 const PYTHON_PATH = join(__dirname, "../../../filter-service/app/main.py")
 const PYTHON_SOURCE = readFileSync(PYTHON_PATH, "utf-8")
@@ -48,17 +45,26 @@ function extractPydanticDefaults(className: string): Record<string, unknown> {
   return defaults
 }
 
-describe("Python parity: TS filter schema defaults vs Pydantic", () => {
-  it("PixelateRequest", () => {
-    const py = extractPydanticDefaults("PixelateRequest")
-    const ts = pixelateSchema.parse({})
+describe("Python parity: TS trace schema defaults vs Pydantic", () => {
+  it("LineArtRequest", () => {
+    const py = extractPydanticDefaults("LineArtRequest")
+    const ts = lineartSchema.parse({})
+    for (const key of Object.keys(py)) {
+      expect(ts[key as keyof typeof ts]).toEqual(py[key])
+    }
+  })
+
+  it("NumerateRequest", () => {
+    const py = extractPydanticDefaults("NumerateRequest")
+    const ts = numerateSchema.parse({})
     for (const key of Object.keys(py)) {
       expect(ts[key as keyof typeof ts]).toEqual(py[key])
     }
   })
 
   it("extracts the expected fields (regression guard for parser)", () => {
-    expect(Object.keys(extractPydanticDefaults("PixelateRequest"))).toContain("color_mode")
-    expect(Object.keys(extractPydanticDefaults("PixelateRequest"))).toContain("num_colors")
+    expect(Object.keys(extractPydanticDefaults("LineArtRequest")).length).toBeGreaterThanOrEqual(7)
+    expect(Object.keys(extractPydanticDefaults("NumerateRequest"))).toContain("stroke_width")
+    expect(Object.keys(extractPydanticDefaults("NumerateRequest"))).toContain("show_colors")
   })
 })

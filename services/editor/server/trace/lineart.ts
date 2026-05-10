@@ -3,9 +3,9 @@ import crypto from "node:crypto"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/lib/supabase/database.types"
-import { lineartSchema, type LineartParams } from "@/lib/editor/filters/lineart"
+import { lineartSchema, type LineartParams } from "@/lib/editor/trace/lineart"
 import { copyImageTransform } from "@/services/editor/server/copy-image-transform"
-import { callFilterService, toInt, type FilterResult } from "./_helpers"
+import { callFilterService, toInt, type FilterResult } from "@/services/editor/server/filters/_helpers"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 
 export type LineArtFilterResult = FilterResult<"lineart_process">

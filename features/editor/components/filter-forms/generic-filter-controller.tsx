@@ -43,9 +43,6 @@ export function GenericFilterController({
   const filterDef = FILTER_REGISTRY[filterId] as FilterDefinition<z.ZodType>
   const title = filterDef.meta?.title ?? filterDef.label
   const description = filterDef.meta?.description ?? ""
-  // Lineart's apply step shows "Processing..." while the others say
-  // "Apply"; preserved here so the visible behaviour doesn't drift.
-  const applyingLabel = filterId === "lineart" ? "Processing..." : undefined
 
   return (
     <BaseFilterController<Record<string, unknown>>
@@ -64,7 +61,6 @@ export function GenericFilterController({
           filterDef={filterDef}
           ctx={ctx}
           busy={busy}
-          applyingLabel={applyingLabel}
           onCancel={onCancel}
           onApply={(params) => {
             void onApply(params as Record<string, unknown>)

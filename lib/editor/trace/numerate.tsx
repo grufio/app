@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-import type { FilterDefinition } from "./types"
+import type { TraceDefinition } from "./types"
 
 export const numerateSchema = z.object({
   superpixel_width: z.coerce.number().int().min(1).default(10),
@@ -11,7 +11,7 @@ export const numerateSchema = z.object({
 
 export type NumerateParams = z.infer<typeof numerateSchema>
 
-export const numerateFilter = {
+export const numerateTrace = {
   id: "numerate",
   label: "Numerate",
   schema: numerateSchema,
@@ -47,4 +47,4 @@ export const numerateFilter = {
     superpixel_width: ctx.numerateSuperpixelWidth,
     superpixel_height: ctx.numerateSuperpixelHeight,
   }),
-} as const satisfies FilterDefinition<typeof numerateSchema>
+} as const satisfies TraceDefinition<typeof numerateSchema>

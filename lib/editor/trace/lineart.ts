@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-import type { FilterDefinition } from "./types"
+import type { TraceDefinition } from "./types"
 
 export const lineartSchema = z
   .object({
@@ -19,7 +19,7 @@ export const lineartSchema = z
 
 export type LineartParams = z.infer<typeof lineartSchema>
 
-export const lineartFilter = {
+export const lineartTrace = {
   id: "lineart",
   label: "Line Art",
   schema: lineartSchema,
@@ -36,4 +36,4 @@ export const lineartFilter = {
     smoothness: { kind: "decimal", label: "Smoothness", min: 0, max: 0.05, step: 0.001, description: "Curve smoothing (0=sharp corners, 0.02=very smooth)" },
     invert: { kind: "boolean", label: "Black lines on white background", description: "Unchecked = white lines on black" },
   },
-} as const satisfies FilterDefinition<typeof lineartSchema>
+} as const satisfies TraceDefinition<typeof lineartSchema>

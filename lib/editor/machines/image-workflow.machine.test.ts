@@ -136,7 +136,7 @@ describe("createImageWorkflowMachine", () => {
       },
     })
 
-    actor.send({ type: "FILTER_APPLY", filterType: "lineart", filterParams: {} })
+    actor.send({ type: "FILTER_APPLY", filterType: "pixelate", filterParams: {} })
     await waitFor(actor, (s) => s.matches({ operation: "error" }))
     expect(actor.getSnapshot().context.lastOpError).toBe("apply failed")
 
@@ -175,7 +175,7 @@ describe("createImageWorkflowMachine", () => {
       },
     })
 
-    actor.send({ type: "FILTER_APPLY", filterType: "lineart", filterParams: {} })
+    actor.send({ type: "FILTER_APPLY", filterType: "pixelate", filterParams: {} })
     await waitFor(actor, (s) => s.matches({ operation: "error" }))
     actor.send({ type: "REFRESH" })
     await waitFor(actor, (s) => s.matches({ operation: "idle" }))

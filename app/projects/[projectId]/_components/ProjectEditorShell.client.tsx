@@ -587,8 +587,6 @@ export function ProjectDetailPageClient({
             selectionOpen={filterDialog.selectionOpen}
             activeFilterType={filterDialog.activeFilterType}
             filterDialogSource={filterDialogSource}
-            numerateSuperpixelWidth={numerateSuperpixelWidth}
-            numerateSuperpixelHeight={numerateSuperpixelHeight}
             onCloseSelection={filterDialog.closeSelection}
             onSelectFilterType={filterDialog.selectFilterType}
             onCloseConfigure={filterDialog.closeConfigure}

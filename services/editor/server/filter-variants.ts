@@ -6,12 +6,8 @@ import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role"
 import { getEditorTargetImageRow } from "@/lib/supabase/project-images"
 import { activateProjectImage } from "@/services/editor/server/activate-project-image"
 import { appendProjectImageFilter } from "@/services/editor/server/filter-chain"
-import { lineArtImageAndActivate } from "@/services/editor/server/filters/lineart"
-import { numerateImageAndActivate } from "@/services/editor/server/filters/numerate"
 import { pixelateImageAndActivate } from "@/services/editor/server/filters/pixelate"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
-import { lineartSchema } from "@/lib/editor/filters/lineart"
-import { numerateSchema } from "@/lib/editor/filters/numerate"
 import { pixelateSchema } from "@/lib/editor/filters/pixelate"
 import { FILTER_REGISTRY, type RegisteredFilterId } from "@/lib/editor/filters/registry"
 
@@ -27,8 +23,6 @@ export type FilterOpFailure = {
     | "lock_conflict"
     | "source_download"
     | "pixelate_process"
-    | "lineart_process"
-    | "numerate_process"
     | "service_unavailable"
     | "auth"
     | "storage_upload"
@@ -75,8 +69,6 @@ function parseFilterType(value: unknown): SupportedFilterType | null {
 // defaults / coerce strings without a per-filter if/else cascade.
 const FILTER_SCHEMAS = {
   pixelate: pixelateSchema,
-  lineart: lineartSchema,
-  numerate: numerateSchema,
 } as const satisfies Record<SupportedFilterType, unknown>
 
 // Handler-per-filter map. Each entry is the per-filter pipeline
@@ -84,8 +76,6 @@ const FILTER_SCHEMAS = {
 // the `FilterResult` shape, so the dispatch can stay structural.
 const FILTER_HANDLERS = {
   pixelate: pixelateImageAndActivate,
-  lineart: lineArtImageAndActivate,
-  numerate: numerateImageAndActivate,
 } as const satisfies Record<SupportedFilterType, unknown>
 
 function normalizeFilterParams(filterType: SupportedFilterType, params: unknown): Record<string, unknown> {
