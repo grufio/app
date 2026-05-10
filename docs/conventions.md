@@ -1,5 +1,9 @@
 # Conventions
 
+> See also: [CLAUDE.md](../CLAUDE.md) at the repo root for the LLM-facing
+> overview (stack, domain map, prod-action rules) and
+> [docs/domains/](domains/) for per-area architecture docs.
+
 ## File naming
 
 The codebase mixes `kebab-case.tsx` (shadcn / Next default) with

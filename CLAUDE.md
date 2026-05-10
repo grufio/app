@@ -1,0 +1,111 @@
+# CLAUDE.md — Repo Context for Claude Code
+
+This file is auto-loaded into every Claude Code session for this repo.
+Keep it short (< 200 lines). Deep-dives belong in [docs/domains/](docs/domains/).
+
+## What gruf.io is
+
+gruf.io is a graphical editor for image-based pattern generation
+(pixelate, lineart, numerate filters → vector/raster output for
+print/PDF). Single-user app, hosted on Vercel + Supabase + a small
+Cloud Run filter-service in Python.
+
+## Stack
+
+- **Frontend:** Next.js 16 (App Router), React 19, Konva for canvas,
+  Tailwind 4, TypeScript strict.
+- **Backend:** Supabase (Postgres 17, Auth, Storage, RLS).
+  Schema migrations in [supabase/migrations/](supabase/migrations/),
+  prod mirror in [db/schema.sql](db/schema.sql).
+- **Filter execution:** Python FastAPI in
+  [filter-service/](filter-service/), deployed to Google Cloud Run.
+  Frontend calls it via signed URLs.
+- **CI/CD:** GitHub Actions (`ci.yml`, `deploy.yml`,
+  `pre-release.yml`, `nightly-e2e.yml`). Vercel triggers via deploy
+  hook from `deploy.yml` (no auto-deploy on `main`).
+
+## Domain map (entry points to deep-dives)
+
+| Domain | Primary code | Detail doc |
+|---|---|---|
+| Image editor (Konva canvas, master/working) | [lib/editor/](lib/editor/), [features/editor/](features/editor/), [services/editor/](services/editor/) | [docs/domains/image-editor.md](docs/domains/image-editor.md) |
+| Image state (`px_u`, active master, version chain) | [lib/supabase/image-state.ts](lib/supabase/image-state.ts), `project_image_state` table | [docs/domains/image-state.md](docs/domains/image-state.md) |
+| Filter pipeline (FE forms → API → Python service) | [features/editor/components/](features/editor/components/), [services/editor/server/](services/editor/server/), [filter-service/](filter-service/) | [docs/domains/filter-pipeline.md](docs/domains/filter-pipeline.md) |
+| Forms / UI controls (24px grid, draft reducer) | [components/ui/form-controls/](components/ui/form-controls/), [lib/forms/](lib/forms/) | [docs/domains/forms.md](docs/domains/forms.md) |
+| API routes / orchestration | [app/api/](app/api/) | [docs/domains/api-architecture.md](docs/domains/api-architecture.md) |
+| Project lifecycle (create, soft-delete, generation) | [services/projects/](services/projects/), `delete_project` RPC | [docs/domains/project-lifecycle.md](docs/domains/project-lifecycle.md) |
+| Auth + RLS (owner-only, service-role bypass rules) | [lib/auth/](lib/auth/), `auth.uid()` policies in schema | [docs/domains/auth-rls.md](docs/domains/auth-rls.md) |
+| Storage (project_images bucket, image upload flow) | [lib/storage/](lib/storage/), `storage.objects` policies | [docs/domains/storage.md](docs/domains/storage.md) |
+| Database (migrations, schema-drift gates) | [supabase/migrations/](supabase/migrations/), [db/schema.sql](db/schema.sql) | [docs/domains/database.md](docs/domains/database.md) |
+| Testing (vitest, integration, Playwright) | [tests/integration/](tests/integration/), [e2e/](e2e/) | [docs/domains/testing-strategy.md](docs/domains/testing-strategy.md) |
+| CI / Deploy | [.github/workflows/](.github/workflows/), [scripts/](scripts/) | [docs/domains/ci-deploy.md](docs/domains/ci-deploy.md) |
+| Undo / history | branch `feat/undo-foundation` (not on main yet) | [docs/domains/undo-history.md](docs/domains/undo-history.md) |
+
+## Read me first — repo conventions
+
+Anything below overrides "common practice" for this repo:
+
+1. **Branch + PR Pflicht.** Never push directly to `main`. Every change:
+   `git checkout -b <branch>` → push → `gh pr create` → user reviews + merges.
+2. **No unsolicited features.** Refactor + consistency work is OK.
+   New UI surfaces or API endpoints require explicit user ack — even if
+   they appear "in the plan".
+3. **Root cause over symptom patch.** When a bug surfaces, ask why
+   existing tooling didn't catch it; close the gate, don't just fix
+   the symptom.
+4. **For prod-affecting actions, ask first.** `gh workflow run` on
+   prod pipelines, `supabase db push`, Vercel deploy hooks: explicit
+   confirmation per trigger, never inferred from a previous "yes".
+5. **Branches get deleted after merge.** Repo setting
+   `delete_branch_on_merge=true` handles remote; locally
+   `git fetch -p && git branch -d <branch>` after merge.
+   `feat/undo-foundation` is the one exception — paused work, leave alone.
+6. **Domain docs stay current.** When a feature changes a domain
+   substantially, update the matching `docs/domains/<area>.md` in the
+   same PR. Reviewers ask for it.
+7. **File naming:** kebab-case for new files (see
+   [docs/conventions.md](docs/conventions.md)).
+
+## Quickstart
+
+```bash
+# install
+npm ci
+
+# dev server
+npm run dev
+
+# fast offline gate (lint + typecheck + tests + schema sanity)
+npm run gate:ci
+
+# local Supabase (Colima-based; some services excluded for stability)
+supabase start --exclude vector,inbucket,realtime,studio
+supabase db reset --local        # apply baseline migration
+
+# regenerate types from prod (needs SUPABASE_DB_PASSWORD + access token)
+npm run types:gen
+
+# verify db schema against prod (needs creds, gates against silent drift)
+npm run verify:schema-drift
+```
+
+## Where things live (cheat-sheet)
+
+- **User memory** (preferences across sessions):
+  `~/.claude/projects/-Volumes-Data-Projects-gruf-io/memory/MEMORY.md`
+- **GitHub secrets:** `gh secret list` — DB credentials, Vercel hook,
+  Supabase access token live there. Never commit them.
+- **Squashed migration baseline:** one file in
+  [supabase/migrations/](supabase/migrations/) (currently
+  `20260509132715_close_prod_drift.sql` — name is misleading, content
+  is the full baseline post-squash).
+- **Plans by Claude:** `~/.claude/plans/` — drafts of larger work
+  the user has approved or is reviewing.
+
+## When stuck
+
+1. Look at the matching `docs/domains/<area>.md` for entry-points.
+2. If unsure which domain, the table above lists primary code paths.
+3. For DB / migration questions: [docs/migrations.md](docs/migrations.md)
+   is the canonical workflow doc.
+4. For CI failure debugging: [docs/ci/README.md](docs/ci/README.md).
