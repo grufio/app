@@ -36,6 +36,7 @@ against fresh prod dumps so manual Studio edits get caught.
 - **Squash workflow:** `supabase migration squash --linked` is the
   blessed way to consolidate the migration tree. Storage policies
   must be re-appended manually (squash drops the `storage` schema).
+  Full recipe in [docs/playbooks/squash-migrations.md](../playbooks/squash-migrations.md).
 - **`@intent-backfill-migration` marker:** migrations that capture
   prod-state-already-there (no new schema delta) carry this marker
   in their first 50 lines so [scripts/check-types-with-migrations.mjs](../../scripts/check-types-with-migrations.mjs)

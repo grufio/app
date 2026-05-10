@@ -21,8 +21,9 @@ Cloud Run filter-service in Python.
   [filter-service/](filter-service/), deployed to Google Cloud Run.
   Frontend calls it via signed URLs.
 - **CI/CD:** GitHub Actions (`ci.yml`, `deploy.yml`,
-  `pre-release.yml`, `nightly-e2e.yml`). Vercel triggers via deploy
-  hook from `deploy.yml` (no auto-deploy on `main`).
+  `deploy-filter-service.yml`). Vercel triggers via deploy hook
+  from `deploy.yml` (no auto-deploy on `main`). `ci.yml` uses a
+  `detect` job + path-dispatch so doc-only PRs run in ~1 min.
 
 ## Domain map (entry points to deep-dives)
 
@@ -102,10 +103,38 @@ npm run verify:schema-drift
 - **Plans by Claude:** `~/.claude/plans/` — drafts of larger work
   the user has approved or is reviewing.
 
+## Quirks I've already hit
+
+Lessons learned the hard way during the May 2026 squash + CI
+refactor. Save your future self the bruise.
+
+- **Parallel Claude sessions share the same working tree.** If two
+  Claude Code sessions run on this repo simultaneously, branch
+  switches in one mutate `HEAD` for the other. Files you didn't
+  touch will appear as `M` in `git status`. **Mitigation:** never
+  `git add -A`; stage explicit paths only. Run `git status` before
+  every commit. If you find yourself on someone else's branch, get
+  back via `git checkout <my-branch>` and `git stash push --
+  <their-files>` for anything not yours.
+- **No external path-filter actions.** `dorny/paths-filter@v3` had
+  a negation-pattern semantic (`!file`) that matched everything,
+  not "everything except". The `detect` job in `ci.yml` and
+  `deploy.yml` use direct `git diff --name-only` against the PR
+  base / `HEAD~1`. New path category? Extend the regex; don't pull
+  in another action.
+- **`actions/checkout@v5` needs `fetch-depth: 0`** in any job that
+  diffs against the PR base — the default depth-1 clone has no
+  base history.
+- **Squash drops the `storage` schema.** `supabase migration squash
+  --linked` only dumps `public`. The `storage.objects` RLS DO-block
+  must be manually re-appended; see
+  [docs/playbooks/squash-migrations.md](docs/playbooks/squash-migrations.md).
+
 ## When stuck
 
 1. Look at the matching `docs/domains/<area>.md` for entry-points.
 2. If unsure which domain, the table above lists primary code paths.
 3. For DB / migration questions: [docs/reference/migrations.md](docs/reference/migrations.md)
-   is the canonical workflow doc.
+   is the canonical workflow doc; for the squash recipe specifically,
+   [docs/playbooks/squash-migrations.md](docs/playbooks/squash-migrations.md).
 4. For CI failure debugging: [docs/ci/README.md](docs/ci/README.md).
