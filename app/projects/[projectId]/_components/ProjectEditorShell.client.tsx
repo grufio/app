@@ -23,12 +23,16 @@ import {
 import { buildNavId } from "@/features/editor/navigation/nav-id"
 import { recoverSelectedNavId } from "@/features/editor/navigation/selection-recovery"
 import { FilterSidebarSection } from "@/features/editor/components/filter-sidebar-section"
+import { TraceSidebarSection } from "@/features/editor/components/trace-sidebar-section"
 import { normalizeApiError } from "@/lib/api/error-normalizer"
 import { setProjectImageFilterHidden } from "@/lib/api/project-images"
+import { applyProjectTrace, clearProjectTrace, getProjectTrace, type ProjectTrace } from "@/lib/api/project-trace"
 import { useFilterWorkingImage } from "@/lib/editor/hooks/use-filter-working-image"
 import { useEditorKeyboard } from "@/lib/editor/hooks/use-editor-keyboard"
 import { useMutationLeaveGuard } from "@/lib/editor/hooks/use-mutation-leave-guard"
 import { useFilterDialogSession } from "@/lib/editor/hooks/use-filter-dialog-session"
+import { useTraceDialogSession } from "@/lib/editor/hooks/use-trace-dialog-session"
+import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
 import { useEditorSessionState } from "@/lib/editor/hooks/use-editor-session-state"
 import { usePageBackgroundState } from "@/lib/editor/hooks/use-page-background-state"
 import { useProjectGrid } from "@/lib/editor/project-grid"
@@ -46,6 +50,7 @@ import { useRightPanelModel } from "./editor-shell/use-right-panel-model"
 import { useStageInteractionPolicy } from "./editor-shell/use-stage-interaction-policy"
 import { useEditorWorkflowAdapter } from "./editor-shell/use-editor-workflow-adapter"
 import { EditorDialogHost } from "./editor-shell/editor-dialog-host"
+import { EditorTraceDialogHost } from "./editor-shell/editor-trace-dialog-host"
 import { useLeftPanelModel } from "./editor-shell/use-left-panel-model"
 import { isStaleSelectionDeleteError, resolveDeleteTargetImageId } from "./editor-shell/delete-target"
 
@@ -141,6 +146,63 @@ export function ProjectDetailPageClient({
     refreshFilterImage,
   })
   const filterDialog = useFilterDialogSession(filterSourceImage)
+  const traceDialog = useTraceDialogSession(filterSourceImage)
+  const [trace, setTrace] = useState<ProjectTrace | null>(null)
+  const [traceLoading, setTraceLoading] = useState(true)
+  const [isClearingTrace, setIsClearingTrace] = useState(false)
+  const [isApplyingTrace, setIsApplyingTrace] = useState(false)
+
+  // Initial trace fetch + refetch helper. Trace is single-row-per-
+  // project; we don't need a heavy hook for it.
+  const refreshTrace = useCallback(async () => {
+    try {
+      const next = await getProjectTrace(projectId)
+      setTrace(next)
+    } catch (err) {
+      console.error("Failed to load trace state:", err)
+    } finally {
+      setTraceLoading(false)
+    }
+  }, [projectId])
+
+  useEffect(() => {
+    void refreshTrace()
+  }, [refreshTrace])
+
+  const handleApplyTrace = useCallback(
+    async ({ kind, params }: { kind: RegisteredTraceId; params: Record<string, unknown> }) => {
+      setIsApplyingTrace(true)
+      try {
+        await applyProjectTrace({ projectId, kind, params })
+        await Promise.all([refreshTrace(), refreshFilterImage(), refreshMasterImage()])
+      } finally {
+        setIsApplyingTrace(false)
+      }
+    },
+    [projectId, refreshFilterImage, refreshMasterImage, refreshTrace],
+  )
+
+  const handleClearTrace = useCallback(async () => {
+    setIsClearingTrace(true)
+    try {
+      await clearProjectTrace(projectId)
+      await Promise.all([refreshTrace(), refreshFilterImage(), refreshMasterImage()])
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err))
+      const normalized = normalizeApiError(error)
+      toast.error(normalized.title, normalized.detail ? { description: normalized.detail } : undefined)
+    } finally {
+      setIsClearingTrace(false)
+    }
+  }, [projectId, refreshFilterImage, refreshMasterImage, refreshTrace])
+
+  const handleTraceApplySuccess = useCallback(() => {
+    traceDialog.reset()
+  }, [traceDialog])
+
+  const handleTraceApplyError = useCallback((error: Error) => {
+    console.error("Failed to apply trace:", error)
+  }, [])
 
   const handleFilterApplySuccess = useCallback(() => {
     filterDialog.reset()
@@ -219,6 +281,12 @@ export function ProjectDetailPageClient({
     workflow.dismissError()
     filterDialog.beginSelection()
   }, [filterDialog, isAddFilterDisabled, workflow])
+
+  const isAddTraceDisabled = !hasFilterSourceImage || isNewFilterActionBusy || isApplyingTrace || isClearingTrace
+  const openTraceSelection = useCallback(() => {
+    if (isAddTraceDisabled) return
+    traceDialog.beginSelection()
+  }, [isAddTraceDisabled, traceDialog])
 
   const initialImageTxU = useMemo(() => {
     if (!activeCanvasImageId || !initialImageTransform) return null
@@ -453,6 +521,20 @@ export function ProjectDetailPageClient({
     [filterStack, projectId, refreshFilterImage, toggleHiddenFilter]
   )
 
+  const traceSidebarContent = useMemo(
+    () => (
+      <TraceSidebarSection
+        trace={trace ? { kind: trace.kind } : null}
+        isAddTraceDisabled={isAddTraceDisabled}
+        isClearingTrace={isClearingTrace}
+        isLoadingInitial={traceLoading}
+        onClearTrace={handleClearTrace}
+        onOpenSelection={openTraceSelection}
+      />
+    ),
+    [handleClearTrace, isAddTraceDisabled, isClearingTrace, openTraceSelection, trace, traceLoading],
+  )
+
   const filterSidebarContent = useMemo(
     () => (
       <FilterSidebarSection
@@ -520,6 +602,7 @@ export function ProjectDetailPageClient({
               onGridCreateRequested={requestCreateGrid}
               onGridDeleteRequested={requestDeleteGrid}
               filterPanelContent={filterSidebarContent}
+              tracePanelContent={traceSidebarContent}
             />
             <ProjectEditorStage
               projectId={projectId}
@@ -593,6 +676,19 @@ export function ProjectDetailPageClient({
             onSuccess={handleFilterApplySuccess}
             onError={handleFilterApplyError}
             onApplyFilter={handleApplyFilter}
+          />
+          <EditorTraceDialogHost
+            selectionOpen={traceDialog.selectionOpen}
+            activeKind={traceDialog.activeKind}
+            traceDialogSource={traceDialog.session}
+            numerateSuperpixelWidth={numerateSuperpixelWidth}
+            numerateSuperpixelHeight={numerateSuperpixelHeight}
+            onCloseSelection={traceDialog.closeSelection}
+            onSelectKind={traceDialog.selectKind}
+            onCloseConfigure={traceDialog.closeConfigure}
+            onSuccess={handleTraceApplySuccess}
+            onError={handleTraceApplyError}
+            onApplyTrace={handleApplyTrace}
           />
         </EditorErrorBoundary>
       </ProjectEditorLayout>

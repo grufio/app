@@ -36,6 +36,7 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
   activeTab: SidepanelTab
   onActiveTabChange: (tab: SidepanelTab) => void
   filterPanelContent?: React.ReactNode
+  tracePanelContent?: React.ReactNode
 }) {
   const {
     projectId,
@@ -58,6 +59,7 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
     activeTab,
     onActiveTabChange,
     filterPanelContent,
+    tracePanelContent,
   } = props
 
   const clamp = (v: number) => Math.max(minRem, Math.min(maxRem, v))
@@ -87,6 +89,8 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
           <TabsSidepanel activeTab={activeTab} onTabChange={onActiveTabChange} />
           {activeTab === "filter" ? (
             filterPanelContent
+          ) : activeTab === "trace" ? (
+            tracePanelContent
           ) : (
             <EditorSidebarSection title="Projekt">
               <EditorNavTree

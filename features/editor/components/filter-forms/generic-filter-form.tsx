@@ -30,9 +30,9 @@ import type {
 
 import { FilterFormFooter } from "./filter-form-footer"
 
-type GenericFilterFormProps<TSchema extends z.ZodType> = {
-  filterDef: FilterDefinition<TSchema>
-  ctx: FilterRenderContext
+type GenericFilterFormProps<TSchema extends z.ZodType, TCtx = FilterRenderContext> = {
+  filterDef: FilterDefinition<TSchema, TCtx>
+  ctx: TCtx
   busy?: boolean
   applyingLabel?: string
   onCancel: () => void
@@ -52,14 +52,14 @@ function setNumeric(set: (n: number) => void) {
   }
 }
 
-export function GenericFilterForm<TSchema extends z.ZodType>({
+export function GenericFilterForm<TSchema extends z.ZodType, TCtx = FilterRenderContext>({
   filterDef,
   ctx,
   busy = false,
   applyingLabel,
   onCancel,
   onApply,
-}: GenericFilterFormProps<TSchema>) {
+}: GenericFilterFormProps<TSchema, TCtx>) {
   // Schema defaults seed the per-field state. We keep a flat record
   // (`Record<string, unknown>`) because the registry doesn't know which
   // exact zod shape the schema parses into — once `safeParse` returns
