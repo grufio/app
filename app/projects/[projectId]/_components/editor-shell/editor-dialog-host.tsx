@@ -1,9 +1,7 @@
 "use client"
 
 import { FilterSelectionController } from "@/features/editor/components/FilterSelectionController"
-import { LineArtFilterController } from "@/features/editor/components/LineArtFilterController"
-import { NumerateFilterController } from "@/features/editor/components/NumerateFilterController"
-import { PixelateFilterController } from "@/features/editor/components/PixelateFilterController"
+import { GenericFilterController } from "@/features/editor/components/filter-forms/generic-filter-controller"
 
 export function EditorDialogHost(props: {
   selectionOpen: boolean
@@ -40,34 +38,21 @@ export function EditorDialogHost(props: {
         onClose={onCloseSelection}
         onSelect={onSelectFilterType}
       />
-      {filterDialogSource ? (
-        <>
-          <PixelateFilterController
-            workingImageWidth={filterDialogSource.sourceImageWidth}
-            workingImageHeight={filterDialogSource.sourceImageHeight}
-            open={activeFilterType === "pixelate"}
-            onClose={onCloseConfigure}
-            onSuccess={onSuccess}
-            onError={onError}
-            onApplyFilter={onApplyFilter}
-          />
-          <LineArtFilterController
-            open={activeFilterType === "lineart"}
-            onClose={onCloseConfigure}
-            onSuccess={onSuccess}
-            onError={onError}
-            onApplyFilter={onApplyFilter}
-          />
-          <NumerateFilterController
-            superpixelWidth={numerateSuperpixelWidth}
-            superpixelHeight={numerateSuperpixelHeight}
-            open={activeFilterType === "numerate"}
-            onClose={onCloseConfigure}
-            onSuccess={onSuccess}
-            onError={onError}
-            onApplyFilter={onApplyFilter}
-          />
-        </>
+      {filterDialogSource && activeFilterType ? (
+        <GenericFilterController
+          filterId={activeFilterType}
+          ctx={{
+            imageWidth: filterDialogSource.sourceImageWidth,
+            imageHeight: filterDialogSource.sourceImageHeight,
+            numerateSuperpixelWidth,
+            numerateSuperpixelHeight,
+          }}
+          open
+          onClose={onCloseConfigure}
+          onSuccess={onSuccess}
+          onError={onError}
+          onApplyFilter={onApplyFilter}
+        />
       ) : null}
     </>
   )
