@@ -1,7 +1,7 @@
 # Form Primitives Review — Findings (Phase 1)
 
 > **Status:** 2026-05-08 — file-level review of `components/ui/form-controls/`.
-> Sister-doc to [`forms-primitives-inventory.md`](forms-primitives-inventory.md)
+> Sister-doc to [`primitives-inventory.md`](primitives-inventory.md)
 > (the *what we have* baseline). This file is *what we found, and what
 > to do about it*.
 
@@ -204,11 +204,11 @@ this is *not* yet covered.
 
 ## Phase 4 — Documentation ✓
 
-- New decision tree: [`forms-decision-tree.md`](forms-decision-tree.md).
+- New decision tree: [`decision-tree.md`](decision-tree.md).
   Walks contributors through "default vs custom?" → "FormField vs lower
   primitive?" → "which variant?" with explicit anti-patterns.
 - New sizing-token glossary:
-  [`forms-sizing-tokens.md`](forms-sizing-tokens.md). Single source of
+  [`sizing-tokens.md`](sizing-tokens.md). Single source of
   truth for `text-panel` / `text-panel-tight` / `h-6` / `px-3` /
   `pr-2` / `pr-1` / state-colour mappings.
 - Cross-link comment added to

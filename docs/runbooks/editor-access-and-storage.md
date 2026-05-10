@@ -130,7 +130,7 @@ order by schemaname, tablename, polname;
 ```
 
 **Verify**:
-- As owner user, `select` works; as non-owner, access is denied (see `docs/rls-checklist.md`).
+- As owner user, `select` works; as non-owner, access is denied (see `docs/checklists/rls.md`).
 
 ### C) Fix: Auth/session missing (401)
 
@@ -144,8 +144,8 @@ order by schemaname, tablename, polname;
 
 ## References (single source of truth)
 
-- Release gate checklist: `docs/release-checklist.md`
-- RLS/Storage checklist: `docs/rls-checklist.md`
+- Release gate checklist: `docs/checklists/release.md`
+- RLS/Storage checklist: `docs/checklists/rls.md`
 - Supabase security invariants + SQL snippets: `docs/security/supabase-rls.md`
-- Migration workflow: `docs/migrations.md`
+- Migration workflow: `docs/reference/migrations.md`
 

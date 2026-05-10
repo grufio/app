@@ -17,7 +17,7 @@ export function TabsSidepanel(props: {
   // (bg-foreground / text-background) so dark mode flips automatically.
   // Hover on inactive tabs uses the explicit zinc-200 shade because the
   // `--accent` token (oklch 0.97) is too light to be visible against the
-  // panel background — see docs/forms-primitives-findings.md F2.1.
+  // panel background — see docs/forms/primitives-findings.md F2.1.
   const sidePanelTabsTriggerClass =
     "h-6 rounded-sm px-2 text-xs font-medium hover:bg-zinc-200 disabled:hover:bg-transparent data-[state=active]:bg-foreground data-[state=active]:text-background data-[state=active]:shadow-sm data-[state=active]:hover:bg-foreground"
 

@@ -32,7 +32,7 @@ boundary.
 
 ## Conclusion
 
-The original review (`docs/app-review.md` S2, "Listings-Routes per
+The original review (`docs/archive/app-review.md` S2, "Listings-Routes per
 `revalidate`") was incorrect for this codebase. None of the 17 routes
 are listings without per-user scope. **No change required.**
 

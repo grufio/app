@@ -112,13 +112,13 @@ export async function POST(req: Request) {
 
 ## Cross-references
 
-- [docs/api-route-caching-audit.md](../api-route-caching-audit.md)
+- [docs/reference/api-route-caching-audit.md](../reference/api-route-caching-audit.md)
   — per-route audit of `dynamic`, `revalidate`, etc. Settings.
 - [docs/domains/auth-rls.md](auth-rls.md) — RLS contract that
   routes rely on.
 - [docs/domains/project-lifecycle.md](project-lifecycle.md) — the
   largest cluster of routes (`app/api/projects/...`).
-- [docs/monitoring.md](../monitoring.md) — error-ingest pipeline
+- [docs/reference/monitoring.md](../reference/monitoring.md) — error-ingest pipeline
   driven by `/api/errors/ingest`.
 - Code: [lib/api/route-guards.ts](../../lib/api/route-guards.ts:21)
   for `jsonError`'s prod-scrubbing logic.

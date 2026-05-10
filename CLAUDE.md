@@ -106,6 +106,6 @@ npm run verify:schema-drift
 
 1. Look at the matching `docs/domains/<area>.md` for entry-points.
 2. If unsure which domain, the table above lists primary code paths.
-3. For DB / migration questions: [docs/migrations.md](docs/migrations.md)
+3. For DB / migration questions: [docs/reference/migrations.md](docs/reference/migrations.md)
    is the canonical workflow doc.
 4. For CI failure debugging: [docs/ci/README.md](docs/ci/README.md).

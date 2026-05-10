@@ -109,7 +109,7 @@ client (browser) → POST /api/projects/<id>/images/master
   `project_image_state` binds master images.
 - [docs/domains/project-lifecycle.md](project-lifecycle.md) —
   cascade behavior on project delete.
-- [docs/persistence.md](../persistence.md) — image-state API spec
+- [docs/reference/persistence.md](../reference/persistence.md) — image-state API spec
   with field-level invariants.
 - Code: [lib/storage/buckets.ts](../../lib/storage/buckets.ts:20),
   [services/editor/server/crop-image.ts:142](../../services/editor/server/crop-image.ts).

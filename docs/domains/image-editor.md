@@ -57,7 +57,7 @@ result. It splits into three layers: pure-math canvas model
   and [app/api/projects/[projectId]/images/master/restore/route.ts:123](../../app/api/projects/%5BprojectId%5D/images/master/restore/route.ts).
 - **Filter chain runs in two phases.** Frontend dispatches per-
   filter forms via a registry (see
-  [docs/filter-stack-findings.md](../filter-stack-findings.md));
+  [docs/reference/filter-stack-findings.md](../reference/filter-stack-findings.md));
   server appends a row to `project_image_filters` and triggers
   the Python filter-service for actual pixel work. The result
   comes back as a new image with `kind='filter_working_copy'`.
@@ -120,6 +120,6 @@ user clicks "restore" in right panel
 - [docs/specs/image-state-api.mdx](../specs/image-state-api.mdx),
   [docs/specs/sizing-invariants.mdx](../specs/sizing-invariants.mdx)
   — formal specs.
-- [docs/persistence.md](../persistence.md) — save flow detail.
+- [docs/reference/persistence.md](../reference/persistence.md) — save flow detail.
 - Code: [lib/editor/canvas-model.ts](../../lib/editor/canvas-model.ts),
   [lib/editor/machines/image-workflow.machine.ts](../../lib/editor/machines/image-workflow.machine.ts).

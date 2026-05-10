@@ -171,6 +171,6 @@ chmod +x .git/hooks/pre-commit
 ## Further reading
 
 - [docs/conventions.md](docs/conventions.md) — file naming, branching, commits, gates.
-- [docs/api-route-caching-audit.md](docs/api-route-caching-audit.md) — why `force-dynamic` is correct.
-- [docs/app-review.md](docs/app-review.md) — full app review (2026-05-05).
-- [docs/forms-optimizations.md](docs/forms-optimizations.md) — forms architecture decisions.
+- [docs/reference/api-route-caching-audit.md](docs/reference/api-route-caching-audit.md) — why `force-dynamic` is correct.
+- [docs/archive/app-review.md](docs/archive/app-review.md) — full app review (2026-05-05).
+- [docs/forms/optimizations.md](docs/forms/optimizations.md) — forms architecture decisions.

@@ -20,7 +20,7 @@ Notes:
 
 ### 2) Remote verification
 
-For pre-release/public rollout, run remote verification gates (CLI-first workflow from `docs/migrations.md`):
+For pre-release/public rollout, run remote verification gates (CLI-first workflow from `docs/reference/migrations.md`):
 
 ```bash
 SUPABASE_DB_PASSWORD="..." SUPABASE_DB_URL="postgresql://..." SUPABASE_VERIFY_TYPES_SYNC=1 npm run gate:pre-release
@@ -39,7 +39,7 @@ Notes:
 
 Pending migrations are applied automatically by the `Deploy` workflow on push to `main`,
 gated by the `production-db` GitHub Environment (required reviewer). See
-[`docs/migrations.md`](migrations.md#auto-deploy-pipeline) for the full flow. The
+[`docs/reference/migrations.md`](../reference/migrations.md#auto-deploy-pipeline) for the full flow. The
 manual `supabase db push --linked` step is no longer part of the release path.
 
 ### 3) Manual QA (editor)
@@ -62,5 +62,5 @@ Minimum:
 - Storage:
   - Upload/download/delete master image works (owner-only)
 - RLS:
-  - Non-owner cannot access project rows or images (see `docs/rls-checklist.md`)
+  - Non-owner cannot access project rows or images (see `docs/checklists/rls.md`)
 
