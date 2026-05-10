@@ -53,5 +53,11 @@ run("npx", ["vitest", "run", "--config", "vitest.integration.config.ts"], {
     ...process.env,
     SUPABASE_INTEGRATION_URL: url,
     SUPABASE_INTEGRATION_SERVICE_KEY: serviceKey,
+    // Production-side names too: any integration test that drives a
+    // service-layer function (e.g. resetProjectFilterChain) ends up
+    // calling createSupabaseServiceRoleClient() which reads these.
+    // Forwarding the same local URL + key keeps the call self-hosted.
+    NEXT_PUBLIC_SUPABASE_URL: url,
+    SUPABASE_SERVICE_ROLE_KEY: serviceKey,
   },
 })
