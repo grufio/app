@@ -7,11 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "14.1"
-  }
   public: {
     Tables: {
       project_filter_settings: {
@@ -274,6 +269,48 @@ export type Database = {
             foreignKeyName: "project_image_state_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_image_trace: {
+        Row: {
+          created_at: string
+          kind: string
+          output_image_id: string
+          params: Json
+          project_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          kind: string
+          output_image_id: string
+          params?: Json
+          project_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          kind?: string
+          output_image_id?: string
+          params?: Json
+          project_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_image_trace_output_image_id_fkey"
+            columns: ["output_image_id"]
+            isOneToOne: false
+            referencedRelation: "project_images"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_image_trace_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: true
             referencedRelation: "projects"
             referencedColumns: ["id"]
           },
@@ -621,17 +658,27 @@ export type Database = {
         Args: { p_project_id: string }
         Returns: undefined
       }
-      set_active_master_with_state: {
-        Args: {
-          p_height_px_u: string
-          p_image_id: string
-          p_project_id: string
-          p_width_px_u: string
-          p_x_px_u: string
-          p_y_px_u: string
-        }
-        Returns: undefined
-      }
+      set_active_master_with_state:
+        | {
+            Args: {
+              p_height_px: number
+              p_image_id: string
+              p_project_id: string
+              p_width_px: number
+            }
+            Returns: undefined
+          }
+        | {
+            Args: {
+              p_height_px_u: string
+              p_image_id: string
+              p_project_id: string
+              p_width_px_u: string
+              p_x_px_u: string
+              p_y_px_u: string
+            }
+            Returns: undefined
+          }
       workspace_value_to_px_u: {
         Args: {
           dpi: number
@@ -784,3 +831,4 @@ export const Constants = {
     },
   },
 } as const
+
