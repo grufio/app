@@ -2994,3 +2994,34 @@ ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "storage" GRANT ALL ON TA
 
 
 <claude-code-hint v="1" type="plugin" value="supabase@claude-plugins-official" />
+
+
+-- Prod-side storage.objects policies (preserved from prior db:dump --linked).
+-- Local Supabase does not seed these; they live in Supabase Studio /
+-- service-role-applied state. Keep this block in sync with prod when
+-- regenerating db/schema.sql.
+CREATE POLICY "project_images_storage_delete_owner" ON "storage"."objects" FOR DELETE USING ((("bucket_id" = 'project_images'::"text") AND ("name" ~ '^projects/[0-9a-fA-F-]{36}/images/.+'::"text") AND (EXISTS ( SELECT 1
+   FROM "public"."projects" "p"
+  WHERE ((("p"."id")::"text" = "substring"("objects"."name", '^projects/([0-9a-fA-F-]{36})/'::"text")) AND ("p"."owner_id" = "auth"."uid"()))))));
+
+
+
+CREATE POLICY "project_images_storage_insert_owner" ON "storage"."objects" FOR INSERT WITH CHECK ((("bucket_id" = 'project_images'::"text") AND ("name" ~ '^projects/[0-9a-fA-F-]{36}/images/.+'::"text") AND (EXISTS ( SELECT 1
+   FROM "public"."projects" "p"
+  WHERE ((("p"."id")::"text" = "substring"("objects"."name", '^projects/([0-9a-fA-F-]{36})/'::"text")) AND ("p"."owner_id" = "auth"."uid"()))))));
+
+
+
+CREATE POLICY "project_images_storage_select_owner" ON "storage"."objects" FOR SELECT USING ((("bucket_id" = 'project_images'::"text") AND ("name" ~ '^projects/[0-9a-fA-F-]{36}/images/.+'::"text") AND (EXISTS ( SELECT 1
+   FROM "public"."projects" "p"
+  WHERE ((("p"."id")::"text" = "substring"("objects"."name", '^projects/([0-9a-fA-F-]{36})/'::"text")) AND ("p"."owner_id" = "auth"."uid"()))))));
+
+
+
+CREATE POLICY "project_images_storage_update_owner" ON "storage"."objects" FOR UPDATE USING ((("bucket_id" = 'project_images'::"text") AND ("name" ~ '^projects/[0-9a-fA-F-]{36}/images/.+'::"text") AND (EXISTS ( SELECT 1
+   FROM "public"."projects" "p"
+  WHERE ((("p"."id")::"text" = "substring"("objects"."name", '^projects/([0-9a-fA-F-]{36})/'::"text")) AND ("p"."owner_id" = "auth"."uid"())))))) WITH CHECK ((("bucket_id" = 'project_images'::"text") AND ("name" ~ '^projects/[0-9a-fA-F-]{36}/images/.+'::"text") AND (EXISTS ( SELECT 1
+   FROM "public"."projects" "p"
+  WHERE ((("p"."id")::"text" = "substring"("objects"."name", '^projects/([0-9a-fA-F-]{36})/'::"text")) AND ("p"."owner_id" = "auth"."uid"()))))));
+
+
