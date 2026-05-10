@@ -279,6 +279,48 @@ export type Database = {
           },
         ]
       }
+      project_image_trace: {
+        Row: {
+          created_at: string
+          kind: string
+          output_image_id: string
+          params: Json
+          project_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          kind: string
+          output_image_id: string
+          params?: Json
+          project_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          kind?: string
+          output_image_id?: string
+          params?: Json
+          project_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_image_trace_output_image_id_fkey"
+            columns: ["output_image_id"]
+            isOneToOne: false
+            referencedRelation: "project_images"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_image_trace_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: true
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_images: {
         Row: {
           bit_depth: number | null

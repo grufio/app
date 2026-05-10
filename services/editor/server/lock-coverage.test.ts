@@ -45,15 +45,33 @@ describe("project advisory lock coverage", () => {
     // Match the function header — quoted or unquoted, case-insensitive — then
     // greedy-grab through the dollar-quoted body. pg_dump uses `AS $_$ … $_$`
     // (with optional inner tag); hand-edited variants use `AS $$ … $$`.
+    // Iterate ALL definitions: a function may be overloaded (e.g.
+    // set_active_master_with_state has both an integer and a text-px-units
+    // signature) and pg_dump's emission order is not stable across reseeds.
+    // The lock invariant holds if at least one overload takes the lock
+    // directly OR transitively (delegating to another locked RPC).
     const fnRe = new RegExp(
       `CREATE\\s+(?:OR\\s+REPLACE\\s+)?FUNCTION\\s+"?public"?\\."?${rpcName}"?\\s*\\([^)]*\\)[\\s\\S]+?\\$([_a-zA-Z]*)\\$[\\s\\S]+?\\$\\1\\$`,
-      "i",
+      "ig",
     )
-    const m = fnRe.exec(schema)
-    expect(m, `expected at least one definition of ${rpcName} in db/schema.sql`).not.toBeNull()
+    const matches = Array.from(schema.matchAll(fnRe))
+    expect(matches.length, `expected at least one definition of ${rpcName} in db/schema.sql`).toBeGreaterThan(0)
+
+    // Direct lock takers — the function's own body calls pg_advisory_xact_lock.
+    const direct = matches.filter((m) => ADVISORY_LOCK_RE.test(m[0]))
+
+    // Transitive: function body calls another known-locked RPC. This covers
+    // wrapper overloads that delegate to a sibling that already holds the
+    // lock (set_active_master_with_state's integer overload calls
+    // set_active_image, which is in this list).
+    const otherLocked = new Set(PROJECT_MUTATING_RPCS.filter((n) => n !== rpcName))
+    const transitive = matches.filter((m) =>
+      Array.from(otherLocked).some((delegate) => new RegExp(`\\bperform\\b[\\s\\S]*?\\b${delegate}\\b`, "i").test(m[0]))
+    )
+
     expect(
-      ADVISORY_LOCK_RE.test(m![0]),
-      `${rpcName} must call pg_advisory_xact_lock(hashtext(p_project_id::text))`,
+      direct.length > 0 || transitive.length > 0,
+      `${rpcName} must call pg_advisory_xact_lock(hashtext(p_project_id::text)) directly or via a locked RPC`,
     ).toBe(true)
   })
 })

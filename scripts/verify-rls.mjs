@@ -57,10 +57,14 @@ function rxPolicyOn(table, op) {
 }
 
 function rxPolicyAllOps(table) {
-  // FOR ALL is rare; pg_dump usually splits to four CRUD policies. Keep
-  // matcher in case a hand-written FOR ALL slips back.
+  // Two valid spellings of an "all-ops" policy:
+  //  (a) Explicit `FOR ALL` (older pg_dump, hand-written DDL).
+  //  (b) Plain `CREATE POLICY ... ON <table> USING ... WITH CHECK ...`
+  //      with no `FOR <op>` clause — Postgres defaults to ALL.
+  //      Newer pg_dump (17+) omits the redundant `FOR ALL`.
+  // Either form is functionally equivalent; both must satisfy the gate.
   return new RegExp(
-    `ON\\s+"?public"?\\."?${table}"?[\\s\\S]{0,80}?FOR\\s+ALL\\b`,
+    `CREATE\\s+POLICY\\s+"[^"]+"\\s+ON\\s+"?public"?\\."?${table}"?(?:\\s+AS\\s+\\w+)?\\s+(?:FOR\\s+ALL\\b|USING\\b)`,
     "i",
   )
 }

@@ -130,6 +130,24 @@ function verifyStoragePolicies(sql) {
 
 function verifyPublicTablePolicies(sql, table) {
   const haystack = normalize(sql)
+
+  // If the table is entirely absent from the remote dump, it almost
+  // certainly comes from a migration in this PR that hasn't been
+  // deployed yet. Treat as a soft skip and let `verify:remote-
+  // migrations` flag the deploy lag separately. Once the deploy
+  // workflow applies the migration, the next PR run finds the table
+  // and enforces full RLS.
+  const tableExistsInDump =
+    haystack.includes(`create table if not exists public.${table}`) ||
+    haystack.includes(`create table public.${table}`)
+  if (!tableExistsInDump) {
+    console.warn(
+      `WARN: public.${table} is not in the remote dump yet — likely a pending migration. ` +
+        "Skipping RLS check; verify:remote-migrations covers the deploy gap.",
+    )
+    return
+  }
+
   const rlsNeedle = `alter table public.${table} enable row level security;`
   if (!haystack.includes(rlsNeedle)) {
     fail(`Remote RLS missing for public.${table}: expected "${rlsNeedle}" in public schema dump`)

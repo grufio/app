@@ -8,6 +8,7 @@ export const RLS_PROTECTED_TABLES = [
   "projects",
   "project_images",
   "project_image_filters",
+  "project_image_trace",
   "project_workspace",
   "project_grid",
   "project_image_state",

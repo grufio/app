@@ -21,6 +21,7 @@ const ALLOWLIST = new Set([
   "services/editor/server/filter-variants.ts", // delegates storage cleanup after soft-delete
   "services/editor/server/filter-working-copy.ts", // soft-delete + sync storage cleanup of working copies
   "services/editor/server/filter-chain-reset.ts", // soft-delete + sync storage cleanup of chain outputs
+  "services/editor/server/trace/index.ts", // soft-delete + sync storage cleanup of trace outputs (F21)
 ])
 
 // Scan production code only — scripts/, e2e/, tests are tooling.
