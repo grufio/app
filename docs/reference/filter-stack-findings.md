@@ -43,7 +43,7 @@ env-driven.
 
 ---
 
-## Findings (19 items)
+## Findings (20 items)
 
 | ID | Title | Size | Status | PR |
 |---|---|---|---|---|
@@ -54,6 +54,7 @@ env-driven.
 | F10 | Numerate-Tests auf Pixelate-Niveau | S | ✓ done | PR 1 |
 | F18 | Numerate-Performance-Profiling (User-Pain) | S | ✓ done | PR P |
 | F19 | Shrink Numerate SVG payload (per-rect structure preserved) | M | open | TBD |
+| F20 | Pilot vtracer for both numerate + lineart vectorisation | L | open | TBD |
 | F11 | E2E-Filter-Chain-Roundtrip-Test | M | ✓ done | PR 2 |
 | F5 | Inkonsistente Registry-Metadata in Forms | M | ✓ done | PR 3 |
 | F7 | Generic `<FilterForm>` aus 3 Form-Files | L | ✓ done | PR 4 |
@@ -236,6 +237,71 @@ output (110× larger than pixelate's 13 KB PNG)**. Confirmation:
   service running.
 - `scripts/profile-fixtures/profile-1920x1080.png` — deterministic
   input image.
+
+### F20 — Pilot vtracer for both numerate + lineart vectorisation *(open, L)*
+
+**Why this exists separately from F19:** F19 is a tactical fix to
+the *current* numerate output (vectorise the Python rects loop, add
+`<defs>`/`<use>` palette, gzip transit). F20 is the strategic
+question: replace the bespoke "for-loop assembling rect strings"
+pipeline with a real vectorisation engine that serves *both* product
+modes through one engine.
+
+**Recommendation:** [vtracer](https://github.com/visioncortex/vtracer)
+— Rust core, MIT, actively maintained (0.6.15 March 2026), Python
+bindings via PyO3 (`pip install vtracer`), O(n) on image size.
+
+**Why vtracer over the alternatives:**
+- *potrace + pypotrace* — mature but **GPL**, infects the server
+  side. Single-channel only, forces a per-color-layer pipeline.
+- *imagetracerjs* — public domain, but quality + speed lag vtracer
+  noticeably. Useful only as a pure-browser fallback.
+- *[drake7707/paintbynumbersgenerator](https://github.com/drake7707/paintbynumbersgenerator)*
+  — the only off-the-shelf project that does the *whole* paint-by-
+  numbers pipeline (k-means → facet build → wavelet-smoothed
+  contours → numbered SVG), but unmaintained since 2019. Read it as
+  a reference design, don't depend on it.
+- AI/diffusion-based vectorisers — visually nice, lose the discrete
+  labelled-region semantics required for paint-by-numbers.
+
+**Pipeline shape:** one engine, two product modes.
+1. Quantize palette in NumPy/sklearn KMeans (already in the codebase
+   for pixelate/numerate).
+2. `vtracer.convert_pixels_to_svg(...)` per quantized layer (or once
+   with `colormode='color'`, `hierarchical='stacked'`) — replaces
+   numerate's 20K-rect string loop with clean polygon paths.
+3. Parse the returned SVG with `lxml`, group paths by fill colour,
+   compute polygon centroids (`shapely` or `cv2.moments`), emit
+   `<text>` labels inside each region.
+
+**Per-mode mapping:**
+- *numerate* — feed the uniform-grid quantised image. vtracer
+  collapses adjacent same-colour cells into rect-like polygons,
+  estimated 10–50× SVG size reduction. Numbering hangs off the
+  per-region centroid.
+- *lineart (future, currently unimplemented)* — feed the smoothed
+  / quantised photo. Real organic contours, same labelling code.
+  Closes the constraint that lineart's regions must keep per-
+  contour identity for the same number-annotation flow.
+
+**Constraint check:** vtracer returns one flat SVG string with
+`fill` attributes per shape — per-region structure must be
+recovered by parsing. Not a drop-in: it's a building block. The
+labelling layer (centroid + `<text>` placement) is custom and
+stays under our control.
+
+**Order vs F19:** F19 buys time inside the current architecture.
+F20 is a 1–2 week pilot (Python sidecar with vtracer call + lxml
+post-process + centroid labelling) to decide whether to retire the
+custom pipeline. Sequence: ship F19 first if numerate pain is
+blocking users; commit to F20 before adding the lineart
+number-annotation feature so both modes share one engine.
+
+**Files (new):**
+- `filter-service/app/vectorise.py` (new) — vtracer wrapper +
+  centroid labelling.
+- `filter-service/requirements.txt` — add `vtracer`, `lxml`,
+  `shapely`.
 
 ### F12 — Generic `FilterResult<T>` Type
 Jeder der 3 Server-Filter definiert lokal `Success`/`Failure`-Types.
