@@ -78,8 +78,8 @@ jobs:
               - 'tests/**'
               - 'e2e/**'
               - 'package*.json'
-              - '*.config.{ts,mjs}'
-              - '!lib/supabase/database.types.ts'
+              - '*.config.ts'
+              - '*.config.mjs'
 
   lint_test:
     runs-on: ubuntu-latest
