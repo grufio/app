@@ -1,14 +1,12 @@
 ## CI workflow
 #
 # Responsibilities:
-# - Run lint/tests and build checks on pull requests and main pushes.
+# - Run lint/tests and build checks on pull requests.
 # - Execute Playwright E2E with caching and upload reports as artifacts.
 name: CI
 
 on:
   pull_request:
-  push:
-    branches: [ main ]
 
 # Force JS-based actions onto Node 24 ahead of GitHub's June-2026 default flip.
 # Until upload-artifact (and others) ship a release whose runtime is Node 24,
