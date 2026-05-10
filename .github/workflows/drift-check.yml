@@ -1,0 +1,87 @@
+## Scheduled remote drift check
+#
+# Daily check that prod schema, types, RLS policies, and migration
+# state still match the committed repo. Catches Studio-side drift
+# (manual policy edits) that the PR / deploy pipelines only see
+# when triggered by a migration push.
+name: Scheduled drift check
+
+on:
+  schedule:
+    # Daily at 04:17 UTC — off-peak, avoids cron rush at round hours.
+    - cron: '17 4 * * *'
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: drift-check
+  cancel-in-progress: false
+
+jobs:
+  drift-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # Pin to the same version the verify:* npm scripts spawn via
+      # npx, matching ci.yml's remote_verify + deploy.yml's migrations
+      # job. Different minor versions don't share the linked-project
+      # state directory.
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 2.98.2
+
+      - name: Link Supabase project
+        run: supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+
+      - name: check:remote
+        run: npm run check:remote
+
+      - name: verify:remote-migrations
+        run: npm run verify:remote-migrations
+
+      - name: verify:remote-rls
+        run: npm run verify:remote-rls
+
+      - name: verify:types-synced
+        env:
+          SUPABASE_VERIFY_TYPES_SYNC: "1"
+        run: npm run verify:types-synced
+
+      - name: verify:schema-drift
+        run: npm run verify:schema-drift
+
+      - name: Slack alert on failure
+        if: failure()
+        env:
+          WEBHOOK: ${{ secrets.SLACK_ALERT_WEBHOOK_URL }}
+        run: |
+          if [ -z "$WEBHOOK" ]; then
+            exit 0
+          fi
+          payload=$(printf '{"text":":warning: Scheduled drift check failed @ `%s`\n%s/%s/actions/runs/%s"}' \
+            "${{ github.sha }}" \
+            "${{ github.server_url }}" "${{ github.repository }}" "${{ github.run_id }}")
+          curl -fsSL -X POST -H 'Content-Type: application/json' -d "$payload" "$WEBHOOK" || true
