@@ -64,7 +64,7 @@ export function LineArtForm({ onCancel, onApply, busy = false }: Props) {
         <FormField
           variant="numeric"
           numericMode="int"
-          label="Low Threshold"
+          label={lineartFilter.ui.threshold1.label}
           id="threshold1"
           value={String(threshold1)}
           onCommit={setNumeric(setThreshold1)}
@@ -77,7 +77,7 @@ export function LineArtForm({ onCancel, onApply, busy = false }: Props) {
         <FormField
           variant="numeric"
           numericMode="int"
-          label="High Threshold"
+          label={lineartFilter.ui.threshold2.label}
           id="threshold2"
           value={String(threshold2)}
           onCommit={setNumeric(setThreshold2)}
@@ -90,7 +90,7 @@ export function LineArtForm({ onCancel, onApply, busy = false }: Props) {
         <FormField
           variant="numeric"
           numericMode="int"
-          label="Line Thickness"
+          label={lineartFilter.ui.line_thickness.label}
           id="lineThickness"
           value={String(lineThickness)}
           onCommit={setNumeric(setLineThickness)}
@@ -103,7 +103,7 @@ export function LineArtForm({ onCancel, onApply, busy = false }: Props) {
         <FormField
           variant="numeric"
           numericMode="int"
-          label="Blur Amount"
+          label={lineartFilter.ui.blur_amount.label}
           id="blurAmount"
           value={String(blurAmount)}
           onCommit={setNumeric(setBlurAmount)}
@@ -116,7 +116,7 @@ export function LineArtForm({ onCancel, onApply, busy = false }: Props) {
         <FormField
           variant="numeric"
           numericMode="int"
-          label="Min. Detail Size"
+          label={lineartFilter.ui.min_contour_area.label}
           id="minContourArea"
           value={String(minContourArea)}
           onCommit={setNumeric(setMinContourArea)}
@@ -129,7 +129,7 @@ export function LineArtForm({ onCancel, onApply, busy = false }: Props) {
         <FormField
           variant="numeric"
           numericMode="decimal"
-          label="Smoothness"
+          label={lineartFilter.ui.smoothness.label}
           id="smoothness"
           value={String(smoothness)}
           onCommit={setNumeric(setSmoothness)}
@@ -150,10 +150,10 @@ export function LineArtForm({ onCancel, onApply, busy = false }: Props) {
               className="h-4 w-4"
             />
             <Label htmlFor="invert" className="cursor-pointer font-normal">
-              Black lines on white background
+              {lineartFilter.ui.invert.label}
             </Label>
           </div>
-          <p className="text-xs text-muted-foreground">Unchecked = white lines on black</p>
+          <p className="text-xs text-muted-foreground">{lineartFilter.ui.invert.description}</p>
         </div>
       </div>
 

@@ -78,7 +78,7 @@ export function PixelateForm({ imageWidth, imageHeight, onCancel, onApply, busy 
         <FormField
           variant="numeric"
           numericMode="int"
-          label="Superpixel Width (px)"
+          label={pixelateFilter.ui.superpixel_width.label}
           id="superpixel-width"
           value={String(superpixelWidth)}
           onCommit={setIntFromDraft(setSuperpixelWidth)}
@@ -89,7 +89,7 @@ export function PixelateForm({ imageWidth, imageHeight, onCancel, onApply, busy 
         <FormField
           variant="numeric"
           numericMode="int"
-          label="Superpixel Height (px)"
+          label={pixelateFilter.ui.superpixel_height.label}
           id="superpixel-height"
           value={String(superpixelHeight)}
           onCommit={setIntFromDraft(setSuperpixelHeight)}
@@ -121,7 +121,7 @@ export function PixelateForm({ imageWidth, imageHeight, onCancel, onApply, busy 
 
         <FormField
           variant="select"
-          label="Color Mode"
+          label={pixelateFilter.ui.color_mode.label}
           id="color-mode"
           value={colorMode}
           options={pixelateFilter.ui.color_mode.options}
@@ -132,13 +132,13 @@ export function PixelateForm({ imageWidth, imageHeight, onCancel, onApply, busy 
         <FormField
           variant="numeric"
           numericMode="int"
-          label="Number of Colors"
+          label={pixelateFilter.ui.num_colors.label}
           id="num-colors"
           value={String(numColors)}
           onCommit={setIntFromDraft(setNumColors)}
           onDraftChange={setIntFromDraft(setNumColors)}
           disabled={busy}
-          inputProps={pixelateFilter.ui.num_colors}
+          inputProps={{ min: pixelateFilter.ui.num_colors.min, max: pixelateFilter.ui.num_colors.max }}
         />
       </div>
 

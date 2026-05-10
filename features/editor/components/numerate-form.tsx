@@ -67,13 +67,13 @@ export function NumerateForm({
         <FormField
           variant="numeric"
           numericMode="int"
-          label="Vector Line Width (px)"
+          label={numerateFilter.ui.stroke_width.label}
           id="stroke-width"
           value={String(strokeWidth)}
           onCommit={setIntStroke}
           onDraftChange={setIntStroke}
           disabled={busy}
-          inputProps={numerateFilter.ui.stroke_width}
+          inputProps={{ min: numerateFilter.ui.stroke_width.min, max: numerateFilter.ui.stroke_width.max }}
         />
 
         <div className="flex items-center space-x-2">
@@ -84,7 +84,7 @@ export function NumerateForm({
             disabled={busy}
           />
           <Label htmlFor="show-colors" className="font-normal cursor-pointer">
-            Show Colors
+            {numerateFilter.ui.show_colors.label}
           </Label>
         </div>
       </div>
