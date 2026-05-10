@@ -25,6 +25,15 @@ import ws from "ws"
 
 import type { Database } from "@/lib/supabase/database.types"
 
+// Node 20 ships without a native WebSocket global, so any code path
+// that constructs a supabase-js client without an explicit `realtime`
+// transport (e.g. createSupabaseServiceRoleClient) crashes during
+// import. Polyfilling once at module-load gives every integration test
+// a working client without each call having to pass its own override.
+if (typeof (globalThis as { WebSocket?: unknown }).WebSocket === "undefined") {
+  ;(globalThis as { WebSocket?: unknown }).WebSocket = ws as unknown
+}
+
 // Defaults match supabase/config.toml. Override via env when running
 // against a non-standard local instance.
 const SUPABASE_URL = process.env.SUPABASE_INTEGRATION_URL ?? "http://127.0.0.1:54321"
