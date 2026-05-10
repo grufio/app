@@ -126,6 +126,17 @@ jobs:
           SUPABASE_VERIFY_TYPES_SYNC: "1"
         run: npm run verify:types-synced
 
+      # verify:remote-rls is the only one of the three deploy-time
+      # gates that doesn't have a pre-push pairing — RLS policies for
+      # a new table only exist AFTER the migration is applied, so
+      # pre-push would trip on additive migrations the same way it
+      # would on PR-CI. Post-push confirms that the migration created
+      # the policies the migration script claims it created. Runs
+      # before the Vercel deploy hook so missing RLS blocks the
+      # frontend rollout.
+      - name: Post-push — verify remote RLS + storage policies
+        run: npm run verify:remote-rls
+
       - name: Trigger Vercel production deploy
         env:
           HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
