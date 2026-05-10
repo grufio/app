@@ -5,6 +5,26 @@
 > Sister-doc to [`../forms/primitives-findings.md`](../forms/primitives-findings.md)
 > in pattern.
 
+## Naming convention (post-F21)
+
+Two orthogonal concepts, distinct vocabulary in code, paths, types,
+DB tables, and UI surfaces:
+
+- **filter** — bitmap-in / bitmap-out. Stackable. `pixelate`
+  today; future: RGB→BW, insta-style. Lives under
+  `lib/editor/filters/*`, `services/editor/server/filters/*`,
+  `app/api/projects/[id]/filters/*`, `project_image_filters` DB
+  table, "Filter" sidepanel tab.
+- **trace** — bitmap-in / vector-out (SVG). Mutually exclusive
+  (single active per project). `numerate`, `lineart`. Lives under
+  `lib/editor/trace/*`, `services/editor/server/trace/*`,
+  `app/api/projects/[id]/trace/*`, `project_image_trace` DB table,
+  "Trace" sidepanel tab.
+
+Treat the boundary as load-bearing: a function or type that handles
+both surfaces is almost always wrong (see F7-F9: the current
+mixing was the single biggest source of edge-case complexity).
+
 ## Scope
 
 **UI-Layer** (`features/editor/components/`):
@@ -61,7 +81,7 @@ env-driven.
 | F7 | Generic `<FilterForm>` aus 3 Form-Files | L | ✓ done | PR 4 |
 | F8 | Generic `<FilterController>` aus 3 Controllern | M | ✓ done | PR 4 |
 | F4 | Schema 2-3x parsed pro Request | M | absorbed in F9 | — |
-| F9 | Generic `applyHttpFilter()` aus 3 Server-Filtern | L | open | PR 5 |
+| F9 | Generic `applyHttpFilter()` for bitmap filters | L | deferred (re-hot when bitmap-filter family ≥3) | PR 5 |
 | F13 | `filter-working-copy.ts` (576 LOC) splitten | M | open | PR 6opt |
 | F16 | `callFilterService()` Config per-Filter overridable | S | deferred (F18: Python = 51 ms, no timeout-pain) | PR 7opt |
 | F15 | Base64 → Streaming für große Bilder | M | deferred (F18: input encode = 0.1 ms, no transit-pain) | deferred |
@@ -149,14 +169,27 @@ Hängt an F7. Trivialer Wrapper über Generic Form, liest
 **Files:** 3 `*FilterController.tsx`, neue
 `generic-filter-controller.tsx`, `EditorDialogHost`-Aufrufer.
 
-### F9 — Generic `applyHttpFilter()` aus 3 Server-Filtern
-3 Server-Files (568 LOC zusammen) folgen identischer 8-Schritt-
-Pipeline. Vorschlag: `applyHttpFilter({ filterId, params, schema,
-servicePath, ...})` in `_helpers.ts`. Per-Filter-Files werden zu
-schmalen Adaptern. Absorbiert F4.
+### F9 — Generic `applyHttpFilter()` for bitmap filters *(deferred)*
 
-**Files:** 3 `services/editor/server/filters/{name}.ts`,
-`_helpers.ts`, `filter-variants.ts`.
+**Original idea:** 3 server files (568 LOC combined) followed an
+identical 8-step pipeline. Generic `applyHttpFilter({ filterId,
+params, schema, servicePath, ...})` in `_helpers.ts`; per-filter
+files become thin adapters. Absorbs F4 (schema parsed multiple
+times).
+
+**Status update (2026-05-10):** F21 moves numerate + lineart out of
+the bitmap filter family into the Trace domain (`vtracer`-driven,
+F20). After F21 the bitmap-filter side has only `pixelate`, so
+generic-pipeline-from-N=3 has nothing left to abstract.
+
+**Re-hot trigger:** the user has confirmed more bitmap filters are
+planned (RGB→BW, insta-style, …). When the bitmap-filter family
+reaches **≥3 entries again**, F9 becomes the right consolidation;
+the current `pixelate.ts` pipeline is the natural reference shape.
+Until then: each new bitmap filter ships as its own adapter.
+
+**Files (when re-hot):** all bitmap-filter `services/editor/server/
+filters/{name}.ts`, `_helpers.ts`, `filter-variants.ts`.
 
 ### F10 — Numerate-Tests aufstocken
 `numerate.test.ts` (91 LOC) deutlich dünner als `pixelate.test.ts`
