@@ -154,16 +154,17 @@ jobs:
       - name: Verify remote migrations
         run: npm run verify:remote-migrations
 
-      - name: Verify remote RLS + storage policies
-        run: npm run verify:remote-rls
-
-      - name: Verify DB types are synced
-        env:
-          SUPABASE_VERIFY_TYPES_SYNC: "1"
-        run: npm run verify:types-synced
-
-      - name: Verify schema drift (committed db/schema.sql vs prod dump)
-        run: npm run verify:schema-drift
+      # NOTE: verify:remote-rls, verify:types-synced, and
+      # verify:schema-drift are intentionally NOT run here. They are
+      # all deploy-time guards that compare the committed state against
+      # *live* prod, and any PR that introduces a new table / column
+      # makes them flag the PR's own changes as drift. The deploy
+      # workflow (deploy.yml → migrations job) runs them AROUND the
+      # actual `supabase db push` (pre-flight + post-push), which is
+      # where the comparison is meaningful — by then the migration is
+      # either about to be applied or has just landed. Running them
+      # here only catches "someone hand-edited prod via Studio", which
+      # is also caught by the deploy.yml pre-flight on the next push.
 
   integration:
     # Integration tests exercise real code paths against a local Supabase.
