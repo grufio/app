@@ -26,6 +26,25 @@ export const numerateFilter = {
     superpixel_width: { min: 1 },
     superpixel_height: { min: 1 },
     stroke_width: { label: "Vector Line Width (px)", min: 1, max: 20 },
-    show_colors: { label: "Show Colors" },
+    show_colors: { kind: "boolean", label: "Show Colors" },
   },
+  // Banner showing the inherited Pixelate superpixel grid. Mirrors the
+  // muted info-block the per-filter NumerateForm rendered.
+  helperState: ({ ctx }) => (
+    <div className="rounded-md bg-muted p-3 text-sm space-y-1">
+      <p className="font-medium">Superpixel Grid</p>
+      <p className="text-muted-foreground">
+        Using {ctx.numerateSuperpixelWidth} × {ctx.numerateSuperpixelHeight} px from Pixelate filter
+      </p>
+    </div>
+  ),
+  // superpixel_width / _height are not form-rendered for numerate; they
+  // come from whichever Pixelate filter sits earlier in the chain. The
+  // controller already passes those through context, so we inject them
+  // into the params right before submit.
+  transformBeforeSubmit: ({ params, ctx }) => ({
+    ...params,
+    superpixel_width: ctx.numerateSuperpixelWidth,
+    superpixel_height: ctx.numerateSuperpixelHeight,
+  }),
 } as const satisfies FilterDefinition<typeof numerateSchema>

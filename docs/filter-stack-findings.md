@@ -55,8 +55,8 @@ env-driven.
 | F18 | Numerate-Performance-Profiling (User-Pain) | S | open | PR P |
 | F11 | E2E-Filter-Chain-Roundtrip-Test | M | ✓ done | PR 2 |
 | F5 | Inkonsistente Registry-Metadata in Forms | M | ✓ done | PR 3 |
-| F7 | Generic `<FilterForm>` aus 3 Form-Files | L | open | PR 4 |
-| F8 | Generic `<FilterController>` aus 3 Controllern | M | open | PR 4 |
+| F7 | Generic `<FilterForm>` aus 3 Form-Files | L | ✓ done | PR 4 |
+| F8 | Generic `<FilterController>` aus 3 Controllern | M | ✓ done | PR 4 |
 | F4 | Schema 2-3x parsed pro Request | M | absorbed in F9 | — |
 | F9 | Generic `applyHttpFilter()` aus 3 Server-Filtern | L | open | PR 5 |
 | F13 | `filter-working-copy.ts` (576 LOC) splitten | M | open | PR 6opt |

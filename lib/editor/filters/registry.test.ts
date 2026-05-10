@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest"
 
 import { lineartSchema } from "./lineart"
-import { numerateSchema } from "./numerate"
+import { numerateFilter, numerateSchema } from "./numerate"
 import { pixelateSchema } from "./pixelate"
 import { FILTER_REGISTRY } from "./registry"
+import type { FilterRenderContext } from "./types"
 
 describe("FILTER_REGISTRY UI hints", () => {
   it("each ui-hint field has a matching schema field", () => {
@@ -61,6 +62,39 @@ describe("FILTER_REGISTRY UI hints", () => {
         }
       }
     }
+  })
+})
+
+describe("numerateFilter.transformBeforeSubmit", () => {
+  // Numerate's superpixel_width / _height are not in its form — the
+  // Pixelate filter earlier in the chain decides them, and the
+  // transform injects them right before submit. The GenericFilterForm
+  // relies on this hook to round-trip a valid NumerateParams payload.
+  const ctx: FilterRenderContext = {
+    imageWidth: 1024,
+    imageHeight: 768,
+    numerateSuperpixelWidth: 17,
+    numerateSuperpixelHeight: 23,
+  }
+
+  it("injects numerate superpixel dimensions from context", () => {
+    const params = numerateSchema.parse({})
+    const out = numerateFilter.transformBeforeSubmit?.({ params, ctx })
+    expect(out?.superpixel_width).toBe(17)
+    expect(out?.superpixel_height).toBe(23)
+  })
+
+  it("preserves user-collected stroke_width and show_colors", () => {
+    const params = numerateSchema.parse({ stroke_width: 7, show_colors: false })
+    const out = numerateFilter.transformBeforeSubmit?.({ params, ctx })
+    expect(out?.stroke_width).toBe(7)
+    expect(out?.show_colors).toBe(false)
+  })
+
+  it("returns a payload the schema accepts back", () => {
+    const params = numerateSchema.parse({})
+    const out = numerateFilter.transformBeforeSubmit?.({ params, ctx })
+    expect(numerateSchema.safeParse(out).success).toBe(true)
   })
 })
 
