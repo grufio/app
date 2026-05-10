@@ -22,6 +22,51 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # detect inspects which paths a PR/push touches and exposes the result
+  # so downstream jobs can opt out for irrelevant changes. lint_test
+  # always runs (markdown sanity, license/Co-Authored-By, etc.); the
+  # heavier integration/e2e/remote_verify only fire when the change
+  # touches code, DB, or both.
+  detect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      has_code: ${{ steps.filter.outputs.code }}
+      has_db:   ${{ steps.filter.outputs.db }}
+      has_docs: ${{ steps.filter.outputs.docs }}
+      has_ci:   ${{ steps.filter.outputs.ci }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+      - id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            docs:
+              - 'docs/**'
+              - '*.md'
+              - 'CLAUDE.md'
+            db:
+              - 'supabase/migrations/**'
+              - 'supabase/config.toml'
+              - 'db/**'
+              - 'lib/supabase/database.types.ts'
+            ci:
+              - '.github/**'
+              - 'scripts/**'
+            code:
+              - 'app/**'
+              - 'lib/**'
+              - 'services/**'
+              - 'features/**'
+              - 'components/**'
+              - 'tests/**'
+              - 'e2e/**'
+              - 'package*.json'
+              - '*.config.{ts,mjs}'
+              - '!lib/supabase/database.types.ts'
+
   lint_test:
     runs-on: ubuntu-latest
     steps:
@@ -50,10 +95,13 @@ jobs:
   # Gated on SUPABASE_PROJECT_REF so PR runs without secrets (forks,
   # drafts) skip cleanly.
   remote_verify:
+    needs: detect
     runs-on: ubuntu-latest
-    # Skip the entire job for fork PRs (where secrets are not exposed).
-    # Single-user repo, so this is also effectively "always run on grufio/app PRs".
-    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    # Skip the entire job for fork PRs (where secrets are not exposed) and
+    # for PRs that don't touch DB/migrations (path-dispatch from `detect`).
+    if: |
+      needs.detect.outputs.has_db == 'true' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     env:
       SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
@@ -98,11 +146,10 @@ jobs:
         run: npm run verify:types-synced
 
   integration:
-    # Runs in parallel to lint_test/remote_verify/e2e — integration tests
-    # exercise real code paths against a local Supabase, orthogonal to the
-    # static gates. Wall-time saved on every CI run; the trade-off (integration
-    # may run a few minutes before lint_test reveals a syntax error) is paid in
-    # GHA minutes, not in feedback latency.
+    # Integration tests exercise real code paths against a local Supabase.
+    # Skipped when neither code nor DB changes (pure docs/CI PRs).
+    needs: detect
+    if: needs.detect.outputs.has_code == 'true' || needs.detect.outputs.has_db == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Free disk space
@@ -178,8 +225,11 @@ jobs:
           fi
 
   e2e:
-    # Same rationale as integration above — Playwright runs against a real
-    # webserver build, doesn't share signal with the static gates.
+    # Playwright runs against a real webserver build. Skipped when only
+    # docs/CI/DB-migrations change; e2e signals are tied to user-visible
+    # behaviour which only frontend code can affect.
+    needs: detect
+    if: needs.detect.outputs.has_code == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
