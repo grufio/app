@@ -30,6 +30,12 @@ jobs:
   detect:
     runs-on: ubuntu-latest
     timeout-minutes: 2
+    # dorny/paths-filter calls the GitHub API to fetch the PR's changed
+    # files. Default workflow permissions in private repos is contents:read
+    # only — explicit pull-requests: read needed.
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
       has_code: ${{ steps.filter.outputs.code }}
       has_db:   ${{ steps.filter.outputs.db }}
