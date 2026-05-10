@@ -2,6 +2,7 @@
 FastAPI service for image processing filters.
 """
 import os
+import time
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import Response
@@ -13,6 +14,32 @@ import numpy as np
 import io
 import base64
 from typing import Literal
+
+
+class PhaseTimer:
+    """
+    Lightweight phase timer used by the filter endpoints to surface a
+    per-phase ms breakdown via the `X-Profile-Phases` response header.
+    Always-on overhead is one perf_counter() call per phase mark, which
+    is sub-microsecond. Profilers (scripts/profile-filters.mjs, F18)
+    parse the header; production callers ignore it.
+    """
+
+    def __init__(self) -> None:
+        self._t0 = time.perf_counter()
+        self._last = self._t0
+        self._phases: list[tuple[str, float]] = []
+
+    def mark(self, name: str) -> None:
+        now = time.perf_counter()
+        self._phases.append((name, (now - self._last) * 1000.0))
+        self._last = now
+
+    def header(self) -> str:
+        total_ms = (time.perf_counter() - self._t0) * 1000.0
+        parts = [f"{n}={ms:.1f}" for n, ms in self._phases]
+        parts.append(f"total={total_ms:.1f}")
+        return ",".join(parts)
 
 app = FastAPI(title="Image Processing Service")
 
@@ -70,18 +97,20 @@ async def pixelate_filter(request: PixelateRequest):
         raise HTTPException(status_code=400, detail="Superpixel dimensions must be >= 1")
     if request.num_colors < 2 or request.num_colors > 256:
         raise HTTPException(status_code=400, detail="Number of colors must be between 2 and 256")
-    
+
+    timer = PhaseTimer()
     try:
         img_bytes = base64.b64decode(request.image_base64)
         img = Image.open(io.BytesIO(img_bytes))
-        
+
         if img.mode not in ("RGB", "L"):
             img = img.convert("RGB")
-        
+        timer.mark("decode")
+
         width, height = img.size
         grid_width = width // request.superpixel_width
         grid_height = height // request.superpixel_height
-        
+
         if grid_width < 1 or grid_height < 1:
             raise HTTPException(status_code=400, detail=f"Superpixel size too large for image")
         
@@ -110,20 +139,27 @@ async def pixelate_filter(request: PixelateRequest):
             expanded = block_means.repeat(sh, axis=0).repeat(sw, axis=1)
             result_array[:h_crop, :w_crop] = expanded
         result = Image.fromarray(result_array, mode=img.mode)
-        
+        timer.mark("mean+expand")
+
         if request.color_mode == "grayscale":
             result = result.convert("L")
-        
+
         if request.num_colors < 256:
             result = result.quantize(colors=request.num_colors, method=Image.MEDIANCUT)
             result = result.convert("RGB" if request.color_mode == "rgb" else "L")
-        
+        timer.mark("quantize")
+
         output = io.BytesIO()
         result.save(output, format="PNG", optimize=True)
         output.seek(0)
-        
-        return Response(content=output.getvalue(), media_type="image/png")
-        
+        timer.mark("encode")
+
+        return Response(
+            content=output.getvalue(),
+            media_type="image/png",
+            headers={"X-Profile-Phases": timer.header()},
+        )
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Image processing failed: {str(e)}")
 
@@ -165,22 +201,24 @@ async def numerate_filter(request: NumerateRequest):
         raise HTTPException(status_code=400, detail="Superpixel dimensions must be >= 1")
     if request.stroke_width < 1 or request.stroke_width > 20:
         raise HTTPException(status_code=400, detail="Stroke width must be between 1 and 20")
-    
+
+    timer = PhaseTimer()
     try:
         # Decode image
         img_bytes = base64.b64decode(request.image_base64)
         img = Image.open(io.BytesIO(img_bytes))
-        
+
         if img.mode not in ("RGB", "L"):
             img = img.convert("RGB")
-        
+        timer.mark("decode")
+
         width, height = img.size
         grid_width = width // request.superpixel_width
         grid_height = height // request.superpixel_height
-        
+
         if grid_width < 1 or grid_height < 1:
             raise HTTPException(status_code=400, detail="Superpixel size too large for image")
-        
+
         svg_paths = []
 
         # Vectorized superpixel mean computation. Same edge behaviour as
@@ -220,7 +258,8 @@ async def numerate_filter(request: NumerateRequest):
                         f'width="{sw}" height="{sh}" '
                         f'fill="rgb({avg_r},{avg_g},{avg_b})" />'
                     )
-        
+        timer.mark("rects")
+
         # Generate grid lines
         grid_lines = []
         
@@ -240,6 +279,8 @@ async def numerate_filter(request: NumerateRequest):
                 f'stroke="black" stroke-width="{request.stroke_width}" />'
             )
         
+        timer.mark("lines")
+
         # Create SVG document
         svg_content = f'''<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
@@ -251,8 +292,13 @@ async def numerate_filter(request: NumerateRequest):
     {chr(10).join(grid_lines)}
   </g>
 </svg>'''
-        
-        return Response(content=svg_content, media_type="image/svg+xml")
+        timer.mark("serialize")
+
+        return Response(
+            content=svg_content,
+            media_type="image/svg+xml",
+            headers={"X-Profile-Phases": timer.header()},
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Image processing failed: {str(e)}")
 
