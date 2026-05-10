@@ -43,7 +43,7 @@ env-driven.
 
 ---
 
-## Findings (20 items)
+## Findings (21 items)
 
 | ID | Title | Size | Status | PR |
 |---|---|---|---|---|
@@ -54,7 +54,8 @@ env-driven.
 | F10 | Numerate-Tests auf Pixelate-Niveau | S | ✓ done | PR 1 |
 | F18 | Numerate-Performance-Profiling (User-Pain) | S | ✓ done | PR P |
 | F19 | Shrink Numerate SVG payload (per-rect structure preserved) | M | superseded by F20 | — |
-| F20 | Replace bespoke rect-loop with vtracer (numerate + lineart) | L | open / **next** | TBD |
+| F21 | Split Filter vs Trace: new sidepanel tab, mutually-exclusive Trace, separate registry/DB/API | L | open / **next, blocks F20** | TBD |
+| F20 | Replace bespoke rect-loop with vtracer (numerate + lineart) | L | open (after F21) | TBD |
 | F11 | E2E-Filter-Chain-Roundtrip-Test | M | ✓ done | PR 2 |
 | F5 | Inkonsistente Registry-Metadata in Forms | M | ✓ done | PR 3 |
 | F7 | Generic `<FilterForm>` aus 3 Form-Files | L | ✓ done | PR 4 |
@@ -227,12 +228,90 @@ output (110× larger than pixelate's 13 KB PNG)**. Confirmation:
 - `scripts/profile-fixtures/profile-1920x1080.png` — deterministic
   input image.
 
-### F20 — Replace bespoke rect-loop with vtracer for numerate + lineart *(open, L, **next**)*
+### F21 — Split Filter vs Trace: new sidepanel tab + mutually-exclusive Trace pipeline *(open, L, **next** — blocks F20)*
 
-One vectorisation engine for both product modes, replacing the
-20K-rect string loop in numerate and unblocking the
+Today the sidepanel "Filter" tab mixes two operationally different
+concepts:
+- **Filter** — bitmap-in / bitmap-out (pixelate today; RGB→BW,
+  insta-style filters tomorrow). Stackable in any order.
+- **Trace** — bitmap-in / vector-out (numerate, lineart). Produces
+  the SVG that the rest of the product (paint-by-numbers labels,
+  print export, palette legend) is built around. **Only one Trace
+  result is ever active per project** — picking lineart replaces a
+  prior numerate, not stacks on top.
+
+Mixing them in one stack is the source of the F7-F8-F9 edge cases
+("special-case for numerate's superpixel injection", "filter-chain
+rebuild on remove") and blocks the vtracer rewrite (F20) from
+landing cleanly.
+
+**Required scope (the structural change before F20):**
+
+1. **UI** — new sidepanel tab "Trace" between "Filter" and
+   "Colors". Filter-tab keeps the stackable bitmap operations;
+   Trace-tab houses Numerate + LineArt as mutually-exclusive
+   choices (radio-style picker, single-active state).
+2. **Registry split** — `lib/editor/filters/registry.ts` keeps
+   `pixelate` (and future bitmap filters). New
+   `lib/editor/trace/registry.ts` (or similar) holds `numerate`,
+   `lineart`. Each has its own `FilterDefinition` analogue; F7's
+   GenericFilterForm pattern can be reused for Trace if the schema
+   shapes line up.
+3. **DB** — `project_image_filters` (the stack) stops carrying
+   numerate/lineart rows. Trace gets its own model:
+   - Option A: `project_image_trace` table, single row per project
+     with `(kind: "numerate"|"lineart", params jsonb,
+     output_image_id, created_at)`. Replacing rebinds the row.
+   - Option B: column on `projects` (single Trace per project,
+     denormalised).
+   Decide during F21 implementation; A is more flexible if "Trace
+   history / undo" ever lands.
+4. **API** — `POST /projects/:id/trace` (apply / replace),
+   `DELETE /projects/:id/trace` (clear). The current
+   `/filters/{numerate,lineart}` and `/images/filters` paths stop
+   accepting those types.
+5. **Migration** — current rows in `project_image_filters` with
+   `filter_type in ('numerate','lineart')` need a migration plan.
+   Decide at implementation time: best-effort port to the new
+   table, or hard reset of those rows in dev/preview only if no
+   prod data depends on them.
+6. **Server-side filter pipeline** — `services/editor/server/
+   filter-variants.ts` currently dispatches to all three.
+   Numerate + lineart routes move to a new
+   `services/editor/server/trace.ts` (mutually-exclusive apply,
+   no chain rebuild on replace because there is no chain).
+
+**Why before F20:** vtracer's output is the new Trace artefact; if
+it landed inside the existing filter-stack, every consumer of
+`project_image_filters` would need a special "is-this-actually-a-
+trace" check. F21 makes the boundary explicit so F20 lands in a
+single Trace surface that already speaks vector-output as its
+native shape.
+
+**Files (rough):**
+- new `lib/editor/trace/registry.ts`, `lib/editor/trace/{numerate,lineart}.ts`
+- new `services/editor/server/trace.ts`,
+  `services/editor/server/trace-image.ts`
+- new `app/api/projects/[projectId]/trace/route.ts`
+- new sidepanel `Trace` tab component (mirrors existing Filter tab
+  structure)
+- migration: new `project_image_trace` table + drop / port of
+  numerate/lineart rows in `project_image_filters`
+- changes to `editor-dialog-host.tsx` to wire the Trace dialog
+  separately from Filter dialogs
+
+### F20 — Replace bespoke rect-loop with vtracer for numerate + lineart *(open, L, after F21)*
+
+One vectorisation engine for both Trace modes (numerate + lineart),
+replacing the 20K-rect string loop in numerate and unblocking the
 number-annotation feature on lineart. F19 is sunk-cost-avoidance
 once this is committed.
+
+**Sequencing — straight rewrite, no pilot:** vtracer's MIT licence,
+deterministic algorithm, and active 2026 maintenance plus the
+empirical test below leave no real "what-if" to soft-rollout. The
+correct order is: land F21 (Trace as a separate surface) → drop the
+custom rects loop → call vtracer from the new Trace path → ship.
 
 **Engine:** [vtracer](https://github.com/visioncortex/vtracer) —
 Rust core, MIT, actively maintained (0.6.15 March 2026), Python
@@ -301,26 +380,25 @@ region == a path == one centroid.
 - AI/diffusion vectorisers — visually nice, lose discrete labelled-
   region semantics needed for PBN.
 
-**Pilot scope (1–2 weeks):**
+**Implementation steps (after F21 lands):**
 1. New module `filter-service/app/vectorise.py` — thin vtracer
    wrapper + lxml post-process + centroid labelling.
 2. Add `vtracer`, `lxml`, `shapely` to
    `filter-service/requirements.txt`.
-3. New endpoint `/filters/numerate-v2` (or feature-flag the
-   existing one) — same request schema, vtracer-driven response.
-   Run alongside the legacy endpoint; A/B by feature flag.
-4. Profile-script comparison: numerate-v1 vs numerate-v2 on the
-   `scripts/profile-fixtures/profile-1920x1080.png` baseline. Track
-   total ms + output bytes + label-count fidelity (regions before
-   = regions labelled after).
-5. Once parity confirmed, retire the legacy rect-loop endpoint and
-   the `rects` phase entirely. F19 is auto-resolved at that point.
+3. Replace the bodies of `/filters/numerate` and (when numbering
+   ships) `/filters/lineart` with the vtracer pipeline. The old
+   rect-loop and `rects` phase are deleted in the same PR.
+4. Profile-script comparison against
+   `scripts/profile-fixtures/profile-1920x1080.png` to confirm
+   total-ms drop and region-count parity. F19 auto-resolves.
 
-**Files (new):**
-- `filter-service/app/vectorise.py`
+**Files:**
+- `filter-service/app/vectorise.py` (new)
 - `filter-service/requirements.txt` (additions)
-- `services/editor/server/filters/numerate.ts` — wire to v2 path
-  via feature flag during pilot.
+- `filter-service/app/main.py` (numerate / lineart endpoint
+  bodies replaced)
+- the new Trace pipeline on the Node side (introduced in F21) is
+  the only consumer.
 
 ### F12 — Generic `FilterResult<T>` Type
 Jeder der 3 Server-Filter definiert lokal `Success`/`Failure`-Types.
