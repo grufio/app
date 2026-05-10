@@ -71,21 +71,28 @@ function parseFilterType(value: unknown): SupportedFilterType | null {
   return v in FILTER_REGISTRY ? (v as SupportedFilterType) : null
 }
 
+// Schema-per-filter map. Used by `normalizeFilterParams` to apply
+// defaults / coerce strings without a per-filter if/else cascade.
+const FILTER_SCHEMAS = {
+  pixelate: pixelateSchema,
+  lineart: lineartSchema,
+  numerate: numerateSchema,
+} as const satisfies Record<SupportedFilterType, unknown>
+
+// Handler-per-filter map. Each entry is the per-filter pipeline
+// (Supabase lookup → HTTP call → upload → DB insert) — they all share
+// the `FilterResult` shape, so the dispatch can stay structural.
+const FILTER_HANDLERS = {
+  pixelate: pixelateImageAndActivate,
+  lineart: lineArtImageAndActivate,
+  numerate: numerateImageAndActivate,
+} as const satisfies Record<SupportedFilterType, unknown>
+
 function normalizeFilterParams(filterType: SupportedFilterType, params: unknown): Record<string, unknown> {
   const input = (params as Record<string, unknown> | null | undefined) ?? {}
-  if (filterType === "pixelate") {
-    const parsed = pixelateSchema.safeParse(input)
-    return parsed.success ? parsed.data : pixelateSchema.parse({})
-  }
-  if (filterType === "lineart") {
-    const parsed = lineartSchema.safeParse(input)
-    return parsed.success ? parsed.data : lineartSchema.parse({})
-  }
-  if (filterType === "numerate") {
-    const parsed = numerateSchema.safeParse(input)
-    return parsed.success ? parsed.data : numerateSchema.parse({})
-  }
-  return {}
+  const schema = FILTER_SCHEMAS[filterType]
+  const parsed = schema.safeParse(input)
+  return parsed.success ? (parsed.data as Record<string, unknown>) : (schema.parse({}) as Record<string, unknown>)
 }
 
 async function createDerivedImageFromSource(args: {
@@ -96,43 +103,21 @@ async function createDerivedImageFromSource(args: {
   params: Record<string, unknown>
 }): Promise<{ ok: true; imageId: string; widthPx: number; heightPx: number; storagePath: string } | FilterOpFailure> {
   const { supabase, projectId, sourceImageId, filterType, params } = args
-  if (filterType === "pixelate") {
-    const result = await pixelateImageAndActivate({
-      supabase,
-      projectId,
-      sourceImageId,
-      params: pixelateSchema.parse(params),
-    })
-    if (!result.ok) return result
-    return {
-      ok: true,
-      imageId: result.id,
-      widthPx: result.widthPx,
-      heightPx: result.heightPx,
-      storagePath: result.storagePath,
-    }
-  }
-  if (filterType === "lineart") {
-    const result = await lineArtImageAndActivate({
-      supabase,
-      projectId,
-      sourceImageId,
-      params: lineartSchema.parse(params),
-    })
-    if (!result.ok) return result
-    return {
-      ok: true,
-      imageId: result.id,
-      widthPx: result.widthPx,
-      heightPx: result.heightPx,
-      storagePath: result.storagePath,
-    }
-  }
-  const result = await numerateImageAndActivate({
+  const schema = FILTER_SCHEMAS[filterType]
+  const handler = FILTER_HANDLERS[filterType] as (input: {
+    supabase: SupabaseClient<Database>
+    projectId: string
+    sourceImageId: string
+    params: Record<string, unknown>
+  }) => Promise<
+    | { ok: true; id: string; storagePath: string; widthPx: number; heightPx: number }
+    | FilterOpFailure
+  >
+  const result = await handler({
     supabase,
     projectId,
     sourceImageId,
-    params: numerateSchema.parse(params),
+    params: schema.parse(params) as Record<string, unknown>,
   })
   if (!result.ok) return result
   return {

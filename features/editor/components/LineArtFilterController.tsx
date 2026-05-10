@@ -1,5 +1,7 @@
 "use client"
 
+import { lineartFilter } from "@/lib/editor/filters/lineart"
+
 import { BaseFilterController } from "./BaseFilterController"
 import { LineArtForm, type LineArtFormData } from "./lineart-form"
 
@@ -24,8 +26,8 @@ export function LineArtFilterController({
       onClose={onClose}
       onSuccess={onSuccess}
       onError={onError}
-      title="Line Art"
-      description="Create comic-style outlines with edge detection."
+      title={lineartFilter.meta.title}
+      description={lineartFilter.meta.description}
       applyFilter={async (data) => {
         await onApplyFilter({
           filterType: "lineart",

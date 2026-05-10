@@ -1,5 +1,7 @@
 "use client"
 
+import { pixelateFilter } from "@/lib/editor/filters/pixelate"
+
 import { BaseFilterController } from "./BaseFilterController"
 import { PixelateForm, type PixelateFormData } from "./pixelate-form"
 
@@ -28,8 +30,8 @@ export function PixelateFilterController({
       onClose={onClose}
       onSuccess={onSuccess}
       onError={onError}
-      title="Pixelate"
-      description="Configure pixelate filter settings."
+      title={pixelateFilter.meta.title}
+      description={pixelateFilter.meta.description}
       applyFilter={async (data) => {
         await onApplyFilter({
           filterType: "pixelate",

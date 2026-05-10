@@ -14,6 +14,31 @@ export function toInt(value: number): number | null {
   return n
 }
 
+/**
+ * Shared shape for filter-pipeline results. The success branch is the
+ * same for every HTTP-backed filter (one image written to storage);
+ * the failure branch's `stage` discriminates by filter so callers can
+ * tell *which* filter's process step blew up. The generic parameter is
+ * the filter-specific process stage literal (`"pixelate_process"`,
+ * `"lineart_process"`, ...).
+ */
+export type FilterFailStage<TProcess extends string> =
+  | "validation"
+  | "source_lookup"
+  | "lock_conflict"
+  | "source_download"
+  | TProcess
+  | "service_unavailable"
+  | "auth"
+  | "storage_upload"
+  | "db_insert"
+  | "transform_sync"
+  | "active_switch"
+
+export type FilterResult<TProcess extends string> =
+  | { ok: true; id: string; storagePath: string; widthPx: number; heightPx: number }
+  | { ok: false; status: number; stage: FilterFailStage<TProcess>; reason: string; code?: string }
+
 export type OutputFormat = "jpeg" | "png" | "webp"
 
 export function pickOutputFormat(format: string | null | undefined): OutputFormat {

@@ -5,39 +5,10 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/lib/supabase/database.types"
 import { lineartSchema, type LineartParams } from "@/lib/editor/filters/lineart"
 import { copyImageTransform } from "@/services/editor/server/copy-image-transform"
-import { callFilterService, toInt } from "./_helpers"
+import { callFilterService, toInt, type FilterResult } from "./_helpers"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 
-type LineArtFailStage =
-  | "validation"
-  | "source_lookup"
-  | "lock_conflict"
-  | "source_download"
-  | "lineart_process"
-  | "service_unavailable"
-  | "auth"
-  | "storage_upload"
-  | "db_insert"
-  | "transform_sync"
-  | "active_switch"
-
-type LineArtFailure = {
-  ok: false
-  status: number
-  stage: LineArtFailStage
-  reason: string
-  code?: string
-}
-
-type LineArtSuccess = {
-  ok: true
-  id: string
-  storagePath: string
-  widthPx: number
-  heightPx: number
-}
-
-export type LineArtFilterResult = LineArtSuccess | LineArtFailure
+export type LineArtFilterResult = FilterResult<"lineart_process">
 
 export async function lineArtImageAndActivate(args: {
   supabase: SupabaseClient<Database>
