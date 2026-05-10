@@ -35,6 +35,7 @@ jobs:
       has_db:   ${{ steps.filter.outputs.db }}
       has_docs: ${{ steps.filter.outputs.docs }}
       has_ci:   ${{ steps.filter.outputs.ci }}
+      has_ui:   ${{ steps.filter.outputs.ui }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -55,6 +56,13 @@ jobs:
             ci:
               - '.github/**'
               - 'scripts/**'
+            ui:
+              - 'components/**'
+              - 'features/**'
+              - 'app/**/*.tsx'
+              - 'app/**/*.css'
+              - 'lib/forms/**'
+              - 'lib/ui/**'
             code:
               - 'app/**'
               - 'lib/**'
@@ -144,6 +152,9 @@ jobs:
         env:
           SUPABASE_VERIFY_TYPES_SYNC: "1"
         run: npm run verify:types-synced
+
+      - name: Verify schema drift (committed db/schema.sql vs prod dump)
+        run: npm run verify:schema-drift
 
   integration:
     # Integration tests exercise real code paths against a local Supabase.
@@ -281,3 +292,49 @@ jobs:
           name: playwright-flaky-metrics
           path: playwright-report/flaky-summary.json
           retention-days: 30
+
+  # Visual-regression Playwright run (forms.visual.spec.ts). Path-gated
+  # on `ui` so pure logic/services PRs skip it. Replaces the manual visual
+  # step that used to live in pre-release.yml.
+  e2e_visual:
+    needs: detect
+    if: needs.detect.outputs.has_ui == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v5
+        with:
+          path: .playwright-browsers
+          key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      - name: Install Playwright browsers (Chromium)
+        if: ${{ steps.playwright-cache.outputs.cache-hit != 'true' }}
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: .playwright-browsers
+        run: npx -y playwright install --with-deps chromium
+
+      - name: E2E visual (forms.visual.spec.ts)
+        run: npm run test:e2e:visual
+
+      - name: Upload Playwright visual report
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: playwright-visual-report
+          path: playwright-report/
+          retention-days: 7

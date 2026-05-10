@@ -38,10 +38,11 @@ from inheriting fragile work that should have been a fast unit test.
   (`thresholds: lines 24, functions 73, branches 72, statements 24`).
   CI fails if the metric drops. Adjust thresholds upward when adding
   meaningful tests; never lower them to make a red gate green.
-- **E2E grep tags** — `smoke:`, `regression:`, and the `forms.visual`
-  spec are selected via Playwright `--grep` patterns from
-  [package.json](../../package.json). `test:e2e:ci:pr` runs only
-  `smoke:`; `test:e2e:ci:nightly` runs `smoke:|regression:`.
+- **E2E grep tags** — `smoke:` and the `forms.visual` spec are
+  selected via Playwright `--grep` patterns from
+  [package.json](../../package.json). The PR `e2e` job runs `smoke:`;
+  the PR `e2e_visual` job runs `forms.visual.spec.ts` (gated on
+  `has_ui` paths).
 - **Integration test fixtures** are seed-then-cleanup, not shared.
   See [tests/integration/_setup.ts](../../tests/integration/_setup.ts):
   `seedProject({ ownerId? })` + matching `cleanupProject(id)`.
@@ -66,7 +67,7 @@ from inheriting fragile work that should have been a fast unit test.
   needs and cleans up in `afterEach`. Cross-test state coupling
   breaks the suite under reordering.
 - **E2E tags** are mandatory. Untagged Playwright tests are picked
-  up by neither the PR nor the nightly run.
+  up by the PR run.
 - **No mocked Supabase in integration tests** — that's what the unit
   lane is for. If a query "needs a mock", it's a unit test in
   disguise. (See user memory: integration tests must hit real DB.)
@@ -97,7 +98,7 @@ from inheriting fragile work that should have been a fast unit test.
 - [docs/domains/database.md](database.md) — schema/migration setup that
   integration tests exercise.
 - [docs/domains/ci-deploy.md](ci-deploy.md) — how the lanes are wired
-  into PR CI vs. nightly.
+  into the PR CI dispatch.
 - Code: [vitest.config.ts](../../vitest.config.ts:33-58) coverage block;
   [scripts/run-integration-tests.mjs](../../scripts/run-integration-tests.mjs:1-30)
   for the Supabase-boot wrapper.
