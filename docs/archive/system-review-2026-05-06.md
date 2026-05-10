@@ -8,7 +8,7 @@
 ## Context
 
 Stand zwei Wochen nach dem ersten ganzheitlichen App-Review
-(`docs/app-review.md`, 2026-05-05): alle 26 Findings (4 Blockers + 12
+(`docs/archive/app-review.md`, 2026-05-05): alle 26 Findings (4 Blockers + 12
 Smells + 10 Nits) addressiert, plus Filter-Chain-Bugs gefixt (atomic
 `remove_project_image_filter` RPC, `is_hidden` Persistierung,
 chain_invalid UX-Toast), Visual-Baselines auf 9/9 aktiv, CI-Pipeline
@@ -273,8 +273,8 @@ nicht Bugfix).
 
 ## Historie
 
-- 2026-05-05: `docs/app-review.md` — erster Review, 26 Findings.
-- 2026-05-06 (vormittags): `docs/app-review-status.md` — alle 26
+- 2026-05-05: `docs/archive/app-review.md` — erster Review, 26 Findings.
+- 2026-05-06 (vormittags): `docs/archive/app-review-status.md` — alle 26
   Findings adressiert, sys-update merged, Visual-Baselines aktiviert.
 - 2026-05-06 (nachmittags): `bug/filter` merged — atomic remove RPC +
   is_hidden + chain_invalid toast.

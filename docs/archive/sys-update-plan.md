@@ -1,7 +1,7 @@
 # sys-update — Follow-up plan
 
 Single branch (`sys-update`) covering the four "next steps" from
-`docs/app-review-status.md`. One commit per work item so the diff
+`docs/archive/app-review-status.md`. One commit per work item so the diff
 stays reviewable.
 
 ## Items
@@ -98,5 +98,5 @@ PR with 4 distinct commits.
 
 - 4 commits on `sys-update`.
 - `gate:ci` green locally.
-- All 4 follow-up bullets in `docs/app-review-status.md` flipped to
+- All 4 follow-up bullets in `docs/archive/app-review-status.md` flipped to
   ✅ in a final docs commit.

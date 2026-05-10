@@ -2,7 +2,7 @@
 
 > **Status:** 2026-05-09 — file-level review of the filter-stack
 > (UI + Registry + Server + API).
-> Sister-doc to [`forms-primitives-findings.md`](forms-primitives-findings.md)
+> Sister-doc to [`../forms/primitives-findings.md`](../forms/primitives-findings.md)
 > in pattern.
 
 ## Scope
@@ -214,7 +214,7 @@ Feature, nicht Optimierung. „Bullshit-Feature"-Risiko.
 
 ## Quick links
 
-- **Pattern-Referenz:** [forms-primitives-findings.md](forms-primitives-findings.md)
+- **Pattern-Referenz:** [../forms/primitives-findings.md](../forms/primitives-findings.md)
 
 > Der Execution-Plan zu diesem Doc lebt außerhalb des Repos in
 > Claude's Plans-Ordner und ist nach Abschluss aller PRs

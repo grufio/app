@@ -6,11 +6,11 @@
 
 This is the *which primitive should I reach for* doc. Companion docs:
 
-- [`forms-review.md`](forms-review.md) — *why* there are two families
+- [`review.md`](review.md) — *why* there are two families
   of form primitives (default vs panel) at all.
-- [`forms-primitives-inventory.md`](forms-primitives-inventory.md) —
+- [`primitives-inventory.md`](primitives-inventory.md) —
   *what* primitives exist today, with consumer counts and coverage.
-- [`forms-primitives-findings.md`](forms-primitives-findings.md) —
+- [`primitives-findings.md`](primitives-findings.md) —
   *what we found and what to refactor next*.
 
 ---
@@ -102,5 +102,5 @@ Common temptations and the right answer:
 - ❌ Mixing 24px and 36px controls on the same row.
 - ❌ Hardcoding `text-[12px] leading-[24px]` — use `text-panel`.
 - ❌ Hardcoding `bg-zinc-*` / `text-gray-*` shades. Stick to tokens (`bg-foreground`, `bg-accent`, `text-muted-foreground`, etc.). `TabsSidepanel`'s `bg-zinc-200` is the documented exception, not a precedent.
-- ❌ Re-implementing the draft+commit lifecycle. `useFieldDraft` already handles focus/blur/Enter/Escape correctly; building parallel state machines invites the bugs `forms-optimizations.md` describes.
+- ❌ Re-implementing the draft+commit lifecycle. `useFieldDraft` already handles focus/blur/Enter/Escape correctly; building parallel state machines invites the bugs `optimizations.md` describes.
 - ❌ Adding a `disabled` state without testing keyboard tab-skip. Browsers handle `aria-disabled` automatically when the HTML attribute is set; don't pass `aria-disabled={true}` and `disabled={false}`.

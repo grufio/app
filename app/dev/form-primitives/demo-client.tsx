@@ -69,7 +69,7 @@ export function FormPrimitivesDemoClient() {
       <header className="mb-6 space-y-1">
         <h1 className="text-2xl font-semibold">Form primitives gallery</h1>
         <p className="text-sm text-muted-foreground">
-          Dev-only. Inventory: see <code className="font-mono">docs/forms-primitives-inventory.md</code>.
+          Dev-only. Inventory: see <code className="font-mono">docs/forms/primitives-inventory.md</code>.
         </p>
       </header>
 

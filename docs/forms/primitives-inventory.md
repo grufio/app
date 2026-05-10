@@ -1,15 +1,15 @@
 # Form Primitives Inventory
 
 > **Status:** 2026-05-08 — initial snapshot for the forms+components review.
-> Sister-doc to [`forms-review.md`](forms-review.md) (the two-family split)
-> and [`forms-optimizations.md`](forms-optimizations.md) (perf history).
+> Sister-doc to [`review.md`](review.md) (the two-family split)
+> and [`optimizations.md`](optimizations.md) (perf history).
 > This doc is the *what we have today* baseline; refactor decisions live
 > in `/Users/christian/.claude/plans/forms-components-review.md`.
 
 ## Custom Form Primitives — `components/ui/form-controls/`
 
 These power the **24px-style editor panel forms**. For the
-shadcn-default family used elsewhere see [`forms-review.md`](forms-review.md).
+shadcn-default family used elsewhere see [`review.md`](review.md).
 
 | Primitive | File | Purpose | Tokens (theme-conform) | Func coverage | Notes |
 |---|---|---|---|---|---|
@@ -23,7 +23,7 @@ shadcn-default family used elsewhere see [`forms-review.md`](forms-review.md).
 | `AppSelectLabel` | [app-select.tsx](../components/ui/form-controls/app-select.tsx) | Group-label twin of `AppSelectItem` | ✓ (arbitrary) | (in 0/3 above) | Same arbitrary-value note as `AppSelectItem`. |
 | `SelectFieldControl` | [select-field-control.tsx](../components/ui/form-controls/select-field-control.tsx) | `AppSelectTrigger` variant with border/bg stripped for FieldGroup embedding (also `pr-1` for tight chevron) | ✓ | 0/1 | The "embedded" twin of `AppSelectTrigger` — analogous to `<AppInput borderless>` for inputs. |
 | `ColorSwatchControl` | [color-swatch-control.tsx](../components/ui/form-controls/color-swatch-control.tsx) | Native `<input type="color">` styled to fit a `FieldGroup` | ✓ | 0/1 | Used only via `FormField variant="color"`. Could be inlined. |
-| `AppButton` | [app-button.tsx](../components/ui/form-controls/app-button.tsx) | 24px-style button with variants (default/destructive/outline/ghost) and sizes | ✓ | 0/1 | All sizes are `h-6` per `forms-review.md`. Most mature primitive — no known issues. |
+| `AppButton` | [app-button.tsx](../components/ui/form-controls/app-button.tsx) | 24px-style button with variants (default/destructive/outline/ghost) and sizes | ✓ | 0/1 | All sizes are `h-6` per `review.md`. Most mature primitive — no known issues. |
 
 ### Lifecycle / logic helpers (not in `form-controls/`)
 
@@ -123,8 +123,8 @@ design".
 
 - **Plan:** `/Users/christian/.claude/plans/forms-components-review.md`
 - **Demo page (dev only):** [/dev/form-primitives](http://localhost:3000/dev/form-primitives) — 404s in production
-- **Decision tree:** [forms-decision-tree.md](forms-decision-tree.md) — which primitive to reach for
-- **Sizing tokens:** [forms-sizing-tokens.md](forms-sizing-tokens.md) — `text-panel`, `h-6`, etc.
-- **Findings:** [forms-primitives-findings.md](forms-primitives-findings.md) — refactor backlog
-- **Two-family rationale:** [forms-review.md](forms-review.md)
-- **Performance history:** [forms-optimizations.md](forms-optimizations.md)
+- **Decision tree:** [decision-tree.md](decision-tree.md) — which primitive to reach for
+- **Sizing tokens:** [sizing-tokens.md](sizing-tokens.md) — `text-panel`, `h-6`, etc.
+- **Findings:** [primitives-findings.md](primitives-findings.md) — refactor backlog
+- **Two-family rationale:** [review.md](review.md)
+- **Performance history:** [optimizations.md](optimizations.md)
