@@ -53,8 +53,8 @@ env-driven.
 | F12 | Generic `FilterResult<T>` Type | S | ✓ done | PR 1 |
 | F10 | Numerate-Tests auf Pixelate-Niveau | S | ✓ done | PR 1 |
 | F18 | Numerate-Performance-Profiling (User-Pain) | S | ✓ done | PR P |
-| F19 | Shrink Numerate SVG payload (per-rect structure preserved) | M | open | TBD |
-| F20 | Pilot vtracer for both numerate + lineart vectorisation | L | open | TBD |
+| F19 | Shrink Numerate SVG payload (per-rect structure preserved) | M | superseded by F20 | — |
+| F20 | Replace bespoke rect-loop with vtracer (numerate + lineart) | L | open / **next** | TBD |
 | F11 | E2E-Filter-Chain-Roundtrip-Test | M | ✓ done | PR 2 |
 | F5 | Inkonsistente Registry-Metadata in Forms | M | ✓ done | PR 3 |
 | F7 | Generic `<FilterForm>` aus 3 Form-Files | L | ✓ done | PR 4 |
@@ -207,25 +207,14 @@ output (110× larger than pixelate's 13 KB PNG)**. Confirmation:
 - **F16 (per-filter timeout override)** — was *hot if F18 zeigt
   Timeout-Pain*. Python finishes in 51 ms. The 30 s default isn't
   the constraint. **Status: deferred / yagni**.
-- **NEW finding F19 — shrink Numerate SVG payload while keeping
-  per-rect structure** *(open, M)*: the rects can't be flattened
-  into a bitmap because the product later renders **paint-by-
-  numbers labels** *into each `<rect>`* (the "numerate" name).
-  Bitmap-style flattening (data-URL `<image>`, polygon-merge across
-  color clusters) is therefore out of scope. Optimisations that
-  preserve the per-rect anchor:
-  - **(a) Vectorised rects assembly**: replace the 192×108 nested
-    Python loop with numpy-driven bulk-string formatting → drops
-    the 47 ms phase to <5 ms (algorithmic only; payload unchanged).
-  - **(b) `<defs>` + `<use>` palette**: 16-256 color rects re-use
-    a small `<defs>` palette via `<use href="#c12">`. Cuts the
-    `fill="rgb(r,g,b)"` repetition without losing the
-    individually addressable `<rect>` element. Estimated ~40-60%
-    size reduction.
-  - **(c) Server-side `Content-Encoding: gzip`** on the SVG
-    response. SVG markup compresses 10-20×. No structural change;
-    transit-only win, no client-render benefit.
-  Combine (a) for Python latency, (b)+(c) for transit/render.
+- **F19 — shrink Numerate SVG payload while keeping per-rect
+  structure** *(superseded by F20)*: F19 was the tactical menu
+  inside the current rect-string pipeline (numpy-vectorised
+  assembly, `<defs>`+`<use>` palette, gzip transit). Empirical
+  testing of vtracer (see F20) showed that the strategic rewrite
+  is concrete and small enough that any work invested in F19 is
+  thrown away when F20 lands. Status: kept as a fallback if F20's
+  pilot reveals a blocker, otherwise drop.
 
 **Files involved:**
 - `services/editor/server/filters/{numerate,pixelate}.ts` —
@@ -238,70 +227,100 @@ output (110× larger than pixelate's 13 KB PNG)**. Confirmation:
 - `scripts/profile-fixtures/profile-1920x1080.png` — deterministic
   input image.
 
-### F20 — Pilot vtracer for both numerate + lineart vectorisation *(open, L)*
+### F20 — Replace bespoke rect-loop with vtracer for numerate + lineart *(open, L, **next**)*
 
-**Why this exists separately from F19:** F19 is a tactical fix to
-the *current* numerate output (vectorise the Python rects loop, add
-`<defs>`/`<use>` palette, gzip transit). F20 is the strategic
-question: replace the bespoke "for-loop assembling rect strings"
-pipeline with a real vectorisation engine that serves *both* product
-modes through one engine.
+One vectorisation engine for both product modes, replacing the
+20K-rect string loop in numerate and unblocking the
+number-annotation feature on lineart. F19 is sunk-cost-avoidance
+once this is committed.
 
-**Recommendation:** [vtracer](https://github.com/visioncortex/vtracer)
-— Rust core, MIT, actively maintained (0.6.15 March 2026), Python
+**Engine:** [vtracer](https://github.com/visioncortex/vtracer) —
+Rust core, MIT, actively maintained (0.6.15 March 2026), Python
 bindings via PyO3 (`pip install vtracer`), O(n) on image size.
 
-**Why vtracer over the alternatives:**
-- *potrace + pypotrace* — mature but **GPL**, infects the server
-  side. Single-channel only, forces a per-color-layer pipeline.
-- *imagetracerjs* — public domain, but quality + speed lag vtracer
-  noticeably. Useful only as a pure-browser fallback.
-- *[drake7707/paintbynumbersgenerator](https://github.com/drake7707/paintbynumbersgenerator)*
-  — the only off-the-shelf project that does the *whole* paint-by-
-  numbers pipeline (k-means → facet build → wavelet-smoothed
-  contours → numbered SVG), but unmaintained since 2019. Read it as
-  a reference design, don't depend on it.
-- AI/diffusion-based vectorisers — visually nice, lose the discrete
-  labelled-region semantics required for paint-by-numbers.
+**Empirical validation (2026-05-10).** Tested
+`vtracer.convert_pixels_to_svg` on a 200×200 image with a 4×4 grid
+of 50×50 cells, params:
 
-**Pipeline shape:** one engine, two product modes.
-1. Quantize palette in NumPy/sklearn KMeans (already in the codebase
-   for pixelate/numerate).
-2. `vtracer.convert_pixels_to_svg(...)` per quantized layer (or once
-   with `colormode='color'`, `hierarchical='stacked'`) — replaces
-   numerate's 20K-rect string loop with clean polygon paths.
-3. Parse the returned SVG with `lxml`, group paths by fill colour,
-   compute polygon centroids (`shapely` or `cv2.moments`), emit
-   `<text>` labels inside each region.
+```python
+vtracer.convert_pixels_to_svg(
+    rgba_pixels, size=(W, H),
+    colormode="color",
+    mode="polygon",
+    hierarchical="cutout",      # ← key for paint-by-numbers
+    filter_speckle=0,
+    corner_threshold=180,       # 90° corners preserved
+    length_threshold=0,
+    splice_threshold=180,
+    color_precision=8,
+    layer_difference=0,
+)
+```
+
+| Layout | Cells | Path elements | Notes |
+|---|---|---|---|
+| 2×2 blocks per colour (4 colours) | 16 | **4** | Connected same-colour cells merge into 1 polygon → 1 number per region (correct PBN) |
+| Checkerboard (16 alternating R/B) | 16 | **16** | Disconnected same-colour cells stay separate → 1 number per cell |
+| L-shape (red L + blue rest) | 16 | **2** | Each connected component = 1 polygon |
+
+`hierarchical="cutout"` is what we want: each path element is a
+disjoint region with its own `fill`, no background-stack layer.
+With `"stacked"` (the default in many examples) we'd get one path
+per colour with multiple subpaths plus a background-fill layer —
+also workable, but cutout makes number-placement trivial because a
+region == a path == one centroid.
+
+**Pipeline shape (one engine, two modes):**
+1. Quantise palette in NumPy/sklearn KMeans (already in the
+   codebase for pixelate/numerate).
+2. `vtracer.convert_pixels_to_svg(..., hierarchical="cutout")`.
+3. Parse with `lxml`; for each path, compute polygon centroid
+   (shapely / `cv2.moments`); emit `<text>` label using the palette
+   index corresponding to the path's `fill`.
 
 **Per-mode mapping:**
-- *numerate* — feed the uniform-grid quantised image. vtracer
-  collapses adjacent same-colour cells into rect-like polygons,
-  estimated 10–50× SVG size reduction. Numbering hangs off the
-  per-region centroid.
-- *lineart (future, currently unimplemented)* — feed the smoothed
-  / quantised photo. Real organic contours, same labelling code.
-  Closes the constraint that lineart's regions must keep per-
-  contour identity for the same number-annotation flow.
+- *numerate* — feed the uniform-grid quantised image with
+  `corner_threshold=180`, `length_threshold=0` (no smoothing). Cell
+  boundaries stay 90°. Connected same-colour cells correctly merge
+  into one numbered region.
+- *lineart (currently outlines-only; future numbering)* — feed the
+  smoothed/quantised photo with default `corner_threshold` and
+  `mode="spline"` (or `polygon` with non-zero `length_threshold`).
+  Same labelling code attaches numbers to the polygon centroids.
 
-**Constraint check:** vtracer returns one flat SVG string with
-`fill` attributes per shape — per-region structure must be
-recovered by parsing. Not a drop-in: it's a building block. The
-labelling layer (centroid + `<text>` placement) is custom and
-stays under our control.
+**Why not the alternatives:**
+- *potrace + pypotrace* — mature but **GPL** (infects the server),
+  binary-only (forces per-color-layer pipeline).
+- *imagetracerjs* — public domain, browser-friendly, but quality +
+  speed lag vtracer.
+- *[drake7707/paintbynumbersgenerator](https://github.com/drake7707/paintbynumbersgenerator)*
+  — full PBN pipeline (k-means → facets → wavelet-smoothed contours
+  → numbered SVG), but unmaintained since 2019. Read as a reference
+  design for the centroid + label placement heuristics; don't
+  depend on it.
+- AI/diffusion vectorisers — visually nice, lose discrete labelled-
+  region semantics needed for PBN.
 
-**Order vs F19:** F19 buys time inside the current architecture.
-F20 is a 1–2 week pilot (Python sidecar with vtracer call + lxml
-post-process + centroid labelling) to decide whether to retire the
-custom pipeline. Sequence: ship F19 first if numerate pain is
-blocking users; commit to F20 before adding the lineart
-number-annotation feature so both modes share one engine.
+**Pilot scope (1–2 weeks):**
+1. New module `filter-service/app/vectorise.py` — thin vtracer
+   wrapper + lxml post-process + centroid labelling.
+2. Add `vtracer`, `lxml`, `shapely` to
+   `filter-service/requirements.txt`.
+3. New endpoint `/filters/numerate-v2` (or feature-flag the
+   existing one) — same request schema, vtracer-driven response.
+   Run alongside the legacy endpoint; A/B by feature flag.
+4. Profile-script comparison: numerate-v1 vs numerate-v2 on the
+   `scripts/profile-fixtures/profile-1920x1080.png` baseline. Track
+   total ms + output bytes + label-count fidelity (regions before
+   = regions labelled after).
+5. Once parity confirmed, retire the legacy rect-loop endpoint and
+   the `rects` phase entirely. F19 is auto-resolved at that point.
 
 **Files (new):**
-- `filter-service/app/vectorise.py` (new) — vtracer wrapper +
-  centroid labelling.
-- `filter-service/requirements.txt` — add `vtracer`, `lxml`,
-  `shapely`.
+- `filter-service/app/vectorise.py`
+- `filter-service/requirements.txt` (additions)
+- `services/editor/server/filters/numerate.ts` — wire to v2 path
+  via feature flag during pilot.
 
 ### F12 — Generic `FilterResult<T>` Type
 Jeder der 3 Server-Filter definiert lokal `Success`/`Failure`-Types.
