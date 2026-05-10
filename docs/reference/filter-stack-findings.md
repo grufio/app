@@ -270,11 +270,13 @@ landing cleanly.
    `DELETE /projects/:id/trace` (clear). The current
    `/filters/{numerate,lineart}` and `/images/filters` paths stop
    accepting those types.
-5. **Migration** — current rows in `project_image_filters` with
-   `filter_type in ('numerate','lineart')` need a migration plan.
-   Decide at implementation time: best-effort port to the new
-   table, or hard reset of those rows in dev/preview only if no
-   prod data depends on them.
+5. **Migration** — verified 2026-05-10 against the linked prod
+   project (`rfaykmiydsvdhrqngjue`):
+   `SELECT count(*) FROM public.project_image_filters` → **0 rows**.
+   The whole filter-stack table is empty in prod, so F21 can drop /
+   re-model `project_image_filters` (or its numerate / lineart
+   semantics) without any port code. Schema-only migration, no data
+   touched.
 6. **Server-side filter pipeline** — `services/editor/server/
    filter-variants.ts` currently dispatches to all three.
    Numerate + lineart routes move to a new
