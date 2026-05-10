@@ -64,6 +64,31 @@ describe("FILTER_REGISTRY UI hints", () => {
   })
 })
 
+describe("FILTER_REGISTRY UI label coverage", () => {
+  // Form-rendered fields must carry a `label` in the registry so the
+  // dialog and any future generic FilterForm read from one source.
+  // Numerate's superpixel_width / _height are injected by the
+  // controller from Pixelate's grid math (not surfaced in the form),
+  // so they're explicitly excluded here. If a new filter introduces
+  // similar injected-only fields, list them in this map.
+  const FIELDS_NOT_RENDERED_IN_FORM: Partial<Record<keyof typeof FILTER_REGISTRY, ReadonlyArray<string>>> = {
+    numerate: ["superpixel_width", "superpixel_height"],
+  }
+
+  it("each form-rendered ui-hint has a non-empty label", () => {
+    for (const [filterId, filter] of Object.entries(FILTER_REGISTRY)) {
+      if (!filter.ui) continue
+      const skip = new Set(FIELDS_NOT_RENDERED_IN_FORM[filterId as keyof typeof FILTER_REGISTRY] ?? [])
+      for (const [fieldName, hint] of Object.entries(filter.ui)) {
+        if (skip.has(fieldName)) continue
+        const label = (hint as { label?: string }).label
+        expect(typeof label, `${filterId}.${fieldName}.label is missing`).toBe("string")
+        expect((label ?? "").trim().length, `${filterId}.${fieldName}.label is empty`).toBeGreaterThan(0)
+      }
+    }
+  })
+})
+
 describe("FILTER_REGISTRY", () => {
   it("exposes pixelate with id, label, and schema", () => {
     expect(FILTER_REGISTRY.pixelate.id).toBe("pixelate")

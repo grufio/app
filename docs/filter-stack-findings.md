@@ -54,7 +54,7 @@ env-driven.
 | F10 | Numerate-Tests auf Pixelate-Niveau | S | ✓ done | PR 1 |
 | F18 | Numerate-Performance-Profiling (User-Pain) | S | open | PR P |
 | F11 | E2E-Filter-Chain-Roundtrip-Test | M | ✓ done | PR 2 |
-| F5 | Inkonsistente Registry-Metadata in Forms | M | open | PR 3 |
+| F5 | Inkonsistente Registry-Metadata in Forms | M | ✓ done | PR 3 |
 | F7 | Generic `<FilterForm>` aus 3 Form-Files | L | open | PR 4 |
 | F8 | Generic `<FilterController>` aus 3 Controllern | M | open | PR 4 |
 | F4 | Schema 2-3x parsed pro Request | M | absorbed in F9 | — |

@@ -20,8 +20,12 @@ export const numerateFilter = {
     description: "Create a vector grid overlay from pixelated superpixels.",
   },
   ui: {
+    // superpixel_width / _height are injected from the Pixelate filter's
+    // grid math (controller passes them) and not surfaced in the form,
+    // so they intentionally have no `label` here.
     superpixel_width: { min: 1 },
     superpixel_height: { min: 1 },
-    stroke_width: { min: 1, max: 20 },
+    stroke_width: { label: "Vector Line Width (px)", min: 1, max: 20 },
+    show_colors: { label: "Show Colors" },
   },
 } as const satisfies FilterDefinition<typeof numerateSchema>

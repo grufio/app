@@ -28,11 +28,12 @@ export const lineartFilter = {
     description: "Create comic-style outlines with edge detection.",
   },
   ui: {
-    threshold1: { min: 0, max: 500, description: "Lower value = more edges detected (0-500)" },
-    threshold2: { min: 0, max: 500, description: "Must be higher than low threshold" },
-    line_thickness: { min: 1, max: 10, description: "Thickness in pixels (1-10)" },
-    blur_amount: { min: 0, max: 20, description: "Smoothing before edge detection (0-20, 0=no blur)" },
-    min_contour_area: { min: 0, max: 10000, step: 50, description: "Minimum contour area in pixels (removes small details)" },
-    smoothness: { min: 0, max: 0.05, step: 0.001, description: "Curve smoothing (0=sharp corners, 0.02=very smooth)" },
+    threshold1: { label: "Low Threshold", min: 0, max: 500, description: "Lower value = more edges detected (0-500)" },
+    threshold2: { label: "High Threshold", min: 0, max: 500, description: "Must be higher than low threshold" },
+    line_thickness: { label: "Line Thickness", min: 1, max: 10, description: "Thickness in pixels (1-10)" },
+    blur_amount: { label: "Blur Amount", min: 0, max: 20, description: "Smoothing before edge detection (0-20, 0=no blur)" },
+    min_contour_area: { label: "Min. Detail Size", min: 0, max: 10000, step: 50, description: "Minimum contour area in pixels (removes small details)" },
+    smoothness: { label: "Smoothness", min: 0, max: 0.05, step: 0.001, description: "Curve smoothing (0=sharp corners, 0.02=very smooth)" },
+    invert: { label: "Black lines on white background", description: "Unchecked = white lines on black" },
   },
 } as const satisfies FilterDefinition<typeof lineartSchema>

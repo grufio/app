@@ -7,6 +7,13 @@ export type FilterSelectOption = {
 }
 
 export type FilterFieldUI = {
+  /**
+   * Visible label for the form control. Forms must read this from the
+   * registry so the dialog and any future generic FilterForm see the
+   * same text — drift between hardcoded UI strings and registry was
+   * the F5 finding this hint resolves.
+   */
+  label?: string
   min?: number
   max?: number
   step?: number

@@ -20,10 +20,11 @@ export const pixelateFilter = {
     description: "Configure pixelate filter settings.",
   },
   ui: {
-    superpixel_width: { min: 1 },
-    superpixel_height: { min: 1 },
-    num_colors: { min: 2, max: 256 },
+    superpixel_width: { label: "Superpixel Width (px)", min: 1 },
+    superpixel_height: { label: "Superpixel Height (px)", min: 1 },
+    num_colors: { label: "Number of Colors", min: 2, max: 256 },
     color_mode: {
+      label: "Color Mode",
       options: [
         { value: "rgb", label: "RGB" },
         { value: "grayscale", label: "Grayscale" },
