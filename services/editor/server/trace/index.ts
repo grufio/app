@@ -10,7 +10,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
 
-import type { Database } from "@/lib/supabase/database.types"
+import type { Database, Json } from "@/lib/supabase/database.types"
 import { TRACE_REGISTRY, type RegisteredTraceId } from "@/lib/editor/trace/registry"
 import { lineartSchema } from "@/lib/editor/filters/lineart"
 import { numerateSchema } from "@/lib/editor/filters/numerate"
@@ -196,16 +196,15 @@ export async function applyProjectTrace(args: {
     sourceImageDpi = Number(sourceRow.dpi ?? 72)
   }
 
-  type TraceHandlerInput = {
+  const handler = TRACE_HANDLERS[kind] as (input: {
     supabase: SupabaseClient<Database>
     projectId: string
     sourceImageId: string
     params: Record<string, unknown>
-  }
-  type TraceHandlerResult =
+  }) => Promise<
     | { ok: true; id: string; storagePath: string; widthPx: number; heightPx: number }
     | TraceOpFailure
-  const handler = TRACE_HANDLERS[kind] as unknown as (input: TraceHandlerInput) => Promise<TraceHandlerResult>
+  >
   const created = await handler({ supabase, projectId, sourceImageId, params })
   if (!created.ok) return created
 
@@ -227,7 +226,7 @@ export async function applyProjectTrace(args: {
         kind,
         // Schema-validated record is structurally JSON-safe, but the
         // generated DB types insist on a json-typed value here.
-        params: params as unknown as Database["public"]["Tables"]["project_image_trace"]["Insert"]["params"],
+        params: params as Json,
         output_image_id: created.id,
       },
       { onConflict: "project_id" },
