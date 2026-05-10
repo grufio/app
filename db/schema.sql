@@ -1,4 +1,3 @@
-Dumping schemas from local database...
 
 
 
@@ -304,29 +303,6 @@ $$;
 ALTER FUNCTION "public"."guard_master_immutable"() OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."project_grid_sync_spacing_legacy"() RETURNS "trigger"
-    LANGUAGE "plpgsql"
-    AS $$
-begin
-  if new.spacing_x_value is null then
-    new.spacing_x_value := new.spacing_value;
-  end if;
-
-  if new.spacing_y_value is null then
-    new.spacing_y_value := new.spacing_value;
-  end if;
-
-  -- `spacing_value` remains the legacy single-axis column. Mirror X to preserve backwards compatibility.
-  new.spacing_value := new.spacing_x_value;
-
-  return new;
-end
-$$;
-
-
-ALTER FUNCTION "public"."project_grid_sync_spacing_legacy"() OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."project_workspace_sync_px_cache"() RETURNS "trigger"
     LANGUAGE "plpgsql"
     SET "search_path" TO 'public', 'pg_temp'
@@ -543,71 +519,6 @@ $$;
 ALTER FUNCTION "public"."set_active_master_latest"("p_project_id" "uuid") OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."set_active_master_with_state"("p_project_id" "uuid", "p_image_id" "uuid", "p_width_px" integer, "p_height_px" integer) RETURNS "void"
-    LANGUAGE "plpgsql"
-    SET "search_path" TO 'public', 'pg_temp'
-    AS $$
-declare
-  v_w_u bigint;
-  v_h_u bigint;
-  v_artboard_w_u bigint;
-  v_artboard_h_u bigint;
-begin
-  v_w_u := greatest(1, p_width_px)::bigint * 1000000;
-  v_h_u := greatest(1, p_height_px)::bigint * 1000000;
-
-  perform public.set_active_image(p_project_id, p_image_id);
-
-  select
-    case
-      when pw.width_px_u is not null then pw.width_px_u::bigint
-      else greatest(1, pw.width_px)::bigint * 1000000
-    end,
-    case
-      when pw.height_px_u is not null then pw.height_px_u::bigint
-      else greatest(1, pw.height_px)::bigint * 1000000
-    end
-  into v_artboard_w_u, v_artboard_h_u
-  from public.project_workspace pw
-  where pw.project_id = p_project_id;
-
-  if v_artboard_w_u is null then v_artboard_w_u := v_w_u; end if;
-  if v_artboard_h_u is null then v_artboard_h_u := v_h_u; end if;
-
-  insert into public.project_image_state (
-    project_id,
-    role,
-    image_id,
-    x_px_u,
-    y_px_u,
-    width_px_u,
-    height_px_u,
-    rotation_deg
-  ) values (
-    p_project_id,
-    'master',
-    p_image_id,
-    (v_artboard_w_u / 2)::text,
-    (v_artboard_h_u / 2)::text,
-    v_w_u::text,
-    v_h_u::text,
-    0
-  )
-  on conflict (project_id, role)
-  do update
-    set image_id = excluded.image_id,
-        x_px_u = excluded.x_px_u,
-        y_px_u = excluded.y_px_u,
-        width_px_u = excluded.width_px_u,
-        height_px_u = excluded.height_px_u,
-        rotation_deg = excluded.rotation_deg;
-end;
-$$;
-
-
-ALTER FUNCTION "public"."set_active_master_with_state"("p_project_id" "uuid", "p_image_id" "uuid", "p_width_px" integer, "p_height_px" integer) OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."set_active_master_with_state"("p_project_id" "uuid", "p_image_id" "uuid", "p_x_px_u" "text", "p_y_px_u" "text", "p_width_px_u" "text", "p_height_px_u" "text") RETURNS "void"
     LANGUAGE "plpgsql"
     SET "search_path" TO 'public', 'pg_temp'
@@ -670,11 +581,11 @@ CREATE OR REPLACE FUNCTION "public"."set_updated_at"() RETURNS "trigger"
     LANGUAGE "plpgsql"
     SET "search_path" TO 'public', 'pg_temp'
     AS $$
-begin
-  new.updated_at = pg_catalog.now();
-  return new;
-end;
-$$;
+  begin
+    new.updated_at = pg_catalog.now();
+    return new;
+  end;
+  $$;
 
 
 ALTER FUNCTION "public"."set_updated_at"() OWNER TO "postgres";
@@ -682,15 +593,16 @@ ALTER FUNCTION "public"."set_updated_at"() OWNER TO "postgres";
 
 CREATE OR REPLACE FUNCTION "public"."workspace_value_to_px_u"("v" numeric, "u" "public"."measure_unit", "dpi" numeric) RETURNS bigint
     LANGUAGE "sql" IMMUTABLE
+    SET "search_path" TO 'public', 'pg_temp'
     AS $$
-  select case u
-    when 'px' then round(v * 1000000)::bigint
-    when 'mm' then round((v * dpi * 1000000) / 25.4)::bigint
-    when 'cm' then round(((v * 10) * dpi * 1000000) / 25.4)::bigint
-    when 'pt' then round((v * dpi * 1000000) / 72)::bigint
-    else null
-  end
-$$;
+    select case u
+      when 'px' then round(v * 1000000)::bigint
+      when 'mm' then round((v * dpi * 1000000) / 25.4)::bigint
+      when 'cm' then round(((v * 10) * dpi * 1000000) / 25.4)::bigint
+      when 'pt' then round((v * dpi * 1000000) / 72)::bigint
+      else null
+    end
+  $$;
 
 
 ALTER FUNCTION "public"."workspace_value_to_px_u"("v" numeric, "u" "public"."measure_unit", "dpi" numeric) OWNER TO "postgres";
@@ -787,16 +699,18 @@ ALTER FUNCTION "storage"."enforce_bucket_name_length"() OWNER TO "supabase_stora
 
 
 CREATE OR REPLACE FUNCTION "storage"."extension"("name" "text") RETURNS "text"
-    LANGUAGE "plpgsql"
+    LANGUAGE "plpgsql" IMMUTABLE
     AS $$
 DECLARE
-_parts text[];
-_filename text;
+    _parts text[];
+    _filename text;
 BEGIN
-	select string_to_array(name, '/') into _parts;
-	select _parts[array_length(_parts,1)] into _filename;
-	-- @todo return the last part instead of 2
-	return reverse(split_part(reverse(_filename), '.', 1));
+    -- Split on "/" to get path segments
+    SELECT string_to_array(name, '/') INTO _parts;
+    -- Get the last path segment (the actual filename)
+    SELECT _parts[array_length(_parts, 1)] INTO _filename;
+    -- Extract extension: reverse, split on '.', then reverse again
+    RETURN reverse(split_part(reverse(_filename), '.', 1));
 END
 $$;
 
@@ -820,13 +734,15 @@ ALTER FUNCTION "storage"."filename"("name" "text") OWNER TO "supabase_storage_ad
 
 
 CREATE OR REPLACE FUNCTION "storage"."foldername"("name" "text") RETURNS "text"[]
-    LANGUAGE "plpgsql"
+    LANGUAGE "plpgsql" IMMUTABLE
     AS $$
 DECLARE
-_parts text[];
+    _parts text[];
 BEGIN
-	select string_to_array(name, '/') into _parts;
-	return _parts[1:array_length(_parts,1)-1];
+    -- Split on "/" to get path segments
+    SELECT string_to_array(name, '/') INTO _parts;
+    -- Return everything except the last segment
+    RETURN _parts[1 : array_length(_parts,1) - 1];
 END
 $$;
 
@@ -849,11 +765,11 @@ ALTER FUNCTION "storage"."get_common_prefix"("p_key" "text", "p_prefix" "text", 
 
 
 CREATE OR REPLACE FUNCTION "storage"."get_size_by_bucket"() RETURNS TABLE("size" bigint, "bucket_id" "text")
-    LANGUAGE "plpgsql"
+    LANGUAGE "plpgsql" STABLE
     AS $$
 BEGIN
     return query
-        select sum((metadata->>'size')::int) as size, obj.bucket_id
+        select sum((metadata->>'size')::bigint)::bigint as size, obj.bucket_id
         from "storage".objects as obj
         group by obj.bucket_id;
 END
@@ -1635,8 +1551,8 @@ CREATE TABLE IF NOT EXISTS "public"."project_grid" (
     "spacing_y_value" numeric NOT NULL,
     CONSTRAINT "project_grid_line_width_value_check" CHECK (("line_width_value" > (0)::numeric)),
     CONSTRAINT "project_grid_spacing_value_check" CHECK (("spacing_value" > (0)::numeric)),
-    CONSTRAINT "project_grid_spacing_x_positive" CHECK (("spacing_x_value" > (0)::numeric)),
-    CONSTRAINT "project_grid_spacing_y_positive" CHECK (("spacing_y_value" > (0)::numeric))
+    CONSTRAINT "project_grid_spacing_x_positive" CHECK ((("spacing_x_value" IS NULL) OR ("spacing_x_value" > (0)::numeric))),
+    CONSTRAINT "project_grid_spacing_y_positive" CHECK ((("spacing_y_value" IS NULL) OR ("spacing_y_value" > (0)::numeric)))
 );
 
 
@@ -1670,44 +1586,27 @@ CREATE TABLE IF NOT EXISTS "public"."project_image_state" (
     "y" numeric DEFAULT 0 NOT NULL,
     "scale_x" numeric DEFAULT 1 NOT NULL,
     "scale_y" numeric DEFAULT 1 NOT NULL,
+    "rotation_deg" integer DEFAULT 0 NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "width_px" numeric,
     "height_px" numeric,
     "unit" "public"."measure_unit",
     "dpi" numeric,
-    "rotation_deg" integer DEFAULT 0 NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "width_px_u" "text" NOT NULL,
     "height_px_u" "text" NOT NULL,
     "x_px_u" "text",
     "y_px_u" "text",
     "image_id" "uuid" NOT NULL,
-    CONSTRAINT "project_image_state_dpi_check" CHECK ((("dpi" IS NULL) OR ("dpi" > (0)::numeric))),
     CONSTRAINT "project_image_state_dpi_positive" CHECK ((("dpi" IS NULL) OR ("dpi" > (0)::numeric))),
-    CONSTRAINT "project_image_state_height_px_check" CHECK ((("height_px" IS NULL) OR ("height_px" > (0)::numeric))),
     CONSTRAINT "project_image_state_height_px_positive" CHECK ((("height_px" IS NULL) OR ("height_px" > (0)::numeric))),
     CONSTRAINT "project_image_state_scale_x_check" CHECK (("scale_x" > (0)::numeric)),
     CONSTRAINT "project_image_state_scale_y_check" CHECK (("scale_y" > (0)::numeric)),
-    CONSTRAINT "project_image_state_width_px_check" CHECK ((("width_px" IS NULL) OR ("width_px" > (0)::numeric))),
     CONSTRAINT "project_image_state_width_px_positive" CHECK ((("width_px" IS NULL) OR ("width_px" > (0)::numeric)))
 );
 
 
 ALTER TABLE "public"."project_image_state" OWNER TO "postgres";
-
-
-CREATE TABLE IF NOT EXISTS "public"."project_image_trace" (
-    "project_id" "uuid" NOT NULL,
-    "kind" "text" NOT NULL,
-    "params" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
-    "output_image_id" "uuid" NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    CONSTRAINT "project_image_trace_kind_ck" CHECK (("kind" = ANY (ARRAY['numerate'::"text", 'lineart'::"text"])))
-);
-
-
-ALTER TABLE "public"."project_image_trace" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."project_images" (
@@ -1721,19 +1620,18 @@ CREATE TABLE IF NOT EXISTS "public"."project_images" (
     "storage_path" "text" NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "color_space" "public"."color_space",
-    "file_size_bytes" bigint DEFAULT 0 NOT NULL,
-    "dpi" numeric,
     "storage_bucket" "text" DEFAULT 'project_images'::"text" NOT NULL,
     "is_active" boolean DEFAULT false NOT NULL,
     "deleted_at" timestamp with time zone,
+    "color_space" "public"."color_space",
+    "file_size_bytes" bigint DEFAULT 0 NOT NULL,
+    "dpi" numeric,
     "source_image_id" "uuid",
     "crop_rect_px" "jsonb",
     "is_locked" boolean DEFAULT false NOT NULL,
-    "kind" "public"."image_kind" NOT NULL,
     "dpi_x" numeric DEFAULT 72 NOT NULL,
     "dpi_y" numeric DEFAULT 72 NOT NULL,
-    CONSTRAINT "project_images_bit_depth_check" CHECK (("bit_depth" > 0)),
+    "kind" "public"."image_kind" NOT NULL,
     CONSTRAINT "project_images_crop_rect_number_int_ck" CHECK ((("crop_rect_px" IS NULL) OR (("jsonb_typeof"(("crop_rect_px" -> 'x'::"text")) = 'number'::"text") AND ("jsonb_typeof"(("crop_rect_px" -> 'y'::"text")) = 'number'::"text") AND ("jsonb_typeof"(("crop_rect_px" -> 'w'::"text")) = 'number'::"text") AND ("jsonb_typeof"(("crop_rect_px" -> 'h'::"text")) = 'number'::"text") AND (((("crop_rect_px" ->> 'x'::"text"))::numeric % (1)::numeric) = (0)::numeric) AND (((("crop_rect_px" ->> 'y'::"text"))::numeric % (1)::numeric) = (0)::numeric) AND (((("crop_rect_px" ->> 'w'::"text"))::numeric % (1)::numeric) = (0)::numeric) AND (((("crop_rect_px" ->> 'h'::"text"))::numeric % (1)::numeric) = (0)::numeric)))),
     CONSTRAINT "project_images_crop_rect_requires_source_ck" CHECK ((("crop_rect_px" IS NULL) OR ("source_image_id" IS NOT NULL))),
     CONSTRAINT "project_images_crop_rect_shape_ck" CHECK ((("crop_rect_px" IS NULL) OR (("jsonb_typeof"("crop_rect_px") = 'object'::"text") AND ("crop_rect_px" ?& ARRAY['x'::"text", 'y'::"text", 'w'::"text", 'h'::"text"]) AND ((((("crop_rect_px" - 'x'::"text") - 'y'::"text") - 'w'::"text") - 'h'::"text") = '{}'::"jsonb")))),
@@ -1794,13 +1692,13 @@ CREATE TABLE IF NOT EXISTS "public"."project_workspace" (
     "unit" "public"."measure_unit" DEFAULT 'mm'::"public"."measure_unit" NOT NULL,
     "width_value" numeric NOT NULL,
     "height_value" numeric NOT NULL,
-    "width_px" integer NOT NULL,
-    "height_px" integer NOT NULL,
-    "raster_effects_preset" "text",
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "width_px_u" "text" NOT NULL,
     "height_px_u" "text" NOT NULL,
+    "width_px" integer NOT NULL,
+    "height_px" integer NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "raster_effects_preset" "text",
     "page_bg_enabled" boolean DEFAULT false NOT NULL,
     "page_bg_color" "text" DEFAULT '#ffffff'::"text" NOT NULL,
     "page_bg_opacity" integer DEFAULT 50 NOT NULL,
@@ -1907,38 +1805,6 @@ CREATE TABLE IF NOT EXISTS "storage"."buckets_vectors" (
 
 
 ALTER TABLE "storage"."buckets_vectors" OWNER TO "supabase_storage_admin";
-
-
-CREATE TABLE IF NOT EXISTS "storage"."iceberg_namespaces" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "bucket_name" "text" NOT NULL,
-    "name" "text" NOT NULL COLLATE "pg_catalog"."C",
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "metadata" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
-    "catalog_id" "uuid" NOT NULL
-);
-
-
-ALTER TABLE "storage"."iceberg_namespaces" OWNER TO "supabase_storage_admin";
-
-
-CREATE TABLE IF NOT EXISTS "storage"."iceberg_tables" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "namespace_id" "uuid" NOT NULL,
-    "bucket_name" "text" NOT NULL,
-    "name" "text" NOT NULL COLLATE "pg_catalog"."C",
-    "location" "text" NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "remote_table_id" "text",
-    "shard_key" "text",
-    "shard_id" "text",
-    "catalog_id" "uuid" NOT NULL
-);
-
-
-ALTER TABLE "storage"."iceberg_tables" OWNER TO "supabase_storage_admin";
 
 
 CREATE TABLE IF NOT EXISTS "storage"."migrations" (
@@ -2069,11 +1935,6 @@ ALTER TABLE ONLY "public"."project_image_state"
 
 
 
-ALTER TABLE ONLY "public"."project_image_trace"
-    ADD CONSTRAINT "project_image_trace_pkey" PRIMARY KEY ("project_id");
-
-
-
 ALTER TABLE "public"."project_images"
     ADD CONSTRAINT "project_images_non_master_requires_source_kind_ck" CHECK ((("kind" = 'master'::"public"."image_kind") OR ("source_image_id" IS NOT NULL))) NOT VALID;
 
@@ -2131,16 +1992,6 @@ ALTER TABLE ONLY "storage"."buckets"
 
 ALTER TABLE ONLY "storage"."buckets_vectors"
     ADD CONSTRAINT "buckets_vectors_pkey" PRIMARY KEY ("id");
-
-
-
-ALTER TABLE ONLY "storage"."iceberg_namespaces"
-    ADD CONSTRAINT "iceberg_namespaces_pkey" PRIMARY KEY ("id");
-
-
-
-ALTER TABLE ONLY "storage"."iceberg_tables"
-    ADD CONSTRAINT "iceberg_tables_pkey" PRIMARY KEY ("id");
 
 
 
@@ -2234,18 +2085,6 @@ CREATE UNIQUE INDEX "buckets_analytics_unique_name_idx" ON "storage"."buckets_an
 
 
 
-CREATE UNIQUE INDEX "idx_iceberg_namespaces_bucket_id" ON "storage"."iceberg_namespaces" USING "btree" ("catalog_id", "name");
-
-
-
-CREATE UNIQUE INDEX "idx_iceberg_tables_location" ON "storage"."iceberg_tables" USING "btree" ("location");
-
-
-
-CREATE UNIQUE INDEX "idx_iceberg_tables_namespace_id" ON "storage"."iceberg_tables" USING "btree" ("catalog_id", "namespace_id", "name");
-
-
-
 CREATE INDEX "idx_multipart_uploads_list" ON "storage"."s3_multipart_uploads" USING "btree" ("bucket_id", "key", "created_at");
 
 
@@ -2274,10 +2113,6 @@ CREATE OR REPLACE TRIGGER "trg_project_generation_updated_at" BEFORE UPDATE ON "
 
 
 
-CREATE OR REPLACE TRIGGER "trg_project_grid_sync_spacing_legacy" BEFORE INSERT OR UPDATE ON "public"."project_grid" FOR EACH ROW EXECUTE FUNCTION "public"."project_grid_sync_spacing_legacy"();
-
-
-
 CREATE OR REPLACE TRIGGER "trg_project_grid_updated_at" BEFORE UPDATE ON "public"."project_grid" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
 
 
@@ -2287,10 +2122,6 @@ CREATE OR REPLACE TRIGGER "trg_project_image_filters_updated_at" BEFORE UPDATE O
 
 
 CREATE OR REPLACE TRIGGER "trg_project_image_state_updated_at" BEFORE UPDATE ON "public"."project_image_state" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
-
-
-
-CREATE OR REPLACE TRIGGER "trg_project_image_trace_updated_at" BEFORE UPDATE ON "public"."project_image_trace" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
 
 
 
@@ -2374,23 +2205,13 @@ ALTER TABLE ONLY "public"."project_image_state"
 
 
 
-ALTER TABLE ONLY "public"."project_image_trace"
-    ADD CONSTRAINT "project_image_trace_output_image_id_fkey" FOREIGN KEY ("output_image_id") REFERENCES "public"."project_images"("id") ON DELETE RESTRICT;
-
-
-
-ALTER TABLE ONLY "public"."project_image_trace"
-    ADD CONSTRAINT "project_image_trace_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."project_images"
     ADD CONSTRAINT "project_images_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE CASCADE;
 
 
 
 ALTER TABLE ONLY "public"."project_images"
-    ADD CONSTRAINT "project_images_source_image_id_fkey" FOREIGN KEY ("source_image_id") REFERENCES "public"."project_images"("id") ON DELETE RESTRICT;
+    ADD CONSTRAINT "project_images_source_image_id_fkey" FOREIGN KEY ("source_image_id") REFERENCES "public"."project_images"("id") ON DELETE CASCADE;
 
 
 
@@ -2416,21 +2237,6 @@ ALTER TABLE ONLY "public"."project_workspace"
 
 ALTER TABLE ONLY "public"."projects"
     ADD CONSTRAINT "projects_owner_id_fkey" FOREIGN KEY ("owner_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
-
-
-
-ALTER TABLE ONLY "storage"."iceberg_namespaces"
-    ADD CONSTRAINT "iceberg_namespaces_catalog_id_fkey" FOREIGN KEY ("catalog_id") REFERENCES "storage"."buckets_analytics"("id") ON DELETE CASCADE;
-
-
-
-ALTER TABLE ONLY "storage"."iceberg_tables"
-    ADD CONSTRAINT "iceberg_tables_catalog_id_fkey" FOREIGN KEY ("catalog_id") REFERENCES "storage"."buckets_analytics"("id") ON DELETE CASCADE;
-
-
-
-ALTER TABLE ONLY "storage"."iceberg_tables"
-    ADD CONSTRAINT "iceberg_tables_namespace_id_fkey" FOREIGN KEY ("namespace_id") REFERENCES "storage"."iceberg_namespaces"("id") ON DELETE CASCADE;
 
 
 
@@ -2462,7 +2268,33 @@ ALTER TABLE ONLY "storage"."vector_indexes"
 ALTER TABLE "public"."project_filter_settings" ENABLE ROW LEVEL SECURITY;
 
 
+CREATE POLICY "project_filter_settings_delete_owner" ON "public"."project_filter_settings" FOR DELETE USING (("project_id" IN ( SELECT "projects"."id"
+   FROM "public"."projects"
+  WHERE ("projects"."owner_id" = "auth"."uid"()))));
+
+
+
+CREATE POLICY "project_filter_settings_insert_owner" ON "public"."project_filter_settings" FOR INSERT WITH CHECK (("project_id" IN ( SELECT "projects"."id"
+   FROM "public"."projects"
+  WHERE ("projects"."owner_id" = "auth"."uid"()))));
+
+
+
 CREATE POLICY "project_filter_settings_owner_all" ON "public"."project_filter_settings" USING (("project_id" IN ( SELECT "projects"."id"
+   FROM "public"."projects"
+  WHERE ("projects"."owner_id" = "auth"."uid"())))) WITH CHECK (("project_id" IN ( SELECT "projects"."id"
+   FROM "public"."projects"
+  WHERE ("projects"."owner_id" = "auth"."uid"()))));
+
+
+
+CREATE POLICY "project_filter_settings_select_owner" ON "public"."project_filter_settings" FOR SELECT USING (("project_id" IN ( SELECT "projects"."id"
+   FROM "public"."projects"
+  WHERE ("projects"."owner_id" = "auth"."uid"()))));
+
+
+
+CREATE POLICY "project_filter_settings_update_owner" ON "public"."project_filter_settings" FOR UPDATE USING (("project_id" IN ( SELECT "projects"."id"
    FROM "public"."projects"
   WHERE ("projects"."owner_id" = "auth"."uid"())))) WITH CHECK (("project_id" IN ( SELECT "projects"."id"
    FROM "public"."projects"
@@ -2473,7 +2305,33 @@ CREATE POLICY "project_filter_settings_owner_all" ON "public"."project_filter_se
 ALTER TABLE "public"."project_generation" ENABLE ROW LEVEL SECURITY;
 
 
+CREATE POLICY "project_generation_delete_owner" ON "public"."project_generation" FOR DELETE USING (("project_id" IN ( SELECT "projects"."id"
+   FROM "public"."projects"
+  WHERE ("projects"."owner_id" = "auth"."uid"()))));
+
+
+
+CREATE POLICY "project_generation_insert_owner" ON "public"."project_generation" FOR INSERT WITH CHECK (("project_id" IN ( SELECT "projects"."id"
+   FROM "public"."projects"
+  WHERE ("projects"."owner_id" = "auth"."uid"()))));
+
+
+
 CREATE POLICY "project_generation_owner_all" ON "public"."project_generation" USING (("project_id" IN ( SELECT "projects"."id"
+   FROM "public"."projects"
+  WHERE ("projects"."owner_id" = "auth"."uid"())))) WITH CHECK (("project_id" IN ( SELECT "projects"."id"
+   FROM "public"."projects"
+  WHERE ("projects"."owner_id" = "auth"."uid"()))));
+
+
+
+CREATE POLICY "project_generation_select_owner" ON "public"."project_generation" FOR SELECT USING (("project_id" IN ( SELECT "projects"."id"
+   FROM "public"."projects"
+  WHERE ("projects"."owner_id" = "auth"."uid"()))));
+
+
+
+CREATE POLICY "project_generation_update_owner" ON "public"."project_generation" FOR UPDATE USING (("project_id" IN ( SELECT "projects"."id"
    FROM "public"."projects"
   WHERE ("projects"."owner_id" = "auth"."uid"())))) WITH CHECK (("project_id" IN ( SELECT "projects"."id"
    FROM "public"."projects"
@@ -2484,7 +2342,25 @@ CREATE POLICY "project_generation_owner_all" ON "public"."project_generation" US
 ALTER TABLE "public"."project_grid" ENABLE ROW LEVEL SECURITY;
 
 
-CREATE POLICY "project_grid_owner_all" ON "public"."project_grid" USING (("project_id" IN ( SELECT "projects"."id"
+CREATE POLICY "project_grid_delete_owner" ON "public"."project_grid" FOR DELETE USING (("project_id" IN ( SELECT "projects"."id"
+   FROM "public"."projects"
+  WHERE ("projects"."owner_id" = "auth"."uid"()))));
+
+
+
+CREATE POLICY "project_grid_insert_owner" ON "public"."project_grid" FOR INSERT WITH CHECK (("project_id" IN ( SELECT "projects"."id"
+   FROM "public"."projects"
+  WHERE ("projects"."owner_id" = "auth"."uid"()))));
+
+
+
+CREATE POLICY "project_grid_select_owner" ON "public"."project_grid" FOR SELECT USING (("project_id" IN ( SELECT "projects"."id"
+   FROM "public"."projects"
+  WHERE ("projects"."owner_id" = "auth"."uid"()))));
+
+
+
+CREATE POLICY "project_grid_update_owner" ON "public"."project_grid" FOR UPDATE USING (("project_id" IN ( SELECT "projects"."id"
    FROM "public"."projects"
   WHERE ("projects"."owner_id" = "auth"."uid"())))) WITH CHECK (("project_id" IN ( SELECT "projects"."id"
    FROM "public"."projects"
@@ -2524,36 +2400,25 @@ CREATE POLICY "project_image_filters_owner_update" ON "public"."project_image_fi
 ALTER TABLE "public"."project_image_state" ENABLE ROW LEVEL SECURITY;
 
 
-CREATE POLICY "project_image_state_owner_all" ON "public"."project_image_state" USING (("project_id" IN ( SELECT "projects"."id"
-   FROM "public"."projects"
-  WHERE ("projects"."owner_id" = "auth"."uid"())))) WITH CHECK (("project_id" IN ( SELECT "projects"."id"
+CREATE POLICY "project_image_state_delete_owner" ON "public"."project_image_state" FOR DELETE USING (("project_id" IN ( SELECT "projects"."id"
    FROM "public"."projects"
   WHERE ("projects"."owner_id" = "auth"."uid"()))));
 
 
 
-ALTER TABLE "public"."project_image_trace" ENABLE ROW LEVEL SECURITY;
-
-
-CREATE POLICY "project_image_trace_owner_delete" ON "public"."project_image_trace" FOR DELETE USING (("project_id" IN ( SELECT "projects"."id"
+CREATE POLICY "project_image_state_insert_owner" ON "public"."project_image_state" FOR INSERT WITH CHECK (("project_id" IN ( SELECT "projects"."id"
    FROM "public"."projects"
   WHERE ("projects"."owner_id" = "auth"."uid"()))));
 
 
 
-CREATE POLICY "project_image_trace_owner_insert" ON "public"."project_image_trace" FOR INSERT WITH CHECK (("project_id" IN ( SELECT "projects"."id"
+CREATE POLICY "project_image_state_select_owner" ON "public"."project_image_state" FOR SELECT USING (("project_id" IN ( SELECT "projects"."id"
    FROM "public"."projects"
   WHERE ("projects"."owner_id" = "auth"."uid"()))));
 
 
 
-CREATE POLICY "project_image_trace_owner_select" ON "public"."project_image_trace" FOR SELECT USING (("project_id" IN ( SELECT "projects"."id"
-   FROM "public"."projects"
-  WHERE ("projects"."owner_id" = "auth"."uid"()))));
-
-
-
-CREATE POLICY "project_image_trace_owner_update" ON "public"."project_image_trace" FOR UPDATE USING (("project_id" IN ( SELECT "projects"."id"
+CREATE POLICY "project_image_state_update_owner" ON "public"."project_image_state" FOR UPDATE USING (("project_id" IN ( SELECT "projects"."id"
    FROM "public"."projects"
   WHERE ("projects"."owner_id" = "auth"."uid"())))) WITH CHECK (("project_id" IN ( SELECT "projects"."id"
    FROM "public"."projects"
@@ -2564,15 +2429,15 @@ CREATE POLICY "project_image_trace_owner_update" ON "public"."project_image_trac
 ALTER TABLE "public"."project_images" ENABLE ROW LEVEL SECURITY;
 
 
-CREATE POLICY "project_images_delete_owner" ON "public"."project_images" FOR DELETE USING ((EXISTS ( SELECT 1
-   FROM "public"."projects" "p"
-  WHERE (("p"."id" = "project_images"."project_id") AND ("p"."owner_id" = "auth"."uid"())))));
+CREATE POLICY "project_images_delete_owner" ON "public"."project_images" FOR DELETE USING (("project_id" IN ( SELECT "projects"."id"
+   FROM "public"."projects"
+  WHERE ("projects"."owner_id" = "auth"."uid"()))));
 
 
 
-CREATE POLICY "project_images_insert_owner" ON "public"."project_images" FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
-   FROM "public"."projects" "p"
-  WHERE (("p"."id" = "project_images"."project_id") AND ("p"."owner_id" = "auth"."uid"())))));
+CREATE POLICY "project_images_insert_owner" ON "public"."project_images" FOR INSERT WITH CHECK (("project_id" IN ( SELECT "projects"."id"
+   FROM "public"."projects"
+  WHERE ("projects"."owner_id" = "auth"."uid"()))));
 
 
 
@@ -2602,24 +2467,13 @@ CREATE POLICY "project_images_owner_update" ON "public"."project_images" FOR UPD
 
 
 
-CREATE POLICY "project_images_select_owner" ON "public"."project_images" FOR SELECT USING ((EXISTS ( SELECT 1
-   FROM "public"."projects" "p"
-  WHERE (("p"."id" = "project_images"."project_id") AND ("p"."owner_id" = "auth"."uid"())))));
+CREATE POLICY "project_images_select_owner" ON "public"."project_images" FOR SELECT USING (("project_id" IN ( SELECT "projects"."id"
+   FROM "public"."projects"
+  WHERE ("projects"."owner_id" = "auth"."uid"()))));
 
 
 
-CREATE POLICY "project_images_update_owner" ON "public"."project_images" FOR UPDATE USING ((EXISTS ( SELECT 1
-   FROM "public"."projects" "p"
-  WHERE (("p"."id" = "project_images"."project_id") AND ("p"."owner_id" = "auth"."uid"()))))) WITH CHECK ((EXISTS ( SELECT 1
-   FROM "public"."projects" "p"
-  WHERE (("p"."id" = "project_images"."project_id") AND ("p"."owner_id" = "auth"."uid"())))));
-
-
-
-ALTER TABLE "public"."project_pdfs" ENABLE ROW LEVEL SECURITY;
-
-
-CREATE POLICY "project_pdfs_owner_all" ON "public"."project_pdfs" USING (("project_id" IN ( SELECT "projects"."id"
+CREATE POLICY "project_images_update_owner" ON "public"."project_images" FOR UPDATE USING (("project_id" IN ( SELECT "projects"."id"
    FROM "public"."projects"
   WHERE ("projects"."owner_id" = "auth"."uid"())))) WITH CHECK (("project_id" IN ( SELECT "projects"."id"
    FROM "public"."projects"
@@ -2627,7 +2481,54 @@ CREATE POLICY "project_pdfs_owner_all" ON "public"."project_pdfs" USING (("proje
 
 
 
-CREATE POLICY "project_vec_owner_all" ON "public"."project_vectorization_settings" USING (("project_id" IN ( SELECT "projects"."id"
+ALTER TABLE "public"."project_pdfs" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "project_pdfs_delete_owner" ON "public"."project_pdfs" FOR DELETE USING (("project_id" IN ( SELECT "projects"."id"
+   FROM "public"."projects"
+  WHERE ("projects"."owner_id" = "auth"."uid"()))));
+
+
+
+CREATE POLICY "project_pdfs_insert_owner" ON "public"."project_pdfs" FOR INSERT WITH CHECK (("project_id" IN ( SELECT "projects"."id"
+   FROM "public"."projects"
+  WHERE ("projects"."owner_id" = "auth"."uid"()))));
+
+
+
+CREATE POLICY "project_pdfs_select_owner" ON "public"."project_pdfs" FOR SELECT USING (("project_id" IN ( SELECT "projects"."id"
+   FROM "public"."projects"
+  WHERE ("projects"."owner_id" = "auth"."uid"()))));
+
+
+
+CREATE POLICY "project_pdfs_update_owner" ON "public"."project_pdfs" FOR UPDATE USING (("project_id" IN ( SELECT "projects"."id"
+   FROM "public"."projects"
+  WHERE ("projects"."owner_id" = "auth"."uid"())))) WITH CHECK (("project_id" IN ( SELECT "projects"."id"
+   FROM "public"."projects"
+  WHERE ("projects"."owner_id" = "auth"."uid"()))));
+
+
+
+CREATE POLICY "project_vec_delete_owner" ON "public"."project_vectorization_settings" FOR DELETE USING (("project_id" IN ( SELECT "projects"."id"
+   FROM "public"."projects"
+  WHERE ("projects"."owner_id" = "auth"."uid"()))));
+
+
+
+CREATE POLICY "project_vec_insert_owner" ON "public"."project_vectorization_settings" FOR INSERT WITH CHECK (("project_id" IN ( SELECT "projects"."id"
+   FROM "public"."projects"
+  WHERE ("projects"."owner_id" = "auth"."uid"()))));
+
+
+
+CREATE POLICY "project_vec_select_owner" ON "public"."project_vectorization_settings" FOR SELECT USING (("project_id" IN ( SELECT "projects"."id"
+   FROM "public"."projects"
+  WHERE ("projects"."owner_id" = "auth"."uid"()))));
+
+
+
+CREATE POLICY "project_vec_update_owner" ON "public"."project_vectorization_settings" FOR UPDATE USING (("project_id" IN ( SELECT "projects"."id"
    FROM "public"."projects"
   WHERE ("projects"."owner_id" = "auth"."uid"())))) WITH CHECK (("project_id" IN ( SELECT "projects"."id"
    FROM "public"."projects"
@@ -2641,7 +2542,25 @@ ALTER TABLE "public"."project_vectorization_settings" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."project_workspace" ENABLE ROW LEVEL SECURITY;
 
 
-CREATE POLICY "project_workspace_owner_all" ON "public"."project_workspace" USING (("project_id" IN ( SELECT "projects"."id"
+CREATE POLICY "project_workspace_delete_owner" ON "public"."project_workspace" FOR DELETE USING (("project_id" IN ( SELECT "projects"."id"
+   FROM "public"."projects"
+  WHERE ("projects"."owner_id" = "auth"."uid"()))));
+
+
+
+CREATE POLICY "project_workspace_insert_owner" ON "public"."project_workspace" FOR INSERT WITH CHECK (("project_id" IN ( SELECT "projects"."id"
+   FROM "public"."projects"
+  WHERE ("projects"."owner_id" = "auth"."uid"()))));
+
+
+
+CREATE POLICY "project_workspace_select_owner" ON "public"."project_workspace" FOR SELECT USING (("project_id" IN ( SELECT "projects"."id"
+   FROM "public"."projects"
+  WHERE ("projects"."owner_id" = "auth"."uid"()))));
+
+
+
+CREATE POLICY "project_workspace_update_owner" ON "public"."project_workspace" FOR UPDATE USING (("project_id" IN ( SELECT "projects"."id"
    FROM "public"."projects"
   WHERE ("projects"."owner_id" = "auth"."uid"())))) WITH CHECK (("project_id" IN ( SELECT "projects"."id"
    FROM "public"."projects"
@@ -2680,16 +2599,36 @@ ALTER TABLE "storage"."buckets_analytics" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "storage"."buckets_vectors" ENABLE ROW LEVEL SECURITY;
 
 
-ALTER TABLE "storage"."iceberg_namespaces" ENABLE ROW LEVEL SECURITY;
-
-
-ALTER TABLE "storage"."iceberg_tables" ENABLE ROW LEVEL SECURITY;
-
-
 ALTER TABLE "storage"."migrations" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "storage"."objects" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "project_images_storage_delete_owner" ON "storage"."objects" FOR DELETE USING ((("bucket_id" = 'project_images'::"text") AND ("name" ~ '^projects/[0-9a-fA-F-]{36}/images/.+'::"text") AND (EXISTS ( SELECT 1
+   FROM "public"."projects" "p"
+  WHERE ((("p"."id")::"text" = "substring"("objects"."name", '^projects/([0-9a-fA-F-]{36})/'::"text")) AND ("p"."owner_id" = "auth"."uid"()))))));
+
+
+
+CREATE POLICY "project_images_storage_insert_owner" ON "storage"."objects" FOR INSERT WITH CHECK ((("bucket_id" = 'project_images'::"text") AND ("name" ~ '^projects/[0-9a-fA-F-]{36}/images/.+'::"text") AND (EXISTS ( SELECT 1
+   FROM "public"."projects" "p"
+  WHERE ((("p"."id")::"text" = "substring"("objects"."name", '^projects/([0-9a-fA-F-]{36})/'::"text")) AND ("p"."owner_id" = "auth"."uid"()))))));
+
+
+
+CREATE POLICY "project_images_storage_select_owner" ON "storage"."objects" FOR SELECT USING ((("bucket_id" = 'project_images'::"text") AND ("name" ~ '^projects/[0-9a-fA-F-]{36}/images/.+'::"text") AND (EXISTS ( SELECT 1
+   FROM "public"."projects" "p"
+  WHERE ((("p"."id")::"text" = "substring"("objects"."name", '^projects/([0-9a-fA-F-]{36})/'::"text")) AND ("p"."owner_id" = "auth"."uid"()))))));
+
+
+
+CREATE POLICY "project_images_storage_update_owner" ON "storage"."objects" FOR UPDATE USING ((("bucket_id" = 'project_images'::"text") AND ("name" ~ '^projects/[0-9a-fA-F-]{36}/images/.+'::"text") AND (EXISTS ( SELECT 1
+   FROM "public"."projects" "p"
+  WHERE ((("p"."id")::"text" = "substring"("objects"."name", '^projects/([0-9a-fA-F-]{36})/'::"text")) AND ("p"."owner_id" = "auth"."uid"())))))) WITH CHECK ((("bucket_id" = 'project_images'::"text") AND ("name" ~ '^projects/[0-9a-fA-F-]{36}/images/.+'::"text") AND (EXISTS ( SELECT 1
+   FROM "public"."projects" "p"
+  WHERE ((("p"."id")::"text" = "substring"("objects"."name", '^projects/([0-9a-fA-F-]{36})/'::"text")) AND ("p"."owner_id" = "auth"."uid"()))))));
+
 
 
 ALTER TABLE "storage"."s3_multipart_uploads" ENABLE ROW LEVEL SECURITY;
@@ -2741,12 +2680,6 @@ GRANT ALL ON FUNCTION "public"."guard_master_immutable"() TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."project_grid_sync_spacing_legacy"() TO "anon";
-GRANT ALL ON FUNCTION "public"."project_grid_sync_spacing_legacy"() TO "authenticated";
-GRANT ALL ON FUNCTION "public"."project_grid_sync_spacing_legacy"() TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."project_workspace_sync_px_cache"() TO "anon";
 GRANT ALL ON FUNCTION "public"."project_workspace_sync_px_cache"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."project_workspace_sync_px_cache"() TO "service_role";
@@ -2780,12 +2713,6 @@ GRANT ALL ON FUNCTION "public"."set_active_master_image"("p_project_id" "uuid", 
 GRANT ALL ON FUNCTION "public"."set_active_master_latest"("p_project_id" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."set_active_master_latest"("p_project_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."set_active_master_latest"("p_project_id" "uuid") TO "service_role";
-
-
-
-GRANT ALL ON FUNCTION "public"."set_active_master_with_state"("p_project_id" "uuid", "p_image_id" "uuid", "p_width_px" integer, "p_height_px" integer) TO "anon";
-GRANT ALL ON FUNCTION "public"."set_active_master_with_state"("p_project_id" "uuid", "p_image_id" "uuid", "p_width_px" integer, "p_height_px" integer) TO "authenticated";
-GRANT ALL ON FUNCTION "public"."set_active_master_with_state"("p_project_id" "uuid", "p_image_id" "uuid", "p_width_px" integer, "p_height_px" integer) TO "service_role";
 
 
 
@@ -2837,12 +2764,6 @@ GRANT ALL ON TABLE "public"."project_image_state" TO "service_role";
 
 
 
-GRANT ALL ON TABLE "public"."project_image_trace" TO "anon";
-GRANT ALL ON TABLE "public"."project_image_trace" TO "authenticated";
-GRANT ALL ON TABLE "public"."project_image_trace" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."project_images" TO "anon";
 GRANT ALL ON TABLE "public"."project_images" TO "authenticated";
 GRANT ALL ON TABLE "public"."project_images" TO "service_role";
@@ -2885,10 +2806,12 @@ GRANT ALL ON SEQUENCE "public"."schema_migrations_id_seq" TO "service_role";
 
 
 
-GRANT ALL ON TABLE "storage"."buckets" TO "postgres" WITH GRANT OPTION;
+REVOKE ALL ON TABLE "storage"."buckets" FROM "supabase_storage_admin";
+GRANT ALL ON TABLE "storage"."buckets" TO "supabase_storage_admin" WITH GRANT OPTION;
 GRANT ALL ON TABLE "storage"."buckets" TO "service_role";
 GRANT ALL ON TABLE "storage"."buckets" TO "authenticated";
 GRANT ALL ON TABLE "storage"."buckets" TO "anon";
+GRANT ALL ON TABLE "storage"."buckets" TO "postgres" WITH GRANT OPTION;
 
 
 
@@ -2904,22 +2827,12 @@ GRANT SELECT ON TABLE "storage"."buckets_vectors" TO "anon";
 
 
 
-GRANT ALL ON TABLE "storage"."iceberg_namespaces" TO "service_role";
-GRANT SELECT ON TABLE "storage"."iceberg_namespaces" TO "authenticated";
-GRANT SELECT ON TABLE "storage"."iceberg_namespaces" TO "anon";
-
-
-
-GRANT ALL ON TABLE "storage"."iceberg_tables" TO "service_role";
-GRANT SELECT ON TABLE "storage"."iceberg_tables" TO "authenticated";
-GRANT SELECT ON TABLE "storage"."iceberg_tables" TO "anon";
-
-
-
-GRANT ALL ON TABLE "storage"."objects" TO "postgres" WITH GRANT OPTION;
+REVOKE ALL ON TABLE "storage"."objects" FROM "supabase_storage_admin";
+GRANT ALL ON TABLE "storage"."objects" TO "supabase_storage_admin" WITH GRANT OPTION;
 GRANT ALL ON TABLE "storage"."objects" TO "service_role";
 GRANT ALL ON TABLE "storage"."objects" TO "authenticated";
 GRANT ALL ON TABLE "storage"."objects" TO "anon";
+GRANT ALL ON TABLE "storage"."objects" TO "postgres" WITH GRANT OPTION;
 
 
 
@@ -2993,35 +2906,67 @@ ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "storage" GRANT ALL ON TA
 
 
 
-<claude-code-hint v="1" type="plugin" value="supabase@claude-plugins-official" />
 
 
--- Prod-side storage.objects policies (preserved from prior db:dump --linked).
--- Local Supabase does not seed these; they live in Supabase Studio /
--- service-role-applied state. Keep this block in sync with prod when
--- regenerating db/schema.sql.
-CREATE POLICY "project_images_storage_delete_owner" ON "storage"."objects" FOR DELETE USING ((("bucket_id" = 'project_images'::"text") AND ("name" ~ '^projects/[0-9a-fA-F-]{36}/images/.+'::"text") AND (EXISTS ( SELECT 1
-   FROM "public"."projects" "p"
-  WHERE ((("p"."id")::"text" = "substring"("objects"."name", '^projects/([0-9a-fA-F-]{36})/'::"text")) AND ("p"."owner_id" = "auth"."uid"()))))));
+-- F21 PR1: project_image_trace (single-row Trace artefact per project).
+-- Manually appended because the table isn't deployed to prod yet — once
+-- the deploy workflow applies the migration, the next db:dump --linked
+-- regen will absorb this section into its canonical place in the dump.
+
+CREATE TABLE IF NOT EXISTS "public"."project_image_trace" (
+    "project_id" "uuid" NOT NULL,
+    "kind" "text" NOT NULL,
+    "params" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
+    "output_image_id" "uuid" NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "project_image_trace_kind_ck" CHECK (("kind" = ANY (ARRAY['numerate'::"text", 'lineart'::"text"])))
+);
 
 
-
-CREATE POLICY "project_images_storage_insert_owner" ON "storage"."objects" FOR INSERT WITH CHECK ((("bucket_id" = 'project_images'::"text") AND ("name" ~ '^projects/[0-9a-fA-F-]{36}/images/.+'::"text") AND (EXISTS ( SELECT 1
-   FROM "public"."projects" "p"
-  WHERE ((("p"."id")::"text" = "substring"("objects"."name", '^projects/([0-9a-fA-F-]{36})/'::"text")) AND ("p"."owner_id" = "auth"."uid"()))))));
+ALTER TABLE "public"."project_image_trace" OWNER TO "postgres";
 
 
-
-CREATE POLICY "project_images_storage_select_owner" ON "storage"."objects" FOR SELECT USING ((("bucket_id" = 'project_images'::"text") AND ("name" ~ '^projects/[0-9a-fA-F-]{36}/images/.+'::"text") AND (EXISTS ( SELECT 1
-   FROM "public"."projects" "p"
-  WHERE ((("p"."id")::"text" = "substring"("objects"."name", '^projects/([0-9a-fA-F-]{36})/'::"text")) AND ("p"."owner_id" = "auth"."uid"()))))));
+ALTER TABLE ONLY "public"."project_image_trace"
+    ADD CONSTRAINT "project_image_trace_pkey" PRIMARY KEY ("project_id");
 
 
-
-CREATE POLICY "project_images_storage_update_owner" ON "storage"."objects" FOR UPDATE USING ((("bucket_id" = 'project_images'::"text") AND ("name" ~ '^projects/[0-9a-fA-F-]{36}/images/.+'::"text") AND (EXISTS ( SELECT 1
-   FROM "public"."projects" "p"
-  WHERE ((("p"."id")::"text" = "substring"("objects"."name", '^projects/([0-9a-fA-F-]{36})/'::"text")) AND ("p"."owner_id" = "auth"."uid"())))))) WITH CHECK ((("bucket_id" = 'project_images'::"text") AND ("name" ~ '^projects/[0-9a-fA-F-]{36}/images/.+'::"text") AND (EXISTS ( SELECT 1
-   FROM "public"."projects" "p"
-  WHERE ((("p"."id")::"text" = "substring"("objects"."name", '^projects/([0-9a-fA-F-]{36})/'::"text")) AND ("p"."owner_id" = "auth"."uid"()))))));
+ALTER TABLE ONLY "public"."project_image_trace"
+    ADD CONSTRAINT "project_image_trace_output_image_id_fkey" FOREIGN KEY ("output_image_id") REFERENCES "public"."project_images"("id") ON DELETE RESTRICT;
 
 
+ALTER TABLE ONLY "public"."project_image_trace"
+    ADD CONSTRAINT "project_image_trace_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE CASCADE;
+
+
+ALTER TABLE "public"."project_image_trace" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "project_image_trace_owner_select" ON "public"."project_image_trace" USING (("project_id" IN ( SELECT "projects"."id"
+   FROM "public"."projects"
+  WHERE ("projects"."owner_id" = "auth"."uid"()))));
+
+
+CREATE POLICY "project_image_trace_owner_insert" ON "public"."project_image_trace" FOR INSERT WITH CHECK (("project_id" IN ( SELECT "projects"."id"
+   FROM "public"."projects"
+  WHERE ("projects"."owner_id" = "auth"."uid"()))));
+
+
+CREATE POLICY "project_image_trace_owner_update" ON "public"."project_image_trace" FOR UPDATE USING (("project_id" IN ( SELECT "projects"."id"
+   FROM "public"."projects"
+  WHERE ("projects"."owner_id" = "auth"."uid"())))) WITH CHECK (("project_id" IN ( SELECT "projects"."id"
+   FROM "public"."projects"
+  WHERE ("projects"."owner_id" = "auth"."uid"()))));
+
+
+CREATE POLICY "project_image_trace_owner_delete" ON "public"."project_image_trace" FOR DELETE USING (("project_id" IN ( SELECT "projects"."id"
+   FROM "public"."projects"
+  WHERE ("projects"."owner_id" = "auth"."uid"()))));
+
+
+CREATE OR REPLACE TRIGGER "trg_project_image_trace_updated_at" BEFORE UPDATE ON "public"."project_image_trace" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
+
+
+GRANT ALL ON TABLE "public"."project_image_trace" TO "anon";
+GRANT ALL ON TABLE "public"."project_image_trace" TO "authenticated";
+GRANT ALL ON TABLE "public"."project_image_trace" TO "service_role";

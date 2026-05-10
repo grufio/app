@@ -78,6 +78,29 @@ if (committed === fresh) {
   process.exit(0)
 }
 
+// Distinguish two failure modes (mirrors the verify:types-synced
+// softener):
+//   (a) committed is a strict superset of fresh — committed has
+//       additions over prod, no removals. That's a pending migration
+//       in this PR; prod can't possibly contain it yet. Soft-skip
+//       with WARN; verify:remote-migrations covers the deploy gap.
+//   (b) Anything else — fresh has lines committed lacks, OR the two
+//       diverge on the same key. Real drift; hard fail.
+// The "set" comparison ignores line ORDER, which is correct because
+// pg_dump versions across CI runners can emit identical schemas with
+// reshuffled SET / GRANT / CREATE statements.
+const committedLineSet = new Set(committed.split("\n"))
+const freshLineList = fresh.split("\n")
+const freshOnly = freshLineList.filter((line) => !committedLineSet.has(line))
+
+if (freshOnly.length === 0) {
+  console.warn(
+    "[verify-schema-drift] WARN: db/schema.sql has additions over the fresh dump — likely a pending migration in this PR.",
+  )
+  console.warn("Skipping strict equality; verify:remote-migrations covers the deploy gap.")
+  process.exit(0)
+}
+
 // Show a short diff snippet — full diff is in tmp dir for inspection.
 const committedLines = committed.split("\n")
 const freshLines = fresh.split("\n")
