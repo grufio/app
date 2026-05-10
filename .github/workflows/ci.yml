@@ -30,56 +30,59 @@ jobs:
   detect:
     runs-on: ubuntu-latest
     timeout-minutes: 2
-    # dorny/paths-filter calls the GitHub API to fetch the PR's changed
-    # files. Default workflow permissions in private repos is contents:read
-    # only — explicit pull-requests: read needed.
-    permissions:
-      contents: read
-      pull-requests: read
     outputs:
-      has_code: ${{ steps.filter.outputs.code }}
-      has_db:   ${{ steps.filter.outputs.db }}
-      has_docs: ${{ steps.filter.outputs.docs }}
-      has_ci:   ${{ steps.filter.outputs.ci }}
-      has_ui:   ${{ steps.filter.outputs.ui }}
+      has_code: ${{ steps.filter.outputs.has_code }}
+      has_db:   ${{ steps.filter.outputs.has_db }}
+      has_docs: ${{ steps.filter.outputs.has_docs }}
+      has_ci:   ${{ steps.filter.outputs.has_ci }}
+      has_ui:   ${{ steps.filter.outputs.has_ui }}
     steps:
       - uses: actions/checkout@v5
         with:
-          fetch-depth: 2
+          # Need full history so we can diff against the PR base ref
+          # (or the previous main commit on push events).
+          fetch-depth: 0
+
       - id: filter
-        uses: dorny/paths-filter@v3
-        with:
-          filters: |
-            docs:
-              - 'docs/**'
-              - '*.md'
-              - 'CLAUDE.md'
-            db:
-              - 'supabase/migrations/**'
-              - 'supabase/config.toml'
-              - 'db/**'
-              - 'lib/supabase/database.types.ts'
-            ci:
-              - '.github/**'
-              - 'scripts/**'
-            ui:
-              - 'components/**'
-              - 'features/**'
-              - 'app/**/*.tsx'
-              - 'app/**/*.css'
-              - 'lib/forms/**'
-              - 'lib/ui/**'
-            code:
-              - 'app/**'
-              - 'lib/**'
-              - 'services/**'
-              - 'features/**'
-              - 'components/**'
-              - 'tests/**'
-              - 'e2e/**'
-              - 'package*.json'
-              - '*.config.ts'
-              - '*.config.mjs'
+        name: Compute changed-path flags via git diff
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="origin/${{ github.event.pull_request.base.ref }}"
+          else
+            BASE="HEAD~1"
+          fi
+
+          if FILES=$(git diff --name-only "$BASE..HEAD" 2>/dev/null); then
+            echo "Comparing against $BASE"
+          else
+            echo "::warning::could not diff against $BASE — treating all files as changed"
+            FILES=$(git ls-files)
+          fi
+
+          echo "Changed files:"
+          echo "$FILES" | sed 's/^/  /'
+          echo "---"
+
+          # A category matches if any line of $FILES matches the regex.
+          match() { echo "$FILES" | grep -qE "$1"; }
+
+          has_docs=false; match '^docs/|^[^/]+\.md$|^CLAUDE\.md$'                                                && has_docs=true
+          has_db=false;   match '^supabase/migrations/|^supabase/config\.toml$|^db/|^lib/supabase/database\.types\.ts$' && has_db=true
+          has_ci=false;   match '^\.github/|^scripts/'                                                            && has_ci=true
+          has_ui=false;   match '^components/|^features/|^app/.+\.tsx$|^app/.+\.css$|^lib/forms/|^lib/ui/'        && has_ui=true
+          has_code=false; match '^app/|^lib/|^services/|^features/|^components/|^tests/|^e2e/|^package.*\.json$|^[^/]+\.config\.(ts|mjs)$' && has_code=true
+
+          {
+            echo "has_docs=$has_docs"
+            echo "has_db=$has_db"
+            echo "has_ci=$has_ci"
+            echo "has_ui=$has_ui"
+            echo "has_code=$has_code"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "Outputs: docs=$has_docs db=$has_db ci=$has_ci ui=$has_ui code=$has_code"
 
   lint_test:
     runs-on: ubuntu-latest
