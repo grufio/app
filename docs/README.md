@@ -17,6 +17,7 @@ the docs tree.
 | [specs/](specs/) | Formal `.mdx` specs with field-level invariants (image-state-api, sizing-invariants, etc.). |
 | [qa/](qa/) | Manual QA checklists + the should/is matrix that decides what gets E2E coverage. |
 | [ci/](ci/) | GitHub Actions pipeline doc + template. |
+| [playbooks/](playbooks/) | End-to-end task recipes ("how do I run the full squash again?"). Captures lessons learned across PRs. |
 | [runbooks/](runbooks/) | Operational procedures (rollback, access management, sprint rollouts). |
 | [performance/](performance/) | Performance guardrails + caching/auth deep-dive. |
 
@@ -37,6 +38,7 @@ the docs tree.
 4. **A retrospective/review of a past push** → add to `archive/`
    with a `> Status: closed (YYYY-MM-DD)` banner.
 5. **An ops procedure** → `runbooks/`.
+6. **A "how do I do X end-to-end again?" recipe** → `playbooks/`.
 
 If unsure, default to `reference/`. It's easier to move a doc
 later than to invent a new bucket.
