@@ -16,18 +16,18 @@ being touched.
 
 | Status | File | Domain | Routes to |
 |---|---|---|---|
-| 🚧 | `image-editor.md` | Konva canvas, master/working/asset images, set-active-master flow | [lib/editor/](../../lib/editor/), [services/editor/](../../services/editor/) |
-| 🔗 | `image-state.md` | `project_image_state` row binding, `px_u` coordinate system, version chain | [docs/reference/persistence.md](../reference/persistence.md), [docs/specs/image-state-api.mdx](../specs/image-state-api.mdx) |
+| ✓ | `image-editor.md` | Konva canvas, master/working/filter-working-copy images, set-active-master flow | [lib/editor/](../../lib/editor/), [services/editor/](../../services/editor/) |
+| 🔗 | `image-state.md` | `project_image_state` row binding, `px_u` coordinate system, NOT-NULL invariants | [docs/reference/persistence.md](../reference/persistence.md), [docs/specs/image-state-api.mdx](../specs/image-state-api.mdx) |
 | 🔗 | `filter-pipeline.md` | Frontend filter forms → API → Python filter-service | [docs/reference/filter-stack-findings.md](../reference/filter-stack-findings.md), [docs/reference/filter-service.md](../reference/filter-service.md) |
 | 🔗 | `forms.md` | 24px grid, primitives, draft-reducer pattern | [docs/forms/primitives-inventory.md](../forms/primitives-inventory.md), [docs/forms/decision-tree.md](../forms/decision-tree.md) |
-| 🚧 | `api-architecture.md` | Next.js App Router patterns, auth wrapper, jsonError convention, caching | [app/api/](../../app/api/), [docs/reference/api-route-caching-audit.md](../reference/api-route-caching-audit.md) |
-| 🚧 | `project-lifecycle.md` | Project create / soft-delete (atomic RPC), generation table, master-image guard | [services/projects/](../../services/projects/), `delete_project` RPC |
+| ✓ | `api-architecture.md` | Next.js App Router patterns, jsonError convention, requireUser/readJson guards | [app/api/](../../app/api/), [docs/reference/api-route-caching-audit.md](../reference/api-route-caching-audit.md) |
+| ✓ | `project-lifecycle.md` | Project create + hard-delete (atomic RPC + advisory lock), master-immutable bypass | [services/projects/](../../services/projects/), `delete_project` RPC |
 | 🔗 | `auth-rls.md` | Owner-only RLS, service-role bypass rules, `auth.uid()` policies | [docs/security/supabase-rls.md](../security/supabase-rls.md), [docs/checklists/rls.md](../checklists/rls.md) |
-| 🚧 | `storage.md` | `project_images` bucket, path convention, master/working/filter-working-copy upload flow | [lib/storage/](../../lib/storage/) |
+| ✓ | `storage.md` | `project_images` bucket, path convention, kind enum, soft-delete semantics | [lib/storage/](../../lib/storage/) |
 | 🔗 | `database.md` | Migrations workflow, squashed baseline, schema-drift gates | [docs/reference/migrations.md](../reference/migrations.md), [docs/reference/db-review.md](../reference/db-review.md) |
-| 🚧 | `testing-strategy.md` | Vitest unit + integration (real local Supabase), Playwright smoke/nightly/visual | [tests/integration/](../../tests/integration/), [e2e/](../../e2e/) |
+| ✓ | `testing-strategy.md` | Vitest unit + integration (real local Supabase), Playwright smoke + visual | [tests/integration/](../../tests/integration/), [e2e/](../../e2e/) |
 | 🔗 | `ci-deploy.md` | GitHub Actions workflows, deploy.yml approval gate, Vercel hook | [docs/ci/README.md](../ci/README.md), [docs/checklists/release.md](../checklists/release.md) |
-| 🌱 | `undo-history.md` | Currently on branch `feat/undo-foundation`; not yet on main | n/a |
+| 🌱 | (no file) | Undo / history — currently on branch `feat/undo-foundation`; create `undo-history.md` when merged | n/a |
 
 ## Per-domain doc structure
 

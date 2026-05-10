@@ -39,7 +39,7 @@ Cloud Run filter-service in Python.
 | Database (migrations, schema-drift gates) | [supabase/migrations/](supabase/migrations/), [db/schema.sql](db/schema.sql) | [docs/domains/database.md](docs/domains/database.md) |
 | Testing (vitest, integration, Playwright) | [tests/integration/](tests/integration/), [e2e/](e2e/) | [docs/domains/testing-strategy.md](docs/domains/testing-strategy.md) |
 | CI / Deploy | [.github/workflows/](.github/workflows/), [scripts/](scripts/) | [docs/domains/ci-deploy.md](docs/domains/ci-deploy.md) |
-| Undo / history | branch `feat/undo-foundation` (not on main yet) | [docs/domains/undo-history.md](docs/domains/undo-history.md) |
+| Undo / history | branch `feat/undo-foundation` (not on main yet) | _(no doc yet — add when feature lands)_ |
 
 ## Read me first — repo conventions
 
