@@ -53,7 +53,7 @@ env-driven.
 | F12 | Generic `FilterResult<T>` Type | S | ✓ done | PR 1 |
 | F10 | Numerate-Tests auf Pixelate-Niveau | S | ✓ done | PR 1 |
 | F18 | Numerate-Performance-Profiling (User-Pain) | S | ✓ done | PR P |
-| F19 | Collapse Numerate SVG rect spam (1.49 MB → ~30 KB) | M | open | TBD |
+| F19 | Shrink Numerate SVG payload (per-rect structure preserved) | M | open | TBD |
 | F11 | E2E-Filter-Chain-Roundtrip-Test | M | ✓ done | PR 2 |
 | F5 | Inkonsistente Registry-Metadata in Forms | M | ✓ done | PR 3 |
 | F7 | Generic `<FilterForm>` aus 3 Form-Files | L | ✓ done | PR 4 |
@@ -206,12 +206,25 @@ output (110× larger than pixelate's 13 KB PNG)**. Confirmation:
 - **F16 (per-filter timeout override)** — was *hot if F18 zeigt
   Timeout-Pain*. Python finishes in 51 ms. The 30 s default isn't
   the constraint. **Status: deferred / yagni**.
-- **NEW finding F19 — collapse SVG rect spam** *(open, M)*: replace
-  the 20K-rect color layer with either (a) a `<image>` referencing
-  the pixelated PNG inlined as data-URL (huge size cut, small
-  decode hit on the client), or (b) numpy-vectorised string
-  assembly (drops the 47 ms loop to <5 ms). Either independently
-  cuts the pain.
+- **NEW finding F19 — shrink Numerate SVG payload while keeping
+  per-rect structure** *(open, M)*: the rects can't be flattened
+  into a bitmap because the product later renders **paint-by-
+  numbers labels** *into each `<rect>`* (the "numerate" name).
+  Bitmap-style flattening (data-URL `<image>`, polygon-merge across
+  color clusters) is therefore out of scope. Optimisations that
+  preserve the per-rect anchor:
+  - **(a) Vectorised rects assembly**: replace the 192×108 nested
+    Python loop with numpy-driven bulk-string formatting → drops
+    the 47 ms phase to <5 ms (algorithmic only; payload unchanged).
+  - **(b) `<defs>` + `<use>` palette**: 16-256 color rects re-use
+    a small `<defs>` palette via `<use href="#c12">`. Cuts the
+    `fill="rgb(r,g,b)"` repetition without losing the
+    individually addressable `<rect>` element. Estimated ~40-60%
+    size reduction.
+  - **(c) Server-side `Content-Encoding: gzip`** on the SVG
+    response. SVG markup compresses 10-20×. No structural change;
+    transit-only win, no client-render benefit.
+  Combine (a) for Python latency, (b)+(c) for transit/render.
 
 **Files involved:**
 - `services/editor/server/filters/{numerate,pixelate}.ts` —
