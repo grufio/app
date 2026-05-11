@@ -1960,7 +1960,6 @@ CREATE INDEX "project_image_filters_project_order_idx" ON "public"."project_imag
 
 
 
-CREATE INDEX "project_image_state_project_role_image_idx" ON "public"."project_image_state" USING "btree" ("project_id", "role", "image_id");
 
 
 
