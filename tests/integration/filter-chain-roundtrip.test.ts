@@ -76,7 +76,7 @@ describe("filter chain round-trip", () => {
       sourceImageId: out2.imageId,
     })
 
-    const append = async (input: string, output: string, type: "pixelate" | "lineart" | "numerate") => {
+    const append = async (input: string, output: string, type: "pixelate") => {
       const { data, error } = await supabase.rpc("append_project_image_filter", {
         p_project_id: projectId!,
         p_input_image_id: input,
@@ -88,8 +88,8 @@ describe("filter chain round-trip", () => {
     }
 
     const f1 = await append(master.imageId, out1.imageId, "pixelate")
-    const f2 = await append(out1.imageId, out2.imageId, "lineart")
-    const f3 = await append(out2.imageId, out3.imageId, "numerate")
+    const f2 = await append(out1.imageId, out2.imageId, "pixelate")
+    const f3 = await append(out2.imageId, out3.imageId, "pixelate")
 
     const { data: chain } = await supabase
       .from("project_image_filters")
@@ -169,7 +169,7 @@ describe("filter chain round-trip", () => {
       sourceImageId: out1.imageId,
     })
 
-    const append = async (input: string, output: string, type: "pixelate" | "lineart" | "numerate") => {
+    const append = async (input: string, output: string, type: "pixelate") => {
       const { data, error } = await supabase.rpc("append_project_image_filter", {
         p_project_id: projectId!,
         p_input_image_id: input,
@@ -181,7 +181,7 @@ describe("filter chain round-trip", () => {
     }
 
     const f1 = await append(master.imageId, out1.imageId, "pixelate")
-    const f2 = await append(out1.imageId, out2.imageId, "lineart")
+    const f2 = await append(out1.imageId, out2.imageId, "pixelate")
 
     const { error: removeErr } = await supabase.rpc("remove_project_image_filter", {
       p_project_id: projectId!,

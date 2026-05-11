@@ -2,7 +2,7 @@
 
 import { useMemo, useReducer } from "react"
 
-export type EditorSidepanelTab = "image" | "filter" | "colors" | "output"
+export type EditorSidepanelTab = "image" | "filter" | "trace" | "colors" | "output"
 
 export type SessionState = {
   restoreOpen: boolean

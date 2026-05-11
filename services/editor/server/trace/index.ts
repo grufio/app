@@ -12,14 +12,14 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database, Json } from "@/lib/supabase/database.types"
 import { TRACE_REGISTRY, type RegisteredTraceId } from "@/lib/editor/trace/registry"
-import { lineartSchema } from "@/lib/editor/filters/lineart"
-import { numerateSchema } from "@/lib/editor/filters/numerate"
+import { lineartSchema } from "@/lib/editor/trace/lineart"
+import { numerateSchema } from "@/lib/editor/trace/numerate"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 import { getEditorTargetImageRow } from "@/lib/supabase/project-images"
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role"
 import { activateProjectImage } from "@/services/editor/server/activate-project-image"
-import { lineArtImageAndActivate } from "@/services/editor/server/filters/lineart"
-import { numerateImageAndActivate } from "@/services/editor/server/filters/numerate"
+import { lineArtImageAndActivate } from "@/services/editor/server/trace/lineart"
+import { numerateImageAndActivate } from "@/services/editor/server/trace/numerate"
 
 export type TraceOpFailure = {
   ok: false

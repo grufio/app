@@ -4,17 +4,14 @@
  * Sister to `FILTER_REGISTRY` in `lib/editor/filters/registry.ts`;
  * the two share the same `FilterDefinition` shape but live on
  * separate surfaces (filter is stackable, trace is mutually
- * exclusive). PR 1 of F21 is strictly additive: numerate and
- * lineart still live in `lib/editor/filters/` so the legacy
- * Filter dialog keeps working until PR 2 lands the new Trace tab
- * and physically moves the files.
+ * exclusive — one active per project).
  */
-import { lineartFilter } from "@/lib/editor/filters/lineart"
-import { numerateFilter } from "@/lib/editor/filters/numerate"
+import { lineartTrace } from "./lineart"
+import { numerateTrace } from "./numerate"
 
 export const TRACE_REGISTRY = {
-  numerate: numerateFilter,
-  lineart: lineartFilter,
+  numerate: numerateTrace,
+  lineart: lineartTrace,
 } as const
 
 export type RegisteredTraceId = keyof typeof TRACE_REGISTRY

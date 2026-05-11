@@ -2,7 +2,7 @@
 
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
-export type SidepanelTab = "image" | "filter" | "colors" | "output"
+export type SidepanelTab = "image" | "filter" | "trace" | "colors" | "output"
 
 export function TabsSidepanel(props: {
   activeTab: SidepanelTab
@@ -40,6 +40,14 @@ export function TabsSidepanel(props: {
             aria-controls="editor-left-tabs-content-filter"
           >
             Filter
+          </TabsTrigger>
+          <TabsTrigger
+            value="trace"
+            className={sidePanelTabsTriggerClass}
+            id="editor-left-tabs-trigger-trace"
+            aria-controls="editor-left-tabs-content-trace"
+          >
+            Trace
           </TabsTrigger>
           <TabsTrigger
             value="colors"

@@ -26,7 +26,7 @@ export function createImageWorkflowMachine() {
     },
     actors: {
       applyFilter: fromPromise(
-        async ({ input }: { input: { services: ImageWorkflowServices; filterType: "pixelate" | "lineart" | "numerate"; filterParams: Record<string, unknown> } }) => {
+        async ({ input }: { input: { services: ImageWorkflowServices; filterType: "pixelate"; filterParams: Record<string, unknown> } }) => {
           await input.services.applyFilter({
             filterType: input.filterType,
             filterParams: input.filterParams,

@@ -3,9 +3,9 @@ import crypto from "node:crypto"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/lib/supabase/database.types"
-import { numerateSchema, type NumerateParams } from "@/lib/editor/filters/numerate"
+import { numerateSchema, type NumerateParams } from "@/lib/editor/trace/numerate"
 import { copyImageTransform } from "@/services/editor/server/copy-image-transform"
-import { callFilterService, startFilterProfiler, toInt, type FilterResult } from "./_helpers"
+import { callFilterService, startFilterProfiler, toInt, type FilterResult } from "@/services/editor/server/filters/_helpers"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 
 export type NumerateFilterResult = FilterResult<"numerate_process">

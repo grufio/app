@@ -5,23 +5,19 @@ import { GenericFilterController } from "@/features/editor/components/filter-for
 
 export function EditorDialogHost(props: {
   selectionOpen: boolean
-  activeFilterType: "pixelate" | "lineart" | "numerate" | null
+  activeFilterType: "pixelate" | null
   filterDialogSource: { sourceImageUrl: string; sourceImageWidth: number; sourceImageHeight: number } | null
-  numerateSuperpixelWidth: number
-  numerateSuperpixelHeight: number
   onCloseSelection: () => void
-  onSelectFilterType: (filterType: "pixelate" | "lineart" | "numerate") => void
+  onSelectFilterType: (filterType: "pixelate") => void
   onCloseConfigure: () => void
   onSuccess: () => void
   onError: (error: Error) => void
-  onApplyFilter: (args: { filterType: "pixelate" | "lineart" | "numerate"; filterParams: Record<string, unknown> }) => Promise<void>
+  onApplyFilter: (args: { filterType: "pixelate"; filterParams: Record<string, unknown> }) => Promise<void>
 }) {
   const {
     selectionOpen,
     activeFilterType,
     filterDialogSource,
-    numerateSuperpixelWidth,
-    numerateSuperpixelHeight,
     onCloseSelection,
     onSelectFilterType,
     onCloseConfigure,
@@ -44,8 +40,6 @@ export function EditorDialogHost(props: {
           ctx={{
             imageWidth: filterDialogSource.sourceImageWidth,
             imageHeight: filterDialogSource.sourceImageHeight,
-            numerateSuperpixelWidth,
-            numerateSuperpixelHeight,
           }}
           open
           onClose={onCloseConfigure}
