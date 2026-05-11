@@ -154,12 +154,17 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
             rotateDisabled={Boolean(toolbar.rotateDisabled)}
           />
         </div>
-        {masterImage && imageStateLoading ? (
-          // Image-state still loading: same Konva-frame skeleton as the
-          // dynamic-import fallback. Layout stable, but visible feedback.
-          <CanvasBootSkeleton />
-        ) : (
-          <ProjectCanvasStage
+        {/*
+         * `imageStateLoading` is true on every `loadImageState` refresh
+         * (e.g. after a Trace Apply when `activeSnapshotImageId` flips
+         * from working-copy to trace_svg). The skeleton-swap that used
+         * to live here unmounted `ProjectCanvasStage`, which discarded
+         * the in-component `stateSyncGuard` — the new mount started
+         * with `userChanged = false` and the initial-placement
+         * controller silently overwrote the user's resize with
+         * fit-to-artboard. Keep the canvas mounted across loads.
+         */}
+        <ProjectCanvasStage
             ref={canvasRef}
             src={masterImage?.signedUrl ?? undefined}
             activeImageId={masterImage?.id ?? null}
@@ -204,7 +209,6 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
             onImageTransformCommit={masterImage ? saveImageState : undefined}
             onCropDblClick={onCropDblClick}
           />
-        )}
 
       </div>
     </div>
