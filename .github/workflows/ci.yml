@@ -14,6 +14,11 @@ on:
 # warning and lets us catch any incompatibility early.
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  # Soft-fail the e2e_visual job until Linux baselines for
+  # forms.visual.spec.ts are committed (only chromium-darwin baselines
+  # exist today). Flip to "false" in one place when baselines land —
+  # see e2e_visual job below.
+  E2E_VISUAL_SOFT_FAIL: "true"
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -31,14 +36,12 @@ jobs:
     outputs:
       has_code: ${{ steps.filter.outputs.has_code }}
       has_db:   ${{ steps.filter.outputs.has_db }}
-      has_docs: ${{ steps.filter.outputs.has_docs }}
       has_ci:   ${{ steps.filter.outputs.has_ci }}
       has_ui:   ${{ steps.filter.outputs.has_ui }}
     steps:
       - uses: actions/checkout@v5
         with:
-          # Need full history so we can diff against the PR base ref
-          # (or the previous main commit on push events).
+          # Need full history so we can diff against the PR base ref.
           fetch-depth: 0
 
       - id: filter
@@ -46,11 +49,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            BASE="origin/${{ github.event.pull_request.base.ref }}"
-          else
-            BASE="HEAD~1"
-          fi
+          BASE="origin/${{ github.event.pull_request.base.ref }}"
 
           if FILES=$(git diff --name-only "$BASE..HEAD" 2>/dev/null); then
             echo "Comparing against $BASE"
@@ -66,21 +65,19 @@ jobs:
           # A category matches if any line of $FILES matches the regex.
           match() { echo "$FILES" | grep -qE "$1"; }
 
-          has_docs=false; match '^docs/|^[^/]+\.md$|^CLAUDE\.md$'                                                && has_docs=true
           has_db=false;   match '^supabase/migrations/|^supabase/config\.toml$|^db/|^lib/supabase/database\.types\.ts$' && has_db=true
           has_ci=false;   match '^\.github/|^scripts/'                                                            && has_ci=true
           has_ui=false;   match '^components/|^features/|^app/.+\.tsx$|^app/.+\.css$|^lib/forms/|^lib/ui/'        && has_ui=true
           has_code=false; match '^app/|^lib/|^services/|^features/|^components/|^tests/|^e2e/|^package.*\.json$|^[^/]+\.config\.(ts|mjs)$' && has_code=true
 
           {
-            echo "has_docs=$has_docs"
             echo "has_db=$has_db"
             echo "has_ci=$has_ci"
             echo "has_ui=$has_ui"
             echo "has_code=$has_code"
           } >> "$GITHUB_OUTPUT"
 
-          echo "Outputs: docs=$has_docs db=$has_db ci=$has_ci ui=$has_ui code=$has_code"
+          echo "Outputs: db=$has_db ci=$has_ci ui=$has_ui code=$has_code"
 
   lint_test:
     runs-on: ubuntu-latest
@@ -204,7 +201,12 @@ jobs:
         id: setup-supabase
         uses: supabase/setup-cli@v1
         with:
-          version: latest
+          # Same pin as remote_verify + deploy.yml + drift-check.yml.
+          # Local `supabase start` doesn't share state with --linked
+          # calls, so the pin isn't strictly required here, but version
+          # parity across jobs avoids surprises when CLI behaviour
+          # changes between minor releases.
+          version: 2.98.2
 
       # `supabase start` pulls ~10 service container images (~1.5 GB total)
       # on every cold runner. Caching them keeps the integration job to a
@@ -337,14 +339,14 @@ jobs:
         run: npx -y playwright install --with-deps chromium
 
       - name: E2E visual (forms.visual.spec.ts)
-        # Pre-existing infra gap: only chromium-darwin baselines exist
-        # under e2e/forms.visual.spec.ts-snapshots/. CI runs on linux,
-        # so every test reports "snapshot doesn't exist". Don't block
-        # the gate over it — the playwright report is still uploaded
-        # so reviewers can eyeball the actual rendering. Convert to
-        # blocking once linux baselines are committed (run
-        # `npm run test:e2e:visual:update` in a Linux container).
-        continue-on-error: true
+        # Soft-fail gated on E2E_VISUAL_SOFT_FAIL (workflow-level env).
+        # Currently "true" because only chromium-darwin baselines exist
+        # under e2e/forms.visual.spec.ts-snapshots/, and CI runs on
+        # linux, so every test reports "snapshot doesn't exist". Once
+        # linux baselines land (run `npm run test:e2e:visual:update`
+        # in a Linux container, commit the new snapshot files), flip
+        # E2E_VISUAL_SOFT_FAIL to "false" at the top of this workflow.
+        continue-on-error: ${{ env.E2E_VISUAL_SOFT_FAIL == 'true' }}
         run: npm run test:e2e:visual
 
       - name: Upload Playwright visual report
