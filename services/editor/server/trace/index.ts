@@ -165,35 +165,99 @@ export async function applyProjectTrace(args: {
   }
   const params = parsedParams.data as Record<string, unknown>
 
-  const activeLookup = await getEditorTargetImageRow(supabase, projectId)
-  if (activeLookup.error) {
-    return { ok: false, status: 400, stage: "active_lookup", reason: activeLookup.error.reason, code: activeLookup.error.code }
-  }
-  const active = activeLookup.row
-  if (!active?.id) {
-    return { ok: false, status: 404, stage: "active_lookup", reason: "No active image found" }
-  }
+  // Trace operates on the BITMAP that sits "below" the filter chain
+  // — pixelate-tip if any pixelate filters exist, otherwise the
+  // master / working-copy row. The active image (used everywhere
+  // else in the editor) may be the previous trace's SVG output,
+  // which is the wrong source: trace pipelines want bitmap pixels,
+  // and re-using a prior trace would feed SVG bytes into the
+  // Python image-decode step.
+  //
+  // Order of preference:
+  //   1. explicit `source_image_id` in params (legacy override)
+  //   2. latest pixelate filter-chain output (project_image_filters)
+  //   3. project's working_copy (kind='working_copy')
+  //   4. master image (kind='master')
   const requestedSourceImageId =
     typeof rawParams.source_image_id === "string" && rawParams.source_image_id.trim()
       ? rawParams.source_image_id.trim()
       : null
-  const sourceImageId = requestedSourceImageId ?? String(active.id)
-  if (sourceImageId === String(active.id) && active.is_locked) {
-    return { ok: false, status: 409, stage: "lock_conflict", reason: "Active image is locked", code: "image_locked" }
-  }
-  let sourceImageDpi = Number(active.dpi ?? 72)
-  if (sourceImageId !== String(active.id)) {
-    const { data: sourceRow, error: sourceErr } = await supabase
+
+  let sourceImageId: string
+  let sourceImageDpi = 72
+  let sourceIsLocked = false
+
+  const resolveSourceById = async (
+    imageId: string,
+  ): Promise<{ ok: true; dpi: number; isLocked: boolean } | { ok: false; reason: string; code?: string }> => {
+    const { data: row, error } = await supabase
       .from("project_images")
-      .select("dpi")
+      .select("dpi,is_locked")
       .eq("project_id", projectId)
-      .eq("id", sourceImageId)
+      .eq("id", imageId)
       .is("deleted_at", null)
       .maybeSingle()
-    if (sourceErr || !sourceRow) {
-      return { ok: false, status: 404, stage: "source_lookup", reason: sourceErr?.message ?? "Source image not found" }
+    if (error || !row) {
+      return { ok: false, reason: error?.message ?? "Source image not found", code: error?.code }
     }
-    sourceImageDpi = Number(sourceRow.dpi ?? 72)
+    return { ok: true, dpi: Number(row.dpi ?? 72), isLocked: Boolean(row.is_locked) }
+  }
+
+  if (requestedSourceImageId) {
+    sourceImageId = requestedSourceImageId
+    const lookup = await resolveSourceById(sourceImageId)
+    if (!lookup.ok) {
+      return { ok: false, status: 404, stage: "source_lookup", reason: lookup.reason, code: lookup.code }
+    }
+    sourceImageDpi = lookup.dpi
+    sourceIsLocked = lookup.isLocked
+  } else {
+    // Walk the filter chain for its tip output. project_image_filters
+    // is pixelate-only after F21 PR2; numerate / lineart rows live
+    // on project_image_trace and never appear here.
+    const { data: chainRows } = await supabase
+      .from("project_image_filters")
+      .select("output_image_id,stack_order")
+      .eq("project_id", projectId)
+      .order("stack_order", { ascending: false })
+      .limit(1)
+    const chainTipId = chainRows?.[0]?.output_image_id ? String(chainRows[0].output_image_id) : null
+
+    if (chainTipId) {
+      sourceImageId = chainTipId
+      const lookup = await resolveSourceById(sourceImageId)
+      if (!lookup.ok) {
+        return { ok: false, status: 404, stage: "source_lookup", reason: lookup.reason, code: lookup.code }
+      }
+      sourceImageDpi = lookup.dpi
+      sourceIsLocked = lookup.isLocked
+    } else {
+      // No filter chain — pick the working_copy (preferred) or master.
+      const { data: bitmapRow, error: bitmapErr } = await supabase
+        .from("project_images")
+        .select("id,dpi,is_locked,kind")
+        .eq("project_id", projectId)
+        .in("kind", ["working_copy", "master"])
+        .is("deleted_at", null)
+        .order("kind", { ascending: true }) // 'master' < 'working_copy' lexically; we want working_copy first
+        .order("created_at", { ascending: false })
+        .limit(2)
+      if (bitmapErr) {
+        return { ok: false, status: 400, stage: "active_lookup", reason: bitmapErr.message, code: bitmapErr.code }
+      }
+      const rows = bitmapRow ?? []
+      const preferred = rows.find((r) => r.kind === "working_copy") ?? rows.find((r) => r.kind === "master")
+      if (!preferred?.id) {
+        return { ok: false, status: 404, stage: "active_lookup", reason: "No bitmap source image found for trace" }
+      }
+      sourceImageId = String(preferred.id)
+      sourceImageDpi = Number(preferred.dpi ?? 72)
+      sourceIsLocked = Boolean(preferred.is_locked)
+    }
+  }
+
+  if (sourceIsLocked) {
+    return { ok: false, status: 409, stage: "lock_conflict", reason: "Trace source image is locked", code: "image_locked" }
   }
 
   const handler = TRACE_HANDLERS[kind] as (input: {
