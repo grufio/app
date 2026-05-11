@@ -75,7 +75,7 @@ env-driven.
 | F18 | Numerate-Performance-Profiling (User-Pain) | S | ✓ done | PR P |
 | F19 | Shrink Numerate SVG payload (per-rect structure preserved) | M | superseded by F20 | — |
 | F21 | Split Filter vs Trace: new sidepanel tab, mutually-exclusive Trace, separate registry/DB/API | L | open / **next, blocks F20** | TBD |
-| F20 | Replace bespoke rect-loop with vtracer (numerate + lineart) | L | numerate ✓ done; lineart pending the numbering feature | F20 PR |
+| F20 | Replace bespoke rect-loop with vtracer (numerate + lineart) | L | ✓ done (numerate + lineart both on vtracer) | F20 PRs |
 | F11 | E2E-Filter-Chain-Roundtrip-Test | M | ✓ done | PR 2 |
 | F5 | Inkonsistente Registry-Metadata in Forms | M | ✓ done | PR 3 |
 | F7 | Generic `<FilterForm>` aus 3 Form-Files | L | ✓ done | PR 4 |
@@ -335,13 +335,24 @@ native shape.
 - changes to `editor-dialog-host.tsx` to wire the Trace dialog
   separately from Filter dialogs
 
-### F20 — Replace bespoke rect-loop with vtracer for numerate + lineart *(numerate ✓ done, lineart pending the numbering feature)*
+### F20 — Replace bespoke rect-loop with vtracer for numerate + lineart *(✓ done)*
 
-One vectorisation engine for both Trace modes. **Numerate landed**
-in F20 PR (filter-service/app/vectorise.py + main.py); lineart's
-vectorisation rewrite is gated on the future paint-by-numbers
-labelling feature (today's lineart is outlines-only and the
-existing pipeline is fine for that).
+One vectorisation engine for both Trace modes — both numerate and
+lineart now flow through `filter-service/app/vectorise.py`.
+
+- **Numerate** — polygon / cutout mode, `corner_threshold=180`
+  (preserve 90° cell corners), `filter_speckle=0` (don't merge
+  across superpixel cells). Output: per-cell-connected-component
+  colored polygons + grid-line overlay.
+- **Lineart** — spline / cutout mode, smoothness ∈ [0, 1] mapped
+  to `corner_threshold` (180→60), `length_threshold` (0→8), and
+  `filter_speckle` (0→32). Optional pre-vtracer Gaussian blur.
+  Each vtracer path gets a black `stroke` so the result is the
+  paint-by-numbers visual most people picture: organic colored
+  regions with visible black outlines. Old Canny-based fields
+  (`threshold1`, `threshold2`, `invert`, `min_contour_area`)
+  retired; new schema is `line_thickness`, `blur_amount`,
+  `smoothness`, `num_colors` (default 8).
 
 **Real-world numbers (post-rewrite, 2026-05-11):** profiled against
 the F18 baseline fixture (1920×1080, default superpixel 10×10).

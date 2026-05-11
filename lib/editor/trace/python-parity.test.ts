@@ -63,7 +63,13 @@ describe("Python parity: TS trace schema defaults vs Pydantic", () => {
   })
 
   it("extracts the expected fields (regression guard for parser)", () => {
-    expect(Object.keys(extractPydanticDefaults("LineArtRequest")).length).toBeGreaterThanOrEqual(7)
+    // F20 PR2 dropped the Canny-era LineArt fields (threshold1,
+    // threshold2, invert, min_contour_area). The new vtracer-based
+    // schema has 4 defaults: line_thickness, blur_amount, smoothness,
+    // num_colors.
+    expect(Object.keys(extractPydanticDefaults("LineArtRequest"))).toEqual(
+      expect.arrayContaining(["line_thickness", "blur_amount", "smoothness", "num_colors"]),
+    )
     expect(Object.keys(extractPydanticDefaults("NumerateRequest"))).toContain("stroke_width")
     expect(Object.keys(extractPydanticDefaults("NumerateRequest"))).toContain("show_colors")
   })
