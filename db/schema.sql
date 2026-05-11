@@ -1491,7 +1491,6 @@ SET default_table_access_method = "heap";
 CREATE TABLE IF NOT EXISTS "public"."project_grid" (
     "project_id" "uuid" NOT NULL,
     "color" "text" NOT NULL,
-    "spacing_value" numeric NOT NULL,
     "line_width_value" numeric NOT NULL,
     "unit" "public"."measure_unit" DEFAULT 'mm'::"public"."measure_unit" NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
@@ -1499,7 +1498,6 @@ CREATE TABLE IF NOT EXISTS "public"."project_grid" (
     "spacing_x_value" numeric NOT NULL,
     "spacing_y_value" numeric NOT NULL,
     CONSTRAINT "project_grid_line_width_value_check" CHECK (("line_width_value" > (0)::numeric)),
-    CONSTRAINT "project_grid_spacing_value_check" CHECK (("spacing_value" > (0)::numeric)),
     CONSTRAINT "project_grid_spacing_x_positive" CHECK ((("spacing_x_value" IS NULL) OR ("spacing_x_value" > (0)::numeric))),
     CONSTRAINT "project_grid_spacing_y_positive" CHECK ((("spacing_y_value" IS NULL) OR ("spacing_y_value" > (0)::numeric)))
 );

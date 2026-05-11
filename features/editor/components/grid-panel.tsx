@@ -49,8 +49,6 @@ export function GridPanel({
     (patch: Partial<ProjectGridRow>) => {
       if (!row) return
       const merged: ProjectGridRow = { ...row, unit: effectiveUnit, ...patch }
-      // Keep legacy NOT NULL `spacing_value` consistent with x spacing.
-      merged.spacing_value = merged.spacing_x_value
       void upsertGrid(merged)
     },
     [row, effectiveUnit, upsertGrid]

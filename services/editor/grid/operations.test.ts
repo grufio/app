@@ -12,7 +12,6 @@ describe("grid operations", () => {
       project_id: "p",
       unit: "cm",
       color: "#000000",
-      spacing_value: 10,
       spacing_x_value: 10,
       spacing_y_value: 20,
       line_width_value: 1,
@@ -20,12 +19,11 @@ describe("grid operations", () => {
     expect(computeGridSaveSignature(row)).toBe(computeGridSaveSignature(row))
   })
 
-  it("computeGridUpsert keeps spacing_value in sync with spacing_x_value", () => {
+  it("computeGridUpsert merges next over base", () => {
     const base: ProjectGridRow = {
       project_id: "p",
       unit: "cm",
       color: "#000000",
-      spacing_value: 5,
       spacing_x_value: 5,
       spacing_y_value: 5,
       line_width_value: 1,
@@ -37,7 +35,6 @@ describe("grid operations", () => {
     }
     const res = computeGridUpsert(next, base)
     expect(res.next.spacing_x_value).toBe(12)
-    expect(res.next.spacing_value).toBe(12)
     expect(res.next.spacing_y_value).toBe(34)
   })
 })

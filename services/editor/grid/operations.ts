@@ -15,13 +15,11 @@ export function computeGridUpsert(
   next: ProjectGridRow,
   base: ProjectGridRow
 ): { next: ProjectGridRow; signature: string } {
-  // Keep legacy NOT NULL `spacing_value` consistent with x spacing.
   const spacingX = Number.isFinite(next.spacing_x_value) ? next.spacing_x_value : base.spacing_x_value
   const merged: ProjectGridRow = {
     ...base,
     ...next,
     spacing_x_value: spacingX,
-    spacing_value: spacingX,
   }
 
   return { next: merged, signature: computeGridSaveSignature(merged) }
