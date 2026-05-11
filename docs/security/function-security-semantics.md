@@ -14,8 +14,6 @@ Scope: Editor-critical database functions used by image activation/state workflo
 | function | current security mode | search_path pinned | assessment |
 | --- | --- | --- | --- |
 | `public.set_active_image` | invoker | yes (`public, pg_temp`) | acceptable |
-| `public.set_active_master_image` | invoker | yes (`public, pg_temp`) | acceptable |
-| `public.set_active_master_latest` | invoker | yes (`public, pg_temp`) | acceptable |
 | `public.set_active_master_with_state` | invoker | yes (`public, pg_temp`) | acceptable |
 | `public.project_workspace_sync_px_cache` | invoker | yes (`public, pg_temp`) | acceptable |
 

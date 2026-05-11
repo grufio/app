@@ -404,11 +404,6 @@ $$;
 ALTER FUNCTION "public"."remove_project_image_filter"("p_project_id" "uuid", "p_filter_id" "uuid", "p_rewires" "jsonb") OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."reorder_project_image_filters"("p_project_id" "uuid") RETURNS "void"
-    LANGUAGE "plpgsql"
-    AS $$
-declare
-  v_row record;
   v_next integer := 1;
 begin
   perform pg_advisory_xact_lock(hashtext(p_project_id::text));
@@ -430,7 +425,6 @@ end;
 $$;
 
 
-ALTER FUNCTION "public"."reorder_project_image_filters"("p_project_id" "uuid") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."set_active_image"("p_project_id" "uuid", "p_image_id" "uuid") RETURNS "void"
@@ -475,29 +469,13 @@ $$;
 ALTER FUNCTION "public"."set_active_image"("p_project_id" "uuid", "p_image_id" "uuid") OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."set_active_master_image"("p_project_id" "uuid", "p_image_id" "uuid") RETURNS "void"
-    LANGUAGE "plpgsql"
-    SET "search_path" TO 'public', 'pg_temp'
-    AS $$
-begin
-  -- The inner set_active_image takes the same advisory lock; reentrant
-  -- in the same transaction. Acquired here too so the wrapper holds the
-  -- lock for any of its own future mutations.
-  perform pg_advisory_xact_lock(hashtext(p_project_id::text));
   perform public.set_active_image(p_project_id, p_image_id);
 end;
 $$;
 
 
-ALTER FUNCTION "public"."set_active_master_image"("p_project_id" "uuid", "p_image_id" "uuid") OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."set_active_master_latest"("p_project_id" "uuid") RETURNS "void"
-    LANGUAGE "plpgsql"
-    SET "search_path" TO 'public', 'pg_temp'
-    AS $$
-declare
-  v_image_id uuid;
 begin
   perform pg_advisory_xact_lock(hashtext(p_project_id::text));
 
@@ -516,7 +494,6 @@ end;
 $$;
 
 
-ALTER FUNCTION "public"."set_active_master_latest"("p_project_id" "uuid") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."set_active_master_with_state"("p_project_id" "uuid", "p_image_id" "uuid", "p_x_px_u" "text", "p_y_px_u" "text", "p_width_px_u" "text", "p_height_px_u" "text") RETURNS "void"
@@ -1503,40 +1480,12 @@ SET default_tablespace = '';
 SET default_table_access_method = "heap";
 
 
-CREATE TABLE IF NOT EXISTS "public"."project_filter_settings" (
-    "project_id" "uuid" NOT NULL,
-    "target_cols" integer NOT NULL,
-    "target_rows" integer NOT NULL,
-    "max_colors" integer NOT NULL,
-    "dither" boolean DEFAULT false NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    CONSTRAINT "project_filter_settings_max_colors_check" CHECK ((("max_colors" >= 1) AND ("max_colors" <= 1000))),
-    CONSTRAINT "project_filter_settings_target_cols_check" CHECK (("target_cols" > 0)),
-    CONSTRAINT "project_filter_settings_target_rows_check" CHECK (("target_rows" > 0))
-);
 
 
-ALTER TABLE "public"."project_filter_settings" OWNER TO "postgres";
 
 
-CREATE TABLE IF NOT EXISTS "public"."project_generation" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "project_id" "uuid" NOT NULL,
-    "cols" integer NOT NULL,
-    "rows" integer NOT NULL,
-    "palette" "jsonb" DEFAULT '[]'::"jsonb" NOT NULL,
-    "cell_labels" smallint[] NOT NULL,
-    "render_settings" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
-    "generated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    CONSTRAINT "project_generation_cols_check" CHECK (("cols" > 0)),
-    CONSTRAINT "project_generation_labels_len" CHECK ((COALESCE("array_length"("cell_labels", 1), 0) = ("cols" * "rows"))),
-    CONSTRAINT "project_generation_rows_check" CHECK (("rows" > 0))
-);
 
 
-ALTER TABLE "public"."project_generation" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."project_grid" (
@@ -1662,43 +1611,12 @@ CREATE TABLE IF NOT EXISTS "public"."project_images" (
 ALTER TABLE "public"."project_images" OWNER TO "postgres";
 
 
-CREATE TABLE IF NOT EXISTS "public"."project_pdfs" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "project_id" "uuid" NOT NULL,
-    "sequence_number" integer NOT NULL,
-    "filename" "text" NOT NULL,
-    "storage_path" "text" NOT NULL,
-    "pdf_format" "text" NOT NULL,
-    "output_dpi_x" numeric NOT NULL,
-    "output_dpi_y" numeric NOT NULL,
-    "output_line_width_value" numeric NOT NULL,
-    "output_line_width_unit" "public"."measure_unit" DEFAULT 'mm'::"public"."measure_unit" NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "generation_id" "uuid",
-    CONSTRAINT "project_pdfs_output_dpi_x_check" CHECK (("output_dpi_x" > (0)::numeric)),
-    CONSTRAINT "project_pdfs_output_dpi_y_check" CHECK (("output_dpi_y" > (0)::numeric)),
-    CONSTRAINT "project_pdfs_output_line_width_value_check" CHECK (("output_line_width_value" > (0)::numeric)),
-    CONSTRAINT "project_pdfs_sequence_number_check" CHECK (("sequence_number" > 0))
-);
 
 
-ALTER TABLE "public"."project_pdfs" OWNER TO "postgres";
 
 
-CREATE TABLE IF NOT EXISTS "public"."project_vectorization_settings" (
-    "project_id" "uuid" NOT NULL,
-    "num_colors" integer NOT NULL,
-    "output_width_px" integer NOT NULL,
-    "output_height_px" integer NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    CONSTRAINT "project_vectorization_settings_num_colors_check" CHECK ((("num_colors" >= 1) AND ("num_colors" <= 1000))),
-    CONSTRAINT "project_vectorization_settings_output_height_px_check" CHECK (("output_height_px" > 0)),
-    CONSTRAINT "project_vectorization_settings_output_width_px_check" CHECK (("output_width_px" > 0))
-);
 
 
-ALTER TABLE "public"."project_vectorization_settings" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."project_workspace" (
@@ -1909,18 +1827,12 @@ ALTER TABLE ONLY "public"."schema_migrations" ALTER COLUMN "id" SET DEFAULT "nex
 
 
 
-ALTER TABLE ONLY "public"."project_filter_settings"
-    ADD CONSTRAINT "project_filter_settings_pkey" PRIMARY KEY ("project_id");
 
 
 
-ALTER TABLE ONLY "public"."project_generation"
-    ADD CONSTRAINT "project_generation_pkey" PRIMARY KEY ("id");
 
 
 
-ALTER TABLE ONLY "public"."project_generation"
-    ADD CONSTRAINT "project_generation_project_id_key" UNIQUE ("project_id");
 
 
 
@@ -1964,18 +1876,12 @@ ALTER TABLE ONLY "public"."project_images"
 
 
 
-ALTER TABLE ONLY "public"."project_pdfs"
-    ADD CONSTRAINT "project_pdfs_pkey" PRIMARY KEY ("id");
 
 
 
-ALTER TABLE ONLY "public"."project_pdfs"
-    ADD CONSTRAINT "project_pdfs_sequence_unique" UNIQUE ("project_id", "sequence_number");
 
 
 
-ALTER TABLE ONLY "public"."project_vectorization_settings"
-    ADD CONSTRAINT "project_vectorization_settings_pkey" PRIMARY KEY ("project_id");
 
 
 
@@ -2080,7 +1986,6 @@ CREATE INDEX "project_images_project_id_idx" ON "public"."project_images" USING 
 
 
 
-CREATE INDEX "project_pdfs_project_id_idx" ON "public"."project_pdfs" USING "btree" ("project_id");
 
 
 
@@ -2124,11 +2029,9 @@ CREATE UNIQUE INDEX "vector_indexes_name_bucket_id_idx" ON "storage"."vector_ind
 
 
 
-CREATE OR REPLACE TRIGGER "trg_project_filter_settings_updated_at" BEFORE UPDATE ON "public"."project_filter_settings" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
 
 
 
-CREATE OR REPLACE TRIGGER "trg_project_generation_updated_at" BEFORE UPDATE ON "public"."project_generation" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
 
 
 
@@ -2156,7 +2059,6 @@ CREATE OR REPLACE TRIGGER "trg_project_images_updated_at" BEFORE UPDATE ON "publ
 
 
 
-CREATE OR REPLACE TRIGGER "trg_project_vec_updated_at" BEFORE UPDATE ON "public"."project_vectorization_settings" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
 
 
 
@@ -2188,13 +2090,9 @@ CREATE OR REPLACE TRIGGER "update_objects_updated_at" BEFORE UPDATE ON "storage"
 
 
 
-ALTER TABLE ONLY "public"."project_filter_settings"
-    ADD CONSTRAINT "project_filter_settings_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE CASCADE;
 
 
 
-ALTER TABLE ONLY "public"."project_generation"
-    ADD CONSTRAINT "project_generation_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE CASCADE;
 
 
 
@@ -2248,18 +2146,12 @@ ALTER TABLE ONLY "public"."project_images"
 
 
 
-ALTER TABLE ONLY "public"."project_pdfs"
-    ADD CONSTRAINT "project_pdfs_generation_id_fkey" FOREIGN KEY ("generation_id") REFERENCES "public"."project_generation"("id") ON DELETE SET NULL;
 
 
 
-ALTER TABLE ONLY "public"."project_pdfs"
-    ADD CONSTRAINT "project_pdfs_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE CASCADE;
 
 
 
-ALTER TABLE ONLY "public"."project_vectorization_settings"
-    ADD CONSTRAINT "project_vectorization_settings_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE CASCADE;
 
 
 
@@ -2298,77 +2190,37 @@ ALTER TABLE ONLY "storage"."vector_indexes"
 
 
 
-ALTER TABLE "public"."project_filter_settings" ENABLE ROW LEVEL SECURITY;
-
-
-CREATE POLICY "project_filter_settings_delete_owner" ON "public"."project_filter_settings" FOR DELETE USING (("project_id" IN ( SELECT "projects"."id"
-   FROM "public"."projects"
-  WHERE ("projects"."owner_id" = "auth"."uid"()))));
 
 
 
-CREATE POLICY "project_filter_settings_insert_owner" ON "public"."project_filter_settings" FOR INSERT WITH CHECK (("project_id" IN ( SELECT "projects"."id"
-   FROM "public"."projects"
-  WHERE ("projects"."owner_id" = "auth"."uid"()))));
 
 
 
-CREATE POLICY "project_filter_settings_owner_all" ON "public"."project_filter_settings" USING (("project_id" IN ( SELECT "projects"."id"
-   FROM "public"."projects"
-  WHERE ("projects"."owner_id" = "auth"."uid"())))) WITH CHECK (("project_id" IN ( SELECT "projects"."id"
-   FROM "public"."projects"
-  WHERE ("projects"."owner_id" = "auth"."uid"()))));
 
 
 
-CREATE POLICY "project_filter_settings_select_owner" ON "public"."project_filter_settings" FOR SELECT USING (("project_id" IN ( SELECT "projects"."id"
-   FROM "public"."projects"
-  WHERE ("projects"."owner_id" = "auth"."uid"()))));
 
 
 
-CREATE POLICY "project_filter_settings_update_owner" ON "public"."project_filter_settings" FOR UPDATE USING (("project_id" IN ( SELECT "projects"."id"
-   FROM "public"."projects"
-  WHERE ("projects"."owner_id" = "auth"."uid"())))) WITH CHECK (("project_id" IN ( SELECT "projects"."id"
-   FROM "public"."projects"
-  WHERE ("projects"."owner_id" = "auth"."uid"()))));
 
 
 
-ALTER TABLE "public"."project_generation" ENABLE ROW LEVEL SECURITY;
-
-
-CREATE POLICY "project_generation_delete_owner" ON "public"."project_generation" FOR DELETE USING (("project_id" IN ( SELECT "projects"."id"
-   FROM "public"."projects"
-  WHERE ("projects"."owner_id" = "auth"."uid"()))));
 
 
 
-CREATE POLICY "project_generation_insert_owner" ON "public"."project_generation" FOR INSERT WITH CHECK (("project_id" IN ( SELECT "projects"."id"
-   FROM "public"."projects"
-  WHERE ("projects"."owner_id" = "auth"."uid"()))));
 
 
 
-CREATE POLICY "project_generation_owner_all" ON "public"."project_generation" USING (("project_id" IN ( SELECT "projects"."id"
-   FROM "public"."projects"
-  WHERE ("projects"."owner_id" = "auth"."uid"())))) WITH CHECK (("project_id" IN ( SELECT "projects"."id"
-   FROM "public"."projects"
-  WHERE ("projects"."owner_id" = "auth"."uid"()))));
 
 
 
-CREATE POLICY "project_generation_select_owner" ON "public"."project_generation" FOR SELECT USING (("project_id" IN ( SELECT "projects"."id"
-   FROM "public"."projects"
-  WHERE ("projects"."owner_id" = "auth"."uid"()))));
 
 
 
-CREATE POLICY "project_generation_update_owner" ON "public"."project_generation" FOR UPDATE USING (("project_id" IN ( SELECT "projects"."id"
-   FROM "public"."projects"
-  WHERE ("projects"."owner_id" = "auth"."uid"())))) WITH CHECK (("project_id" IN ( SELECT "projects"."id"
-   FROM "public"."projects"
-  WHERE ("projects"."owner_id" = "auth"."uid"()))));
+
+
+
+
 
 
 
@@ -2517,62 +2369,32 @@ CREATE POLICY "project_images_update_owner" ON "public"."project_images" FOR UPD
 
 
 
-ALTER TABLE "public"."project_pdfs" ENABLE ROW LEVEL SECURITY;
-
-
-CREATE POLICY "project_pdfs_delete_owner" ON "public"."project_pdfs" FOR DELETE USING (("project_id" IN ( SELECT "projects"."id"
-   FROM "public"."projects"
-  WHERE ("projects"."owner_id" = "auth"."uid"()))));
 
 
 
-CREATE POLICY "project_pdfs_insert_owner" ON "public"."project_pdfs" FOR INSERT WITH CHECK (("project_id" IN ( SELECT "projects"."id"
-   FROM "public"."projects"
-  WHERE ("projects"."owner_id" = "auth"."uid"()))));
 
 
 
-CREATE POLICY "project_pdfs_select_owner" ON "public"."project_pdfs" FOR SELECT USING (("project_id" IN ( SELECT "projects"."id"
-   FROM "public"."projects"
-  WHERE ("projects"."owner_id" = "auth"."uid"()))));
 
 
 
-CREATE POLICY "project_pdfs_update_owner" ON "public"."project_pdfs" FOR UPDATE USING (("project_id" IN ( SELECT "projects"."id"
-   FROM "public"."projects"
-  WHERE ("projects"."owner_id" = "auth"."uid"())))) WITH CHECK (("project_id" IN ( SELECT "projects"."id"
-   FROM "public"."projects"
-  WHERE ("projects"."owner_id" = "auth"."uid"()))));
 
 
 
-CREATE POLICY "project_vec_delete_owner" ON "public"."project_vectorization_settings" FOR DELETE USING (("project_id" IN ( SELECT "projects"."id"
-   FROM "public"."projects"
-  WHERE ("projects"."owner_id" = "auth"."uid"()))));
 
 
 
-CREATE POLICY "project_vec_insert_owner" ON "public"."project_vectorization_settings" FOR INSERT WITH CHECK (("project_id" IN ( SELECT "projects"."id"
-   FROM "public"."projects"
-  WHERE ("projects"."owner_id" = "auth"."uid"()))));
 
 
 
-CREATE POLICY "project_vec_select_owner" ON "public"."project_vectorization_settings" FOR SELECT USING (("project_id" IN ( SELECT "projects"."id"
-   FROM "public"."projects"
-  WHERE ("projects"."owner_id" = "auth"."uid"()))));
 
 
 
-CREATE POLICY "project_vec_update_owner" ON "public"."project_vectorization_settings" FOR UPDATE USING (("project_id" IN ( SELECT "projects"."id"
-   FROM "public"."projects"
-  WHERE ("projects"."owner_id" = "auth"."uid"())))) WITH CHECK (("project_id" IN ( SELECT "projects"."id"
-   FROM "public"."projects"
-  WHERE ("projects"."owner_id" = "auth"."uid"()))));
 
 
 
-ALTER TABLE "public"."project_vectorization_settings" ENABLE ROW LEVEL SECURITY;
+
+
 
 
 ALTER TABLE "public"."project_workspace" ENABLE ROW LEVEL SECURITY;
@@ -2728,9 +2550,6 @@ GRANT ALL ON FUNCTION "public"."remove_project_image_filter"("p_project_id" "uui
 
 
 
-GRANT ALL ON FUNCTION "public"."reorder_project_image_filters"("p_project_id" "uuid") TO "anon";
-GRANT ALL ON FUNCTION "public"."reorder_project_image_filters"("p_project_id" "uuid") TO "authenticated";
-GRANT ALL ON FUNCTION "public"."reorder_project_image_filters"("p_project_id" "uuid") TO "service_role";
 
 
 
@@ -2740,15 +2559,9 @@ GRANT ALL ON FUNCTION "public"."set_active_image"("p_project_id" "uuid", "p_imag
 
 
 
-GRANT ALL ON FUNCTION "public"."set_active_master_image"("p_project_id" "uuid", "p_image_id" "uuid") TO "anon";
-GRANT ALL ON FUNCTION "public"."set_active_master_image"("p_project_id" "uuid", "p_image_id" "uuid") TO "authenticated";
-GRANT ALL ON FUNCTION "public"."set_active_master_image"("p_project_id" "uuid", "p_image_id" "uuid") TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."set_active_master_latest"("p_project_id" "uuid") TO "anon";
-GRANT ALL ON FUNCTION "public"."set_active_master_latest"("p_project_id" "uuid") TO "authenticated";
-GRANT ALL ON FUNCTION "public"."set_active_master_latest"("p_project_id" "uuid") TO "service_role";
 
 
 
@@ -2770,15 +2583,9 @@ GRANT ALL ON FUNCTION "public"."workspace_value_to_px_u"("v" numeric, "u" "publi
 
 
 
-GRANT ALL ON TABLE "public"."project_filter_settings" TO "anon";
-GRANT ALL ON TABLE "public"."project_filter_settings" TO "authenticated";
-GRANT ALL ON TABLE "public"."project_filter_settings" TO "service_role";
 
 
 
-GRANT ALL ON TABLE "public"."project_generation" TO "anon";
-GRANT ALL ON TABLE "public"."project_generation" TO "authenticated";
-GRANT ALL ON TABLE "public"."project_generation" TO "service_role";
 
 
 
@@ -2812,15 +2619,9 @@ GRANT ALL ON TABLE "public"."project_images" TO "service_role";
 
 
 
-GRANT ALL ON TABLE "public"."project_pdfs" TO "anon";
-GRANT ALL ON TABLE "public"."project_pdfs" TO "authenticated";
-GRANT ALL ON TABLE "public"."project_pdfs" TO "service_role";
 
 
 
-GRANT ALL ON TABLE "public"."project_vectorization_settings" TO "anon";
-GRANT ALL ON TABLE "public"."project_vectorization_settings" TO "authenticated";
-GRANT ALL ON TABLE "public"."project_vectorization_settings" TO "service_role";
 
 
 

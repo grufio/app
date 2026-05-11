@@ -14,88 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      project_filter_settings: {
-        Row: {
-          created_at: string
-          dither: boolean
-          max_colors: number
-          project_id: string
-          target_cols: number
-          target_rows: number
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          dither?: boolean
-          max_colors: number
-          project_id: string
-          target_cols: number
-          target_rows: number
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          dither?: boolean
-          max_colors?: number
-          project_id?: string
-          target_cols?: number
-          target_rows?: number
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "project_filter_settings_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: true
-            referencedRelation: "projects"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      project_generation: {
-        Row: {
-          cell_labels: number[]
-          cols: number
-          generated_at: string
-          id: string
-          palette: Json
-          project_id: string
-          render_settings: Json
-          rows: number
-          updated_at: string
-        }
-        Insert: {
-          cell_labels: number[]
-          cols: number
-          generated_at?: string
-          id?: string
-          palette?: Json
-          project_id: string
-          render_settings?: Json
-          rows: number
-          updated_at?: string
-        }
-        Update: {
-          cell_labels?: number[]
-          cols?: number
-          generated_at?: string
-          id?: string
-          palette?: Json
-          project_id?: string
-          render_settings?: Json
-          rows?: number
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "project_generation_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: true
-            referencedRelation: "projects"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       project_grid: {
         Row: {
           color: string
@@ -411,101 +329,6 @@ export type Database = {
           },
         ]
       }
-      project_pdfs: {
-        Row: {
-          created_at: string
-          filename: string
-          generation_id: string | null
-          id: string
-          output_dpi_x: number
-          output_dpi_y: number
-          output_line_width_unit: Database["public"]["Enums"]["measure_unit"]
-          output_line_width_value: number
-          pdf_format: string
-          project_id: string
-          sequence_number: number
-          storage_path: string
-        }
-        Insert: {
-          created_at?: string
-          filename: string
-          generation_id?: string | null
-          id?: string
-          output_dpi_x: number
-          output_dpi_y: number
-          output_line_width_unit?: Database["public"]["Enums"]["measure_unit"]
-          output_line_width_value: number
-          pdf_format: string
-          project_id: string
-          sequence_number: number
-          storage_path: string
-        }
-        Update: {
-          created_at?: string
-          filename?: string
-          generation_id?: string | null
-          id?: string
-          output_dpi_x?: number
-          output_dpi_y?: number
-          output_line_width_unit?: Database["public"]["Enums"]["measure_unit"]
-          output_line_width_value?: number
-          pdf_format?: string
-          project_id?: string
-          sequence_number?: number
-          storage_path?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "project_pdfs_generation_id_fkey"
-            columns: ["generation_id"]
-            isOneToOne: false
-            referencedRelation: "project_generation"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "project_pdfs_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "projects"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      project_vectorization_settings: {
-        Row: {
-          created_at: string
-          num_colors: number
-          output_height_px: number
-          output_width_px: number
-          project_id: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          num_colors: number
-          output_height_px: number
-          output_width_px: number
-          project_id: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          num_colors?: number
-          output_height_px?: number
-          output_width_px?: number
-          project_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "project_vectorization_settings_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: true
-            referencedRelation: "projects"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       project_workspace: {
         Row: {
           created_at: string
@@ -647,20 +470,8 @@ export type Database = {
         Args: { p_filter_id: string; p_project_id: string; p_rewires?: Json }
         Returns: undefined
       }
-      reorder_project_image_filters: {
-        Args: { p_project_id: string }
-        Returns: undefined
-      }
       set_active_image: {
         Args: { p_image_id: string; p_project_id: string }
-        Returns: undefined
-      }
-      set_active_master_image: {
-        Args: { p_image_id: string; p_project_id: string }
-        Returns: undefined
-      }
-      set_active_master_latest: {
-        Args: { p_project_id: string }
         Returns: undefined
       }
       set_active_master_with_state: {
