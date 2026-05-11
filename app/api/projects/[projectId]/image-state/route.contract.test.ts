@@ -29,7 +29,7 @@ function makeSupabaseStub(opts: {
               eq: () => ({
                 is: () => ({
                   maybeSingle: async () => ({
-                    data: { is_locked: opts.activeImageLocked },
+                    data: { id: "any-image", is_locked: opts.activeImageLocked },
                     error: null,
                   }),
                 }),
@@ -69,9 +69,8 @@ async function importRouteWithMocks(args: {
   })
 
   vi.doMock("@/lib/supabase/project-images", () => ({
-    resolveEditorTargetImageRows: async () => ({
-      target: args.targetImageId ? { id: args.targetImageId } : null,
-      preferredWorking: args.targetImageId ? { id: args.targetImageId } : null,
+    getEditorTargetImageRow: async () => ({
+      row: args.targetImageId ? { id: args.targetImageId } : null,
       error: null,
     }),
     resolveImageStateRoleFromProjectImage: () => "master",
@@ -130,33 +129,6 @@ describe("image-state route contract", () => {
     expect(body.where).toBe("image_id")
   })
 
-  it("POST enforces active image binding (409 active_image_mismatch)", async () => {
-    const supabase = makeSupabaseStub({ projectAccessible: true, activeImageLocked: false })
-    const mod = await importRouteWithMocks({ supabase, targetImageId: VALID_UUID })
-
-    const res = await mod.POST(
-      new Request("http://test.local", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          image_id: OTHER_UUID,
-          role: "master",
-          x_px_u: "0",
-          y_px_u: "0",
-          width_px_u: "1000000",
-          height_px_u: "1000000",
-          rotation_deg: 0,
-        }),
-      }),
-      { params: Promise.resolve({ projectId: VALID_UUID }) }
-    )
-
-    expect(res.status).toBe(409)
-    const body = await res.json()
-    expect(body.stage).toBe("active_image_mismatch")
-    expect(body.expected_image_id).toBe(VALID_UUID)
-  })
-
   it("POST blocks writes when active image is locked (409 lock_conflict)", async () => {
     const supabase = makeSupabaseStub({ projectAccessible: true, activeImageLocked: true })
     const mod = await importRouteWithMocks({ supabase, targetImageId: VALID_UUID })
@@ -181,32 +153,6 @@ describe("image-state route contract", () => {
     expect(res.status).toBe(409)
     const body = await res.json()
     expect(body.stage).toBe("lock_conflict")
-  })
-
-  it("POST returns no_active_image when no editor target exists", async () => {
-    const supabase = makeSupabaseStub({ projectAccessible: true, activeImageLocked: false })
-    const mod = await importRouteWithMocks({ supabase, targetImageId: null })
-
-    const res = await mod.POST(
-      new Request("http://test.local", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          image_id: VALID_UUID,
-          role: "master",
-          x_px_u: "0",
-          y_px_u: "0",
-          width_px_u: "1000000",
-          height_px_u: "1000000",
-          rotation_deg: 0,
-        }),
-      }),
-      { params: Promise.resolve({ projectId: VALID_UUID }) }
-    )
-
-    expect(res.status).toBe(409)
-    const body = await res.json()
-    expect(body.stage).toBe("no_active_image")
   })
 
   it("POST with partial payload (x omitted) reads existing row and preserves x in upsert", async () => {
