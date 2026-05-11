@@ -55,14 +55,21 @@ export function TraceInteractiveOverlay({ svgText, imageRect, view, rotation = 0
   const [selectedFill, setSelectedFill] = useState<string | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
 
-  // Deselect on Escape + on click outside any region. The path's
-  // onClick stops propagation, so document-level click only fires
-  // when the user clicked empty space (canvas, sidebar, etc.).
+  // Deselect on Escape + on click outside any region. React's
+  // `e.stopPropagation()` on the path's onClick only stops the
+  // synthetic event; the native click still bubbles to document.
+  // Without the containment check below, every click on a region
+  // would also fire the document-level deselect and immediately
+  // wipe the selection it just set.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setSelectedFill(null)
     }
-    const onDocClick = () => setSelectedFill(null)
+    const onDocClick = (e: MouseEvent) => {
+      const target = e.target as Node | null
+      if (target && containerRef.current?.contains(target)) return
+      setSelectedFill(null)
+    }
     document.addEventListener("keydown", onKey)
     document.addEventListener("click", onDocClick)
     return () => {
