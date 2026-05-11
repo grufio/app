@@ -431,6 +431,27 @@ export async function setupMockRoutes(page: Page, opts: SetupMockRoutesOpts) {
       })
     }
 
+    // Trace endpoint: GET returns empty (no trace), POST stores, DELETE clears.
+    // Single-row-per-project; the editor uses this to decide whether to
+    // render the trace overlay on the Trace tab.
+    if (url.includes(`/api/projects/${PROJECT_ID}/trace`)) {
+      const method = route.request().method()
+      if (method === "GET") {
+        return route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(null),
+        })
+      }
+      if (method === "POST" || method === "DELETE") {
+        return route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ ok: true }),
+        })
+      }
+    }
+
     return route.fallback()
   })
 }
