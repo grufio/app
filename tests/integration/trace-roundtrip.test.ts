@@ -134,7 +134,7 @@ describe("project_image_trace round-trip", () => {
     expect(afterDelete).toEqual([])
   })
 
-  it("ON DELETE RESTRICT prevents removing an output image referenced by a trace row", async () => {
+  it("ON DELETE CASCADE removes the trace row when its output image is deleted", async () => {
     const seeded = await seedProject({ supabase })
     projectId = seeded.projectId
     ownerId = seeded.ownerId
@@ -154,14 +154,17 @@ describe("project_image_trace round-trip", () => {
       output_image_id: traceOut.imageId,
     })
 
-    // Hard-delete attempt on the referenced image must fail with FK.
     const { error: imageDeleteErr } = await supabase
       .from("project_images")
       .delete()
       .eq("id", traceOut.imageId)
 
-    expect(imageDeleteErr).not.toBeNull()
-    // 23503 = foreign_key_violation.
-    expect(String((imageDeleteErr as { code?: string } | null)?.code ?? "")).toBe("23503")
+    expect(imageDeleteErr).toBeNull()
+
+    const { data: traceAfter } = await supabase
+      .from("project_image_trace")
+      .select("project_id")
+      .eq("project_id", projectId)
+    expect(traceAfter).toEqual([])
   })
 })
