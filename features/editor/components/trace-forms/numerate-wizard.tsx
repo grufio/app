@@ -79,7 +79,7 @@ export function NumerateWizard({
   )
 
   const stepValidity: Record<StepId, boolean> = {
-    grid: draft.superpixel_width >= 1 && draft.superpixel_height >= 1,
+    grid: draft.superpixel_width >= 0.1 && draft.superpixel_height >= 0.1,
     colors:
       draft.stroke_width >= 0.1 &&
       draft.stroke_width <= 20 &&
@@ -264,13 +264,13 @@ function GridStep(props: {
   }
   const onSuperWCommit = (raw: string) => {
     const n = Number(raw)
-    if (!Number.isFinite(n) || n < 1) return
-    setField("superpixel_width", Math.floor(n))
+    if (!Number.isFinite(n) || n < 0.1) return
+    setField("superpixel_width", n)
   }
   const onSuperHCommit = (raw: string) => {
     const n = Number(raw)
-    if (!Number.isFinite(n) || n < 1) return
-    setField("superpixel_height", Math.floor(n))
+    if (!Number.isFinite(n) || n < 0.1) return
+    setField("superpixel_height", n)
   }
 
   return (
@@ -318,33 +318,40 @@ function GridStep(props: {
           <>
             <FormField
               variant="numeric"
-              numericMode="int"
+              numericMode="decimal"
               label="Superpixel Width (px)"
               id="superpixel_width"
-              value={String(draft.superpixel_width)}
+              value={formatPitch(draft.superpixel_width)}
               onCommit={onSuperWCommit}
               onDraftChange={onSuperWCommit}
               disabled={busy}
-              inputProps={{ min: 1, max: imageWidth }}
+              inputProps={{ min: 0.1, max: imageWidth, step: 0.01 }}
             />
             <FormField
               variant="numeric"
-              numericMode="int"
+              numericMode="decimal"
               label="Superpixel Height (px)"
               id="superpixel_height"
-              value={String(draft.superpixel_height)}
+              value={formatPitch(draft.superpixel_height)}
               onCommit={onSuperHCommit}
               onDraftChange={onSuperHCommit}
               disabled={busy}
-              inputProps={{ min: 1, max: imageHeight }}
+              inputProps={{ min: 0.1, max: imageHeight, step: 0.01 }}
             />
           </>
         )}
       </div>
 
-      <GridSummary grid={grid} imageWidth={imageWidth} imageHeight={imageHeight} mode={gridMode} />
+      <GridSummary grid={grid} mode={gridMode} />
     </div>
   )
+}
+
+function formatPitch(n: number): string {
+  // 2-decimal display for fractional pitch; integer values render
+  // without trailing zeros so the common 100×100 case still reads cleanly.
+  if (Number.isInteger(n)) return String(n)
+  return n.toFixed(2)
 }
 
 function ModeTab(props: { active: boolean; onClick: () => void; children: ReactNode }) {
@@ -364,24 +371,16 @@ function ModeTab(props: { active: boolean; onClick: () => void; children: ReactN
   )
 }
 
-function GridSummary(props: { grid: GridStats; imageWidth: number; imageHeight: number; mode: GridMode }) {
-  const { grid, imageWidth, imageHeight, mode } = props
+function GridSummary(props: { grid: GridStats; mode: GridMode }) {
+  const { grid, mode } = props
   const derivedLabel =
     mode === "cells"
-      ? `Superpixel: ${grid.superpixelWidth} × ${grid.superpixelHeight} px`
+      ? `Superpixel: ${formatPitch(grid.superpixelWidth)} × ${formatPitch(grid.superpixelHeight)} px`
       : `Cells: ${grid.cellsX} × ${grid.cellsY}`
   return (
     <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs">
       <div>{derivedLabel}</div>
       <div>Total cells: {grid.totalCells}</div>
-      <div>
-        Coverage: {grid.coveredWidth} × {grid.coveredHeight} px
-      </div>
-      {grid.isExact ? null : (
-        <div className="mt-1 text-amber-600 dark:text-amber-400">
-          ⚠ {imageWidth - grid.coveredWidth} px right and {imageHeight - grid.coveredHeight} px bottom are cropped.
-        </div>
-      )}
     </div>
   )
 }
