@@ -441,10 +441,13 @@ export function ProjectDetailPageClient({
     void refreshProjectImages()
   }, [masterImage?.id, refreshProjectImages])
 
+  // Canvas source is always the working-copy across all three tabs.
+  // Master is an immutable restore source (`guard_master_immutable`),
+  // never the canvas-rendered image — see use-canvas-derived-state.ts
+  // for the rationale. Tabs differ only in overlays.
   const { canvasImage, traceOverlaySvgUrl } = useCanvasDerivedState({
     leftPanelTab,
     editorImageSource,
-    masterImage,
     filterDisplayImage,
     filterDisplayImageWithoutTrace,
   })
