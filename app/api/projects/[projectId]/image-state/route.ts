@@ -8,7 +8,7 @@
 import { NextResponse } from "next/server"
 
 import { createSupabaseServerClient } from "@/lib/supabase/server"
-import { getEditorTargetImageRow } from "@/lib/supabase/project-images"
+import { resolveEditorTargetImageRows } from "@/lib/supabase/project-images"
 import { loadBoundImageState, upsertBoundImageState } from "@/lib/supabase/image-state"
 import { isUuid, jsonError, readJson, requireUser } from "@/lib/api/route-guards"
 import { validateIncomingImageStateUpsert, type IncomingImageStatePayload } from "@/lib/editor/imageState"
@@ -34,17 +34,23 @@ export async function GET(req: Request, { params }: { params: Promise<{ projectI
   if (useQueryImageId) {
     targetImageId = queryImageId
   } else {
-    const editorTargetLookup = await getEditorTargetImageRow(supabase, projectId)
+    // Image-state persistence targets the working-copy (the editor-
+    // editable raster bitmap). Trace / filter outputs share kind
+    // 'filter_working_copy' with the working-copy and would otherwise
+    // shadow it in `target`; `preferredWorking` is the parented-on-
+    // master lookup that picks the working-copy unambiguously.
+    const editorTargetLookup = await resolveEditorTargetImageRows(supabase, projectId)
     if (editorTargetLookup.error) {
       return jsonError(editorTargetLookup.error.reason, 400, {
         stage: editorTargetLookup.error.stage,
         code: editorTargetLookup.error.code,
       })
     }
-    if (!editorTargetLookup.row?.id) {
+    const persistenceRow = editorTargetLookup.preferredWorking ?? editorTargetLookup.target
+    if (!persistenceRow?.id) {
       return NextResponse.json({ exists: false, state: null })
     }
-    targetImageId = editorTargetLookup.row.id
+    targetImageId = persistenceRow.id
   }
 
   if (!targetImageId) {
@@ -96,17 +102,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ project
     ...validated,
   }
 
-  const editorTargetLookup = await getEditorTargetImageRow(supabase, projectId)
+  // Image-state writes target the working-copy (editor-editable raster
+  // bitmap). See GET above for the parent-on-master selection.
+  const editorTargetLookup = await resolveEditorTargetImageRows(supabase, projectId)
   if (editorTargetLookup.error) {
     return jsonError(editorTargetLookup.error.reason, 400, {
       stage: editorTargetLookup.error.stage,
       code: editorTargetLookup.error.code,
     })
   }
-  if (!editorTargetLookup.row?.id) {
+  const persistenceRow = editorTargetLookup.preferredWorking ?? editorTargetLookup.target
+  if (!persistenceRow?.id) {
     return jsonError("No editor target image", 409, { stage: "no_active_image" })
   }
-  const editorTargetImageIdForWrite = editorTargetLookup.row.id
+  const editorTargetImageIdForWrite = persistenceRow.id
   if (baseRow.image_id !== editorTargetImageIdForWrite) {
     return jsonError("Image state target is not the editor target image", 409, {
       stage: "active_image_mismatch",

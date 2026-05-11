@@ -18,7 +18,11 @@ export function deriveEditorSourceSnapshot(args: {
   filterImageLoading: boolean
   uploadSyncing: boolean
   filterImageLoadedOnce: boolean
-  filterDisplayImage: { id: string; signedUrl: string; width_px: number; height_px: number; name: string } | null
+  /** Trace-free raster source (working-copy or filter chain tip
+   * without trace). After PR #109 the canvas always renders this,
+   * so the workflow-source identity tracks it. The trace-aware
+   * `filterDisplayImage` is used only for the SVG overlay. */
+  filterDisplayImageWithoutTrace: { id: string; signedUrl: string; width_px: number; height_px: number; name: string } | null
   filterImageError: string
   masterImageError: string
   masterImage: { id?: string; signedUrl?: string; name?: string; width_px?: number; height_px?: number } | null
@@ -29,7 +33,7 @@ export function deriveEditorSourceSnapshot(args: {
     filterImageLoading,
     uploadSyncing,
     filterImageLoadedOnce,
-    filterDisplayImage,
+    filterDisplayImageWithoutTrace,
     filterImageError,
     masterImageError,
     masterImage,
@@ -38,15 +42,15 @@ export function deriveEditorSourceSnapshot(args: {
   if (masterImageLoading || filterImageLoading || uploadSyncing || !filterImageLoadedOnce) {
     return { status: "loading", image: null, error: "" }
   }
-  if (filterDisplayImage) {
+  if (filterDisplayImageWithoutTrace) {
     return {
       status: "ready",
       image: {
-        id: filterDisplayImage.id,
-        signedUrl: filterDisplayImage.signedUrl,
-        width_px: filterDisplayImage.width_px,
-        height_px: filterDisplayImage.height_px,
-        name: filterDisplayImage.name,
+        id: filterDisplayImageWithoutTrace.id,
+        signedUrl: filterDisplayImageWithoutTrace.signedUrl,
+        width_px: filterDisplayImageWithoutTrace.width_px,
+        height_px: filterDisplayImageWithoutTrace.height_px,
+        name: filterDisplayImageWithoutTrace.name,
       },
       error: "",
     }
@@ -122,13 +126,13 @@ export function useEditorWorkflowAdapter(args: {
         filterImageLoading,
         uploadSyncing,
         filterImageLoadedOnce,
-        filterDisplayImage,
+        filterDisplayImageWithoutTrace,
         filterImageError,
         masterImageError,
         masterImage,
         filterImageEmptyReason,
       }),
-    [filterDisplayImage, filterImageError, filterImageEmptyReason, filterImageLoadedOnce, filterImageLoading, masterImage, masterImageError, masterImageLoading, uploadSyncing]
+    [filterDisplayImageWithoutTrace, filterImageError, filterImageEmptyReason, filterImageLoadedOnce, filterImageLoading, masterImage, masterImageError, masterImageLoading, uploadSyncing]
   )
 
   useEffect(() => {
