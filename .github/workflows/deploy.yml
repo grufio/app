@@ -35,28 +35,83 @@ jobs:
   detect:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    # Read-only Supabase secrets so the definitive `migration list` check
+    # works without going through the production-db approval gate. This
+    # job never writes to prod.
+    env:
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
     outputs:
       has-migrations: ${{ steps.diff.outputs.has-migrations }}
+      detect-reason: ${{ steps.diff.outputs.reason }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
         with:
           fetch-depth: 2
 
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 2.98.2
+
       - name: Detect migration changes
         id: diff
         run: |
+          # Manual trigger always runs the migration path so an operator can
+          # re-deploy after a transient failure without a no-op commit.
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            # Manual trigger always runs the migration path so an operator can
-            # re-deploy after a transient failure without a no-op commit.
             echo "has-migrations=true" >> "$GITHUB_OUTPUT"
+            echo "reason=workflow_dispatch" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+
+          # Fast-path 1: this commit added/changed a migration file. Always
+          # run the migration job in that case, no Supabase round-trip needed.
           if git diff --name-only HEAD~1..HEAD 2>/dev/null | grep -qE '^supabase/migrations/'; then
             echo "has-migrations=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "has-migrations=false" >> "$GITHUB_OUTPUT"
+            echo "reason=migration_file_in_diff" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+
+          # Fast-path 2: this commit changed db/schema.sql. Either it's a
+          # post-deploy regen (no-op for db push, will exit clean) or a
+          # pre-flight-restore PR like #105 (drift fixed, ready to apply
+          # outstanding migrations). Either way we want the migration path
+          # to run so the pre-flight + push has a chance to act.
+          if git diff --name-only HEAD~1..HEAD 2>/dev/null | grep -qE '^db/schema\.sql$'; then
+            echo "has-migrations=true" >> "$GITHUB_OUTPUT"
+            echo "reason=schema_sql_in_diff" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Definitive check: ask Supabase whether any local migration is
+          # not yet applied to prod. Catches the bug class where a PR has
+          # zero schema changes but main has outstanding migrations from
+          # an earlier failed/cancelled deploy. Without this, those
+          # migrations stay buried until someone notices.
+          #
+          # `supabase migration list --linked` prints a 3-column table
+          # (Local | Remote | Time). A row with a Local timestamp but no
+          # Remote timestamp = pending. We grep for that pattern.
+          supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD" >/dev/null
+          listing="$(supabase migration list --linked --password "$SUPABASE_DB_PASSWORD" 2>&1 || true)"
+          echo "$listing"
+          # Pending row format: leading whitespace, version digits, two
+          # whitespace-separated cells where the second (Remote) is empty
+          # or just whitespace before the next column separator. Easiest
+          # robust signal: `Local` column populated, `Remote` column blank.
+          # The CLI uses a `|` separator; a pending row looks like:
+          #   "    20260511131636 |                | 2026-05-11 13:16:36"
+          if printf '%s\n' "$listing" | grep -qE '^[[:space:]]*[0-9]{14}[[:space:]]*\|[[:space:]]*\|'; then
+            echo "has-migrations=true" >> "$GITHUB_OUTPUT"
+            echo "reason=outstanding_migrations_on_prod" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "has-migrations=false" >> "$GITHUB_OUTPUT"
+          echo "reason=no_pending" >> "$GITHUB_OUTPUT"
 
   migrations:
     needs: detect
@@ -94,6 +149,9 @@ jobs:
         uses: supabase/setup-cli@v1
         with:
           version: 2.98.2
+
+      - name: Log detect reason
+        run: echo "detect reason=${{ needs.detect.outputs.detect-reason }}"
 
       - name: Require deploy secrets
         run: |
@@ -167,6 +225,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - name: Log detect reason
+        run: echo "detect reason=${{ needs.detect.outputs.detect-reason }}"
+
       - name: Trigger Vercel production deploy (no migrations in push)
         env:
           HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
