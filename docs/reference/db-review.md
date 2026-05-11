@@ -29,13 +29,18 @@ Das Schema ist insgesamt **gesund**: RLS überall an, Owner-Pattern konsistent, 
 - Alle anderen Funktionen: `set search_path = public, pg_temp`. `set_updated_at`: nur `pg_catalog`.
 - **Fix**: `alter function public.set_updated_at() set search_path = public, pg_temp` als Migration.
 
-### 3. RLS-Policy-Pattern uneinheitlich
-- Frühe Tabellen (`projects`, `project_workspace`, `project_grid`, `project_image_state`):  
-  `using (exists (select 1 from public.projects p where p.id = project_id and p.owner_id = auth.uid()))`
-- Spätere Tabellen (`project_images`, `project_image_filters`):  
-  `using (project_id in (select id from public.projects where owner_id = auth.uid()))`
-- Funktional äquivalent, aber Audit/Diff schwerer.
-- **Fix**: einheitliches Pattern erzwingen (das `IN`-Pattern ist kürzer und deckt mehrere Tabellen schneller ab).
+### 3. RLS-Policy-Pattern uneinheitlich (gelöst durch pg_dump-Normalisierung + DB-PR-2)
+- pg_dump normalisiert alle Policies zu `IN`-Pattern, schema.sql ist
+  einheitlich. Verbliebenes Problem war Naming-Inkonsistenz auf
+  `project_images`: 4 Operationen hatten je zwei Policies
+  (`_<op>_owner` und `_owner_<op>`) — die `_owner_<op>` Variante
+  überlappte permissive mit der `_<op>_owner` Variante. Bei DELETE
+  hob die `_delete_owner` (ohne Master-Klausel) den Master-Schutz
+  in `_owner_delete_non_master` per OR-Verknüpfung auf — der
+  echte Master-Schutz läuft sowieso über den Trigger
+  `guard_master_immutable`.
+- **Fix angewendet**: redundante `_owner_<op>` Policies gedroppt
+  (DB-PR-2), Naming-Schema `_<op>_owner` ist Standard.
 
 ### 4. `verify-remote-rls.mjs` validiert keine Tabellen-Policies remote
 - Skript dumped nur `storage.objects`-Policies via Supabase CLI.
