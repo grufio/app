@@ -41,6 +41,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ project
     source_image_id: result.display.sourceImageId,
     name: result.display.name,
     is_filter_result: result.display.isFilterResult,
+    // Trace-free variant for the Filter tab. Has the same shape but
+    // is always the filter chain tip (or working copy when no
+    // filters are applied), even when a trace overrides `display`.
+    without_trace: {
+      id: result.displayWithoutTrace.id,
+      storage_path: result.displayWithoutTrace.storagePath,
+      width_px: result.displayWithoutTrace.widthPx,
+      height_px: result.displayWithoutTrace.heightPx,
+      signed_url: result.displayWithoutTrace.signedUrl,
+      source_image_id: result.displayWithoutTrace.sourceImageId,
+      name: result.displayWithoutTrace.name,
+      is_filter_result: result.displayWithoutTrace.isFilterResult,
+    },
     stack: result.stack,
   })
 }

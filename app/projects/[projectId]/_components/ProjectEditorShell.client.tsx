@@ -96,6 +96,7 @@ export function ProjectDetailPageClient({
   } = useProjectImages(projectId)
   const {
     image: filterDisplayImage,
+    imageWithoutTrace: filterDisplayImageWithoutTrace,
     stack: filterStack,
     loading: filterImageLoading,
     loadedOnce: filterImageLoadedOnce,
@@ -487,6 +488,43 @@ export function ProjectDetailPageClient({
     }
   }, [editorImageSource])
 
+  // What the canvas actually renders depends on the active left-
+  // panel tab:
+  // - "image": the raw master image — no filters, no trace
+  // - "filter": the filter chain tip without the trace override, so
+  //   a project with an active trace still shows the raster filter
+  //   result here
+  // - everything else (incl. "trace"): the default trace-aware
+  //   display (today's behaviour)
+  // Each branch falls back gracefully when its preferred source is
+  // unavailable (loading / empty) so the canvas always has *something*
+  // to display.
+  const canvasImage = useMemo(() => {
+    if (leftPanelTab === "image" && masterImage) {
+      return {
+        id: masterImage.id,
+        signedUrl: masterImage.signedUrl,
+        name: masterImage.name,
+        width_px: masterImage.width_px,
+        height_px: masterImage.height_px,
+        dpi: masterImage.dpi ?? null,
+        restore_base: masterImage.restore_base ?? null,
+      }
+    }
+    if (leftPanelTab === "filter" && filterDisplayImageWithoutTrace) {
+      return {
+        id: filterDisplayImageWithoutTrace.id,
+        signedUrl: filterDisplayImageWithoutTrace.signedUrl,
+        name: filterDisplayImageWithoutTrace.name,
+        width_px: filterDisplayImageWithoutTrace.width_px,
+        height_px: filterDisplayImageWithoutTrace.height_px,
+        dpi: null,
+        restore_base: null,
+      }
+    }
+    return stageImage
+  }, [leftPanelTab, masterImage, filterDisplayImageWithoutTrace, stageImage])
+
   const grid = useMemo(() => {
     if (!gridVisible) return null
     return computeRenderableGrid({ row: gridRow, spacingXPx, spacingYPx, lineWidthPx })
@@ -604,7 +642,7 @@ export function ProjectDetailPageClient({
             />
             <ProjectEditorStage
               projectId={projectId}
-              masterImage={stageImage}
+              masterImage={canvasImage}
               masterImageLoading={editorImageSource.status === "loading"}
               masterImageError={editorImageSource.status === "error" ? editorImageSource.error : ""}
               imageStateLoading={imageStateLoading}

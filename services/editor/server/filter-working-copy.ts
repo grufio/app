@@ -54,19 +54,29 @@ export type FilterPanelStackItem = {
   is_hidden: boolean
 }
 
+export type FilterPanelDisplay = {
+  id: string
+  storagePath: string
+  widthPx: number
+  heightPx: number
+  signedUrl: string
+  sourceImageId: string | null
+  name: string
+  isFilterResult: boolean
+}
+
 export type FilterPanelDataResult =
   | {
       ok: true
-      display: {
-        id: string
-        storagePath: string
-        widthPx: number
-        heightPx: number
-        signedUrl: string
-        sourceImageId: string | null
-        name: string
-        isFilterResult: boolean
-      }
+      /** What the canvas should render by default: trace-aware. If a
+       * project_image_trace row exists, this is the trace SVG; else
+       * the filter chain tip (or working copy when no filters). */
+      display: FilterPanelDisplay
+      /** Same shape as `display` but without the trace override —
+       * always the filter chain tip (or working copy). Used by the
+       * Filter tab to show the raster filter result even when a
+       * Trace artefact exists. */
+      displayWithoutTrace: FilterPanelDisplay
       stack: FilterPanelStackItem[]
     }
   | Failure
@@ -507,6 +517,7 @@ export async function getFilterPanelData(args: {
     return {
       ok: true,
       display: baseDisplay,
+      displayWithoutTrace: displayFromWorking,
       stack: [],
     }
   }
@@ -549,6 +560,7 @@ export async function getFilterPanelData(args: {
     return {
       ok: true,
       display: displayFromWorking,
+      displayWithoutTrace: displayFromWorking,
       stack: [],
     }
   }
@@ -568,6 +580,7 @@ export async function getFilterPanelData(args: {
     return {
       ok: true,
       display: displayFromWorking,
+      displayWithoutTrace: displayFromWorking,
       stack: [],
     }
   }
@@ -627,9 +640,7 @@ export async function getFilterPanelData(args: {
     .from(String(tipImage.storage_bucket ?? PROJECT_IMAGES_BUCKET))
     .createSignedUrl(String(tipImage.storage_path), SIGNED_URL_TTL.filterWorkingCopy)
 
-  // Trace overrides the filter chain tip — see comment in
-  // getFilterPanelData where `traceDisplay` is first computed.
-  const tipDisplay = traceDisplay ?? {
+  const filterTipDisplay: FilterPanelDisplay = {
     id: tipImage.id,
     storagePath: tipImage.storage_path,
     widthPx: tipImage.width_px,
@@ -640,9 +651,16 @@ export async function getFilterPanelData(args: {
     isFilterResult: true,
   }
 
+  // Trace overrides the filter chain tip — see comment in
+  // getFilterPanelData where `traceDisplay` is first computed.
+  // `displayWithoutTrace` keeps the raster tip so the Filter tab
+  // can show it even when a trace exists.
+  const tipDisplay = traceDisplay ?? filterTipDisplay
+
   return {
     ok: true,
     display: tipDisplay,
+    displayWithoutTrace: filterTipDisplay,
     stack,
   }
 }
