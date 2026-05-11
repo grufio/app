@@ -156,6 +156,16 @@ export function TraceInlineSvg({ svgText, imageRect, view, rotation = 0, forward
       }}
     >
       <style>{`
+        /* The overlay covers the whole image rect — without these
+         * rules every click in that rect would land on the trace and
+         * never reach Konva, blocking artboard/image selection,
+         * resize handles, drag, etc. Container + non-interactive
+         * children pass events through; only the colored region
+         * paths catch them. */
+        [data-testid="trace-inline-svg"],
+        [data-testid="trace-inline-svg"] * {
+          pointer-events: none;
+        }
         [data-testid="trace-inline-svg"] [data-trace-region] {
           cursor: pointer;
           pointer-events: all;
