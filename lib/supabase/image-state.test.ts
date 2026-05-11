@@ -120,7 +120,6 @@ describe("upsertBoundImageState", () => {
     const out = await upsertBoundImageState(supabase, {
       project_id: "p1",
       image_id: "img1",
-      role: "master",
       x_px_u: "1",
       y_px_u: "2",
       width_px_u: "3",
@@ -135,7 +134,6 @@ describe("upsertBoundImageState", () => {
         row: {
           project_id: "p1",
           image_id: "img1",
-          role: "master",
           x_px_u: "1",
           y_px_u: "2",
           width_px_u: "3",
@@ -146,29 +144,12 @@ describe("upsertBoundImageState", () => {
     ])
   })
 
-  it("defaults role to master when omitted", async () => {
-    const calls: UpsertCall[] = []
-    const supabase = makeUpsertSupabase({ error: null }, calls)
-    const out = await upsertBoundImageState(supabase, {
-      project_id: "p2",
-      image_id: "img2",
-      x_px_u: null,
-      y_px_u: null,
-      width_px_u: "10",
-      height_px_u: "20",
-      rotation_deg: 0,
-    })
-    expect(out).toEqual({ ok: true })
-    expect(calls[0]?.row.role).toBe("master")
-  })
-
   it("maps upsert errors", async () => {
     const calls: UpsertCall[] = []
     const supabase = makeUpsertSupabase({ error: { message: "upsert failed" } }, calls)
     const out = await upsertBoundImageState(supabase, {
       project_id: "p1",
       image_id: "img1",
-      role: "master",
       x_px_u: null,
       y_px_u: null,
       width_px_u: "3",

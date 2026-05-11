@@ -24,7 +24,6 @@ export type BoundImageStateRow = {
 export type BoundImageStateUpsert = {
   project_id: string
   image_id: string
-  role?: "master" | "working" | "asset"
   x_px_u: string | null
   y_px_u: string | null
   width_px_u: string
@@ -71,11 +70,7 @@ export async function upsertBoundImageState(
   supabase: SupabaseClient,
   row: BoundImageStateUpsert
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const payload = {
-    ...row,
-    role: row.role ?? "master",
-  }
-  const { error } = await supabase.from("project_image_state").upsert(payload, { onConflict: "project_id,image_id" })
+  const { error } = await supabase.from("project_image_state").upsert(row, { onConflict: "project_id,image_id" })
   if (error) return { ok: false, error: error.message }
   return { ok: true }
 }

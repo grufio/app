@@ -8,7 +8,7 @@
 import { NextResponse } from "next/server"
 
 import { createSupabaseServerClient } from "@/lib/supabase/server"
-import { getEditorTargetImageRow, resolveImageStateRoleFromProjectImage } from "@/lib/supabase/project-images"
+import { getEditorTargetImageRow } from "@/lib/supabase/project-images"
 import { loadBoundImageState, upsertBoundImageState } from "@/lib/supabase/image-state"
 import { isUuid, jsonError, readJson, requireUser } from "@/lib/api/route-guards"
 import { validateIncomingImageStateUpsert, type IncomingImageStatePayload } from "@/lib/editor/imageState"
@@ -115,7 +115,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ project
   }
   const { data: editorTargetImageRow, error: editorTargetImageErr } = await supabase
     .from("project_images")
-    .select("is_locked,kind")
+    .select("is_locked")
     .eq("project_id", projectId)
     .eq("id", editorTargetImageIdForWrite)
     .is("deleted_at", null)
@@ -143,7 +143,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ project
   const upsert = await upsertBoundImageState(supabase, {
     project_id: baseRow.project_id,
     image_id: baseRow.image_id,
-    role: resolveImageStateRoleFromProjectImage(editorTargetImageRow),
     x_px_u: resolvedXPxU,
     y_px_u: resolvedYPxU,
     width_px_u: baseRow.width_px_u,

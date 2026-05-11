@@ -28,7 +28,7 @@ export type DashboardProjectRow = Pick<
   project_image_state: Array<
     Pick<
       Database["public"]["Tables"]["project_image_state"]["Row"],
-      "role" | "image_id" | "x_px_u" | "y_px_u" | "width_px_u" | "height_px_u" | "rotation_deg"
+      "image_id" | "x_px_u" | "y_px_u" | "width_px_u" | "height_px_u" | "rotation_deg"
     >
   >
 }
@@ -65,8 +65,6 @@ export function mapDashboardRow(row: DashboardProjectRow, signedUrlByPath: Map<s
   const artboardWidthPx = row.project_workspace?.width_px ?? undefined
   const artboardHeightPx = row.project_workspace?.height_px ?? undefined
 
-  // Dashboard mapping is image-id bound. `role` in project_image_state is historical
-  // and can be duplicated, so we must not use it as primary selector here.
   const st = master?.id ? row.project_image_state?.find((s) => s.image_id === master.id) ?? null : null
   const initialImageTransform = st
     ? {
@@ -99,7 +97,7 @@ export async function listDashboardProjects(
   const { data: rows, error } = await supabase
     .from("projects")
     .select(
-      "id,name,updated_at,status,project_images!project_images_project_id_fkey(id,kind,file_size_bytes,storage_path,name,format,width_px,height_px,source_image_id),project_workspace(width_px,height_px),project_image_state(role,image_id,x_px_u,y_px_u,width_px_u,height_px_u,rotation_deg)"
+      "id,name,updated_at,status,project_images!project_images_project_id_fkey(id,kind,file_size_bytes,storage_path,name,format,width_px,height_px,source_image_id),project_workspace(width_px,height_px),project_image_state(image_id,x_px_u,y_px_u,width_px_u,height_px_u,rotation_deg)"
     )
     .order("updated_at", { ascending: false })
     .limit(100)

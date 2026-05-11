@@ -43,13 +43,6 @@ export type ActiveProjectImageRow = {
   is_locked: boolean | null
 }
 
-export function resolveImageStateRoleFromProjectImage(row: Pick<ActiveProjectImageRow, "kind"> | null | undefined): "master" | "working" | "asset" {
-  const kind = String(row?.kind ?? "").toLowerCase()
-  if (kind === "working_copy") return "working"
-  if (kind === "filter_working_copy") return "asset"
-  return "master"
-}
-
 function toActiveProjectImageRow(data: Record<string, unknown>): ActiveProjectImageRow | null {
   if (!data?.id) return null
   return {

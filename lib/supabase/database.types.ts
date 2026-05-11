@@ -119,62 +119,35 @@ export type Database = {
       project_image_state: {
         Row: {
           created_at: string
-          dpi: number | null
-          height_px: number | null
           height_px_u: string
           image_id: string
           project_id: string
-          role: Database["public"]["Enums"]["image_role"]
           rotation_deg: number
-          scale_x: number
-          scale_y: number
-          unit: Database["public"]["Enums"]["measure_unit"] | null
           updated_at: string
-          width_px: number | null
           width_px_u: string
-          x: number
           x_px_u: string | null
-          y: number
           y_px_u: string | null
         }
         Insert: {
           created_at?: string
-          dpi?: number | null
-          height_px?: number | null
           height_px_u: string
           image_id: string
           project_id: string
-          role: Database["public"]["Enums"]["image_role"]
           rotation_deg?: number
-          scale_x?: number
-          scale_y?: number
-          unit?: Database["public"]["Enums"]["measure_unit"] | null
           updated_at?: string
-          width_px?: number | null
           width_px_u: string
-          x?: number
           x_px_u?: string | null
-          y?: number
           y_px_u?: string | null
         }
         Update: {
           created_at?: string
-          dpi?: number | null
-          height_px?: number | null
           height_px_u?: string
           image_id?: string
           project_id?: string
-          role?: Database["public"]["Enums"]["image_role"]
           rotation_deg?: number
-          scale_x?: number
-          scale_y?: number
-          unit?: Database["public"]["Enums"]["measure_unit"] | null
           updated_at?: string
-          width_px?: number | null
           width_px_u?: string
-          x?: number
           x_px_u?: string | null
-          y?: number
           y_px_u?: string | null
         }
         Relationships: [
@@ -481,7 +454,6 @@ export type Database = {
     }
     Enums: {
       image_kind: "master" | "working_copy" | "filter_working_copy"
-      image_role: "master" | "working" | "asset"
       measure_unit: "mm" | "cm" | "pt" | "px"
       project_status: "in_progress" | "completed" | "archived"
       workflow_step: "image" | "filter" | "convert" | "output"
@@ -613,7 +585,6 @@ export const Constants = {
   public: {
     Enums: {
       image_kind: ["master", "working_copy", "filter_working_copy"],
-      image_role: ["master", "working", "asset"],
       measure_unit: ["mm", "cm", "pt", "px"],
       project_status: ["in_progress", "completed", "archived"],
       workflow_step: ["image", "filter", "convert", "output"],
