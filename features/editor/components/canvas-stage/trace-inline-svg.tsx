@@ -52,16 +52,6 @@ type Props = {
   forwardWheelTo?: HTMLElement | null
 }
 
-/**
- * Keep only characters that are safe inside a CSS attribute selector
- * value (`[data-fill="..."]`). Hex colors and simple numeric forms
- * pass through unchanged; anything weirder (e.g. `url(...)`, `rgb(`)
- * has its danger chars stripped so the generated rule stays valid.
- */
-function escapeAttrSelectorValue(v: string): string {
-  return v.replace(/[^a-zA-Z0-9#.,()%/\s_-]/g, "")
-}
-
 export function TraceInlineSvg({ svgText, imageRect, view, rotation = 0, forwardWheelTo }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const prepared = useMemo(() => prepareTraceSvg(svgText), [svgText])
@@ -83,6 +73,23 @@ export function TraceInlineSvg({ svgText, imageRect, view, rotation = 0, forward
       document.removeEventListener("click", onDocClick)
     }
   }, [])
+
+  // Drive the click highlight via direct DOM mutation rather than a
+  // generated CSS rule. The dynamic `<style>` approach was fragile —
+  // CSS attribute selectors with arbitrary fill strings depended on
+  // careful escaping and were hard to debug. Flipping a `data-selected`
+  // attribute on each matching path is direct, observable in DevTools,
+  // and works regardless of what the fill value looks like.
+  useEffect(() => {
+    const root = containerRef.current
+    if (!root) return
+    const paths = root.querySelectorAll<SVGElement>("[data-trace-region]")
+    paths.forEach((p) => {
+      const matches = selectedFill != null && p.getAttribute("data-fill") === selectedFill
+      if (matches) p.setAttribute("data-selected", "")
+      else p.removeAttribute("data-selected")
+    })
+  }, [selectedFill, prepared])
 
   if (!prepared) return null
 
@@ -131,8 +138,6 @@ export function TraceInlineSvg({ svgText, imageRect, view, rotation = 0, forward
   const left = centerScreenX - screenW / 2
   const top = centerScreenY - screenH / 2
 
-  const safeSelectedFill = selectedFill ? escapeAttrSelectorValue(selectedFill) : null
-
   return (
     <div
       ref={containerRef}
@@ -156,13 +161,11 @@ export function TraceInlineSvg({ svgText, imageRect, view, rotation = 0, forward
           pointer-events: all;
           transition: stroke 80ms ease;
         }
-        [data-testid="trace-inline-svg"] [data-trace-region]:hover {
+        [data-testid="trace-inline-svg"] [data-trace-region]:hover,
+        [data-testid="trace-inline-svg"] [data-trace-region][data-selected] {
           stroke: red;
           stroke-width: ${prepared.strokeWidth};
         }
-        ${safeSelectedFill
-          ? `[data-testid="trace-inline-svg"] [data-trace-region][data-fill="${safeSelectedFill}"] { stroke: red; stroke-width: ${prepared.strokeWidth}; }`
-          : ""}
       `}</style>
       <div dangerouslySetInnerHTML={{ __html: prepared.html }} />
     </div>
