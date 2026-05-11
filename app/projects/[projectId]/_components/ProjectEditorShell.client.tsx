@@ -492,14 +492,12 @@ export function ProjectDetailPageClient({
   // What the canvas actually renders depends on the active left-
   // panel tab:
   // - "image": the raw master image — no filters, no trace
-  // - "filter": the filter chain tip without the trace override, so
-  //   a project with an active trace still shows the raster filter
-  //   result here
-  // - everything else (incl. "trace"): the default trace-aware
-  //   display (today's behaviour)
-  // Each branch falls back gracefully when its preferred source is
-  // unavailable (loading / empty) so the canvas always has *something*
-  // to display.
+  // - "filter" + "trace": the filter chain tip without the trace
+  //   override. The Trace tab composes the trace SVG ON TOP of this
+  //   raster (see `traceOverlaySvgUrl` below); the Filter tab leaves
+  //   the trace overlay off and shows only the raster.
+  // Each branch falls back to `stageImage` (the trace-aware default)
+  // when its preferred source is unavailable (loading / empty).
   const canvasImage = useMemo(() => {
     if (leftPanelTab === "image" && masterImage) {
       return {
@@ -512,7 +510,9 @@ export function ProjectDetailPageClient({
         restore_base: masterImage.restore_base ?? null,
       }
     }
-    if (leftPanelTab === "filter" && filterDisplayImageWithoutTrace) {
+    if (filterDisplayImageWithoutTrace) {
+      // Filter + Trace tabs both put the raster filter tip on the
+      // canvas; only the overlay differs between them.
       return {
         id: filterDisplayImageWithoutTrace.id,
         signedUrl: filterDisplayImageWithoutTrace.signedUrl,
@@ -525,6 +525,19 @@ export function ProjectDetailPageClient({
     }
     return stageImage
   }, [leftPanelTab, masterImage, filterDisplayImageWithoutTrace, stageImage])
+
+  // Trace overlay (on top of the Konva.Image filter tip) only on
+  // the Trace tab, and only when a trace actually exists. We detect
+  // "trace exists" by comparing the trace-aware display id against
+  // the without-trace id — when the server overrode the display
+  // with a Trace artefact, the IDs differ and `filterDisplayImage`
+  // carries the SVG URL.
+  const traceOverlaySvgUrl = useMemo(() => {
+    if (leftPanelTab !== "trace") return null
+    if (!filterDisplayImage || !filterDisplayImageWithoutTrace) return null
+    if (filterDisplayImage.id === filterDisplayImageWithoutTrace.id) return null
+    return filterDisplayImage.signedUrl
+  }, [leftPanelTab, filterDisplayImage, filterDisplayImageWithoutTrace])
 
   const grid = useMemo(() => {
     if (!gridVisible) return null
@@ -653,6 +666,7 @@ export function ProjectDetailPageClient({
               artboardHeightPx={artboardHeightPx ?? undefined}
               artboardDpi={workspaceDpi ?? undefined}
               grid={grid}
+              traceOverlaySvgUrl={traceOverlaySvgUrl}
               handleImageTransformChange={handleImageTransformChange}
               initialImageTransform={initialImageTransform}
               saveImageState={saveImageStateBound}
