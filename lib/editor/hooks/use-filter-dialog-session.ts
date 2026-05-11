@@ -1,40 +1,19 @@
 "use client"
 
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useMemo, useReducer, useState } from "react"
 
-import type { RegisteredFilterId } from "@/lib/editor/filters/registry"
+import {
+  filterDialogReducer,
+  initialFilterDialogState,
+  toFilterDialogSession,
+  type FilterDialogSourceImage,
+  type FilterType,
+} from "@/lib/editor/dialogs/filter-dialog-state"
 
-export type FilterType = RegisteredFilterId
-type FilterDialogSourceImage = {
-  id: string
-  width_px: number
-  height_px: number
-  signedUrl: string
-}
-
-type FilterDialogSession = {
-  sourceImageId: string
-  sourceImageWidth: number
-  sourceImageHeight: number
-  sourceImageUrl: string
-}
-
-type FilterDialogState =
-  | { phase: "idle" }
-  | { phase: "selecting"; session: FilterDialogSession }
-  | { phase: "configuring"; session: FilterDialogSession; filterType: FilterType }
-
-function toSession(image: FilterDialogSourceImage): FilterDialogSession {
-  return {
-    sourceImageId: image.id,
-    sourceImageWidth: image.width_px,
-    sourceImageHeight: image.height_px,
-    sourceImageUrl: image.signedUrl,
-  }
-}
+export type { FilterDialogSourceImage, FilterType }
 
 export function useFilterDialogSession(sourceImage: FilterDialogSourceImage | null) {
-  const [state, setState] = useState<FilterDialogState>({ phase: "idle" })
+  const [state, dispatch] = useReducer(filterDialogReducer, initialFilterDialogState)
   const [error, setError] = useState("")
 
   const beginSelection = useCallback(() => {
@@ -43,28 +22,25 @@ export function useFilterDialogSession(sourceImage: FilterDialogSourceImage | nu
       return false
     }
     setError("")
-    setState({ phase: "selecting", session: toSession(sourceImage) })
+    dispatch({ type: "beginSelection", session: toFilterDialogSession(sourceImage) })
     return true
   }, [sourceImage])
 
   const closeSelection = useCallback(() => {
-    setState({ phase: "idle" })
+    dispatch({ type: "closeSelection" })
   }, [])
 
   const selectFilterType = useCallback((filterType: FilterType) => {
-    setState((prev) => {
-      if (prev.phase !== "selecting") return prev
-      return { phase: "configuring", session: prev.session, filterType }
-    })
+    dispatch({ type: "selectFilterType", filterType })
   }, [])
 
   const closeConfigure = useCallback(() => {
-    setState({ phase: "idle" })
+    dispatch({ type: "closeConfigure" })
   }, [])
 
   const reset = useCallback(() => {
     setError("")
-    setState({ phase: "idle" })
+    dispatch({ type: "reset" })
   }, [])
 
   const selectionOpen = state.phase === "selecting"
@@ -96,6 +72,6 @@ export function useFilterDialogSession(sourceImage: FilterDialogSourceImage | nu
       selectFilterType,
       session,
       state,
-    ]
+    ],
   )
 }

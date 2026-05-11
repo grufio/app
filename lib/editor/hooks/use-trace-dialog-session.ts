@@ -8,43 +8,24 @@
  * separate hooks because Trace is mutually exclusive (one active
  * per project) — replacing handles via `applyProjectTrace` overwrite,
  * not via a stack append.
+ *
+ * State transitions live in `lib/editor/dialogs/trace-dialog-state.ts`
+ * so the rules can be tested without `renderHook`.
  */
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useMemo, useReducer, useState } from "react"
 
-import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
+import {
+  initialTraceDialogState,
+  toTraceDialogSession,
+  traceDialogReducer,
+  type TraceDialogSourceImage,
+  type TraceKind,
+} from "@/lib/editor/dialogs/trace-dialog-state"
 
-export type TraceKind = RegisteredTraceId
-
-type TraceDialogSourceImage = {
-  id: string
-  width_px: number
-  height_px: number
-  signedUrl: string
-}
-
-type TraceDialogSession = {
-  sourceImageId: string
-  sourceImageWidth: number
-  sourceImageHeight: number
-  sourceImageUrl: string
-}
-
-type TraceDialogState =
-  | { phase: "idle" }
-  | { phase: "selecting"; session: TraceDialogSession }
-  | { phase: "configuring"; session: TraceDialogSession; kind: TraceKind }
-
-function toSession(image: TraceDialogSourceImage): TraceDialogSession {
-  return {
-    sourceImageId: image.id,
-    sourceImageWidth: image.width_px,
-    sourceImageHeight: image.height_px,
-    sourceImageUrl: image.signedUrl,
-  }
-}
+export type { TraceDialogSourceImage, TraceKind }
 
 export function useTraceDialogSession(sourceImage: TraceDialogSourceImage | null) {
-  const [state, setState] = useState<TraceDialogState>({ phase: "idle" })
+  const [state, dispatch] = useReducer(traceDialogReducer, initialTraceDialogState)
   const [error, setError] = useState("")
 
   const beginSelection = useCallback(() => {
@@ -53,28 +34,25 @@ export function useTraceDialogSession(sourceImage: TraceDialogSourceImage | null
       return false
     }
     setError("")
-    setState({ phase: "selecting", session: toSession(sourceImage) })
+    dispatch({ type: "beginSelection", session: toTraceDialogSession(sourceImage) })
     return true
   }, [sourceImage])
 
   const closeSelection = useCallback(() => {
-    setState({ phase: "idle" })
+    dispatch({ type: "closeSelection" })
   }, [])
 
   const selectKind = useCallback((kind: TraceKind) => {
-    setState((prev) => {
-      if (prev.phase !== "selecting") return prev
-      return { phase: "configuring", session: prev.session, kind }
-    })
+    dispatch({ type: "selectKind", kind })
   }, [])
 
   const closeConfigure = useCallback(() => {
-    setState({ phase: "idle" })
+    dispatch({ type: "closeConfigure" })
   }, [])
 
   const reset = useCallback(() => {
     setError("")
-    setState({ phase: "idle" })
+    dispatch({ type: "reset" })
   }, [])
 
   const selectionOpen = state.phase === "selecting"
@@ -106,6 +84,6 @@ export function useTraceDialogSession(sourceImage: TraceDialogSourceImage | null
       selectKind,
       session,
       state,
-    ]
+    ],
   )
 }
