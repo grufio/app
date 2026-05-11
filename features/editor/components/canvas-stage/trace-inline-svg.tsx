@@ -173,14 +173,20 @@ export function TraceInlineSvg({ svgText, imageRect, view, rotation = 0, forward
         }
         [data-testid="trace-inline-svg"] [data-trace-region]:hover,
         [data-testid="trace-inline-svg"] [data-trace-region][data-selected] {
-          stroke: red;
-          /* Highlight stroke uses non-scaling-stroke + a fixed screen-pixel
-           * value so it stays clearly visible regardless of viewBox-to-
-           * screen scaling. Matching the trace's own configured stroke
-           * (1 unit by default) rendered sub-pixel at typical zoom levels
-           * and looked anti-aliased to grey. */
-          stroke-width: 3px;
+          /* High-contrast canary yellow stands out against most palette
+           * colors in numerate traces (which tend toward muted greens,
+           * browns, blues). Red got lost on red-leaning regions. */
+          stroke: #FFEA00;
+          /* Fixed screen-pixel width via non-scaling-stroke so the
+           * outline stays clearly visible regardless of zoom — the
+           * trace's own configured stroke (1 SVG unit) renders sub-
+           * pixel at typical zoom levels and looks anti-aliased to a
+           * grey hair. */
+          stroke-width: 4px;
           vector-effect: non-scaling-stroke;
+          /* Thin black halo so the yellow outline reads clearly even
+           * on bright/yellow regions. */
+          filter: drop-shadow(0 0 1px rgba(0,0,0,0.9));
         }
       `}</style>
       <div dangerouslySetInnerHTML={{ __html: prepared.html }} />
