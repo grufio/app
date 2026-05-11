@@ -28,11 +28,8 @@ import { describe, expect, it } from "vitest"
 const PROJECT_MUTATING_RPCS = [
   "append_project_image_filter",
   "remove_project_image_filter",
-  "reorder_project_image_filters",
   "delete_project",
   "set_active_image",
-  "set_active_master_image",
-  "set_active_master_latest",
   "set_active_master_with_state",
 ] as const
 

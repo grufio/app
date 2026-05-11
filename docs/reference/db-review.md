@@ -30,7 +30,7 @@ Das Schema ist insgesamt **gesund**: RLS überall an, Owner-Pattern konsistent, 
 - **Fix**: `alter function public.set_updated_at() set search_path = public, pg_temp` als Migration.
 
 ### 3. RLS-Policy-Pattern uneinheitlich
-- Frühe Tabellen (`projects`, `project_workspace`, `project_grid`, `project_pdfs`, `project_filter_settings`, `project_generation`, `project_image_state`):  
+- Frühe Tabellen (`projects`, `project_workspace`, `project_grid`, `project_image_state`):  
   `using (exists (select 1 from public.projects p where p.id = project_id and p.owner_id = auth.uid()))`
 - Spätere Tabellen (`project_images`, `project_image_filters`):  
   `using (project_id in (select id from public.projects where owner_id = auth.uid()))`
