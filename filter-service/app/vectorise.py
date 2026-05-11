@@ -76,39 +76,39 @@ def quantise_image(img: Image.Image, num_colors: int) -> Image.Image:
 
 def build_superpixel_image(
     img: Image.Image,
-    superpixel_width: int,
-    superpixel_height: int,
-) -> tuple[Image.Image, int, int]:
+    cells_x: int,
+    cells_y: int,
+    sw: int,
+    sh: int,
+) -> Image.Image:
     """
-    Collapse the input image into its superpixel-grid form: each
-    `superpixel_width × superpixel_height` block is replaced by its
-    mean color. Returns (pixelated_image, grid_width, grid_height).
+    Collapse the input image into a `cells_x × cells_y` superpixel
+    grid where each cell is replaced by the mean color of an
+    `sw × sh` block of source pixels.
 
-    The bitmap is **unpadded** — its dimensions are `grid_width *
-    superpixel_width × grid_height * superpixel_height`, which may
-    crop a few px off the right/bottom of the input when the input
-    isn't an exact multiple. The numerate SVG composer stretches the
-    bitmap back to the original image dims via a scale transform so
-    coverage stays visually exact.
+    The caller owns the cell decomposition — this function trusts
+    `cells_x`, `cells_y`, `sw`, `sh` verbatim and crops the input
+    to exactly `cells_x * sw × cells_y * sh` pixels. Any leftover
+    right/bottom strip on the input image is discarded. The
+    numerate SVG composer stretches the result back to the original
+    image dims via a scale transform so coverage stays visually
+    exact.
+
+    Returning the image **only** (no derived `grid_width/height`)
+    guarantees `result.size == (cells_x * sw, cells_y * sh)` by
+    construction — there's only one source of truth for the cell
+    count, fixing the vtracer size mismatch class of bug where
+    caller and callee derived the grid independently and drifted.
     """
-    width, height = img.size
-    grid_width = width // superpixel_width
-    grid_height = height // superpixel_height
-
-    sw = superpixel_width
-    sh = superpixel_height
-    h_crop = grid_height * sh
-    w_crop = grid_width * sw
-
     arr = np.array(img.convert("RGB"))
     block_means = (
-        arr[:h_crop, :w_crop]
-        .reshape(grid_height, sh, grid_width, sw, 3)
+        arr[: cells_y * sh, : cells_x * sw]
+        .reshape(cells_y, sh, cells_x, sw, 3)
         .mean(axis=(1, 3))
         .astype(np.uint8)
     )
     expanded = block_means.repeat(sh, axis=0).repeat(sw, axis=1)
-    return Image.fromarray(expanded, mode="RGB"), grid_width, grid_height
+    return Image.fromarray(expanded, mode="RGB")
 
 
 # vtracer emits an outer `<svg>` envelope; we re-wrap the path body
@@ -199,8 +199,8 @@ def numerate_to_svg(
         quantised = quantise_image(img, num_colors)
         phase("quantise")
 
-        pixelated, _grid_w, _grid_h = build_superpixel_image(
-            quantised, sw_int, sh_int,
+        pixelated = build_superpixel_image(
+            quantised, cells_x, cells_y, sw_int, sh_int,
         )
         phase("superpixel")
 
