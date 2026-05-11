@@ -35,7 +35,7 @@ import { createTransformController } from "./canvas-stage/transform-controller"
 import type { BoundsRect, ViewState } from "./canvas-stage/types"
 import { useHtmlImage } from "./canvas-stage/use-html-image"
 import { useSvgText } from "./canvas-stage/use-svg-text"
-import { TraceInteractiveOverlay } from "./canvas-stage/trace-interactive-overlay"
+import { TraceInlineSvg } from "./canvas-stage/trace-inline-svg"
 import { computeWorldSize } from "@/services/editor"
 
 type Props = {
@@ -645,7 +645,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
             clipWidth={shouldClipToArtboard ? artW : undefined}
             clipHeight={shouldClipToArtboard ? artH : undefined}
           >
-            {img && imageTx && imageRender ? (
+            {img && imageTx && imageRender && !svgText ? (
               <KonvaImage
                 ref={(n) => {
                   imageNodeRef.current = n
@@ -801,7 +801,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
         </Layer>
       </Stage>
       {svgText && imageRender ? (
-        <TraceInteractiveOverlay
+        <TraceInlineSvg
           svgText={svgText}
           imageRect={imageRender}
           view={view}
