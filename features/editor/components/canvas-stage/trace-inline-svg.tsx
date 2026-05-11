@@ -74,6 +74,28 @@ export function TraceInlineSvg({ svgText, imageRect, view, rotation = 0, forward
     }
   }, [])
 
+  // Click activation runs on a native event listener attached
+  // directly to the container — React's onClick / event delegation
+  // is unreliable for descendants of `dangerouslySetInnerHTML`
+  // (the SVG paths aren't React fibers, so the delegation walk
+  // can miss them). The user reported hover (CSS-only) working but
+  // click not — exactly the symptom of that delegation gap.
+  useEffect(() => {
+    const root = containerRef.current
+    if (!root) return
+    const onClick = (e: MouseEvent) => {
+      const target = e.target as Element | null
+      if (!target) return
+      const region = target.closest("[data-trace-region]")
+      if (!region) return
+      e.stopPropagation()
+      const fill = region.getAttribute("data-fill") ?? ""
+      setSelectedFill(fill || null)
+    }
+    root.addEventListener("click", onClick)
+    return () => root.removeEventListener("click", onClick)
+  }, [])
+
   // Drive the click highlight via direct DOM mutation rather than a
   // generated CSS rule. The dynamic `<style>` approach was fragile —
   // CSS attribute selectors with arbitrary fill strings depended on
@@ -92,18 +114,6 @@ export function TraceInlineSvg({ svgText, imageRect, view, rotation = 0, forward
   }, [selectedFill, prepared])
 
   if (!prepared) return null
-
-  const onContainerClick = (e: React.MouseEvent) => {
-    const target = e.target as Element
-    const region = target.closest("[data-trace-region]")
-    if (!region) return
-    // Stop propagation so the document-click deselect doesn't fire
-    // on the same native event (React stops synthetic only; the
-    // containerRef.contains guard above handles the native path).
-    e.stopPropagation()
-    const fill = region.getAttribute("data-fill") ?? ""
-    setSelectedFill(fill || null)
-  }
 
   const onContainerWheel = (e: React.WheelEvent<HTMLDivElement>) => {
     // Forward wheel events to the Konva stage container so pinch/
@@ -142,7 +152,6 @@ export function TraceInlineSvg({ svgText, imageRect, view, rotation = 0, forward
     <div
       ref={containerRef}
       data-testid="trace-inline-svg"
-      onClick={onContainerClick}
       onWheel={onContainerWheel}
       style={{
         position: "absolute",
