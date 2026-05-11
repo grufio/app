@@ -48,16 +48,6 @@ CREATE TYPE "public"."image_kind" AS ENUM (
 ALTER TYPE "public"."image_kind" OWNER TO "postgres";
 
 
-CREATE TYPE "public"."image_role" AS ENUM (
-    'master',
-    'working',
-    'asset'
-);
-
-
-ALTER TYPE "public"."image_role" OWNER TO "postgres";
-
-
 CREATE TYPE "public"."measure_unit" AS ENUM (
     'mm',
     'cm',
@@ -544,7 +534,6 @@ begin
 
   insert into public.project_image_state (
     project_id,
-    role,
     image_id,
     x_px_u,
     y_px_u,
@@ -553,7 +542,6 @@ begin
     rotation_deg
   ) values (
     p_project_id,
-    'master',
     p_image_id,
     v_x_u::text,
     v_y_u::text,
@@ -563,8 +551,7 @@ begin
   )
   on conflict (project_id, image_id)
   do update
-    set role = excluded.role,
-        x_px_u = excluded.x_px_u,
+    set x_px_u = excluded.x_px_u,
         y_px_u = excluded.y_px_u,
         width_px_u = excluded.width_px_u,
         height_px_u = excluded.height_px_u,
@@ -1581,28 +1568,14 @@ ALTER TABLE "public"."project_image_filters" OWNER TO "postgres";
 
 CREATE TABLE IF NOT EXISTS "public"."project_image_state" (
     "project_id" "uuid" NOT NULL,
-    "role" "public"."image_role" NOT NULL,
-    "x" numeric DEFAULT 0 NOT NULL,
-    "y" numeric DEFAULT 0 NOT NULL,
-    "scale_x" numeric DEFAULT 1 NOT NULL,
-    "scale_y" numeric DEFAULT 1 NOT NULL,
     "rotation_deg" integer DEFAULT 0 NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "width_px" numeric,
-    "height_px" numeric,
-    "unit" "public"."measure_unit",
-    "dpi" numeric,
     "width_px_u" "text" NOT NULL,
     "height_px_u" "text" NOT NULL,
     "x_px_u" "text",
     "y_px_u" "text",
-    "image_id" "uuid" NOT NULL,
-    CONSTRAINT "project_image_state_dpi_positive" CHECK ((("dpi" IS NULL) OR ("dpi" > (0)::numeric))),
-    CONSTRAINT "project_image_state_height_px_positive" CHECK ((("height_px" IS NULL) OR ("height_px" > (0)::numeric))),
-    CONSTRAINT "project_image_state_scale_x_check" CHECK (("scale_x" > (0)::numeric)),
-    CONSTRAINT "project_image_state_scale_y_check" CHECK (("scale_y" > (0)::numeric)),
-    CONSTRAINT "project_image_state_width_px_positive" CHECK ((("width_px" IS NULL) OR ("width_px" > (0)::numeric)))
+    "image_id" "uuid" NOT NULL
 );
 
 
@@ -2056,7 +2029,6 @@ CREATE INDEX "project_image_filters_project_order_idx" ON "public"."project_imag
 
 
 
-CREATE INDEX "project_image_state_project_role_image_idx" ON "public"."project_image_state" USING "btree" ("project_id", "role", "image_id");
 
 
 

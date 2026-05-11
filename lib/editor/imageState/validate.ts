@@ -8,7 +8,6 @@
 import { MAX_PX_U, MIN_PX_U, parseBigIntString } from "@/lib/editor/imageState"
 
 export type IncomingImageStatePayload = {
-  role?: "master" | "working"
   image_id?: unknown
   x_px_u?: unknown
   y_px_u?: unknown
@@ -18,7 +17,6 @@ export type IncomingImageStatePayload = {
 }
 
 export type ValidatedImageStateUpsert = {
-  role: "master" | "working"
   image_id: string
   /**
    * `string` — explicit value; persist as-is.
@@ -37,7 +35,6 @@ export type ValidatedImageStateUpsert = {
 }
 
 export function validateIncomingImageStateUpsert(body: IncomingImageStatePayload): ValidatedImageStateUpsert | null {
-  const role = body.role === "working" ? "working" : "master"
   const imageId = typeof body.image_id === "string" ? body.image_id.trim() : ""
   const rotation_deg = Number(body.rotation_deg)
 
@@ -69,7 +66,6 @@ export function validateIncomingImageStateUpsert(body: IncomingImageStatePayload
   }
 
   return {
-    role,
     image_id: imageId,
     x_px_u: xPxU?.toString(),
     y_px_u: yPxU?.toString(),
