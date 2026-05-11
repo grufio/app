@@ -12,12 +12,41 @@ function makeState(overrides?: Partial<SessionState>): SessionState {
   }
 }
 
-describe("editorSessionReducer", () => {
+describe("editorSessionReducer — restoreOpen / deleteOpen", () => {
   it("toggles restore dialog state deterministically", () => {
     const out = editorSessionReducer(makeState(), { type: "setRestoreOpen", open: true })
     expect(out.restoreOpen).toBe(true)
   })
 
+  it("returns the same state object when restoreOpen is unchanged", () => {
+    const state = makeState()
+    expect(editorSessionReducer(state, { type: "setRestoreOpen", open: false })).toBe(state)
+  })
+
+  it("toggles deleteOpen and respects identity on no-op", () => {
+    const state = makeState()
+    expect(editorSessionReducer(state, { type: "setDeleteOpen", open: true }).deleteOpen).toBe(true)
+    expect(editorSessionReducer(state, { type: "setDeleteOpen", open: false })).toBe(state)
+  })
+})
+
+describe("editorSessionReducer — leftPanelTab", () => {
+  it("sets the tab to filter or trace", () => {
+    expect(
+      editorSessionReducer(makeState(), { type: "setLeftPanelTab", tab: "filter" }).leftPanelTab,
+    ).toBe("filter")
+    expect(
+      editorSessionReducer(makeState(), { type: "setLeftPanelTab", tab: "trace" }).leftPanelTab,
+    ).toBe("trace")
+  })
+
+  it("returns the same state object when the tab is unchanged", () => {
+    const state = makeState()
+    expect(editorSessionReducer(state, { type: "setLeftPanelTab", tab: "image" })).toBe(state)
+  })
+})
+
+describe("editorSessionReducer — hiddenFilterIds", () => {
   it("toggles filter visibility and supports explicit show", () => {
     const hidden = editorSessionReducer(makeState(), { type: "toggleHiddenFilter", filterId: "f1" })
     expect(hidden.hiddenFilterIds.f1).toBe(true)
@@ -25,9 +54,50 @@ describe("editorSessionReducer", () => {
     expect(shown.hiddenFilterIds.f1).toBeUndefined()
   })
 
+  it("hideFilter adds an id; idempotent on second call", () => {
+    const first = editorSessionReducer(makeState(), { type: "hideFilter", filterId: "f1" })
+    expect(first.hiddenFilterIds.f1).toBe(true)
+    expect(editorSessionReducer(first, { type: "hideFilter", filterId: "f1" })).toBe(first)
+  })
+
+  it("showFilter is a no-op when the id is already shown", () => {
+    const state = makeState()
+    expect(editorSessionReducer(state, { type: "showFilter", filterId: "f1" })).toBe(state)
+  })
+
+  it("toggleHiddenFilter flips presence both ways", () => {
+    const after1 = editorSessionReducer(makeState(), { type: "toggleHiddenFilter", filterId: "f1" })
+    expect(after1.hiddenFilterIds).toEqual({ f1: true })
+    const after2 = editorSessionReducer(after1, { type: "toggleHiddenFilter", filterId: "f1" })
+    expect(after2.hiddenFilterIds).toEqual({})
+  })
+})
+
+describe("editorSessionReducer — pruneHiddenFilters", () => {
   it("prunes hidden ids against current stack", () => {
     const state = makeState({ hiddenFilterIds: { keep: true, drop: true } })
     const out = editorSessionReducer(state, { type: "pruneHiddenFilters", validIds: new Set(["keep"]) })
     expect(out.hiddenFilterIds).toEqual({ keep: true })
+  })
+
+  it("returns the same state object when nothing changes", () => {
+    const state = makeState({ hiddenFilterIds: { f1: true } })
+    expect(
+      editorSessionReducer(state, { type: "pruneHiddenFilters", validIds: new Set(["f1"]) }),
+    ).toBe(state)
+  })
+
+  it("returns the same state object when hiddenFilterIds is already empty", () => {
+    const state = makeState()
+    expect(
+      editorSessionReducer(state, { type: "pruneHiddenFilters", validIds: new Set(["anything"]) }),
+    ).toBe(state)
+  })
+
+  it("removes all hidden ids when the valid set is empty", () => {
+    const state = makeState({ hiddenFilterIds: { a: true, b: true } })
+    expect(
+      editorSessionReducer(state, { type: "pruneHiddenFilters", validIds: new Set() }).hiddenFilterIds,
+    ).toEqual({})
   })
 })
