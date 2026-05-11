@@ -3,19 +3,37 @@
 /**
  * Inline DOM SVG renderer for trace images. Replaces Konva.Image
  * for SVG content so each region is its own addressable `<path>`
- * element with native browser hover/click — exactly the model that
- * vtracer's own demo uses.
+ * element with native browser hover/click — the same model
+ * vtracer's own demo uses (https://www.visioncortex.org/vtracer/).
  *
- * Visual hover comes from a CSS rule (`[data-trace-region]:hover`),
- * not React state, so the highlight doesn't depend on render
- * cycles. Click + same-color-group highlighting is a tiny piece of
- * React state that generates a one-line CSS selector targeting
- * every path with the matching `data-fill`. Deselection: Escape
- * key or click anywhere outside the trace.
+ * Interaction model
+ * - **Hover**: pure CSS `[data-trace-region]:hover` — works without
+ *   JS, so the highlight responds instantly as the cursor moves.
+ * - **Click**: a native `addEventListener('click')` on the container
+ *   sets `selectedFill`. A `useEffect` then toggles a `data-selected`
+ *   attribute on every path whose `data-fill` matches, and CSS picks
+ *   that up to draw the same yellow outline. React's `onClick` is
+ *   not used — it's unreliable for descendants of
+ *   `dangerouslySetInnerHTML` (the SVG paths aren't React fibers,
+ *   so the delegation walk can miss them).
+ * - **Deselect**: Escape key or click anywhere outside the trace.
  *
- * Positioning math mirrors the previous overlay's: the container
- * is absolutely positioned in screen pixels, sized + offset by the
- * stage transform applied to the image's world rect.
+ * Event pass-through
+ * - The overlay covers the full image rect. `pointer-events: none`
+ *   on the container + every SVG child (white background, grid
+ *   lines, wrapper divs) lets every other interaction (Konva drag,
+ *   resize handles, artboard selection, wheel-zoom over whitespace)
+ *   pass through to the canvas behind. Only colored region paths
+ *   override `pointer-events: all` so they actually catch hover/
+ *   click. Wheel events that *do* land on a path (because of the
+ *   path's `all`) are re-dispatched to the Konva canvas via
+ *   `forwardWheelTo`.
+ *
+ * Positioning
+ * - Container is `position: absolute`, sized + offset by the stage
+ *   transform applied to the image's world rect. Updates in sync
+ *   with the Konva stage's scale / pan / drag (see
+ *   `onStageDragMove` in `stage-events-controller.ts`).
  */
 import { useEffect, useMemo, useRef, useState } from "react"
 
@@ -44,11 +62,11 @@ type Props = {
   view: StageView
   /** Rotation of the image in degrees (matches Konva's prop). */
   rotation?: number
-  /** Optional Konva stage container — wheel events that land on the
-   * inline SVG are re-dispatched to its first child canvas so the
-   * existing Konva wheel handler can apply pan/zoom. Without this
-   * forwarding, pinching over a trace region does nothing because the
-   * inline SVG sits above the canvas in DOM order. */
+  /** Konva stage container — wheel events that land on a region path
+   * are re-dispatched to its first child canvas so the existing
+   * Konva wheel handler can apply pan/zoom. Without this, pinching
+   * over a colored region does nothing because the inline SVG sits
+   * above the canvas in DOM order. */
   forwardWheelTo?: HTMLElement | null
 }
 
@@ -57,6 +75,10 @@ export function TraceInlineSvg({ svgText, imageRect, view, rotation = 0, forward
   const prepared = useMemo(() => prepareTraceSvg(svgText), [svgText])
   const [selectedFill, setSelectedFill] = useState<string | null>(null)
 
+  // Document-level deselect: Escape clears; click outside the
+  // trace clears. The `containerRef.contains` guard prevents the
+  // same click that just set the selection from immediately
+  // clearing it (the native event bubbles all the way to document).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setSelectedFill(null)
@@ -74,34 +96,60 @@ export function TraceInlineSvg({ svgText, imageRect, view, rotation = 0, forward
     }
   }, [])
 
-  // Click activation runs on a native event listener attached
-  // directly to the container — React's onClick / event delegation
-  // is unreliable for descendants of `dangerouslySetInnerHTML`
-  // (the SVG paths aren't React fibers, so the delegation walk
-  // can miss them). The user reported hover (CSS-only) working but
-  // click not — exactly the symptom of that delegation gap.
+  // Click + wheel on the container — native listeners, not React
+  // props. See file header for why React's event delegation can't
+  // reach the dangerouslySetInnerHTML descendants reliably.
   useEffect(() => {
     const root = containerRef.current
     if (!root) return
+
     const onClick = (e: MouseEvent) => {
       const target = e.target as Element | null
-      if (!target) return
-      const region = target.closest("[data-trace-region]")
+      const region = target?.closest("[data-trace-region]")
       if (!region) return
       e.stopPropagation()
       const fill = region.getAttribute("data-fill") ?? ""
       setSelectedFill(fill || null)
     }
-    root.addEventListener("click", onClick)
-    return () => root.removeEventListener("click", onClick)
-  }, [])
 
-  // Drive the click highlight via direct DOM mutation rather than a
-  // generated CSS rule. The dynamic `<style>` approach was fragile —
-  // CSS attribute selectors with arbitrary fill strings depended on
-  // careful escaping and were hard to debug. Flipping a `data-selected`
-  // attribute on each matching path is direct, observable in DevTools,
-  // and works regardless of what the fill value looks like.
+    const onWheel = (e: WheelEvent) => {
+      // Whitespace inside the trace has pointer-events: none, so
+      // wheel only reaches here when the cursor is over a colored
+      // region path. Re-dispatch to the Konva canvas so the existing
+      // wheel handler runs (zoom / pan).
+      if (!forwardWheelTo) return
+      e.preventDefault()
+      const target = forwardWheelTo.querySelector("canvas") ?? forwardWheelTo
+      target.dispatchEvent(
+        new WheelEvent("wheel", {
+          deltaX: e.deltaX,
+          deltaY: e.deltaY,
+          deltaZ: e.deltaZ,
+          deltaMode: e.deltaMode,
+          ctrlKey: e.ctrlKey,
+          metaKey: e.metaKey,
+          shiftKey: e.shiftKey,
+          altKey: e.altKey,
+          clientX: e.clientX,
+          clientY: e.clientY,
+          bubbles: true,
+          cancelable: true,
+        }),
+      )
+    }
+
+    root.addEventListener("click", onClick)
+    root.addEventListener("wheel", onWheel, { passive: false })
+    return () => {
+      root.removeEventListener("click", onClick)
+      root.removeEventListener("wheel", onWheel)
+    }
+  }, [forwardWheelTo])
+
+  // Reflect `selectedFill` into the DOM by toggling `data-selected`
+  // on every matching path. Direct DOM mutation is more debuggable
+  // than the earlier approach of generating CSS rules with arbitrary
+  // fill strings in the selector.
   useEffect(() => {
     const root = containerRef.current
     if (!root) return
@@ -115,32 +163,6 @@ export function TraceInlineSvg({ svgText, imageRect, view, rotation = 0, forward
 
   if (!prepared) return null
 
-  const onContainerWheel = (e: React.WheelEvent<HTMLDivElement>) => {
-    // Forward wheel events to the Konva stage container so pinch/
-    // Ctrl+wheel zoom and trackpad pan still work when the cursor is
-    // over the trace. Without this the inline SVG silently swallows
-    // wheel events that should reach the Konva listener.
-    if (!forwardWheelTo) return
-    e.preventDefault()
-    const target = forwardWheelTo.querySelector("canvas") ?? forwardWheelTo
-    target.dispatchEvent(
-      new WheelEvent("wheel", {
-        deltaX: e.deltaX,
-        deltaY: e.deltaY,
-        deltaZ: e.deltaZ,
-        deltaMode: e.deltaMode,
-        ctrlKey: e.ctrlKey,
-        metaKey: e.metaKey,
-        shiftKey: e.shiftKey,
-        altKey: e.altKey,
-        clientX: e.clientX,
-        clientY: e.clientY,
-        bubbles: true,
-        cancelable: true,
-      }),
-    )
-  }
-
   const screenW = imageRect.width * view.scale
   const screenH = imageRect.height * view.scale
   const centerScreenX = view.x + imageRect.x * view.scale
@@ -152,7 +174,6 @@ export function TraceInlineSvg({ svgText, imageRect, view, rotation = 0, forward
     <div
       ref={containerRef}
       data-testid="trace-inline-svg"
-      onWheel={onContainerWheel}
       style={{
         position: "absolute",
         left,
@@ -165,12 +186,6 @@ export function TraceInlineSvg({ svgText, imageRect, view, rotation = 0, forward
       }}
     >
       <style>{`
-        /* The overlay covers the whole image rect — without these
-         * rules every click in that rect would land on the trace and
-         * never reach Konva, blocking artboard/image selection,
-         * resize handles, drag, etc. Container + non-interactive
-         * children pass events through; only the colored region
-         * paths catch them. */
         [data-testid="trace-inline-svg"],
         [data-testid="trace-inline-svg"] * {
           pointer-events: none;
@@ -182,19 +197,9 @@ export function TraceInlineSvg({ svgText, imageRect, view, rotation = 0, forward
         }
         [data-testid="trace-inline-svg"] [data-trace-region]:hover,
         [data-testid="trace-inline-svg"] [data-trace-region][data-selected] {
-          /* High-contrast canary yellow stands out against most palette
-           * colors in numerate traces (which tend toward muted greens,
-           * browns, blues). Red got lost on red-leaning regions. */
           stroke: #FFEA00;
-          /* Fixed screen-pixel width via non-scaling-stroke so the
-           * outline stays clearly visible regardless of zoom — the
-           * trace's own configured stroke (1 SVG unit) renders sub-
-           * pixel at typical zoom levels and looks anti-aliased to a
-           * grey hair. */
           stroke-width: 4px;
           vector-effect: non-scaling-stroke;
-          /* Thin black halo so the yellow outline reads clearly even
-           * on bright/yellow regions. */
           filter: drop-shadow(0 0 1px rgba(0,0,0,0.9));
         }
       `}</style>
