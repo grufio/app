@@ -238,14 +238,10 @@ export type Database = {
       }
       project_images: {
         Row: {
-          bit_depth: number | null
-          color_space: Database["public"]["Enums"]["color_space"] | null
           created_at: string
           crop_rect_px: Json | null
           deleted_at: string | null
           dpi: number | null
-          dpi_x: number
-          dpi_y: number
           file_size_bytes: number
           format: string
           height_px: number
@@ -262,14 +258,10 @@ export type Database = {
           width_px: number
         }
         Insert: {
-          bit_depth?: number | null
-          color_space?: Database["public"]["Enums"]["color_space"] | null
           created_at?: string
           crop_rect_px?: Json | null
           deleted_at?: string | null
           dpi?: number | null
-          dpi_x?: number
-          dpi_y?: number
           file_size_bytes?: number
           format: string
           height_px: number
@@ -286,14 +278,10 @@ export type Database = {
           width_px: number
         }
         Update: {
-          bit_depth?: number | null
-          color_space?: Database["public"]["Enums"]["color_space"] | null
           created_at?: string
           crop_rect_px?: Json | null
           deleted_at?: string | null
           dpi?: number | null
-          dpi_x?: number
-          dpi_y?: number
           file_size_bytes?: number
           format?: string
           height_px?: number
@@ -492,7 +480,6 @@ export type Database = {
       }
     }
     Enums: {
-      color_space: "rgb" | "cmyk"
       image_kind: "master" | "working_copy" | "filter_working_copy"
       image_role: "master" | "working" | "asset"
       measure_unit: "mm" | "cm" | "pt" | "px"
@@ -625,7 +612,6 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      color_space: ["rgb", "cmyk"],
       image_kind: ["master", "working_copy", "filter_working_copy"],
       image_role: ["master", "working", "asset"],
       measure_unit: ["mm", "cm", "pt", "px"],

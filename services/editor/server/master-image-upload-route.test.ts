@@ -44,7 +44,6 @@ describe("master upload route delegation", () => {
     form.set("width_px", "100")
     form.set("height_px", "100")
     form.set("dpi", "300")
-    form.set("bit_depth", "8")
     form.set("format", "png")
     const res = await mod.POST(new Request("http://test.local", { method: "POST", body: form }), {
       params: Promise.resolve({ projectId: VALID_UUID }),
@@ -92,7 +91,7 @@ describe("master upload route delegation", () => {
     expect(body.stage).toBe("upload_limits")
   })
 
-  it("forwards dpi and bit_depth when provided", async () => {
+  it("forwards dpi when provided", async () => {
     vi.resetModules()
     uploadMasterImageMock.mockReset()
     uploadMasterImageMock.mockResolvedValueOnce({
@@ -126,7 +125,6 @@ describe("master upload route delegation", () => {
     expect(uploadMasterImageMock.mock.calls[0]?.[0]).toEqual(
       expect.objectContaining({
         dpi: 300,
-        bitDepth: 16,
       })
     )
   })
@@ -191,7 +189,6 @@ describe("master upload route delegation", () => {
     form.set("width_px", "100")
     form.set("height_px", "100")
     form.set("dpi", "300")
-    form.set("bit_depth", "8")
     form.set("format", "png")
     const res = await mod.POST(new Request("http://test.local", { method: "POST", body: form }), {
       params: Promise.resolve({ projectId: VALID_UUID }),
@@ -231,7 +228,7 @@ describe("master upload route delegation", () => {
       params: Promise.resolve({ projectId: VALID_UUID }),
     })
     expect(uploadMasterImageMock).toHaveBeenCalledTimes(1)
-    expect(uploadMasterImageMock.mock.calls[0]?.[0]).toMatchObject({ dpi: null, bitDepth: null })
+    expect(uploadMasterImageMock.mock.calls[0]?.[0]).toMatchObject({ dpi: null })
   })
 
   it("keeps single upload write route by removing master POST export", async () => {

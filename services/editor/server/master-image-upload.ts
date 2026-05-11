@@ -48,10 +48,9 @@ async function createWorkingCopyFromMaster(args: {
   widthPx: number
   heightPx: number
   dpi: number
-  bitDepth: number
   sourceMasterId: string
 }): Promise<{ ok: true; imageId: string; objectPath: string } | { ok: false; reason: string; code?: string }> {
-  const { supabase, projectId, file, format, widthPx, heightPx, dpi, bitDepth, sourceMasterId } = args
+  const { supabase, projectId, file, format, widthPx, heightPx, dpi, sourceMasterId } = args
   const imageId = crypto.randomUUID()
   const objectPath = `projects/${projectId}/images/${imageId}`
   const uploadResult = await supabase.storage.from(PROJECT_IMAGES_BUCKET).upload(objectPath, file, {
@@ -70,7 +69,6 @@ async function createWorkingCopyFromMaster(args: {
     width_px: widthPx,
     height_px: heightPx,
     dpi,
-    bit_depth: bitDepth,
     storage_bucket: PROJECT_IMAGES_BUCKET,
     storage_path: objectPath,
     file_size_bytes: file.size,
@@ -91,7 +89,6 @@ export async function uploadMasterImage(args: {
   widthPx: number
   heightPx: number
   dpi?: number | null
-  bitDepth?: number | null
   format: string
 }): Promise<UploadMasterImageResult> {
   const { supabase, projectId, file, format } = args
@@ -100,10 +97,9 @@ export async function uploadMasterImage(args: {
     widthPx: normalizePositiveInt(args.widthPx),
     heightPx: normalizePositiveInt(args.heightPx),
     dpi: normalizePositiveInt(args.dpi ?? Number.NaN),
-    bitDepth: normalizePositiveInt(args.bitDepth ?? Number.NaN),
   })
   if (!validated.ok) return validated
-  const { widthPx, heightPx, dpi, bitDepth } = validated
+  const { widthPx, heightPx, dpi } = validated
 
   const limitError = validateUploadLimits({ file, widthPx, heightPx })
   if (limitError) return limitError
@@ -133,10 +129,7 @@ export async function uploadMasterImage(args: {
     format,
     widthPx,
     heightPx,
-    dpiX: dpi,
-    dpiY: dpi,
     imageDpi: dpi,
-    bitDepth,
     objectPath,
   })
   if (!insertResult.ok) {
@@ -174,7 +167,6 @@ export async function uploadMasterImage(args: {
     widthPx,
     heightPx,
     dpi,
-    bitDepth,
     sourceMasterId: imageId,
   })
   if (!working.ok) {
