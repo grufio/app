@@ -1,25 +1,28 @@
 "use client"
 
 /**
- * Browser-leave guard for in-flight editor mutations.
+ * Browser-leave guard for the editor.
  *
- * The editor's filter-apply / crop / restore flows do server-side work
- * (Python service call, Supabase upload, RPC) plus several client-side
- * state writes. If the user closes the tab or navigates away mid-flight
- * the server side may finish, the client never reconciles, and a stale
- * `filter_working_copy` row + storage object are left behind for the
- * eventual-consistent cleanup to mop up.
+ * Originally scoped to in-flight server mutations (filter / crop /
+ * restore) because losing the client half of a Python-service call
+ * leaves a stale `filter_working_copy` row + storage object behind.
+ *
+ * Extended to also cover **dialogs in the configuring phase** —
+ * Numerate-Wizard step 2/3, Filter form with parameters typed, etc.
+ * The form draft state lives inside the dialog component and would
+ * be silently lost on tab close. Callers compose the boolean via
+ * `shouldWarnBeforeUnload` (sibling file).
  *
  * `beforeunload` is the only browser hook that can warn before page
  * close / tab close / external nav. Returning a string (legacy) and
  * calling `event.preventDefault()` (modern) both trigger Chrome/
- * Firefox/Safari's native "Leave site?" dialog. We don't get to set the
- * message text — browsers ignore it for security reasons.
+ * Firefox/Safari's native "Leave site?" dialog. We don't get to set
+ * the message text — browsers ignore it for security reasons.
  *
  * For client-side route changes (Next.js `<Link>`) `beforeunload` does
- * not fire; that's the right call here because Next-internal nav inside
- * the editor stays inside the editor. We only guard against tab/window
- * close.
+ * not fire; that's the right call here because Next-internal nav
+ * inside the editor stays inside the editor. We only guard against
+ * tab/window close.
  */
 import { useEffect } from "react"
 
