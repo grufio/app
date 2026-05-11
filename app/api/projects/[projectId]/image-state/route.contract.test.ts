@@ -69,8 +69,9 @@ async function importRouteWithMocks(args: {
   })
 
   vi.doMock("@/lib/supabase/project-images", () => ({
-    getEditorTargetImageRow: async () => ({
-      row: args.targetImageId ? { id: args.targetImageId } : null,
+    resolveEditorTargetImageRows: async () => ({
+      target: args.targetImageId ? { id: args.targetImageId } : null,
+      preferredWorking: args.targetImageId ? { id: args.targetImageId } : null,
       error: null,
     }),
     resolveImageStateRoleFromProjectImage: () => "master",

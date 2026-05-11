@@ -107,7 +107,22 @@ export async function resolveEditorTargetImageRows(
     .map((row) => toActiveProjectImageRow(row as unknown as Record<string, unknown>))
     .filter((row): row is ActiveProjectImageRow => Boolean(row))
   const filterTarget = rows.find((row) => resolveImageKind(row) === "filter_working_copy") ?? null
-  const preferredWorking = rows.find((row) => resolveImageKind(row) === "working_copy") ?? null
+  // The "working-copy" is the editor-editable raster bitmap — the
+  // direct child of the master in the filter chain. Filter outputs
+  // (pixelate / numerate / lineart) all carry the same DB kind
+  // `filter_working_copy` and would otherwise shadow the working-
+  // copy in this lookup; distinguishing by parentage (source =
+  // master) keeps the working-copy unambiguous regardless of how
+  // many trace / filter outputs exist for the project.
+  const masterRow = rows.find((row) => resolveImageKind(row) === "master") ?? null
+  const workingCopy = masterRow
+    ? rows.find((row) =>
+        resolveImageKind(row) === "filter_working_copy" && row.source_image_id === masterRow.id,
+      ) ?? null
+    : null
+  // Legacy field name kept for callers (master/list route, filter-
+  // working-copy test). Now it actually returns the working-copy.
+  const preferredWorking = workingCopy
   const target = filterTarget ?? preferredWorking ?? null
   return { target, preferredWorking, error: null }
 }
