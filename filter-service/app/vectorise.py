@@ -223,12 +223,15 @@ def numerate_to_svg(
     grid = grid_lines_svg(width, height, cells_x, cells_y, stroke_width)
     phase("lines")
 
+    # No opaque background rect — the trace is rendered as a layer
+    # on top of the filter chain tip in the editor, and a future
+    # toggle hides the whole trace layer to reveal the raster
+    # underneath. An opaque white sheet here would block both.
     svg_content = (
         f'<?xml version="1.0" encoding="UTF-8"?>\n'
         f'<svg xmlns="http://www.w3.org/2000/svg" '
         f'width="{width}" height="{height}" '
         f'viewBox="0 0 {width} {height}">\n'
-        f'  <rect width="{width}" height="{height}" fill="white"/>\n'
         f'  <g id="colors" transform="scale({scale_x:.6f} {scale_y:.6f})">\n'
         f'    {chr(10).join(color_paths)}\n'
         f'  </g>\n'
@@ -326,12 +329,13 @@ def lineart_to_svg(
     region_count = len(color_paths)
     phase("extract")
 
+    # No opaque background rect — see comment in `numerate_to_svg`
+    # for the rationale (overlay rendering + future visibility toggle).
     svg_content = (
         f'<?xml version="1.0" encoding="UTF-8"?>\n'
         f'<svg xmlns="http://www.w3.org/2000/svg" '
         f'width="{width}" height="{height}" '
         f'viewBox="0 0 {width} {height}">\n'
-        f'  <rect width="{width}" height="{height}" fill="white"/>\n'
         f'  <g id="regions">\n'
         f'    {chr(10).join(color_paths)}\n'
         f'  </g>\n'

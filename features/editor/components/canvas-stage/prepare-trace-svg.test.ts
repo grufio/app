@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest"
 
 import { prepareTraceSvg } from "./prepare-trace-svg"
 
+// Mirrors the new Python output: no opaque background <rect>.
 const NUMERATE_SVG = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="1514" height="914" viewBox="0 0 1514 914">
-  <rect width="1514" height="914" fill="white"/>
   <g id="colors" transform="scale(1.0093 1.0156)">
     <path d="M 0 0 L 50 0 L 50 30 Z" fill="#ff0000"/>
     <path d="M 50 0 L 100 0 L 100 30 Z" fill="#00ff00"/>
@@ -16,7 +16,6 @@ const NUMERATE_SVG = `<?xml version="1.0" encoding="UTF-8"?>
 
 const LINEART_SVG = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="500" height="500" viewBox="0 0 500 500">
-  <rect width="500" height="500" fill="white"/>
   <g id="regions">
     <path d="M 0 0 L 100 0 L 100 100 Z" fill="#abcdef" stroke="black" stroke-width="2"/>
   </g>
@@ -33,7 +32,7 @@ describe("prepareTraceSvg", () => {
     expect(out!.html).toMatch(/preserveAspectRatio="none"/)
   })
 
-  it("annotates every <path> with data-trace-region and data-fill (original color preserved)", () => {
+  it("annotates every <path> with data-trace-region and data-fill", () => {
     const out = prepareTraceSvg(NUMERATE_SVG)!
     const matches = out.html.match(/data-trace-region=""/g) ?? []
     expect(matches).toHaveLength(2)
@@ -41,37 +40,18 @@ describe("prepareTraceSvg", () => {
     expect(out.html).toMatch(/data-fill="#00ff00"/)
   })
 
-  it("strips the white background rect so the underlying image shows through", () => {
+  it("keeps the original RGB fill on every <path>", () => {
     const out = prepareTraceSvg(NUMERATE_SVG)!
-    expect(out.html).not.toMatch(/<rect[^>]*fill="white"/)
+    // The cell still renders its detected RGB color at rest —
+    // not transparent, not overridden.
+    expect(out.html).toMatch(/<path[^>]*fill="#ff0000"[^>]*data-trace-region/)
+    expect(out.html).toMatch(/<path[^>]*fill="#00ff00"[^>]*data-trace-region/)
   })
 
-  it("swaps path fills to transparent (so the filter image bleeds through)", () => {
-    const out = prepareTraceSvg(NUMERATE_SVG)!
-    // Original colored fills no longer appear as path attributes —
-    // only as data-fill values used for click-highlight matching.
-    expect(out.html).not.toMatch(/(?<!data-)fill="#ff0000"/)
-    expect(out.html).not.toMatch(/(?<!data-)fill="#00ff00"/)
-    // Each annotated path carries a fill="transparent"
-    const transparentFills = out.html.match(/fill="transparent"/g) ?? []
-    expect(transparentFills).toHaveLength(2)
-  })
-
-  it("adds a default black stroke to numerate paths (no stroke in source)", () => {
-    const out = prepareTraceSvg(NUMERATE_SVG)!
-    // Both numerate paths get a default stroke + width=1
-    expect((out.html.match(/stroke="black"/g) ?? []).length).toBeGreaterThanOrEqual(2)
-  })
-
-  it("preserves an existing stroke on lineart paths", () => {
+  it("preserves a lineart path's authored stroke + width", () => {
     const out = prepareTraceSvg(LINEART_SVG)!
-    // Original stroke="black" stroke-width="2" stays intact, no
-    // additional default stroke is added.
     expect(out.html).toMatch(/stroke="black"/)
     expect(out.html).toMatch(/stroke-width="2"/)
-    // Only one stroke="black" instance (not duplicated by the default).
-    const strokes = out.html.match(/stroke="black"/g) ?? []
-    expect(strokes).toHaveLength(1)
   })
 
   it("returns null when no <svg> root", () => {
