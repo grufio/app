@@ -4,7 +4,7 @@ import type { TraceDefinition } from "./types"
 
 export const lineartSchema = z.object({
   // Black stroke width around each colored region.
-  line_thickness: z.coerce.number().min(0.1).max(10).default(2),
+  line_thickness: z.coerce.number().min(0.1).max(10).default(1),
   // Pre-vtracer Gaussian blur radius. Smooths sensor noise before
   // palette quantisation so the resulting regions track real subject
   // boundaries instead of speckle.

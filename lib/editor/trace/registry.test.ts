@@ -96,7 +96,7 @@ describe("numerateSchema", () => {
     expect(numerateSchema.parse({})).toEqual({
       superpixel_width: 10,
       superpixel_height: 10,
-      stroke_width: 2,
+      stroke_width: 1,
       show_colors: true,
       num_colors: 16,
     })
@@ -130,7 +130,7 @@ describe("numerateSchema", () => {
 describe("lineartSchema", () => {
   it("applies defaults matching frontend + Python", () => {
     expect(lineartSchema.parse({})).toEqual({
-      line_thickness: 2,
+      line_thickness: 1,
       blur_amount: 3,
       smoothness: 0.6,
       num_colors: 8,

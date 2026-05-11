@@ -75,17 +75,17 @@ export function TraceSidebarSection(props: {
               </SidebarMenuAction>
             </SidebarMenuActions>
           </SidebarMenuItem>
-        ) : null}
-
-        <SidebarMenuItem>
-          <SidebarMenuButton className="text-xs font-medium" disabled>
-            <ScanLine strokeWidth={1} />
-            <span>{trace ? "Replace trace" : "New Trace"}</span>
-          </SidebarMenuButton>
-          <SidebarMenuAction aria-label="Add trace" disabled={isAddTraceDisabled} onClick={onOpenSelection}>
-            <Plus strokeWidth={1} />
-          </SidebarMenuAction>
-        </SidebarMenuItem>
+        ) : (
+          <SidebarMenuItem>
+            <SidebarMenuButton className="text-xs font-medium" disabled>
+              <ScanLine strokeWidth={1} />
+              <span>New Trace</span>
+            </SidebarMenuButton>
+            <SidebarMenuAction aria-label="Add trace" disabled={isAddTraceDisabled} onClick={onOpenSelection}>
+              <Plus strokeWidth={1} />
+            </SidebarMenuAction>
+          </SidebarMenuItem>
+        )}
       </SidebarMenu>
     </EditorSidebarSection>
   )

@@ -198,19 +198,19 @@ function StepIndicator(props: {
 }) {
   const { activeStep, stepValidity, onStepClick } = props
   return (
-    <div className="flex items-center gap-2 py-2">
+    <div className="flex w-full items-center py-2">
       {STEPS.map((step, idx) => {
         const isActive = step.id === activeStep
         const isValid = stepValidity[step.id]
         const clickable = isValid || isActive
         return (
-          <div key={step.id} className="flex items-center gap-2">
+          <div key={step.id} className={cn("flex items-center", idx < STEPS.length - 1 ? "flex-1" : "shrink-0")}>
             <button
               type="button"
               disabled={!clickable}
               onClick={() => onStepClick(step.id)}
               className={cn(
-                "flex items-center gap-2 text-xs font-medium transition-colors",
+                "flex shrink-0 items-center gap-2 text-xs font-medium transition-colors",
                 clickable ? "cursor-pointer hover:text-foreground" : "cursor-not-allowed text-muted-foreground/60",
                 isActive ? "text-foreground" : "text-muted-foreground",
               )}
@@ -230,7 +230,7 @@ function StepIndicator(props: {
               </span>
               <span>{step.label}</span>
             </button>
-            {idx < STEPS.length - 1 ? <div className="h-px w-6 bg-border" /> : null}
+            {idx < STEPS.length - 1 ? <div className="mx-3 h-px flex-1 bg-border" /> : null}
           </div>
         )
       })}
