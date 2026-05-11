@@ -89,6 +89,22 @@ Three pipelines (see [package.json](package.json) — `gate:*`):
 `gate:linked` exists for local runs that have a linked Supabase
 project; it adds the live types-sync check.
 
+## Domain diagrams
+
+Mermaid is the project's diagram tool. It renders on GitHub natively,
+needs no build step, and versions like code. No external diagram tools
+(draw.io, Excalidraw, PNG exports) live in the repo.
+
+When you change:
+
+- a state or event in `lib/editor/machines/image-workflow.machine.ts`
+- a route path under `app/api/`
+- the render-layer composition in
+  `features/editor/components/project-canvas-stage.tsx`
+
+update the matching diagram in `docs/domains/image-editor.md` in the
+same PR. The Diagrams section there lists the canonical set.
+
 ## Dated review documents
 
 `docs/app-review-*.md` and `docs/system-review-YYYY-MM-DD.md` files are
