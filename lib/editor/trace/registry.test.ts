@@ -135,12 +135,13 @@ describe("TRACE_REGISTRY", () => {
 })
 
 describe("numerateSchema", () => {
-  it("applies defaults matching frontend + Python (stroke_width=2)", () => {
+  it("applies defaults matching frontend + Python", () => {
     expect(numerateSchema.parse({})).toEqual({
       superpixel_width: 10,
       superpixel_height: 10,
       stroke_width: 2,
       show_colors: true,
+      num_colors: 16,
     })
   })
 

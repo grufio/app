@@ -45,7 +45,7 @@ describe("numerateImageAndActivate validation contract", () => {
       supabase: mockSupabase,
       projectId,
       sourceImageId,
-      params: { superpixel_width: 0, superpixel_height: 10, stroke_width: 2, show_colors: true },
+      params: { superpixel_width: 0, superpixel_height: 10, stroke_width: 2, show_colors: true, num_colors: 16 },
     })
     expect(result.ok).toBe(false)
     if (!result.ok) {
@@ -59,7 +59,7 @@ describe("numerateImageAndActivate validation contract", () => {
       supabase: mockSupabase,
       projectId,
       sourceImageId,
-      params: { superpixel_width: 10, superpixel_height: 0, stroke_width: 2, show_colors: false },
+      params: { superpixel_width: 10, superpixel_height: 0, stroke_width: 2, show_colors: false, num_colors: 16 },
     })
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.stage).toBe("validation")
@@ -70,7 +70,7 @@ describe("numerateImageAndActivate validation contract", () => {
       supabase: mockSupabase,
       projectId,
       sourceImageId,
-      params: { superpixel_width: 10, superpixel_height: 10, stroke_width: 0, show_colors: true },
+      params: { superpixel_width: 10, superpixel_height: 10, stroke_width: 0, show_colors: true, num_colors: 16 },
     })
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.stage).toBe("validation")
@@ -81,7 +81,7 @@ describe("numerateImageAndActivate validation contract", () => {
       supabase: mockSupabase,
       projectId,
       sourceImageId,
-      params: { superpixel_width: 10, superpixel_height: 10, stroke_width: 21, show_colors: true },
+      params: { superpixel_width: 10, superpixel_height: 10, stroke_width: 21, show_colors: true, num_colors: 16 },
     })
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.stage).toBe("validation")
@@ -92,7 +92,7 @@ describe("numerateImageAndActivate validation contract", () => {
       supabase: mockSupabase,
       projectId,
       sourceImageId,
-      params: { superpixel_width: NaN, superpixel_height: 10, stroke_width: 2, show_colors: true },
+      params: { superpixel_width: NaN, superpixel_height: 10, stroke_width: 2, show_colors: true, num_colors: 16 },
     })
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.stage).toBe("validation")
@@ -103,7 +103,7 @@ describe("numerateImageAndActivate validation contract", () => {
       supabase: mockSupabase,
       projectId,
       sourceImageId,
-      params: { superpixel_width: 1, superpixel_height: 1, stroke_width: 20, show_colors: false },
+      params: { superpixel_width: 1, superpixel_height: 1, stroke_width: 20, show_colors: false, num_colors: 16 },
     })
     // Source lookup returns null → 404 source_lookup. The validation passed.
     expect(result.ok).toBe(false)
@@ -133,7 +133,7 @@ describe("numerateImageAndActivate lookup + bounds contract", () => {
       supabase: lockedSupabase,
       projectId,
       sourceImageId,
-      params: { superpixel_width: 10, superpixel_height: 10, stroke_width: 2, show_colors: true },
+      params: { superpixel_width: 10, superpixel_height: 10, stroke_width: 2, show_colors: true, num_colors: 16 },
     })
 
     expect(result.ok).toBe(false)
@@ -167,7 +167,7 @@ describe("numerateImageAndActivate lookup + bounds contract", () => {
       supabase: tinySupabase,
       projectId,
       sourceImageId,
-      params: { superpixel_width: 100, superpixel_height: 100, stroke_width: 2, show_colors: true },
+      params: { superpixel_width: 100, superpixel_height: 100, stroke_width: 2, show_colors: true, num_colors: 16 },
     })
 
     expect(result.ok).toBe(false)
@@ -194,7 +194,7 @@ describe("numerateImageAndActivate lookup + bounds contract", () => {
       supabase,
       projectId,
       sourceImageId,
-      params: { superpixel_width: 10, superpixel_height: 10, stroke_width: 2, show_colors: true },
+      params: { superpixel_width: 10, superpixel_height: 10, stroke_width: 2, show_colors: true, num_colors: 16 },
     })
 
     expect(result.ok).toBe(false)
