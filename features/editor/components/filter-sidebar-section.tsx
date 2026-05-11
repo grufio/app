@@ -7,6 +7,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { FILTER_REGISTRY } from "@/lib/editor/filters/registry"
 import { EditorSidebarSection } from "@/features/editor/components/sidebar/editor-sidebar-section"
 
+import { isFilterRowActive } from "./filter-sidebar-section/is-filter-row-active"
+
 function getFilterLabel(filterType: string): string {
   return (FILTER_REGISTRY as Record<string, { label: string } | undefined>)[filterType]?.label ?? "Filter"
 }
@@ -67,7 +69,12 @@ export function FilterSidebarSection(props: {
         {filterStack.map((filter) => (
           <SidebarMenuItem key={filter.id}>
             <SidebarMenuButton
-              isActive={canvasMode === "filter" && !isActiveDisplayFilterHidden && activeDisplayFilterId === filter.id}
+              isActive={isFilterRowActive({
+                canvasMode,
+                activeDisplayFilterId,
+                isActiveDisplayFilterHidden,
+                filterId: filter.id,
+              })}
               className="text-xs font-medium"
               onClick={() => onSelectFilter(filter.id)}
             >
