@@ -401,6 +401,64 @@ export async function getOrCreateFilterWorkingCopy(args: {
   }
 }
 
+/**
+ * If the project has an active Trace artefact (project_image_trace
+ * row), resolve its output image into a `display` payload that
+ * overrides the filter chain tip. Returns `null` when no trace
+ * exists, the row references a missing/tombstoned image, or signed
+ * URL generation fails — the caller falls back to the filter chain.
+ */
+async function resolveTraceDisplay(args: {
+  supabase: SupabaseClient<Database>
+  projectId: string
+}): Promise<{
+  id: string
+  storagePath: string
+  widthPx: number
+  heightPx: number
+  signedUrl: string
+  sourceImageId: string | null
+  name: string
+  isFilterResult: boolean
+} | null> {
+  const { supabase, projectId } = args
+
+  const { data: traceRow } = await supabase
+    .from("project_image_trace")
+    .select("output_image_id")
+    .eq("project_id", projectId)
+    .maybeSingle()
+
+  if (!traceRow?.output_image_id) return null
+
+  const { data: imageRow } = await supabase
+    .from("project_images")
+    .select("id,storage_bucket,storage_path,width_px,height_px,source_image_id,name")
+    .eq("project_id", projectId)
+    .eq("id", traceRow.output_image_id)
+    .is("deleted_at", null)
+    .maybeSingle()
+
+  if (!imageRow) return null
+
+  const { data: signedData } = await supabase.storage
+    .from(String(imageRow.storage_bucket ?? PROJECT_IMAGES_BUCKET))
+    .createSignedUrl(String(imageRow.storage_path), SIGNED_URL_TTL.filterWorkingCopy)
+
+  if (!signedData?.signedUrl) return null
+
+  return {
+    id: String(imageRow.id),
+    storagePath: String(imageRow.storage_path),
+    widthPx: Number(imageRow.width_px ?? 0),
+    heightPx: Number(imageRow.height_px ?? 0),
+    signedUrl: signedData.signedUrl,
+    sourceImageId: imageRow.source_image_id ? String(imageRow.source_image_id) : null,
+    name: String(imageRow.name ?? ""),
+    isFilterResult: true,
+  }
+}
+
 export async function getFilterPanelData(args: {
   supabase: SupabaseClient<Database>
   projectId: string
@@ -435,10 +493,20 @@ export async function getFilterPanelData(args: {
     name: working.name,
     isFilterResult: false,
   }
+
+  // Trace overrides the filter chain tip as the displayed canvas
+  // image. Trace is the final product artefact (paint-by-numbers
+  // SVG); applying numerate or lineart means "show me this", not
+  // "stack this on top of pixelate". Filter chain is still
+  // returned in `stack` so the Filter sidebar reflects pixelate
+  // history.
+  const traceDisplay = await resolveTraceDisplay({ supabase, projectId })
+  const baseDisplay = traceDisplay ?? displayFromWorking
+
   if (!(filterRows ?? []).length) {
     return {
       ok: true,
-      display: displayFromWorking,
+      display: baseDisplay,
       stack: [],
     }
   }
@@ -559,18 +627,22 @@ export async function getFilterPanelData(args: {
     .from(String(tipImage.storage_bucket ?? PROJECT_IMAGES_BUCKET))
     .createSignedUrl(String(tipImage.storage_path), SIGNED_URL_TTL.filterWorkingCopy)
 
+  // Trace overrides the filter chain tip — see comment in
+  // getFilterPanelData where `traceDisplay` is first computed.
+  const tipDisplay = traceDisplay ?? {
+    id: tipImage.id,
+    storagePath: tipImage.storage_path,
+    widthPx: tipImage.width_px,
+    heightPx: tipImage.height_px,
+    signedUrl: signedData?.signedUrl ?? "",
+    sourceImageId: tipImage.source_image_id,
+    name: tipImage.name,
+    isFilterResult: true,
+  }
+
   return {
     ok: true,
-    display: {
-      id: tipImage.id,
-      storagePath: tipImage.storage_path,
-      widthPx: tipImage.width_px,
-      heightPx: tipImage.height_px,
-      signedUrl: signedData?.signedUrl ?? "",
-      sourceImageId: tipImage.source_image_id,
-      name: tipImage.name,
-      isFilterResult: true,
-    },
+    display: tipDisplay,
     stack,
   }
 }
