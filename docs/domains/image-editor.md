@@ -102,15 +102,28 @@ invariants change.
 
 ### Tabs
 
+The canvas always renders the **working-copy** (`filterDisplayImageWithoutTrace`).
+The three tabs differ only in their overlays and sidebars, never in
+the canvas source. The master image is never the canvas source — it's
+an immutable restore source surfaced through the layer tree.
+
 | Tab | Sidebar | State read | State written | Stage display |
 |---|---|---|---|---|
-| **Image** | layers (`editor-nav-tree`) | `masterImage`, `project_image_state` | `project_image_state` (transform), `project_images(kind='master')` | master image |
-| **Filter** | filter stack (`FilterSidebarSection`) | `project_image_filters`, `filter_working_copy` | `project_image_filters`, `project_images(kind='filter_chain_step')` | `filterDisplayImageWithoutTrace` (raster tip) |
-| **Trace** | trace section (`TraceSidebarSection`) | `project_image_trace`, raster filter tip | `project_image_trace` (single row), `project_images(kind='trace_svg')` | raster tip + transparent inline-SVG overlay |
-| Colors / Output | — | — | — | disabled — feature-flag-gated dead surface |
+| **Image** | layers (`editor-nav-tree`) | working-copy `project_image_state` | `project_image_state` (transform on working-copy) | working-copy raster |
+| **Filter** | filter stack (`FilterSidebarSection`) | `project_image_filters`, `filter_working_copy` | `project_image_filters`, `project_images(kind='filter_chain_step')` | working-copy raster (= filter chain tip) |
+| **Trace** | trace section (`TraceSidebarSection`) | `project_image_trace`, working-copy raster | `project_image_trace` (single row), `project_images(kind='trace_svg')` | working-copy raster + transparent inline-SVG overlay |
+| Colors / Output | — | — | — | removed 2026-05-11 (PR #89) |
 
 ### Invariants (do not regress)
 
+- **Canvas source is always the working-copy.** The master image
+  (`kind='master'`) is immutable (`guard_master_immutable` trigger)
+  and is never the Konva render source — load/save target the working-
+  copy via `useImageState` keyed off `sourceSnapshot.image.id`. Routing
+  the canvas to the master directly silently breaks persistence: the
+  Image tab's edits would target the wrong DB row. Codified in
+  `lib/editor/canvas-image-invariant.ts` (`pickCanvasImage`) with a
+  dedicated test.
 - **Filter operates on raster, never on SVG.** PR #82 fixed a class
   where Filter would be applied to a trace SVG. Filter always reads
   `filterDisplayImageWithoutTrace`.
