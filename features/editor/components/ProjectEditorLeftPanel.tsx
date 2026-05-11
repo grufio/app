@@ -24,8 +24,6 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
   selectedId: string
   onSelect: (id: string) => void
   images: { id: string; label: string }[]
-  lockedById: Record<string, boolean>
-  onToggleImageLocked: (imageId: string, nextLocked: boolean) => { ok: true } | { ok: false; reason?: string } | Promise<{ ok: true } | { ok: false; reason?: string }>
   hasGrid: boolean
   onImageUploaded: () => void | Promise<void>
   onImageDeleteRequested: (imageId: string) => void | Promise<void>
@@ -47,8 +45,6 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
     selectedId,
     onSelect,
     images,
-    lockedById,
-    onToggleImageLocked,
     hasGrid,
     onImageUploaded,
     onImageDeleteRequested,
@@ -98,8 +94,6 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
                 selectedId={selectedId}
                 onSelect={onSelect}
                 images={images}
-                lockedById={lockedById}
-                onToggleImageLocked={onToggleImageLocked}
                 hasGrid={hasGrid}
                 onImageUploaded={onImageUploaded}
                 onImageDeleteRequested={onImageDeleteRequested}

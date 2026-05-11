@@ -6,7 +6,6 @@ const ready = {
   hasMasterImage: true,
   imageStateLoading: false,
   workspaceReady: true,
-  imagePanelLocked: false,
 } as const
 
 describe("computeImagePanelEnabled", () => {
@@ -32,13 +31,6 @@ describe("computeImagePanelEnabled", () => {
     expect(computeImagePanelEnabled({ ...ready, workspaceReady: false })).toEqual({
       enabled: false,
       reason: "workspace-not-ready",
-    })
-  })
-
-  it("disabled with reason 'image-locked' when panel locked", () => {
-    expect(computeImagePanelEnabled({ ...ready, imagePanelLocked: true })).toEqual({
-      enabled: false,
-      reason: "image-locked",
     })
   })
 

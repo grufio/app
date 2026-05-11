@@ -43,8 +43,6 @@ export function EditorNavTree(props: {
   selectedId: string
   onSelect: (id: string) => void
   images: EditorNavImage[]
-  lockedById: Record<string, boolean>
-  onToggleImageLocked: (imageId: string, nextLocked: boolean) => MenuActionResult | Promise<MenuActionResult>
   hasGrid: boolean
   onImageUploaded: () => void | Promise<void>
   onImageDeleteRequested: (imageId: string) => void | Promise<void>
@@ -58,8 +56,6 @@ export function EditorNavTree(props: {
     selectedId,
     onSelect,
     images,
-    lockedById,
-    onToggleImageLocked,
     hasGrid,
     onImageUploaded,
     onImageDeleteRequested,
@@ -82,12 +78,7 @@ export function EditorNavTree(props: {
     const parsed = parseNavId(imageTargetNavId)
     return parsed.kind === "image" ? parsed.imageId : null
   }, [imageTargetNavId])
-  const imageLocked = imageTargetImageId ? Boolean(lockedById[imageTargetImageId]) : false
   const [actionError, setActionError] = React.useState("")
-  const handleToggleImageLocked = React.useCallback((imageId: string, nextLocked: boolean): MenuActionResult | Promise<MenuActionResult> => {
-    setActionError("")
-    return onToggleImageLocked(imageId, nextLocked)
-  }, [onToggleImageLocked])
   const handleDeleteImage = React.useCallback(
     async (imageId: string): Promise<MenuActionResult> => {
       try {
@@ -129,9 +120,7 @@ export function EditorNavTree(props: {
             {imageTargetImageId ? (
               <LockNavTreeActions
                 imageId={imageTargetImageId}
-                locked={imageLocked}
                 canDelete={canDeleteActiveImage && deleteTargetImageId === imageTargetImageId}
-                onToggleLocked={handleToggleImageLocked}
                 onDeleteRequest={handleDeleteImage}
                 onActionError={setActionError}
               />

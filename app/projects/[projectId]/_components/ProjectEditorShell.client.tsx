@@ -93,7 +93,6 @@ export function ProjectDetailPageClient({
     displayTarget,
     refresh: refreshProjectImages,
     deleteById: deleteImageById,
-    setLockedById: setImageLockedById,
   } = useProjectImages(projectId)
   const {
     image: filterDisplayImage,
@@ -275,9 +274,7 @@ export function ProjectDetailPageClient({
 
   const {
     selectedImageId,
-    lockedImageById,
     leftPanelImages,
-    handleToggleImageLocked,
     requestDeleteImage,
     requestDeleteSelectedImage,
     requestCreateGrid,
@@ -286,7 +283,6 @@ export function ProjectDetailPageClient({
     selectedNavId,
     setSelectedNavId,
     projectImages,
-    setImageLockedById,
     setDeleteError,
     setDeleteOpen,
     createGrid,
@@ -306,9 +302,6 @@ export function ProjectDetailPageClient({
     selectedNavId,
     setSelectedNavId,
     activeCanvasImageId,
-    selectedImageId,
-    projectImages,
-    lockedImageById,
     isCropping: workflow.isCropping,
     onApplyCrop: workflow.applyCrop,
   })
@@ -403,7 +396,7 @@ export function ProjectDetailPageClient({
     updateWorkspacePageBg,
   })
 
-  const { panelImageTxU, workspaceReady, imagePanelReady, imagePanelLocked, activeRightSection, panelImageMeta } = useRightPanelModel({
+  const { panelImageTxU, workspaceReady, imagePanelReady, activeRightSection, panelImageMeta } = useRightPanelModel({
     selectedNavId,
     imageStateLoading,
     imageTxU,
@@ -413,7 +406,6 @@ export function ProjectDetailPageClient({
     masterImage,
     projectImages,
     selectedImageId,
-    lockedImageById,
   })
 
   useEffect(() => {
@@ -555,8 +547,6 @@ export function ProjectDetailPageClient({
               selectedId={selectedNavId}
               onSelect={setSelectedNavId}
               images={leftPanelImages}
-              lockedById={lockedImageById}
-              onToggleImageLocked={handleToggleImageLocked}
               hasGrid={hasGrid}
               onImageUploaded={handleImageUploaded}
               onImageDeleteRequested={requestDeleteImage}
@@ -625,7 +615,6 @@ export function ProjectDetailPageClient({
             workspaceReady={workspaceReady}
             imageStateLoading={imageStateLoading}
             imagePanelReady={imagePanelReady}
-            imagePanelLocked={imagePanelLocked}
             gridVisible={gridVisible}
             onGridVisibleChange={setGridVisible}
             canvasRef={canvasRef}
