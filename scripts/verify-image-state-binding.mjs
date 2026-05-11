@@ -81,7 +81,6 @@ function main() {
       from public.project_images pi
       left join public.project_image_state pis
         on pis.project_id = pi.project_id
-       and pis.role = 'master'
        and pis.image_id = pi.id
       where pi.kind = 'master'
         and pi.is_active is true
@@ -91,21 +90,13 @@ function main() {
     `
   )
 
-  const staleState = runQuery(
-    dbUrl,
-    `
-      select pis.project_id::text || E'\\t' || coalesce(pis.image_id::text, 'NULL') || E'\\t' || pi.id::text
-      from public.project_image_state pis
-      join public.project_images pi
-        on pi.project_id = pis.project_id
-       and pi.kind = 'master'
-       and pi.is_active is true
-       and pi.deleted_at is null
-      where pis.role = 'master'
-        and (pis.image_id is null or pis.image_id <> pi.id)
-      order by pis.project_id;
-    `
-  )
+  // staleState is no longer a meaningful gate: post DB-PR-6 (role-drop)
+  // the project_image_state PK is (project_id, image_id), so each row
+  // unambiguously belongs to its image_id. There is no longer a
+  // role-based "master-binding pointer" that could go stale relative
+  // to the active master — the activeWithoutState gate above already
+  // catches the only remaining failure mode (active master with no
+  // matching state row).
 
   const orphanStateImageId = runQuery(
     dbUrl,
@@ -113,9 +104,7 @@ function main() {
       select pis.project_id::text || E'\\t' || pis.image_id::text
       from public.project_image_state pis
       left join public.project_images pi on pi.id = pis.image_id
-      where pis.role = 'master'
-        and pis.image_id is not null
-        and pi.id is null
+      where pi.id is null
       order by pis.project_id;
     `
   )
@@ -132,15 +121,10 @@ function main() {
     `
   )
 
-  const nullImageIdRows = runQuery(
-    dbUrl,
-    `
-      select project_id::text || E'\\t' || role::text
-      from public.project_image_state
-      where image_id is null
-      order by project_id;
-    `
-  )
+  // nullImageIdRows gate is obsolete post DB-PR-6: image_id is part
+  // of the primary key (project_id, image_id) and therefore NOT NULL
+  // by the catalog. Postgres rejects the insert before this query
+  // could ever return a row.
 
   const duplicateImageStateRows = runQuery(
     dbUrl,
@@ -176,10 +160,8 @@ function main() {
 
   printRows("Gate failed: multiple active master images found (project_id\\tcount):", multipleActive)
   printRows("Gate failed: active master image has no matching bound state (project_id\\timage_id):", activeWithoutState)
-  printRows("Gate failed: stale/mismatched master state binding (project_id\\tstate_image_id\\tactive_image_id):", staleState)
   printRows("Gate failed: state points to missing image_id (project_id\\timage_id):", orphanStateImageId)
   printRows("Gate failed: project_image_state_image_id_fkey is not ON DELETE CASCADE (constraint_name):", fkNotCascade)
-  printRows("Gate failed: project_image_state rows with NULL image_id (project_id\\trole):", nullImageIdRows)
   printRows(
     "Gate failed: duplicate project_image_state rows for same key (project_id\\timage_id\\tcount):",
     duplicateImageStateRows
@@ -190,10 +172,8 @@ function main() {
   if (
     multipleActive.length ||
     activeWithoutState.length ||
-    staleState.length ||
     orphanStateImageId.length ||
     fkNotCascade.length ||
-    nullImageIdRows.length ||
     duplicateImageStateRows.length ||
     pkDrift.length ||
     functionConflictDrift.length
