@@ -11,7 +11,7 @@ export const numerateSchema = z.object({
   // result is exact image coverage with sub-px grid alignment.
   superpixel_width: z.coerce.number().min(0.1).default(10),
   superpixel_height: z.coerce.number().min(0.1).default(10),
-  stroke_width: z.coerce.number().min(0.1).max(20).default(2),
+  stroke_width: z.coerce.number().min(0.1).max(20).default(1),
   show_colors: z.coerce.boolean().default(true),
   // F20: palette quantisation. vtracer collapses adjacent same-color
   // superpixel cells into one polygon — without quantisation each

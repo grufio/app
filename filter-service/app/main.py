@@ -174,7 +174,7 @@ class LineArtRequest(BaseModel):
     image_base64: str
     # F22: stroke width is a float (≥0.1) so users can draw very thin
     # outlines. The frontend exposes a 0.1-step decimal input.
-    line_thickness: float = 2.0
+    line_thickness: float = 1.0
     blur_amount: int = 3
     smoothness: float = 0.6
     num_colors: int = 8
@@ -191,7 +191,7 @@ class NumerateRequest(BaseModel):
     superpixel_width: float
     superpixel_height: float
     # F22: stroke width is a float (≥0.1) — see LineArtRequest above.
-    stroke_width: float = 2.0
+    stroke_width: float = 1.0
     show_colors: bool = True
     # F20: palette quantisation. vtracer collapses adjacent same-color
     # cells into one polygon — without quantisation, every cell's
