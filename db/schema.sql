@@ -29,15 +29,6 @@ CREATE SCHEMA IF NOT EXISTS "storage";
 ALTER SCHEMA "storage" OWNER TO "supabase_admin";
 
 
-CREATE TYPE "public"."color_space" AS ENUM (
-    'rgb',
-    'cmyk'
-);
-
-
-ALTER TYPE "public"."color_space" OWNER TO "postgres";
-
-
 CREATE TYPE "public"."image_kind" AS ENUM (
     'master',
     'working_copy',
@@ -1630,28 +1621,22 @@ CREATE TABLE IF NOT EXISTS "public"."project_images" (
     "format" "text" NOT NULL,
     "width_px" integer NOT NULL,
     "height_px" integer NOT NULL,
-    "bit_depth" integer,
     "storage_path" "text" NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "storage_bucket" "text" DEFAULT 'project_images'::"text" NOT NULL,
     "is_active" boolean DEFAULT false NOT NULL,
     "deleted_at" timestamp with time zone,
-    "color_space" "public"."color_space",
     "file_size_bytes" bigint DEFAULT 0 NOT NULL,
     "dpi" numeric,
     "source_image_id" "uuid",
     "crop_rect_px" "jsonb",
     "is_locked" boolean DEFAULT false NOT NULL,
-    "dpi_x" numeric DEFAULT 72 NOT NULL,
-    "dpi_y" numeric DEFAULT 72 NOT NULL,
     "kind" "public"."image_kind" NOT NULL,
     CONSTRAINT "project_images_crop_rect_number_int_ck" CHECK ((("crop_rect_px" IS NULL) OR (("jsonb_typeof"(("crop_rect_px" -> 'x'::"text")) = 'number'::"text") AND ("jsonb_typeof"(("crop_rect_px" -> 'y'::"text")) = 'number'::"text") AND ("jsonb_typeof"(("crop_rect_px" -> 'w'::"text")) = 'number'::"text") AND ("jsonb_typeof"(("crop_rect_px" -> 'h'::"text")) = 'number'::"text") AND (((("crop_rect_px" ->> 'x'::"text"))::numeric % (1)::numeric) = (0)::numeric) AND (((("crop_rect_px" ->> 'y'::"text"))::numeric % (1)::numeric) = (0)::numeric) AND (((("crop_rect_px" ->> 'w'::"text"))::numeric % (1)::numeric) = (0)::numeric) AND (((("crop_rect_px" ->> 'h'::"text"))::numeric % (1)::numeric) = (0)::numeric)))),
     CONSTRAINT "project_images_crop_rect_requires_source_ck" CHECK ((("crop_rect_px" IS NULL) OR ("source_image_id" IS NOT NULL))),
     CONSTRAINT "project_images_crop_rect_shape_ck" CHECK ((("crop_rect_px" IS NULL) OR (("jsonb_typeof"("crop_rect_px") = 'object'::"text") AND ("crop_rect_px" ?& ARRAY['x'::"text", 'y'::"text", 'w'::"text", 'h'::"text"]) AND ((((("crop_rect_px" - 'x'::"text") - 'y'::"text") - 'w'::"text") - 'h'::"text") = '{}'::"jsonb")))),
     CONSTRAINT "project_images_crop_rect_value_ck" CHECK ((("crop_rect_px" IS NULL) OR (((("crop_rect_px" ->> 'x'::"text"))::integer >= 0) AND ((("crop_rect_px" ->> 'y'::"text"))::integer >= 0) AND ((("crop_rect_px" ->> 'w'::"text"))::integer >= 10) AND ((("crop_rect_px" ->> 'h'::"text"))::integer >= 10)))),
-    CONSTRAINT "project_images_dpi_x_check" CHECK (("dpi_x" > (0)::numeric)),
-    CONSTRAINT "project_images_dpi_y_check" CHECK (("dpi_y" > (0)::numeric)),
     CONSTRAINT "project_images_file_size_bytes_check" CHECK (("file_size_bytes" >= 0)),
     CONSTRAINT "project_images_height_px_check" CHECK (("height_px" > 0)),
     CONSTRAINT "project_images_master_no_source_kind_ck" CHECK ((("kind" <> 'master'::"public"."image_kind") OR ("source_image_id" IS NULL))),

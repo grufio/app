@@ -14,20 +14,20 @@ function makeFile(bytes: number, mime = "image/png"): File {
 
 describe("validateUploadInputs", () => {
   it("returns ok when all required fields are positive integers", () => {
-    const result = validateUploadInputs({ widthPx: 100, heightPx: 200, dpi: 300, bitDepth: 8 })
-    expect(result).toEqual({ ok: true, widthPx: 100, heightPx: 200, dpi: 300, bitDepth: 8 })
+    const result = validateUploadInputs({ widthPx: 100, heightPx: 200, dpi: 300 })
+    expect(result).toEqual({ ok: true, widthPx: 100, heightPx: 200, dpi: 300 })
   })
 
   it("fails on missing width or height", () => {
-    const r1 = validateUploadInputs({ widthPx: null, heightPx: 200, dpi: 300, bitDepth: 8 })
+    const r1 = validateUploadInputs({ widthPx: null, heightPx: 200, dpi: 300 })
     expect(r1.ok).toBe(false)
     if (!r1.ok) expect(r1.stage).toBe("validation")
-    const r2 = validateUploadInputs({ widthPx: 100, heightPx: 0, dpi: 300, bitDepth: 8 })
+    const r2 = validateUploadInputs({ widthPx: 100, heightPx: 0, dpi: 300 })
     expect(r2.ok).toBe(false)
   })
 
-  it("fails on missing dpi or bitDepth", () => {
-    const r = validateUploadInputs({ widthPx: 100, heightPx: 200, dpi: null, bitDepth: 8 })
+  it("fails on missing dpi", () => {
+    const r = validateUploadInputs({ widthPx: 100, heightPx: 200, dpi: null })
     expect(r.ok).toBe(false)
     if (!r.ok) expect(r.reason).toMatch(/dpi/i)
   })

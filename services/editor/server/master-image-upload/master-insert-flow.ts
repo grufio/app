@@ -14,10 +14,7 @@ export async function insertMasterWithCleanup(args: {
   format: string
   widthPx: number
   heightPx: number
-  dpiX: number
-  dpiY: number
   imageDpi: number
-  bitDepth: number
   objectPath: string
 }): Promise<{ ok: true } | { ok: false; reason: string; code?: string }> {
   const { supabase, projectId, objectPath } = args

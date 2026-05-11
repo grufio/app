@@ -109,7 +109,6 @@ describe("master-image-upload service", () => {
       heightPx: 10,
       format: "png",
       dpi: 72,
-      bitDepth: 8,
     })
     expect(out.ok).toBe(false)
     if (!out.ok) {
@@ -130,7 +129,6 @@ describe("master-image-upload service", () => {
       widthPx: 10,
       heightPx: 10,
       dpi: 72,
-      bitDepth: 8,
       format: "png",
     })
     expect(out.ok).toBe(false)
@@ -158,7 +156,6 @@ describe("master-image-upload service", () => {
       widthPx: 400.9,
       heightPx: 200.1,
       dpi: 300,
-      bitDepth: 8,
       format: "png",
     })
 
@@ -167,10 +164,7 @@ describe("master-image-upload service", () => {
     expect(capture.inserts).toHaveLength(2)
     const masterInsert = capture.inserts.find((row) => row.kind === "master")
     const workingInsert = capture.inserts.find((row) => row.kind === "working_copy")
-    expect(masterInsert?.dpi_x).toBe(300)
-    expect(masterInsert?.dpi_y).toBe(300)
     expect(masterInsert?.dpi).toBe(300)
-    expect(masterInsert?.bit_depth).toBe(8)
     expect(masterInsert?.width_px).toBe(400)
     expect(masterInsert?.height_px).toBe(200)
     expect(workingInsert?.kind).toBe("working_copy")
@@ -208,7 +202,6 @@ describe("master-image-upload service", () => {
       widthPx: 200,
       heightPx: 100,
       dpi: 72,
-      bitDepth: 8,
       format: "png",
     })
 
@@ -243,7 +236,6 @@ describe("master-image-upload service", () => {
       widthPx: 200,
       heightPx: 100,
       dpi: 72,
-      bitDepth: 8,
       format: "png",
     })
 
@@ -277,7 +269,6 @@ describe("master-image-upload service", () => {
       widthPx: 200,
       heightPx: 100,
       dpi: 72,
-      bitDepth: 8,
       format: "png",
     })
 
@@ -306,7 +297,6 @@ describe("master-image-upload service", () => {
       widthPx: 200,
       heightPx: 100,
       dpi: 72,
-      bitDepth: 8,
       format: "png",
     })
 

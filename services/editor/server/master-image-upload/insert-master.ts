@@ -11,13 +11,10 @@ export async function insertMasterRow(args: {
   format: string
   widthPx: number
   heightPx: number
-  dpiX: number
-  dpiY: number
   imageDpi: number
-  bitDepth: number
   objectPath: string
 }) {
-  const { supabase, imageId, projectId, file, format, widthPx, heightPx, dpiX, dpiY, imageDpi, bitDepth, objectPath } = args
+  const { supabase, imageId, projectId, file, format, widthPx, heightPx, imageDpi, objectPath } = args
   return supabase.from("project_images").insert({
     id: imageId,
     project_id: projectId,
@@ -26,10 +23,7 @@ export async function insertMasterRow(args: {
     format,
     width_px: widthPx,
     height_px: heightPx,
-    dpi_x: dpiX,
-    dpi_y: dpiY,
     dpi: imageDpi,
-    bit_depth: bitDepth,
     storage_bucket: PROJECT_IMAGES_BUCKET,
     storage_path: objectPath,
     file_size_bytes: file.size,
