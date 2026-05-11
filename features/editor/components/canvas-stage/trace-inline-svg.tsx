@@ -44,6 +44,12 @@ type Props = {
   view: StageView
   /** Rotation of the image in degrees (matches Konva's prop). */
   rotation?: number
+  /** Optional Konva stage container — wheel events that land on the
+   * inline SVG are re-dispatched to its first child canvas so the
+   * existing Konva wheel handler can apply pan/zoom. Without this
+   * forwarding, pinching over a trace region does nothing because the
+   * inline SVG sits above the canvas in DOM order. */
+  forwardWheelTo?: HTMLElement | null
 }
 
 /**
@@ -56,7 +62,7 @@ function escapeAttrSelectorValue(v: string): string {
   return v.replace(/[^a-zA-Z0-9#.,()%/\s_-]/g, "")
 }
 
-export function TraceInlineSvg({ svgText, imageRect, view, rotation = 0 }: Props) {
+export function TraceInlineSvg({ svgText, imageRect, view, rotation = 0, forwardWheelTo }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const prepared = useMemo(() => prepareTraceSvg(svgText), [svgText])
   const [selectedFill, setSelectedFill] = useState<string | null>(null)
@@ -92,6 +98,32 @@ export function TraceInlineSvg({ svgText, imageRect, view, rotation = 0 }: Props
     setSelectedFill(fill || null)
   }
 
+  const onContainerWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    // Forward wheel events to the Konva stage container so pinch/
+    // Ctrl+wheel zoom and trackpad pan still work when the cursor is
+    // over the trace. Without this the inline SVG silently swallows
+    // wheel events that should reach the Konva listener.
+    if (!forwardWheelTo) return
+    e.preventDefault()
+    const target = forwardWheelTo.querySelector("canvas") ?? forwardWheelTo
+    target.dispatchEvent(
+      new WheelEvent("wheel", {
+        deltaX: e.deltaX,
+        deltaY: e.deltaY,
+        deltaZ: e.deltaZ,
+        deltaMode: e.deltaMode,
+        ctrlKey: e.ctrlKey,
+        metaKey: e.metaKey,
+        shiftKey: e.shiftKey,
+        altKey: e.altKey,
+        clientX: e.clientX,
+        clientY: e.clientY,
+        bubbles: true,
+        cancelable: true,
+      }),
+    )
+  }
+
   const screenW = imageRect.width * view.scale
   const screenH = imageRect.height * view.scale
   const centerScreenX = view.x + imageRect.x * view.scale
@@ -106,6 +138,7 @@ export function TraceInlineSvg({ svgText, imageRect, view, rotation = 0 }: Props
       ref={containerRef}
       data-testid="trace-inline-svg"
       onClick={onContainerClick}
+      onWheel={onContainerWheel}
       style={{
         position: "absolute",
         left,
