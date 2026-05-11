@@ -35,6 +35,10 @@ export type FilterStackItem = {
 
 export function useFilterWorkingImage(projectId: string) {
   const [image, setImage] = useState<FilterDisplayImage | null>(null)
+  /** Trace-free counterpart to `image` — used by the Filter tab to
+   * show the filter chain tip even when a trace overrides the
+   * default display. `null` when the workspace is empty. */
+  const [imageWithoutTrace, setImageWithoutTrace] = useState<FilterDisplayImage | null>(null)
   const [stack, setStack] = useState<FilterStackItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
@@ -66,6 +70,7 @@ export function useFilterWorkingImage(projectId: string) {
 
         if (!workingCopy.exists) {
           setImage(null)
+          setImageWithoutTrace(null)
           setStack([])
           if (workingCopy.stage === "no_active_image") {
             setEmptyReason("no_active_image")
@@ -87,10 +92,21 @@ export function useFilterWorkingImage(projectId: string) {
           name: workingCopy.name,
           isFilterResult: workingCopy.isFilterResult,
         })
+        setImageWithoutTrace({
+          id: workingCopy.withoutTrace.id,
+          signedUrl: workingCopy.withoutTrace.signedUrl,
+          width_px: workingCopy.withoutTrace.width_px,
+          height_px: workingCopy.withoutTrace.height_px,
+          storage_path: workingCopy.withoutTrace.storage_path,
+          source_image_id: workingCopy.withoutTrace.source_image_id,
+          name: workingCopy.withoutTrace.name,
+          isFilterResult: workingCopy.withoutTrace.isFilterResult,
+        })
         setStack(workingCopy.stack)
       } catch (e) {
         if (seq !== requestSeqRef.current || !mountedRef.current) return
         setImage(null)
+        setImageWithoutTrace(null)
         setStack([])
         setEmptyReason(null)
         setError(e instanceof Error ? e.message : "Failed to load filter working image")
@@ -122,6 +138,7 @@ export function useFilterWorkingImage(projectId: string) {
 
   return {
     image,
+    imageWithoutTrace,
     stack,
     loading,
     loadedOnce,

@@ -362,21 +362,29 @@ export async function setProjectImageFilterHidden(args: {
 }
 
 /** POST /api/projects/[projectId]/images/filter-working-copy — ensures a working copy exists for the filter chain. */
+export type FilterDisplayPayload = {
+  id: string
+  signedUrl: string
+  width_px: number
+  height_px: number
+  storage_path: string
+  source_image_id: string | null
+  name: string
+  isFilterResult: boolean
+}
+
 export async function getOrCreateFilterWorkingCopy(projectId: string): Promise<
   | {
       exists: false
       stage?: "no_active_image"
     }
-  | {
+  | (FilterDisplayPayload & {
       exists: true
-      id: string
-      signedUrl: string
-      width_px: number
-      height_px: number
-      storage_path: string
-      source_image_id: string | null
-      name: string
-      isFilterResult: boolean
+      /** Trace-free variant of the display payload — same shape, but
+       * always the filter chain tip (or working copy when no filters
+       * are applied), even if a trace overrides the default display.
+       * Used by the Filter tab to render the raster filter result. */
+      withoutTrace: FilterDisplayPayload
       stack: Array<{
         id: string
         name: string
@@ -384,7 +392,7 @@ export async function getOrCreateFilterWorkingCopy(projectId: string): Promise<
         source_image_id: string | null
         is_hidden: boolean
       }>
-    }
+    })
 > {
   const res = await fetchJson<{
     ok?: boolean
@@ -398,6 +406,16 @@ export async function getOrCreateFilterWorkingCopy(projectId: string): Promise<
     source_image_id?: string | null
     name?: string
     is_filter_result?: boolean
+    without_trace?: {
+      id?: string
+      signed_url?: string
+      width_px?: number
+      height_px?: number
+      storage_path?: string
+      source_image_id?: string | null
+      name?: string
+      is_filter_result?: boolean
+    }
     stack?: Array<{
       id?: string
       name?: string
@@ -418,6 +436,10 @@ export async function getOrCreateFilterWorkingCopy(projectId: string): Promise<
   if (!res.data?.id || !res.data.signed_url) {
     throw new Error("Failed to get filter working copy (missing data)")
   }
+  // Fall back to the trace-aware payload if the server response
+  // is missing the `without_trace` field — keeps the hook usable
+  // against older deployments where the new field hasn't shipped yet.
+  const withoutTraceRaw = res.data.without_trace ?? res.data
   return {
     exists: true,
     id: String(res.data.id),
@@ -428,6 +450,16 @@ export async function getOrCreateFilterWorkingCopy(projectId: string): Promise<
     source_image_id: res.data.source_image_id ?? null,
     name: String(res.data.name ?? ""),
     isFilterResult: Boolean(res.data.is_filter_result),
+    withoutTrace: {
+      id: String(withoutTraceRaw.id ?? ""),
+      signedUrl: String(withoutTraceRaw.signed_url ?? ""),
+      width_px: Number(withoutTraceRaw.width_px ?? 0),
+      height_px: Number(withoutTraceRaw.height_px ?? 0),
+      storage_path: String(withoutTraceRaw.storage_path ?? ""),
+      source_image_id: withoutTraceRaw.source_image_id ?? null,
+      name: String(withoutTraceRaw.name ?? ""),
+      isFilterResult: Boolean(withoutTraceRaw.is_filter_result),
+    },
     stack: Array.isArray(res.data.stack)
       ? res.data.stack
           .filter((row): row is { id: string; name: string; filterType: "pixelate" | "lineart" | "numerate" | "unknown"; source_image_id?: string | null; is_hidden?: boolean } =>
