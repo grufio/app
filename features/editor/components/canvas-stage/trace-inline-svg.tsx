@@ -174,7 +174,13 @@ export function TraceInlineSvg({ svgText, imageRect, view, rotation = 0, forward
         [data-testid="trace-inline-svg"] [data-trace-region]:hover,
         [data-testid="trace-inline-svg"] [data-trace-region][data-selected] {
           stroke: red;
-          stroke-width: ${prepared.strokeWidth};
+          /* Highlight stroke uses non-scaling-stroke + a fixed screen-pixel
+           * value so it stays clearly visible regardless of viewBox-to-
+           * screen scaling. Matching the trace's own configured stroke
+           * (1 unit by default) rendered sub-pixel at typical zoom levels
+           * and looked anti-aliased to grey. */
+          stroke-width: 3px;
+          vector-effect: non-scaling-stroke;
         }
       `}</style>
       <div dangerouslySetInnerHTML={{ __html: prepared.html }} />
