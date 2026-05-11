@@ -92,6 +92,10 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
   initialImageTransform: CanvasInitialImageTransform
   saveImageState?: CanvasTransformCommit
   onCropDblClick?: () => void
+  /** Signed URL of the trace SVG to render as an interactive overlay
+   * above the Konva.Image. Set by the shell on the Trace tab when a
+   * `project_image_trace` row exists; null/undefined elsewhere. */
+  traceOverlaySvgUrl?: string | null
 }) {
   const {
     masterImage,
@@ -111,6 +115,7 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
     initialImageTransform,
     saveImageState,
     onCropDblClick,
+    traceOverlaySvgUrl,
   } = props
 
   void _masterImageLoading
@@ -192,6 +197,7 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
                 : undefined
             }
             grid={grid ?? null}
+            traceOverlaySvgUrl={traceOverlaySvgUrl ?? null}
             onImageTransformChange={handleImageTransformChange}
             initialImageTransform={masterImage ? initialImageTransform : null}
             onImageTransformCommit={masterImage ? saveImageState : undefined}

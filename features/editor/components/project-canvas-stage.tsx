@@ -95,6 +95,12 @@ type Props = {
   mutationsEnabled?: boolean
   /** Clip image/overlays to artboard bounds. */
   clipToArtboard?: boolean
+  /** When set, fetched as SVG text and rendered as an interactive
+   * overlay above the Konva.Image (used by the Trace tab to layer
+   * region cells, grid, and outlines on top of the filter chain
+   * tip). The Konva.Image keeps rendering `src` underneath so the
+   * trace is a true overlay and not a replacement. */
+  traceOverlaySvgUrl?: string | null
 }
 
 export type ProjectCanvasStageHandle = {
@@ -183,6 +189,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     rotateEnabled = true,
     mutationsEnabled = true,
     clipToArtboard = false,
+    traceOverlaySvgUrl = null,
   },
   ref
 ) {
@@ -191,7 +198,10 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   const layerRef = useRef<Konva.Layer | null>(null)
   const imageNodeRef = useRef<Konva.Image | null>(null)
   const img = useHtmlImage(src ?? null)
-  const svgText = useSvgText(src ?? null)
+  // Trace overlay text comes from a separate URL — the Konva.Image
+  // keeps rendering `src` (the raster filter tip) underneath, so
+  // the trace is a true overlay rather than a replacement.
+  const svgText = useSvgText(traceOverlaySvgUrl ?? null)
   const isE2E =
     process.env.NEXT_PUBLIC_E2E_TEST === "1" ||
     (typeof navigator !== "undefined" && Boolean((navigator as unknown as { webdriver?: boolean })?.webdriver))
@@ -646,7 +656,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
             clipWidth={shouldClipToArtboard ? artW : undefined}
             clipHeight={shouldClipToArtboard ? artH : undefined}
           >
-            {img && imageTx && imageRender && !svgText ? (
+            {img && imageTx && imageRender ? (
               <KonvaImage
                 ref={(n) => {
                   imageNodeRef.current = n

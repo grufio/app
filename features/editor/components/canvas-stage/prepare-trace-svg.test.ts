@@ -33,6 +33,19 @@ describe("prepareTraceSvg", () => {
     expect(out.html).toMatch(/data-fill="#00ff00"/)
   })
 
+  it("strips the white background <rect> so the underlying image can show through later", () => {
+    const out = prepareTraceSvg(NUMERATE_SVG)!
+    expect(out.html).not.toMatch(/<rect[^>]*fill="white"/)
+  })
+
+  it("keeps the original RGB fill on every <path>", () => {
+    const out = prepareTraceSvg(NUMERATE_SVG)!
+    // The fill attribute is unchanged so the rendered cell still
+    // shows its detected RGB color at rest.
+    expect(out.html).toMatch(/<path[^>]*fill="#ff0000"[^>]*data-trace-region/)
+    expect(out.html).toMatch(/<path[^>]*fill="#00ff00"[^>]*data-trace-region/)
+  })
+
   it("returns null when no <svg> root", () => {
     expect(prepareTraceSvg("<html><body/></html>")).toBeNull()
   })
