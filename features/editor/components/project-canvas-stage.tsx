@@ -549,7 +549,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     scheduleCommitTransform,
   })
 
-  const { onWheel, onStageDragStart, onStageDragEnd } = useStageEventsController({
+  const { onWheel, onStageDragStart, onStageDragMove, onStageDragEnd } = useStageEventsController({
     stageRef,
     userInteractedRef,
     panDeltaRef,
@@ -612,7 +612,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   return (
     <div
       ref={containerRef}
-      className={`relative touch-none ${className ?? ""}`}
+      className={`relative touch-none overflow-hidden ${className ?? ""}`}
       aria-label={alt ?? "Canvas"}
       data-testid="editor-canvas-root"
     >
@@ -629,6 +629,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
         y={view.y}
         draggable={panEnabled}
         onDragStart={onStageDragStart}
+        onDragMove={onStageDragMove}
         onDragEnd={onStageDragEnd}
         onWheel={onWheel}
       >
@@ -806,6 +807,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
           imageRect={imageRender}
           view={view}
           rotation={rotation}
+          forwardWheelTo={stageRef.current?.container() ?? null}
         />
       ) : null}
     </div>

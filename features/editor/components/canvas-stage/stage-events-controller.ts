@@ -48,6 +48,27 @@ export function useStageEventsController(args: {
     [stageRef, userInteractedRef]
   )
 
+  const onStageDragMove = useCallback(
+    (e: Konva.KonvaEventObject<DragEvent>) => {
+      // Sync `view.x/y` continuously during a pan so DOM elements
+      // positioned via stage transform (e.g. `TraceInlineSvg`) stay
+      // glued to their Konva-rendered counterparts mid-drag. Without
+      // this, the inline SVG snaps to the new position only at
+      // dragEnd, producing a visible disconnect from the rest of
+      // the canvas while the user is panning.
+      const stage = stageRef.current
+      if (!stage) return
+      if (e.target !== stage) return
+      setView((v) => {
+        const x = stage.x()
+        const y = stage.y()
+        if (v.x === x && v.y === y) return v
+        return { ...v, x, y }
+      })
+    },
+    [setView, stageRef]
+  )
+
   const onStageDragEnd = useCallback(
     (e: Konva.KonvaEventObject<DragEvent>) => {
       const stage = stageRef.current
@@ -63,5 +84,5 @@ export function useStageEventsController(args: {
     [setView, stageRef]
   )
 
-  return { onWheel, onStageDragStart, onStageDragEnd }
+  return { onWheel, onStageDragStart, onStageDragMove, onStageDragEnd }
 }
