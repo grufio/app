@@ -26,8 +26,17 @@ export function useSvgText(src: string | null): string | null {
       .then(async (r) => {
         if (!r.ok) return null
         const ct = r.headers.get("content-type") ?? ""
-        if (!ct.includes("svg")) return null
-        return r.text()
+        // Header check covers well-behaved storage backends. The body
+        // sniff handles Supabase signed URLs that occasionally serve
+        // SVG with `application/octet-stream` (the upload set the
+        // content-type but the signed URL flavour can drop it).
+        if (ct.includes("svg")) return r.text()
+        const sample = await r.text()
+        const head = sample.trimStart().slice(0, 256).toLowerCase()
+        if (head.startsWith("<?xml") || head.startsWith("<svg") || head.includes("<svg")) {
+          return sample
+        }
+        return null
       })
       .then((t) => {
         if (cancelled) return
