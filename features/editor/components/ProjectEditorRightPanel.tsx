@@ -77,7 +77,6 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
   workspaceReady: boolean
   imageStateLoading: boolean
   imagePanelReady: boolean
-  imagePanelLocked?: boolean
   gridVisible: boolean
   onGridVisibleChange: (v: boolean) => void
   canvasRef: React.RefObject<ProjectCanvasStageHandle | null>
@@ -113,7 +112,6 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
     workspaceReady,
     imageStateLoading,
     imagePanelReady,
-    imagePanelLocked = false,
     gridVisible,
     onGridVisibleChange,
     canvasRef,
@@ -126,7 +124,6 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
     hasMasterImage: Boolean(masterImage),
     imageStateLoading,
     workspaceReady,
-    imagePanelLocked,
   })
 
   const clamp = (v: number) => Math.max(minPanelRem, Math.min(maxPanelRem, v))

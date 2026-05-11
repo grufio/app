@@ -4,31 +4,22 @@ import { useCallback, useMemo } from "react"
 
 import { buildNavId, parseNavId } from "@/features/editor/navigation/nav-id"
 
-type MenuActionResult = { ok: true } | { ok: false; reason: string }
-
 export function useLeftPanelModel(args: {
   selectedNavId: string
   setSelectedNavId: (next: string) => void
-  projectImages: Array<{ id: string; name?: string | null; is_locked?: boolean | null }>
-  setImageLockedById: (imageId: string, nextLocked: boolean) => Promise<{ ok: true } | { ok: false; error: string }>
+  projectImages: Array<{ id: string; name?: string | null }>
   setDeleteError: (v: string) => void
   setDeleteOpen: (v: boolean) => void
   createGrid: () => Promise<unknown | null>
   deleteGrid: () => Promise<boolean>
 }) {
-  const { selectedNavId, setSelectedNavId, projectImages, setImageLockedById, setDeleteError, setDeleteOpen, createGrid, deleteGrid } = args
+  const { selectedNavId, setSelectedNavId, projectImages, setDeleteError, setDeleteOpen, createGrid, deleteGrid } = args
 
   const selectedImageId = useMemo(() => {
     const selection = parseNavId(selectedNavId)
     if (selection.kind !== "image") return null
     return selection.imageId
   }, [selectedNavId])
-
-  const lockedImageById = useMemo<Record<string, boolean>>(() => {
-    const out: Record<string, boolean> = {}
-    for (const img of projectImages) out[img.id] = Boolean(img.is_locked)
-    return out
-  }, [projectImages])
 
   const leftPanelImages = useMemo(
     () =>
@@ -43,15 +34,6 @@ export function useLeftPanelModel(args: {
     () =>
       projectImages.length > 0 ? buildNavId({ kind: "image", imageId: projectImages[0].id }) : buildNavId({ kind: "artboard" }),
     [projectImages]
-  )
-
-  const handleToggleImageLocked = useCallback(
-    async (imageId: string, nextLocked: boolean): Promise<MenuActionResult> => {
-      const out = await setImageLockedById(imageId, nextLocked)
-      if (!out.ok) return { ok: false, reason: out.error }
-      return { ok: true }
-    },
-    [setImageLockedById]
   )
 
   const requestDeleteImage = useCallback(
@@ -82,9 +64,7 @@ export function useLeftPanelModel(args: {
 
   return {
     selectedImageId,
-    lockedImageById,
     leftPanelImages,
-    handleToggleImageLocked,
     requestDeleteImage,
     requestDeleteSelectedImage,
     requestCreateGrid,

@@ -26,12 +26,10 @@ describe("useRightPanelModel", () => {
         masterImage: { signedUrl: "u", name: "Master" },
         projectImages: [{ id: "img-1", name: "Image One" }],
         selectedImageId: "img-1",
-        lockedImageById: { "img-1": true },
       })
 
       const serializable = {
         activeRightSection: out.activeRightSection,
-        imagePanelLocked: out.imagePanelLocked,
         panelImageName: out.panelImageMeta?.name ?? null,
         panelImageTxU: out.panelImageTxU
           ? { x: String(out.panelImageTxU.x), y: String(out.panelImageTxU.y), w: String(out.panelImageTxU.w), h: String(out.panelImageTxU.h) }
@@ -44,13 +42,11 @@ describe("useRightPanelModel", () => {
     const json = decodeMarkupJson(html).replace(/^<pre>/, "").replace(/<\/pre>$/, "")
     const parsed = JSON.parse(json) as {
       activeRightSection: string
-      imagePanelLocked: boolean
       panelImageName: string | null
       panelImageTxU: { x: string; y: string; w: string; h: string } | null
     }
 
     expect(parsed.activeRightSection).toBe("image")
-    expect(parsed.imagePanelLocked).toBe(true)
     expect(parsed.panelImageName).toBe("Image One")
     expect(parsed.panelImageTxU).toEqual({ x: "11", y: "22", w: "123", h: "456" })
   })

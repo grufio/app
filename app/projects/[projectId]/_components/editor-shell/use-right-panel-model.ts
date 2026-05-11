@@ -16,7 +16,6 @@ export function useRightPanelModel(args: {
   masterImage: { signedUrl?: string | null; name?: string | null } | null
   projectImages: Array<{ id: string; name?: string | null }>
   selectedImageId: string | null
-  lockedImageById: Record<string, boolean>
 }) {
   const {
     selectedNavId,
@@ -28,18 +27,12 @@ export function useRightPanelModel(args: {
     masterImage,
     projectImages,
     selectedImageId,
-    lockedImageById,
   } = args
 
   const selectedImage = useMemo(() => {
     if (!selectedImageId) return null
     return projectImages.find((img) => img.id === selectedImageId) ?? null
   }, [projectImages, selectedImageId])
-
-  const imagePanelLocked = useMemo(
-    () => (selectedImageId ? Boolean(lockedImageById[selectedImageId]) : false),
-    [lockedImageById, selectedImageId]
-  )
 
   const panelImageTxU = useMemo(() => {
     if (imageStateLoading) return null
@@ -70,7 +63,6 @@ export function useRightPanelModel(args: {
 
   return {
     selectedImage,
-    imagePanelLocked,
     panelImageTxU,
     workspaceReady,
     imagePanelReady,

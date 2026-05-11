@@ -1,62 +1,56 @@
 "use client"
 
 import * as React from "react"
-import { Lock, LockOpen, Trash2 } from "lucide-react"
+import { LockOpen, Trash2 } from "lucide-react"
 
 import { SidebarMenuAction, SidebarMenuActions } from "@/components/ui/sidebar"
 
 export type MenuActionResult = { ok: true } | { ok: false; reason?: string }
 
+/**
+ * Layer-tree action row. The lock icon is rendered as a static visual
+ * placeholder — locking is decoupled from the editor (no DB write, no
+ * effect on toolbar / mutations). The `is_locked` column on
+ * `project_images` is still present in the schema, but no UI path
+ * sets it any more. Delete is the only interactive action here.
+ */
 export function LockNavTreeActions({
   imageId,
-  locked,
   canDelete,
-  onToggleLocked,
   onDeleteRequest,
   onActionError,
 }: {
   imageId: string
-  locked: boolean
   canDelete: boolean
-  onToggleLocked: (imageId: string, nextLocked: boolean) => MenuActionResult | Promise<MenuActionResult>
   onDeleteRequest: (imageId: string) => MenuActionResult | Promise<MenuActionResult>
   onActionError?: (message: string) => void
 }) {
-  const [busy, setBusy] = React.useState<"lock" | "delete" | null>(null)
+  const [busy, setBusy] = React.useState<"delete" | null>(null)
   const disableAll = busy !== null
 
-  const runAction = React.useCallback(
-    async (kind: "lock" | "delete", run: () => MenuActionResult | Promise<MenuActionResult>) => {
-      if (busy) return
-      setBusy(kind)
-      try {
-        const out = await run()
-        if (!out.ok) onActionError?.(out.reason || "Action failed")
-      } catch (e) {
-        onActionError?.(e instanceof Error ? e.message : "Action failed")
-      } finally {
-        setBusy(null)
-      }
-    },
-    [busy, onActionError]
-  )
+  const runDelete = React.useCallback(async () => {
+    if (busy) return
+    setBusy("delete")
+    try {
+      const out = await onDeleteRequest(imageId)
+      if (!out.ok) onActionError?.(out.reason || "Action failed")
+    } catch (e) {
+      onActionError?.(e instanceof Error ? e.message : "Action failed")
+    } finally {
+      setBusy(null)
+    }
+  }, [busy, imageId, onActionError, onDeleteRequest])
 
   return (
     <SidebarMenuActions>
       <SidebarMenuAction
         inline
-        showOnHover={!locked}
-        disabled={disableAll}
-        aria-busy={busy === "lock"}
-        onClick={(e) => {
-          e.preventDefault()
-          e.stopPropagation()
-          void runAction("lock", () => onToggleLocked(imageId, !locked))
-        }}
-        aria-label={locked ? "Unlock Image" : "Lock Image"}
-        aria-pressed={locked}
+        showOnHover
+        disabled
+        aria-label="Lock (disabled)"
+        aria-disabled
       >
-        {locked ? <Lock strokeWidth={1} /> : <LockOpen strokeWidth={1} />}
+        <LockOpen strokeWidth={1} />
       </SidebarMenuAction>
       <SidebarMenuAction
         inline
@@ -66,7 +60,7 @@ export function LockNavTreeActions({
         onClick={(e) => {
           e.preventDefault()
           e.stopPropagation()
-          void runAction("delete", () => onDeleteRequest(imageId))
+          void runDelete()
         }}
         aria-label="Delete Image"
       >
@@ -75,4 +69,3 @@ export function LockNavTreeActions({
     </SidebarMenuActions>
   )
 }
-

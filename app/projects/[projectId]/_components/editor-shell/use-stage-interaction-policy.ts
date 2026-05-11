@@ -53,9 +53,6 @@ export function useStageInteractionPolicy(args: {
   selectedNavId: string
   setSelectedNavId: (next: string) => void
   activeCanvasImageId: string | null
-  selectedImageId: string | null
-  projectImages: Array<{ id: string }>
-  lockedImageById: Record<string, boolean>
   isCropping: boolean
   onApplyCrop: (rect: { x: number; y: number; w: number; h: number }) => void
 }) {
@@ -67,9 +64,6 @@ export function useStageInteractionPolicy(args: {
     selectedNavId,
     setSelectedNavId,
     activeCanvasImageId,
-    selectedImageId,
-    projectImages,
-    lockedImageById,
     isCropping,
     onApplyCrop,
   } = args
@@ -82,44 +76,21 @@ export function useStageInteractionPolicy(args: {
     enableShortcuts: canvasMode !== "filter",
   })
 
-  const toolbarLockImageId = useMemo(() => selectedImageId ?? projectImages[0]?.id ?? null, [projectImages, selectedImageId])
-  const toolbarImageLocked = useMemo(
-    () => (toolbarLockImageId ? Boolean(lockedImageById[toolbarLockImageId]) : false),
-    [lockedImageById, toolbarLockImageId]
-  )
-
   const handleToolbarToolChange = useCallback(
     (tool: typeof toolbar.tool) => {
       if (canvasMode === "filter" && (tool === "select" || tool === "crop")) {
         toolbar.setTool("hand")
         return
       }
-      if (toolbarImageLocked && (tool === "select" || tool === "crop")) return
       toolbar.setTool(tool)
     },
-    [canvasMode, toolbar, toolbarImageLocked]
+    [canvasMode, toolbar]
   )
 
   useEffect(() => {
-    const onKeyDownCapture = (e: KeyboardEvent) => {
-      if (!toolbarImageLocked) return
-      if (e.key.toLowerCase() !== "r") return
-      e.preventDefault()
-      e.stopPropagation()
-    }
-    window.addEventListener("keydown", onKeyDownCapture, true)
-    return () => window.removeEventListener("keydown", onKeyDownCapture, true)
-  }, [toolbarImageLocked])
-
-  useEffect(() => {
-    if (canvasMode === "filter") {
-      if (toolbar.tool !== "hand") toolbar.setTool("hand")
-      return
-    }
-    if (!toolbarImageLocked) return
-    if (toolbar.tool !== "select" && toolbar.tool !== "crop") return
-    toolbar.setTool("hand")
-  }, [canvasMode, toolbar, toolbarImageLocked])
+    if (canvasMode !== "filter") return
+    if (toolbar.tool !== "hand") toolbar.setTool("hand")
+  }, [canvasMode, toolbar])
 
   useEditorInteractionController({
     tool: toolbar.tool,
@@ -166,21 +137,20 @@ export function useStageInteractionPolicy(args: {
     () => ({
       ...toolbar,
       setTool: handleToolbarToolChange,
-      selectDisabled: canvasMode === "filter" || toolbarImageLocked,
-      cropDisabled: canvasMode === "filter" || toolbarImageLocked,
-      rotateDisabled: canvasMode === "filter" || toolbarImageLocked,
+      selectDisabled: canvasMode === "filter",
+      cropDisabled: canvasMode === "filter",
+      rotateDisabled: canvasMode === "filter",
       cropEnabled: canvasMode !== "filter" && toolbar.tool === "crop",
       cropBusy: isCropping,
       imageDraggable: canvasMode !== "filter" && toolbar.tool === "select",
       panEnabled: canvasMode === "filter" ? true : toolbar.tool === "hand",
     }),
-    [canvasMode, handleToolbarToolChange, isCropping, toolbar, toolbarImageLocked]
+    [canvasMode, handleToolbarToolChange, isCropping, toolbar]
   )
 
   return {
     toolbar,
     stageToolbar,
-    toolbarImageLocked,
     applyCropSelection,
   }
 }
