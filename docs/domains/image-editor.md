@@ -93,6 +93,183 @@ user clicks "restore" in right panel
   [docs/conventions.md](../conventions.md). Atomic primitives are
   kebab-case.
 
+## Process baseline (post-merge 2026-05-11)
+
+Captures the user-facing flow across the three active editor tabs
+and the invariants the recent trace-overlay series (#76 → #82 →
+#83 → #84 → #86) established. Update this section when those
+invariants change.
+
+### Tabs
+
+| Tab | Sidebar | State read | State written | Stage display |
+|---|---|---|---|---|
+| **Image** | layers (`editor-nav-tree`) | `masterImage`, `project_image_state` | `project_image_state` (transform), `project_images(kind='master')` | master image |
+| **Filter** | filter stack (`FilterSidebarSection`) | `project_image_filters`, `filter_working_copy` | `project_image_filters`, `project_images(kind='filter_chain_step')` | `filterDisplayImageWithoutTrace` (raster tip) |
+| **Trace** | trace section (`TraceSidebarSection`) | `project_image_trace`, raster filter tip | `project_image_trace` (single row), `project_images(kind='trace_svg')` | raster tip + transparent inline-SVG overlay |
+| Colors / Output | — | — | — | disabled — feature-flag-gated dead surface |
+
+### Invariants (do not regress)
+
+- **Filter operates on raster, never on SVG.** PR #82 fixed a class
+  where Filter would be applied to a trace SVG. Filter always reads
+  `filterDisplayImageWithoutTrace`.
+- **Trace source uses the same active-state resolver as Filter.** PR
+  #83 unified the source picker. If you add a new operation that
+  reads "the current image", route through the active-state resolver.
+- **Trace is a transparent overlay above the raster filter tip.** PR
+  #84 made the trace SVG render as a DOM-overlay on top of the
+  Konva.Image, not as a replacement. PR #86 dropped the opaque white
+  `<rect>` from the Python source so the underlying filter result
+  shows through.
+- **`traceOverlaySvgUrl` is gated on Trace-tab AND trace-aware ≠
+  trace-free display IDs.** Otherwise the overlay either shows the
+  wrong thing (on Filter/Image tab) or shows nothing useful (when
+  there is no real trace artefact).
+
+### State machine
+
+[lib/editor/machines/image-workflow.machine.ts](../../lib/editor/machines/image-workflow.machine.ts)
+runs three parallel sub-machines:
+
+- `source` — `loading` / `ready` / `empty` / `error`. Reflects
+  whether an active image is available.
+- `operation` — `idle` / `applyingFilter` / `removingFilter` /
+  `cropping` / `restoring` / `syncing` / `error`. Each terminal
+  state passes through `syncing` (calls `refreshAll`) before
+  returning to `idle`.
+- `persistence` — `idle` / `persisting` / `drain` / `error`.
+  Drain-queue absorbs rapid `TRANSFORM_SAVE` events so transforms
+  aren't lost on fast user moves.
+
+### Risks tracked (not yet addressed)
+
+- `useEditorSessionState` has no schema-version key — a struct
+  change crashes the editor on first reload of an existing user
+  tab.
+- `useMutationLeaveGuard` only covers in-flight server mutations,
+  not dialog dirty state.
+- `ProjectEditorShell.client.tsx` derives `canvasMode`,
+  `canvasImage`, and `traceOverlaySvgUrl` inline; 56 imports.
+- Disabled tabs (Colors, Output) are rendered as dead surface; user
+  expectation drifts.
+
+## Diagrams
+
+These diagrams are part of the doc contract. If you change
+`image-workflow.machine.ts` states or events, an `app/api/` route
+path, or the render-layer composition in `project-canvas-stage.tsx`,
+update the matching diagram in the same PR.
+
+### Tab + state-machine overview
+
+```mermaid
+flowchart LR
+  User[User]
+  subgraph Tabs["Tabs"]
+    Image[Image]
+    Filter[Filter]
+    Trace[Trace]
+  end
+  subgraph Machine["image-workflow.machine"]
+    Source["source"]
+    Op["operation"]
+    Persist["persistence"]
+  end
+  subgraph Canvas["Konva Stage"]
+    Layer1["Konva.Image (raster)"]
+    Layer2["Inline DOM SVG (trace overlay)"]
+  end
+  User --> Tabs
+  Image -->|FILTER_APPLY / CROP_APPLY / RESTORE| Op
+  Filter -->|FILTER_APPLY / FILTER_REMOVE| Op
+  Trace -->|TRACE_APPLY / TRACE_CLEAR| Op
+  User -->|drag / resize| Persist
+  Op --> Source
+  Source --> Layer1
+  Trace -.->|only when trace active| Layer2
+```
+
+### Filter pipeline lifecycle
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant UI as Filter Form
+  participant M as Machine
+  participant API as /api/projects/:id/filters/:type
+  participant FS as filter-service (Python)
+  participant DB as Supabase
+  UI->>M: FILTER_APPLY
+  M->>M: operation = applyingFilter
+  M->>API: POST params
+  API->>DB: getOrCreateFilterWorkingCopy
+  API->>FS: process image
+  FS-->>API: processed PNG
+  API->>DB: insert project_images
+  API->>DB: insert project_image_filters
+  API-->>M: 200 OK
+  M->>M: operation = syncing
+  M->>API: refreshAll
+  API-->>M: snapshot
+  M->>M: operation = idle
+```
+
+### Trace pipeline + overlay composition
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant UI as Trace Wizard / Form
+  participant Shell as ProjectEditorShell
+  participant API as /api/projects/:id/traces
+  participant FS as filter-service (Python vtracer)
+  participant DB as Supabase
+  participant Stage as Konva Stage
+  UI->>Shell: onApplyTrace
+  Shell->>API: POST
+  API->>FS: numerate_to_svg or lineart_to_svg
+  Note over FS: post-#86: no white background rect
+  FS-->>API: SVG text
+  API->>DB: upsert project_image_trace
+  API->>DB: insert project_images (trace_svg)
+  API-->>Shell: 200 OK
+  Shell->>Shell: refresh trace + filterImage
+  Shell->>Stage: canvasImage = filterDisplayImageWithoutTrace
+  Shell->>Stage: traceOverlaySvgUrl = SVG url (only on Trace tab)
+  Stage->>Stage: render raster + transparent SVG overlay
+```
+
+### Persistence drain queue
+
+```mermaid
+stateDiagram-v2
+  [*] --> idle
+  idle --> persisting: TRANSFORM_SAVE
+  persisting --> idle: ok
+  persisting --> drain: TRANSFORM_SAVE while in-flight
+  drain --> persisting: prior request resolved
+  persisting --> error: server error
+  error --> idle: RETRY ok
+```
+
+### Render layers
+
+```mermaid
+flowchart TB
+  subgraph Stage["Konva Stage"]
+    Bg["Background / Artboard"]
+    Img["Konva.Image — raster bitmap"]
+    Sel["Selection overlay"]
+  end
+  subgraph DOM["DOM (above Konva)"]
+    Svg["Inline SVG — trace outlines + grid"]
+  end
+  Bg --> Img
+  Img --> Sel
+  Sel --> Svg
+```
+
 ## Common pitfalls
 
 - **Forgetting `kind` filter on `project_images` queries.** Without
