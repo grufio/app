@@ -28,6 +28,7 @@ import { normalizeApiError } from "@/lib/api/error-normalizer"
 import { setProjectImageFilterHidden } from "@/lib/api/project-images"
 import { applyProjectTrace, clearProjectTrace, getProjectTrace, type ProjectTrace } from "@/lib/api/project-trace"
 import { useFilterWorkingImage } from "@/lib/editor/hooks/use-filter-working-image"
+import { computeTraceOverlay } from "@/lib/editor/trace-overlay-invariant"
 import { useEditorKeyboard } from "@/lib/editor/hooks/use-editor-keyboard"
 import { useMutationLeaveGuard } from "@/lib/editor/hooks/use-mutation-leave-guard"
 import { useFilterDialogSession } from "@/lib/editor/hooks/use-filter-dialog-session"
@@ -526,18 +527,19 @@ export function ProjectDetailPageClient({
     return stageImage
   }, [leftPanelTab, masterImage, filterDisplayImageWithoutTrace, stageImage])
 
-  // Trace overlay (on top of the Konva.Image filter tip) only on
-  // the Trace tab, and only when a trace actually exists. We detect
-  // "trace exists" by comparing the trace-aware display id against
-  // the without-trace id — when the server overrode the display
-  // with a Trace artefact, the IDs differ and `filterDisplayImage`
-  // carries the SVG URL.
-  const traceOverlaySvgUrl = useMemo(() => {
-    if (leftPanelTab !== "trace") return null
-    if (!filterDisplayImage || !filterDisplayImageWithoutTrace) return null
-    if (filterDisplayImage.id === filterDisplayImageWithoutTrace.id) return null
-    return filterDisplayImage.signedUrl
-  }, [leftPanelTab, filterDisplayImage, filterDisplayImageWithoutTrace])
+  // Trace overlay gating is the invariant established by PR series
+  // #76 → #82 → #83 → #84 → #86 — see `lib/editor/trace-overlay-invariant.ts`
+  // for the full rationale and the dedicated tests. The memo wraps a
+  // pure helper so the invariant lives in one place and stays testable.
+  const traceOverlaySvgUrl = useMemo(
+    () =>
+      computeTraceOverlay({
+        leftPanelTab,
+        filterDisplayImage,
+        filterDisplayImageWithoutTrace,
+      }),
+    [leftPanelTab, filterDisplayImage, filterDisplayImageWithoutTrace],
+  )
 
   const grid = useMemo(() => {
     if (!gridVisible) return null
