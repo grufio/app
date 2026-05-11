@@ -15,7 +15,7 @@ import { TRACE_REGISTRY, type RegisteredTraceId } from "@/lib/editor/trace/regis
 import { lineartSchema } from "@/lib/editor/trace/lineart"
 import { numerateSchema } from "@/lib/editor/trace/numerate"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
-import { getEditorTargetImageRow } from "@/lib/supabase/project-images"
+import { getEditorTargetImageRow, resolveEditorTargetImageRows } from "@/lib/supabase/project-images"
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role"
 import { activateProjectImage } from "@/services/editor/server/activate-project-image"
 import { lineArtImageAndActivate } from "@/services/editor/server/trace/lineart"
@@ -232,27 +232,50 @@ export async function applyProjectTrace(args: {
       sourceImageDpi = lookup.dpi
       sourceIsLocked = lookup.isLocked
     } else {
-      // No filter chain — pick the working_copy (preferred) or master.
-      const { data: bitmapRow, error: bitmapErr } = await supabase
-        .from("project_images")
-        .select("id,dpi,is_locked,kind")
-        .eq("project_id", projectId)
-        .in("kind", ["working_copy", "master"])
-        .is("deleted_at", null)
-        .order("kind", { ascending: true }) // 'master' < 'working_copy' lexically; we want working_copy first
-        .order("created_at", { ascending: false })
-        .limit(2)
-      if (bitmapErr) {
-        return { ok: false, status: 400, stage: "active_lookup", reason: bitmapErr.message, code: bitmapErr.code }
+      // No filter chain — fall back to the same "active editor
+      // target" resolver the Filter pipeline uses, so trace and
+      // filter always agree on which bitmap to operate on. The old
+      // hand-rolled query (kind in working_copy/master, sorted by
+      // newest) ignored the active-image state and could pick a
+      // stale working_copy from a previous master upload.
+      const lookup = await resolveEditorTargetImageRows(supabase, projectId)
+      if (lookup.error) {
+        return { ok: false, status: 400, stage: "active_lookup", reason: lookup.error.reason, code: lookup.error.code }
       }
-      const rows = bitmapRow ?? []
-      const preferred = rows.find((r) => r.kind === "working_copy") ?? rows.find((r) => r.kind === "master")
-      if (!preferred?.id) {
+      // `preferredWorking` is the working_copy of the active master.
+      // If none exists yet (no filter has ever been opened on this
+      // project), fall back to the active master directly.
+      let bitmapRowId: string | null = null
+      let bitmapDpi = 72
+      let bitmapIsLocked = false
+      if (lookup.preferredWorking?.id) {
+        bitmapRowId = String(lookup.preferredWorking.id)
+        bitmapDpi = Number(lookup.preferredWorking.dpi ?? 72)
+        bitmapIsLocked = Boolean(lookup.preferredWorking.is_locked)
+      } else {
+        const { data: masterRow, error: masterErr } = await supabase
+          .from("project_images")
+          .select("id,dpi,is_locked")
+          .eq("project_id", projectId)
+          .eq("kind", "master")
+          .eq("is_active", true)
+          .is("deleted_at", null)
+          .maybeSingle()
+        if (masterErr) {
+          return { ok: false, status: 400, stage: "active_lookup", reason: masterErr.message, code: masterErr.code }
+        }
+        if (masterRow?.id) {
+          bitmapRowId = String(masterRow.id)
+          bitmapDpi = Number(masterRow.dpi ?? 72)
+          bitmapIsLocked = Boolean(masterRow.is_locked)
+        }
+      }
+      if (!bitmapRowId) {
         return { ok: false, status: 404, stage: "active_lookup", reason: "No bitmap source image found for trace" }
       }
-      sourceImageId = String(preferred.id)
-      sourceImageDpi = Number(preferred.dpi ?? 72)
-      sourceIsLocked = Boolean(preferred.is_locked)
+      sourceImageId = bitmapRowId
+      sourceImageDpi = bitmapDpi
+      sourceIsLocked = bitmapIsLocked
     }
   }
 
