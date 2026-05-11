@@ -26,14 +26,13 @@ import { FilterSidebarSection } from "@/features/editor/components/filter-sideba
 import { TraceSidebarSection } from "@/features/editor/components/trace-sidebar-section"
 import { normalizeApiError } from "@/lib/api/error-normalizer"
 import { setProjectImageFilterHidden } from "@/lib/api/project-images"
-import { applyProjectTrace, clearProjectTrace, getProjectTrace, type ProjectTrace } from "@/lib/api/project-trace"
+import { useTraceHandlers } from "./editor-shell/use-trace-handlers"
+import { useCanvasDerivedState } from "./editor-shell/use-canvas-derived-state"
 import { useFilterWorkingImage } from "@/lib/editor/hooks/use-filter-working-image"
-import { computeTraceOverlay } from "@/lib/editor/trace-overlay-invariant"
 import { useEditorKeyboard } from "@/lib/editor/hooks/use-editor-keyboard"
 import { useMutationLeaveGuard } from "@/lib/editor/hooks/use-mutation-leave-guard"
 import { useFilterDialogSession } from "@/lib/editor/hooks/use-filter-dialog-session"
 import { useTraceDialogSession } from "@/lib/editor/hooks/use-trace-dialog-session"
-import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
 import { useEditorSessionState } from "@/lib/editor/hooks/use-editor-session-state"
 import { usePageBackgroundState } from "@/lib/editor/hooks/use-page-background-state"
 import { useProjectGrid } from "@/lib/editor/project-grid"
@@ -148,54 +147,14 @@ export function ProjectDetailPageClient({
   })
   const filterDialog = useFilterDialogSession(filterSourceImage)
   const traceDialog = useTraceDialogSession(filterSourceImage)
-  const [trace, setTrace] = useState<ProjectTrace | null>(null)
-  const [traceLoading, setTraceLoading] = useState(true)
-  const [isClearingTrace, setIsClearingTrace] = useState(false)
-  const [isApplyingTrace, setIsApplyingTrace] = useState(false)
-
-  // Initial trace fetch + refetch helper. Trace is single-row-per-
-  // project; we don't need a heavy hook for it.
-  const refreshTrace = useCallback(async () => {
-    try {
-      const next = await getProjectTrace(projectId)
-      setTrace(next)
-    } catch (err) {
-      console.error("Failed to load trace state:", err)
-    } finally {
-      setTraceLoading(false)
-    }
-  }, [projectId])
-
-  useEffect(() => {
-    void refreshTrace()
-  }, [refreshTrace])
-
-  const handleApplyTrace = useCallback(
-    async ({ kind, params }: { kind: RegisteredTraceId; params: Record<string, unknown> }) => {
-      setIsApplyingTrace(true)
-      try {
-        await applyProjectTrace({ projectId, kind, params })
-        await Promise.all([refreshTrace(), refreshFilterImage(), refreshMasterImage()])
-      } finally {
-        setIsApplyingTrace(false)
-      }
-    },
-    [projectId, refreshFilterImage, refreshMasterImage, refreshTrace],
-  )
-
-  const handleClearTrace = useCallback(async () => {
-    setIsClearingTrace(true)
-    try {
-      await clearProjectTrace(projectId)
-      await Promise.all([refreshTrace(), refreshFilterImage(), refreshMasterImage()])
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error(String(err))
-      const normalized = normalizeApiError(error)
-      toast.error(normalized.title, normalized.detail ? { description: normalized.detail } : undefined)
-    } finally {
-      setIsClearingTrace(false)
-    }
-  }, [projectId, refreshFilterImage, refreshMasterImage, refreshTrace])
+  const {
+    trace,
+    traceLoading,
+    isApplyingTrace,
+    isClearingTrace,
+    handleApplyTrace,
+    handleClearTrace,
+  } = useTraceHandlers({ projectId, refreshFilterImage, refreshMasterImage })
 
   const handleTraceApplySuccess = useCallback(() => {
     traceDialog.reset()
@@ -476,70 +435,13 @@ export function ProjectDetailPageClient({
     void refreshProjectImages()
   }, [masterImage?.id, refreshProjectImages])
 
-  const stageImage = useMemo(() => {
-    const readyImage = editorImageSource.status === "ready" ? editorImageSource.image : null
-    if (!readyImage) return null
-    return {
-      id: readyImage.id,
-      signedUrl: readyImage.signedUrl,
-      name: readyImage.name,
-      width_px: readyImage.width_px,
-      height_px: readyImage.height_px,
-      dpi: null,
-      restore_base: null,
-    }
-  }, [editorImageSource])
-
-  // What the canvas actually renders depends on the active left-
-  // panel tab:
-  // - "image": the raw master image — no filters, no trace
-  // - "filter" + "trace": the filter chain tip without the trace
-  //   override. The Trace tab composes the trace SVG ON TOP of this
-  //   raster (see `traceOverlaySvgUrl` below); the Filter tab leaves
-  //   the trace overlay off and shows only the raster.
-  // Each branch falls back to `stageImage` (the trace-aware default)
-  // when its preferred source is unavailable (loading / empty).
-  const canvasImage = useMemo(() => {
-    if (leftPanelTab === "image" && masterImage) {
-      return {
-        id: masterImage.id,
-        signedUrl: masterImage.signedUrl,
-        name: masterImage.name,
-        width_px: masterImage.width_px,
-        height_px: masterImage.height_px,
-        dpi: masterImage.dpi ?? null,
-        restore_base: masterImage.restore_base ?? null,
-      }
-    }
-    if (filterDisplayImageWithoutTrace) {
-      // Filter + Trace tabs both put the raster filter tip on the
-      // canvas; only the overlay differs between them.
-      return {
-        id: filterDisplayImageWithoutTrace.id,
-        signedUrl: filterDisplayImageWithoutTrace.signedUrl,
-        name: filterDisplayImageWithoutTrace.name,
-        width_px: filterDisplayImageWithoutTrace.width_px,
-        height_px: filterDisplayImageWithoutTrace.height_px,
-        dpi: null,
-        restore_base: null,
-      }
-    }
-    return stageImage
-  }, [leftPanelTab, masterImage, filterDisplayImageWithoutTrace, stageImage])
-
-  // Trace overlay gating is the invariant established by PR series
-  // #76 → #82 → #83 → #84 → #86 — see `lib/editor/trace-overlay-invariant.ts`
-  // for the full rationale and the dedicated tests. The memo wraps a
-  // pure helper so the invariant lives in one place and stays testable.
-  const traceOverlaySvgUrl = useMemo(
-    () =>
-      computeTraceOverlay({
-        leftPanelTab,
-        filterDisplayImage,
-        filterDisplayImageWithoutTrace,
-      }),
-    [leftPanelTab, filterDisplayImage, filterDisplayImageWithoutTrace],
-  )
+  const { canvasImage, traceOverlaySvgUrl } = useCanvasDerivedState({
+    leftPanelTab,
+    editorImageSource,
+    masterImage,
+    filterDisplayImage,
+    filterDisplayImageWithoutTrace,
+  })
 
   const grid = useMemo(() => {
     if (!gridVisible) return null
