@@ -2503,32 +2503,6 @@ CREATE POLICY "project_images_insert_owner" ON "public"."project_images" FOR INS
 
 
 
-CREATE POLICY "project_images_owner_delete_non_master" ON "public"."project_images" FOR DELETE USING ((("project_id" IN ( SELECT "projects"."id"
-   FROM "public"."projects"
-  WHERE ("projects"."owner_id" = "auth"."uid"()))) AND ("kind" <> 'master'::"public"."image_kind")));
-
-
-
-CREATE POLICY "project_images_owner_insert" ON "public"."project_images" FOR INSERT WITH CHECK (("project_id" IN ( SELECT "projects"."id"
-   FROM "public"."projects"
-  WHERE ("projects"."owner_id" = "auth"."uid"()))));
-
-
-
-CREATE POLICY "project_images_owner_select" ON "public"."project_images" FOR SELECT USING (("project_id" IN ( SELECT "projects"."id"
-   FROM "public"."projects"
-  WHERE ("projects"."owner_id" = "auth"."uid"()))));
-
-
-
-CREATE POLICY "project_images_owner_update" ON "public"."project_images" FOR UPDATE USING (("project_id" IN ( SELECT "projects"."id"
-   FROM "public"."projects"
-  WHERE ("projects"."owner_id" = "auth"."uid"())))) WITH CHECK (("project_id" IN ( SELECT "projects"."id"
-   FROM "public"."projects"
-  WHERE ("projects"."owner_id" = "auth"."uid"()))));
-
-
-
 CREATE POLICY "project_images_select_owner" ON "public"."project_images" FOR SELECT USING (("project_id" IN ( SELECT "projects"."id"
    FROM "public"."projects"
   WHERE ("projects"."owner_id" = "auth"."uid"()))));
