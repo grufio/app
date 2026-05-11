@@ -15,6 +15,8 @@ import io
 import base64
 from typing import Literal
 
+from app.vectorise import numerate_to_svg
+
 
 class PhaseTimer:
     """
@@ -185,29 +187,36 @@ class NumerateRequest(BaseModel):
     superpixel_height: int
     stroke_width: int = 2
     show_colors: bool = True
+    # F20: palette quantisation. vtracer collapses adjacent same-color
+    # cells into one polygon — without quantisation, every cell's
+    # mean is unique and no merging happens. Default 16 matches
+    # pixelate; 256 disables quantisation for parity with the prior
+    # behaviour (each cell its own raw mean).
+    num_colors: int = 16
 
 
 @app.post("/filters/numerate")
 async def numerate_filter(request: NumerateRequest):
     """
-    Create a vector grid overlay from pixelated superpixels.
-    
-    Algorithm:
-    1. Divide image into superpixel grid
-    2. Calculate average color per superpixel
-    3. Generate SVG with grid lines and optional color backgrounds
+    F20-rewrite: bitmap → quantised palette → superpixel-grid image
+    → vtracer (polygon / cutout) → grid-line overlay → SVG.
+
+    The vtracer pass collapses adjacent same-color superpixel cells
+    into a single polygon per connected component, preserving the
+    paint-by-numbers anchor (one path per region) while killing the
+    20K-rect string-assembly cost the legacy implementation paid.
     """
     if request.superpixel_width < 1 or request.superpixel_height < 1:
         raise HTTPException(status_code=400, detail="Superpixel dimensions must be >= 1")
     if request.stroke_width < 1 or request.stroke_width > 20:
         raise HTTPException(status_code=400, detail="Stroke width must be between 1 and 20")
+    if request.num_colors < 2 or request.num_colors > 256:
+        raise HTTPException(status_code=400, detail="num_colors must be between 2 and 256")
 
     timer = PhaseTimer()
     try:
-        # Decode image
         img_bytes = base64.b64decode(request.image_base64)
         img = Image.open(io.BytesIO(img_bytes))
-
         if img.mode not in ("RGB", "L"):
             img = img.convert("RGB")
         timer.mark("decode")
@@ -215,90 +224,29 @@ async def numerate_filter(request: NumerateRequest):
         width, height = img.size
         grid_width = width // request.superpixel_width
         grid_height = height // request.superpixel_height
-
         if grid_width < 1 or grid_height < 1:
             raise HTTPException(status_code=400, detail="Superpixel size too large for image")
 
-        svg_paths = []
-
-        # Vectorized superpixel mean computation. Same edge behaviour as
-        # before: only full-size grid cells get filled rectangles; right-
-        # and bottom-most partial cells (when image isn't an exact multiple
-        # of the superpixel size) are skipped, matching the prior loop's
-        # `range(grid_height/grid_width)` bounds.
-        if request.show_colors:
-            sw = request.superpixel_width
-            sh = request.superpixel_height
-            h_crop = grid_height * sh
-            w_crop = grid_width * sw
-            img_array = np.array(img)
-            if img.mode == "RGB":
-                block_means = (
-                    img_array[:h_crop, :w_crop]
-                    .reshape(grid_height, sh, grid_width, sw, 3)
-                    .mean(axis=(1, 3))
-                    .astype(np.uint8)
-                )
-            else:
-                block_means_l = (
-                    img_array[:h_crop, :w_crop]
-                    .reshape(grid_height, sh, grid_width, sw)
-                    .mean(axis=(1, 3))
-                    .astype(np.uint8)
-                )
-                # Promote grayscale to (H, W, 3) so SVG color formatting is uniform.
-                block_means = np.stack([block_means_l, block_means_l, block_means_l], axis=-1)
-            for block_y in range(grid_height):
-                for block_x in range(grid_width):
-                    x_start = block_x * sw
-                    y_start = block_y * sh
-                    avg_r, avg_g, avg_b = block_means[block_y, block_x]
-                    svg_paths.append(
-                        f'<rect x="{x_start}" y="{y_start}" '
-                        f'width="{sw}" height="{sh}" '
-                        f'fill="rgb({avg_r},{avg_g},{avg_b})" />'
-                    )
-        timer.mark("rects")
-
-        # Generate grid lines
-        grid_lines = []
-        
-        # Vertical lines
-        for i in range(grid_width + 1):
-            x = min(i * request.superpixel_width, width)
-            grid_lines.append(
-                f'<line x1="{x}" y1="0" x2="{x}" y2="{height}" '
-                f'stroke="black" stroke-width="{request.stroke_width}" />'
-            )
-        
-        # Horizontal lines
-        for i in range(grid_height + 1):
-            y = min(i * request.superpixel_height, height)
-            grid_lines.append(
-                f'<line x1="0" y1="{y}" x2="{width}" y2="{y}" '
-                f'stroke="black" stroke-width="{request.stroke_width}" />'
-            )
-        
-        timer.mark("lines")
-
-        # Create SVG document
-        svg_content = f'''<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
-  <rect width="{width}" height="{height}" fill="white"/>
-  <g id="colors">
-    {chr(10).join(svg_paths)}
-  </g>
-  <g id="grid">
-    {chr(10).join(grid_lines)}
-  </g>
-</svg>'''
-        timer.mark("serialize")
+        svg_content, region_count = numerate_to_svg(
+            img,
+            superpixel_width=request.superpixel_width,
+            superpixel_height=request.superpixel_height,
+            stroke_width=request.stroke_width,
+            show_colors=request.show_colors,
+            num_colors=request.num_colors,
+            on_phase=timer.mark,
+        )
 
         return Response(
             content=svg_content,
             media_type="image/svg+xml",
-            headers={"X-Profile-Phases": timer.header()},
+            headers={
+                "X-Profile-Phases": timer.header(),
+                "X-Region-Count": str(region_count),
+            },
         )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Image processing failed: {str(e)}")
 

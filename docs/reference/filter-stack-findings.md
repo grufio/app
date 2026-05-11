@@ -75,7 +75,7 @@ env-driven.
 | F18 | Numerate-Performance-Profiling (User-Pain) | S | ✓ done | PR P |
 | F19 | Shrink Numerate SVG payload (per-rect structure preserved) | M | superseded by F20 | — |
 | F21 | Split Filter vs Trace: new sidepanel tab, mutually-exclusive Trace, separate registry/DB/API | L | open / **next, blocks F20** | TBD |
-| F20 | Replace bespoke rect-loop with vtracer (numerate + lineart) | L | open (after F21) | TBD |
+| F20 | Replace bespoke rect-loop with vtracer (numerate + lineart) | L | numerate ✓ done; lineart pending the numbering feature | F20 PR |
 | F11 | E2E-Filter-Chain-Roundtrip-Test | M | ✓ done | PR 2 |
 | F5 | Inkonsistente Registry-Metadata in Forms | M | ✓ done | PR 3 |
 | F7 | Generic `<FilterForm>` aus 3 Form-Files | L | ✓ done | PR 4 |
@@ -335,12 +335,33 @@ native shape.
 - changes to `editor-dialog-host.tsx` to wire the Trace dialog
   separately from Filter dialogs
 
-### F20 — Replace bespoke rect-loop with vtracer for numerate + lineart *(open, L, after F21)*
+### F20 — Replace bespoke rect-loop with vtracer for numerate + lineart *(numerate ✓ done, lineart pending the numbering feature)*
 
-One vectorisation engine for both Trace modes (numerate + lineart),
-replacing the 20K-rect string loop in numerate and unblocking the
-number-annotation feature on lineart. F19 is sunk-cost-avoidance
-once this is committed.
+One vectorisation engine for both Trace modes. **Numerate landed**
+in F20 PR (filter-service/app/vectorise.py + main.py); lineart's
+vectorisation rewrite is gated on the future paint-by-numbers
+labelling feature (today's lineart is outlines-only and the
+existing pipeline is fine for that).
+
+**Real-world numbers (post-rewrite, 2026-05-11):** profiled against
+the F18 baseline fixture (1920×1080, default superpixel 10×10).
+
+| metric           | old rect-loop | F20 vtracer | delta |
+|------------------|---------------|-------------|-------|
+| total Python ms  | 51 ms         | 452 ms      | +9× (slower per call) |
+| output bytes     | 1.49 MB       | 172 KB      | **−8.6× (smaller)** |
+| path elements    | 20,736 cells  | **1,492 regions** | -14× — connected same-colour cells merge into one polygon, exactly what paint-by-numbers expects |
+
+The Python-time grew because vtracer (294 ms) + palette quantise
+(108 ms) replace the cheap-but-spammy rect-string assembly (47 ms).
+Net wall-clock for the user is comparable or better once you
+account for the eliminated cost of shipping a 1.49 MB SVG over
+Vercel → Supabase Storage → browser, and the much faster DOM
+render of 1,492 polygons vs 20,736 rects.
+
+The 1,492-region count is the real product-correct number: each
+region is a connected component of same-quantised-colour
+superpixels. A user paints one colour per region, not per cell.
 
 **Sequencing — straight rewrite, no pilot:** vtracer's MIT licence,
 deterministic algorithm, and active 2026 maintenance plus the
@@ -415,13 +436,29 @@ region == a path == one centroid.
 - AI/diffusion vectorisers — visually nice, lose discrete labelled-
   region semantics needed for PBN.
 
-**Implementation steps (after F21 lands):**
-1. New module `filter-service/app/vectorise.py` — thin vtracer
-   wrapper + lxml post-process + centroid labelling.
-2. Add `vtracer`, `lxml`, `shapely` to
-   `filter-service/requirements.txt`.
-3. Replace the bodies of `/filters/numerate` and (when numbering
-   ships) `/filters/lineart` with the vtracer pipeline. The old
+**Implementation (numerate side — landed):**
+1. `filter-service/app/vectorise.py` — vtracer wrapper, palette
+   quantise via PIL median-cut, superpixel-grid image construction,
+   `lxml`-free path extraction (regex on `<path .../>` elements is
+   sufficient for cutout-mode output, no proper XML parsing needed
+   yet — that comes when centroid labelling lands).
+2. `filter-service/requirements.txt` — `vtracer==0.6.15`,
+   `lxml==5.4.0`, `shapely==2.0.7` added (lxml + shapely are
+   queued for the centroid-labelling work; vtracer alone is what
+   numerate currently needs).
+3. `numerate` endpoint body in `filter-service/app/main.py`
+   replaced with a `numerate_to_svg(...)` call. `num_colors`
+   added to `NumerateRequest` (default 16, mirrors pixelate).
+   `X-Region-Count` response header added so future profilers /
+   the editor can show "1,492 regions" without re-parsing.
+4. TS-side `numerateSchema` in `lib/editor/trace/numerate.tsx`
+   gains `num_colors: int(2..256, default 16)` and a registry UI
+   hint so the new param surfaces in the dialog form. Schema +
+   Pydantic parity test stays green.
+
+**Lineart side — deferred:**
+3. Replace the body of `/filters/lineart` once the paint-by-numbers
+   labelling feature lands. The old
    rect-loop and `rects` phase are deleted in the same PR.
 4. Profile-script comparison against
    `scripts/profile-fixtures/profile-1920x1080.png` to confirm

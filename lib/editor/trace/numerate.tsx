@@ -7,6 +7,11 @@ export const numerateSchema = z.object({
   superpixel_height: z.coerce.number().int().min(1).default(10),
   stroke_width: z.coerce.number().int().min(1).max(20).default(2),
   show_colors: z.coerce.boolean().default(true),
+  // F20: palette quantisation. vtracer collapses adjacent same-color
+  // superpixel cells into one polygon — without quantisation each
+  // cell's mean is unique and no merging happens. Default 16 matches
+  // pixelate; raise to surface more subtle palette steps.
+  num_colors: z.coerce.number().int().min(2).max(256).default(16),
 })
 
 export type NumerateParams = z.infer<typeof numerateSchema>
@@ -27,6 +32,7 @@ export const numerateTrace = {
     superpixel_height: { min: 1 },
     stroke_width: { label: "Vector Line Width (px)", min: 1, max: 20 },
     show_colors: { kind: "boolean", label: "Show Colors" },
+    num_colors: { label: "Number of Colors", min: 2, max: 256 },
   },
   // Banner showing the inherited Pixelate superpixel grid. Mirrors the
   // muted info-block the per-filter NumerateForm rendered.
