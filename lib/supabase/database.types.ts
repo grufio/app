@@ -14,95 +14,12 @@ export type Database = {
   }
   public: {
     Tables: {
-      project_filter_settings: {
-        Row: {
-          created_at: string
-          dither: boolean
-          max_colors: number
-          project_id: string
-          target_cols: number
-          target_rows: number
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          dither?: boolean
-          max_colors: number
-          project_id: string
-          target_cols: number
-          target_rows: number
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          dither?: boolean
-          max_colors?: number
-          project_id?: string
-          target_cols?: number
-          target_rows?: number
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "project_filter_settings_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: true
-            referencedRelation: "projects"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      project_generation: {
-        Row: {
-          cell_labels: number[]
-          cols: number
-          generated_at: string
-          id: string
-          palette: Json
-          project_id: string
-          render_settings: Json
-          rows: number
-          updated_at: string
-        }
-        Insert: {
-          cell_labels: number[]
-          cols: number
-          generated_at?: string
-          id?: string
-          palette?: Json
-          project_id: string
-          render_settings?: Json
-          rows: number
-          updated_at?: string
-        }
-        Update: {
-          cell_labels?: number[]
-          cols?: number
-          generated_at?: string
-          id?: string
-          palette?: Json
-          project_id?: string
-          render_settings?: Json
-          rows?: number
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "project_generation_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: true
-            referencedRelation: "projects"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       project_grid: {
         Row: {
           color: string
           created_at: string
           line_width_value: number
           project_id: string
-          spacing_value: number
           spacing_x_value: number
           spacing_y_value: number
           unit: Database["public"]["Enums"]["measure_unit"]
@@ -113,7 +30,6 @@ export type Database = {
           created_at?: string
           line_width_value: number
           project_id: string
-          spacing_value: number
           spacing_x_value: number
           spacing_y_value: number
           unit?: Database["public"]["Enums"]["measure_unit"]
@@ -124,7 +40,6 @@ export type Database = {
           created_at?: string
           line_width_value?: number
           project_id?: string
-          spacing_value?: number
           spacing_x_value?: number
           spacing_y_value?: number
           unit?: Database["public"]["Enums"]["measure_unit"]
@@ -204,62 +119,35 @@ export type Database = {
       project_image_state: {
         Row: {
           created_at: string
-          dpi: number | null
-          height_px: number | null
           height_px_u: string
           image_id: string
           project_id: string
-          role: Database["public"]["Enums"]["image_role"]
           rotation_deg: number
-          scale_x: number
-          scale_y: number
-          unit: Database["public"]["Enums"]["measure_unit"] | null
           updated_at: string
-          width_px: number | null
           width_px_u: string
-          x: number
           x_px_u: string | null
-          y: number
           y_px_u: string | null
         }
         Insert: {
           created_at?: string
-          dpi?: number | null
-          height_px?: number | null
           height_px_u: string
           image_id: string
           project_id: string
-          role: Database["public"]["Enums"]["image_role"]
           rotation_deg?: number
-          scale_x?: number
-          scale_y?: number
-          unit?: Database["public"]["Enums"]["measure_unit"] | null
           updated_at?: string
-          width_px?: number | null
           width_px_u: string
-          x?: number
           x_px_u?: string | null
-          y?: number
           y_px_u?: string | null
         }
         Update: {
           created_at?: string
-          dpi?: number | null
-          height_px?: number | null
           height_px_u?: string
           image_id?: string
           project_id?: string
-          role?: Database["public"]["Enums"]["image_role"]
           rotation_deg?: number
-          scale_x?: number
-          scale_y?: number
-          unit?: Database["public"]["Enums"]["measure_unit"] | null
           updated_at?: string
-          width_px?: number | null
           width_px_u?: string
-          x?: number
           x_px_u?: string | null
-          y?: number
           y_px_u?: string | null
         }
         Relationships: [
@@ -323,14 +211,10 @@ export type Database = {
       }
       project_images: {
         Row: {
-          bit_depth: number | null
-          color_space: Database["public"]["Enums"]["color_space"] | null
           created_at: string
           crop_rect_px: Json | null
           deleted_at: string | null
           dpi: number | null
-          dpi_x: number
-          dpi_y: number
           file_size_bytes: number
           format: string
           height_px: number
@@ -347,14 +231,10 @@ export type Database = {
           width_px: number
         }
         Insert: {
-          bit_depth?: number | null
-          color_space?: Database["public"]["Enums"]["color_space"] | null
           created_at?: string
           crop_rect_px?: Json | null
           deleted_at?: string | null
           dpi?: number | null
-          dpi_x?: number
-          dpi_y?: number
           file_size_bytes?: number
           format: string
           height_px: number
@@ -371,14 +251,10 @@ export type Database = {
           width_px: number
         }
         Update: {
-          bit_depth?: number | null
-          color_space?: Database["public"]["Enums"]["color_space"] | null
           created_at?: string
           crop_rect_px?: Json | null
           deleted_at?: string | null
           dpi?: number | null
-          dpi_x?: number
-          dpi_y?: number
           file_size_bytes?: number
           format?: string
           height_px?: number
@@ -407,101 +283,6 @@ export type Database = {
             columns: ["source_image_id"]
             isOneToOne: false
             referencedRelation: "project_images"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      project_pdfs: {
-        Row: {
-          created_at: string
-          filename: string
-          generation_id: string | null
-          id: string
-          output_dpi_x: number
-          output_dpi_y: number
-          output_line_width_unit: Database["public"]["Enums"]["measure_unit"]
-          output_line_width_value: number
-          pdf_format: string
-          project_id: string
-          sequence_number: number
-          storage_path: string
-        }
-        Insert: {
-          created_at?: string
-          filename: string
-          generation_id?: string | null
-          id?: string
-          output_dpi_x: number
-          output_dpi_y: number
-          output_line_width_unit?: Database["public"]["Enums"]["measure_unit"]
-          output_line_width_value: number
-          pdf_format: string
-          project_id: string
-          sequence_number: number
-          storage_path: string
-        }
-        Update: {
-          created_at?: string
-          filename?: string
-          generation_id?: string | null
-          id?: string
-          output_dpi_x?: number
-          output_dpi_y?: number
-          output_line_width_unit?: Database["public"]["Enums"]["measure_unit"]
-          output_line_width_value?: number
-          pdf_format?: string
-          project_id?: string
-          sequence_number?: number
-          storage_path?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "project_pdfs_generation_id_fkey"
-            columns: ["generation_id"]
-            isOneToOne: false
-            referencedRelation: "project_generation"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "project_pdfs_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "projects"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      project_vectorization_settings: {
-        Row: {
-          created_at: string
-          num_colors: number
-          output_height_px: number
-          output_width_px: number
-          project_id: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          num_colors: number
-          output_height_px: number
-          output_width_px: number
-          project_id: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          num_colors?: number
-          output_height_px?: number
-          output_width_px?: number
-          project_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "project_vectorization_settings_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: true
-            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
         ]
@@ -647,20 +428,8 @@ export type Database = {
         Args: { p_filter_id: string; p_project_id: string; p_rewires?: Json }
         Returns: undefined
       }
-      reorder_project_image_filters: {
-        Args: { p_project_id: string }
-        Returns: undefined
-      }
       set_active_image: {
         Args: { p_image_id: string; p_project_id: string }
-        Returns: undefined
-      }
-      set_active_master_image: {
-        Args: { p_image_id: string; p_project_id: string }
-        Returns: undefined
-      }
-      set_active_master_latest: {
-        Args: { p_project_id: string }
         Returns: undefined
       }
       set_active_master_with_state: {
@@ -684,9 +453,7 @@ export type Database = {
       }
     }
     Enums: {
-      color_space: "rgb" | "cmyk"
       image_kind: "master" | "working_copy" | "filter_working_copy"
-      image_role: "master" | "working" | "asset"
       measure_unit: "mm" | "cm" | "pt" | "px"
       project_status: "in_progress" | "completed" | "archived"
       workflow_step: "image" | "filter" | "convert" | "output"
@@ -817,9 +584,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      color_space: ["rgb", "cmyk"],
       image_kind: ["master", "working_copy", "filter_working_copy"],
-      image_role: ["master", "working", "asset"],
       measure_unit: ["mm", "cm", "pt", "px"],
       project_status: ["in_progress", "completed", "archived"],
       workflow_step: ["image", "filter", "convert", "output"],

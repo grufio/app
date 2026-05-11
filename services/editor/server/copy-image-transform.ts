@@ -82,7 +82,6 @@ export async function copyImageTransform(args: {
     {
       project_id: projectId,
       image_id: targetImageId,
-      role: "asset",
       x_px_u: targetTransform.x_px_u,
       y_px_u: targetTransform.y_px_u,
       width_px_u: targetTransform.width_px_u,

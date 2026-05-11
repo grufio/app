@@ -38,7 +38,6 @@ export async function uploadMasterImageClient(args: {
   form.set("width_px", String(width))
   form.set("height_px", String(height))
   if (dpi != null) form.set("dpi", String(dpi))
-  form.set("bit_depth", "8") // Default 8-bit for now
   form.set("format", format)
 
   const res = await fetchImpl(`/api/projects/${projectId}/images/master/upload`, {

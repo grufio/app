@@ -85,11 +85,10 @@ describe("set_active_master_with_state() lock", () => {
     // section as the is_active flip.
     const { data: winnerState } = await supabase
       .from("project_image_state")
-      .select("image_id, role, width_px_u, height_px_u")
+      .select("image_id, width_px_u, height_px_u")
       .eq("project_id", projectId)
       .eq("image_id", winner)
       .single()
-    expect(winnerState?.role).toBe("master")
     if (winner === masterA.imageId) {
       expect(winnerState?.width_px_u).toBe("100000000")
       expect(winnerState?.height_px_u).toBe("100000000")

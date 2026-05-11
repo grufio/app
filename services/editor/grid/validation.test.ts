@@ -8,7 +8,6 @@ describe("computeRenderableGrid", () => {
   const baseRow: ProjectGridRow = {
     project_id: "p1",
     unit: "cm",
-    spacing_value: 1,
     spacing_x_value: 1,
     spacing_y_value: 1,
     line_width_value: 35,

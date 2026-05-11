@@ -24,8 +24,8 @@ cascades that cross every other domain.
 - [app/api/projects/[projectId]/route.ts](../../app/api/projects/%5BprojectId%5D/route.ts)
   — read + delete on a single project.
 - DB: [db/schema.sql:209-247](../../db/schema.sql) defines the
-  `delete_project(uuid)` RPC. `project_workspace` and
-  `project_generation` tables sit alongside `projects` and cascade.
+  `delete_project(uuid)` RPC. `project_workspace` sits alongside
+  `projects` and cascades.
 
 ## Key concepts
 
@@ -65,7 +65,7 @@ DB:  pg_advisory_xact_lock(hash(project_id))
    ↑ guard_master_immutable trigger checks app.deleting_project,
      allows the cascade
 FK cascade then removes project_images, project_workspace,
-project_image_state, project_generation rows
+project_image_state rows
 ```
 
 ## Data flow — create
@@ -115,7 +115,5 @@ POST /api/projects/create  (with auth cookie)
 - [docs/domains/auth-rls.md](auth-rls.md) — owner-only RLS that
   protects each project.
 - [docs/domains/database.md](database.md) — schema for `projects`,
-  `project_workspace`, `project_generation`.
-- DB: [db/schema.sql:209](../../db/schema.sql) `delete_project` RPC,
-  [db/schema.sql:1523](../../db/schema.sql) `project_generation`
-  constraints.
+  `project_workspace`.
+- DB: [db/schema.sql:209](../../db/schema.sql) `delete_project` RPC.

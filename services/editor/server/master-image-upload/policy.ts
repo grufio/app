@@ -15,16 +15,14 @@ export type ValidatedUploadInputs = {
   widthPx: number
   heightPx: number
   dpi: number
-  bitDepth: number
 }
 
 export function validateUploadInputs(args: {
   widthPx: number | null
   heightPx: number | null
   dpi: number | null
-  bitDepth: number | null
 }): ValidatedUploadInputs | UploadMasterImageFailure {
-  const { widthPx, heightPx, dpi, bitDepth } = args
+  const { widthPx, heightPx, dpi } = args
   if (!widthPx || !heightPx) {
     return {
       ok: false,
@@ -34,16 +32,16 @@ export function validateUploadInputs(args: {
     }
   }
 
-  if (!dpi || !bitDepth) {
+  if (!dpi) {
     return {
       ok: false,
       status: 400,
       stage: "validation",
-      reason: "Missing/invalid dpi/bit_depth",
+      reason: "Missing/invalid dpi",
     }
   }
 
-  return { ok: true, widthPx, heightPx, dpi, bitDepth }
+  return { ok: true, widthPx, heightPx, dpi }
 }
 
 export function validateUploadLimits(args: {

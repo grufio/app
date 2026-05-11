@@ -12,8 +12,4 @@ export const RLS_PROTECTED_TABLES = [
   "project_workspace",
   "project_grid",
   "project_image_state",
-  "project_vectorization_settings",
-  "project_pdfs",
-  "project_filter_settings",
-  "project_generation",
 ]

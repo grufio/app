@@ -9,7 +9,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { ProjectGridRow } from "./types"
 
-const SELECT_GRID = "project_id,color,unit,spacing_value,spacing_x_value,spacing_y_value,line_width_value"
+const SELECT_GRID = "project_id,color,unit,spacing_x_value,spacing_y_value,line_width_value"
 
 export async function selectGrid(
   supabase: SupabaseClient,
