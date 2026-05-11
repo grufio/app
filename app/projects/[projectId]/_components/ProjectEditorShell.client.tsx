@@ -30,6 +30,7 @@ import { applyProjectTrace, clearProjectTrace, getProjectTrace, type ProjectTrac
 import { useFilterWorkingImage } from "@/lib/editor/hooks/use-filter-working-image"
 import { useEditorKeyboard } from "@/lib/editor/hooks/use-editor-keyboard"
 import { useMutationLeaveGuard } from "@/lib/editor/hooks/use-mutation-leave-guard"
+import { shouldWarnBeforeUnload } from "@/lib/editor/hooks/should-warn-before-unload"
 import { useFilterDialogSession } from "@/lib/editor/hooks/use-filter-dialog-session"
 import { useTraceDialogSession } from "@/lib/editor/hooks/use-trace-dialog-session"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
@@ -417,7 +418,12 @@ export function ProjectDetailPageClient({
   // eventual-consistent cleanup. Internal Next.js nav stays inside the
   // editor and isn't blocked.
   useMutationLeaveGuard({
-    active: workflow.isApplyingFilter || workflow.isCropping || workflow.isRestoring,
+    active: shouldWarnBeforeUnload({
+      mutationInFlight:
+        workflow.isApplyingFilter || workflow.isCropping || workflow.isRestoring,
+      filterDialogConfiguring: filterDialog.activeFilterType !== null,
+      traceDialogConfiguring: traceDialog.activeKind !== null,
+    }),
   })
 
   const [leftPanelWidthRem, setLeftPanelWidthRem] = useState(20)
