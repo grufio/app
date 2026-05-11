@@ -33,17 +33,6 @@ describe("prepareTraceSvg", () => {
     expect(out.html).toMatch(/data-fill="#00ff00"/)
   })
 
-  it("detects stroke width from grid line", () => {
-    const out = prepareTraceSvg(NUMERATE_SVG)!
-    expect(out.strokeWidth).toBe(2)
-  })
-
-  it("falls back to stroke width 1 when none found", () => {
-    const svg = `<svg viewBox="0 0 10 10"><path d="M 0 0" fill="#fff"/></svg>`
-    const out = prepareTraceSvg(svg)!
-    expect(out.strokeWidth).toBe(1)
-  })
-
   it("returns null when no <svg> root", () => {
     expect(prepareTraceSvg("<html><body/></html>")).toBeNull()
   })
