@@ -22,13 +22,10 @@ export async function lineArtImageAndActivate(args: {
     return { ok: false, status: 400, stage: "validation", reason: "Invalid line art params" }
   }
   const {
-    threshold1,
-    threshold2,
     line_thickness: lineThickness,
     blur_amount: blurAmount,
-    min_contour_area: minContourArea,
-    invert,
     smoothness,
+    num_colors: numColors,
   } = parsed.data
 
   const { data: src, error: srcErr } = await supabase
@@ -70,13 +67,10 @@ export async function lineArtImageAndActivate(args: {
       path: "/filters/lineart",
       body: {
         image_base64: imageBase64,
-        threshold1,
-        threshold2,
         line_thickness: lineThickness,
-        invert,
         blur_amount: blurAmount,
-        min_contour_area: minContourArea,
         smoothness,
+        num_colors: numColors,
       },
     })
 

@@ -15,7 +15,7 @@ import io
 import base64
 from typing import Literal
 
-from app.vectorise import numerate_to_svg
+from app.vectorise import lineart_to_svg, numerate_to_svg
 
 
 class PhaseTimer:
@@ -172,13 +172,10 @@ async def pixelate_filter(request: PixelateRequest):
 
 class LineArtRequest(BaseModel):
     image_base64: str
-    threshold1: int = 50
-    threshold2: int = 200
     line_thickness: int = 2
-    invert: bool = True
     blur_amount: int = 3
-    min_contour_area: int = 500
-    smoothness: float = 0.002
+    smoothness: float = 0.6
+    num_colors: int = 8
 
 
 class NumerateRequest(BaseModel):
@@ -254,99 +251,52 @@ async def numerate_filter(request: NumerateRequest):
 @app.post("/filters/lineart")
 async def lineart_filter(request: LineArtRequest):
     """
-    Apply line art filter with closed contours exported as SVG vectors.
-    
-    Algorithm:
-    1. Optional: Gaussian blur (reduces details)
-    2. Canny edge detection
-    3. Close gaps with morphological operations
-    4. Find closed contours
-    5. Filter by minimum area (removes noise)
-    6. Export contours as SVG paths (vectors)
+    F20 follow-up rewrite: lineart now goes through the vtracer
+    pipeline (palette-quantise → optional Gaussian blur → vtracer
+    in spline / cutout mode → black stroke overlay on each region).
+
+    The output is the paint-by-numbers visual most people expect
+    from "lineart": organic colored regions with visible black
+    outlines, each region addressable for future per-region label
+    placement. The pre-rewrite Canny-based outline-only path is
+    gone.
     """
-    if request.threshold1 < 0 or request.threshold2 < 0:
-        raise HTTPException(status_code=400, detail="Thresholds must be >= 0")
-    if request.threshold1 >= request.threshold2:
-        raise HTTPException(status_code=400, detail="threshold1 must be < threshold2")
     if request.line_thickness < 1 or request.line_thickness > 10:
-        raise HTTPException(status_code=400, detail="Line thickness must be between 1 and 10")
+        raise HTTPException(status_code=400, detail="line_thickness must be between 1 and 10")
     if request.blur_amount < 0 or request.blur_amount > 20:
-        raise HTTPException(status_code=400, detail="Blur amount must be between 0 and 20")
-    if request.min_contour_area < 0:
-        raise HTTPException(status_code=400, detail="Min contour area must be >= 0")
-    if request.smoothness < 0 or request.smoothness > 0.1:
-        raise HTTPException(status_code=400, detail="Smoothness must be between 0 and 0.1")
-    
+        raise HTTPException(status_code=400, detail="blur_amount must be between 0 and 20")
+    if request.smoothness < 0 or request.smoothness > 1:
+        raise HTTPException(status_code=400, detail="smoothness must be between 0 and 1")
+    if request.num_colors < 2 or request.num_colors > 256:
+        raise HTTPException(status_code=400, detail="num_colors must be between 2 and 256")
+
+    timer = PhaseTimer()
     try:
-        # Decode and convert image
         img_bytes = base64.b64decode(request.image_base64)
         img = Image.open(io.BytesIO(img_bytes))
-        img_array = np.array(img)
-        
-        # Convert to grayscale
-        if len(img_array.shape) == 3:
-            gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
-        else:
-            gray = img_array
-        
-        height, width = gray.shape
-        
-        # Apply Gaussian blur if requested (reduces details)
-        if request.blur_amount > 0:
-            # Blur kernel must be odd
-            kernel_size = request.blur_amount * 2 + 1
-            gray = cv2.GaussianBlur(gray, (kernel_size, kernel_size), 0)
-        
-        # Apply Canny edge detection
-        edges = cv2.Canny(gray, request.threshold1, request.threshold2)
-        
-        # Close gaps with morphological closing
-        kernel_size = max(3, request.line_thickness + 2)
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_size, kernel_size))
-        closed = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel)
-        
-        # Find contours
-        contours, _ = cv2.findContours(closed, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-        
-        # Filter contours by minimum area
-        filtered_contours = []
-        for contour in contours:
-            area = cv2.contourArea(contour)
-            if area >= request.min_contour_area:
-                filtered_contours.append(contour)
-        
-        # Convert contours to SVG paths
-        svg_paths = []
-        for contour in filtered_contours:
-            if len(contour) < 3:
-                continue
-            
-            # Apply polygon approximation for smoother curves
-            epsilon = request.smoothness * cv2.arcLength(contour, True)
-            approx = cv2.approxPolyDP(contour, epsilon, True)
-            
-            # Build SVG path data from approximated contour
-            path_data = []
-            for i, point in enumerate(approx):
-                x, y = point[0]
-                if i == 0:
-                    path_data.append(f"M {x} {y}")
-                else:
-                    path_data.append(f"L {x} {y}")
-            path_data.append("Z")
-            
-            svg_paths.append(f'<path d="{" ".join(path_data)}" fill="none" stroke="black" stroke-width="{request.line_thickness}" stroke-linecap="round" stroke-linejoin="round"/>')
-        
-        # Create SVG document
-        svg_content = f'''<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
-  <rect width="{width}" height="{height}" fill="{"white" if request.invert else "black"}"/>
-  <g>
-    {chr(10).join(svg_paths)}
-  </g>
-</svg>'''
-        
-        return Response(content=svg_content, media_type="image/svg+xml")
+        if img.mode not in ("RGB", "L"):
+            img = img.convert("RGB")
+        timer.mark("decode")
+
+        svg_content, region_count = lineart_to_svg(
+            img,
+            line_thickness=request.line_thickness,
+            blur_amount=request.blur_amount,
+            smoothness=request.smoothness,
+            num_colors=request.num_colors,
+            on_phase=timer.mark,
+        )
+
+        return Response(
+            content=svg_content,
+            media_type="image/svg+xml",
+            headers={
+                "X-Profile-Phases": timer.header(),
+                "X-Region-Count": str(region_count),
+            },
+        )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Image processing failed: {str(e)}")
 

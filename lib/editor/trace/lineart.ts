@@ -2,20 +2,24 @@ import { z } from "zod"
 
 import type { TraceDefinition } from "./types"
 
-export const lineartSchema = z
-  .object({
-    threshold1: z.coerce.number().int().min(0).default(50),
-    threshold2: z.coerce.number().int().min(0).default(200),
-    line_thickness: z.coerce.number().int().min(1).max(10).default(2),
-    blur_amount: z.coerce.number().int().min(0).max(20).default(3),
-    min_contour_area: z.coerce.number().int().min(0).default(500),
-    invert: z.coerce.boolean().default(true),
-    smoothness: z.coerce.number().min(0).max(0.1).default(0.002),
-  })
-  .refine((v) => v.threshold1 < v.threshold2, {
-    message: "threshold1 must be strictly less than threshold2",
-    path: ["threshold1"],
-  })
+export const lineartSchema = z.object({
+  // Black stroke width around each colored region.
+  line_thickness: z.coerce.number().int().min(1).max(10).default(2),
+  // Pre-vtracer Gaussian blur radius. Smooths sensor noise before
+  // palette quantisation so the resulting regions track real subject
+  // boundaries instead of speckle.
+  blur_amount: z.coerce.number().int().min(0).max(20).default(3),
+  // Smoothness ∈ [0, 1]. 0 = sharp corners (close to the
+  // quantised-pixel boundary), 1 = very smooth spline curves. Maps
+  // to vtracer's corner_threshold + length_threshold +
+  // filter_speckle inside the Python service.
+  smoothness: z.coerce.number().min(0).max(1).default(0.6),
+  // Palette quantisation. Same field name + range as pixelate so
+  // both UI surfaces feel consistent. Lineart's organic regions
+  // tend to need fewer colors than numerate's superpixel grid;
+  // default 8 mirrors the classic paint-by-numbers paint count.
+  num_colors: z.coerce.number().int().min(2).max(256).default(8),
+})
 
 export type LineartParams = z.infer<typeof lineartSchema>
 
@@ -25,15 +29,12 @@ export const lineartTrace = {
   schema: lineartSchema,
   meta: {
     title: "Line Art",
-    description: "Create comic-style outlines with edge detection.",
+    description: "Vectorise the image into organic colored regions with black outlines.",
   },
   ui: {
-    threshold1: { label: "Low Threshold", min: 0, max: 500, description: "Lower value = more edges detected (0-500)" },
-    threshold2: { label: "High Threshold", min: 0, max: 500, description: "Must be higher than low threshold" },
-    line_thickness: { label: "Line Thickness", min: 1, max: 10, description: "Thickness in pixels (1-10)" },
-    blur_amount: { label: "Blur Amount", min: 0, max: 20, description: "Smoothing before edge detection (0-20, 0=no blur)" },
-    min_contour_area: { label: "Min. Detail Size", min: 0, max: 10000, step: 50, description: "Minimum contour area in pixels (removes small details)" },
-    smoothness: { kind: "decimal", label: "Smoothness", min: 0, max: 0.05, step: 0.001, description: "Curve smoothing (0=sharp corners, 0.02=very smooth)" },
-    invert: { kind: "boolean", label: "Black lines on white background", description: "Unchecked = white lines on black" },
+    line_thickness: { label: "Line Thickness", min: 1, max: 10, description: "Stroke width in pixels (1-10)" },
+    blur_amount: { label: "Blur Amount", min: 0, max: 20, description: "Pre-trace blur to merge noisy speckle (0-20, 0=no blur)" },
+    smoothness: { kind: "decimal", label: "Smoothness", min: 0, max: 1, step: 0.05, description: "Edge smoothness (0=follow quantised pixels exactly, 1=heavy curve smoothing)" },
+    num_colors: { label: "Number of Colors", min: 2, max: 256, description: "Palette size (2-256). Fewer colors = bolder regions" },
   },
 } as const satisfies TraceDefinition<typeof lineartSchema>

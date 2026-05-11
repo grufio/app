@@ -161,33 +161,24 @@ describe("numerateSchema", () => {
 describe("lineartSchema", () => {
   it("applies defaults matching frontend + Python", () => {
     expect(lineartSchema.parse({})).toEqual({
-      threshold1: 50,
-      threshold2: 200,
       line_thickness: 2,
       blur_amount: 3,
-      min_contour_area: 500,
-      invert: true,
-      smoothness: 0.002,
+      smoothness: 0.6,
+      num_colors: 8,
     })
   })
 
   it("coerces numeric strings", () => {
     const out = lineartSchema.parse({
-      threshold1: "60",
-      threshold2: "180",
       line_thickness: "3",
       blur_amount: "5",
-      min_contour_area: "300",
-      invert: false,
-      smoothness: "0.01",
+      smoothness: "0.4",
+      num_colors: "12",
     })
-    expect(out.threshold1).toBe(60)
-    expect(out.smoothness).toBeCloseTo(0.01)
-  })
-
-  it("rejects threshold1 >= threshold2", () => {
-    expect(lineartSchema.safeParse({ threshold1: 200, threshold2: 200 }).success).toBe(false)
-    expect(lineartSchema.safeParse({ threshold1: 250, threshold2: 200 }).success).toBe(false)
+    expect(out.line_thickness).toBe(3)
+    expect(out.blur_amount).toBe(5)
+    expect(out.smoothness).toBeCloseTo(0.4)
+    expect(out.num_colors).toBe(12)
   })
 
   it("rejects line_thickness out of [1, 10]", () => {
@@ -200,12 +191,18 @@ describe("lineartSchema", () => {
     expect(lineartSchema.safeParse({ blur_amount: 21 }).success).toBe(false)
   })
 
-  it("rejects smoothness out of [0, 0.1]", () => {
+  it("rejects smoothness out of [0, 1]", () => {
     expect(lineartSchema.safeParse({ smoothness: -0.01 }).success).toBe(false)
-    expect(lineartSchema.safeParse({ smoothness: 0.11 }).success).toBe(false)
+    expect(lineartSchema.safeParse({ smoothness: 1.01 }).success).toBe(false)
   })
 
-  it("accepts smoothness at boundary 0.1", () => {
-    expect(lineartSchema.safeParse({ smoothness: 0.1 }).success).toBe(true)
+  it("accepts smoothness at boundaries 0 and 1", () => {
+    expect(lineartSchema.safeParse({ smoothness: 0 }).success).toBe(true)
+    expect(lineartSchema.safeParse({ smoothness: 1 }).success).toBe(true)
+  })
+
+  it("rejects num_colors out of [2, 256]", () => {
+    expect(lineartSchema.safeParse({ num_colors: 1 }).success).toBe(false)
+    expect(lineartSchema.safeParse({ num_colors: 257 }).success).toBe(false)
   })
 })
