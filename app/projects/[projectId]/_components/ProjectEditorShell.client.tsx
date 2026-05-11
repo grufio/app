@@ -110,8 +110,6 @@ export function ProjectDetailPageClient({
   } = useEditorSessionState()
   const { restoreOpen, deleteOpen, leftPanelTab, hiddenFilterIds } = sessionState
   const { setRestoreOpen, setDeleteOpen, setLeftPanelTab, showFilter, hideFilter, toggleHiddenFilter, pruneHiddenFilters } = sessionActions
-  const [numerateSuperpixelWidth] = useState(10)
-  const [numerateSuperpixelHeight] = useState(10)
   const [gridVisible, setGridVisible] = useState(true)
   const [selectedNavId, setSelectedNavId] = useState<string>(buildNavId({ kind: "artboard" }))
   const canvasRef = useRef<ProjectCanvasStageHandle | null>(null)
@@ -681,8 +679,6 @@ export function ProjectDetailPageClient({
             selectionOpen={traceDialog.selectionOpen}
             activeKind={traceDialog.activeKind}
             traceDialogSource={traceDialog.session}
-            numerateSuperpixelWidth={numerateSuperpixelWidth}
-            numerateSuperpixelHeight={numerateSuperpixelHeight}
             onCloseSelection={traceDialog.closeSelection}
             onSelectKind={traceDialog.selectKind}
             onCloseConfigure={traceDialog.closeConfigure}

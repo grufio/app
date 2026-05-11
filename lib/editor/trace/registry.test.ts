@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest"
 
 import { lineartSchema } from "./lineart"
-import { numerateSchema, numerateTrace } from "./numerate"
+import { numerateSchema } from "./numerate"
 import { TRACE_REGISTRY } from "./registry"
-import type { TraceRenderContext } from "./types"
 
 describe("TRACE_REGISTRY UI hints", () => {
   it("each ui-hint field has a matching schema field", () => {
@@ -65,53 +64,11 @@ describe("TRACE_REGISTRY UI hints", () => {
   })
 })
 
-describe("numerateTrace.transformBeforeSubmit", () => {
-  // Numerate's superpixel_width / _height are not in its form — the
-  // Pixelate filter earlier in the chain decides them, and the
-  // transform injects them right before submit.
-  const ctx: TraceRenderContext = {
-    imageWidth: 1024,
-    imageHeight: 768,
-    numerateSuperpixelWidth: 17,
-    numerateSuperpixelHeight: 23,
-  }
-
-  it("injects numerate superpixel dimensions from context", () => {
-    const params = numerateSchema.parse({})
-    const out = numerateTrace.transformBeforeSubmit?.({ params, ctx })
-    expect(out?.superpixel_width).toBe(17)
-    expect(out?.superpixel_height).toBe(23)
-  })
-
-  it("preserves user-collected stroke_width and show_colors", () => {
-    const params = numerateSchema.parse({ stroke_width: 7, show_colors: false })
-    const out = numerateTrace.transformBeforeSubmit?.({ params, ctx })
-    expect(out?.stroke_width).toBe(7)
-    expect(out?.show_colors).toBe(false)
-  })
-
-  it("returns a payload the schema accepts back", () => {
-    const params = numerateSchema.parse({})
-    const out = numerateTrace.transformBeforeSubmit?.({ params, ctx })
-    expect(numerateSchema.safeParse(out).success).toBe(true)
-  })
-})
-
 describe("TRACE_REGISTRY UI label coverage", () => {
-  // Form-rendered fields must carry a `label` in the registry.
-  // Numerate's superpixel_width / _height are injected by the
-  // controller from Pixelate's grid math (not surfaced in the form),
-  // so they're explicitly excluded here.
-  const FIELDS_NOT_RENDERED_IN_FORM: Partial<Record<keyof typeof TRACE_REGISTRY, ReadonlyArray<string>>> = {
-    numerate: ["superpixel_width", "superpixel_height"],
-  }
-
-  it("each form-rendered ui-hint has a non-empty label", () => {
+  it("each ui-hint has a non-empty label", () => {
     for (const [traceId, trace] of Object.entries(TRACE_REGISTRY)) {
       if (!trace.ui) continue
-      const skip = new Set(FIELDS_NOT_RENDERED_IN_FORM[traceId as keyof typeof TRACE_REGISTRY] ?? [])
       for (const [fieldName, hint] of Object.entries(trace.ui)) {
-        if (skip.has(fieldName)) continue
         const label = (hint as { label?: string }).label
         expect(typeof label, `${traceId}.${fieldName}.label is missing`).toBe("string")
         expect((label ?? "").trim().length, `${traceId}.${fieldName}.label is empty`).toBeGreaterThan(0)
@@ -145,8 +102,14 @@ describe("numerateSchema", () => {
     })
   })
 
-  it("rejects stroke_width < 1", () => {
+  it("rejects stroke_width < 0.1", () => {
     expect(numerateSchema.safeParse({ stroke_width: 0 }).success).toBe(false)
+    expect(numerateSchema.safeParse({ stroke_width: 0.05 }).success).toBe(false)
+  })
+
+  it("accepts fractional stroke_width down to 0.1", () => {
+    expect(numerateSchema.safeParse({ stroke_width: 0.1 }).success).toBe(true)
+    expect(numerateSchema.parse({ stroke_width: 0.5 }).stroke_width).toBe(0.5)
   })
 
   it("rejects stroke_width > 20", () => {
@@ -181,9 +144,15 @@ describe("lineartSchema", () => {
     expect(out.num_colors).toBe(12)
   })
 
-  it("rejects line_thickness out of [1, 10]", () => {
+  it("rejects line_thickness out of [0.1, 10]", () => {
     expect(lineartSchema.safeParse({ line_thickness: 0 }).success).toBe(false)
+    expect(lineartSchema.safeParse({ line_thickness: 0.05 }).success).toBe(false)
     expect(lineartSchema.safeParse({ line_thickness: 11 }).success).toBe(false)
+  })
+
+  it("accepts fractional line_thickness down to 0.1", () => {
+    expect(lineartSchema.safeParse({ line_thickness: 0.1 }).success).toBe(true)
+    expect(lineartSchema.parse({ line_thickness: 0.5 }).line_thickness).toBe(0.5)
   })
 
   it("rejects blur_amount out of [0, 20]", () => {

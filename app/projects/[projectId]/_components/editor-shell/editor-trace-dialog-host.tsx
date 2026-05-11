@@ -14,8 +14,6 @@ export function EditorTraceDialogHost(props: {
   selectionOpen: boolean
   activeKind: RegisteredTraceId | null
   traceDialogSource: { sourceImageUrl: string; sourceImageWidth: number; sourceImageHeight: number } | null
-  numerateSuperpixelWidth: number
-  numerateSuperpixelHeight: number
   onCloseSelection: () => void
   onSelectKind: (kind: RegisteredTraceId) => void
   onCloseConfigure: () => void
@@ -27,8 +25,6 @@ export function EditorTraceDialogHost(props: {
     selectionOpen,
     activeKind,
     traceDialogSource,
-    numerateSuperpixelWidth,
-    numerateSuperpixelHeight,
     onCloseSelection,
     onSelectKind,
     onCloseConfigure,
@@ -51,8 +47,6 @@ export function EditorTraceDialogHost(props: {
           ctx={{
             imageWidth: traceDialogSource.sourceImageWidth,
             imageHeight: traceDialogSource.sourceImageHeight,
-            numerateSuperpixelWidth,
-            numerateSuperpixelHeight,
           }}
           open
           onClose={onCloseConfigure}

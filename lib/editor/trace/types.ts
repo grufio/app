@@ -20,13 +20,6 @@ export type {
 export type TraceRenderContext = {
   imageWidth: number
   imageHeight: number
-  /**
-   * Superpixel grid Numerate inherits from a prior Pixelate filter
-   * (or the form's default 10×10 when no Pixelate filter is
-   * active). Lineart ignores these.
-   */
-  numerateSuperpixelWidth: number
-  numerateSuperpixelHeight: number
 }
 
 export type TraceDefinition<TSchema extends z.ZodType> = FilterDefinition<TSchema, TraceRenderContext>

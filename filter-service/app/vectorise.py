@@ -127,7 +127,7 @@ def grid_lines_svg(
     superpixel_height: int,
     grid_width: int,
     grid_height: int,
-    stroke_width: int,
+    stroke_width: float,
 ) -> list[str]:
     """Vertical + horizontal lines that overlay the cell boundaries."""
     out: list[str] = []
@@ -150,7 +150,7 @@ def numerate_to_svg(
     img: Image.Image,
     superpixel_width: int,
     superpixel_height: int,
-    stroke_width: int,
+    stroke_width: float,
     show_colors: bool,
     num_colors: int = 16,
     on_phase: callable | None = None,
@@ -228,7 +228,7 @@ def numerate_to_svg(
 _FILL_ATTR_RE = re.compile(r'\bfill="(#[0-9A-Fa-f]{6})"')
 
 
-def add_stroke_to_path(path_str: str, color: str, width: int) -> str:
+def add_stroke_to_path(path_str: str, color: str, width: float) -> str:
     """Insert `stroke` + `stroke-width` attributes into a vtracer
     `<path .../>` element. Idempotent: if the path already has a
     stroke, leave it alone."""
@@ -241,7 +241,7 @@ def add_stroke_to_path(path_str: str, color: str, width: int) -> str:
 
 def lineart_to_svg(
     img: Image.Image,
-    line_thickness: int,
+    line_thickness: float,
     blur_amount: int,
     smoothness: float,
     num_colors: int = 8,
