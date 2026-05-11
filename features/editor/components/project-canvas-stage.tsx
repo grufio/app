@@ -14,7 +14,7 @@ import type Konva from "konva"
 import { pxUToPxNumber } from "@/lib/editor/units"
 import { useAlignImageController, type AlignImageOptions } from "./canvas-stage/align-controller"
 import { createBoundsController } from "./canvas-stage/bounds-controller"
-import { computeGridLines, snapGridLinesToDevicePixels } from "./canvas-stage/grid-lines"
+import { useSnappedGridLines } from "./canvas-stage/use-snapped-grid-lines"
 import { useInitialImagePlacement } from "./canvas-stage/initial-placement-controller"
 import { useRestoreBaseSpecController } from "./canvas-stage/restore-base-spec-controller"
 import { useViewController } from "./canvas-stage/view-controller"
@@ -23,7 +23,6 @@ import { useSelectionCropController } from "./canvas-stage/selection-crop-contro
 import { useStageEventsController } from "./canvas-stage/stage-events-controller"
 import { pickIntrinsicSize } from "./canvas-stage/placement"
 import { createStateSyncGuard } from "./canvas-stage/state-sync-guard"
-import { snapWorldToDeviceHalfPixel as snapHalfPixel } from "./canvas-stage/pixel-snap"
 import { useRestoreImageController, type RestoreBaseSpec, type RestoreImageResult } from "./canvas-stage/restore-controller"
 import type { CropRectWorld } from "./canvas-stage/crop-controller"
 import type { ResizeHandle } from "./canvas-stage/select-controller"
@@ -330,25 +329,13 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   const selectionHandlePx = 8
   const fitPadding = Math.max(0, Number(fitPaddingPx) || 0)
 
-  const gridLines = useMemo(() => {
-    if (!drawArtboard) return null
-    if (!grid) return null
-    return computeGridLines({ artW, artH, grid, maxLines: 600 })
-  }, [artH, artW, drawArtboard, grid])
-
-  // Pixel-snap helper: for a 1px stroke, canvas looks crispest when the line center
-  // lands on N + 0.5 device pixels in screen space.
-  const snapWorldToDeviceHalfPixel = useCallback(
-    (worldCoord: number, axis: "x" | "y") => {
-      return snapHalfPixel({ worldCoord, axis, view: { scale: view.scale, x: view.x, y: view.y } })
-    },
-    [view.scale, view.x, view.y]
-  )
-
-
-  const snappedGridLines = useMemo(() => {
-    return snapGridLinesToDevicePixels({ gridLines, snapWorldToDeviceHalfPixel })
-  }, [gridLines, snapWorldToDeviceHalfPixel])
+  const { gridLines, snappedGridLines, snapWorldToDeviceHalfPixel } = useSnappedGridLines({
+    drawArtboard,
+    grid: grid ?? null,
+    artW,
+    artH,
+    view,
+  })
 
   const { fitToView, zoomIn, zoomOut } = useViewController({
     hasArtboard,
