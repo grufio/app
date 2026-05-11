@@ -34,6 +34,8 @@ import { useWheelZoomGuard } from "./canvas-stage/stage-lifecycle-controller"
 import { createTransformController } from "./canvas-stage/transform-controller"
 import type { BoundsRect, ViewState } from "./canvas-stage/types"
 import { useHtmlImage } from "./canvas-stage/use-html-image"
+import { useSvgText } from "./canvas-stage/use-svg-text"
+import { TraceInteractiveOverlay } from "./canvas-stage/trace-interactive-overlay"
 import { computeWorldSize } from "@/services/editor"
 
 type Props = {
@@ -189,6 +191,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   const layerRef = useRef<Konva.Layer | null>(null)
   const imageNodeRef = useRef<Konva.Image | null>(null)
   const img = useHtmlImage(src ?? null)
+  const svgText = useSvgText(src ?? null)
   const isE2E =
     process.env.NEXT_PUBLIC_E2E_TEST === "1" ||
     (typeof navigator !== "undefined" && Boolean((navigator as unknown as { webdriver?: boolean })?.webdriver))
@@ -609,7 +612,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   return (
     <div
       ref={containerRef}
-      className={`touch-none ${className ?? ""}`}
+      className={`relative touch-none ${className ?? ""}`}
       aria-label={alt ?? "Canvas"}
       data-testid="editor-canvas-root"
     >
@@ -797,6 +800,14 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
           ) : null}
         </Layer>
       </Stage>
+      {svgText && imageRender ? (
+        <TraceInteractiveOverlay
+          svgText={svgText}
+          imageRect={imageRender}
+          view={view}
+          rotation={rotation}
+        />
+      ) : null}
     </div>
   )
 })
