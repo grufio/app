@@ -4,7 +4,7 @@ import type { TraceDefinition } from "./types"
 
 export const lineartSchema = z.object({
   // Black stroke width around each colored region.
-  line_thickness: z.coerce.number().int().min(1).max(10).default(2),
+  line_thickness: z.coerce.number().min(0.1).max(10).default(2),
   // Pre-vtracer Gaussian blur radius. Smooths sensor noise before
   // palette quantisation so the resulting regions track real subject
   // boundaries instead of speckle.
@@ -32,7 +32,7 @@ export const lineartTrace = {
     description: "Vectorise the image into organic colored regions with black outlines.",
   },
   ui: {
-    line_thickness: { label: "Line Thickness", min: 1, max: 10, description: "Stroke width in pixels (1-10)" },
+    line_thickness: { kind: "decimal", label: "Line Thickness", min: 0.1, max: 10, step: 0.1, description: "Stroke width in pixels (0.1-10)" },
     blur_amount: { label: "Blur Amount", min: 0, max: 20, description: "Pre-trace blur to merge noisy speckle (0-20, 0=no blur)" },
     smoothness: { kind: "decimal", label: "Smoothness", min: 0, max: 1, step: 0.05, description: "Edge smoothness (0=follow quantised pixels exactly, 1=heavy curve smoothing)" },
     num_colors: { label: "Number of Colors", min: 2, max: 256, description: "Palette size (2-256). Fewer colors = bolder regions" },

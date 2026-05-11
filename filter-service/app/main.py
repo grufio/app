@@ -172,7 +172,9 @@ async def pixelate_filter(request: PixelateRequest):
 
 class LineArtRequest(BaseModel):
     image_base64: str
-    line_thickness: int = 2
+    # F22: stroke width is a float (≥0.1) so users can draw very thin
+    # outlines. The frontend exposes a 0.1-step decimal input.
+    line_thickness: float = 2.0
     blur_amount: int = 3
     smoothness: float = 0.6
     num_colors: int = 8
@@ -182,7 +184,8 @@ class NumerateRequest(BaseModel):
     image_base64: str
     superpixel_width: int
     superpixel_height: int
-    stroke_width: int = 2
+    # F22: stroke width is a float (≥0.1) — see LineArtRequest above.
+    stroke_width: float = 2.0
     show_colors: bool = True
     # F20: palette quantisation. vtracer collapses adjacent same-color
     # cells into one polygon — without quantisation, every cell's
@@ -205,8 +208,8 @@ async def numerate_filter(request: NumerateRequest):
     """
     if request.superpixel_width < 1 or request.superpixel_height < 1:
         raise HTTPException(status_code=400, detail="Superpixel dimensions must be >= 1")
-    if request.stroke_width < 1 or request.stroke_width > 20:
-        raise HTTPException(status_code=400, detail="Stroke width must be between 1 and 20")
+    if request.stroke_width < 0.1 or request.stroke_width > 20:
+        raise HTTPException(status_code=400, detail="Stroke width must be between 0.1 and 20")
     if request.num_colors < 2 or request.num_colors > 256:
         raise HTTPException(status_code=400, detail="num_colors must be between 2 and 256")
 
@@ -261,8 +264,8 @@ async def lineart_filter(request: LineArtRequest):
     placement. The pre-rewrite Canny-based outline-only path is
     gone.
     """
-    if request.line_thickness < 1 or request.line_thickness > 10:
-        raise HTTPException(status_code=400, detail="line_thickness must be between 1 and 10")
+    if request.line_thickness < 0.1 or request.line_thickness > 10:
+        raise HTTPException(status_code=400, detail="line_thickness must be between 0.1 and 10")
     if request.blur_amount < 0 or request.blur_amount > 20:
         raise HTTPException(status_code=400, detail="blur_amount must be between 0 and 20")
     if request.smoothness < 0 or request.smoothness > 1:
