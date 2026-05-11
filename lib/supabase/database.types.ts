@@ -102,7 +102,6 @@ export type Database = {
           created_at: string
           line_width_value: number
           project_id: string
-          spacing_value: number
           spacing_x_value: number
           spacing_y_value: number
           unit: Database["public"]["Enums"]["measure_unit"]
@@ -113,7 +112,6 @@ export type Database = {
           created_at?: string
           line_width_value: number
           project_id: string
-          spacing_value: number
           spacing_x_value: number
           spacing_y_value: number
           unit?: Database["public"]["Enums"]["measure_unit"]
@@ -124,7 +122,6 @@ export type Database = {
           created_at?: string
           line_width_value?: number
           project_id?: string
-          spacing_value?: number
           spacing_x_value?: number
           spacing_y_value?: number
           unit?: Database["public"]["Enums"]["measure_unit"]
