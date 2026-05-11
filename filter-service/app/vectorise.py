@@ -83,6 +83,13 @@ def build_superpixel_image(
     Collapse the input image into its superpixel-grid form: each
     `superpixel_width × superpixel_height` block is replaced by its
     mean color. Returns (pixelated_image, grid_width, grid_height).
+
+    The bitmap is **unpadded** — its dimensions are `grid_width *
+    superpixel_width × grid_height * superpixel_height`, which may
+    crop a few px off the right/bottom of the input when the input
+    isn't an exact multiple. The numerate SVG composer stretches the
+    bitmap back to the original image dims via a scale transform so
+    coverage stays visually exact.
     """
     width, height = img.size
     grid_width = width // superpixel_width
@@ -101,11 +108,7 @@ def build_superpixel_image(
         .astype(np.uint8)
     )
     expanded = block_means.repeat(sh, axis=0).repeat(sw, axis=1)
-    # Keep the original canvas size — pad the bottom/right edge
-    # cells with white so vtracer sees the full image rectangle.
-    out = np.full((height, width, 3), 255, dtype=np.uint8)
-    out[:h_crop, :w_crop] = expanded
-    return Image.fromarray(out, mode="RGB"), grid_width, grid_height
+    return Image.fromarray(expanded, mode="RGB"), grid_width, grid_height
 
 
 # vtracer emits an outer `<svg>` envelope; we re-wrap the path body
@@ -123,24 +126,27 @@ def extract_path_elements(svg_str: str) -> list[str]:
 def grid_lines_svg(
     width: int,
     height: int,
-    superpixel_width: int,
-    superpixel_height: int,
-    grid_width: int,
-    grid_height: int,
+    cells_x: int,
+    cells_y: int,
     stroke_width: float,
 ) -> list[str]:
-    """Vertical + horizontal lines that overlay the cell boundaries."""
+    """Vertical + horizontal lines that overlay the cell boundaries.
+
+    Lines are drawn at exact float positions (`i * width / cells_x`)
+    so the grid covers the full image even when the pitch isn't an
+    integer multiple of the image dimensions.
+    """
     out: list[str] = []
-    for i in range(grid_width + 1):
-        x = min(i * superpixel_width, width)
+    for i in range(cells_x + 1):
+        x = i * width / cells_x
         out.append(
-            f'<line x1="{x}" y1="0" x2="{x}" y2="{height}" '
+            f'<line x1="{x:.4f}" y1="0" x2="{x:.4f}" y2="{height}" '
             f'stroke="black" stroke-width="{stroke_width}" />'
         )
-    for i in range(grid_height + 1):
-        y = min(i * superpixel_height, height)
+    for i in range(cells_y + 1):
+        y = i * height / cells_y
         out.append(
-            f'<line x1="0" y1="{y}" x2="{width}" y2="{y}" '
+            f'<line x1="0" y1="{y:.4f}" x2="{width}" y2="{y:.4f}" '
             f'stroke="black" stroke-width="{stroke_width}" />'
         )
     return out
@@ -148,8 +154,8 @@ def grid_lines_svg(
 
 def numerate_to_svg(
     img: Image.Image,
-    superpixel_width: int,
-    superpixel_height: int,
+    superpixel_width: float,
+    superpixel_height: float,
     stroke_width: float,
     show_colors: bool,
     num_colors: int = 16,
@@ -159,6 +165,16 @@ def numerate_to_svg(
     Build the numerate SVG. `on_phase(name)` is the optional phase
     timer hook used by the Python endpoint to surface
     `X-Profile-Phases`. Returns (svg_string, region_count).
+
+    Float-pitch handling (F22 follow-up): `superpixel_width/_height`
+    may be fractional (e.g. 50.4666 px from the wizard's "Number of
+    cells" mode). We derive the cell count from the float pitch,
+    round to an integer pitch for the bitmap-quantisation pass
+    (numpy reshape demands integer dims), and then stretch the
+    integer-pitch regions back to the original image dimensions via
+    a `<g transform="scale(...)">` wrapper. Grid lines are drawn at
+    exact float positions, so visually the grid covers the full
+    image with no leftover.
     """
 
     def phase(name: str) -> None:
@@ -166,6 +182,15 @@ def numerate_to_svg(
             on_phase(name)
 
     width, height = img.size
+
+    cells_x = max(1, round(width / superpixel_width))
+    cells_y = max(1, round(height / superpixel_height))
+    sw_int = max(1, width // cells_x)
+    sh_int = max(1, height // cells_y)
+    bitmap_w = cells_x * sw_int
+    bitmap_h = cells_y * sh_int
+    scale_x = width / bitmap_w if bitmap_w > 0 else 1.0
+    scale_y = height / bitmap_h if bitmap_h > 0 else 1.0
 
     color_paths: list[str] = []
     region_count = 0
@@ -175,14 +200,14 @@ def numerate_to_svg(
         phase("quantise")
 
         pixelated, _grid_w, _grid_h = build_superpixel_image(
-            quantised, superpixel_width, superpixel_height
+            quantised, sw_int, sh_int,
         )
         phase("superpixel")
 
         rgba = pixelated.convert("RGBA")
         pixels = list(rgba.getdata())
         traced = vtracer.convert_pixels_to_svg(
-            pixels, size=(width, height), **VTRACER_PARAMS
+            pixels, size=(bitmap_w, bitmap_h), **VTRACER_PARAMS
         )
         phase("vtracer")
 
@@ -195,12 +220,7 @@ def numerate_to_svg(
         phase("vtracer")
         phase("extract")
 
-    grid_width = width // superpixel_width
-    grid_height = height // superpixel_height
-    grid = grid_lines_svg(
-        width, height, superpixel_width, superpixel_height,
-        grid_width, grid_height, stroke_width,
-    )
+    grid = grid_lines_svg(width, height, cells_x, cells_y, stroke_width)
     phase("lines")
 
     svg_content = (
@@ -209,7 +229,7 @@ def numerate_to_svg(
         f'width="{width}" height="{height}" '
         f'viewBox="0 0 {width} {height}">\n'
         f'  <rect width="{width}" height="{height}" fill="white"/>\n'
-        f'  <g id="colors">\n'
+        f'  <g id="colors" transform="scale({scale_x:.6f} {scale_y:.6f})">\n'
         f'    {chr(10).join(color_paths)}\n'
         f'  </g>\n'
         f'  <g id="grid">\n'

@@ -182,8 +182,14 @@ class LineArtRequest(BaseModel):
 
 class NumerateRequest(BaseModel):
     image_base64: str
-    superpixel_width: int
-    superpixel_height: int
+    # F22 follow-up: superpixel pitch is float. The Number-of-cells
+    # mode in the UI computes pitch = imageDim / cellCount, which is
+    # generally not an integer. The Python service rounds for the
+    # bitmap-quantisation step (numpy) and uses the float pitch for
+    # the SVG grid + a scale transform that stretches the integer-
+    # pitch regions back to exact image coverage.
+    superpixel_width: float
+    superpixel_height: float
     # F22: stroke width is a float (≥0.1) — see LineArtRequest above.
     stroke_width: float = 2.0
     show_colors: bool = True
@@ -206,8 +212,8 @@ async def numerate_filter(request: NumerateRequest):
     paint-by-numbers anchor (one path per region) while killing the
     20K-rect string-assembly cost the legacy implementation paid.
     """
-    if request.superpixel_width < 1 or request.superpixel_height < 1:
-        raise HTTPException(status_code=400, detail="Superpixel dimensions must be >= 1")
+    if request.superpixel_width < 0.1 or request.superpixel_height < 0.1:
+        raise HTTPException(status_code=400, detail="Superpixel dimensions must be >= 0.1")
     if request.stroke_width < 0.1 or request.stroke_width > 20:
         raise HTTPException(status_code=400, detail="Stroke width must be between 0.1 and 20")
     if request.num_colors < 2 or request.num_colors > 256:
@@ -222,8 +228,12 @@ async def numerate_filter(request: NumerateRequest):
         timer.mark("decode")
 
         width, height = img.size
-        grid_width = width // request.superpixel_width
-        grid_height = height // request.superpixel_height
+        # Float pitch → rounded int for the bitmap-quantisation pass.
+        # The SVG output stretches the integer-pitch regions back to
+        # the original image dims via a scale transform inside
+        # `numerate_to_svg`, so coverage stays exact.
+        grid_width = int(width / request.superpixel_width)
+        grid_height = int(height / request.superpixel_height)
         if grid_width < 1 or grid_height < 1:
             raise HTTPException(status_code=400, detail="Superpixel size too large for image")
 

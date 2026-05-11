@@ -8,26 +8,19 @@ describe("gridFromCells", () => {
     expect(g.superpixelWidth).toBe(100)
     expect(g.superpixelHeight).toBe(100)
     expect(g.totalCells).toBe(100)
-    expect(g.leftoverWidth).toBe(0)
-    expect(g.leftoverHeight).toBe(0)
-    expect(g.isExact).toBe(true)
   })
 
-  it("33x33 cells on 1000x1000 yields 30px cells and 10px leftover each side", () => {
-    const g = gridFromCells(1000, 1000, 33, 33)
-    expect(g.superpixelWidth).toBe(30)
-    expect(g.superpixelHeight).toBe(30)
-    expect(g.coveredWidth).toBe(990)
-    expect(g.leftoverWidth).toBe(10)
-    expect(g.leftoverHeight).toBe(10)
-    expect(g.isExact).toBe(false)
+  it("30x30 cells on 1514x914 yields fractional pitch (50.4666 x 30.4666)", () => {
+    const g = gridFromCells(1514, 914, 30, 30)
+    expect(g.superpixelWidth).toBeCloseTo(1514 / 30, 6)
+    expect(g.superpixelHeight).toBeCloseTo(914 / 30, 6)
+    expect(g.totalCells).toBe(900)
   })
 
-  it("non-square superpixel when image is non-square", () => {
+  it("non-square pitch when image is non-square", () => {
     const g = gridFromCells(1920, 1080, 16, 9)
     expect(g.superpixelWidth).toBe(120)
     expect(g.superpixelHeight).toBe(120)
-    expect(g.isExact).toBe(true)
   })
 
   it("clamps cells to >= 1", () => {
@@ -44,24 +37,23 @@ describe("gridFromCells", () => {
 })
 
 describe("gridFromSuperpixel", () => {
-  it("exact 100px cells on 1000x1000 image", () => {
+  it("exact 100px pitch on 1000x1000 image", () => {
     const g = gridFromSuperpixel(1000, 1000, 100, 100)
     expect(g.cellsX).toBe(10)
     expect(g.cellsY).toBe(10)
-    expect(g.isExact).toBe(true)
   })
 
-  it("30px cells on 1000x1000 yields 33 cells with 10px leftover", () => {
-    const g = gridFromSuperpixel(1000, 1000, 30, 30)
-    expect(g.cellsX).toBe(33)
-    expect(g.cellsY).toBe(33)
-    expect(g.leftoverWidth).toBe(10)
-    expect(g.isExact).toBe(false)
+  it("fractional pitch rounds cells", () => {
+    const g = gridFromSuperpixel(1514, 914, 50.5, 30.5)
+    expect(g.cellsX).toBe(30)
+    expect(g.cellsY).toBe(30)
+    expect(g.superpixelWidth).toBe(50.5)
+    expect(g.superpixelHeight).toBe(30.5)
   })
 
-  it("clamps superpixel to >= 1", () => {
+  it("clamps superpixel to >= 0.1", () => {
     const g = gridFromSuperpixel(1000, 1000, 0, 0)
-    expect(g.superpixelWidth).toBe(1)
-    expect(g.superpixelHeight).toBe(1)
+    expect(g.superpixelWidth).toBe(0.1)
+    expect(g.superpixelHeight).toBe(0.1)
   })
 })

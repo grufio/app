@@ -116,8 +116,14 @@ describe("numerateSchema", () => {
     expect(numerateSchema.safeParse({ stroke_width: 21 }).success).toBe(false)
   })
 
-  it("rejects superpixel_width < 1", () => {
+  it("rejects superpixel_width < 0.1", () => {
     expect(numerateSchema.safeParse({ superpixel_width: 0 }).success).toBe(false)
+    expect(numerateSchema.safeParse({ superpixel_width: 0.05 }).success).toBe(false)
+  })
+
+  it("accepts fractional superpixel_width (Number-of-cells mode)", () => {
+    expect(numerateSchema.safeParse({ superpixel_width: 50.4666 }).success).toBe(true)
+    expect(numerateSchema.parse({ superpixel_width: 50.4666 }).superpixel_width).toBeCloseTo(50.4666)
   })
 })
 
