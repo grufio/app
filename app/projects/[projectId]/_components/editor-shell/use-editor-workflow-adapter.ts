@@ -73,6 +73,13 @@ export function useEditorWorkflowAdapter(args: {
   masterImageLoading: boolean
   masterImageError: string
   filterDisplayImage: { id: string; signedUrl: string; width_px: number; height_px: number; name: string } | null
+  /** Trace-free counterpart to `filterDisplayImage`. Used as the
+   * source for `applyFilter` because filters operate on bitmaps —
+   * if a project has an active trace, `filterDisplayImage.id`
+   * points to the trace SVG, which the pixelate Python service
+   * can't decode. The without-trace variant is always the real
+   * raster filter chain tip. */
+  filterDisplayImageWithoutTrace: { id: string; signedUrl: string; width_px: number; height_px: number; name: string } | null
   filterImageLoading: boolean
   filterImageLoadedOnce: boolean
   filterImageError: string
@@ -88,6 +95,7 @@ export function useEditorWorkflowAdapter(args: {
     masterImageLoading,
     masterImageError,
     filterDisplayImage,
+    filterDisplayImageWithoutTrace,
     filterImageLoading,
     filterImageLoadedOnce,
     filterImageError,
@@ -98,6 +106,11 @@ export function useEditorWorkflowAdapter(args: {
   } = args
   const [uploadSyncing, setUploadSyncing] = useState(false)
   const activeSourceImageIdRef = useRef<string | null>(null)
+  /** Source ID for filter-apply operations. Tracks the trace-free
+   * filter chain tip (or working copy) because filters consume a
+   * bitmap input — feeding the trace SVG to pixelate's Python
+   * service breaks the decode step. */
+  const filterApplySourceIdRef = useRef<string | null>(null)
   const loadedImageStateForImageIdRef = useRef<string | null>(null)
   const refreshInFlightRef = useRef<Promise<void> | null>(null)
   const refreshQueuedRef = useRef(false)
@@ -121,6 +134,14 @@ export function useEditorWorkflowAdapter(args: {
   useEffect(() => {
     activeSourceImageIdRef.current = sourceSnapshot.status === "ready" ? sourceSnapshot.image.id : null
   }, [sourceSnapshot])
+
+  useEffect(() => {
+    // Prefer the trace-free variant when present; fall back to the
+    // trace-aware ID if the without-trace payload hasn't loaded yet
+    // (transient on first load). The filter-apply happens after the
+    // user clicks Apply, by which point both have settled.
+    filterApplySourceIdRef.current = filterDisplayImageWithoutTrace?.id ?? (sourceSnapshot.status === "ready" ? sourceSnapshot.image.id : null)
+  }, [filterDisplayImageWithoutTrace, sourceSnapshot])
 
   const activeSnapshotImageId = sourceSnapshot.status === "ready" ? sourceSnapshot.image.id : null
   const imageStateEnabled = sourceSnapshot.status === "ready"
@@ -195,7 +216,9 @@ export function useEditorWorkflowAdapter(args: {
   }, [projectId])
   const applyFilterService = useCallback(
     async (op: { filterType: "pixelate"; filterParams: Record<string, unknown> }) => {
-      const sourceImageId = activeSourceImageIdRef.current
+      // Use the trace-free source so filters stack on the raster
+      // filter chain, not on a trace SVG.
+      const sourceImageId = filterApplySourceIdRef.current ?? activeSourceImageIdRef.current
       if (!sourceImageId) {
         throw new Error("No active image available for filtering.")
       }

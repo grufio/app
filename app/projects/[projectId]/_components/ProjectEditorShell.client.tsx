@@ -136,6 +136,7 @@ export function ProjectDetailPageClient({
     masterImageLoading,
     masterImageError,
     filterDisplayImage,
+    filterDisplayImageWithoutTrace,
     filterImageLoading,
     filterImageLoadedOnce,
     filterImageError,
