@@ -2,7 +2,11 @@
 
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
-export type SidepanelTab = "image" | "filter" | "trace" | "colors" | "output"
+// "colors" and "output" were rendered as disabled triggers until 2026-05-11.
+// They were dead surface — clickable nothing, communicating an unkept
+// promise. Future tabs should land via real feature work (sidebar +
+// right-panel section + machine event), not as greyed-out placeholders.
+export type SidepanelTab = "image" | "filter" | "trace"
 
 export function TabsSidepanel(props: {
   activeTab: SidepanelTab
@@ -48,24 +52,6 @@ export function TabsSidepanel(props: {
             aria-controls="editor-left-tabs-content-trace"
           >
             Trace
-          </TabsTrigger>
-          <TabsTrigger
-            value="colors"
-            className={sidePanelTabsTriggerClass}
-            id="editor-left-tabs-trigger-colors"
-            aria-controls="editor-left-tabs-content-colors"
-            disabled
-          >
-            Colors
-          </TabsTrigger>
-          <TabsTrigger
-            value="output"
-            className={sidePanelTabsTriggerClass}
-            id="editor-left-tabs-trigger-output"
-            aria-controls="editor-left-tabs-content-output"
-            disabled
-          >
-            Output
           </TabsTrigger>
         </TabsList>
       </Tabs>
