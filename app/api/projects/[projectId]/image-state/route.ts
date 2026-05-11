@@ -8,7 +8,7 @@
 import { NextResponse } from "next/server"
 
 import { createSupabaseServerClient } from "@/lib/supabase/server"
-import { resolveEditorTargetImageRows } from "@/lib/supabase/project-images"
+import { getEditorTargetImageRow } from "@/lib/supabase/project-images"
 import { loadBoundImageState, upsertBoundImageState } from "@/lib/supabase/image-state"
 import { isUuid, jsonError, readJson, requireUser } from "@/lib/api/route-guards"
 import { validateIncomingImageStateUpsert, type IncomingImageStatePayload } from "@/lib/editor/imageState"
@@ -34,23 +34,21 @@ export async function GET(req: Request, { params }: { params: Promise<{ projectI
   if (useQueryImageId) {
     targetImageId = queryImageId
   } else {
-    // Image-state persistence targets the working-copy (the editor-
-    // editable raster bitmap). Trace / filter outputs share kind
-    // 'filter_working_copy' with the working-copy and would otherwise
-    // shadow it in `target`; `preferredWorking` is the parented-on-
-    // master lookup that picks the working-copy unambiguously.
-    const editorTargetLookup = await resolveEditorTargetImageRows(supabase, projectId)
+    // Default lookup: no imageId in query → fall back to the editor's
+    // current target (newest filter_working_copy). In practice the
+    // client always passes an explicit `?imageId=` from
+    // `useImageState`, so this path is mostly defensive.
+    const editorTargetLookup = await getEditorTargetImageRow(supabase, projectId)
     if (editorTargetLookup.error) {
       return jsonError(editorTargetLookup.error.reason, 400, {
         stage: editorTargetLookup.error.stage,
         code: editorTargetLookup.error.code,
       })
     }
-    const persistenceRow = editorTargetLookup.preferredWorking ?? editorTargetLookup.target
-    if (!persistenceRow?.id) {
+    if (!editorTargetLookup.row?.id) {
       return NextResponse.json({ exists: false, state: null })
     }
-    targetImageId = persistenceRow.id
+    targetImageId = editorTargetLookup.row.id
   }
 
   if (!targetImageId) {
@@ -102,35 +100,26 @@ export async function POST(req: Request, { params }: { params: Promise<{ project
     ...validated,
   }
 
-  // Image-state writes target the working-copy (editor-editable raster
-  // bitmap). See GET above for the parent-on-master selection.
-  const editorTargetLookup = await resolveEditorTargetImageRows(supabase, projectId)
-  if (editorTargetLookup.error) {
-    return jsonError(editorTargetLookup.error.reason, 400, {
-      stage: editorTargetLookup.error.stage,
-      code: editorTargetLookup.error.code,
-    })
-  }
-  const persistenceRow = editorTargetLookup.preferredWorking ?? editorTargetLookup.target
-  if (!persistenceRow?.id) {
-    return jsonError("No editor target image", 409, { stage: "no_active_image" })
-  }
-  const editorTargetImageIdForWrite = persistenceRow.id
-  if (baseRow.image_id !== editorTargetImageIdForWrite) {
-    return jsonError("Image state target is not the editor target image", 409, {
-      stage: "active_image_mismatch",
-      expected_image_id: editorTargetImageIdForWrite,
-    })
-  }
-  const { data: editorTargetImageRow, error: editorTargetImageErr } = await supabase
+  // Validate the body-specified image belongs to the project and
+  // isn't locked. The earlier "active_image_mismatch" gate (matching
+  // body.image_id against `resolveEditorTargetImageRows.target`) was
+  // removed: that resolver returns the newest filter_working_copy,
+  // which after a Trace Apply becomes trace_svg. The editor (post
+  // PR #109) edits the raster filter chain tip (not the trace SVG),
+  // so the gate rejected legit saves silently. The lock guard + the
+  // RLS-backed project-access check above are sufficient.
+  const { data: targetImageRow, error: targetImageErr } = await supabase
     .from("project_images")
-    .select("is_locked")
+    .select("id,is_locked")
     .eq("project_id", projectId)
-    .eq("id", editorTargetImageIdForWrite)
+    .eq("id", baseRow.image_id)
     .is("deleted_at", null)
     .maybeSingle()
-  if (editorTargetImageErr) return jsonError(editorTargetImageErr.message, 400, { stage: "lock_guard_query" })
-  if (editorTargetImageRow?.is_locked) {
+  if (targetImageErr) return jsonError(targetImageErr.message, 400, { stage: "lock_guard_query" })
+  if (!targetImageRow?.id) {
+    return jsonError("Image not found in project", 404, { stage: "image_not_in_project" })
+  }
+  if (targetImageRow.is_locked) {
     return jsonError("Editor target image is locked", 409, { stage: "lock_conflict", reason: "image_locked" })
   }
   // Per-axis preservation: when the payload omits x_px_u or y_px_u

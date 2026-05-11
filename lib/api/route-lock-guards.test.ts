@@ -3,9 +3,7 @@ import { describe, expect, it, vi } from "vitest"
 const VALID_UUID = "c104be01-d7b0-4af4-a446-8326cd47a282"
 const IMAGE_UUID = "2e306bed-0f1a-4124-a1c7-2702d85c21e7"
 const ACTIVE_IMAGE_UUID = "73eb09f8-b8f6-4956-b79b-5f7a4f1d7360"
-const STALE_IMAGE_UUID = "6df68e6a-280f-4f3c-b5ac-c2eb34cc25cc"
-const { resolveEditorTargetImageRowsMock, upsertBoundImageStateMock } = vi.hoisted(() => ({
-  resolveEditorTargetImageRowsMock: vi.fn(),
+const { upsertBoundImageStateMock } = vi.hoisted(() => ({
   upsertBoundImageStateMock: vi.fn(),
 }))
 
@@ -81,7 +79,7 @@ function makeImageStateSupabaseLocked() {
             eq: () => ({
               eq: () => ({
                 is: () => ({
-                  maybeSingle: async () => ({ data: { is_locked: true }, error: null }),
+                  maybeSingle: async () => ({ data: { id: ACTIVE_IMAGE_UUID, is_locked: true }, error: null }),
                 }),
               }),
             }),
@@ -215,12 +213,10 @@ describe("lock guard route contracts", () => {
 
   it("image-state route returns lock_conflict 409 when active image is locked", async () => {
     vi.resetModules()
-    resolveEditorTargetImageRowsMock.mockReset()
     upsertBoundImageStateMock.mockReset()
-    resolveEditorTargetImageRowsMock.mockResolvedValue({ target: { id: ACTIVE_IMAGE_UUID }, preferredWorking: { id: ACTIVE_IMAGE_UUID }, error: null })
 
     vi.doMock("@/lib/supabase/project-images", () => ({
-      resolveEditorTargetImageRows: (...args: unknown[]) => resolveEditorTargetImageRowsMock(...args),
+      getEditorTargetImageRow: async () => ({ row: { id: ACTIVE_IMAGE_UUID }, error: null }),
     }))
     vi.doMock("@/lib/supabase/image-state", () => ({
       loadBoundImageState: vi.fn(),
@@ -253,48 +249,6 @@ describe("lock guard route contracts", () => {
     const body = await res.json()
     expect(body.stage).toBe("lock_conflict")
     expect(body.reason).toBe("image_locked")
-    expect(upsertBoundImageStateMock).not.toHaveBeenCalled()
-  })
-
-  it("image-state route returns active_image_mismatch when body image_id is stale", async () => {
-    vi.resetModules()
-    resolveEditorTargetImageRowsMock.mockReset()
-    upsertBoundImageStateMock.mockReset()
-    resolveEditorTargetImageRowsMock.mockResolvedValue({ target: { id: ACTIVE_IMAGE_UUID }, preferredWorking: { id: ACTIVE_IMAGE_UUID }, error: null })
-
-    vi.doMock("@/lib/supabase/project-images", () => ({
-      resolveEditorTargetImageRows: (...args: unknown[]) => resolveEditorTargetImageRowsMock(...args),
-    }))
-    vi.doMock("@/lib/supabase/image-state", () => ({
-      loadBoundImageState: vi.fn(),
-      upsertBoundImageState: (...args: unknown[]) => upsertBoundImageStateMock(...args),
-    }))
-    vi.doMock("@/lib/editor/imageState", () => ({
-      validateIncomingImageStateUpsert: vi.fn(() => ({
-        role: "master",
-        image_id: STALE_IMAGE_UUID,
-        x_px_u: "0",
-        y_px_u: "0",
-        width_px_u: "1000000",
-        height_px_u: "1000000",
-        rotation_deg: 0,
-      })),
-    }))
-    vi.doMock("@/lib/supabase/server", () => ({
-      createSupabaseServerClient: async () => makeImageStateSupabaseLocked(),
-    }))
-
-    const mod = await import("@/app/api/projects/[projectId]/image-state/route")
-    const req = new Request("http://test.local", {
-      method: "POST",
-      body: JSON.stringify({}),
-      headers: { "content-type": "application/json" },
-    })
-    const res = await mod.POST(req, { params: Promise.resolve({ projectId: VALID_UUID }) })
-
-    expect(res.status).toBe(409)
-    const body = await res.json()
-    expect(body.stage).toBe("active_image_mismatch")
     expect(upsertBoundImageStateMock).not.toHaveBeenCalled()
   })
 
