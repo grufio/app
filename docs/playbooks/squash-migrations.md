@@ -2,8 +2,14 @@
 
 End-to-end recipe for `supabase migration squash --linked`. Captures
 the gotchas hit during the May 2026 squash (PRs #30 + #32). Run this
-when the migrations folder grows past ~20 files or the chain becomes
-hard to read.
+**after every larger feature block lands** (Trace+Filter cutover,
+schema-shape change, drift fix), or whenever there are more than
+~5 individual migrations sitting on top of the previous baseline.
+
+The earlier guidance in this doc said ~20, which was overly
+conservative — that number was set just after a fresh squash. In
+practice the chain gets hard to reason about much sooner. Cheap to
+run, cheap to review; do it often.
 
 ## Pre-flight
 
