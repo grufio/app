@@ -109,6 +109,7 @@ export function useEditorWorkflowAdapter(args: {
     refreshFilterImage,
   } = args
   const [uploadSyncing, setUploadSyncing] = useState(false)
+  const [uploadSyncError, setUploadSyncError] = useState<unknown>(null)
   const activeSourceImageIdRef = useRef<string | null>(null)
   /** Source ID for filter-apply operations. Tracks the trace-free
    * filter chain tip (or working copy) because filters consume a
@@ -267,8 +268,11 @@ export function useEditorWorkflowAdapter(args: {
   )
   const handleImageUploaded = useCallback(async () => {
     setUploadSyncing(true)
+    setUploadSyncError(null)
     try {
       await workflow.refreshAndWait()
+    } catch (err) {
+      setUploadSyncError(err)
     } finally {
       setUploadSyncing(false)
     }
@@ -290,6 +294,7 @@ export function useEditorWorkflowAdapter(args: {
     filterSourceImage,
     handleApplyFilter,
     handleImageUploaded,
+    uploadSyncError,
     filterOperationError,
     restoreOperationError,
     workflowFilterPanelError,

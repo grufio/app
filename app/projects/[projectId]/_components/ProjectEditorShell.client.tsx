@@ -115,6 +115,7 @@ export function ProjectDetailPageClient({
   const [selectedNavId, setSelectedNavId] = useState<string>(buildNavId({ kind: "artboard" }))
   const canvasRef = useRef<ProjectCanvasStageHandle | null>(null)
   const lastFilterErrorToastRef = useRef("")
+  const lastUploadSyncErrorToastRef = useRef<unknown>(null)
   const lastNoWorkingImageMetricRef = useRef("")
   const [imageTxU, setImageTxU] = useState<{ x: bigint; y: bigint; w: bigint; h: bigint } | null>(null)
   const {
@@ -127,6 +128,7 @@ export function ProjectDetailPageClient({
     filterSourceImage,
     handleApplyFilter,
     handleImageUploaded,
+    uploadSyncError,
     restoreOperationError,
     workflowFilterPanelError,
   } = useEditorWorkflowAdapter({
@@ -189,6 +191,17 @@ export function ProjectDetailPageClient({
     const normalized = normalizeApiError(filterPanelError)
     toast.error(normalized.title, normalized.detail ? { description: normalized.detail } : undefined)
   }, [filterPanelError])
+
+  useEffect(() => {
+    if (!uploadSyncError) {
+      lastUploadSyncErrorToastRef.current = null
+      return
+    }
+    if (lastUploadSyncErrorToastRef.current === uploadSyncError) return
+    lastUploadSyncErrorToastRef.current = uploadSyncError
+    const normalized = normalizeApiError(uploadSyncError)
+    toast.error(normalized.title, normalized.detail ? { description: normalized.detail } : undefined)
+  }, [uploadSyncError])
 
   useEffect(() => {
     const unresolvedSourceMessage = "Working image target is unresolved. Refresh editor state."

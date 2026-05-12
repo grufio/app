@@ -10,6 +10,7 @@ import type {
   WorkflowSourceSnapshot,
   WorkflowTransformPayload,
 } from "./image-workflow.types"
+import { waitForStateChange } from "./wait-for-state-change"
 
 const WORKFLOW_WAIT_TIMEOUT_MS = 20_000
 
@@ -72,81 +73,64 @@ export function useImageWorkflowMachine(args: {
   const operationError = state.context.lastOpError
   const persistenceError = state.context.lastPersistenceError
 
-  const applyFilter = (args: { filterType: "pixelate"; filterParams: Record<string, unknown> }) =>
-    new Promise<void>((resolve, reject) => {
-      if (!state.can({ type: "FILTER_APPLY", filterType: args.filterType, filterParams: args.filterParams })) {
-        reject(new Error("Filter apply is not allowed in the current workflow state"))
-        return
-      }
-      let enteredMutationFlow = false
-      const timeout = window.setTimeout(() => {
-        sub.unsubscribe()
-        reject(new Error("Timed out while waiting for filter workflow completion"))
-      }, WORKFLOW_WAIT_TIMEOUT_MS)
-      const sub = actorRef.subscribe((snapshot) => {
+  const applyFilter = (args: { filterType: "pixelate"; filterParams: Record<string, unknown> }) => {
+    if (!state.can({ type: "FILTER_APPLY", filterType: args.filterType, filterParams: args.filterParams })) {
+      return Promise.reject(new Error("Filter apply is not allowed in the current workflow state"))
+    }
+    let enteredMutationFlow = false
+    const pending = waitForStateChange({
+      actor: actorRef,
+      timeoutMs: WORKFLOW_WAIT_TIMEOUT_MS,
+      timeoutMessage: "Timed out while waiting for filter workflow completion",
+      evaluate: (snapshot) => {
         const isApplying = snapshot.matches({ operation: "applyingFilter" })
         const isSyncing = snapshot.matches({ operation: "syncing" })
         const isIdle = snapshot.matches({ operation: "idle" })
         const isError = snapshot.matches({ operation: "error" })
 
         if (isApplying || isSyncing) enteredMutationFlow = true
-        if (!enteredMutationFlow) return
+        if (!enteredMutationFlow) return null
 
-        if (isError) {
-          window.clearTimeout(timeout)
-          sub.unsubscribe()
-          reject(new Error(snapshot.context.lastOpError || "Failed to apply filter"))
-          return
-        }
-        if (isIdle) {
-          window.clearTimeout(timeout)
-          sub.unsubscribe()
-          resolve()
-        }
-      })
-      sendEvent({ type: "FILTER_APPLY", filterType: args.filterType, filterParams: args.filterParams })
+        if (isError) return new Error(snapshot.context.lastOpError || "Failed to apply filter")
+        if (isIdle) return "resolve"
+        return null
+      },
     })
-  const refreshAndWait = () =>
-    (refreshWaitRef.current ??=
-    new Promise<void>((resolve, reject) => {
-      if (!state.matches({ operation: "syncing" }) && !state.can({ type: "REFRESH" })) {
-        refreshWaitRef.current = null
-        reject(new Error("Refresh is not allowed in the current workflow state"))
-        return
-      }
-      let enteredSync = state.matches({ operation: "syncing" })
-      const timeout = window.setTimeout(() => {
-        sub.unsubscribe()
-        refreshWaitRef.current = null
-        reject(new Error("Timed out while waiting for workflow refresh"))
-      }, WORKFLOW_WAIT_TIMEOUT_MS)
-      const sub = actorRef.subscribe((snapshot) => {
+    sendEvent({ type: "FILTER_APPLY", filterType: args.filterType, filterParams: args.filterParams })
+    return pending
+  }
+  const refreshAndWait = () => {
+    if (refreshWaitRef.current) return refreshWaitRef.current
+    if (!state.matches({ operation: "syncing" }) && !state.can({ type: "REFRESH" })) {
+      return Promise.reject(new Error("Refresh is not allowed in the current workflow state"))
+    }
+    let enteredSync = state.matches({ operation: "syncing" })
+    const pending = waitForStateChange({
+      actor: actorRef,
+      timeoutMs: WORKFLOW_WAIT_TIMEOUT_MS,
+      timeoutMessage: "Timed out while waiting for workflow refresh",
+      // Clear the cache before the promise settles so the next caller
+      // gets a fresh subscription instead of a settled-rejected one.
+      onSettle: () => { refreshWaitRef.current = null },
+      evaluate: (snapshot) => {
         const isSyncingNow = snapshot.matches({ operation: "syncing" })
         const isIdleNow = snapshot.matches({ operation: "idle" })
         const isErrorNow = snapshot.matches({ operation: "error" })
 
         if (isSyncingNow) enteredSync = true
-        if (!enteredSync) return
+        if (!enteredSync) return null
 
-        if (isErrorNow) {
-          window.clearTimeout(timeout)
-          sub.unsubscribe()
-          refreshWaitRef.current = null
-          reject(new Error(snapshot.context.lastOpError || "Failed to refresh workflow source"))
-          return
-        }
-        if (isIdleNow) {
-          window.clearTimeout(timeout)
-          sub.unsubscribe()
-          refreshWaitRef.current = null
-          resolve()
-        }
-      })
-
-      if (!state.matches({ operation: "syncing" })) {
-        sendEvent({ type: "REFRESH" })
-      }
-    }))
+        if (isErrorNow) return new Error(snapshot.context.lastOpError || "Failed to refresh workflow source")
+        if (isIdleNow) return "resolve"
+        return null
+      },
+    })
+    refreshWaitRef.current = pending
+    if (!state.matches({ operation: "syncing" })) {
+      sendEvent({ type: "REFRESH" })
+    }
+    return pending
+  }
   const removeFilter = (filterId: string) => sendEvent({ type: "FILTER_REMOVE", filterId })
   const applyCrop = (rect: { x: number; y: number; w: number; h: number }) => sendEvent({ type: "CROP_APPLY", rect })
   const restore = () => sendEvent({ type: "RESTORE" })
