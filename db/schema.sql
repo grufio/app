@@ -497,6 +497,20 @@ CREATE OR REPLACE FUNCTION "public"."set_updated_at"() RETURNS "trigger"
 ALTER FUNCTION "public"."set_updated_at"() OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."cleanup_state_on_softdelete"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    AS $$
+BEGIN
+  DELETE FROM public.project_image_state
+    WHERE image_id = NEW.id;
+  RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."cleanup_state_on_softdelete"() OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."workspace_value_to_px_u"("v" numeric, "u" "public"."measure_unit", "dpi" numeric) RETURNS bigint
     LANGUAGE "sql" IMMUTABLE
     SET "search_path" TO 'public', 'pg_temp'
@@ -1743,6 +1757,11 @@ ALTER TABLE ONLY "public"."project_image_state"
 
 
 
+ALTER TABLE "public"."project_image_state"
+    ADD CONSTRAINT "project_image_state_axis_pairing_check" CHECK ((("x_px_u" IS NULL) AND ("y_px_u" IS NULL)) OR (("x_px_u" IS NOT NULL) AND ("y_px_u" IS NOT NULL)));
+
+
+
 ALTER TABLE ONLY "public"."project_image_trace"
     ADD CONSTRAINT "project_image_trace_pkey" PRIMARY KEY ("project_id");
 
@@ -1916,6 +1935,10 @@ CREATE OR REPLACE TRIGGER "trg_project_images_guard_master_immutable" BEFORE DEL
 
 
 CREATE OR REPLACE TRIGGER "trg_project_images_updated_at" BEFORE UPDATE ON "public"."project_images" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
+
+
+
+CREATE OR REPLACE TRIGGER "project_images_softdelete_cascade_state" AFTER UPDATE OF "deleted_at" ON "public"."project_images" FOR EACH ROW WHEN (("old"."deleted_at" IS NULL) AND ("new"."deleted_at" IS NOT NULL)) EXECUTE FUNCTION "public"."cleanup_state_on_softdelete"();
 
 
 
@@ -2345,6 +2368,12 @@ GRANT ALL ON FUNCTION "public"."set_active_master_with_state"("p_project_id" "uu
 GRANT ALL ON FUNCTION "public"."set_updated_at"() TO "anon";
 GRANT ALL ON FUNCTION "public"."set_updated_at"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."set_updated_at"() TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."cleanup_state_on_softdelete"() TO "anon";
+GRANT ALL ON FUNCTION "public"."cleanup_state_on_softdelete"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."cleanup_state_on_softdelete"() TO "service_role";
 
 
 
