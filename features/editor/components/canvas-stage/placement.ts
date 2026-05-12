@@ -33,14 +33,24 @@ export function shouldApplyPersistedTransform(args: {
   appliedKey: string | null
   userChanged: boolean
   activeImageId?: string | null
+  /**
+   * Kept on the signature for backward compat with callers and tests;
+   * no longer used. After PR #124 anchored `project_image_state` at
+   * `master.id`, the state row's `image_id` always points at the
+   * master while the canvas activeImageId points at the filter-base-
+   * copy / chain tip — the equality check was structurally false on
+   * every page open, so saves never reached the canvas. State is now
+   * project-wide; if it exists, it applies to whichever surface the
+   * canvas is rendering.
+   */
   stateImageId?: string | null
   initialImageTransform: { widthPxU?: bigint; heightPxU?: bigint } | null | undefined
 }): boolean {
-  const { src, appliedKey, userChanged, activeImageId, stateImageId, initialImageTransform } = args
+  const { src, appliedKey, userChanged, activeImageId, initialImageTransform } = args
   if (!src) return false
   if (userChanged) return false
   if (!initialImageTransform) return false
-  if (!activeImageId || !stateImageId || activeImageId !== stateImageId) return false
+  if (!activeImageId) return false
   if (appliedKey === src) return false
   return Boolean(initialImageTransform.widthPxU && initialImageTransform.heightPxU)
 }
