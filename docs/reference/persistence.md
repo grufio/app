@@ -35,14 +35,15 @@ Table: `public.project_grid`
 - `line_width_value`
 - `color`
 
-#### Image transform (master role)
+#### Image transform (anchored at master.id)
 
 Table: `public.project_image_state`
 
 - `width_px_u`, `height_px_u` (canonical size of the placed image)
 - `x_px_u`, `y_px_u` (position)
 - `rotation_deg`
-- `role` (currently `master`)
+- `image_id` — the project's `master.id` (PR #124 anchor;
+  see [domains/image-state.md](../domains/image-state.md))
 
 #### Image metadata
 
@@ -50,7 +51,7 @@ Table: `public.project_images`
 
 - `width_px`, `height_px` (intrinsic pixel dimensions of the uploaded image)
 - `storage_path`, `format`, `file_size_bytes`
-- `role` (`master`)
+- `kind` (`master | working_copy | filter_working_copy | trace_output`)
 
 ### Local-only (not persisted)
 
