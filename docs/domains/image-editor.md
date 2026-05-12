@@ -46,15 +46,29 @@ result. It splits into three layers: pure-math canvas model
   = 1/1000 px) to dodge floating-point drift across save/load. See
   [docs/domains/image-state.md](image-state.md) and
   [docs/specs/sizing-invariants.mdx](../specs/sizing-invariants.mdx).
-- **Image `kind` enum**: `master | working_copy | filter_working_copy`
+- **Image `kind` enum**: `master | working_copy | filter_working_copy | trace_output`
   on `project_images.kind`. Master is immutable (DB trigger
   `guard_master_immutable`); working copies are throwaway scratch.
-- **`set_active_master_with_state` is the canonical bind RPC.** It
-  links a `project_images` row to the `project_image_state` row in
-  one transaction and is the only blessed path to switch active
-  master. Two callers in app code:
-  [lib/supabase/project-images.ts:249](../../lib/supabase/project-images.ts)
-  and [app/api/projects/[projectId]/images/master/restore/route.ts:123](../../app/api/projects/%5BprojectId%5D/images/master/restore/route.ts).
+  `trace_output` (PR #119) is the SVG sink for numerate / lineart;
+  it sits outside the filter chain and is referenced by
+  `project_image_trace.output_image_id`.
+- **State is anchored at `master.id` (PR #124).** Every
+  `project_image_state` row's `image_id` is the project's master
+  row id — the stable, immutable anchor. The API route
+  ([app/api/projects/[projectId]/image-state/route.ts](../../app/api/projects/%5BprojectId%5D/image-state/route.ts))
+  resolves to master.id on both GET and POST via
+  `getProjectMasterImageId` in
+  [lib/supabase/project-images.ts](../../lib/supabase/project-images.ts).
+  The body's `image_id` identifies which editor surface the user
+  was operating on (used for the in-project + lock-guard check) —
+  it is **not** the persistence key.
+- **`set_active_master_with_state` is the canonical bind RPC for
+  master swaps.** It links a `project_images` row to the
+  `project_image_state` row in one transaction and is used by
+  the restore/replace-master flow at
+  [app/api/projects/[projectId]/images/master/restore/route.ts](../../app/api/projects/%5BprojectId%5D/images/master/restore/route.ts).
+  Editor transforms (drag / resize / inputs) go through the
+  image-state route instead.
 - **Filter chain runs in two phases.** Frontend dispatches per-
   filter forms via a registry (see
   [docs/reference/filter-stack-findings.md](../reference/filter-stack-findings.md));
@@ -93,37 +107,49 @@ user clicks "restore" in right panel
   [docs/conventions.md](../conventions.md). Atomic primitives are
   kebab-case.
 
-## Process baseline (post-merge 2026-05-11)
+## Process baseline (post-merge 2026-05-12)
 
 Captures the user-facing flow across the three active editor tabs
-and the invariants the recent trace-overlay series (#76 → #82 →
-#83 → #84 → #86) established. Update this section when those
-invariants change.
+and the invariants the trace-overlay series (#76 → #82 → #83 →
+#84 → #86) and the master-anchor refactor (#119, #124) established.
+Update this section when those invariants change.
 
 ### Tabs
 
-The canvas always renders the **working-copy** (`filterDisplayImageWithoutTrace`).
-The three tabs differ only in their overlays and sidebars, never in
-the canvas source. The master image is never the canvas source — it's
-an immutable restore source surfaced through the layer tree.
+The canvas always renders the trace-free filter chain tip
+(`filterDisplayImageWithoutTrace`). The three tabs differ only in
+their overlays and sidebars, never in the canvas source. The master
+image is never the canvas source — it's an immutable restore source
+surfaced through the layer tree, and it serves as the **persistence
+anchor** for `project_image_state` (PR #124).
 
 | Tab | Sidebar | State read | State written | Stage display |
 |---|---|---|---|---|
-| **Image** | layers (`editor-nav-tree`) | working-copy `project_image_state` | `project_image_state` (transform on working-copy) | working-copy raster |
-| **Filter** | filter stack (`FilterSidebarSection`) | `project_image_filters`, `filter_working_copy` | `project_image_filters`, `project_images(kind='filter_chain_step')` | working-copy raster (= filter chain tip) |
-| **Trace** | trace section (`TraceSidebarSection`) | `project_image_trace`, working-copy raster | `project_image_trace` (single row), `project_images(kind='trace_svg')` | working-copy raster + transparent inline-SVG overlay |
+| **Image** | layers (`editor-nav-tree`) | `project_image_state` at master.id | `project_image_state` at master.id | filter-base-copy raster |
+| **Filter** | filter stack (`FilterSidebarSection`) | `project_image_filters` + `filter_working_copy` rows; `project_image_state` at master.id | `project_image_filters`, `project_images(kind='filter_working_copy')`, `project_image_state` at master.id | filter chain tip raster |
+| **Trace** | trace section (`TraceSidebarSection`) | `project_image_trace`, filter chain tip raster | `project_image_trace` (single row), `project_images(kind='trace_output')`, `project_image_state` at master.id | filter chain tip raster + transparent inline-SVG overlay |
 | Colors / Output | — | — | — | removed 2026-05-11 (PR #89) |
 
 ### Invariants (do not regress)
 
-- **Canvas source is always the working-copy.** The master image
-  (`kind='master'`) is immutable (`guard_master_immutable` trigger)
-  and is never the Konva render source — load/save target the working-
-  copy via `useImageState` keyed off `sourceSnapshot.image.id`. Routing
-  the canvas to the master directly silently breaks persistence: the
-  Image tab's edits would target the wrong DB row. Codified in
-  `lib/editor/canvas-image-invariant.ts` (`pickCanvasImage`) with a
-  dedicated test.
+- **State is anchored at `master.id`.** The API route resolves to
+  master.id on every GET/POST regardless of which editor surface
+  the client was rendering. Saves survive every filter-base-copy
+  recreation, chain reset, or trace tombstone. Body `image_id` is
+  informational (lock guard only); the server never persists at it.
+  See [docs/domains/image-state.md](image-state.md) for the
+  resolver helper and the backfill that established this invariant.
+- **Canvas source is always the trace-free filter chain tip.** The
+  master image (`kind='master'`) is immutable
+  (`guard_master_immutable` trigger) and is never the Konva render
+  source — the canvas pulls `filterDisplayImageWithoutTrace` which
+  is the filter base copy (no filters) or the chain tip (with
+  filters). Codified in
+  [lib/editor/canvas-image-invariant.ts](../../lib/editor/canvas-image-invariant.ts)
+  (`pickCanvasImage`) with a dedicated test. The persistence
+  decoupling above means a drift between canvas-source id and
+  save-target id no longer silently breaks the user — saves still
+  land at master.id.
 - **Filter operates on raster, never on SVG.** PR #82 fixed a class
   where Filter would be applied to a trace SVG. Filter always reads
   `filterDisplayImageWithoutTrace`.
@@ -163,9 +189,16 @@ runs three parallel sub-machines:
 - `useMutationLeaveGuard` only covers in-flight server mutations,
   not dialog dirty state.
 - `ProjectEditorShell.client.tsx` derives `canvasMode`,
-  `canvasImage`, and `traceOverlaySvgUrl` inline; 56 imports.
-- Disabled tabs (Colors, Output) are rendered as dead surface; user
-  expectation drifts.
+  `canvasImage`, and `traceOverlaySvgUrl` inline; many imports.
+- Crop output no longer scales canvas-displayed size proportionally
+  to the crop ratio (PR #124 side-effect — `copyImageTransform`
+  was removed because state lives at master.id, which is unaware
+  of per-step dimension changes). If proportional scale-down is
+  needed, reintroduce as a targeted master.id state update inside
+  `cropImageVariant`.
+- A follow-up cleanup migration is pending (PR #124 left legacy
+  `project_image_state` rows whose `image_id` is not the master
+  in place, for deploy-window compatibility — drop them after bake).
 
 ## Diagrams
 
@@ -245,7 +278,7 @@ sequenceDiagram
   Note over FS: post-#86: no white background rect
   FS-->>API: SVG text
   API->>DB: upsert project_image_trace
-  API->>DB: insert project_images (trace_svg)
+  API->>DB: insert project_images (kind=trace_output)
   API-->>Shell: 200 OK
   Shell->>Shell: refresh trace + filterImage
   Shell->>Stage: canvasImage = filterDisplayImageWithoutTrace

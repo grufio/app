@@ -3,11 +3,21 @@
 ## Purpose
 
 The filter pipeline turns the active master image into a chain of
-processed variants (pixelate, lineart, numerate). Frontend forms
-collect parameters → API appends to `project_image_filters` → the
-Python filter-service does the actual pixel work and produces a new
-`filter_working_copy` image. Stack order is preserved so the chain
-is deterministic on re-render.
+processed variants. Two distinct output families:
+
+- **Raster filters** (pixelate, crop) — produce new
+  `filter_working_copy` rows inside the chain. Stack order is
+  preserved in `project_image_filters` so the chain is deterministic
+  on re-render.
+- **Trace outputs** (numerate, lineart) — produce SVG sinks with
+  `kind='trace_output'` (PR #119) referenced by
+  `project_image_trace.output_image_id`. These sit outside the
+  filter chain; the trace is mutually exclusive (one per project).
+
+Frontend forms collect parameters → API appends to
+`project_image_filters` (raster) or upserts `project_image_trace`
+(trace) → the Python filter-service does the actual pixel/vector
+work.
 
 ## Where it lives
 

@@ -30,8 +30,8 @@ distinction in the `kind` column.
 ## Key concepts
 
 - **One bucket, all kinds.** No per-kind bucket; the `kind` enum
-  (`master | working_copy | filter_working_copy`, plus the legacy
-  asset role tracked elsewhere) lives on `project_images.kind`.
+  (`master | working_copy | filter_working_copy | trace_output`)
+  lives on `project_images.kind`.
   Bucket isolation isn't the access boundary — RLS via `auth.uid()`
   is.
 - **Path convention** — every object key matches:
