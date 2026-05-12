@@ -107,8 +107,8 @@ function rowToTrace(row: {
 }
 
 /**
- * Soft-delete a single project_images row (kind=filter_working_copy)
- * and best-effort remove its storage object. Mirrors the cleanup
+ * Soft-delete a single project_images row (kind=trace_output) and
+ * best-effort remove its storage object. Mirrors the cleanup
  * pattern in `filter-chain-reset.ts`.
  */
 async function tombstoneTraceOutput(args: {
@@ -122,7 +122,7 @@ async function tombstoneTraceOutput(args: {
     .select("id,storage_bucket,storage_path")
     .eq("project_id", projectId)
     .eq("id", imageId)
-    .eq("kind", "filter_working_copy")
+    .eq("kind", "trace_output")
     .is("deleted_at", null)
     .maybeSingle()
 
@@ -131,7 +131,7 @@ async function tombstoneTraceOutput(args: {
     .update({ deleted_at: new Date().toISOString() })
     .eq("project_id", projectId)
     .eq("id", imageId)
-    .eq("kind", "filter_working_copy")
+    .eq("kind", "trace_output")
     .is("deleted_at", null)
 
   if (row?.storage_path) {

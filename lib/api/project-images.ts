@@ -58,7 +58,7 @@ export type ProjectImageItem = {
 }
 
 export type ImageDeleteReason = "no_active_image" | "master_immutable" | null
-export type ImageKind = "master" | "working_copy" | "filter_working_copy" | null
+export type ImageKind = "master" | "working_copy" | "filter_working_copy" | "trace_output" | null
 
 export type ProjectImageDisplayTarget = {
   active_image_id: string | null

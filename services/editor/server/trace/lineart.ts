@@ -113,7 +113,7 @@ export async function lineArtImageAndActivate(args: {
     const { error: insertErr } = await supabase.from("project_images").insert({
       id: imageId,
       project_id: projectId,
-      kind: "filter_working_copy",
+      kind: "trace_output",
       name: `${src.name.replace(/ \(filter working\)| \(pixelate\)| \(line art\)| \(numerate\)/g, "")} (line art)`,
       format: "svg",
       width_px: origWidth,

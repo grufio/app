@@ -32,7 +32,8 @@ ALTER SCHEMA "storage" OWNER TO "supabase_admin";
 CREATE TYPE "public"."image_kind" AS ENUM (
     'master',
     'working_copy',
-    'filter_working_copy'
+    'filter_working_copy',
+    'trace_output'
 );
 
 

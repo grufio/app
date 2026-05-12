@@ -47,13 +47,13 @@ describe("project_image_trace round-trip", () => {
     const numerateOut = await seedImage({
       supabase,
       projectId,
-      kind: "filter_working_copy",
+      kind: "trace_output",
       sourceImageId: master.imageId,
     })
     const lineartOut = await seedImage({
       supabase,
       projectId,
-      kind: "filter_working_copy",
+      kind: "trace_output",
       sourceImageId: master.imageId,
     })
 
@@ -143,7 +143,7 @@ describe("project_image_trace round-trip", () => {
     const traceOut = await seedImage({
       supabase,
       projectId,
-      kind: "filter_working_copy",
+      kind: "trace_output",
       sourceImageId: master.imageId,
     })
 
