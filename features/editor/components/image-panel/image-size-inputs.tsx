@@ -155,6 +155,22 @@ export function ImageSizeInputs({
 
   return (
     <PanelTwoFieldRow>
+      {/*
+        `value` must be the prop-derived display (`computedW` / `computedH`),
+        NOT the parent's local `draftW` / `draftH`. Feeding the parent's
+        draft back to FormField while the input is focused causes the
+        FormField's reducer to mark `state.value = state.draft` on every
+        keystroke (syncFromUpstream-while-focused). On blur the reducer
+        then sees `draft === value` and skips the commit — the user's
+        typed value never reaches `onCommit`. Position inputs don't have
+        this loop because they have no parent draft state. Aspect-lock
+        cross-axis logic still uses `draftW` / `draftH` in
+        `commitFromDrafts`; the parent-state still updates on
+        `onDraftChange`, just no longer feeds back into FormField's
+        value prop. Aspect-lock partner live-preview during typing is
+        a known regression — the partner field updates at commit time
+        only.
+      */}
       <FormField
         ref={widthRef}
         variant="numeric"
@@ -162,7 +178,7 @@ export function ImageSizeInputs({
         labelVisuallyHidden
         iconStart={<ArrowLeftRight aria-hidden="true" />}
         unit={unit}
-        value={draftW}
+        value={computedW}
         onDraftChange={onDraftW}
         onCommit={onCommitW}
         disabled={controlsDisabled}
@@ -175,7 +191,7 @@ export function ImageSizeInputs({
         labelVisuallyHidden
         iconStart={<ArrowUpDown aria-hidden="true" />}
         unit={unit}
-        value={draftH}
+        value={computedH}
         onDraftChange={onDraftH}
         onCommit={onCommitH}
         disabled={controlsDisabled}
