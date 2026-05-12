@@ -163,6 +163,32 @@ export async function getActiveMasterImageId(
   return { imageId: String(data.id), error: null }
 }
 
+// Returns the project's `kind='master'` image id. This is the stable
+// anchor for project_image_state persistence — every editor surface
+// (working_copy, filter_working_copy, trace_output) resolves to this
+// id when reading or writing the transform, so state survives any
+// filter_working_copy recreation. See
+// `supabase/migrations/20260512200000_image_state_anchor_at_master.sql`
+// for the backfill that established this invariant.
+export async function getProjectMasterImageId(
+  supabase: SupabaseClient,
+  projectId: string
+): Promise<{ masterId: string | null; error: string | null }> {
+  const { data, error } = await supabase
+    .from("project_images")
+    .select("id")
+    .eq("project_id", projectId)
+    .eq("kind", "master")
+    .is("deleted_at", null)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle()
+
+  if (error) return { masterId: null, error: error.message }
+  if (!data?.id) return { masterId: null, error: null }
+  return { masterId: String(data.id), error: null }
+}
+
 export type ActiveProjectImageLockRow = {
   id: string
   is_locked: boolean | null

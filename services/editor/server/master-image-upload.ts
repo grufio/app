@@ -10,7 +10,6 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/lib/supabase/database.types"
 import { activateProjectImage } from "@/services/editor/server/activate-project-image"
-import { copyImageTransform } from "@/services/editor/server/copy-image-transform"
 import { resetProjectFilterChain } from "@/services/editor/server/filter-chain-reset"
 
 import { insertMasterWithCleanup } from "./master-image-upload/master-insert-flow"
@@ -211,33 +210,7 @@ export async function uploadMasterImage(args: {
     }
   }
 
-  const transformCopy = await copyImageTransform({
-    supabase,
-    projectId,
-    sourceImageId: imageId,
-    targetImageId: working.imageId,
-    sourceWidth: widthPx,
-    sourceHeight: heightPx,
-    targetWidth: widthPx,
-    targetHeight: heightPx,
-    fallbackWhenMissingSource: true,
-  })
-  if (!transformCopy.ok) {
-    await rollbackCreatedUploadRows({
-      supabase,
-      projectId,
-      masterImageId: imageId,
-      masterObjectPath: objectPath,
-      workingImageId: working.imageId,
-      workingObjectPath: working.objectPath,
-    })
-    return {
-      ok: false,
-      status: 500,
-      stage: "transform_sync",
-      reason: transformCopy.reason,
-    }
-  }
-
+  // State is anchored at master.id and seeded on first canvas
+  // interaction; no pre-seed needed on upload.
   return { ok: true, id: imageId, storagePath: objectPath }
 }

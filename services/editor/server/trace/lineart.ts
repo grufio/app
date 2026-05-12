@@ -4,7 +4,6 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/lib/supabase/database.types"
 import { lineartSchema, type LineartParams } from "@/lib/editor/trace/lineart"
-import { copyImageTransform } from "@/services/editor/server/copy-image-transform"
 import { callFilterService, toInt, type FilterResult } from "@/services/editor/server/filters/_helpers"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 
@@ -130,22 +129,7 @@ export async function lineArtImageAndActivate(args: {
       return { ok: false, status: 400, stage: "db_insert", reason: insertErr.message, code: insertErr.code }
     }
 
-    // Copy transform from source to filter image
-    const transformCopy = await copyImageTransform({
-      supabase,
-      projectId,
-      sourceImageId,
-      targetImageId: imageId,
-      sourceWidth: origWidth,
-      sourceHeight: origHeight,
-      targetWidth: origWidth,
-      targetHeight: origHeight,
-    })
-    if (!transformCopy.ok) {
-      await supabase.from("project_images").delete().eq("id", imageId)
-      await supabase.storage.from(PROJECT_IMAGES_BUCKET).remove([objectPath])
-      return { ok: false, status: 500, stage: "transform_sync", reason: transformCopy.reason }
-    }
+    // State is anchored at master.id; no per-output transform copy.
 
 
     return {

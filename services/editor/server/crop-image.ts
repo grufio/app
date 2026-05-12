@@ -4,7 +4,6 @@ import sharp from "sharp"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { activateProjectImage } from "@/services/editor/server/activate-project-image"
-import { copyImageTransform } from "@/services/editor/server/copy-image-transform"
 import type { Database } from "@/lib/supabase/database.types"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 
@@ -168,22 +167,11 @@ export async function cropImageAndActivate(args: {
     await supabase.storage.from(PROJECT_IMAGES_BUCKET).remove([objectPath])
     return { ok: false, status: 400, stage: "db_insert", reason: insertErr.message, code: (insertErr as { code?: string }).code }
   }
-  // Copy transform from source to cropped image
-  const transformCopy = await copyImageTransform({
-    supabase,
-    projectId,
-    sourceImageId,
-    targetImageId: imageId,
-    sourceWidth: origWidth,
-    sourceHeight: origHeight,
-    targetWidth: w,
-    targetHeight: h,
-  })
-  if (!transformCopy.ok) {
-    await supabase.from("project_images").delete().eq("id", imageId)
-    await supabase.storage.from(PROJECT_IMAGES_BUCKET).remove([objectPath])
-    return { ok: false, status: 500, stage: "transform_sync", reason: transformCopy.reason }
-  }
+  // State is anchored at master.id; no per-output transform copy.
+  // Crop visually preserves the master-state canvas size: the cropped
+  // image displays at the same dimensions the source had, effectively
+  // a zoom-in. Pre-refactor behaviour scaled the transform by the crop
+  // ratio; revisit if that semantic is needed.
 
 
   const activation = await activateProjectImage({
