@@ -4,11 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, type RefObject } from "react"
 
 import type { ProjectCanvasStageHandle } from "@/features/editor"
 import { buildNavId, parseNavId } from "@/features/editor/navigation/nav-id"
-import { useFloatingToolbarControls } from "@/lib/editor/floating-toolbar-controls"
+import { useFloatingToolbarControls, type EditorTool } from "@/lib/editor/floating-toolbar-controls"
 
 function useEditorInteractionController(args: {
-  tool: "select" | "hand" | "crop"
-  setTool: (tool: "select" | "hand" | "crop") => void
+  tool: EditorTool
+  setTool: (tool: EditorTool) => void
   selectedNavId: string
   setSelectedNavId: (next: string) => void
   masterImageId: string | null
@@ -32,7 +32,7 @@ function useEditorInteractionController(args: {
     if (selection.kind === "image") return
 
     if (navChanged && !toolChanged) {
-      setTool("select")
+      setTool("object")
       return
     }
 
@@ -41,13 +41,14 @@ function useEditorInteractionController(args: {
       return
     }
 
-    setTool("select")
+    setTool("object")
   }, [cropBusy, masterImageId, selectedNavId, setSelectedNavId, setTool, tool])
 }
 
 export function useStageInteractionPolicy(args: {
   canvasRef: RefObject<ProjectCanvasStageHandle | null>
   canvasMode: "image" | "filter"
+  leftPanelTab: string
   imageStateLoading: boolean
   sourceReady: boolean
   selectedNavId: string
@@ -59,6 +60,7 @@ export function useStageInteractionPolicy(args: {
   const {
     canvasRef,
     canvasMode,
+    leftPanelTab,
     imageStateLoading,
     sourceReady,
     selectedNavId,
@@ -73,24 +75,38 @@ export function useStageInteractionPolicy(args: {
     hasImage: sourceReady,
     masterImageLoading: !sourceReady,
     imageStateLoading,
-    enableShortcuts: canvasMode !== "filter",
+    enableShortcuts: true,
   })
 
+  // Per-tab tool availability. Object is the default everywhere
+  // (whole-image drag/resize). Direct only on Trace tab (clicks
+  // trace-overlay regions). Crop only on Image tab. Hand is always
+  // available — it pans the artboard view and never touches the
+  // image or trace.
+  const showDirectSelect = leftPanelTab === "trace"
+  const cropDisabled = leftPanelTab !== "image"
+  const rotateDisabled = leftPanelTab === "filter"
+
+  // If the current tool isn't valid on the active tab, fall back to
+  // object so the user always lands in an image-movable state.
+  useEffect(() => {
+    if (toolbar.tool === "direct" && !showDirectSelect) {
+      toolbar.setTool("object")
+      return
+    }
+    if (toolbar.tool === "crop" && cropDisabled) {
+      toolbar.setTool("object")
+    }
+  }, [cropDisabled, showDirectSelect, toolbar])
+
   const handleToolbarToolChange = useCallback(
-    (tool: typeof toolbar.tool) => {
-      if (canvasMode === "filter" && (tool === "select" || tool === "crop")) {
-        toolbar.setTool("hand")
-        return
-      }
+    (tool: EditorTool) => {
+      if (tool === "direct" && !showDirectSelect) return
+      if (tool === "crop" && cropDisabled) return
       toolbar.setTool(tool)
     },
-    [canvasMode, toolbar]
+    [cropDisabled, showDirectSelect, toolbar]
   )
-
-  useEffect(() => {
-    if (canvasMode !== "filter") return
-    if (toolbar.tool !== "hand") toolbar.setTool("hand")
-  }, [canvasMode, toolbar])
 
   useEditorInteractionController({
     tool: toolbar.tool,
@@ -102,7 +118,7 @@ export function useStageInteractionPolicy(args: {
   })
 
   const applyCropSelection = useCallback(async () => {
-    if (canvasMode === "filter") return
+    if (cropDisabled) return
     if (isCropping) return
     if (!sourceReady) return
     const selection = canvasRef.current?.getCropSelection()
@@ -111,18 +127,18 @@ export function useStageInteractionPolicy(args: {
       return
     }
     onApplyCrop(selection.rect)
-    toolbar.setTool("select")
-  }, [canvasMode, canvasRef, isCropping, onApplyCrop, sourceReady, toolbar])
+    toolbar.setTool("object")
+  }, [canvasRef, cropDisabled, isCropping, onApplyCrop, sourceReady, toolbar])
 
   useEffect(() => {
     const onKeyDown = async (e: KeyboardEvent) => {
-      if (canvasMode === "filter") return
+      if (cropDisabled) return
       if (toolbar.tool !== "crop") return
       if (isCropping) return
       if (e.key === "Escape") {
         e.preventDefault()
         canvasRef.current?.resetCropSelection()
-        toolbar.setTool("select")
+        toolbar.setTool("object")
         return
       }
       if (e.key !== "Enter") return
@@ -131,21 +147,24 @@ export function useStageInteractionPolicy(args: {
     }
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
-  }, [applyCropSelection, canvasMode, canvasRef, isCropping, toolbar])
+  }, [applyCropSelection, canvasRef, cropDisabled, isCropping, toolbar])
 
   const stageToolbar = useMemo(
     () => ({
       ...toolbar,
       setTool: handleToolbarToolChange,
-      selectDisabled: canvasMode === "filter",
-      cropDisabled: canvasMode === "filter",
-      rotateDisabled: canvasMode === "filter",
-      cropEnabled: canvasMode !== "filter" && toolbar.tool === "crop",
+      showDirectSelect,
+      objectDisabled: false,
+      directDisabled: !showDirectSelect,
+      cropDisabled,
+      rotateDisabled,
+      cropEnabled: !cropDisabled && toolbar.tool === "crop",
       cropBusy: isCropping,
-      imageDraggable: canvasMode !== "filter" && toolbar.tool === "select",
-      panEnabled: canvasMode === "filter" ? true : toolbar.tool === "hand",
+      imageDraggable: toolbar.tool === "object",
+      panEnabled: toolbar.tool === "hand",
+      directActive: toolbar.tool === "direct",
     }),
-    [canvasMode, handleToolbarToolChange, isCropping, toolbar]
+    [canvasMode, cropDisabled, handleToolbarToolChange, isCropping, rotateDisabled, showDirectSelect, toolbar]
   )
 
   return {

@@ -100,6 +100,10 @@ type Props = {
    * to fetching from `src` if omitted (legacy: when `src` itself
    * points to an SVG, the overlay still works). */
   traceOverlaySvgUrl?: string | null
+  /** Whether trace regions catch hover/click. False makes the
+   * overlay purely visual; clicks fall through to the Konva
+   * image-node for whole-image drag/resize (object-tool mode). */
+  traceInteractive?: boolean
 }
 
 export type ProjectCanvasStageHandle = {
@@ -189,6 +193,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     mutationsEnabled = true,
     clipToArtboard = false,
     traceOverlaySvgUrl = null,
+    traceInteractive = true,
   },
   ref
 ) {
@@ -806,6 +811,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
           view={view}
           rotation={rotation}
           forwardWheelTo={stageRef.current?.container() ?? null}
+          interactive={traceInteractive}
         />
       ) : null}
     </div>

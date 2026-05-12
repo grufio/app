@@ -3,15 +3,21 @@
 /**
  * Floating toolbar state + shortcut bindings.
  *
- * Responsibilities:
- * - Manage tool selection (select/hand) and map actions to canvas imperative API.
- * - Optionally bind keyboard shortcuts when enabled.
+ * Tool roles (Illustrator-style):
+ *   object — filled arrow. Acts on the whole image (drag, resize). Default
+ *            on every tab.
+ *   direct — outlined arrow. Acts on trace-overlay regions (click to
+ *            highlight). Only meaningful on the Trace tab.
+ *   hand   — pans the artboard view; never touches image or trace.
+ *   crop   — crops the image bounds. Only on Image tab.
+ *
+ * Default tool = object. Hand stays explicit user choice.
  */
 import { useCallback, useEffect, useMemo, useState } from "react"
 
 import type { ProjectCanvasStageHandle } from "@/features/editor"
 
-export type EditorTool = "select" | "hand" | "crop"
+export type EditorTool = "object" | "direct" | "hand" | "crop"
 
 export type FloatingToolbarActions = {
   zoomIn: () => void
@@ -46,9 +52,9 @@ export function useFloatingToolbarControls(opts: {
 }): FloatingToolbarControls {
   const { canvasRef, hasImage, masterImageLoading, imageStateLoading, enableShortcuts = false } = opts
 
-  const [tool, setTool] = useState<EditorTool>("hand")
+  const [tool, setTool] = useState<EditorTool>("object")
   const panEnabled = tool === "hand"
-  const imageDraggable = tool === "select"
+  const imageDraggable = tool === "object"
 
   const actionsDisabled = !hasImage || masterImageLoading || imageStateLoading
 
@@ -66,7 +72,12 @@ export function useFloatingToolbarControls(opts: {
       const k = e.key.toLowerCase()
       if (k === "v") {
         e.preventDefault()
-        setTool("select")
+        setTool("object")
+        return
+      }
+      if (k === "a") {
+        e.preventDefault()
+        setTool("direct")
         return
       }
       if (k === "h") {
@@ -113,4 +124,3 @@ export function useFloatingToolbarControls(opts: {
     [actions, actionsDisabled, imageDraggable, panEnabled, tool]
   )
 }
-

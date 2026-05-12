@@ -297,6 +297,7 @@ export function ProjectDetailPageClient({
   const { toolbar, stageToolbar, applyCropSelection } = useStageInteractionPolicy({
     canvasRef,
     canvasMode,
+    leftPanelTab,
     imageStateLoading,
     sourceReady: editorImageSource.status === "ready",
     selectedNavId,
@@ -335,7 +336,7 @@ export function ProjectDetailPageClient({
     workflow.dismissError()
     workflow.restore()
     setRestoreOpen(false)
-    toolbar.setTool("select")
+    toolbar.setTool("object")
   }, [setRestoreOpen, toolbar, workflow])
 
   // Arrow-key nudge handler. Reads current image transform off the
@@ -570,6 +571,7 @@ export function ProjectDetailPageClient({
               artboardDpi={workspaceDpi ?? undefined}
               grid={grid}
               traceOverlaySvgUrl={traceOverlaySvgUrl}
+              traceInteractive={leftPanelTab === "trace" && stageToolbar.tool === "direct"}
               handleImageTransformChange={handleImageTransformChange}
               initialImageTransform={initialImageTransform}
               saveImageState={saveImageStateBound}
