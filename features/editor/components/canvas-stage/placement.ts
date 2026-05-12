@@ -30,17 +30,30 @@ export function pickIntrinsicSize(args: {
 
 export function shouldApplyPersistedTransform(args: {
   src: string | undefined
+  // Kept for API stability; the appliedKey check used to live here and
+  // would block the default→persisted upgrade race documented below.
   appliedKey: string | null
   userChanged: boolean
   activeImageId?: string | null
   stateImageId?: string | null
   initialImageTransform: { widthPxU?: bigint; heightPxU?: bigint } | null | undefined
 }): boolean {
-  const { src, appliedKey, userChanged, activeImageId, stateImageId, initialImageTransform } = args
+  // No `appliedKey === src` short-circuit on purpose: the placement
+  // controller's first effect pass typically runs before the async
+  // `loadImageState` returns. At that point `initialImageTransform`
+  // is null and the controller schedules a default placement, which
+  // sets `appliedKey = src` immediately (synchronous side effect of
+  // `scheduleApply`). When the persisted state arrives a moment
+  // later and re-runs the effect, blocking on `appliedKey === src`
+  // would prevent the legitimate default→persisted upgrade and the
+  // user's saved size would never reach the canvas.
+  // `scheduleApply`'s sequence number already cancels the queued
+  // default microtask in favour of the persisted one, so it's safe
+  // to schedule a second time.
+  const { src, userChanged, activeImageId, stateImageId, initialImageTransform } = args
   if (!src) return false
   if (userChanged) return false
   if (!initialImageTransform) return false
   if (!activeImageId || !stateImageId || activeImageId !== stateImageId) return false
-  if (appliedKey === src) return false
   return Boolean(initialImageTransform.widthPxU && initialImageTransform.heightPxU)
 }

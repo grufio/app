@@ -184,4 +184,35 @@ describe("shouldApplyPersistedTransform", () => {
       })
     ).toBe(false)
   })
+
+  it("returns true even when a default placement was already scheduled for this src", () => {
+    // Race: the placement controller's first effect pass schedules a
+    // default placement before the async loadImageState completes.
+    // appliedKey === src at that point. When persisted state arrives,
+    // the controller must still be allowed to upgrade — otherwise the
+    // saved transform is silently dropped on every page load.
+    expect(
+      shouldApplyPersistedTransform({
+        src: "s",
+        appliedKey: "s",
+        userChanged: false,
+        activeImageId: "img-1",
+        stateImageId: "img-1",
+        initialImageTransform: { widthPxU: 1n, heightPxU: 1n },
+      })
+    ).toBe(true)
+  })
+
+  it("returns false when the user has already edited the canvas", () => {
+    expect(
+      shouldApplyPersistedTransform({
+        src: "s",
+        appliedKey: "s",
+        userChanged: true,
+        activeImageId: "img-1",
+        stateImageId: "img-1",
+        initialImageTransform: { widthPxU: 1n, heightPxU: 1n },
+      })
+    ).toBe(false)
+  })
 })
