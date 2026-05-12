@@ -453,7 +453,7 @@ export type Database = {
       }
     }
     Enums: {
-      image_kind: "master" | "working_copy" | "filter_working_copy"
+      image_kind: "master" | "working_copy" | "filter_working_copy" | "trace_output"
       measure_unit: "mm" | "cm" | "pt" | "px"
       project_status: "in_progress" | "completed" | "archived"
       workflow_step: "image" | "filter" | "convert" | "output"
@@ -584,7 +584,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      image_kind: ["master", "working_copy", "filter_working_copy"],
+      image_kind: ["master", "working_copy", "filter_working_copy", "trace_output"],
       measure_unit: ["mm", "cm", "pt", "px"],
       project_status: ["in_progress", "completed", "archived"],
       workflow_step: ["image", "filter", "convert", "output"],

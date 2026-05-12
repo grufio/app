@@ -1,8 +1,8 @@
+import type { ImageKind } from "@/lib/editor/image-kind"
+
 export type DeleteReason =
   | "no_active_image"
   | "master_immutable"
-
-export type ImageKind = "master" | "working_copy" | "filter_working_copy"
 
 export function evaluateDeleteTarget(args: {
   targetImageId: string | null

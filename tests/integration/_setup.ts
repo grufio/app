@@ -126,7 +126,7 @@ export async function seedProject(args: {
 export async function seedImage(args: {
   supabase: SupabaseClient<Database>
   projectId: string
-  kind: "master" | "working_copy" | "filter_working_copy"
+  kind: "master" | "working_copy" | "filter_working_copy" | "trace_output"
   sourceImageId?: string | null
   name?: string
 }): Promise<{ imageId: string }> {
