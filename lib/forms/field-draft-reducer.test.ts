@@ -135,6 +135,27 @@ describe("commit on Enter / blur", () => {
     const r = run(s, [{ type: "focus" }, { type: "blur" }])
     expect(r.state.isFocused).toBe(false)
   })
+
+  it("syncFromUpstream while focused updates state.value to match draft and silently suppresses the next blur-commit", () => {
+    // This locks the contract that broke ImageSizeInputs: the parent
+    // bound `value={draftW}` to FormField, then echoed the live draft
+    // back as upstream on every keystroke. syncFromUpstream-while-
+    // focused tracks the new value (line 78-80 of the reducer) so on
+    // blur draft === value → no commit. Surfaces of FormField that
+    // need a live partner-axis preview must NOT feed their local
+    // draft back into FormField's value prop — pass the prop-derived
+    // canonical display value instead.
+    const s = initialFieldDraftState("200")
+    const r = run(s, [
+      { type: "focus" },
+      { type: "setDraft", next: "300" },
+      { type: "syncFromUpstream", next: "300" }, // parent echo
+      { type: "blur" },
+    ])
+    expect(r.state.value).toBe("300")
+    expect(r.state.draft).toBe("300")
+    expect(r.effects.filter((e) => e.type === "commit")).toEqual([])
+  })
 })
 
 describe("Escape revert", () => {
