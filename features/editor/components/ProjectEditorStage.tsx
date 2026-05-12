@@ -181,7 +181,14 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
             cropEnabled={Boolean(masterImage) && Boolean(toolbar.cropEnabled)}
             cropBusy={Boolean(toolbar.cropBusy)}
             rotateEnabled={!Boolean(toolbar.rotateDisabled)}
-            mutationsEnabled={!Boolean(toolbar.selectDisabled || toolbar.cropDisabled || toolbar.rotateDisabled)}
+            // `mutationsEnabled` means "image is editable" — independent
+            // of tab. Crop and rotate features have their own per-tab
+            // flags (`cropEnabled` above, `rotateEnabled`). Coupling
+            // them into a master switch (pre-PR #128) blocked
+            // resize/position on Filter and Trace tabs, even though
+            // `project_image_state` is now project-wide (master.id anchor)
+            // and the user should be able to adjust transform on any tab.
+            mutationsEnabled={!Boolean(toolbar.selectDisabled)}
             artboardWidthPx={artboardWidthPx ?? undefined}
             artboardHeightPx={artboardHeightPx ?? undefined}
             artboardDpi={typeof artboardDpi === "number" && Number.isFinite(artboardDpi) ? artboardDpi : undefined}
