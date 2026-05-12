@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
 
 const VALID_UUID = "c104be01-d7b0-4af4-a446-8326cd47a282"
-const OTHER_UUID = "2f5d1b28-0d9c-4d04-b2c5-8f1f3f7df5b0"
+const MASTER_UUID = "2f5d1b28-0d9c-4d04-b2c5-8f1f3f7df5b0"
 
 function makeSupabaseStub(opts: {
   projectAccessible: boolean
@@ -48,7 +48,8 @@ type CapturedUpsert = { value: Record<string, unknown> | null }
 
 async function importRouteWithMocks(args: {
   supabase: unknown
-  targetImageId: string | null
+  /** Project's master.id, or null when the project has no master. */
+  masterId: string | null
   loadState?: { row: Record<string, unknown> | null; error: string | null; unsupported?: boolean }
   upsertOk?: boolean
   /** When provided, captures the row passed to `upsertBoundImageState`. */
@@ -69,11 +70,10 @@ async function importRouteWithMocks(args: {
   })
 
   vi.doMock("@/lib/supabase/project-images", () => ({
-    getEditorTargetImageRow: async () => ({
-      row: args.targetImageId ? { id: args.targetImageId } : null,
+    getProjectMasterImageId: async () => ({
+      masterId: args.masterId,
       error: null,
     }),
-    resolveImageStateRoleFromProjectImage: () => "master",
   }))
 
   vi.doMock("@/lib/supabase/image-state", () => ({
@@ -94,7 +94,7 @@ async function importRouteWithMocks(args: {
 describe("image-state route contract", () => {
   it("GET returns exists:false when no active image", async () => {
     const supabase = makeSupabaseStub({ projectAccessible: true, activeImageLocked: false })
-    const mod = await importRouteWithMocks({ supabase, targetImageId: null })
+    const mod = await importRouteWithMocks({ supabase, masterId: null })
 
     const res = await mod.GET(new Request("http://test.local"), { params: Promise.resolve({ projectId: VALID_UUID }) })
     expect(res.status).toBe(200)
@@ -104,7 +104,7 @@ describe("image-state route contract", () => {
 
   it("POST rejects invalid image_id", async () => {
     const supabase = makeSupabaseStub({ projectAccessible: true, activeImageLocked: false })
-    const mod = await importRouteWithMocks({ supabase, targetImageId: VALID_UUID })
+    const mod = await importRouteWithMocks({ supabase, masterId: MASTER_UUID })
 
     const res = await mod.POST(
       new Request("http://test.local", {
@@ -131,7 +131,7 @@ describe("image-state route contract", () => {
 
   it("POST blocks writes when active image is locked (409 lock_conflict)", async () => {
     const supabase = makeSupabaseStub({ projectAccessible: true, activeImageLocked: true })
-    const mod = await importRouteWithMocks({ supabase, targetImageId: VALID_UUID })
+    const mod = await importRouteWithMocks({ supabase, masterId: MASTER_UUID })
 
     const res = await mod.POST(
       new Request("http://test.local", {
@@ -160,7 +160,7 @@ describe("image-state route contract", () => {
     const captured: CapturedUpsert = { value: null }
     const mod = await importRouteWithMocks({
       supabase,
-      targetImageId: VALID_UUID,
+      masterId: MASTER_UUID,
       upsertOk: true,
       loadState: {
         row: {
@@ -204,7 +204,7 @@ describe("image-state route contract", () => {
     const captured: CapturedUpsert = { value: null }
     const mod = await importRouteWithMocks({
       supabase,
-      targetImageId: VALID_UUID,
+      masterId: MASTER_UUID,
       upsertOk: true,
       loadState: {
         row: {
@@ -247,7 +247,7 @@ describe("image-state route contract", () => {
     const captured: CapturedUpsert = { value: null }
     const mod = await importRouteWithMocks({
       supabase,
-      targetImageId: VALID_UUID,
+      masterId: MASTER_UUID,
       upsertOk: true,
       // loadState NOT provided — should not be needed.
       captureUpsert: captured,
@@ -277,7 +277,7 @@ describe("image-state route contract", () => {
 
   it("POST returns ok:true on success", async () => {
     const supabase = makeSupabaseStub({ projectAccessible: true, activeImageLocked: false })
-    const mod = await importRouteWithMocks({ supabase, targetImageId: VALID_UUID, upsertOk: true })
+    const mod = await importRouteWithMocks({ supabase, masterId: MASTER_UUID, upsertOk: true })
 
     const res = await mod.POST(
       new Request("http://test.local", {

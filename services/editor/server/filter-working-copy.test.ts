@@ -5,14 +5,9 @@ import { describe, it, expect, beforeEach, vi } from "vitest"
 
 import { makeMockSupabase } from "@/lib/supabase/__mocks__/make-mock-supabase"
 import { getFilterPanelData, getOrCreateFilterWorkingCopy } from "./filter-working-copy"
-import { copyImageTransform } from "./copy-image-transform"
 
 const { getEditorTargetImageRowMock } = vi.hoisted(() => ({
   getEditorTargetImageRowMock: vi.fn(),
-}))
-
-vi.mock("./copy-image-transform", () => ({
-  copyImageTransform: vi.fn(async () => ({ ok: true as const })),
 }))
 
 vi.mock("@/lib/supabase/project-images", () => ({
@@ -107,7 +102,6 @@ describe("getOrCreateFilterWorkingCopy", () => {
   }
 
   beforeEach(() => {
-    vi.mocked(copyImageTransform).mockClear()
     getEditorTargetImageRowMock.mockReset()
     getEditorTargetImageRowMock.mockResolvedValue({ row: activeImage, error: null })
   })
@@ -151,7 +145,6 @@ describe("getOrCreateFilterWorkingCopy", () => {
     }
     expect(setup.removedIds).toEqual([[duplicateId]])
     expect(setup.insertedRows).toHaveLength(0)
-    expect(copyImageTransform).toHaveBeenCalledTimes(1)
   })
 
   it("creates a new working copy when only outdated copies exist", async () => {
@@ -178,23 +171,6 @@ describe("getOrCreateFilterWorkingCopy", () => {
     if (result.ok) expect(result.sourceImageId).toBe(activeImageId)
     expect(setup.removedIds).toEqual([[outdatedId]])
     expect(setup.insertedRows).toHaveLength(1)
-    expect(copyImageTransform).toHaveBeenCalledTimes(1)
-  })
-
-  it("fails explicitly when transform copy fails", async () => {
-    vi.mocked(copyImageTransform).mockResolvedValueOnce({
-      ok: false,
-      reason: "Source image transform is missing",
-    })
-    const setup = makeSupabase({ copies: [] })
-
-    const result = await getOrCreateFilterWorkingCopy({ supabase: setup.supabase, projectId })
-
-    expect(result.ok).toBe(false)
-    if (!result.ok) {
-      expect(result.stage).toBe("transform_sync")
-      expect(result.reason).toContain("Source image transform is missing")
-    }
   })
 
   it("returns not found when no active image exists", async () => {

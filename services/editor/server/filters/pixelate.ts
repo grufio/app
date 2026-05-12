@@ -3,7 +3,6 @@ import crypto from "node:crypto"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/lib/supabase/database.types"
-import { copyImageTransform } from "@/services/editor/server/copy-image-transform"
 import { callFilterService, contentTypeFor, pickOutputFormat, startFilterProfiler, toInt, type FilterResult } from "./_helpers"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 import { pixelateSchema, type PixelateParams } from "@/lib/editor/filters/pixelate"
@@ -131,24 +130,7 @@ export async function pixelateImageAndActivate(args: {
       return { ok: false, status: 400, stage: "db_insert", reason: insertErr.message, code: insertErr.code }
     }
     profiler.mark("db_insert")
-
-    // Copy transform from source to filter image
-    const transformCopy = await copyImageTransform({
-      supabase,
-      projectId,
-      sourceImageId,
-      targetImageId: imageId,
-      sourceWidth: origWidth,
-      sourceHeight: origHeight,
-      targetWidth: origWidth,
-      targetHeight: origHeight,
-    })
-    if (!transformCopy.ok) {
-      await supabase.from("project_images").delete().eq("id", imageId)
-      await supabase.storage.from(PROJECT_IMAGES_BUCKET).remove([objectPath])
-      return { ok: false, status: 500, stage: "transform_sync", reason: transformCopy.reason }
-    }
-    profiler.mark("transform_copy")
+    // State is anchored at master.id; no per-output transform copy.
 
     profiler.report("pixelate", {
       python_phases: callResult.phases,

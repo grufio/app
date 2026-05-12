@@ -176,7 +176,7 @@ describe("master-image-upload service", () => {
         heightPx: 200,
       })
     )
-    expect(capture.stateUpserts).toBe(1)
+    expect(capture.stateUpserts).toBe(0)
     expect(capture.deletes).toBeGreaterThanOrEqual(1)
     expect(activateSpy).toHaveBeenCalledTimes(1)
   })
@@ -250,64 +250,9 @@ describe("master-image-upload service", () => {
     expect(removeSpy).toHaveBeenCalled()
   })
 
-  it("falls back to deterministic transform when source state is missing", async () => {
-    const capture = { inserts: [] as InsertPayload[], deletes: 0, stateUpserts: 0 }
-    const supabase = makeSupabase({
-      capture,
-      selectData: [],
-      stateRow: null,
-    })
-    uploadSpy.mockResolvedValue({ error: null })
-    removeSpy.mockResolvedValue({ error: null })
-    activateSpy.mockResolvedValueOnce({ ok: true })
-    const file = new File([new Uint8Array([1])], "x.png", { type: "image/png" })
-
-    const out = await uploadMasterImage({
-      supabase: supabase as never,
-      projectId: "p1",
-      file,
-      widthPx: 200,
-      heightPx: 100,
-      dpi: 72,
-      format: "png",
-    })
-
-    expect(out.ok).toBe(true)
-    expect(capture.inserts).toHaveLength(2)
-    expect(capture.stateUpserts).toBe(1)
-    expect(capture.deletes).toBe(0)
-  })
-
-  it("rolls back when transform upsert fails", async () => {
-    const capture = { inserts: [] as InsertPayload[], deletes: 0, stateUpserts: 0 }
-    const supabase = makeSupabase({
-      capture,
-      selectData: [],
-      upsertStateError: { message: "state upsert failed", code: "23514" },
-    })
-    uploadSpy.mockResolvedValue({ error: null })
-    removeSpy.mockResolvedValue({ error: null })
-    activateSpy.mockResolvedValueOnce({ ok: true })
-    const file = new File([new Uint8Array([1])], "x.png", { type: "image/png" })
-
-    const out = await uploadMasterImage({
-      supabase: supabase as never,
-      projectId: "p1",
-      file,
-      widthPx: 200,
-      heightPx: 100,
-      dpi: 72,
-      format: "png",
-    })
-
-    expect(out.ok).toBe(false)
-    if (!out.ok) {
-      expect(out.stage).toBe("transform_sync")
-      expect(out.reason).toContain("Failed to upsert target transform")
-    }
-    expect(capture.inserts).toHaveLength(2)
-    expect(capture.stateUpserts).toBe(1)
-    expect(capture.deletes).toBeGreaterThanOrEqual(2)
-    expect(removeSpy).toHaveBeenCalled()
-  })
+  // Pre-refactor: master upload seeded a project_image_state row for
+  // the working copy. After anchoring state at master.id, no pre-seed
+  // is needed — the editor's first placement creates the row on
+  // demand. Tests for the old "transform_sync" failure path were
+  // removed because copyImageTransform no longer runs in this flow.
 })

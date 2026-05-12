@@ -5,7 +5,6 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/lib/supabase/database.types"
 import { resolveEditorTargetImageRows } from "@/lib/supabase/project-images"
 import { SIGNED_URL_TTL } from "@/lib/storage/signed-url-ttl"
-import { copyImageTransform } from "@/services/editor/server/copy-image-transform"
 import { resetProjectFilterChain } from "@/services/editor/server/filter-chain-reset"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 
@@ -119,29 +118,13 @@ export async function getOrCreateFilterWorkingCopy(args: {
       }
     }
 
-    // Return existing copy with fresh signed URL
+    // Return existing copy with fresh signed URL. State doesn't need
+    // to be copied to the reused copy's id — project_image_state is
+    // anchored at master.id and the editor resolves there regardless
+    // of which filter surface is rendered.
     const { data: signedData } = await supabase.storage
       .from(String(reusableCopy.storage_bucket ?? PROJECT_IMAGES_BUCKET))
       .createSignedUrl(String(reusableCopy.storage_path), SIGNED_URL_TTL.filterWorkingCopy)
-
-    const transformSync = await copyImageTransform({
-      supabase,
-      projectId,
-      sourceImageId: activeImage.id,
-      targetImageId: reusableCopy.id,
-      sourceWidth: activeWidthPx,
-      sourceHeight: activeHeightPx,
-      targetWidth: reusableCopy.width_px,
-      targetHeight: reusableCopy.height_px,
-    })
-    if (!transformSync.ok) {
-      return {
-        ok: false,
-        status: 500,
-        stage: "transform_sync",
-        reason: transformSync.reason,
-      }
-    }
 
     return {
       ok: true,
@@ -244,32 +227,8 @@ export async function getOrCreateFilterWorkingCopy(args: {
     }
   }
 
-  const transformSync = await copyImageTransform({
-    supabase,
-    projectId,
-    sourceImageId: activeImage.id,
-    targetImageId: workingCopyId,
-    sourceWidth: activeWidthPx,
-    sourceHeight: activeHeightPx,
-    targetWidth: activeWidthPx,
-    targetHeight: activeHeightPx,
-  })
-  if (!transformSync.ok) {
-    const { error: softDeleteErr } = await supabase
-      .from("project_images")
-      .update({ deleted_at: new Date().toISOString() })
-      .eq("id", workingCopyId)
-    await supabase.storage.from(PROJECT_IMAGES_BUCKET).remove([objectPath])
-    const reason = softDeleteErr
-      ? `${transformSync.reason}; failed to tombstone working copy: ${softDeleteErr.message}`
-      : transformSync.reason
-    return {
-      ok: false,
-      status: 500,
-      stage: "transform_sync",
-      reason,
-    }
-  }
+  // State doesn't need to be copied — anchored at master.id; see
+  // route handler `app/api/projects/[projectId]/image-state/route.ts`.
 
   // Get signed URL for the new copy
   const { data: signedData } = await supabase.storage
