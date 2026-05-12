@@ -69,6 +69,22 @@ function rowSortTs(row: RawProjectImageRow): number {
   return 0
 }
 
+/**
+ * Resolve the editor's **display** image rows for a project.
+ *
+ * Returns two related rows:
+ * - `target`: the image the canvas should render. Prefers a
+ *   filter_working_copy (latest filter chain tip) over a plain
+ *   working_copy. Used as the visual source for filter/trace previews.
+ * - `preferredWorking`: the most recent plain working_copy, distinct
+ *   from any filter_working_copy. Used as the fallback restore base
+ *   when no filter chain has been applied.
+ *
+ * Important: state writes (`project_image_state`) do NOT use these
+ * ids — they go to `master.id` resolved via
+ * `getProjectMasterImageRow`. This function is exclusively about
+ * canvas-display source selection.
+ */
 export async function resolveEditorTargetImageRows(
   supabase: SupabaseClient,
   projectId: string
@@ -184,10 +200,22 @@ export type ProjectMasterImageRow = {
   is_locked: boolean
 }
 
-// Returns the project's master image row (id + lock flag) in a single
-// query. Used by the image-state route to combine the persistence-key
-// resolution with the lock-guard check — locking is anchored at the
-// master row, not at whichever filter surface the client renders.
+/**
+ * Returns the project's master image row (id + lock flag) in a single
+ * query.
+ *
+ * Used by the `image-state` route to combine the **persistence key
+ * resolution** with the **lock-guard check** — locking is anchored
+ * at the master row, not at whichever filter surface the client
+ * currently renders.
+ *
+ * Selection rule: oldest (`created_at ASC`) non-deleted row with
+ * `kind = 'master'`. Re-uploads create a new master and soft-delete
+ * the old one, so "oldest live master" is unambiguous.
+ *
+ * Returns `{ row: null, error: null }` when no master exists (empty
+ * editor / pre-upload).
+ */
 export async function getProjectMasterImageRow(
   supabase: SupabaseClient,
   projectId: string

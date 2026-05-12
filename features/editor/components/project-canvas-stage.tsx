@@ -85,12 +85,26 @@ type Props = {
     heightPxU: bigint
     rotationDeg: number
   }) => void
+  /** When true, the crop overlay is interactive (handles draggable,
+   * keyboard-resizable). Per-tab feature flag — independent of
+   * `mutationsEnabled`, since Crop is conceptually a separate
+   * editing mode from generic resize/position. */
   cropEnabled?: boolean
   onCropDblClick?: () => void
   cropBusy?: boolean
-  /** Global guard for rotate mutations (e.g. locked image). */
+  /** Per-tab gate for the rotate handle / rotate button. Does NOT
+   * gate transform persistence — rotation can still be applied
+   * programmatically (e.g. by restore-image flow). */
   rotateEnabled?: boolean
-  /** Global guard for all image mutations (resize/align/restore/rotate). */
+  /** Master gate for **user-driven** mutations: drag, resize handles,
+   * align-image action, restore-image action. Distinct from per-feature
+   * flags (`cropEnabled`, `rotateEnabled`): those gate specific tools,
+   * `mutationsEnabled` gates the baseline "this image can be edited"
+   * capability. After PR #128/#129 this is **independent of the
+   * active tab** — Filter, Trace, Image all allow mutations because
+   * `project_image_state` is anchored at master.id (project-wide).
+   * Driven from `selectDisabled` in the toolbar — locks during
+   * filter-apply / crop-busy windows. */
   mutationsEnabled?: boolean
   /** Clip image/overlays to artboard bounds. */
   clipToArtboard?: boolean

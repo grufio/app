@@ -21,10 +21,27 @@ export type ImageStateSaveLike = {
   rotationDeg: number
 }
 
+/**
+ * Serialize an in-memory transform into the wire body of the
+ * image-state route POST.
+ *
+ * Semantics:
+ * - `width_px_u`, `height_px_u` are required and **clamped** to the
+ *   editor bounds (`MIN_PX_U`..`MAX_PX_U`). Rounding happens **once**
+ *   at user-input parse / bake-in, not here — see
+ *   `docs/specs/sizing-invariants.mdx`.
+ * - `x_px_u`, `y_px_u` are optional. **Omitting** an axis (returning
+ *   `undefined`) tells the server route to **preserve** the existing
+ *   axis value (per-axis preservation pattern). This is intentional
+ *   for partial commits like setImagePosition({xPxU}).
+ * - `rotation_deg` is always emitted.
+ *
+ * Implementation note: the falsy-truthy check on `t.xPxU` would drop
+ * a literal `0n` value (BigInt zero is falsy). In practice, canvas
+ * coordinates in µpx are never 0n for valid placements — the artboard
+ * centre is hundreds of millions of µpx — so this edge is academic.
+ */
 export function toSaveImageStateBody(t: ImageStateSaveLike): SaveImageStateBody {
-  // Save/persist must never apply another rounding pass.
-  // Only clamp defensively; rounding is done at bake-in / unit input conversion.
-  // See docs/specs/sizing-invariants.mdx
   return {
     x_px_u: t.xPxU ? t.xPxU.toString() : undefined,
     y_px_u: t.yPxU ? t.yPxU.toString() : undefined,

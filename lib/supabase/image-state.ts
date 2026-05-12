@@ -2,8 +2,17 @@
  * Image-state repository helpers.
  *
  * Responsibilities:
- * - Load persisted master transform state bound to a specific active image id.
- * - Enforce the canonical µpx invariant (`width_px_u` / `height_px_u` must exist).
+ * - Load/upsert the persisted transform row for a project.
+ * - Enforce the canonical µpx invariant (`width_px_u` / `height_px_u`
+ *   must exist; a row without them is reported as `unsupported`).
+ *
+ * Anchor invariant (post PR #124): every state row's `image_id` is
+ * the project's `master.id`. Callers should resolve master.id via
+ * `getProjectMasterImageRow` (lib/supabase/project-images.ts) before
+ * invoking these helpers. The `activeImageId` / `image_id` parameters
+ * are kept generic here so callers retain control, but the route
+ * handler in `app/api/projects/[projectId]/image-state/route.ts`
+ * always passes master.id.
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
 
@@ -31,6 +40,20 @@ export type BoundImageStateUpsert = {
   rotation_deg: number
 }
 
+/**
+ * Reads the transform row at `(projectId, activeImageId)`.
+ *
+ * Returns `{ row: null, error: null, unsupported: false }` when:
+ * - `activeImageId` is null (short-circuit, no query fired)
+ * - No row exists at that key
+ *
+ * Returns `{ row: null, error: null, unsupported: true }` when a row
+ * exists but is missing canonical µpx dimensions — surfaces the
+ * schema-drift detection to the caller without coercing defaults.
+ *
+ * Returns `{ row: null, error: <message>, unsupported: false }` on DB
+ * errors. Caller is responsible for surfacing the message.
+ */
 export async function loadBoundImageState(
   supabase: SupabaseClient,
   projectId: string,
@@ -66,6 +89,17 @@ export async function loadBoundImageState(
   }
 }
 
+/**
+ * Writes (insert-or-update) the transform row keyed by
+ * `(project_id, image_id)`. The row is always fully replaced; per-
+ * axis preservation is the caller's responsibility (the route handler
+ * reads the existing row, merges omitted axes, then passes a complete
+ * row here).
+ *
+ * The `image_id` field must be the project's master.id post PR #124.
+ * No assertion at this layer — caller (the route handler) resolves
+ * master.id via `getProjectMasterImageRow` before invoking.
+ */
 export async function upsertBoundImageState(
   supabase: SupabaseClient,
   row: BoundImageStateUpsert

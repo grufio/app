@@ -21,6 +21,18 @@ import { validateIncomingImageStateUpsert, type IncomingImageStatePayload } from
 
 export const dynamic = "force-dynamic"
 
+/**
+ * GET /api/projects/[projectId]/image-state
+ *
+ * Returns the project's persisted transform.
+ * - `{ exists: false, state: null }` when the project has no master
+ *   image (empty editor / pre-upload).
+ * - `{ exists: true, state: ImageStateRow }` when a row exists for
+ *   master.id.
+ *
+ * No query parameters: the persistence key is always master.id,
+ * resolved server-side via `getProjectMasterImageRow`.
+ */
 export async function GET(_req: Request, { params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params
   if (!isUuid(String(projectId))) {
@@ -46,6 +58,23 @@ export async function GET(_req: Request, { params }: { params: Promise<{ project
   return NextResponse.json({ exists: Boolean(data), state: data ?? null })
 }
 
+/**
+ * POST /api/projects/[projectId]/image-state
+ *
+ * Body shape (validated by `validateIncomingImageStateUpsert`):
+ *   `{ x_px_u?, y_px_u?, width_px_u, height_px_u, rotation_deg }`
+ *
+ * Omitted axes (`x_px_u` / `y_px_u` left out) trigger per-axis
+ * preservation: the route reads the current row and merges the
+ * unchanged axis from there. Width / height / rotation are always
+ * required.
+ *
+ * Legacy `image_id` and `role` body fields are accepted and ignored
+ * (deploy-window backward compat — see `validate.ts`).
+ *
+ * Lock-guard: blocks the write with `409 lock_conflict` if the
+ * master row has `is_locked = true`.
+ */
 export async function POST(req: Request, { params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params
   if (!isUuid(String(projectId))) {
