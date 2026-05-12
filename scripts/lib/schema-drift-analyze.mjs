@@ -72,9 +72,33 @@ export function analyzeDrift(committed, fresh) {
     unexplainedFresh.push(line)
   }
 
-  if (unexplainedFresh.length === 0) {
-    return { kind: "pending_redefinition", freshOnly, committedOnly, unexplainedFresh }
+  // Trailing-comma equivalence: pg_dump renders list syntax (ENUM
+  // values, CHECK value lists, ARRAY constructors) with N-1 commas
+  // and one trailing-comma-free last entry. Appending a new item
+  // flips the previously-last item's trailing comma — a positional
+  // artefact, not a semantic change. Pair any freshOnly line with a
+  // committedOnly line whose content matches after stripping a
+  // trailing `,`.
+  const committedOnlyByTrim = new Map()
+  for (const line of committedOnly) {
+    const trimmed = line.replace(/,\s*$/, "")
+    if (!committedOnlyByTrim.has(trimmed)) committedOnlyByTrim.set(trimmed, [])
+    committedOnlyByTrim.get(trimmed).push(line)
+  }
+  const stillUnexplained = []
+  for (const line of unexplainedFresh) {
+    const trimmed = line.replace(/,\s*$/, "")
+    const bucket = committedOnlyByTrim.get(trimmed)
+    if (bucket && bucket.length > 0) {
+      bucket.shift()
+      continue
+    }
+    stillUnexplained.push(line)
   }
 
-  return { kind: "drift", freshOnly, committedOnly, unexplainedFresh }
+  if (stillUnexplained.length === 0) {
+    return { kind: "pending_redefinition", freshOnly, committedOnly, unexplainedFresh: stillUnexplained }
+  }
+
+  return { kind: "drift", freshOnly, committedOnly, unexplainedFresh: stillUnexplained }
 }

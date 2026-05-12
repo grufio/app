@@ -45,6 +45,23 @@ describe("analyzeDrift", () => {
     const committed = `ALTER TABLE "public"."t" ALTER COLUMN "x" DROP NOT NULL;`
     expect(analyzeDrift(committed, fresh).kind).toBe("drift")
   })
+
+  it("softens enum-value addition: pg_dump flips the previously-last trailing comma", () => {
+    const fresh = [
+      `CREATE TYPE "public"."x_kind" AS ENUM (`,
+      `    'a',`,
+      `    'b'`,
+      `);`,
+    ].join("\n")
+    const committed = [
+      `CREATE TYPE "public"."x_kind" AS ENUM (`,
+      `    'a',`,
+      `    'b',`,
+      `    'c'`,
+      `);`,
+    ].join("\n")
+    expect(analyzeDrift(committed, fresh).kind).toBe("pending_redefinition")
+  })
 })
 
 describe("stableIdentity", () => {
