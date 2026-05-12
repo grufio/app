@@ -211,12 +211,12 @@ describe("lock guard route contracts", () => {
     expect(body.stage).toBe("lock_query")
   })
 
-  it("image-state route returns lock_conflict 409 when active image is locked", async () => {
+  it("image-state route returns lock_conflict 409 when the master image is locked", async () => {
     vi.resetModules()
     upsertBoundImageStateMock.mockReset()
 
     vi.doMock("@/lib/supabase/project-images", () => ({
-      getEditorTargetImageRow: async () => ({ row: { id: ACTIVE_IMAGE_UUID }, error: null }),
+      getProjectMasterImageRow: async () => ({ row: { id: ACTIVE_IMAGE_UUID, is_locked: true }, error: null }),
     }))
     vi.doMock("@/lib/supabase/image-state", () => ({
       loadBoundImageState: vi.fn(),
@@ -224,8 +224,6 @@ describe("lock guard route contracts", () => {
     }))
     vi.doMock("@/lib/editor/imageState", () => ({
       validateIncomingImageStateUpsert: vi.fn(() => ({
-        role: "master",
-        image_id: ACTIVE_IMAGE_UUID,
         x_px_u: "0",
         y_px_u: "0",
         width_px_u: "1000000",

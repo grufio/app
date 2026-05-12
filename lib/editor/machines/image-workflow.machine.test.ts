@@ -113,7 +113,6 @@ describe("createImageWorkflowMachine", () => {
     await waitFor(actor, (s) => s.matches({ persistence: "idle" }))
     expect(services.saveTransform).toHaveBeenCalledTimes(2)
     expect(services.saveTransform).toHaveBeenLastCalledWith({
-      imageId: "img_1",
       transform: { widthPxU: 1002n, heightPxU: 802n, rotationDeg: 2 },
     })
   })

@@ -7,7 +7,6 @@ import { numberToMicroPx } from "@/lib/editor/konva"
 import { computeDpiRelativePlacementPx, pickIntrinsicSize, shouldApplyPersistedTransform } from "./placement"
 
 type PersistedTransform = {
-  imageId?: string
   xPxU?: bigint
   yPxU?: bigint
   widthPxU?: bigint
@@ -68,10 +67,8 @@ export function useInitialImagePlacement(args: {
     if (
       shouldApplyPersistedTransform({
         src,
-        appliedKey: stateSyncGuardRef.current.getAppliedKey(),
         userChanged: stateSyncGuardRef.current.hasUserChanged(),
         activeImageId,
-        stateImageId: initialImageTransform?.imageId,
         initialImageTransform,
       })
     ) {

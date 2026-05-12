@@ -49,6 +49,7 @@ export const ColorVariant = React.forwardRef<
       cancelPendingCommit: () => {
         cancelPendingRef.current = true
       },
+      setDraft: (next: string) => setDraft(next),
     }),
     [commit]
   )

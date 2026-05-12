@@ -28,7 +28,7 @@ export type ImageWorkflowServices = {
   applyCrop: (args: { sourceImageId: string; rect: { x: number; y: number; w: number; h: number } }) => Promise<void>
   restoreBase: () => Promise<void>
   refreshAll: () => Promise<void>
-  saveTransform: (args: { imageId: string; transform: WorkflowTransformPayload }) => Promise<void>
+  saveTransform: (args: { transform: WorkflowTransformPayload }) => Promise<void>
 }
 
 export type ImageWorkflowContext = {

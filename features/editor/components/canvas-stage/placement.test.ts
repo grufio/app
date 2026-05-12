@@ -133,14 +133,12 @@ describe("computeDpiRelativePlacementPx", () => {
 })
 
 describe("shouldApplyPersistedTransform", () => {
-  it("requires src, not already applied, not user-changed, and persisted size present", () => {
+  it("applies persisted transform when src + activeImageId + size are all present", () => {
     expect(
       shouldApplyPersistedTransform({
         src: "s",
-        appliedKey: null,
         userChanged: false,
         activeImageId: "img-1",
-        stateImageId: "img-1",
         initialImageTransform: { widthPxU: 1n, heightPxU: 1n },
       })
     ).toBe(true)
@@ -150,42 +148,53 @@ describe("shouldApplyPersistedTransform", () => {
     expect(
       shouldApplyPersistedTransform({
         src: "s",
-        appliedKey: null,
         userChanged: false,
         activeImageId: "img-1",
-        stateImageId: "img-1",
         initialImageTransform: { widthPxU: undefined, heightPxU: 1n },
       })
     ).toBe(false)
   })
 
-  it("applies state regardless of stateImageId — state is anchored at master.id, canvas at filter-base-copy.id (PR #124)", () => {
-    // Pre-PR #124 this returned false (image_id mismatch). After the
-    // master.id anchor the state row's image_id never matches the
-    // canvas activeImageId; the equality check was structurally
-    // wrong on every page open. State now applies to whichever
-    // surface the canvas renders.
+  it("returns false when src is missing", () => {
+    expect(
+      shouldApplyPersistedTransform({
+        src: undefined,
+        userChanged: false,
+        activeImageId: "img-1",
+        initialImageTransform: { widthPxU: 1n, heightPxU: 1n },
+      })
+    ).toBe(false)
+  })
+
+  it("returns false when the user has already edited the canvas", () => {
     expect(
       shouldApplyPersistedTransform({
         src: "s",
-        appliedKey: null,
-        userChanged: false,
-        activeImageId: "filter-base-copy-id",
-        stateImageId: "master-id",
+        userChanged: true,
+        activeImageId: "img-1",
         initialImageTransform: { widthPxU: 1n, heightPxU: 1n },
       })
-    ).toBe(true)
+    ).toBe(false)
   })
 
   it("returns false when canvas has no activeImageId", () => {
     expect(
       shouldApplyPersistedTransform({
         src: "s",
-        appliedKey: null,
         userChanged: false,
         activeImageId: null,
-        stateImageId: null,
         initialImageTransform: { widthPxU: 1n, heightPxU: 1n },
+      })
+    ).toBe(false)
+  })
+
+  it("returns false when initialImageTransform is null", () => {
+    expect(
+      shouldApplyPersistedTransform({
+        src: "s",
+        userChanged: false,
+        activeImageId: "img-1",
+        initialImageTransform: null,
       })
     ).toBe(false)
   })

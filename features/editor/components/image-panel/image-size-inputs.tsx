@@ -3,27 +3,30 @@
 /**
  * Image width / height inputs with optional aspect-ratio lock.
  *
- * Phase 3.4 of the form-fields unification — the most complex caller
- * because of the aspect-lock + lock-button-cancel interaction. The
- * old version had ~120 lines of draft / dirty / ignoreNextBlur
- * mechanics; FormField + its imperative `cancelPendingCommit`
- * handle replace it cleanly.
- *
  * Lifecycle:
  *  - Each FormField has its own internal draft (commit on blur/Enter).
+ *    `value` is bound to the prop-derived display (`computedW` /
+ *    `computedH`) — NEVER to a parent draft state, because feeding a
+ *    parent's draft back into FormField's `value` while the input is
+ *    focused creates an echo-loop where the reducer marks
+ *    `state.value === state.draft` and the blur step silently
+ *    skips commit. See `lib/forms/field-draft-reducer.test.ts` for
+ *    the regression test that locks that contract.
  *  - When aspect-lock is ON, `onDraftChange` from one field computes
- *    the locked partner dimension and updates the partner's local
- *    draft state, which the partner FormField syncs into its own
- *    internal draft (since it isn't focused).
- *  - On commit, we compute the canonical bigint µpx pair from the
- *    LATEST drafts of *both* axes (read from local state) and call
- *    onCommit with both.
- *  - The lock button click cancels the pending blur-commit on both
+ *    the locked partner dimension. The partner FormField's internal
+ *    draft is updated **imperatively** via `partnerRef.current.setDraft`
+ *    (no parent state involved). `latestDraft*Ref` mirrors the typed
+ *    values so `commitFromDrafts` can read both axes without a re-
+ *    render dependency.
+ *  - On commit, we compute the canonical bigint µpx pair from
+ *    `latestDraft*Ref` (which holds either the user's typing or the
+ *    aspect-lock-derived partner) and call `onCommit` with both.
+ *  - The lock-button click cancels pending blur-commits on both
  *    fields via the imperative ref, so toggling the lock doesn't
  *    accidentally save a stale in-flight draft.
  */
 import { ArrowLeftRight, ArrowUpDown, Link2, Unlink2 } from "lucide-react"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef } from "react"
 
 import { FormField, type FormFieldHandle } from "@/components/ui/form-controls"
 import { PanelIconSlot, PanelTwoFieldRow } from "../panel-layout"
@@ -64,21 +67,22 @@ export function ImageSizeInputs({
     return pxUToUnitDisplayUiFixed(heightPxU, unit)
   }, [heightPxU, ready, unit])
 
-  const [draftW, setDraftW] = useState(computedW)
-  const [draftH, setDraftH] = useState(computedH)
   const [lockAspect, setLockAspect] = useLocalStorageBoolean("editor:lock-aspect", false)
   const lockRatioRef = useRef<{ w: bigint; h: bigint } | null>(null)
   const widthRef = useRef<FormFieldHandle>(null)
   const heightRef = useRef<FormFieldHandle>(null)
 
-  // Sync local drafts to upstream when upstream changes. FormField's
-  // own draft has the same logic; we mirror it here so the cross-axis
-  // partner lookups in onDraftChange always see fresh values.
+  // Refs hold the latest typed values for each axis. Updated by
+  // `onDraftChange` (user typing) and by aspect-lock cross-axis push.
+  // No useState — passing parent state back to FormField's `value`
+  // creates the echo-loop documented above.
+  const latestDraftW = useRef(computedW)
+  const latestDraftH = useRef(computedH)
   useEffect(() => {
-    setDraftW(computedW)
+    latestDraftW.current = computedW
   }, [computedW])
   useEffect(() => {
-    setDraftH(computedH)
+    latestDraftH.current = computedH
   }, [computedH])
 
   const commitFromDrafts = useCallback(
@@ -98,7 +102,7 @@ export function ImageSizeInputs({
 
   const onDraftW = useCallback(
     (next: string) => {
-      setDraftW(next)
+      latestDraftW.current = next
       if (!lockAspect) return
       const r = lockRatioRef.current ?? computeLockedAspectRatioFromCurrentSize({ widthPxU, heightPxU })
       if (!r) return
@@ -109,14 +113,15 @@ export function ImageSizeInputs({
         ratio: { wPxU: r.w, hPxU: r.h },
       })
       if (!out) return
-      setDraftH(out.nextHeightDisplay)
+      latestDraftH.current = out.nextHeightDisplay
+      heightRef.current?.setDraft(out.nextHeightDisplay)
     },
     [lockAspect, unit, widthPxU, heightPxU]
   )
 
   const onDraftH = useCallback(
     (next: string) => {
-      setDraftH(next)
+      latestDraftH.current = next
       if (!lockAspect) return
       const r = lockRatioRef.current ?? computeLockedAspectRatioFromCurrentSize({ widthPxU, heightPxU })
       if (!r) return
@@ -127,25 +132,26 @@ export function ImageSizeInputs({
         ratio: { wPxU: r.w, hPxU: r.h },
       })
       if (!out) return
-      setDraftW(out.nextWidthDisplay)
+      latestDraftW.current = out.nextWidthDisplay
+      widthRef.current?.setDraft(out.nextWidthDisplay)
     },
     [lockAspect, unit, widthPxU, heightPxU]
   )
 
   const onCommitW = useCallback(
     (nextW: string) => {
-      setDraftW(nextW)
-      commitFromDrafts(nextW, draftH)
+      latestDraftW.current = nextW
+      commitFromDrafts(nextW, latestDraftH.current)
     },
-    [commitFromDrafts, draftH]
+    [commitFromDrafts]
   )
 
   const onCommitH = useCallback(
     (nextH: string) => {
-      setDraftH(nextH)
-      commitFromDrafts(draftW, nextH)
+      latestDraftH.current = nextH
+      commitFromDrafts(latestDraftW.current, nextH)
     },
-    [commitFromDrafts, draftW]
+    [commitFromDrafts]
   )
 
   const cancelPendingCommits = useCallback(() => {
@@ -155,22 +161,6 @@ export function ImageSizeInputs({
 
   return (
     <PanelTwoFieldRow>
-      {/*
-        `value` must be the prop-derived display (`computedW` / `computedH`),
-        NOT the parent's local `draftW` / `draftH`. Feeding the parent's
-        draft back to FormField while the input is focused causes the
-        FormField's reducer to mark `state.value = state.draft` on every
-        keystroke (syncFromUpstream-while-focused). On blur the reducer
-        then sees `draft === value` and skips the commit — the user's
-        typed value never reaches `onCommit`. Position inputs don't have
-        this loop because they have no parent draft state. Aspect-lock
-        cross-axis logic still uses `draftW` / `draftH` in
-        `commitFromDrafts`; the parent-state still updates on
-        `onDraftChange`, just no longer feeds back into FormField's
-        value prop. Aspect-lock partner live-preview during typing is
-        a known regression — the partner field updates at commit time
-        only.
-      */}
       <FormField
         ref={widthRef}
         variant="numeric"

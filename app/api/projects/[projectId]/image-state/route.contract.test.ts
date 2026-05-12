@@ -5,7 +5,6 @@ const MASTER_UUID = "2f5d1b28-0d9c-4d04-b2c5-8f1f3f7df5b0"
 
 function makeSupabaseStub(opts: {
   projectAccessible: boolean
-  activeImageLocked: boolean
 }) {
   return {
     from: (table: string) => {
@@ -21,24 +20,6 @@ function makeSupabaseStub(opts: {
           }),
         }
       }
-
-      if (table === "project_images") {
-        return {
-          select: () => ({
-            eq: () => ({
-              eq: () => ({
-                is: () => ({
-                  maybeSingle: async () => ({
-                    data: { id: "any-image", is_locked: opts.activeImageLocked },
-                    error: null,
-                  }),
-                }),
-              }),
-            }),
-          }),
-        }
-      }
-
       throw new Error(`unexpected table: ${table}`)
     },
   } as unknown
@@ -48,8 +29,8 @@ type CapturedUpsert = { value: Record<string, unknown> | null }
 
 async function importRouteWithMocks(args: {
   supabase: unknown
-  /** Project's master.id, or null when the project has no master. */
-  masterId: string | null
+  /** Project's master row (id + is_locked), or null when the project has no master. */
+  master: { id: string; is_locked: boolean } | null
   loadState?: { row: Record<string, unknown> | null; error: string | null; unsupported?: boolean }
   upsertOk?: boolean
   /** When provided, captures the row passed to `upsertBoundImageState`. */
@@ -70,8 +51,8 @@ async function importRouteWithMocks(args: {
   })
 
   vi.doMock("@/lib/supabase/project-images", () => ({
-    getProjectMasterImageId: async () => ({
-      masterId: args.masterId,
+    getProjectMasterImageRow: async () => ({
+      row: args.master,
       error: null,
     }),
   }))
@@ -92,9 +73,9 @@ async function importRouteWithMocks(args: {
 }
 
 describe("image-state route contract", () => {
-  it("GET returns exists:false when no active image", async () => {
-    const supabase = makeSupabaseStub({ projectAccessible: true, activeImageLocked: false })
-    const mod = await importRouteWithMocks({ supabase, masterId: null })
+  it("GET returns exists:false when the project has no master", async () => {
+    const supabase = makeSupabaseStub({ projectAccessible: true })
+    const mod = await importRouteWithMocks({ supabase, master: null })
 
     const res = await mod.GET(new Request("http://test.local"), { params: Promise.resolve({ projectId: VALID_UUID }) })
     expect(res.status).toBe(200)
@@ -102,21 +83,16 @@ describe("image-state route contract", () => {
     expect(body).toEqual({ exists: false, state: null })
   })
 
-  it("POST rejects invalid image_id", async () => {
-    const supabase = makeSupabaseStub({ projectAccessible: true, activeImageLocked: false })
-    const mod = await importRouteWithMocks({ supabase, masterId: MASTER_UUID })
+  it("POST rejects payload missing required transform fields", async () => {
+    const supabase = makeSupabaseStub({ projectAccessible: true })
+    const mod = await importRouteWithMocks({ supabase, master: { id: MASTER_UUID, is_locked: false } })
 
     const res = await mod.POST(
       new Request("http://test.local", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          image_id: "nope",
-          role: "master",
-          x_px_u: "0",
-          y_px_u: "0",
-          width_px_u: "1000000",
-          height_px_u: "1000000",
+          // width_px_u / height_px_u missing
           rotation_deg: 0,
         }),
       }),
@@ -126,20 +102,17 @@ describe("image-state route contract", () => {
     expect(res.status).toBe(400)
     const body = await res.json()
     expect(body.stage).toBe("validation")
-    expect(body.where).toBe("image_id")
   })
 
-  it("POST blocks writes when active image is locked (409 lock_conflict)", async () => {
-    const supabase = makeSupabaseStub({ projectAccessible: true, activeImageLocked: true })
-    const mod = await importRouteWithMocks({ supabase, masterId: MASTER_UUID })
+  it("POST blocks writes when the master row is locked (409 lock_conflict)", async () => {
+    const supabase = makeSupabaseStub({ projectAccessible: true })
+    const mod = await importRouteWithMocks({ supabase, master: { id: MASTER_UUID, is_locked: true } })
 
     const res = await mod.POST(
       new Request("http://test.local", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          image_id: VALID_UUID,
-          role: "master",
           x_px_u: "0",
           y_px_u: "0",
           width_px_u: "1000000",
@@ -155,16 +128,74 @@ describe("image-state route contract", () => {
     expect(body.stage).toBe("lock_conflict")
   })
 
-  it("POST with partial payload (x omitted) reads existing row and preserves x in upsert", async () => {
-    const supabase = makeSupabaseStub({ projectAccessible: true, activeImageLocked: false })
+  it("POST returns no_master_image when the project has no master row", async () => {
+    const supabase = makeSupabaseStub({ projectAccessible: true })
+    const mod = await importRouteWithMocks({ supabase, master: null })
+
+    const res = await mod.POST(
+      new Request("http://test.local", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          x_px_u: "0",
+          y_px_u: "0",
+          width_px_u: "1000000",
+          height_px_u: "1000000",
+          rotation_deg: 0,
+        }),
+      }),
+      { params: Promise.resolve({ projectId: VALID_UUID }) }
+    )
+
+    expect(res.status).toBe(409)
+    const body = await res.json()
+    expect(body.stage).toBe("no_master_image")
+  })
+
+  it("POST anchors the upsert at master.id (not at any body-level image id)", async () => {
+    const supabase = makeSupabaseStub({ projectAccessible: true })
     const captured: CapturedUpsert = { value: null }
     const mod = await importRouteWithMocks({
       supabase,
-      masterId: MASTER_UUID,
+      master: { id: MASTER_UUID, is_locked: false },
+      upsertOk: true,
+      captureUpsert: captured,
+    })
+
+    const res = await mod.POST(
+      new Request("http://test.local", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          // Deploy-window compat: old clients send these, the server ignores them.
+          image_id: "old-client-image-id",
+          role: "master",
+          x_px_u: "555555",
+          y_px_u: "666666",
+          width_px_u: "1000000",
+          height_px_u: "1000000",
+          rotation_deg: 0,
+        }),
+      }),
+      { params: Promise.resolve({ projectId: VALID_UUID }) }
+    )
+
+    expect(res.status).toBe(200)
+    expect(captured.value?.image_id).toBe(MASTER_UUID)
+    expect(captured.value?.x_px_u).toBe("555555")
+    expect(captured.value?.y_px_u).toBe("666666")
+  })
+
+  it("POST with partial payload (x omitted) reads existing row and preserves x in upsert", async () => {
+    const supabase = makeSupabaseStub({ projectAccessible: true })
+    const captured: CapturedUpsert = { value: null }
+    const mod = await importRouteWithMocks({
+      supabase,
+      master: { id: MASTER_UUID, is_locked: false },
       upsertOk: true,
       loadState: {
         row: {
-          image_id: VALID_UUID,
+          image_id: MASTER_UUID,
           x_px_u: "111111",
           y_px_u: "222222",
           width_px_u: "1000000",
@@ -181,8 +212,6 @@ describe("image-state route contract", () => {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          image_id: VALID_UUID,
-          role: "master",
           // x_px_u omitted — should be preserved from existing row.
           y_px_u: "999999",
           width_px_u: "1000000",
@@ -199,55 +228,12 @@ describe("image-state route contract", () => {
     expect(captured.value?.y_px_u).toBe("999999") // updated
   })
 
-  it("POST with partial payload (y omitted) reads existing row and preserves y in upsert", async () => {
-    const supabase = makeSupabaseStub({ projectAccessible: true, activeImageLocked: false })
-    const captured: CapturedUpsert = { value: null }
-    const mod = await importRouteWithMocks({
-      supabase,
-      masterId: MASTER_UUID,
-      upsertOk: true,
-      loadState: {
-        row: {
-          image_id: VALID_UUID,
-          x_px_u: "111111",
-          y_px_u: "222222",
-          width_px_u: "1000000",
-          height_px_u: "1000000",
-          rotation_deg: 0,
-        },
-        error: null,
-      },
-      captureUpsert: captured,
-    })
-
-    const res = await mod.POST(
-      new Request("http://test.local", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          image_id: VALID_UUID,
-          role: "master",
-          x_px_u: "888888",
-          // y_px_u omitted.
-          width_px_u: "1000000",
-          height_px_u: "1000000",
-          rotation_deg: 0,
-        }),
-      }),
-      { params: Promise.resolve({ projectId: VALID_UUID }) }
-    )
-
-    expect(res.status).toBe(200)
-    expect(captured.value?.x_px_u).toBe("888888") // updated
-    expect(captured.value?.y_px_u).toBe("222222") // preserved
-  })
-
   it("POST with full payload skips the read-merge (no existing-row dependency)", async () => {
-    const supabase = makeSupabaseStub({ projectAccessible: true, activeImageLocked: false })
+    const supabase = makeSupabaseStub({ projectAccessible: true })
     const captured: CapturedUpsert = { value: null }
     const mod = await importRouteWithMocks({
       supabase,
-      masterId: MASTER_UUID,
+      master: { id: MASTER_UUID, is_locked: false },
       upsertOk: true,
       // loadState NOT provided — should not be needed.
       captureUpsert: captured,
@@ -258,8 +244,6 @@ describe("image-state route contract", () => {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          image_id: VALID_UUID,
-          role: "master",
           x_px_u: "555555",
           y_px_u: "666666",
           width_px_u: "1000000",
@@ -276,16 +260,18 @@ describe("image-state route contract", () => {
   })
 
   it("POST returns ok:true on success", async () => {
-    const supabase = makeSupabaseStub({ projectAccessible: true, activeImageLocked: false })
-    const mod = await importRouteWithMocks({ supabase, masterId: MASTER_UUID, upsertOk: true })
+    const supabase = makeSupabaseStub({ projectAccessible: true })
+    const mod = await importRouteWithMocks({
+      supabase,
+      master: { id: MASTER_UUID, is_locked: false },
+      upsertOk: true,
+    })
 
     const res = await mod.POST(
       new Request("http://test.local", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          image_id: VALID_UUID,
-          role: "master",
           x_px_u: "0",
           y_px_u: "0",
           width_px_u: "1000000",
@@ -301,4 +287,3 @@ describe("image-state route contract", () => {
     expect(body).toEqual({ ok: true })
   })
 })
-

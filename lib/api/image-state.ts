@@ -5,6 +5,10 @@
  *
  * Responsibilities:
  * - Fetch and save the editor image transform state via `/api/projects/:id/image-state`.
+ *
+ * Post PR #124: state is anchored at the project's master.id server-side.
+ * The client only passes `projectId`; the server resolves the persistence
+ * key (and the lock-guard target) internally. No `?imageId=` query.
  */
 import { fetchJson } from "@/lib/api/http"
 import { ApiError } from "@/lib/api/api-error"
@@ -12,12 +16,7 @@ import type { GetImageStateResponse, SaveImageStateBody } from "@/lib/editor/ima
 
 export type { GetImageStateResponse, ImageStateRow, SaveImageStateBody } from "@/lib/editor/imageState"
 
-function buildImageStateUrl(projectId: string, imageId?: string): string {
-  const base = `/api/projects/${projectId}/image-state`
-  if (!imageId) return base
-  const q = new URLSearchParams({ imageId })
-  return `${base}?${q.toString()}`
-}
+const IMAGE_STATE_URL = (projectId: string) => `/api/projects/${projectId}/image-state`
 
 function normalizeApiErrorPayload(payload: unknown, status: number) {
   if (payload && typeof payload === "object") {
@@ -35,9 +34,9 @@ function normalizeApiErrorPayload(payload: unknown, status: number) {
   }
 }
 
-/** GET /api/projects/[projectId]/image-state — fetches the persisted image transform for the project (or a specific image). Throws `ApiError` on non-2xx. */
-export async function getImageState(projectId: string, imageId?: string): Promise<GetImageStateResponse> {
-  const res = await fetchJson<GetImageStateResponse>(buildImageStateUrl(projectId, imageId), {
+/** GET /api/projects/[projectId]/image-state — fetches the persisted image transform for the project. Throws `ApiError` on non-2xx. */
+export async function getImageState(projectId: string): Promise<GetImageStateResponse> {
+  const res = await fetchJson<GetImageStateResponse>(IMAGE_STATE_URL(projectId), {
     method: "GET",
     credentials: "same-origin",
   })
@@ -53,8 +52,8 @@ export async function getImageState(projectId: string, imageId?: string): Promis
 }
 
 /** POST /api/projects/[projectId]/image-state — persists the image transform (size + position + rotation). Throws `ApiError` on non-2xx. */
-export async function saveImageState(projectId: string, body: SaveImageStateBody, imageId?: string): Promise<void> {
-  const res = await fetchJson<unknown>(buildImageStateUrl(projectId, imageId), {
+export async function saveImageState(projectId: string, body: SaveImageStateBody): Promise<void> {
+  const res = await fetchJson<unknown>(IMAGE_STATE_URL(projectId), {
     method: "POST",
     credentials: "same-origin",
     headers: { "Content-Type": "application/json" },
@@ -69,4 +68,3 @@ export async function saveImageState(projectId: string, body: SaveImageStateBody
     })
   }
 }
-

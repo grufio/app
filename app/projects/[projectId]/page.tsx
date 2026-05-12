@@ -45,7 +45,7 @@ async function getInitialProjectData(projectId: string): Promise<{
     selectGrid(supabase, projectId),
     getMasterImageForEditor(supabase, projectId),
   ])
-  const stRes = await getImageStateForEditor(supabase, projectId, masterImage?.id ?? null)
+  const stRes = await getImageStateForEditor(supabase, projectId)
 
   // Workspace is effectively required; surface schema mismatch explicitly.
   if (wsErr) {

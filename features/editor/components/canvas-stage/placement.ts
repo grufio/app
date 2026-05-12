@@ -30,27 +30,24 @@ export function pickIntrinsicSize(args: {
 
 export function shouldApplyPersistedTransform(args: {
   src: string | undefined
-  appliedKey: string | null
   userChanged: boolean
   activeImageId?: string | null
-  /**
-   * Kept on the signature for backward compat with callers and tests;
-   * no longer used. After PR #124 anchored `project_image_state` at
-   * `master.id`, the state row's `image_id` always points at the
-   * master while the canvas activeImageId points at the filter-base-
-   * copy / chain tip — the equality check was structurally false on
-   * every page open, so saves never reached the canvas. State is now
-   * project-wide; if it exists, it applies to whichever surface the
-   * canvas is rendering.
-   */
-  stateImageId?: string | null
   initialImageTransform: { widthPxU?: bigint; heightPxU?: bigint } | null | undefined
 }): boolean {
-  const { src, appliedKey, userChanged, activeImageId, initialImageTransform } = args
+  // Persisted transform applies whenever a renderable canvas image
+  // exists, the user hasn't yet edited the canvas in this session,
+  // and persisted dimensions are present. The default-placement
+  // re-fire guard (caller-side `appliedKey === src`) is separate
+  // from this check and applies only to the default-branch.
+  //
+  // Notably absent: the `stateImageId === activeImageId` check that
+  // existed before PR #124. After the master.id anchor, the state
+  // row's image_id and the canvas activeImageId always differ, so
+  // the equality check rejected every legitimate apply.
+  const { src, userChanged, activeImageId, initialImageTransform } = args
   if (!src) return false
   if (userChanged) return false
   if (!initialImageTransform) return false
   if (!activeImageId) return false
-  if (appliedKey === src) return false
   return Boolean(initialImageTransform.widthPxU && initialImageTransform.heightPxU)
 }

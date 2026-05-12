@@ -4,8 +4,13 @@
  * React hook for persisted image transform state.
  *
  * Responsibilities:
- * - Load initial image state (x/y/size/rotation) for a project role.
+ * - Load initial image state (x/y/size/rotation) for a project.
  * - Serialize and save commits via the API with coalescing/inflight protection.
+ *
+ * Post PR #124: state is anchored at the project's master.id server-side.
+ * The hook no longer takes an image_id parameter — every project has at
+ * most one state row, and the API resolves the persistence key from
+ * `projectId` alone.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
@@ -15,7 +20,6 @@ import { parseBigIntString, toSaveImageStateBody } from "@/lib/editor/imageState
 import { reportClientError } from "@/lib/monitoring/with-error-reporting"
 
 export type ImageState = {
-  imageId?: string
   xPxU?: bigint
   yPxU?: bigint
   widthPxU?: bigint
@@ -28,11 +32,7 @@ type Pending<T> = { seq: number; value: T }
 export function mapImageStateApiErrorToMessage(e: ApiError, action: "load" | "save"): string {
   const stage = typeof e.payload?.stage === "string" ? e.payload.stage : null
   if (action === "save" && stage === "lock_conflict") return "Active image is locked."
-  if (action === "save" && stage === "active_image_mismatch") return "Active image changed. Please retry."
-  if (action === "save" && stage === "no_active_image") return "No active image available. Please refresh."
-  if (action === "save" && stage === "active_lookup") return "Active image lookup failed. Please refresh."
   if (action === "load" && stage === "schema_missing") return "Unsupported image state schema."
-  if (action === "load" && stage === "active_lookup") return "Failed to resolve active image."
   const msg = typeof e.payload?.error === "string" && e.payload.error.trim() ? e.payload.error : null
   return msg ?? (action === "load" ? "Failed to load image state." : "Failed to save image state.")
 }
@@ -69,7 +69,7 @@ export function createPendingSlot<T>() {
   }
 }
 
-export function useImageState(projectId: string, enabled: boolean, initial?: ImageState | null, autoLoad = true, imageId?: string) {
+export function useImageState(projectId: string, enabled: boolean, initial?: ImageState | null, autoLoad = true) {
   const [initialImageTransform, setInitialImageTransform] = useState<ImageState | null>(() => initial ?? null)
   const [imageStateError, setImageStateError] = useState("")
   const [imageStateLoading, setImageStateLoading] = useState(false)
@@ -93,7 +93,7 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
     setImageStateError((prev) => (prev === "" ? prev : ""))
     setImageStateLoading(true)
     try {
-      const payload = await getImageState(projectId, imageId)
+      const payload = await getImageState(projectId)
       if (seq !== requestSeqRef.current) return
       if (!payload?.exists) {
         if (lastLoadedSignatureRef.current === "__missing__") return
@@ -108,11 +108,10 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
       }
       const xPxU = parseBigIntString(payload.state.x_px_u)
       const yPxU = parseBigIntString(payload.state.y_px_u)
-      const nextSig = `${payload.state.image_id ?? ""}|${payload.state.x_px_u ?? ""}|${payload.state.y_px_u ?? ""}|${payload.state.width_px_u}|${payload.state.height_px_u}|${payload.state.rotation_deg}`
+      const nextSig = `${payload.state.x_px_u ?? ""}|${payload.state.y_px_u ?? ""}|${payload.state.width_px_u}|${payload.state.height_px_u}|${payload.state.rotation_deg}`
       if (lastLoadedSignatureRef.current === nextSig) return
       lastLoadedSignatureRef.current = nextSig
       setInitialImageTransform({
-        imageId: typeof payload.state.image_id === "string" ? payload.state.image_id : undefined,
         xPxU: xPxU ?? undefined,
         yPxU: yPxU ?? undefined,
         widthPxU,
@@ -134,7 +133,7 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
         scope: "editor",
         code: "IMAGE_STATE_LOAD_FAILED",
         stage: "load",
-        context: { projectId, imageId },
+        context: { projectId },
       })
       lastLoadedSignatureRef.current = null
       setInitialImageTransform(null)
@@ -149,19 +148,18 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
     } finally {
       loadInflightRef.current = null
     }
-  }, [imageId, logPrefix, mapApiErrorToMessage, projectId])
+  }, [logPrefix, mapApiErrorToMessage, projectId])
 
   const flushOnce = useCallback(async (p: Pending<ImageState>): Promise<void> => {
     const t = p.value
 
-    if (!t.imageId || !t.widthPxU || !t.heightPxU) {
+    if (!t.widthPxU || !t.heightPxU) {
       // Drop invalid pending entries so the flush loop can terminate.
       pendingSlotRef.current?.clearIfSeq(p.seq)
       return
     }
 
     const payload = toSaveImageStateBody({
-      imageId: t.imageId,
       xPxU: t.xPxU,
       yPxU: t.yPxU,
       widthPxU: t.widthPxU,
@@ -227,11 +225,11 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
           scope: "editor",
           code: "IMAGE_STATE_SAVE_FAILED",
           stage: "save",
-          context: { projectId, imageId },
+          context: { projectId },
         })
       }
     },
-    [flush, imageId, logPrefix, mapApiErrorToMessage, projectId]
+    [flush, logPrefix, mapApiErrorToMessage, projectId]
   )
 
   useEffect(() => {
@@ -265,4 +263,3 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
 
   return { initialImageTransform, imageStateError, imageStateLoading, loadImageState, saveImageState }
 }
-
