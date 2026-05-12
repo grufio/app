@@ -1,3 +1,5 @@
+-- @intent-no-type-impact
+--
 -- Change project_image_trace.output_image_id FK from ON DELETE RESTRICT
 -- to ON DELETE CASCADE.
 --

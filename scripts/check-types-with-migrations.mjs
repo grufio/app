@@ -24,6 +24,13 @@ const MIGRATIONS_DIR = "supabase/migrations/"
 // required for this PR. Used for "close-drift" / "align-to-prod" style
 // migrations whose every statement is idempotent and a no-op on prod.
 const BACKFILL_MARKER = "@intent-backfill-migration"
+// Migrations carrying this marker declare that their SQL has no effect
+// on the generated TypeScript types (e.g. FK ON DELETE action changes,
+// RLS policy edits, trigger or function body changes). A types regen
+// would produce a byte-identical file and could not satisfy this gate.
+// The marker is the explicit opt-out; review it on every PR that uses
+// it to confirm the migration really has no type surface.
+const NO_TYPE_IMPACT_MARKER = "@intent-no-type-impact"
 
 function git(args) {
   const res = spawnSync("git", args, { encoding: "utf8" })
@@ -114,7 +121,7 @@ if (addedAndModified.length > 0) {
     try {
       const content = fs.readFileSync(e.path, "utf8")
       const head = content.split("\n").slice(0, 50).join("\n")
-      return head.includes(BACKFILL_MARKER)
+      return head.includes(BACKFILL_MARKER) || head.includes(NO_TYPE_IMPACT_MARKER)
     } catch {
       return false
     }
@@ -122,7 +129,7 @@ if (addedAndModified.length > 0) {
   if (markerHits.length === addedAndModified.length) {
     const names = markerHits.map((e) => e.path).join(", ")
     console.log(
-      `OK: every changed migration carries ${BACKFILL_MARKER} (${names}) — committed types reflect prod, regen not required.`
+      `OK: every changed migration carries ${BACKFILL_MARKER} or ${NO_TYPE_IMPACT_MARKER} (${names}) — types regen not required.`
     )
     process.exit(0)
   }
