@@ -29,6 +29,19 @@ export type ImageState = {
 
 type Pending<T> = { seq: number; value: T }
 
+/**
+ * Maps an `ApiError` from the image-state route into a user-facing
+ * message. Two specific stages get tailored copy:
+ * - `lock_conflict` on save → "Active image is locked."
+ * - `schema_missing` on load → "Unsupported image state schema."
+ *
+ * Other stages fall back to the server-provided `payload.error` string,
+ * and finally to a generic "Failed to load/save image state." message.
+ *
+ * Pre-PR #124 stages (`active_image_mismatch`, `no_active_image`,
+ * `active_lookup`) are intentionally not handled — they cannot be
+ * emitted by the post-master-anchor route.
+ */
 export function mapImageStateApiErrorToMessage(e: ApiError, action: "load" | "save"): string {
   const stage = typeof e.payload?.stage === "string" ? e.payload.stage : null
   if (action === "save" && stage === "lock_conflict") return "Active image is locked."
@@ -69,6 +82,32 @@ export function createPendingSlot<T>() {
   }
 }
 
+/**
+ * React hook owning the project-wide image transform state.
+ *
+ * @param projectId — used as the API route key and the log prefix.
+ * @param enabled — when false, the hook resets to empty and stops
+ *   listening. Wraps the canvas-source-ready signal in callers.
+ * @param initial — SSR-provided seed for `initialImageTransform`.
+ *   When present, the mount auto-load is skipped (no extra round-trip
+ *   on first paint).
+ * @param autoLoad — when true (default) and no `initial` is supplied,
+ *   the hook fetches the current state on mount. Set to false only if
+ *   the caller drives `loadImageState()` explicitly.
+ *
+ * Returns:
+ * - `initialImageTransform` — seed for the canvas placement controller.
+ * - `imageStateError`, `imageStateLoading` — UI gating signals.
+ * - `loadImageState()` — manual reload (rarely needed post-#124).
+ * - `saveImageState(t)` — enqueue + flush a transform write. Saves are
+ *   coalesced via a pending-slot; the latest payload wins.
+ *
+ * Persistence model: state is anchored at the project's `master.id`
+ * (PR #124). The API resolves the key from `projectId` alone, so the
+ * hook needs no image-id input. See
+ * `docs/specs/image-state-api.mdx` for the wire contract and
+ * `docs/domains/image-state.md` for the anchor rationale.
+ */
 export function useImageState(projectId: string, enabled: boolean, initial?: ImageState | null, autoLoad = true) {
   const [initialImageTransform, setInitialImageTransform] = useState<ImageState | null>(() => initial ?? null)
   const [imageStateError, setImageStateError] = useState("")

@@ -1,5 +1,33 @@
 "use client"
 
+/**
+ * Initial-placement controller — picks the canvas transform for a
+ * freshly mounted image.
+ *
+ * Decision tree (in order, first match wins):
+ * 1. **Bail-outs** — no `src`, no `img`, user has edited, no artboard,
+ *    invalid artboard DPI → return immediately.
+ * 2. **Persisted path** — `shouldApplyPersistedTransform()` says yes
+ *    (we have a server-side transform anchored at master.id). Apply
+ *    those exact µpx values; ignore the default-placement branch.
+ * 3. **Default-placement path** — otherwise compute a DPI-relative
+ *    placement that fits the image into the artboard. Keyed on
+ *    `src + artW + artH + artboardDpi + imageDpi` so DPI changes
+ *    re-run the computation, but plain re-renders don't.
+ *
+ * Race-safety: every apply is funneled through
+ * `stateSyncGuard.scheduleApply()` — see `state-sync-guard.ts` for the
+ * sequence-number cancel semantics. If the persisted state arrives
+ * after a default placement is queued, the persisted apply correctly
+ * supersedes the default via the bump.
+ *
+ * The effect has 16 dependencies because it sits at the intersection
+ * of three orthogonal triggers (image-source change, artboard-size
+ * change, persisted-state arrival) and React's exhaustive-deps lint
+ * is happy with that — splitting it into multiple effects would
+ * break the "latest-scheduled-apply wins" ordering invariant.
+ */
+
 import { useEffect, type MutableRefObject } from "react"
 
 import { numberToMicroPx } from "@/lib/editor/konva"

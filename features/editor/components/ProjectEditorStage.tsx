@@ -5,7 +5,23 @@
  *
  * Responsibilities:
  * - Render the Konva canvas stage and wire persistence callbacks.
- * - Apply the “page background” style behind the canvas when enabled.
+ * - Apply the "page background" style behind the canvas when enabled.
+ *
+ * Mutation-gating matrix (resolved at this layer, passed down as props):
+ *
+ *   | Prop              | Means                                  | Gated by              |
+ *   |-------------------|----------------------------------------|-----------------------|
+ *   | `mutationsEnabled`| Image is editable (drag/resize/rotate) | `!selectDisabled`     |
+ *   | `imageDraggable`  | Click on image starts a drag           | Tool-mode (select)    |
+ *   | `cropEnabled`     | Crop overlay is interactive            | Per-tab feature flag  |
+ *   | `rotateEnabled`   | Rotate handle visible                  | Per-tab feature flag  |
+ *   | `panEnabled`      | Empty-canvas drag pans the viewport    | Tool-mode (hand)      |
+ *
+ * `mutationsEnabled` is **independent** of tab — Filter, Trace, Image
+ * all allow transform mutations because state is project-wide
+ * (anchored at master.id post PR #124). Crop and rotate are per-tab.
+ * Recoupling these (pre-PR #128) caused resize/position to silently
+ * no-op on Filter and Trace tabs.
  */
 import * as React from "react"
 import dynamic from "next/dynamic"
