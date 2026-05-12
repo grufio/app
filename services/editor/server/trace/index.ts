@@ -17,7 +17,7 @@ import { numerateSchema } from "@/lib/editor/trace/numerate"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 import { getEditorTargetImageRow, resolveEditorTargetImageRows } from "@/lib/supabase/project-images"
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role"
-import { activateProjectImage } from "@/services/editor/server/activate-project-image"
+import { activateProjectImageOnly } from "@/services/editor/server/activate-project-image"
 import { lineArtImageAndActivate } from "@/services/editor/server/trace/lineart"
 import { numerateImageAndActivate } from "@/services/editor/server/trace/numerate"
 
@@ -333,13 +333,10 @@ export async function applyProjectTrace(args: {
     }
   }
 
-  const activation = await activateProjectImage({
+  const activation = await activateProjectImageOnly({
     supabase,
     projectId,
     imageId: created.id,
-    widthPx: created.widthPx,
-    heightPx: created.heightPx,
-    imageDpi: sourceImageDpi,
   })
   if (!activation.ok) {
     // The new row is already committed; revert it to leave the
@@ -456,17 +453,11 @@ export async function clearProjectTrace(args: {
     return { ok: false, status: 400, stage: "active_lookup", reason: fallback.error?.reason ?? "No fallback image after clear" }
   }
   const fallbackImageId = String(fallback.row.id)
-  const widthPx = Number(fallback.row.width_px ?? 1)
-  const heightPx = Number(fallback.row.height_px ?? 1)
-  const dpi = Number(fallback.row.dpi ?? 72)
 
-  const activation = await activateProjectImage({
+  const activation = await activateProjectImageOnly({
     supabase,
     projectId,
     imageId: fallbackImageId,
-    widthPx,
-    heightPx,
-    imageDpi: dpi,
   })
   if (!activation.ok) {
     return { ok: false, status: activation.status, stage: activation.stage, reason: activation.reason, code: activation.code }

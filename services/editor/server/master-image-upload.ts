@@ -9,7 +9,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/lib/supabase/database.types"
-import { activateProjectImage } from "@/services/editor/server/activate-project-image"
+import { activateProjectMasterWithState } from "@/services/editor/server/activate-project-image"
 import { resetProjectFilterChain } from "@/services/editor/server/filter-chain-reset"
 
 import { insertMasterWithCleanup } from "./master-image-upload/master-insert-flow"
@@ -184,7 +184,7 @@ export async function uploadMasterImage(args: {
     }
   }
 
-  const activationResult = await activateProjectImage({
+  const activationResult = await activateProjectMasterWithState({
     supabase,
     projectId,
     imageId,

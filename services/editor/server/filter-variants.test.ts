@@ -4,13 +4,13 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { makeMockSupabase } from "@/lib/supabase/__mocks__/make-mock-supabase"
 import type { Database } from "@/lib/supabase/database.types"
 
-// activateProjectImage and createSupabaseServiceRoleClient are only reached
-// on the happy / tail-removal path; mock them so the unit tests don't need a
-// real supabase + storage stack. The createDerivedImageFromSource path
-// (rebuild-after-mid-stack-remove) is NOT covered here — it requires a fake
-// filter-service HTTP server which is out of scope for a unit test.
+// activateProjectImageOnly and createSupabaseServiceRoleClient are only
+// reached on the happy / tail-removal path; mock them so the unit tests
+// don't need a real supabase + storage stack. The createDerivedImageFromSource
+// path (rebuild-after-mid-stack-remove) is NOT covered here — it requires a
+// fake filter-service HTTP server which is out of scope for a unit test.
 vi.mock("@/services/editor/server/activate-project-image", () => ({
-  activateProjectImage: vi.fn(async () => ({ ok: true as const, status: 200, stage: "active_switch" as const })),
+  activateProjectImageOnly: vi.fn(async () => ({ ok: true as const, status: 200, stage: "active_switch" as const })),
 }))
 vi.mock("@/lib/supabase/service-role", () => ({
   createSupabaseServiceRoleClient: vi.fn(() => ({

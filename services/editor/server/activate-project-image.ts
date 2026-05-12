@@ -1,26 +1,22 @@
 /**
- * Server-side helper that flips the project's "active" image and
- * seeds a fresh `project_image_state` row for it.
+ * Server-side helpers that flip the project's "active" image.
  *
- * Called from filter-apply, trace-apply, and crop-apply flows when
- * the newly-produced image variant (filter_working_copy, trace_output,
- * crop output) should become the canvas display source.
+ * Two flavours, picked by caller-context:
  *
- * Two side-effects, in order:
- * 1. Verify the currently-active image isn't locked (409 on conflict).
- * 2. Compute a DPI-relative initial placement from the artboard +
- *    intrinsic image size, then call `set_active_master_with_state`
- *    which atomically flips `images.is_active` and upserts
- *    `project_image_state(image_id = imageId)`.
+ * - `activateProjectMasterWithState` — for the master upload flow.
+ *   Computes a fresh DPI-relative placement and writes a
+ *   `project_image_state` row at the master.id. Use only when the
+ *   incoming `imageId` is a `kind='master'` row.
  *
- * ⚠️ Known limitation (deferred): the state row is written at the
- * *activated* `imageId`, which may be a filter_working_copy or
- * trace_output — not master.id. Post PR #124 the editor reads state
- * at master.id, so these rows are **junk** (never queried). They
- * accumulate until the cleanup migration promised in #124 PR-2 runs.
- * See `docs/archive/editor-stack-review-2026-05-12.md` C-D1 for the
- * follow-up plan: split activation from state-seed so non-master
- * images don't write state.
+ * - `activateProjectImageOnly` — for filter/trace/crop apply flows.
+ *   Flips `is_active` for a non-master variant (filter_working_copy,
+ *   trace_output, crop output). Does NOT touch `project_image_state`
+ *   because state is anchored at master.id (PR #124) and the editor
+ *   reads it from there regardless of which surface is rendered.
+ *
+ * Splitting closes the C-D1 finding from the editor-stack review:
+ * the old combined helper wrote junk state rows at non-master ids
+ * that were never read.
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
 
@@ -29,6 +25,7 @@ import { pxUToPxNumber } from "@/lib/editor/units"
 import {
   getActiveProjectImageLockRow,
   getProjectWorkspacePlacementRow,
+  setActiveProjectImageOnly as setActiveProjectImageOnlyRpc,
   setActiveProjectImageState,
 } from "@/lib/supabase/project-images"
 import type { Database } from "@/lib/supabase/database.types"
@@ -57,17 +54,15 @@ function resolveArtboardPx(workspace: {
   return { artW, artH }
 }
 
-export async function activateProjectImage(args: {
+type ActivateError = { ok: false; status: number; stage: "active_switch" | "lock_conflict"; reason: string; code?: string }
+type ActivateOk = { ok: true }
+
+async function guardActiveLockNotHeldByOther(args: {
   supabase: SupabaseClient<Database>
   projectId: string
   imageId: string
-  widthPx: number
-  heightPx: number
-  imageDpi?: number | null
-}): Promise<{ ok: true } | { ok: false; status: number; stage: "active_switch" | "lock_conflict"; reason: string; code?: string }> {
-  const { supabase, projectId, imageId, widthPx, heightPx, imageDpi } = args
-
-  const activeLookup = await getActiveProjectImageLockRow(supabase, projectId)
+}): Promise<ActivateOk | ActivateError> {
+  const activeLookup = await getActiveProjectImageLockRow(args.supabase, args.projectId)
   if (activeLookup.error) {
     return {
       ok: false,
@@ -77,7 +72,7 @@ export async function activateProjectImage(args: {
       code: activeLookup.error.code,
     }
   }
-  if (activeLookup.row?.is_locked && String(activeLookup.row.id) !== imageId) {
+  if (activeLookup.row?.is_locked && String(activeLookup.row.id) !== args.imageId) {
     return {
       ok: false,
       status: 409,
@@ -86,6 +81,26 @@ export async function activateProjectImage(args: {
       code: "image_locked",
     }
   }
+  return { ok: true }
+}
+
+/**
+ * Master upload flow: flip `is_active` AND seed a fresh
+ * `project_image_state` row at master.id with a DPI-relative
+ * placement. Caller MUST pass a `kind='master'` imageId.
+ */
+export async function activateProjectMasterWithState(args: {
+  supabase: SupabaseClient<Database>
+  projectId: string
+  imageId: string
+  widthPx: number
+  heightPx: number
+  imageDpi?: number | null
+}): Promise<ActivateOk | ActivateError> {
+  const { supabase, projectId, imageId, widthPx, heightPx, imageDpi } = args
+
+  const lockGuard = await guardActiveLockNotHeldByOther({ supabase, projectId, imageId })
+  if (!lockGuard.ok) return lockGuard
 
   const workspaceLookup = await getProjectWorkspacePlacementRow(supabase, projectId)
   if (workspaceLookup.error || !workspaceLookup.row) {
@@ -135,4 +150,18 @@ export async function activateProjectImage(args: {
     widthPxU: placementU.widthPxU,
     heightPxU: placementU.heightPxU,
   })
+}
+
+/**
+ * Filter / trace / crop apply flows: flip `is_active` for a non-master
+ * variant. State is anchored at master.id and stays untouched.
+ */
+export async function activateProjectImageOnly(args: {
+  supabase: SupabaseClient<Database>
+  projectId: string
+  imageId: string
+}): Promise<ActivateOk | ActivateError> {
+  const lockGuard = await guardActiveLockNotHeldByOther(args)
+  if (!lockGuard.ok) return lockGuard
+  return setActiveProjectImageOnlyRpc(args)
 }
