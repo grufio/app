@@ -108,12 +108,14 @@ export function useImagePlacementSync(args: {
     if (!img) return
     if (stateSyncGuardRef.current.hasUserChanged()) return
     if (!hasArtboard) return
+    // Pre-PR #124 this also required `initialImageTransform.imageId
+    // === activeImageId`. After the master.id anchor refactor the
+    // state row's image_id is the master while activeImageId is the
+    // filter-base-copy / chain tip — they never match, and the
+    // gate would force every reload into the default-placement
+    // branch. State is now project-wide; if it has a size, use it.
     const hasPersistedSize = Boolean(
-      initialImageTransform?.widthPxU &&
-        initialImageTransform?.heightPxU &&
-        initialImageTransform?.imageId &&
-        activeImageId &&
-        initialImageTransform.imageId === activeImageId
+      initialImageTransform?.widthPxU && initialImageTransform?.heightPxU
     )
     if (hasPersistedSize) return
     if (stateSyncGuardRef.current.getAppliedKey() === src) return

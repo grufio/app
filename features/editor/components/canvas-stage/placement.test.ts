@@ -159,26 +159,31 @@ describe("shouldApplyPersistedTransform", () => {
     ).toBe(false)
   })
 
-  it("returns false when persisted state is bound to another image", () => {
+  it("applies state regardless of stateImageId — state is anchored at master.id, canvas at filter-base-copy.id (PR #124)", () => {
+    // Pre-PR #124 this returned false (image_id mismatch). After the
+    // master.id anchor the state row's image_id never matches the
+    // canvas activeImageId; the equality check was structurally
+    // wrong on every page open. State now applies to whichever
+    // surface the canvas renders.
     expect(
       shouldApplyPersistedTransform({
         src: "s",
         appliedKey: null,
         userChanged: false,
-        activeImageId: "img-2",
-        stateImageId: "img-1",
+        activeImageId: "filter-base-copy-id",
+        stateImageId: "master-id",
         initialImageTransform: { widthPxU: 1n, heightPxU: 1n },
       })
-    ).toBe(false)
+    ).toBe(true)
   })
 
-  it("returns false when persisted state has no image binding", () => {
+  it("returns false when canvas has no activeImageId", () => {
     expect(
       shouldApplyPersistedTransform({
         src: "s",
         appliedKey: null,
         userChanged: false,
-        activeImageId: "img-2",
+        activeImageId: null,
         stateImageId: null,
         initialImageTransform: { widthPxU: 1n, heightPxU: 1n },
       })
