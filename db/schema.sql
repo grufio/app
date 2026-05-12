@@ -1977,7 +1977,7 @@ ALTER TABLE ONLY "public"."project_image_state"
 
 
 ALTER TABLE ONLY "public"."project_image_trace"
-    ADD CONSTRAINT "project_image_trace_output_image_id_fkey" FOREIGN KEY ("output_image_id") REFERENCES "public"."project_images"("id") ON DELETE RESTRICT;
+    ADD CONSTRAINT "project_image_trace_output_image_id_fkey" FOREIGN KEY ("output_image_id") REFERENCES "public"."project_images"("id") ON DELETE CASCADE;
 
 
 
