@@ -19,6 +19,20 @@ type RawProjectImageRow = Record<string, unknown> & {
   created_at?: string | null
 }
 
+/**
+ * Safely read `code` off a PostgrestError-shaped value. Supabase errors
+ * have an optional string `code` (PG error code, e.g. `23514`), but the
+ * library's exported type only declares `message`. Replaces repeated
+ * unsafe type-escapes at the error-handling sites.
+ */
+function readErrorCode(error: unknown): string | undefined {
+  if (error && typeof error === "object" && "code" in error) {
+    const code = (error as { code: unknown }).code
+    return typeof code === "string" ? code : undefined
+  }
+  return undefined
+}
+
 export type ActiveMasterImage = {
   id: string
   storagePath: string
@@ -113,7 +127,7 @@ export async function resolveEditorTargetImageRows(
       error: {
         stage: "active_lookup",
         reason: error.message,
-        code: (error as unknown as { code?: string })?.code,
+        code: readErrorCode(error),
       },
     }
   }
@@ -155,7 +169,7 @@ export async function getActiveProjectImageRow(
       error: {
         stage: "active_lookup",
         reason: error.message,
-        code: (error as unknown as { code?: string })?.code,
+        code: readErrorCode(error),
       },
     }
   }
@@ -262,7 +276,7 @@ export async function getActiveProjectImageLockRow(
       row: null,
       error: {
         reason: error.message,
-        code: (error as unknown as { code?: string })?.code,
+        code: readErrorCode(error),
       },
     }
   }
@@ -299,7 +313,7 @@ export async function getProjectWorkspacePlacementRow(
       row: null,
       error: {
         reason: error.message,
-        code: (error as unknown as { code?: string })?.code,
+        code: readErrorCode(error),
       },
     }
   }
@@ -331,7 +345,36 @@ export async function setActiveProjectImageState(args: {
       status: 400,
       stage: "active_switch",
       reason: error.message,
-      code: (error as unknown as { code?: string })?.code,
+      code: readErrorCode(error),
+    }
+  }
+  return { ok: true }
+}
+
+/**
+ * Flip `is_active` for the given image without touching
+ * `project_image_state`. Used by filter/trace/crop apply flows: those
+ * produce a new display image (filter_working_copy / trace_output /
+ * crop output), but state is anchored at master.id (PR #124) and stays
+ * untouched. Wraps the existing `set_active_image` RPC.
+ */
+export async function setActiveProjectImageOnly(args: {
+  supabase: SupabaseClient
+  projectId: string
+  imageId: string
+}): Promise<{ ok: true } | { ok: false; status: number; stage: "active_switch"; reason: string; code?: string }> {
+  const { supabase, projectId, imageId } = args
+  const { error } = await supabase.rpc("set_active_image", {
+    p_project_id: projectId,
+    p_image_id: imageId,
+  })
+  if (error) {
+    return {
+      ok: false,
+      status: 400,
+      stage: "active_switch",
+      reason: error.message,
+      code: readErrorCode(error),
     }
   }
   return { ok: true }

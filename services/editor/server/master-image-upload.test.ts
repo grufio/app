@@ -25,7 +25,7 @@ type MakeSupabaseOpts = {
 }
 
 vi.mock("@/services/editor/server/activate-project-image", () => ({
-  activateProjectImage: (...args: unknown[]) => activateSpy(...args),
+  activateProjectMasterWithState: (...args: unknown[]) => activateSpy(...args),
 }))
 
 function makeSupabase(opts: MakeSupabaseOpts) {

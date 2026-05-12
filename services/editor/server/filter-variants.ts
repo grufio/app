@@ -4,7 +4,7 @@ import { IMAGE_KIND, resolveImageKind } from "@/lib/editor/image-kind"
 import type { Database } from "@/lib/supabase/database.types"
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role"
 import { getEditorTargetImageRow } from "@/lib/supabase/project-images"
-import { activateProjectImage } from "@/services/editor/server/activate-project-image"
+import { activateProjectImageOnly } from "@/services/editor/server/activate-project-image"
 import { appendProjectImageFilter } from "@/services/editor/server/filter-chain"
 import { pixelateImageAndActivate } from "@/services/editor/server/filters/pixelate"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
@@ -274,13 +274,10 @@ export async function applyProjectImageFilter(args: {
     await supabase.from("project_image_filters").delete().eq("project_id", projectId).eq("output_image_id", created.imageId)
   }
 
-  const activation = await activateProjectImage({
+  const activation = await activateProjectImageOnly({
     supabase,
     projectId,
     imageId: created.imageId,
-    widthPx: created.widthPx,
-    heightPx: created.heightPx,
-    imageDpi: sourceImageDpi,
   })
   if (!activation.ok) {
     await cleanupInsertedFilter()
@@ -385,7 +382,7 @@ export async function removeProjectImageFilter(args: {
   const activeImageId = after.length > 0 ? newArtifacts[newArtifacts.length - 1].imageId : currentImageId
   const { data: activeRow, error: activeRowErr } = await supabase
     .from("project_images")
-    .select("width_px,height_px,dpi")
+    .select("id")
     .eq("project_id", projectId)
     .eq("id", activeImageId)
     .is("deleted_at", null)
@@ -394,13 +391,10 @@ export async function removeProjectImageFilter(args: {
     return { ok: false, status: 400, stage: "active_lookup", reason: activeRowErr?.message ?? "Active image row missing" }
   }
 
-  const activation = await activateProjectImage({
+  const activation = await activateProjectImageOnly({
     supabase,
     projectId,
     imageId: activeImageId,
-    widthPx: Number(activeRow.width_px ?? 1),
-    heightPx: Number(activeRow.height_px ?? 1),
-    imageDpi: Number(activeRow.dpi ?? 72),
   })
   if (!activation.ok) return { ok: false, status: activation.status, stage: activation.stage, reason: activation.reason, code: activation.code }
 

@@ -3,7 +3,7 @@ import crypto from "node:crypto"
 import sharp from "sharp"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
-import { activateProjectImage } from "@/services/editor/server/activate-project-image"
+import { activateProjectImageOnly } from "@/services/editor/server/activate-project-image"
 import type { Database } from "@/lib/supabase/database.types"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 
@@ -174,13 +174,10 @@ export async function cropImageAndActivate(args: {
   // ratio; revisit if that semantic is needed.
 
 
-  const activation = await activateProjectImage({
+  const activation = await activateProjectImageOnly({
     supabase,
     projectId,
     imageId,
-    widthPx: w,
-    heightPx: h,
-    imageDpi: Number(src.dpi ?? 72),
   })
   if (!activation.ok) {
     await supabase.from("project_images").delete().eq("id", imageId)

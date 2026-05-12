@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 
-import { activateProjectImage } from "@/services/editor/server/activate-project-image"
+import { activateProjectMasterWithState } from "@/services/editor/server/activate-project-image"
 import type { Database } from "@/lib/supabase/database.types"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 
@@ -14,7 +14,7 @@ export async function activateInsertedMaster(args: {
   objectPath: string
 }): Promise<{ ok: true } | { ok: false; status: number; stage: "active_switch" | "lock_conflict"; reason: string; code?: string }> {
   const { supabase, projectId, imageId, widthPx, heightPx, imageDpi, objectPath } = args
-  const activation = await activateProjectImage({
+  const activation = await activateProjectMasterWithState({
     supabase,
     projectId,
     imageId,

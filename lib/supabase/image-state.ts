@@ -104,6 +104,13 @@ export async function upsertBoundImageState(
   supabase: SupabaseClient,
   row: BoundImageStateUpsert
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  // Defensive boundary assertion: catches the type-contract gap where
+  // callers might pass an unresolved master.id. The route handler
+  // resolves master.id via `getProjectMasterImageRow` before invoking;
+  // a null here means the caller bypassed the master-resolution step.
+  if (!row.image_id) {
+    throw new Error("upsertBoundImageState: image_id required (resolve master.id before calling)")
+  }
   const { error } = await supabase.from("project_image_state").upsert(row, { onConflict: "project_id,image_id" })
   if (error) return { ok: false, error: error.message }
   return { ok: true }
