@@ -64,6 +64,7 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
     tool: FloatingToolbarTool
     setTool: (t: FloatingToolbarTool) => void
     selectDisabled?: boolean
+    showDirectSelect?: boolean
     cropDisabled?: boolean
     actions: {
       zoomIn: () => void
@@ -97,6 +98,9 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
    * the canvas stage. Set by the shell when the Trace tab is
    * active and a `project_image_trace` row exists. */
   traceOverlaySvgUrl?: string | null
+  /** Whether trace-overlay regions catch hover/click. True only
+   * when the direct-selection tool is active on the Trace tab. */
+  traceInteractive?: boolean
 }) {
   const {
     masterImage,
@@ -117,6 +121,7 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
     saveImageState,
     onCropDblClick,
     traceOverlaySvgUrl,
+    traceInteractive = false,
   } = props
 
   void _masterImageLoading
@@ -144,7 +149,7 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
             className="pointer-events-auto"
             tool={toolbar.tool}
             onToolChange={toolbar.setTool}
-            selectDisabled={Boolean(toolbar.selectDisabled)}
+            showDirectSelect={Boolean(toolbar.showDirectSelect)}
             cropDisabled={Boolean(toolbar.cropDisabled)}
             onZoomIn={toolbar.actions.zoomIn}
             onZoomOut={toolbar.actions.zoomOut}
@@ -204,6 +209,7 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
             }
             grid={grid ?? null}
             traceOverlaySvgUrl={traceOverlaySvgUrl ?? null}
+            traceInteractive={traceInteractive}
             onImageTransformChange={handleImageTransformChange}
             initialImageTransform={masterImage ? initialImageTransform : null}
             onImageTransformCommit={masterImage ? saveImageState : undefined}

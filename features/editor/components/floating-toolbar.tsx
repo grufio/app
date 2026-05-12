@@ -3,9 +3,12 @@
 /**
  * Floating toolbar overlay for the editor canvas.
  *
- * Responsibilities:
- * - Provide tool selection (select/hand) and view actions (zoom/fit/rotate).
- * - Stay visually lightweight and keyboard-friendly.
+ * Tool roles (Illustrator-style):
+ *   object — filled arrow. Whole-image drag/resize. Default on every tab.
+ *   direct — outlined arrow. Trace-overlay region click/highlight.
+ *            Only shown on the Trace tab.
+ *   hand   — pans the artboard view.
+ *   crop   — crops the image. Only on Image tab.
  */
 import { Crop, Hand, Maximize2, MousePointer2, RotateCw, ZoomIn, ZoomOut } from "lucide-react"
 
@@ -20,7 +23,8 @@ type Props = {
   leftSlot?: React.ReactNode
   tool: FloatingToolbarTool
   onToolChange: (tool: FloatingToolbarTool) => void
-  selectDisabled?: boolean
+  /** Whether to render the Direct-Selection (outlined arrow) button. */
+  showDirectSelect?: boolean
   cropDisabled?: boolean
   onZoomIn: () => void
   onZoomOut: () => void
@@ -69,7 +73,7 @@ export function FloatingToolbar({
   leftSlot,
   tool,
   onToolChange,
-  selectDisabled = false,
+  showDirectSelect = false,
   cropDisabled = false,
   onZoomIn,
   onZoomOut,
@@ -91,13 +95,21 @@ export function FloatingToolbar({
       >
         {leftSlot}
         <IconButton
-          label="Select (Move Image)"
-          active={tool === "select"}
-          disabled={selectDisabled}
-          onClick={() => onToolChange("select")}
+          label="Object (Move Image)"
+          active={tool === "object"}
+          onClick={() => onToolChange("object")}
         >
-          <MousePointer2 className="size-6" strokeWidth={1} />
+          <MousePointer2 className="size-6" strokeWidth={1} fill="currentColor" />
         </IconButton>
+        {showDirectSelect ? (
+          <IconButton
+            label="Direct (Select Trace Region)"
+            active={tool === "direct"}
+            onClick={() => onToolChange("direct")}
+          >
+            <MousePointer2 className="size-6" strokeWidth={1} />
+          </IconButton>
+        ) : null}
         <IconButton label="Hand (Move Artboard)" active={tool === "hand"} onClick={() => onToolChange("hand")}>
           <Hand className="size-6" strokeWidth={1} />
         </IconButton>
@@ -121,4 +133,3 @@ export function FloatingToolbar({
     </TooltipProvider>
   )
 }
-

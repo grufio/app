@@ -68,9 +68,15 @@ type Props = {
    * over a colored region does nothing because the inline SVG sits
    * above the canvas in DOM order. */
   forwardWheelTo?: HTMLElement | null
+  /** When false the overlay is purely visual: region paths set
+   * `pointer-events: none` so clicks fall through to the Konva
+   * image-node below (object-tool drag/resize). When true the
+   * trace regions catch hover + click for selection (direct-tool
+   * on the Trace tab). */
+  interactive?: boolean
 }
 
-export function TraceInlineSvg({ svgText, imageRect, view, rotation = 0, forwardWheelTo }: Props) {
+export function TraceInlineSvg({ svgText, imageRect, view, rotation = 0, forwardWheelTo, interactive = true }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const prepared = useMemo(() => prepareTraceSvg(svgText), [svgText])
   const [selectedFill, setSelectedFill] = useState<string | null>(null)
@@ -96,12 +102,20 @@ export function TraceInlineSvg({ svgText, imageRect, view, rotation = 0, forward
     }
   }, [])
 
+  // Clear any standing selection when interactivity is turned off
+  // (tab/tool change). Without this the previously-clicked region
+  // would keep its yellow outline even after pointer-events go off.
+  useEffect(() => {
+    if (!interactive) setSelectedFill(null)
+  }, [interactive])
+
   // Click + wheel on the container — native listeners, not React
   // props. See file header for why React's event delegation can't
   // reach the dangerouslySetInnerHTML descendants reliably.
   useEffect(() => {
     const root = containerRef.current
     if (!root) return
+    if (!interactive) return
 
     const onClick = (e: MouseEvent) => {
       const target = e.target as Element | null
@@ -144,7 +158,7 @@ export function TraceInlineSvg({ svgText, imageRect, view, rotation = 0, forward
       root.removeEventListener("click", onClick)
       root.removeEventListener("wheel", onWheel)
     }
-  }, [forwardWheelTo])
+  }, [forwardWheelTo, interactive])
 
   // Reflect `selectedFill` into the DOM by toggling `data-selected`
   // on every matching path. Direct DOM mutation is more debuggable
@@ -174,6 +188,7 @@ export function TraceInlineSvg({ svgText, imageRect, view, rotation = 0, forward
     <div
       ref={containerRef}
       data-testid="trace-inline-svg"
+      data-interactive={interactive ? "true" : "false"}
       style={{
         position: "absolute",
         left,
@@ -190,13 +205,13 @@ export function TraceInlineSvg({ svgText, imageRect, view, rotation = 0, forward
         [data-testid="trace-inline-svg"] * {
           pointer-events: none;
         }
-        [data-testid="trace-inline-svg"] [data-trace-region] {
+        [data-testid="trace-inline-svg"][data-interactive="true"] [data-trace-region] {
           cursor: pointer;
           pointer-events: all;
           transition: stroke 80ms ease;
         }
-        [data-testid="trace-inline-svg"] [data-trace-region]:hover,
-        [data-testid="trace-inline-svg"] [data-trace-region][data-selected] {
+        [data-testid="trace-inline-svg"][data-interactive="true"] [data-trace-region]:hover,
+        [data-testid="trace-inline-svg"][data-interactive="true"] [data-trace-region][data-selected] {
           stroke: #FFEA00;
           stroke-width: 4px;
           vector-effect: non-scaling-stroke;
