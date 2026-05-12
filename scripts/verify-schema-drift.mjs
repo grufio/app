@@ -21,6 +21,8 @@ import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
+import { analyzeDrift } from "./lib/schema-drift-analyze.mjs"
+
 const root = process.cwd()
 const committedPath = path.join(root, "db", "schema.sql")
 if (!fs.existsSync(committedPath)) {
@@ -73,29 +75,30 @@ function normalise(sql) {
 const committed = normalise(fs.readFileSync(committedPath, "utf8"))
 const fresh = normalise(dump.stdout)
 
-if (committed === fresh) {
+// The "set" comparison inside analyzeDrift ignores line ORDER,
+// which is correct because pg_dump versions across CI runners can
+// emit identical schemas with reshuffled SET / GRANT / CREATE
+// statements. See scripts/lib/schema-drift-analyze.mjs for the
+// three softener buckets (match / pending_addition /
+// pending_redefinition / drift).
+const analysis = analyzeDrift(committed, fresh)
+
+if (analysis.kind === "match") {
   console.log("OK: db/schema.sql matches a fresh dump from linked production.")
   process.exit(0)
 }
 
-// Distinguish two failure modes (mirrors the verify:types-synced
-// softener):
-//   (a) committed is a strict superset of fresh — committed has
-//       additions over prod, no removals. That's a pending migration
-//       in this PR; prod can't possibly contain it yet. Soft-skip
-//       with WARN; verify:remote-migrations covers the deploy gap.
-//   (b) Anything else — fresh has lines committed lacks, OR the two
-//       diverge on the same key. Real drift; hard fail.
-// The "set" comparison ignores line ORDER, which is correct because
-// pg_dump versions across CI runners can emit identical schemas with
-// reshuffled SET / GRANT / CREATE statements.
-const committedLineSet = new Set(committed.split("\n"))
-const freshLineList = fresh.split("\n")
-const freshOnly = freshLineList.filter((line) => !committedLineSet.has(line))
-
-if (freshOnly.length === 0) {
+if (analysis.kind === "pending_addition") {
   console.warn(
     "[verify-schema-drift] WARN: db/schema.sql has additions over the fresh dump — likely a pending migration in this PR.",
+  )
+  console.warn("Skipping strict equality; verify:remote-migrations covers the deploy gap.")
+  process.exit(0)
+}
+
+if (analysis.kind === "pending_redefinition") {
+  console.warn(
+    "[verify-schema-drift] WARN: db/schema.sql redefines constraints/indexes vs the fresh dump — likely a pending migration in this PR.",
   )
   console.warn("Skipping strict equality; verify:remote-migrations covers the deploy gap.")
   process.exit(0)
