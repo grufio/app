@@ -28,11 +28,13 @@ const SelectVariantInner = React.forwardRef<
   } = props
 
   // Select has no internal draft — the dropdown either commits or cancels.
+  // `setDraft` is a no-op (the field has no typing state to push into).
   React.useImperativeHandle(
     ref,
     () => ({
       commit: () => {},
       cancelPendingCommit: () => {},
+      setDraft: () => {},
     }),
     []
   )

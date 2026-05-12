@@ -46,6 +46,34 @@ describe("initialFieldDraftState", () => {
   })
 })
 
+describe("imperative setDraft (via FormFieldHandle / partner aspect-lock push)", () => {
+  it("fires draftChange even when the field is NOT focused — partner-push during aspect-lock", () => {
+    // Aspect-lock cross-axis push: while the user types in W, the parent
+    // computes the locked H and pushes it imperatively into the H field.
+    // The H field is not focused at that moment. setDraft must still
+    // update draft + fire draftChange so the parent's own `onDraftH`
+    // closure runs and updates `latestDraftH` ref.
+    const s = initialFieldDraftState("100")
+    const r = run(s, [
+      { type: "setDraft", next: "200" }, // not focused
+    ])
+    expect(r.state.draft).toBe("200")
+    expect(r.effects).toEqual([{ type: "draftChange", value: "200" }])
+  })
+
+  it("fires draftChange when the field IS focused — user typing pathway", () => {
+    const s = initialFieldDraftState("100")
+    const r = run(s, [
+      { type: "focus" },
+      { type: "setDraft", next: "200" },
+    ])
+    expect(r.state.draft).toBe("200")
+    expect(r.state.isFocused).toBe(true)
+    const drafts = r.effects.filter((e) => e.type === "draftChange")
+    expect(drafts).toEqual([{ type: "draftChange", value: "200" }])
+  })
+})
+
 describe("setDraft", () => {
   it("updates draft and emits draftChange effect", () => {
     const s = initialFieldDraftState("a")

@@ -3,19 +3,18 @@
  *
  * Responsibilities:
  * - GET: read `project_image_state` for the project (anchored at master.id).
- * - POST: validate body image (in-project, not locked), then upsert
- *   the µpx-based transform state at master.id.
+ * - POST: validate transform fields, then upsert at master.id.
  *
- * State is always anchored at the project's master.id — see
- * `getProjectMasterImageId` in `lib/supabase/project-images.ts` for
- * the rationale. The body's `image_id` is treated as informational
- * (identifies which editor surface the user was operating on, used
- * for the lock-guard check), not as the persistence key.
+ * State is always anchored at the project's master.id (PR #124). The
+ * client sends only transform fields; the server resolves the
+ * persistence key and the lock-guard target from `projectId` alone.
+ * Legacy clients still in flight may include `image_id` and `role`
+ * in the body — both are accepted by the validator and ignored.
  */
 import { NextResponse } from "next/server"
 
 import { createSupabaseServerClient } from "@/lib/supabase/server"
-import { getProjectMasterImageId } from "@/lib/supabase/project-images"
+import { getProjectMasterImageRow } from "@/lib/supabase/project-images"
 import { loadBoundImageState, upsertBoundImageState } from "@/lib/supabase/image-state"
 import { isUuid, jsonError, readJson, requireUser } from "@/lib/api/route-guards"
 import { validateIncomingImageStateUpsert, type IncomingImageStatePayload } from "@/lib/editor/imageState"
@@ -32,13 +31,13 @@ export async function GET(_req: Request, { params }: { params: Promise<{ project
   const u = await requireUser(supabase)
   if (!u.ok) return u.res
 
-  const { masterId, error: masterErr } = await getProjectMasterImageId(supabase, projectId)
+  const { row: masterRow, error: masterErr } = await getProjectMasterImageRow(supabase, projectId)
   if (masterErr) return jsonError(masterErr, 400, { stage: "master_lookup" })
-  if (!masterId) {
+  if (!masterRow) {
     return NextResponse.json({ exists: false, state: null })
   }
 
-  const { row: data, error: readErr, unsupported } = await loadBoundImageState(supabase, projectId, masterId)
+  const { row: data, error: readErr, unsupported } = await loadBoundImageState(supabase, projectId, masterRow.id)
   if (readErr) return jsonError(readErr, 400, { stage: "select_state" })
   if (unsupported) {
     return jsonError("Unsupported image state: missing width_px_u/height_px_u", 400, { stage: "schema_missing", where: "validate_state" })
@@ -74,37 +73,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ project
   if (!validated) {
     return jsonError("Invalid fields", 400, { stage: "validation", where: "validate" })
   }
-  if (!isUuid(validated.image_id)) {
-    return jsonError("Invalid image_id", 400, { stage: "validation", where: "image_id" })
-  }
 
-  // Validate the body-specified image belongs to the project and isn't
-  // locked. This is a guard against editing a row the user shouldn't
-  // be operating on — separate from the persistence target, which is
-  // always master.id (see below).
-  const { data: bodyImageRow, error: bodyImageErr } = await supabase
-    .from("project_images")
-    .select("id,is_locked")
-    .eq("project_id", projectId)
-    .eq("id", validated.image_id)
-    .is("deleted_at", null)
-    .maybeSingle()
-  if (bodyImageErr) return jsonError(bodyImageErr.message, 400, { stage: "lock_guard_query" })
-  if (!bodyImageRow?.id) {
-    return jsonError("Image not found in project", 404, { stage: "image_not_in_project" })
-  }
-  if (bodyImageRow.is_locked) {
-    return jsonError("Editor target image is locked", 409, { stage: "lock_conflict", reason: "image_locked" })
-  }
-
-  // Anchor: persist state at the project's master.id regardless of
-  // which editor surface (working_copy / filter_working_copy /
-  // trace_output) the client was rendering. State survives filter
-  // chain resets and stays consistent between SSR and client.
-  const { masterId, error: masterErr } = await getProjectMasterImageId(supabase, projectId)
+  // Persistence + lock-guard both anchor at the project's master row.
+  // Single query fetches id + is_locked.
+  const { row: masterRow, error: masterErr } = await getProjectMasterImageRow(supabase, projectId)
   if (masterErr) return jsonError(masterErr, 400, { stage: "master_lookup" })
-  if (!masterId) {
+  if (!masterRow) {
     return jsonError("Project has no master image", 409, { stage: "no_master_image" })
+  }
+  if (masterRow.is_locked) {
+    return jsonError("Master image is locked", 409, { stage: "lock_conflict", reason: "image_locked" })
   }
 
   // Per-axis preservation: when the payload omits x_px_u or y_px_u
@@ -115,7 +93,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ project
   let resolvedXPxU: string | null = validated.x_px_u ?? null
   let resolvedYPxU: string | null = validated.y_px_u ?? null
   if (validated.x_px_u === undefined || validated.y_px_u === undefined) {
-    const existing = await loadBoundImageState(supabase, projectId, masterId)
+    const existing = await loadBoundImageState(supabase, projectId, masterRow.id)
     if (existing.error) {
       return jsonError(existing.error, 400, { stage: "select_existing_for_merge" })
     }
@@ -125,7 +103,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ project
 
   const upsert = await upsertBoundImageState(supabase, {
     project_id: projectId,
-    image_id: masterId,
+    image_id: masterRow.id,
     x_px_u: resolvedXPxU,
     y_px_u: resolvedYPxU,
     width_px_u: validated.width_px_u,

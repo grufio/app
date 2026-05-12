@@ -33,14 +33,24 @@ describe("createPendingSlot", () => {
 })
 
 describe("mapImageStateApiErrorToMessage", () => {
-  it("maps known save stages to deterministic messages", () => {
-    const noActive = new ApiError({
+  it("maps lock_conflict on save to a clear message", () => {
+    const locked = new ApiError({
       prefix: "image_state",
       action: "save",
       status: 409,
-      payload: { stage: "no_active_image" },
+      payload: { stage: "lock_conflict" },
     })
-    expect(mapImageStateApiErrorToMessage(noActive, "save")).toBe("No active image available. Please refresh.")
+    expect(mapImageStateApiErrorToMessage(locked, "save")).toBe("Active image is locked.")
+  })
+
+  it("maps schema_missing on load to a clear message", () => {
+    const schemaMissing = new ApiError({
+      prefix: "image_state",
+      action: "load",
+      status: 400,
+      payload: { stage: "schema_missing" },
+    })
+    expect(mapImageStateApiErrorToMessage(schemaMissing, "load")).toBe("Unsupported image state schema.")
   })
 
   it("falls back to payload error when available", () => {
@@ -51,6 +61,16 @@ describe("mapImageStateApiErrorToMessage", () => {
       payload: { stage: "whatever", error: "custom failure" },
     })
     expect(mapImageStateApiErrorToMessage(err, "load")).toBe("custom failure")
+  })
+
+  it("falls back to a generic message when no payload error", () => {
+    const err = new ApiError({
+      prefix: "image_state",
+      action: "save",
+      status: 500,
+      payload: { stage: "unknown" },
+    })
+    expect(mapImageStateApiErrorToMessage(err, "save")).toBe("Failed to save image state.")
   })
 })
 

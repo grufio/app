@@ -16,7 +16,7 @@ describe("image-state API wrapper", () => {
     fetchJsonMock.mockReset()
   })
 
-  it("builds GET URL without imageId", async () => {
+  it("GET hits the project-scoped URL without any query parameter", async () => {
     const okGet: FetchJsonResult<unknown> = { ok: true, status: 200, data: { exists: false } }
     fetchJsonMock.mockResolvedValueOnce(okGet)
 
@@ -28,25 +28,11 @@ describe("image-state API wrapper", () => {
     })
   })
 
-  it("builds GET URL with imageId query", async () => {
-    const okGet: FetchJsonResult<unknown> = { ok: true, status: 200, data: { exists: false } }
-    fetchJsonMock.mockResolvedValueOnce(okGet)
-
-    await getImageState("project-1", "image-1")
-
-    expect(fetchJsonMock).toHaveBeenCalledWith("/api/projects/project-1/image-state?imageId=image-1", {
-      method: "GET",
-      credentials: "same-origin",
-    })
-  })
-
-  it("builds POST URL without imageId by default", async () => {
+  it("POST sends only transform fields (no image_id / role in body)", async () => {
     const okPost: FetchJsonResult<unknown> = { ok: true, status: 200, data: {} }
     fetchJsonMock.mockResolvedValueOnce(okPost)
 
     const body = {
-      role: "master" as const,
-      image_id: "image-1",
       width_px_u: "1000",
       height_px_u: "1000",
       rotation_deg: 0,
@@ -62,41 +48,23 @@ describe("image-state API wrapper", () => {
     })
   })
 
-  it("builds POST URL with explicit imageId query", async () => {
-    const okPost: FetchJsonResult<unknown> = { ok: true, status: 200, data: {} }
-    fetchJsonMock.mockResolvedValueOnce(okPost)
-
-    const body = {
-      role: "master" as const,
-      image_id: "image-1",
-      width_px_u: "1000",
-      height_px_u: "1000",
-      rotation_deg: 0,
-    }
-
-    await saveImageState("project-1", body, "image-1")
-
-    expect(fetchJsonMock).toHaveBeenCalledWith("/api/projects/project-1/image-state?imageId=image-1", {
-      method: "POST",
-      credentials: "same-origin",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    })
-  })
-
-  it("throws ApiError on failed POST", async () => {
-    const failPost: FetchJsonResult<unknown> = { ok: false, status: 409, error: { stage: "active_image_mismatch" } }
+  it("throws ApiError on failed POST (e.g. lock_conflict)", async () => {
+    const failPost: FetchJsonResult<unknown> = { ok: false, status: 409, error: { stage: "lock_conflict" } }
     fetchJsonMock.mockResolvedValueOnce(failPost)
 
     await expect(
       saveImageState("project-1", {
-        role: "master",
-        image_id: "image-1",
         width_px_u: "1000",
         height_px_u: "1000",
         rotation_deg: 0,
       })
     ).rejects.toBeInstanceOf(ApiError)
   })
-})
 
+  it("throws ApiError on failed GET (e.g. schema_missing)", async () => {
+    const failGet: FetchJsonResult<unknown> = { ok: false, status: 400, error: { stage: "schema_missing" } }
+    fetchJsonMock.mockResolvedValueOnce(failGet)
+
+    await expect(getImageState("project-1")).rejects.toBeInstanceOf(ApiError)
+  })
+})

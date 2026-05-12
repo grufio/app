@@ -48,8 +48,8 @@ export function createImageWorkflowMachine() {
         await input.services.refreshAll()
       }),
       persistTransform: fromPromise(
-        async ({ input }: { input: { services: ImageWorkflowServices; imageId: string; transform: WorkflowTransformPayload } }) => {
-          await input.services.saveTransform({ imageId: input.imageId, transform: input.transform })
+        async ({ input }: { input: { services: ImageWorkflowServices; transform: WorkflowTransformPayload } }) => {
+          await input.services.saveTransform({ transform: input.transform })
         }
       ),
     },
@@ -276,12 +276,11 @@ export function createImageWorkflowMachine() {
             invoke: {
               src: "persistTransform",
               input: ({ context }) => {
-                if (!context.source.image?.id || !context.inFlightTransform) {
-                  throw new Error("Missing image or transform payload for persist")
+                if (!context.inFlightTransform) {
+                  throw new Error("Missing transform payload for persist")
                 }
                 return {
                   services: context.services,
-                  imageId: context.source.image.id,
                   transform: context.inFlightTransform,
                 }
               },

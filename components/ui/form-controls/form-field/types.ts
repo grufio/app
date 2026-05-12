@@ -5,6 +5,13 @@ import type { NumericMode } from "@/lib/editor/numeric"
 export type FormFieldHandle = {
   commit: () => void
   cancelPendingCommit: () => void
+  /** Imperatively push a new draft into the field. Equivalent to the
+   * user typing the value: the reducer's `setDraft` event runs and
+   * fires `onDraftChange`. Useful for cross-axis pushes (aspect-lock)
+   * where the parent computes the partner-axis value and needs the
+   * partner FormField's internal draft to reflect it without
+   * rebinding the `value` prop (which would create an echo loop). */
+  setDraft: (next: string) => void
 }
 
 type CommonFormFieldProps = {

@@ -62,9 +62,10 @@ Fields:
 
 ## GET
 
-- Server calls `getProjectMasterImageId(projectId)` and looks up
+- Server calls `getProjectMasterImageRow(projectId)` and looks up
   state at `(project_id, master.id)`.
-- Any `?imageId=` query parameter is ignored.
+- No query parameters (legacy `?imageId=` was dropped in the
+  master-anchor client cleanup).
 
 Response (state exists):
 
@@ -94,7 +95,6 @@ Request body:
 
 ```json
 {
-  "image_id": "uuid-of-the-surface-the-user-edited",
   "x_px_u": "123450000",
   "y_px_u": "67890000",
   "width_px_u": "1024500000",
@@ -103,20 +103,26 @@ Request body:
 }
 ```
 
+Legacy fields `image_id` and `role` are accepted by the validator
+but **ignored**. Older client builds still in flight during a
+deploy window will include them; the server resolves the
+persistence key and the lock-guard target from `projectId` alone.
+A follow-up release should drop the legacy fields from the
+validator once those builds are gone.
+
 Validation steps (in order):
 
-1. `image_id` must be a UUID.
-2. The row at `image_id` must belong to the project and not be
-   soft-deleted. Returns `404 image_not_in_project` otherwise.
-3. That row must not be locked. Returns `409 lock_conflict` if it
-   is.
-4. `getProjectMasterImageId(projectId)` must return a master id.
-   Returns `409 no_master_image` if the project has no master.
-5. Per-axis preservation: when `x_px_u` or `y_px_u` is omitted,
+1. Transform fields (`width_px_u`, `height_px_u`, `rotation_deg`)
+   must be present and within bounds.
+2. `getProjectMasterImageRow(projectId)` must return a master row.
+   Returns `409 no_master_image` otherwise.
+3. That master row must not be locked. Returns `409 lock_conflict`
+   if it is.
+4. Per-axis preservation: when `x_px_u` or `y_px_u` is omitted,
    the route reads the current row at master.id and fills in the
    unchanged axis so a position-only edit doesn't clobber the
    other axis.
-6. Upsert at `(project_id, master.id)`.
+5. Upsert at `(project_id, master.id)`.
 
 Notes:
 

@@ -4,11 +4,23 @@
  * Responsibilities:
  * - Validate incoming JSON payloads for image-state upserts.
  * - Enforce bounds/invariants before persisting to the database.
+ *
+ * Post PR #124 + the master-anchor client cleanup: the payload no longer
+ * carries `image_id` or `role` as persistence keys (the server resolves
+ * master.id internally). Both fields stay on the incoming-payload type
+ * as `unknown` so old clients still in flight during the deploy window
+ * can keep sending them — they are simply not consumed by the validator
+ * or the route handler.
  */
 import { MAX_PX_U, MIN_PX_U, parseBigIntString } from "@/lib/editor/imageState"
 
 export type IncomingImageStatePayload = {
+  /** @deprecated — informational only; server ignores it. Kept on the
+   * type so deploy-window backward compat doesn't reject older clients
+   * that still send `image_id`. */
   image_id?: unknown
+  /** @deprecated — same rationale as `image_id`. */
+  role?: unknown
   x_px_u?: unknown
   y_px_u?: unknown
   width_px_u?: unknown
@@ -17,7 +29,6 @@ export type IncomingImageStatePayload = {
 }
 
 export type ValidatedImageStateUpsert = {
-  image_id: string
   /**
    * `string` — explicit value; persist as-is.
    * `undefined` — axis omitted from payload; route preserves the existing
@@ -35,7 +46,6 @@ export type ValidatedImageStateUpsert = {
 }
 
 export function validateIncomingImageStateUpsert(body: IncomingImageStatePayload): ValidatedImageStateUpsert | null {
-  const imageId = typeof body.image_id === "string" ? body.image_id.trim() : ""
   const rotation_deg = Number(body.rotation_deg)
 
   const widthPxU = parseBigIntString(body.width_px_u)
@@ -47,7 +57,6 @@ export function validateIncomingImageStateUpsert(body: IncomingImageStatePayload
   const yPxU = body.y_px_u === undefined ? undefined : parseBigIntString(body.y_px_u)
 
   if (
-    !imageId ||
     !widthPxU ||
     !heightPxU ||
     widthPxU < MIN_PX_U ||
@@ -66,7 +75,6 @@ export function validateIncomingImageStateUpsert(body: IncomingImageStatePayload
   }
 
   return {
-    image_id: imageId,
     x_px_u: xPxU?.toString(),
     y_px_u: yPxU?.toString(),
     width_px_u: widthPxU.toString(),

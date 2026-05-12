@@ -42,13 +42,29 @@ describe("validateIncomingImageStateUpsert", () => {
     expect(res).toBeNull()
   })
 
-  it("rejects payloads missing image binding", () => {
+  it("accepts payloads without image_id (post-master-anchor refactor — server resolves master.id)", () => {
     const res = validateIncomingImageStateUpsert({
       width_px_u: "1000000",
       height_px_u: "1000000",
       rotation_deg: 0,
     })
-    expect(res).toBeNull()
+    expect(res).not.toBeNull()
+    expect(res?.width_px_u).toBe("1000000")
+  })
+
+  it("ignores legacy `image_id` and `role` fields if present (deploy-window backward compat)", () => {
+    const res = validateIncomingImageStateUpsert({
+      image_id: "legacy-uuid",
+      role: "master",
+      width_px_u: "1000000",
+      height_px_u: "1000000",
+      rotation_deg: 0,
+    })
+    expect(res).not.toBeNull()
+    // The validator must not surface `image_id` or `role` in the output.
+    const result = res as unknown as Record<string, unknown>
+    expect(result.image_id).toBeUndefined()
+    expect(result.role).toBeUndefined()
   })
 
   it("accepts partial position payloads (x omitted preserves existing row)", () => {

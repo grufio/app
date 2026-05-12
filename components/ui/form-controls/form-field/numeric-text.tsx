@@ -51,6 +51,7 @@ export const NumericOrTextVariant = React.forwardRef<
     () => ({
       commit: () => draft.commit(),
       cancelPendingCommit: () => draft.cancelPendingCommit(),
+      setDraft: (next: string) => draft.setDraft(next),
     }),
     [draft]
   )

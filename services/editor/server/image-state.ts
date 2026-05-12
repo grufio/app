@@ -3,9 +3,7 @@
  *
  * Responsibilities:
  * - Fetch the persisted image transform state (µpx) for editor hydration.
- * - State is anchored at the project's master.id; the caller's
- *   `activeImageId` is ignored (kept for API back-compat with the old
- *   signature, see the route handler for the same reasoning).
+ * - State is anchored at the project's master.id (PR #124).
  * - Enforce invariant: if a row exists but canonical µpx size is
  *   missing, treat as unsupported.
  */
@@ -18,10 +16,8 @@ import { getProjectMasterImageId } from "@/lib/supabase/project-images"
 
 export async function getImageStateForEditor(
   supabase: SupabaseClient,
-  projectId: string,
-  _activeImageId: string | null
+  projectId: string
 ): Promise<{ imageState: ImageState | null; error: string | null; unsupported: boolean }> {
-  void _activeImageId
   const { masterId, error: masterErr } = await getProjectMasterImageId(supabase, projectId)
   if (masterErr) return { imageState: null, error: masterErr, unsupported: false }
   if (!masterId) return { imageState: null, error: null, unsupported: false }
@@ -42,7 +38,6 @@ export async function getImageStateForEditor(
 
   return {
     imageState: {
-      imageId: typeof st.image_id === "string" ? st.image_id : undefined,
       xPxU: xPxU ?? undefined,
       yPxU: yPxU ?? undefined,
       widthPxU,

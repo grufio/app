@@ -115,7 +115,6 @@ export function useEditorWorkflowAdapter(args: {
    * bitmap input — feeding the trace SVG to pixelate's Python
    * service breaks the decode step. */
   const filterApplySourceIdRef = useRef<string | null>(null)
-  const loadedImageStateForImageIdRef = useRef<string | null>(null)
   const refreshInFlightRef = useRef<Promise<void> | null>(null)
   const refreshQueuedRef = useRef(false)
 
@@ -149,32 +148,24 @@ export function useEditorWorkflowAdapter(args: {
 
   const activeSnapshotImageId = sourceSnapshot.status === "ready" ? sourceSnapshot.image.id : null
   const imageStateEnabled = sourceSnapshot.status === "ready"
+  // State is anchored at master.id (PR #124) — the hook needs no
+  // image-id input; it loads/saves a single project-wide row. SSR
+  // provides `initialImageState`, so `autoLoad` defaults to true for
+  // cases without SSR data (e.g. fresh project navigated client-side).
   const { initialImageTransform, imageStateLoading, loadImageState, saveImageState } = useImageState(
     projectId,
     imageStateEnabled,
     initialImageState,
-    false,
-    activeSnapshotImageId ?? undefined
   )
 
-  useEffect(() => {
-    if (!activeSnapshotImageId) {
-      loadedImageStateForImageIdRef.current = null
-      return
-    }
-    if (loadedImageStateForImageIdRef.current === activeSnapshotImageId) return
-    loadedImageStateForImageIdRef.current = activeSnapshotImageId
-    void loadImageState()
-  }, [activeSnapshotImageId, loadImageState])
-
   const refreshEditorDataOnce = useCallback(async () => {
+    // No `loadImageState()` here: state is project-wide and immutable
+    // by filter/trace/crop apply (none of those touch the master-anchored
+    // row). The current state stays correct across these operations.
     await refreshMasterImage()
     await refreshProjectImages()
     await refreshFilterImage()
-    if (activeSnapshotImageId) {
-      await loadImageState()
-    }
-  }, [activeSnapshotImageId, loadImageState, refreshFilterImage, refreshMasterImage, refreshProjectImages])
+  }, [refreshFilterImage, refreshMasterImage, refreshProjectImages])
 
   const refreshEditorData = useCallback(async () => {
     if (refreshInFlightRef.current) {
@@ -238,8 +229,8 @@ export function useEditorWorkflowAdapter(args: {
     [projectId]
   )
   const saveTransformService = useCallback(
-    async ({ imageId, transform }: { imageId: string; transform: { xPxU?: bigint; yPxU?: bigint; widthPxU: bigint; heightPxU: bigint; rotationDeg: number } }) => {
-      await saveImageState({ ...transform, imageId })
+    async ({ transform }: { transform: { xPxU?: bigint; yPxU?: bigint; widthPxU: bigint; heightPxU: bigint; rotationDeg: number } }) => {
+      await saveImageState(transform)
     },
     [saveImageState]
   )

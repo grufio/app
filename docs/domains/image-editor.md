@@ -199,6 +199,11 @@ runs three parallel sub-machines:
 - A follow-up cleanup migration is pending (PR #124 left legacy
   `project_image_state` rows whose `image_id` is not the master
   in place, for deploy-window compatibility — drop them after bake).
+- `activateProjectImage` writes a state row at the activated image
+  id (filter_working_copy / trace_output) via
+  `set_active_master_with_state` RPC. These rows are never read
+  (the route always loads at master.id) but accumulate as DB
+  cruft. The pending cleanup migration above sweeps them.
 
 ## Diagrams
 
