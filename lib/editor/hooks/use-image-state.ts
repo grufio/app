@@ -30,6 +30,21 @@ export type ImageState = {
 type Pending<T> = { seq: number; value: T }
 
 /**
+ * Stable equality key for a transform payload. Used by load- and save-
+ * path dedup refs; equivalent strings mean "nothing new to apply/persist".
+ * Cheap concat avoids JSON.stringify GC churn on the save-coalesce path.
+ */
+function buildTransformSignature(p: {
+  x_px_u?: string | null | undefined
+  y_px_u?: string | null | undefined
+  width_px_u: string
+  height_px_u: string
+  rotation_deg: number | string
+}): string {
+  return `${p.x_px_u ?? ""}|${p.y_px_u ?? ""}|${p.width_px_u}|${p.height_px_u}|${p.rotation_deg}`
+}
+
+/**
  * Maps an `ApiError` from the image-state route into a user-facing
  * message. Two specific stages get tailored copy:
  * - `lock_conflict` on save → "Active image is locked."
@@ -147,7 +162,7 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
       }
       const xPxU = parseBigIntString(payload.state.x_px_u)
       const yPxU = parseBigIntString(payload.state.y_px_u)
-      const nextSig = `${payload.state.x_px_u ?? ""}|${payload.state.y_px_u ?? ""}|${payload.state.width_px_u}|${payload.state.height_px_u}|${payload.state.rotation_deg}`
+      const nextSig = buildTransformSignature(payload.state)
       if (lastLoadedSignatureRef.current === nextSig) return
       lastLoadedSignatureRef.current = nextSig
       setInitialImageTransform({
@@ -206,8 +221,7 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
       rotationDeg: t.rotationDeg,
     })
 
-    // Avoid JSON.stringify GC churn; we only need a stable equality key.
-    const signature = `${payload.x_px_u ?? ""}|${payload.y_px_u ?? ""}|${payload.width_px_u}|${payload.height_px_u}|${payload.rotation_deg}`
+    const signature = buildTransformSignature(payload)
     if (lastSavedSignatureRef.current === signature) {
       // Duplicate payload for the same pending seq: clear it to avoid re-reading
       // the same snapshot forever in the coalescing flush loop.
