@@ -19,6 +19,20 @@ type RawProjectImageRow = Record<string, unknown> & {
   created_at?: string | null
 }
 
+/**
+ * Safely read `code` off a PostgrestError-shaped value. Supabase errors
+ * have an optional string `code` (PG error code, e.g. `23514`), but the
+ * library's exported type only declares `message`. Replaces repeated
+ * unsafe type-escapes at the error-handling sites.
+ */
+function readErrorCode(error: unknown): string | undefined {
+  if (error && typeof error === "object" && "code" in error) {
+    const code = (error as { code: unknown }).code
+    return typeof code === "string" ? code : undefined
+  }
+  return undefined
+}
+
 export type ActiveMasterImage = {
   id: string
   storagePath: string
@@ -113,7 +127,7 @@ export async function resolveEditorTargetImageRows(
       error: {
         stage: "active_lookup",
         reason: error.message,
-        code: (error as unknown as { code?: string })?.code,
+        code: readErrorCode(error),
       },
     }
   }
@@ -155,7 +169,7 @@ export async function getActiveProjectImageRow(
       error: {
         stage: "active_lookup",
         reason: error.message,
-        code: (error as unknown as { code?: string })?.code,
+        code: readErrorCode(error),
       },
     }
   }
@@ -262,7 +276,7 @@ export async function getActiveProjectImageLockRow(
       row: null,
       error: {
         reason: error.message,
-        code: (error as unknown as { code?: string })?.code,
+        code: readErrorCode(error),
       },
     }
   }
@@ -299,7 +313,7 @@ export async function getProjectWorkspacePlacementRow(
       row: null,
       error: {
         reason: error.message,
-        code: (error as unknown as { code?: string })?.code,
+        code: readErrorCode(error),
       },
     }
   }
@@ -331,7 +345,7 @@ export async function setActiveProjectImageState(args: {
       status: 400,
       stage: "active_switch",
       reason: error.message,
-      code: (error as unknown as { code?: string })?.code,
+      code: readErrorCode(error),
     }
   }
   return { ok: true }
@@ -360,7 +374,7 @@ export async function setActiveProjectImageOnly(args: {
       status: 400,
       stage: "active_switch",
       reason: error.message,
-      code: (error as unknown as { code?: string })?.code,
+      code: readErrorCode(error),
     }
   }
   return { ok: true }

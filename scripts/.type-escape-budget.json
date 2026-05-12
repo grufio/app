@@ -1,7 +1,7 @@
 {
-  "budget": 51,
+  "budget": 46,
   "note": "Hard ceiling for `as unknown as` in production code (excludes *.test.ts/.tsx). Gate fails if count exceeds budget. Lower this number deliberately as the codebase improves.",
-  "last_updated": "2026-05-07",
+  "last_updated": "2026-05-12",
   "top_offenders": [
     {
       "file": "lib/editor/project-workspace.tsx",
@@ -9,7 +9,7 @@
     },
     {
       "file": "lib/supabase/project-images.ts",
-      "perFile": 7
+      "perFile": 2
     },
     {
       "file": "services/editor/workspace/browser-repo-supabase.ts",
