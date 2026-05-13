@@ -4,7 +4,6 @@ import { computeImagePanelEnabled } from "./use-image-panel-enabled"
 
 const ready = {
   hasMasterImage: true,
-  imageStateLoading: false,
   workspaceReady: true,
 } as const
 
@@ -20,13 +19,6 @@ describe("computeImagePanelEnabled", () => {
     })
   })
 
-  it("disabled with reason 'loading-state' when image state loading", () => {
-    expect(computeImagePanelEnabled({ ...ready, imageStateLoading: true })).toEqual({
-      enabled: false,
-      reason: "loading-state",
-    })
-  })
-
   it("disabled with reason 'workspace-not-ready' when workspace not ready", () => {
     expect(computeImagePanelEnabled({ ...ready, workspaceReady: false })).toEqual({
       enabled: false,
@@ -35,12 +27,11 @@ describe("computeImagePanelEnabled", () => {
   })
 
   it("returns the FIRST applicable reason in priority order", () => {
-    // No image takes precedence over loading.
+    // No image takes precedence over workspace-not-ready.
     expect(
       computeImagePanelEnabled({
-        ...ready,
         hasMasterImage: false,
-        imageStateLoading: true,
+        workspaceReady: false,
       }),
     ).toEqual({ enabled: false, reason: "no-image" })
   })

@@ -122,7 +122,6 @@ export function ProjectDetailPageClient({
   const {
     sourceSnapshot,
     initialImageTransform,
-    imageStateLoading,
     workflow,
     editorImageSource,
     activeCanvasImageId,
@@ -263,7 +262,7 @@ export function ProjectDetailPageClient({
     workflow.saveTransform(t)
   }, [workflow])
   const hasFilterSourceImage = Boolean(filterSourceImage)
-  const isNewFilterActionBusy = filterImageLoading || imageStateLoading || workflow.isMutating || workflow.isSyncing
+  const isNewFilterActionBusy = filterImageLoading || workflow.isMutating || workflow.isSyncing
   const isAddFilterDisabled = !hasFilterSourceImage || isNewFilterActionBusy
   const openFilterSelection = useCallback(() => {
     if (isAddFilterDisabled) return
@@ -327,7 +326,6 @@ export function ProjectDetailPageClient({
     canvasRef,
     canvasMode,
     leftPanelTab,
-    imageStateLoading,
     sourceReady: editorImageSource.status === "ready",
     selectedNavId,
     setSelectedNavId,
@@ -428,7 +426,6 @@ export function ProjectDetailPageClient({
 
   const { panelImageTxU, workspaceReady, imagePanelReady, activeRightSection, panelImageMeta } = useRightPanelModel({
     selectedNavId,
-    imageStateLoading,
     imageTxU,
     initialImageTxU,
     workspaceLoading,
@@ -592,7 +589,6 @@ export function ProjectDetailPageClient({
               masterImage={canvasImage}
               masterImageLoading={editorImageSource.status === "loading"}
               masterImageError={editorImageSource.status === "error" ? editorImageSource.error : ""}
-              imageStateLoading={imageStateLoading}
               toolbar={stageToolbar}
               canvasRef={canvasRef}
               artboardWidthPx={artboardWidthPx ?? undefined}
@@ -644,7 +640,6 @@ export function ProjectDetailPageClient({
             panelImageTxU={panelImageTxU}
             workspaceUnit={workspaceUnit ?? "cm"}
             workspaceReady={workspaceReady}
-            imageStateLoading={imageStateLoading}
             imagePanelReady={imagePanelReady}
             gridVisible={gridVisible}
             onGridVisibleChange={setGridVisible}

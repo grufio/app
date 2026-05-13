@@ -76,7 +76,6 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
   panelImageTxU: { x: bigint; y: bigint; w: bigint; h: bigint } | null
   workspaceUnit: Unit
   workspaceReady: boolean
-  imageStateLoading: boolean
   imagePanelReady: boolean
   gridVisible: boolean
   onGridVisibleChange: (v: boolean) => void
@@ -111,7 +110,6 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
     panelImageTxU,
     workspaceUnit,
     workspaceReady,
-    imageStateLoading,
     imagePanelReady,
     gridVisible,
     onGridVisibleChange,
@@ -123,7 +121,6 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
 
   const imagePanelEnabled = useImagePanelEnabled({
     hasMasterImage: Boolean(masterImage),
-    imageStateLoading,
     workspaceReady,
   })
 
