@@ -13,6 +13,7 @@ export type ProjectRouteContext = {
 type RouteErrorPayload = {
   error: string
   stage: string
+  correlationId: string
 }
 
 type ProjectRouteHandler<T = unknown> = (
