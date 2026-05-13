@@ -454,19 +454,6 @@ declare
 begin
   perform pg_advisory_xact_lock(hashtext(p_project_id::text));
 
-  if not exists (
-    select 1 from public.project_images
-    where id = p_image_id
-      and project_id = p_project_id
-      and kind = 'master'
-      and deleted_at is null
-  ) then
-    raise exception 'image_id must be a live master image'
-      using errcode = '23514',
-            detail = format('project_id=%s image_id=%s', p_project_id, p_image_id),
-            hint = 'project_image_state is anchored at master.id (PR #124).';
-  end if;
-
   v_x_u := p_x_px_u::bigint;
   v_y_u := p_y_px_u::bigint;
   v_w_u := p_width_px_u::bigint;
