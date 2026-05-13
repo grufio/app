@@ -14,10 +14,33 @@ import type { SupabaseClient } from "@supabase/supabase-js"
  */
 
 /**
- * Builds a `NextResponse` JSON error with a normalised `{ error, stage, ... }`
+ * Generate a per-request correlation id. Clients echo this in
+ * support tickets so we can grep server logs to the exact request.
+ * Used by `jsonError` to stamp the `X-Request-Id` response header
+ * and to include the same id in the JSON body for clients that can't
+ * read response headers easily.
+ */
+function generateCorrelationId(): string {
+  // Use crypto.randomUUID when available (Node 19+, all browsers).
+  // The narrow runtime check keeps this dependency-free.
+  const c = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto
+  if (c && typeof c.randomUUID === "function") return c.randomUUID()
+  // Fallback (older runtimes): RFC-4122-ish randomness via Math.random.
+  // Good enough for telemetry, not for security.
+  const hex = (n: number) => Math.floor(Math.random() * 16 ** n).toString(16).padStart(n, "0")
+  return `${hex(8)}-${hex(4)}-4${hex(3)}-${(8 + Math.floor(Math.random() * 4)).toString(16)}${hex(3)}-${hex(12)}`
+}
+
+/**
+ * Builds a `NextResponse` JSON error with a normalised `{ error, stage, correlationId, ... }`
  * shape and an optional `extra` payload. In production, leaks of internal
  * DB / storage errors are scrubbed to "Request failed" unless the stage is on
  * the allow-list (auth, validation, 401/403/404).
+ *
+ * Sets the `X-Request-Id` response header with the same correlation id
+ * that appears in the JSON body. Clients should prefer the header, falling
+ * back to `body.correlationId` if the response is buffered through a layer
+ * that strips custom headers.
  */
 export function jsonError(message: string, status: number, extra?: Record<string, unknown>) {
   const stageFromExtra = (extra as { stage?: unknown } | undefined)?.stage
@@ -32,7 +55,11 @@ export function jsonError(message: string, status: number, extra?: Record<string
   })()
   const rest = { ...(extra ?? {}) } as Record<string, unknown>
   delete rest.stage
-  return NextResponse.json({ error: safeMessage, stage, ...rest }, { status })
+  const correlationId = generateCorrelationId()
+  return NextResponse.json(
+    { error: safeMessage, stage, correlationId, ...rest },
+    { status, headers: { "X-Request-Id": correlationId } },
+  )
 }
 
 /** Returns true if `value` is a v1-v5 UUID (matching Postgres' uuid type). */
