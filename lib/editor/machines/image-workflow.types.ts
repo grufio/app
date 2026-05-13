@@ -1,3 +1,5 @@
+import type { OperationError } from "@/lib/api/operation-error"
+
 export type WorkflowSourceImage = {
   id: string
   signedUrl: string
@@ -35,8 +37,8 @@ export type ImageWorkflowContext = {
   services: ImageWorkflowServices
   source: WorkflowSourceSnapshot
   lastOperation: "filter_apply" | "filter_remove" | "crop_apply" | "restore" | "refresh" | null
-  lastOpError: string
-  lastPersistenceError: string
+  lastOpError: OperationError | null
+  lastPersistenceError: OperationError | null
   inFlightTransform: WorkflowTransformPayload | null
   pendingTransform: WorkflowTransformPayload | null
 }

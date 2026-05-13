@@ -278,10 +278,14 @@ export function useEditorWorkflowAdapter(args: {
     }
   }, [workflow])
 
+  // PR-6b-3a interim: machine slots are now OperationError | null but
+  // downstream callers still expect strings. Coerce via .message until
+  // PR-6b-3b properly types the composition + toast rendering with
+  // correlation-id awareness.
   const filterOperationError =
-    workflow.lastOperation === "filter_apply" || workflow.lastOperation === "filter_remove" ? workflow.operationError : ""
-  const restoreOperationError = workflow.lastOperation === "restore" ? workflow.operationError : ""
-  const workflowFilterPanelError = filterOperationError || workflow.persistenceError || filterImageError
+    workflow.lastOperation === "filter_apply" || workflow.lastOperation === "filter_remove" ? (workflow.operationError?.message ?? "") : ""
+  const restoreOperationError = workflow.lastOperation === "restore" ? (workflow.operationError?.message ?? "") : ""
+  const workflowFilterPanelError = filterOperationError || (workflow.persistenceError?.message ?? "") || filterImageError
 
   return {
     sourceSnapshot,

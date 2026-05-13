@@ -1,5 +1,8 @@
 import { assign, fromPromise, setup } from "xstate"
 
+import { normalizeApiError } from "@/lib/api/error-normalizer"
+import type { OperationError } from "@/lib/api/operation-error"
+
 import type {
   ImageWorkflowContext,
   ImageWorkflowEvent,
@@ -12,9 +15,16 @@ type MachineInput = {
   services: ImageWorkflowServices
 }
 
-function toUnknownErrorMessage(error: unknown, fallback: string): string {
-  if (error instanceof Error && error.message.trim()) return error.message
-  return fallback
+/**
+ * Convert a caught xstate-actor error into a canonical `OperationError`.
+ * The actor's `error` event payload is typed as `unknown` (xstate-react),
+ * so we widen-then-normalize. `fallbackMessage` is only used when the
+ * underlying error provides no usable message at all.
+ */
+function toUnknownOperationError(error: unknown, fallbackMessage: string): OperationError {
+  const normalized = normalizeApiError(error)
+  if (normalized.message.trim()) return normalized
+  return { ...normalized, message: fallbackMessage }
 }
 
 export function createImageWorkflowMachine() {
@@ -67,10 +77,10 @@ export function createImageWorkflowMachine() {
         services: ({ event, context }) => (event.type === "SERVICES_UPDATE" ? event.services : context.services),
       }),
       clearOperationError: assign({
-        lastOpError: "",
+        lastOpError: null,
       }),
       clearPersistenceError: assign({
-        lastPersistenceError: "",
+        lastPersistenceError: null,
       }),
       assignLastOperation: assign({
         lastOperation: ({ event, context }) => {
@@ -83,10 +93,12 @@ export function createImageWorkflowMachine() {
         },
       }),
       assignOperationFailure: assign({
-        lastOpError: ({ event }) => toUnknownErrorMessage((event as { error?: unknown }).error, "Image workflow operation failed."),
+        lastOpError: ({ event }) =>
+          toUnknownOperationError((event as { error?: unknown }).error, "Image workflow operation failed."),
       }),
       assignPersistenceFailure: assign({
-        lastPersistenceError: ({ event }) => toUnknownErrorMessage((event as { error?: unknown }).error, "Failed to save image transform."),
+        lastPersistenceError: ({ event }) =>
+          toUnknownOperationError((event as { error?: unknown }).error, "Failed to save image transform."),
       }),
       queueOrStartTransform: assign({
         inFlightTransform: ({ context, event }) => {
@@ -117,8 +129,8 @@ export function createImageWorkflowMachine() {
     context: ({ input }) => ({
       source: { status: "loading", image: null, error: "" } as WorkflowSourceSnapshot,
       lastOperation: null,
-      lastOpError: "",
-      lastPersistenceError: "",
+      lastOpError: null,
+      lastPersistenceError: null,
       inFlightTransform: null,
       pendingTransform: null,
       ...input,
