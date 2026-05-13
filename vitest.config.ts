@@ -16,7 +16,18 @@ export default defineConfig({
     },
   },
   test: {
-    include: ["lib/**/*.test.ts", "components/**/*.test.ts", "features/**/*.test.ts", "services/**/*.test.ts", "app/**/*.test.ts", "scripts/**/*.test.ts"],
+    include: [
+      // `.tsx` is included for hook tests that need to render React via
+      // @testing-library/react (those files opt into `jsdom` via a
+      // file-level `@vitest-environment jsdom` doc-comment, so the default
+      // `node` env stays for the bulk of the suite).
+      "lib/**/*.test.{ts,tsx}",
+      "components/**/*.test.{ts,tsx}",
+      "features/**/*.test.{ts,tsx}",
+      "services/**/*.test.{ts,tsx}",
+      "app/**/*.test.{ts,tsx}",
+      "scripts/**/*.test.ts",
+    ],
     exclude: ["e2e/**", "node_modules/**", ".next/**"],
     // CI speed: small suite today, but enable parallel execution as it grows.
     pool: "threads",
