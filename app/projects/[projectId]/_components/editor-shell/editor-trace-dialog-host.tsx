@@ -19,8 +19,9 @@ export function EditorTraceDialogHost(props: {
   onCloseSelection: () => void
   onSelectKind: (kind: RegisteredTraceId) => void
   onCloseConfigure: () => void
-  onSuccess: () => void
-  onError: (error: Error) => void
+  /** Called after a successful trace apply (e.g. to reset the dialog
+   * session). The shell wires `traceDialog.reset` here. */
+  onApplied: () => void
   onApplyTrace: (args: { kind: RegisteredTraceId; params: Record<string, unknown> }) => Promise<void>
 }) {
   const {
@@ -30,12 +31,14 @@ export function EditorTraceDialogHost(props: {
     onCloseSelection,
     onSelectKind,
     onCloseConfigure,
-    onSuccess,
-    onError,
+    onApplied,
     onApplyTrace,
   } = props
 
   const configureOpen = Boolean(traceDialogSource && activeKind)
+  const onError = (error: Error) => {
+    console.error("Failed to apply trace:", error)
+  }
 
   return (
     <>
@@ -51,7 +54,7 @@ export function EditorTraceDialogHost(props: {
           imageWidth={traceDialogSource.sourceImageWidth}
           imageHeight={traceDialogSource.sourceImageHeight}
           onClose={onCloseConfigure}
-          onSuccess={onSuccess}
+          onSuccess={onApplied}
           onError={onError}
           onApplyTrace={onApplyTrace}
         />
@@ -65,7 +68,7 @@ export function EditorTraceDialogHost(props: {
           }}
           open
           onClose={onCloseConfigure}
-          onSuccess={onSuccess}
+          onSuccess={onApplied}
           onError={onError}
           onApplyTrace={onApplyTrace}
         />

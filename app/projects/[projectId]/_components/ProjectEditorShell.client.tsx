@@ -9,7 +9,6 @@
  * NOTE: In this first step, it preserves existing Image tab behavior.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { toast } from "sonner"
 
 import {
   EditorErrorBoundary,
@@ -24,9 +23,9 @@ import { buildNavId } from "@/features/editor/navigation/nav-id"
 import { recoverSelectedNavId } from "@/features/editor/navigation/selection-recovery"
 import { FilterSidebarSection } from "@/features/editor/components/filter-sidebar-section"
 import { TraceSidebarSection } from "@/features/editor/components/trace-sidebar-section"
-import { formatOperationErrorForToast, normalizeApiError } from "@/lib/api/error-normalizer"
 import type { OperationError } from "@/lib/api/operation-error"
 import { setProjectImageFilterHidden } from "@/lib/api/project-images"
+import { showOperationErrorToast, useDedupingErrorToast } from "@/lib/editor/hooks/use-deduping-error-toast"
 import { useTraceHandlers } from "./editor-shell/use-trace-handlers"
 import { useCanvasDerivedState } from "./editor-shell/use-canvas-derived-state"
 import { useFilterWorkingImage } from "@/lib/editor/hooks/use-filter-working-image"
@@ -115,8 +114,6 @@ export function ProjectDetailPageClient({
   const [gridVisible, setGridVisible] = useState(true)
   const [selectedNavId, setSelectedNavId] = useState<string>(buildNavId({ kind: "artboard" }))
   const canvasRef = useRef<ProjectCanvasStageHandle | null>(null)
-  const lastFilterErrorToastRef = useRef<string | null>(null)
-  const lastUploadSyncErrorToastRef = useRef<string | null>(null)
   const lastNoWorkingImageMetricRef = useRef("")
   const [imageTxU, setImageTxU] = useState<{ x: bigint; y: bigint; w: bigint; h: bigint } | null>(null)
   const {
@@ -158,24 +155,6 @@ export function ProjectDetailPageClient({
     handleClearTrace,
   } = useTraceHandlers({ projectId, refreshFilterImage, refreshMasterImage })
 
-  const handleTraceApplySuccess = useCallback(() => {
-    traceDialog.reset()
-  }, [traceDialog])
-
-  const handleTraceApplyError = useCallback((error: Error) => {
-    console.error("Failed to apply trace:", error)
-  }, [])
-
-  const handleFilterApplySuccess = useCallback(() => {
-    filterDialog.reset()
-  }, [filterDialog])
-
-  const handleFilterApplyError = useCallback(
-    (error: Error) => {
-      console.error("Failed to apply filter:", error)
-    },
-    []
-  )
   // PR-6b-3b: `workflowFilterPanelError` is OperationError | null;
   // `filterDialog.error` is still a string. Coerce + null-safe pick.
   const filterPanelError: OperationError | null =
@@ -184,39 +163,8 @@ export function ProjectDetailPageClient({
   const activeDisplayFilterId = filterStack[filterStack.length - 1]?.id ?? null
   const isActiveDisplayFilterHidden = activeDisplayFilterId ? Boolean(hiddenFilterIds[activeDisplayFilterId]) : false
 
-  useEffect(() => {
-    if (!filterPanelError) {
-      lastFilterErrorToastRef.current = null
-      return
-    }
-    // Dedup key prefers correlationId (unique per server request) and
-    // falls back to stage+message so re-render-induced new object
-    // identities don't fire the toast twice. R2 of the plan-review.
-    const dedupKey = filterPanelError.correlationId ?? `${filterPanelError.stage}|${filterPanelError.message}`
-    if (lastFilterErrorToastRef.current === dedupKey) return
-    lastFilterErrorToastRef.current = dedupKey
-    const formatted = formatOperationErrorForToast(filterPanelError)
-    const description = filterPanelError.correlationId
-      ? [formatted.detail, `[ref: ${filterPanelError.correlationId}]`].filter(Boolean).join("\n")
-      : formatted.detail
-    toast.error(formatted.title, description ? { description } : undefined)
-  }, [filterPanelError])
-
-  useEffect(() => {
-    if (!uploadSyncError) {
-      lastUploadSyncErrorToastRef.current = null
-      return
-    }
-    const op = normalizeApiError(uploadSyncError)
-    const dedupKey = op.correlationId ?? `${op.stage}|${op.message}`
-    if (lastUploadSyncErrorToastRef.current === dedupKey) return
-    lastUploadSyncErrorToastRef.current = dedupKey
-    const formatted = formatOperationErrorForToast(op)
-    const description = op.correlationId
-      ? [formatted.detail, `[ref: ${op.correlationId}]`].filter(Boolean).join("\n")
-      : formatted.detail
-    toast.error(formatted.title, description ? { description } : undefined)
-  }, [uploadSyncError])
+  useDedupingErrorToast(filterPanelError)
+  useDedupingErrorToast(uploadSyncError)
 
   useEffect(() => {
     const unresolvedSourceMessage = "Working image target is unresolved. Refresh editor state."
@@ -490,8 +438,7 @@ export function ProjectDetailPageClient({
       } catch (e) {
         // Revert optimistic toggle, surface a toast with the upstream message.
         toggleHiddenFilter(filterId)
-        const formatted = formatOperationErrorForToast(normalizeApiError(e))
-        toast.error(formatted.title, formatted.detail ? { description: formatted.detail } : undefined)
+        showOperationErrorToast(e)
         reportClientError(e, {
           scope: "editor",
           code: "FILTER_HIDDEN_TOGGLE_FAILED",
@@ -501,53 +448,6 @@ export function ProjectDetailPageClient({
       }
     },
     [filterStack, projectId, refreshFilterImage, toggleHiddenFilter]
-  )
-
-  const traceSidebarContent = useMemo(
-    () => (
-      <TraceSidebarSection
-        trace={trace ? { kind: trace.kind } : null}
-        isAddTraceDisabled={isAddTraceDisabled}
-        isClearingTrace={isClearingTrace}
-        isLoadingInitial={traceLoading}
-        onClearTrace={handleClearTrace}
-        onOpenSelection={openTraceSelection}
-      />
-    ),
-    [handleClearTrace, isAddTraceDisabled, isClearingTrace, openTraceSelection, trace, traceLoading],
-  )
-
-  const filterSidebarContent = useMemo(
-    () => (
-      <FilterSidebarSection
-        filterStack={filterStack}
-        canvasMode={canvasMode}
-        hiddenFilterIds={hiddenFilterIds}
-        isAddFilterDisabled={isAddFilterDisabled}
-        activeDisplayFilterId={activeDisplayFilterId}
-        isActiveDisplayFilterHidden={isActiveDisplayFilterHidden}
-        isRemovingFilter={workflow.isRemovingFilter}
-        isLoadingInitial={filterImageLoading && !filterImageLoadedOnce}
-        onSelectFilter={showFilter}
-        onToggleHidden={handleToggleHidden}
-        onRemoveFilter={workflow.removeFilter}
-        onOpenSelection={openFilterSelection}
-      />
-    ),
-    [
-      canvasMode,
-      filterStack,
-      filterImageLoadedOnce,
-      filterImageLoading,
-      hiddenFilterIds,
-      isAddFilterDisabled,
-      isActiveDisplayFilterHidden,
-      activeDisplayFilterId,
-      openFilterSelection,
-      showFilter,
-      handleToggleHidden,
-      workflow,
-    ]
   )
 
   const handleTitleUpdated = useCallback((nextTitle: string) => setProject({ id: projectId, name: nextTitle }), [projectId, setProject])
@@ -581,8 +481,32 @@ export function ProjectDetailPageClient({
               deleteTargetImageId={displayTarget.active_image_id}
               onGridCreateRequested={requestCreateGrid}
               onGridDeleteRequested={requestDeleteGrid}
-              filterPanelContent={filterSidebarContent}
-              tracePanelContent={traceSidebarContent}
+              filterPanelContent={
+                <FilterSidebarSection
+                  filterStack={filterStack}
+                  canvasMode={canvasMode}
+                  hiddenFilterIds={hiddenFilterIds}
+                  isAddFilterDisabled={isAddFilterDisabled}
+                  activeDisplayFilterId={activeDisplayFilterId}
+                  isActiveDisplayFilterHidden={isActiveDisplayFilterHidden}
+                  isRemovingFilter={workflow.isRemovingFilter}
+                  isLoadingInitial={filterImageLoading && !filterImageLoadedOnce}
+                  onSelectFilter={showFilter}
+                  onToggleHidden={handleToggleHidden}
+                  onRemoveFilter={workflow.removeFilter}
+                  onOpenSelection={openFilterSelection}
+                />
+              }
+              tracePanelContent={
+                <TraceSidebarSection
+                  trace={trace ? { kind: trace.kind } : null}
+                  isAddTraceDisabled={isAddTraceDisabled}
+                  isClearingTrace={isClearingTrace}
+                  isLoadingInitial={traceLoading}
+                  onClearTrace={handleClearTrace}
+                  onOpenSelection={openTraceSelection}
+                />
+              }
             />
             <ProjectEditorStage
               projectId={projectId}
@@ -599,7 +523,7 @@ export function ProjectDetailPageClient({
               traceInteractive={leftPanelTab === "trace" && stageToolbar.tool === "direct"}
               handleImageTransformChange={handleImageTransformChange}
               initialImageTransform={initialImageTransform}
-              saveImageState={saveImageStateBound}
+              saveImageState={workflow.saveTransform}
               pageBgEnabled={pageBgEnabled}
               pageBgColor={pageBgColor}
               pageBgOpacity={pageBgOpacity}
@@ -652,8 +576,7 @@ export function ProjectDetailPageClient({
             onCloseSelection={filterDialog.closeSelection}
             onSelectFilterType={filterDialog.selectFilterType}
             onCloseConfigure={filterDialog.closeConfigure}
-            onSuccess={handleFilterApplySuccess}
-            onError={handleFilterApplyError}
+            onApplied={filterDialog.reset}
             onApplyFilter={handleApplyFilter}
           />
           <EditorTraceDialogHost
@@ -663,8 +586,7 @@ export function ProjectDetailPageClient({
             onCloseSelection={traceDialog.closeSelection}
             onSelectKind={traceDialog.selectKind}
             onCloseConfigure={traceDialog.closeConfigure}
-            onSuccess={handleTraceApplySuccess}
-            onError={handleTraceApplyError}
+            onApplied={traceDialog.reset}
             onApplyTrace={handleApplyTrace}
           />
         </EditorErrorBoundary>
