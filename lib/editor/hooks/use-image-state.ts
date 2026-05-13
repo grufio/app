@@ -45,6 +45,41 @@ function buildTransformSignature(p: {
 }
 
 /**
+ * Lifecycle decision for the `enabled` / `initial` / `autoLoad` effect.
+ *
+ * Pure function so the four-way state-machine is exercisable without
+ * React. Captures one invariant explicitly: when `enabled` flips false,
+ * the SSR-provided seed must be **preserved** — wiping it (the pre-fix
+ * behaviour) caused `enabled: false → true` transitions to drop the
+ * persisted transform whenever `initial` was supplied, because the
+ * re-enable branch early-returns without restoring.
+ *
+ * Actions:
+ * - `preserve` — cancel any in-flight load, leave `initialImageTransform`
+ *   untouched. Used while disabled (transient loading window, upload
+ *   sync, etc).
+ * - `skip_load` — enabled and the caller already supplied a seed. No
+ *   network round-trip needed; consumers read `initialImageTransform`
+ *   directly.
+ * - `trigger_load` — enabled, no seed, `autoLoad` is on. Fetch from
+ *   the server on mount.
+ * - `noop` — enabled, no seed, but `autoLoad` is off. The caller is
+ *   driving loads manually.
+ */
+export type EnabledEffectAction = "preserve" | "skip_load" | "trigger_load" | "noop"
+
+export function decideEnabledEffectAction(args: {
+  enabled: boolean
+  hasInitial: boolean
+  autoLoad: boolean
+}): EnabledEffectAction {
+  if (!args.enabled) return "preserve"
+  if (args.hasInitial) return "skip_load"
+  if (args.autoLoad) return "trigger_load"
+  return "noop"
+}
+
+/**
  * A tiny pending-slot helper that is safe against the “set while flushing” race:
  * it never clears a newer value while completing an older flush.
  *
@@ -256,22 +291,27 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
   )
 
   useEffect(() => {
-    // Defer to a microtask so the synchronous setState calls (reset on
-    // disable, load-on-mount via loadImageState) run outside the effect
-    // body — the eslint rule react-hooks/set-state-in-effect is
-    // otherwise tripped.
-    if (!enabled) {
+    // Decision logic lives in `decideEnabledEffectAction` (pure,
+    // unit-tested). The microtask defers setState/load calls out of
+    // the effect body so the react-hooks/set-state-in-effect lint
+    // rule stays happy.
+    const action = decideEnabledEffectAction({ enabled, hasInitial: Boolean(initial), autoLoad })
+    if (action === "preserve") {
+      // Cancel any in-flight load. `initialImageTransform` is left
+      // alone — wiping it here would drop the SSR seed and the
+      // subsequent `enabled: true` re-render would early-return
+      // (`hasInitial → skip_load`) without restoring it, so the
+      // canvas would fall back to default placement on every project
+      // reopen.
       requestSeqRef.current++
       loadInflightRef.current = null
       lastLoadedSignatureRef.current = null
       queueMicrotask(() => {
-        setInitialImageTransform(null)
         setImageStateLoading(false)
       })
       return
     }
-    // If server already provided the state, skip initial fetch.
-    if (initial || !autoLoad) return
+    if (action === "skip_load" || action === "noop") return
     queueMicrotask(() => {
       void loadImageState()
     })
