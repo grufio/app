@@ -393,6 +393,22 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
         const g = globalThis as unknown as { __gruf_editor?: { clientRectReads?: number } }
         if (g.__gruf_editor) g.__gruf_editor.clientRectReads = (g.__gruf_editor.clientRectReads ?? 0) + 1
       },
+      // SPIKE: mirror drag delta into imageTx so Trace overlay follows
+      // the image live. See `~/.claude/plans/trace-overlay-drag-sync.md`.
+      onDragFlush: (dxWorldPx, dyWorldPx) => {
+        if (dxWorldPx === 0 && dyWorldPx === 0) return
+        const dxPxU = BigInt(Math.round(dxWorldPx * 1_000_000))
+        const dyPxU = BigInt(Math.round(dyWorldPx * 1_000_000))
+        setImageTx((prev) => {
+          if (!prev) return prev
+          return {
+            xPxU: prev.xPxU + dxPxU,
+            yPxU: prev.yPxU + dyPxU,
+            widthPxU: prev.widthPxU,
+            heightPxU: prev.heightPxU,
+          }
+        })
+      },
     })
   }
 
