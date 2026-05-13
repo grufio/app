@@ -1,0 +1,71 @@
+name: Regen schema.sql
+
+# One-off helper to dump the current prod schema into db/schema.sql
+# and push a branch + open a PR. Use after a successful migration
+# push when the local environment can't run `supabase db dump`
+# (Colima DNS issues etc.).
+#
+# Trigger via `gh workflow run regen-schema-sql.yml` or the UI.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  regen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 2.98.2
+
+      - name: Link project
+        run: supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+
+      - name: Dump prod schema
+        run: supabase db dump --linked --schema public,storage > db/schema.sql
+
+      - name: Bail if no changes
+        id: changes
+        run: |
+          if git diff --quiet db/schema.sql; then
+            echo "Schema unchanged, exiting."
+            echo "has-changes=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has-changes=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Configure git
+        if: steps.changes.outputs.has-changes == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Push branch + open PR
+        if: steps.changes.outputs.has-changes == 'true'
+        run: |
+          BR="chore/regen-schema-sql-$(date -u +%Y%m%d-%H%M%S)"
+          git checkout -b "$BR"
+          git add db/schema.sql
+          git commit -m "chore(db): regen schema.sql from prod after migration push"
+          git push -u origin "$BR"
+          gh pr create \
+            --title "chore(db): regen schema.sql from prod" \
+            --body "Automated regen of \`db/schema.sql\` from the current prod state. Triggered via workflow_dispatch on \`regen-schema-sql.yml\`. Closes the schema-drift gap after the recent migration push." \
+            --base main
