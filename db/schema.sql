@@ -1470,7 +1470,8 @@ CREATE TABLE IF NOT EXISTS "public"."project_image_state" (
     "height_px_u" "text" NOT NULL,
     "x_px_u" "text",
     "y_px_u" "text",
-    "image_id" "uuid" NOT NULL
+    "image_id" "uuid" NOT NULL,
+    CONSTRAINT "project_image_state_axis_pairing_check" CHECK (((("x_px_u" IS NULL) AND ("y_px_u" IS NULL)) OR (("x_px_u" IS NOT NULL) AND ("y_px_u" IS NOT NULL))))
 );
 
 
@@ -1754,11 +1755,6 @@ ALTER TABLE ONLY "public"."project_image_filters"
 
 ALTER TABLE ONLY "public"."project_image_state"
     ADD CONSTRAINT "project_image_state_pk" PRIMARY KEY ("project_id", "image_id");
-
-
-
-ALTER TABLE "public"."project_image_state"
-    ADD CONSTRAINT "project_image_state_axis_pairing_check" CHECK ((("x_px_u" IS NULL) AND ("y_px_u" IS NULL)) OR (("x_px_u" IS NOT NULL) AND ("y_px_u" IS NOT NULL)));
 
 
 
