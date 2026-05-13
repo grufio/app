@@ -45,27 +45,6 @@ function buildTransformSignature(p: {
 }
 
 /**
- * Maps an `ApiError` from the image-state route into a user-facing
- * message. Two specific stages get tailored copy:
- * - `lock_conflict` on save → "Active image is locked."
- * - `schema_missing` on load → "Unsupported image state schema."
- *
- * Other stages fall back to the server-provided `payload.error` string,
- * and finally to a generic "Failed to load/save image state." message.
- *
- * Pre-PR #124 stages (`active_image_mismatch`, `no_active_image`,
- * `active_lookup`) are intentionally not handled — they cannot be
- * emitted by the post-master-anchor route.
- */
-export function mapImageStateApiErrorToMessage(e: ApiError, action: "load" | "save"): string {
-  const stage = typeof e.payload?.stage === "string" ? e.payload.stage : null
-  if (action === "save" && stage === "lock_conflict") return "Active image is locked."
-  if (action === "load" && stage === "schema_missing") return "Unsupported image state schema."
-  const msg = typeof e.payload?.error === "string" && e.payload.error.trim() ? e.payload.error : null
-  return msg ?? (action === "load" ? "Failed to load image state." : "Failed to save image state.")
-}
-
-/**
  * A tiny pending-slot helper that is safe against the “set while flushing” race:
  * it never clears a newer value while completing an older flush.
  *
@@ -125,7 +104,6 @@ export function createPendingSlot<T>() {
  */
 export function useImageState(projectId: string, enabled: boolean, initial?: ImageState | null, autoLoad = true) {
   const [initialImageTransform, setInitialImageTransform] = useState<ImageState | null>(() => initial ?? null)
-  const [imageStateError, setImageStateError] = useState("")
   const [imageStateLoading, setImageStateLoading] = useState(false)
 
   const logPrefix = useMemo(() => `[image-state:${projectId}]`, [projectId])
@@ -138,13 +116,10 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
   const loadInflightRef = useRef<Promise<void> | null>(null)
   const requestSeqRef = useRef(0)
 
-  const mapApiErrorToMessage = useCallback((e: ApiError, action: "load" | "save"): string => mapImageStateApiErrorToMessage(e, action), [])
-
   const loadImageState = useCallback(async () => {
     if (loadInflightRef.current) return await loadInflightRef.current
     const p = (async () => {
     const seq = ++requestSeqRef.current
-    setImageStateError((prev) => (prev === "" ? prev : ""))
     setImageStateLoading(true)
     try {
       const payload = await getImageState(projectId)
@@ -178,10 +153,8 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
         const stage = typeof e.payload?.stage === "string" ? e.payload.stage : null
         const payloadError = typeof e.payload?.error === "string" ? e.payload.error : null
         console.error(`${logPrefix} load failed`, { code: e.code, status: e.status, stage, payloadError, payload: e.payload })
-        setImageStateError(mapApiErrorToMessage(e, "load"))
       } else {
         console.error(`${logPrefix} load failed`, e)
-        setImageStateError(e instanceof Error ? e.message : "Failed to load image state.")
       }
       reportClientError(e, {
         scope: "editor",
@@ -202,7 +175,7 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
     } finally {
       loadInflightRef.current = null
     }
-  }, [logPrefix, mapApiErrorToMessage, projectId])
+  }, [logPrefix, projectId])
 
   const flushOnce = useCallback(async (p: Pending<ImageState>): Promise<void> => {
     const t = p.value
@@ -263,16 +236,13 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
         // (canvas interactions), not in this IO hook.
         pendingSlotRef.current?.set(t)
         await flush()
-        setImageStateError((prev) => (prev === "" ? prev : ""))
       } catch (e) {
         if (e instanceof ApiError) {
           const stage = typeof e.payload?.stage === "string" ? e.payload.stage : null
           const payloadError = typeof e.payload?.error === "string" ? e.payload.error : null
           console.error(`${logPrefix} save failed`, { code: e.code, status: e.status, stage, payloadError, payload: e.payload })
-          setImageStateError(mapApiErrorToMessage(e, "save"))
         } else {
           console.error(`${logPrefix} save failed`, e)
-          setImageStateError(e instanceof Error ? e.message : "Failed to save image state.")
         }
         reportClientError(e, {
           scope: "editor",
@@ -282,7 +252,7 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
         })
       }
     },
-    [flush, logPrefix, mapApiErrorToMessage, projectId]
+    [flush, logPrefix, projectId]
   )
 
   useEffect(() => {
@@ -296,7 +266,6 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
       lastLoadedSignatureRef.current = null
       queueMicrotask(() => {
         setInitialImageTransform(null)
-        setImageStateError((prev) => (prev === "" ? prev : ""))
         setImageStateLoading(false)
       })
       return
@@ -314,5 +283,5 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
     }
   }, [])
 
-  return { initialImageTransform, imageStateError, imageStateLoading, loadImageState, saveImageState }
+  return { initialImageTransform, imageStateLoading, loadImageState, saveImageState }
 }
