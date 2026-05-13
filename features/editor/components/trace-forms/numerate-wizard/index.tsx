@@ -35,7 +35,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { normalizeApiError } from "@/lib/api/error-normalizer"
+import { formatOperationErrorForToast, normalizeApiError } from "@/lib/api/error-normalizer"
 import { useProjectWorkspace } from "@/lib/editor/project-workspace"
 import { numerateSchema, type NumerateParams } from "@/lib/editor/trace/numerate"
 import { gridFromSuperpixel, type GridStats } from "@/lib/editor/trace/numerate-grid-math"
@@ -124,8 +124,8 @@ export function NumerateWizard({
       if (onError) {
         onError(error)
       } else {
-        const normalized = normalizeApiError(error)
-        toast.error(normalized.title, normalized.detail ? { description: normalized.detail } : undefined)
+        const formatted = formatOperationErrorForToast(normalizeApiError(error))
+        toast.error(formatted.title, formatted.detail ? { description: formatted.detail } : undefined)
       }
     } finally {
       setBusy(false)

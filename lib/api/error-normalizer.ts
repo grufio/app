@@ -1,30 +1,38 @@
 /**
- * Turns API error strings (built by `formatApiError` in lib/api/project-images.ts
- * and similar) into user-friendly messages for toasts and inline alerts.
+ * Turns thrown errors (ApiError instances, plain Errors, strings,
+ * anything else) into the canonical `OperationError` shape carried
+ * through the rest of the editor stack.
  *
- * Why: callers used to do `toast.error(error.message)` directly, which leaked
- * `(HTTP 409, stage=chain_invalid)` into the UI. Each call-site grew its own
- * regex / substring detection. This module is the one place that knows about
- * stage strings — UI code calls `normalizeApiError(err)` and renders the
- * returned `title`/`detail`.
+ * Two layers:
+ *
+ * - `normalizeApiError(unknown): OperationError` — the canonicalising
+ *   converter. Preferred path is structural extraction from
+ *   `ApiError.payload` (where the server has already filled in
+ *   `stage` / `error` / `correlationId`). Fallback path is regex
+ *   parsing of the formatApiError-style message for legacy errors.
+ *
+ * - `formatOperationErrorForToast(err): { title, detail?, retriable }`
+ *   — UI-facing translator. Looks up the canonical `stage` in the
+ *   STAGE_COPY table to produce the toast title + secondary detail.
+ *   Unknown stages fall back to the raw server message stripped of
+ *   the formatApiError suffix.
+ *
+ * Why split: server emits `OperationError`-shape errors with
+ * `correlationId`. UI rendering needs both the structured form (for
+ * dedup, logging, support tickets) and a friendly display form. The
+ * split also lets callers that don't render UI (machine actions,
+ * telemetry) work with the structured shape without dragging in
+ * STAGE_COPY copy.
  */
 
-export type NormalizedApiError = {
-  /** Short user-facing message — fits in a toast title. */
-  title: string
-  /** Optional secondary line. */
-  detail?: string
-  /** The structured stage extracted from the message, if any. */
-  stage?: string
-  /** True when the underlying issue is transient (network, lock, race). */
-  retriable: boolean
-}
+import { ApiError } from "./api-error"
+import { isOperationError, type OperationError } from "./operation-error"
 
 /**
- * Map of known `stage=` values to friendly copy.
- *
- * If you see a stage in production that should have a friendly message, add
- * it here rather than catching the string at the call site.
+ * Map of known `stage` values to friendly toast copy. Add a new entry
+ * here when a stage starts appearing in production with poor default
+ * messaging — never try to interpret the stage string at the call
+ * site.
  */
 const STAGE_COPY: Record<string, { title: string; detail?: string; retriable: boolean }> = {
   chain_invalid: {
@@ -74,44 +82,89 @@ const HTTP_PATTERN = /\(HTTP \d+(?:,\s*stage=[a-z_]+)?(?:\s+code=[\w-]+)?\):\s*/
 function stripFormatApiErrorSuffix(message: string): string {
   // formatApiError builds:
   //   "<prefix> (HTTP <status>, stage=<stage> [code=<code>]): <error>"
-  // Drop the parenthetical metadata so the user sees just the prefix + the
-  // upstream error message.
+  // Drop the parenthetical metadata so the user sees just the prefix +
+  // the upstream error message.
   return message.replace(HTTP_PATTERN, ": ").replace(/\s+:\s*/, ": ")
 }
 
+function readStringProp(value: unknown, key: string): string | undefined {
+  if (!value || typeof value !== "object") return undefined
+  const v = (value as Record<string, unknown>)[key]
+  return typeof v === "string" ? v : undefined
+}
+
 /**
- * Normalises an unknown error (Error instance, string, anything else) into a
- * `NormalizedApiError`. Recognised `stage=` markers are rewritten into the
- * copy from STAGE_COPY; otherwise the original message is preserved with the
- * `(HTTP N, stage=…)` suffix stripped.
+ * Build an `OperationError` from an `ApiError`-wrapped server
+ * response. Reads `payload.stage / .error / .correlationId / .reason`
+ * structurally so the canonical shape survives intact end-to-end.
  */
-export function normalizeApiError(error: unknown): NormalizedApiError {
-  const raw = error instanceof Error ? error.message : typeof error === "string" ? error : ""
-  if (!raw) return { title: "Unknown error", retriable: true }
-
-  const stageMatch = raw.match(STAGE_PATTERN)
-  const stage = stageMatch ? stageMatch[1].toLowerCase() : undefined
-
-  if (stage && stage in STAGE_COPY) {
-    const copy = STAGE_COPY[stage]
-    return { title: copy.title, detail: copy.detail, stage, retriable: copy.retriable }
-  }
-
-  // No known stage — clean up the formatApiError suffix and return as-is.
-  const cleaned = stripFormatApiErrorSuffix(raw).trim()
+function fromApiError(err: ApiError): OperationError {
+  const payload = err.payload ?? {}
+  const stage = readStringProp(payload, "stage") ?? "unknown"
+  const message = readStringProp(payload, "error") ?? err.message ?? "Request failed"
+  const correlationId = readStringProp(payload, "correlationId")
+  // The payload's `reason` is sometimes set by route handlers (e.g.
+  // `reason: "image_locked"`). Fall back to undefined when absent.
+  const reason = readStringProp(payload, "reason")
   return {
-    title: cleaned || raw,
     stage,
-    // Default: 4xx is non-retriable, 5xx + network errors are retriable.
-    retriable: /HTTP 5\d\d/.test(raw) || !/HTTP \d/.test(raw),
+    reason,
+    code: err.code,
+    correlationId,
+    message,
   }
 }
 
 /**
- * Convenience: format the normalised error into a single line for toasts that
- * don't render a description separately.
+ * Normalises an unknown error into a canonical `OperationError`.
+ *
+ * Priority order:
+ *  1. Already an OperationError → return as-is.
+ *  2. An ApiError → structural extraction from payload.
+ *  3. A plain Error / string → regex-parse stage from the message
+ *     (legacy path; treats anything pre-#PR-6a-server-emit).
+ *  4. Anything else → wrap as `{ stage: "unknown", message: "Unknown error" }`.
+ */
+export function normalizeApiError(error: unknown): OperationError {
+  if (isOperationError(error)) return error
+  if (error instanceof ApiError) return fromApiError(error)
+
+  const raw = error instanceof Error ? error.message : typeof error === "string" ? error : ""
+  if (!raw) return { stage: "unknown", message: "Unknown error" }
+
+  const stageMatch = raw.match(STAGE_PATTERN)
+  const stage = stageMatch ? stageMatch[1].toLowerCase() : "unknown"
+  const cleaned = stripFormatApiErrorSuffix(raw).trim() || raw
+  return { stage, message: cleaned }
+}
+
+/**
+ * UI-facing translator. Produces the title + secondary detail line
+ * for a toast (or inline alert). Known stages get the friendly
+ * STAGE_COPY entry; unknown stages fall back to the raw message.
+ *
+ * `retriable` is informational — used by callers that want to render
+ * a retry CTA vs. a "fix and retry" hint.
+ */
+export function formatOperationErrorForToast(err: OperationError): {
+  title: string
+  detail?: string
+  retriable: boolean
+} {
+  const copy = STAGE_COPY[err.stage]
+  if (copy) return { title: copy.title, detail: copy.detail, retriable: copy.retriable }
+  return {
+    title: err.message || "Unknown error",
+    retriable: false,
+  }
+}
+
+/**
+ * Convenience: convert + render a one-line summary for toasts that
+ * don't render a separate description.
  */
 export function formatNormalizedApiError(error: unknown): string {
-  const n = normalizeApiError(error)
-  return n.detail ? `${n.title} — ${n.detail}` : n.title
+  const op = normalizeApiError(error)
+  const t = formatOperationErrorForToast(op)
+  return t.detail ? `${t.title} — ${t.detail}` : t.title
 }
