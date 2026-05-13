@@ -24,7 +24,7 @@ import { buildNavId } from "@/features/editor/navigation/nav-id"
 import { recoverSelectedNavId } from "@/features/editor/navigation/selection-recovery"
 import { FilterSidebarSection } from "@/features/editor/components/filter-sidebar-section"
 import { TraceSidebarSection } from "@/features/editor/components/trace-sidebar-section"
-import { normalizeApiError } from "@/lib/api/error-normalizer"
+import { formatOperationErrorForToast, normalizeApiError } from "@/lib/api/error-normalizer"
 import { setProjectImageFilterHidden } from "@/lib/api/project-images"
 import { useTraceHandlers } from "./editor-shell/use-trace-handlers"
 import { useCanvasDerivedState } from "./editor-shell/use-canvas-derived-state"
@@ -188,8 +188,8 @@ export function ProjectDetailPageClient({
     }
     if (lastFilterErrorToastRef.current === filterPanelError) return
     lastFilterErrorToastRef.current = filterPanelError
-    const normalized = normalizeApiError(filterPanelError)
-    toast.error(normalized.title, normalized.detail ? { description: normalized.detail } : undefined)
+    const formatted = formatOperationErrorForToast(normalizeApiError(filterPanelError))
+    toast.error(formatted.title, formatted.detail ? { description: formatted.detail } : undefined)
   }, [filterPanelError])
 
   useEffect(() => {
@@ -199,8 +199,8 @@ export function ProjectDetailPageClient({
     }
     if (lastUploadSyncErrorToastRef.current === uploadSyncError) return
     lastUploadSyncErrorToastRef.current = uploadSyncError
-    const normalized = normalizeApiError(uploadSyncError)
-    toast.error(normalized.title, normalized.detail ? { description: normalized.detail } : undefined)
+    const formatted = formatOperationErrorForToast(normalizeApiError(uploadSyncError))
+    toast.error(formatted.title, formatted.detail ? { description: formatted.detail } : undefined)
   }, [uploadSyncError])
 
   useEffect(() => {
@@ -477,8 +477,8 @@ export function ProjectDetailPageClient({
       } catch (e) {
         // Revert optimistic toggle, surface a toast with the upstream message.
         toggleHiddenFilter(filterId)
-        const normalized = normalizeApiError(e)
-        toast.error(normalized.title, normalized.detail ? { description: normalized.detail } : undefined)
+        const formatted = formatOperationErrorForToast(normalizeApiError(e))
+        toast.error(formatted.title, formatted.detail ? { description: formatted.detail } : undefined)
         reportClientError(e, {
           scope: "editor",
           code: "FILTER_HIDDEN_TOGGLE_FAILED",

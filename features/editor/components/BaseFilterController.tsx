@@ -3,7 +3,7 @@
 import { ReactNode, useState } from "react"
 import { toast } from "sonner"
 
-import { normalizeApiError } from "@/lib/api/error-normalizer"
+import { formatOperationErrorForToast, normalizeApiError } from "@/lib/api/error-normalizer"
 import {
   Dialog,
   DialogContent,
@@ -114,8 +114,8 @@ export function BaseFilterController<TFormData>({
       }
       // Single source of truth for stage→friendly-copy mapping lives in
       // lib/api/error-normalizer; just render what it gives us.
-      const normalized = normalizeApiError(error)
-      toast.error(normalized.title, normalized.detail ? { description: normalized.detail } : undefined)
+      const formatted = formatOperationErrorForToast(normalizeApiError(error))
+      toast.error(formatted.title, formatted.detail ? { description: formatted.detail } : undefined)
     } finally {
       setBusy(false)
     }
