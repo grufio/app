@@ -1910,6 +1910,10 @@ CREATE UNIQUE INDEX "vector_indexes_name_bucket_id_idx" ON "storage"."vector_ind
 
 
 
+CREATE OR REPLACE TRIGGER "project_images_softdelete_cascade_state" AFTER UPDATE OF "deleted_at" ON "public"."project_images" FOR EACH ROW WHEN (("old"."deleted_at" IS NULL) AND ("new"."deleted_at" IS NOT NULL)) EXECUTE FUNCTION "public"."cleanup_state_on_softdelete"();
+
+
+
 CREATE OR REPLACE TRIGGER "trg_project_grid_updated_at" BEFORE UPDATE ON "public"."project_grid" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
 
 
@@ -1931,10 +1935,6 @@ CREATE OR REPLACE TRIGGER "trg_project_images_guard_master_immutable" BEFORE DEL
 
 
 CREATE OR REPLACE TRIGGER "trg_project_images_updated_at" BEFORE UPDATE ON "public"."project_images" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
-
-
-
-CREATE OR REPLACE TRIGGER "project_images_softdelete_cascade_state" AFTER UPDATE OF "deleted_at" ON "public"."project_images" FOR EACH ROW WHEN (("old"."deleted_at" IS NULL) AND ("new"."deleted_at" IS NOT NULL)) EXECUTE FUNCTION "public"."cleanup_state_on_softdelete"();
 
 
 
