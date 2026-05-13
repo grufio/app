@@ -115,4 +115,74 @@ describe("set_active_master_with_state() lock", () => {
     expect(error).not.toBeNull()
     expect(String(error?.message ?? "")).toMatch(/positive/i)
   })
+
+  it("rejects a non-master image_id with errcode 23514", async () => {
+    // Defense-in-depth: even if a buggy client tried to bind state at
+    // a filter_working_copy.id, the RPC must refuse. State is anchored
+    // at master.id (PR #124).
+    const seeded = await seedProject({ supabase })
+    projectId = seeded.projectId
+    ownerId = seeded.ownerId
+
+    const master = await seedImage({ supabase, projectId, kind: "master" })
+    const filterCopy = await seedImage({
+      supabase,
+      projectId,
+      kind: "filter_working_copy",
+      sourceImageId: master.imageId,
+    })
+
+    const { error } = await supabase.rpc("set_active_master_with_state", {
+      p_project_id: projectId,
+      p_image_id: filterCopy.imageId,
+      p_x_px_u: "0",
+      p_y_px_u: "0",
+      p_width_px_u: "100000000",
+      p_height_px_u: "100000000",
+    })
+    expect(error).not.toBeNull()
+    expect((error as { code?: string } | null)?.code).toBe("23514")
+    expect(String(error?.message ?? "")).toMatch(/live master image/i)
+
+    // No state row was written.
+    const { data } = await supabase
+      .from("project_image_state")
+      .select("image_id")
+      .eq("project_id", projectId)
+    expect(data).toEqual([])
+  })
+
+  it("rejects an image_id from a different project with errcode 23514", async () => {
+    // Defense-in-depth: project_id + image_id must agree on
+    // `kind='master' AND deleted_at IS NULL` for the same row.
+    const seededA = await seedProject({ supabase })
+    projectId = seededA.projectId
+    ownerId = seededA.ownerId
+    const masterA = await seedImage({ supabase, projectId, kind: "master" })
+
+    const seededB = await seedProject({ supabase })
+    const masterB = await seedImage({
+      supabase,
+      projectId: seededB.projectId,
+      kind: "master",
+    })
+
+    try {
+      const { error } = await supabase.rpc("set_active_master_with_state", {
+        // Use project A but image_id from project B.
+        p_project_id: projectId,
+        p_image_id: masterB.imageId,
+        p_x_px_u: "0",
+        p_y_px_u: "0",
+        p_width_px_u: "100000000",
+        p_height_px_u: "100000000",
+      })
+      expect(error).not.toBeNull()
+      expect((error as { code?: string } | null)?.code).toBe("23514")
+      // Also: master A in project A wasn't touched.
+      expect(masterA.imageId).toBeTruthy()
+    } finally {
+      await cleanupProject({ supabase, projectId: seededB.projectId, ownerId: seededB.ownerId })
+    }
+  })
 })
