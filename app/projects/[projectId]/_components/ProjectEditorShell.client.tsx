@@ -23,6 +23,7 @@ import { buildNavId } from "@/features/editor/navigation/nav-id"
 import { FilterSidebarSection } from "@/features/editor/components/filter-sidebar-section"
 import { TraceSidebarSection } from "@/features/editor/components/trace-sidebar-section"
 import type { OperationError } from "@/lib/api/operation-error"
+import { useCanvasTxMirror } from "@/lib/editor/hooks/use-canvas-tx-mirror"
 import { useDedupingErrorToast } from "@/lib/editor/hooks/use-deduping-error-toast"
 import { useFilterStackActions } from "@/lib/editor/hooks/use-filter-stack-actions"
 import { useTraceHandlers } from "./editor-shell/use-trace-handlers"
@@ -113,7 +114,6 @@ export function ProjectDetailPageClient({
   const [selectedNavId, setSelectedNavId] = useState<string>(buildNavId({ kind: "artboard" }))
   const canvasRef = useRef<ProjectCanvasStageHandle | null>(null)
   const lastNoWorkingImageMetricRef = useRef("")
-  const [imageTxU, setImageTxU] = useState<{ x: bigint; y: bigint; w: bigint; h: bigint } | null>(null)
   const {
     sourceSnapshot,
     initialImageTransform,
@@ -214,27 +214,17 @@ export function ProjectDetailPageClient({
     traceDialog.beginSelection()
   }, [isAddTraceDisabled, traceDialog])
 
-  const initialImageTxU = useMemo(() => {
-    if (!activeCanvasImageId || !initialImageTransform) return null
-    const wU = initialImageTransform.widthPxU
-    const hU = initialImageTransform.heightPxU
-    if (!wU || !hU || wU <= 0n || hU <= 0n) return null
-    return {
-      x: initialImageTransform.xPxU ?? 0n,
-      y: initialImageTransform.yPxU ?? 0n,
-      w: wU,
-      h: hU,
-    }
-  }, [activeCanvasImageId, initialImageTransform])
-
-  const handleImageTransformChange = useCallback((tx: { xPxU: bigint; yPxU: bigint; widthPxU: bigint; heightPxU: bigint } | null) => {
-    setImageTxU((prev) => {
-      if (!tx) return null
-      const next = { x: tx.xPxU, y: tx.yPxU, w: tx.widthPxU, h: tx.heightPxU }
-      if (prev && prev.x === next.x && prev.y === next.y && prev.w === next.w && prev.h === next.h) return prev
-      return next
-    })
-  }, [])
+  const {
+    imageTxU,
+    initialImageTxU,
+    handleImageTransformChange,
+    handleNudge,
+    clear: clearImageTxU,
+  } = useCanvasTxMirror({
+    canvasRef,
+    activeCanvasImageId,
+    initialImageTransform,
+  })
 
   const {
     selectedImageId,
@@ -291,9 +281,9 @@ export function ProjectDetailPageClient({
       return
     }
     setDeleteOpen(false)
-    setImageTxU(null)
+    clearImageTxU()
     await workflow.refreshAndWait()
-  }, [deleteImageById, displayTarget.active_image_id, projectImages, refreshProjectImages, selectedImageId, setDeleteError, setDeleteOpen, workflow])
+  }, [clearImageTxU, deleteImageById, displayTarget.active_image_id, projectImages, refreshProjectImages, selectedImageId, setDeleteError, setDeleteOpen, workflow])
 
   const handleRestoreInitialImage = useCallback(async () => {
     if (workflow.isRestoring) return
@@ -302,23 +292,6 @@ export function ProjectDetailPageClient({
     setRestoreOpen(false)
     toolbar.setTool("object")
   }, [setRestoreOpen, toolbar, workflow])
-
-  // Arrow-key nudge handler. Reads current image transform off the
-  // imageTxU state and dispatches a setImagePosition with the delta.
-  // The keyboard hook's `isEditableTarget` check ensures arrow keys in
-  // text inputs still move the caret rather than the image.
-  const handleNudge = useCallback(
-    (dxPx: number, dyPx: number) => {
-      if (!imageTxU) return
-      const dxPxU = BigInt(Math.round(dxPx)) * 1_000_000n
-      const dyPxU = BigInt(Math.round(dyPx)) * 1_000_000n
-      canvasRef.current?.setImagePosition({
-        xPxU: imageTxU.x + dxPxU,
-        yPxU: imageTxU.y + dyPxU,
-      })
-    },
-    [imageTxU],
-  )
 
   // Delete / Backspace → open the existing delete-image confirmation dialog.
   // Arrow keys → nudge active image.
