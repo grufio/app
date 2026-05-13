@@ -163,7 +163,7 @@ export function formatOperationErrorForToast(err: OperationError): {
  * Convenience: convert + render a one-line summary for toasts that
  * don't render a separate description.
  */
-export function formatNormalizedApiError(error: unknown): string {
+export function formatOperationErrorOneLine(error: unknown): string {
   const op = normalizeApiError(error)
   const t = formatOperationErrorForToast(op)
   return t.detail ? `${t.title} — ${t.detail}` : t.title

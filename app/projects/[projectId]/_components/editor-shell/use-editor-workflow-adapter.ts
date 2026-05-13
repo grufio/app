@@ -3,9 +3,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { applyProjectImageFilter, cropImageVariant, removeProjectImageFilter, restoreInitialMasterImage } from "@/lib/api/project-images"
+import { isOperationError, type OperationError } from "@/lib/api/operation-error"
 import { useImageWorkflowMachine } from "@/lib/editor/machines/use-image-workflow-machine"
 import type { ImageState } from "@/lib/editor/hooks/use-image-state"
 import { useImageState } from "@/lib/editor/hooks/use-image-state"
+
+/**
+ * Coerce a heterogeneous error slot to `OperationError | null`. Used
+ * by the workflow adapter where the machine emits `OperationError`
+ * but legacy hook outputs (e.g. `filterImageError`) are still strings.
+ * Falsy inputs collapse to null so callers can do null-safe priority
+ * picks without `||`-string-truthiness footguns (a non-null
+ * OperationError object is always truthy regardless of `.message`).
+ */
+function coerceToOperationError(value: OperationError | string | null | undefined): OperationError | null {
+  if (!value) return null
+  if (isOperationError(value)) return value
+  return { stage: "unknown", message: String(value) }
+}
 
 export type EditorImageSourceState =
   | { status: "loading"; image: null; error: "" }
@@ -278,14 +293,20 @@ export function useEditorWorkflowAdapter(args: {
     }
   }, [workflow])
 
-  // PR-6b-3a interim: machine slots are now OperationError | null but
-  // downstream callers still expect strings. Coerce via .message until
-  // PR-6b-3b properly types the composition + toast rendering with
-  // correlation-id awareness.
-  const filterOperationError =
-    workflow.lastOperation === "filter_apply" || workflow.lastOperation === "filter_remove" ? (workflow.operationError?.message ?? "") : ""
-  const restoreOperationError = workflow.lastOperation === "restore" ? (workflow.operationError?.message ?? "") : ""
-  const workflowFilterPanelError = filterOperationError || (workflow.persistenceError?.message ?? "") || filterImageError
+  // OperationError-typed composition. Order: persistence has highest
+  // priority (sync failures override op failures), then filter op,
+  // then the legacy filterImage string slot (coerced if non-empty).
+  // `??` (not `||`) is required: a non-null OperationError object is
+  // always truthy regardless of .message, so `||` would short-circuit
+  // incorrectly.
+  const filterOperationError: OperationError | null =
+    workflow.lastOperation === "filter_apply" || workflow.lastOperation === "filter_remove"
+      ? (workflow.operationError ?? null)
+      : null
+  const restoreOperationError: OperationError | null =
+    workflow.lastOperation === "restore" ? (workflow.operationError ?? null) : null
+  const workflowFilterPanelError: OperationError | null =
+    workflow.persistenceError ?? filterOperationError ?? coerceToOperationError(filterImageError)
 
   return {
     sourceSnapshot,

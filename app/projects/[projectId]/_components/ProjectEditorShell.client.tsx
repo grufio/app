@@ -25,6 +25,7 @@ import { recoverSelectedNavId } from "@/features/editor/navigation/selection-rec
 import { FilterSidebarSection } from "@/features/editor/components/filter-sidebar-section"
 import { TraceSidebarSection } from "@/features/editor/components/trace-sidebar-section"
 import { formatOperationErrorForToast, normalizeApiError } from "@/lib/api/error-normalizer"
+import type { OperationError } from "@/lib/api/operation-error"
 import { setProjectImageFilterHidden } from "@/lib/api/project-images"
 import { useTraceHandlers } from "./editor-shell/use-trace-handlers"
 import { useCanvasDerivedState } from "./editor-shell/use-canvas-derived-state"
@@ -114,8 +115,8 @@ export function ProjectDetailPageClient({
   const [gridVisible, setGridVisible] = useState(true)
   const [selectedNavId, setSelectedNavId] = useState<string>(buildNavId({ kind: "artboard" }))
   const canvasRef = useRef<ProjectCanvasStageHandle | null>(null)
-  const lastFilterErrorToastRef = useRef("")
-  const lastUploadSyncErrorToastRef = useRef<unknown>(null)
+  const lastFilterErrorToastRef = useRef<string | null>(null)
+  const lastUploadSyncErrorToastRef = useRef<string | null>(null)
   const lastNoWorkingImageMetricRef = useRef("")
   const [imageTxU, setImageTxU] = useState<{ x: bigint; y: bigint; w: bigint; h: bigint } | null>(null)
   const {
@@ -176,20 +177,30 @@ export function ProjectDetailPageClient({
     },
     []
   )
-  const filterPanelError = workflowFilterPanelError || filterDialog.error
+  // PR-6b-3b: `workflowFilterPanelError` is OperationError | null;
+  // `filterDialog.error` is still a string. Coerce + null-safe pick.
+  const filterPanelError: OperationError | null =
+    workflowFilterPanelError ?? (filterDialog.error ? { stage: "unknown", message: filterDialog.error } : null)
   const filterDialogSource = filterDialog.session
   const activeDisplayFilterId = filterStack[filterStack.length - 1]?.id ?? null
   const isActiveDisplayFilterHidden = activeDisplayFilterId ? Boolean(hiddenFilterIds[activeDisplayFilterId]) : false
 
   useEffect(() => {
     if (!filterPanelError) {
-      lastFilterErrorToastRef.current = ""
+      lastFilterErrorToastRef.current = null
       return
     }
-    if (lastFilterErrorToastRef.current === filterPanelError) return
-    lastFilterErrorToastRef.current = filterPanelError
-    const formatted = formatOperationErrorForToast(normalizeApiError(filterPanelError))
-    toast.error(formatted.title, formatted.detail ? { description: formatted.detail } : undefined)
+    // Dedup key prefers correlationId (unique per server request) and
+    // falls back to stage+message so re-render-induced new object
+    // identities don't fire the toast twice. R2 of the plan-review.
+    const dedupKey = filterPanelError.correlationId ?? `${filterPanelError.stage}|${filterPanelError.message}`
+    if (lastFilterErrorToastRef.current === dedupKey) return
+    lastFilterErrorToastRef.current = dedupKey
+    const formatted = formatOperationErrorForToast(filterPanelError)
+    const description = filterPanelError.correlationId
+      ? [formatted.detail, `[ref: ${filterPanelError.correlationId}]`].filter(Boolean).join("\n")
+      : formatted.detail
+    toast.error(formatted.title, description ? { description } : undefined)
   }, [filterPanelError])
 
   useEffect(() => {
@@ -197,10 +208,15 @@ export function ProjectDetailPageClient({
       lastUploadSyncErrorToastRef.current = null
       return
     }
-    if (lastUploadSyncErrorToastRef.current === uploadSyncError) return
-    lastUploadSyncErrorToastRef.current = uploadSyncError
-    const formatted = formatOperationErrorForToast(normalizeApiError(uploadSyncError))
-    toast.error(formatted.title, formatted.detail ? { description: formatted.detail } : undefined)
+    const op = normalizeApiError(uploadSyncError)
+    const dedupKey = op.correlationId ?? `${op.stage}|${op.message}`
+    if (lastUploadSyncErrorToastRef.current === dedupKey) return
+    lastUploadSyncErrorToastRef.current = dedupKey
+    const formatted = formatOperationErrorForToast(op)
+    const description = op.correlationId
+      ? [formatted.detail, `[ref: ${op.correlationId}]`].filter(Boolean).join("\n")
+      : formatted.detail
+    toast.error(formatted.title, description ? { description } : undefined)
   }, [uploadSyncError])
 
   useEffect(() => {

@@ -12,6 +12,7 @@ import dynamic from "next/dynamic"
 import { Eye, EyeOff, Percent } from "lucide-react"
 
 import { SidebarFrame } from "@/components/navigation/SidebarFrame"
+import type { OperationError } from "@/lib/api/operation-error"
 import { AppButton, FormField } from "@/components/ui/form-controls"
 import {
   Dialog,
@@ -65,7 +66,7 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
   restoreOpen: boolean
   setRestoreOpen: (v: boolean) => void
   restoreBusy: boolean
-  restoreError: string
+  restoreError: OperationError | null
   onRestoreImage: () => void | Promise<void>
   deleteOpen: boolean
   setDeleteOpen: (v: boolean) => void
@@ -262,7 +263,7 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
               {restoreBusy ? "Restoring…" : "Restore"}
             </AppButton>
           </DialogFooter>
-          {restoreError ? <div role="alert" className="text-sm text-destructive">{restoreError}</div> : null}
+          {restoreError ? <div role="alert" className="text-sm text-destructive">{restoreError.message}</div> : null}
         </DialogContent>
       </Dialog>
 
