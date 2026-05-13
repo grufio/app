@@ -23,6 +23,7 @@ describe("useLeftPanelModel", () => {
           { id: "img-1", name: "First" },
           { id: "img-2", name: "Second" },
         ],
+        masterImageId: null,
         setDeleteError: vi.fn(),
         setDeleteOpen: vi.fn(),
         createGrid: vi.fn(async () => null),

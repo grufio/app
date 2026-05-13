@@ -20,12 +20,11 @@ import {
   type ProjectCanvasStageHandle,
 } from "@/features/editor"
 import { buildNavId } from "@/features/editor/navigation/nav-id"
-import { recoverSelectedNavId } from "@/features/editor/navigation/selection-recovery"
 import { FilterSidebarSection } from "@/features/editor/components/filter-sidebar-section"
 import { TraceSidebarSection } from "@/features/editor/components/trace-sidebar-section"
 import type { OperationError } from "@/lib/api/operation-error"
-import { setProjectImageFilterHidden } from "@/lib/api/project-images"
-import { showOperationErrorToast, useDedupingErrorToast } from "@/lib/editor/hooks/use-deduping-error-toast"
+import { useDedupingErrorToast } from "@/lib/editor/hooks/use-deduping-error-toast"
+import { useFilterStackActions } from "@/lib/editor/hooks/use-filter-stack-actions"
 import { useTraceHandlers } from "./editor-shell/use-trace-handlers"
 import { useCanvasDerivedState } from "./editor-shell/use-canvas-derived-state"
 import { useFilterWorkingImage } from "@/lib/editor/hooks/use-filter-working-image"
@@ -39,7 +38,6 @@ import { usePageBackgroundState } from "@/lib/editor/hooks/use-page-background-s
 import { useProjectGrid } from "@/lib/editor/project-grid"
 import { useProjectWorkspace } from "@/lib/editor/project-workspace"
 import { reportError } from "@/lib/monitoring/error-reporting"
-import { reportClientError } from "@/lib/monitoring/with-error-reporting"
 import type { ImageState } from "@/lib/editor/hooks/use-image-state"
 import type { MasterImage } from "@/lib/editor/hooks/use-master-image"
 import { useMasterImage } from "@/lib/editor/hooks/use-master-image"
@@ -191,24 +189,16 @@ export function ProjectDetailPageClient({
     })
   }, [projectId, sourceSnapshot])
 
-  useEffect(() => {
-    pruneHiddenFilters(new Set(filterStack.map((item) => item.id)))
-  }, [filterStack, pruneHiddenFilters])
+  const { toggleHidden: handleToggleHidden } = useFilterStackActions({
+    filterStack,
+    projectId,
+    refreshFilterImage,
+    toggleHiddenFilter,
+    showFilter,
+    hideFilter,
+    pruneHiddenFilters,
+  })
 
-  // Hydrate the session-state hidden set from the server-side is_hidden
-  // column after each filterStack refresh. Local toggles still drive the
-  // UI optimistically; a refresh re-syncs us with the persisted truth.
-  useEffect(() => {
-    for (const item of filterStack) {
-      if (item.is_hidden) hideFilter(item.id)
-      else showFilter(item.id)
-    }
-  }, [filterStack, hideFilter, showFilter])
-
-
-  const saveImageStateBound = useCallback(async (t: { xPxU?: bigint; yPxU?: bigint; widthPxU: bigint; heightPxU: bigint; rotationDeg: number }) => {
-    workflow.saveTransform(t)
-  }, [workflow])
   const hasFilterSourceImage = Boolean(filterSourceImage)
   const isNewFilterActionBusy = filterImageLoading || workflow.isMutating || workflow.isSyncing
   const isAddFilterDisabled = !hasFilterSourceImage || isNewFilterActionBusy
@@ -246,8 +236,6 @@ export function ProjectDetailPageClient({
     })
   }, [])
 
-  const autoSelectMasterIdRef = useRef<string | null>(null)
-
   const {
     selectedImageId,
     leftPanelImages,
@@ -259,6 +247,7 @@ export function ProjectDetailPageClient({
     selectedNavId,
     setSelectedNavId,
     projectImages,
+    masterImageId: masterImage?.id ?? null,
     setDeleteError,
     setDeleteOpen,
     createGrid,
@@ -384,27 +373,6 @@ export function ProjectDetailPageClient({
   })
 
   useEffect(() => {
-    const masterImageId = masterImage?.id ?? null
-    setSelectedNavId((prev) => {
-      let next = prev
-      if (!masterImageId) {
-        autoSelectMasterIdRef.current = null
-      } else if (autoSelectMasterIdRef.current !== masterImageId) {
-        autoSelectMasterIdRef.current = masterImageId
-        const artboardId = buildNavId({ kind: "artboard" })
-        if (next === artboardId) {
-          next = buildNavId({ kind: "image", imageId: masterImageId })
-        }
-      }
-      return recoverSelectedNavId({
-        selectedNavId: next,
-        images: projectImages,
-        activeMasterImageId: masterImageId,
-      })
-    })
-  }, [masterImage?.id, projectImages])
-
-  useEffect(() => {
     void refreshProjectImages()
   }, [masterImage?.id, refreshProjectImages])
 
@@ -423,32 +391,6 @@ export function ProjectDetailPageClient({
     if (!gridVisible) return null
     return computeRenderableGrid({ row: gridRow, spacingXPx, spacingYPx, lineWidthPx })
   }, [gridRow, gridVisible, lineWidthPx, spacingXPx, spacingYPx])
-
-  const handleToggleHidden = useCallback(
-    async (filterId: string) => {
-      const current = filterStack.find((f) => f.id === filterId)
-      if (!current) return
-      const nextHidden = !current.is_hidden
-      // Optimistic local toggle so the UI flips immediately…
-      toggleHiddenFilter(filterId)
-      try {
-        await setProjectImageFilterHidden({ projectId, filterId, isHidden: nextHidden })
-        // …then refresh so the persisted value confirms (or rolls back).
-        await refreshFilterImage()
-      } catch (e) {
-        // Revert optimistic toggle, surface a toast with the upstream message.
-        toggleHiddenFilter(filterId)
-        showOperationErrorToast(e)
-        reportClientError(e, {
-          scope: "editor",
-          code: "FILTER_HIDDEN_TOGGLE_FAILED",
-          stage: "save",
-          context: { projectId, filterId },
-        })
-      }
-    },
-    [filterStack, projectId, refreshFilterImage, toggleHiddenFilter]
-  )
 
   const handleTitleUpdated = useCallback((nextTitle: string) => setProject({ id: projectId, name: nextTitle }), [projectId, setProject])
 
