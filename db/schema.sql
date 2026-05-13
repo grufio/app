@@ -158,6 +158,20 @@ $$;
 ALTER FUNCTION "public"."append_project_image_filter"("p_project_id" "uuid", "p_input_image_id" "uuid", "p_output_image_id" "uuid", "p_filter_type" "text", "p_filter_params" "jsonb") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."cleanup_state_on_softdelete"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    AS $$
+BEGIN
+  DELETE FROM public.project_image_state
+    WHERE image_id = NEW.id;
+  RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."cleanup_state_on_softdelete"() OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."collect_project_image_delete_targets"("p_project_id" "uuid", "p_root_image_id" "uuid") RETURNS TABLE("id" "uuid", "storage_bucket" "text", "storage_path" "text")
     LANGUAGE "sql" STABLE
     SET "search_path" TO 'public', 'pg_temp'
@@ -508,20 +522,6 @@ CREATE OR REPLACE FUNCTION "public"."set_updated_at"() RETURNS "trigger"
 
 
 ALTER FUNCTION "public"."set_updated_at"() OWNER TO "postgres";
-
-
-CREATE OR REPLACE FUNCTION "public"."cleanup_state_on_softdelete"() RETURNS "trigger"
-    LANGUAGE "plpgsql"
-    AS $$
-BEGIN
-  DELETE FROM public.project_image_state
-    WHERE image_id = NEW.id;
-  RETURN NEW;
-END;
-$$;
-
-
-ALTER FUNCTION "public"."cleanup_state_on_softdelete"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."workspace_value_to_px_u"("v" numeric, "u" "public"."measure_unit", "dpi" numeric) RETURNS bigint
@@ -2336,6 +2336,12 @@ GRANT ALL ON FUNCTION "public"."append_project_image_filter"("p_project_id" "uui
 
 
 
+GRANT ALL ON FUNCTION "public"."cleanup_state_on_softdelete"() TO "anon";
+GRANT ALL ON FUNCTION "public"."cleanup_state_on_softdelete"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."cleanup_state_on_softdelete"() TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."collect_project_image_delete_targets"("p_project_id" "uuid", "p_root_image_id" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."collect_project_image_delete_targets"("p_project_id" "uuid", "p_root_image_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."collect_project_image_delete_targets"("p_project_id" "uuid", "p_root_image_id" "uuid") TO "service_role";
@@ -2381,12 +2387,6 @@ GRANT ALL ON FUNCTION "public"."set_active_master_with_state"("p_project_id" "uu
 GRANT ALL ON FUNCTION "public"."set_updated_at"() TO "anon";
 GRANT ALL ON FUNCTION "public"."set_updated_at"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."set_updated_at"() TO "service_role";
-
-
-
-GRANT ALL ON FUNCTION "public"."cleanup_state_on_softdelete"() TO "anon";
-GRANT ALL ON FUNCTION "public"."cleanup_state_on_softdelete"() TO "authenticated";
-GRANT ALL ON FUNCTION "public"."cleanup_state_on_softdelete"() TO "service_role";
 
 
 
