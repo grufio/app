@@ -72,7 +72,6 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
   } | null
   masterImageLoading: boolean
   masterImageError: string
-  imageStateLoading: boolean
   pageBgEnabled: boolean
   pageBgColor: string
   pageBgOpacity: number
@@ -122,7 +121,6 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
     masterImage,
     masterImageLoading: _masterImageLoading,
     masterImageError,
-    imageStateLoading,
     pageBgEnabled,
     pageBgColor,
     pageBgOpacity,
@@ -175,16 +173,6 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
             rotateDisabled={Boolean(toolbar.rotateDisabled)}
           />
         </div>
-        {/*
-         * `imageStateLoading` is true on every `loadImageState` refresh
-         * (e.g. after a Trace Apply when `activeSnapshotImageId` flips
-         * from working-copy to trace_svg). The skeleton-swap that used
-         * to live here unmounted `ProjectCanvasStage`, which discarded
-         * the in-component `stateSyncGuard` — the new mount started
-         * with `userChanged = false` and the initial-placement
-         * controller silently overwrote the user's resize with
-         * fit-to-artboard. Keep the canvas mounted across loads.
-         */}
         <ProjectCanvasStage
             ref={canvasRef}
             src={masterImage?.signedUrl ?? undefined}

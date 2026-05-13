@@ -49,7 +49,6 @@ export function useStageInteractionPolicy(args: {
   canvasRef: RefObject<ProjectCanvasStageHandle | null>
   canvasMode: "image" | "filter"
   leftPanelTab: string
-  imageStateLoading: boolean
   sourceReady: boolean
   selectedNavId: string
   setSelectedNavId: (next: string) => void
@@ -61,7 +60,6 @@ export function useStageInteractionPolicy(args: {
     canvasRef,
     canvasMode,
     leftPanelTab,
-    imageStateLoading,
     sourceReady,
     selectedNavId,
     setSelectedNavId,
@@ -74,7 +72,6 @@ export function useStageInteractionPolicy(args: {
     canvasRef,
     hasImage: sourceReady,
     masterImageLoading: !sourceReady,
-    imageStateLoading,
     enableShortcuts: true,
   })
 

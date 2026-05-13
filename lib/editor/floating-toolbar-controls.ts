@@ -47,16 +47,15 @@ export function useFloatingToolbarControls(opts: {
   canvasRef: React.RefObject<ProjectCanvasStageHandle | null>
   hasImage: boolean
   masterImageLoading: boolean
-  imageStateLoading: boolean
   enableShortcuts?: boolean
 }): FloatingToolbarControls {
-  const { canvasRef, hasImage, masterImageLoading, imageStateLoading, enableShortcuts = false } = opts
+  const { canvasRef, hasImage, masterImageLoading, enableShortcuts = false } = opts
 
   const [tool, setTool] = useState<EditorTool>("object")
   const panEnabled = tool === "hand"
   const imageDraggable = tool === "object"
 
-  const actionsDisabled = !hasImage || masterImageLoading || imageStateLoading
+  const actionsDisabled = !hasImage || masterImageLoading
 
   const zoomIn = useCallback(() => canvasRef.current?.zoomIn(), [canvasRef])
   const zoomOut = useCallback(() => canvasRef.current?.zoomOut(), [canvasRef])

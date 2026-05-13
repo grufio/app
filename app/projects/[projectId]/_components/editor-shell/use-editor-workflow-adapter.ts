@@ -163,16 +163,11 @@ export function useEditorWorkflowAdapter(args: {
   }, [filterDisplayImageWithoutTrace, sourceSnapshot])
 
   const activeSnapshotImageId = sourceSnapshot.status === "ready" ? sourceSnapshot.image.id : null
-  const imageStateEnabled = sourceSnapshot.status === "ready"
-  // State is anchored at master.id (PR #124) — the hook needs no
-  // image-id input; it loads/saves a single project-wide row. SSR
-  // provides `initialImageState`, so `autoLoad` defaults to true for
-  // cases without SSR data (e.g. fresh project navigated client-side).
-  const { initialImageTransform, imageStateLoading, loadImageState, saveImageState } = useImageState(
-    projectId,
-    imageStateEnabled,
-    initialImageState,
-  )
+  // State is anchored at master.id (PR #124). The hook only owns the
+  // save path; the SSR seed (`initialImageState`) is passed through
+  // verbatim. There is no client-side mount-load because SSR already
+  // delivered the persisted row.
+  const { initialImageTransform, saveImageState } = useImageState(projectId, initialImageState)
 
   const refreshEditorDataOnce = useCallback(async () => {
     // No `loadImageState()` here: state is project-wide and immutable
@@ -311,8 +306,6 @@ export function useEditorWorkflowAdapter(args: {
   return {
     sourceSnapshot,
     initialImageTransform,
-    imageStateLoading,
-    loadImageState,
     workflow,
     editorImageSource,
     activeCanvasImageId,

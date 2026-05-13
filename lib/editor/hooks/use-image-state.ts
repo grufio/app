@@ -1,22 +1,36 @@
 "use client"
 
 /**
- * React hook for persisted image transform state.
+ * React hook for the persisted image-transform save path.
  *
- * Responsibilities:
- * - Load initial image state (x/y/size/rotation) for a project.
- * - Serialize and save commits via the API with coalescing/inflight protection.
+ * The hook owns **only** the save side: a pending-slot that coalesces
+ * rapid canvas commits and a flush pump that serialises writes to
+ * `POST /api/projects/[projectId]/image-state`.
  *
- * Post PR #124: state is anchored at the project's master.id server-side.
- * The hook no longer takes an image_id parameter — every project has at
- * most one state row, and the API resolves the persistence key from
- * `projectId` alone.
+ * The seed (`initial`) is the SSR snapshot of `project_image_state`
+ * fetched by the page server component and is returned **as a direct
+ * passthrough** — the hook does not copy it into local React state.
+ * That was the source of the long-standing "always default size on
+ * reopen" bug: an earlier design held `initial` in `useState`,
+ * combined with an `enabled` lifecycle flag that wiped the seed when
+ * the canvas source wasn't ready yet. Removing the local state makes
+ * that bug class structurally impossible — there is no slot to wipe.
+ *
+ * What lives elsewhere now:
+ * - SSR fetch: `services/editor/server/image-state.ts` →
+ *   `app/projects/[projectId]/page.tsx`.
+ * - Canvas application of the seed:
+ *   `features/editor/components/canvas-stage/initial-placement-controller.ts`.
+ * - Persistence wire format: `lib/editor/imageState/`.
+ *
+ * Post PR #124 the state row is anchored at the project's `master.id`
+ * server-side, so the hook still needs no image-id input.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useRef } from "react"
 
-import { getImageState, saveImageState as saveImageStateApi } from "@/lib/api/image-state"
+import { saveImageState as saveImageStateApi } from "@/lib/api/image-state"
 import { ApiError } from "@/lib/api/api-error"
-import { parseBigIntString, toSaveImageStateBody } from "@/lib/editor/imageState"
+import { toSaveImageStateBody } from "@/lib/editor/imageState"
 import { reportClientError } from "@/lib/monitoring/with-error-reporting"
 
 export type ImageState = {
@@ -29,11 +43,6 @@ export type ImageState = {
 
 type Pending<T> = { seq: number; value: T }
 
-/**
- * Stable equality key for a transform payload. Used by load- and save-
- * path dedup refs; equivalent strings mean "nothing new to apply/persist".
- * Cheap concat avoids JSON.stringify GC churn on the save-coalesce path.
- */
 function buildTransformSignature(p: {
   x_px_u?: string | null | undefined
   y_px_u?: string | null | undefined
@@ -42,41 +51,6 @@ function buildTransformSignature(p: {
   rotation_deg: number | string
 }): string {
   return `${p.x_px_u ?? ""}|${p.y_px_u ?? ""}|${p.width_px_u}|${p.height_px_u}|${p.rotation_deg}`
-}
-
-/**
- * Lifecycle decision for the `enabled` / `initial` / `autoLoad` effect.
- *
- * Pure function so the four-way state-machine is exercisable without
- * React. Captures one invariant explicitly: when `enabled` flips false,
- * the SSR-provided seed must be **preserved** — wiping it (the pre-fix
- * behaviour) caused `enabled: false → true` transitions to drop the
- * persisted transform whenever `initial` was supplied, because the
- * re-enable branch early-returns without restoring.
- *
- * Actions:
- * - `preserve` — cancel any in-flight load, leave `initialImageTransform`
- *   untouched. Used while disabled (transient loading window, upload
- *   sync, etc).
- * - `skip_load` — enabled and the caller already supplied a seed. No
- *   network round-trip needed; consumers read `initialImageTransform`
- *   directly.
- * - `trigger_load` — enabled, no seed, `autoLoad` is on. Fetch from
- *   the server on mount.
- * - `noop` — enabled, no seed, but `autoLoad` is off. The caller is
- *   driving loads manually.
- */
-export type EnabledEffectAction = "preserve" | "skip_load" | "trigger_load" | "noop"
-
-export function decideEnabledEffectAction(args: {
-  enabled: boolean
-  hasInitial: boolean
-  autoLoad: boolean
-}): EnabledEffectAction {
-  if (!args.enabled) return "preserve"
-  if (args.hasInitial) return "skip_load"
-  if (args.autoLoad) return "trigger_load"
-  return "noop"
 }
 
 /**
@@ -112,111 +86,28 @@ export function createPendingSlot<T>() {
 }
 
 /**
- * React hook owning the project-wide image transform state.
- *
- * @param projectId — used as the API route key and the log prefix.
- * @param enabled — when false, the hook resets to empty and stops
- *   listening. Wraps the canvas-source-ready signal in callers.
- * @param initial — SSR-provided seed for `initialImageTransform`.
- *   When present, the mount auto-load is skipped (no extra round-trip
- *   on first paint).
- * @param autoLoad — when true (default) and no `initial` is supplied,
- *   the hook fetches the current state on mount. Set to false only if
- *   the caller drives `loadImageState()` explicitly.
+ * @param projectId — route key for the API + log prefix.
+ * @param initial — SSR-provided transform seed. Returned unchanged as
+ *   `initialImageTransform`. The hook never mutates or stores it.
  *
  * Returns:
- * - `initialImageTransform` — seed for the canvas placement controller.
- * - `imageStateLoading` — UI gating signal.
- * - `loadImageState()` — manual reload (rarely needed post-#124).
+ * - `initialImageTransform` — the seed, passed through verbatim.
  * - `saveImageState(t)` — enqueue + flush a transform write. Saves are
- *   coalesced via a pending-slot; the latest payload wins.
- *
- * Persistence model: state is anchored at the project's `master.id`
- * (PR #124). The API resolves the key from `projectId` alone, so the
- * hook needs no image-id input. See
- * `docs/specs/image-state-api.mdx` for the wire contract and
- * `docs/domains/image-state.md` for the anchor rationale.
+ *   coalesced via a pending-slot; the latest payload wins. Errors are
+ *   logged + reported via `reportClientError` and otherwise swallowed
+ *   (the canvas remains responsive; the workflow machine surfaces the
+ *   persistence error separately for UI).
  */
-export function useImageState(projectId: string, enabled: boolean, initial?: ImageState | null, autoLoad = true) {
-  const [initialImageTransform, setInitialImageTransform] = useState<ImageState | null>(() => initial ?? null)
-  const [imageStateLoading, setImageStateLoading] = useState(false)
-
-  const logPrefix = useMemo(() => `[image-state:${projectId}]`, [projectId])
-
+export function useImageState(projectId: string, initial: ImageState | null) {
   const lastSavedSignatureRef = useRef<string | null>(null)
-  const lastLoadedSignatureRef = useRef<string | null>(null)
   const pendingSlotRef = useRef<ReturnType<typeof createPendingSlot<ImageState>> | null>(null)
   if (!pendingSlotRef.current) pendingSlotRef.current = createPendingSlot<ImageState>()
   const inflightRef = useRef<Promise<void> | null>(null)
-  const loadInflightRef = useRef<Promise<void> | null>(null)
-  const requestSeqRef = useRef(0)
-
-  const loadImageState = useCallback(async () => {
-    if (loadInflightRef.current) return await loadInflightRef.current
-    const p = (async () => {
-    const seq = ++requestSeqRef.current
-    setImageStateLoading(true)
-    try {
-      const payload = await getImageState(projectId)
-      if (seq !== requestSeqRef.current) return
-      if (!payload?.exists) {
-        if (lastLoadedSignatureRef.current === "__missing__") return
-        lastLoadedSignatureRef.current = "__missing__"
-        setInitialImageTransform(null)
-        return
-      }
-      const widthPxU = parseBigIntString(payload.state.width_px_u)
-      const heightPxU = parseBigIntString(payload.state.height_px_u)
-      if (!widthPxU || !heightPxU) {
-        throw new Error("Unsupported image state: missing width_px_u/height_px_u")
-      }
-      const xPxU = parseBigIntString(payload.state.x_px_u)
-      const yPxU = parseBigIntString(payload.state.y_px_u)
-      const nextSig = buildTransformSignature(payload.state)
-      if (lastLoadedSignatureRef.current === nextSig) return
-      lastLoadedSignatureRef.current = nextSig
-      setInitialImageTransform({
-        xPxU: xPxU ?? undefined,
-        yPxU: yPxU ?? undefined,
-        widthPxU,
-        heightPxU,
-        rotationDeg: Number(payload.state.rotation_deg),
-      })
-    } catch (e) {
-      if (seq !== requestSeqRef.current) return
-      if (e instanceof ApiError) {
-        const stage = typeof e.payload?.stage === "string" ? e.payload.stage : null
-        const payloadError = typeof e.payload?.error === "string" ? e.payload.error : null
-        console.error(`${logPrefix} load failed`, { code: e.code, status: e.status, stage, payloadError, payload: e.payload })
-      } else {
-        console.error(`${logPrefix} load failed`, e)
-      }
-      reportClientError(e, {
-        scope: "editor",
-        code: "IMAGE_STATE_LOAD_FAILED",
-        stage: "load",
-        context: { projectId },
-      })
-      lastLoadedSignatureRef.current = null
-      setInitialImageTransform(null)
-    } finally {
-      if (seq !== requestSeqRef.current) return
-      setImageStateLoading(false)
-    }
-    })()
-    loadInflightRef.current = p
-    try {
-      await p
-    } finally {
-      loadInflightRef.current = null
-    }
-  }, [logPrefix, projectId])
 
   const flushOnce = useCallback(async (p: Pending<ImageState>): Promise<void> => {
     const t = p.value
 
     if (!t.widthPxU || !t.heightPxU) {
-      // Drop invalid pending entries so the flush loop can terminate.
       pendingSlotRef.current?.clearIfSeq(p.seq)
       return
     }
@@ -231,8 +122,6 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
 
     const signature = buildTransformSignature(payload)
     if (lastSavedSignatureRef.current === signature) {
-      // Duplicate payload for the same pending seq: clear it to avoid re-reading
-      // the same snapshot forever in the coalescing flush loop.
       pendingSlotRef.current?.clearIfSeq(p.seq)
       return
     }
@@ -241,7 +130,6 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
     // Mark as saved only after a successful write. Otherwise retries with the
     // same payload would be incorrectly deduped after transient failures.
     lastSavedSignatureRef.current = signature
-    // Only clear if this is still the latest pending value.
     pendingSlotRef.current?.clearIfSeq(p.seq)
   }, [projectId])
 
@@ -267,17 +155,15 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
   const saveImageState = useCallback(
     async (t: ImageState) => {
       try {
-        // Persist immediately. Any debouncing/throttling belongs in the caller
-        // (canvas interactions), not in this IO hook.
         pendingSlotRef.current?.set(t)
         await flush()
       } catch (e) {
         if (e instanceof ApiError) {
           const stage = typeof e.payload?.stage === "string" ? e.payload.stage : null
           const payloadError = typeof e.payload?.error === "string" ? e.payload.error : null
-          console.error(`${logPrefix} save failed`, { code: e.code, status: e.status, stage, payloadError, payload: e.payload })
+          console.error(`[image-state:${projectId}] save failed`, { code: e.code, status: e.status, stage, payloadError, payload: e.payload })
         } else {
-          console.error(`${logPrefix} save failed`, e)
+          console.error(`[image-state:${projectId}] save failed`, e)
         }
         reportClientError(e, {
           scope: "editor",
@@ -287,35 +173,8 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
         })
       }
     },
-    [flush, logPrefix, projectId]
+    [flush, projectId]
   )
-
-  useEffect(() => {
-    // Decision logic lives in `decideEnabledEffectAction` (pure,
-    // unit-tested). The microtask defers setState/load calls out of
-    // the effect body so the react-hooks/set-state-in-effect lint
-    // rule stays happy.
-    const action = decideEnabledEffectAction({ enabled, hasInitial: Boolean(initial), autoLoad })
-    if (action === "preserve") {
-      // Cancel any in-flight load. `initialImageTransform` is left
-      // alone — wiping it here would drop the SSR seed and the
-      // subsequent `enabled: true` re-render would early-return
-      // (`hasInitial → skip_load`) without restoring it, so the
-      // canvas would fall back to default placement on every project
-      // reopen.
-      requestSeqRef.current++
-      loadInflightRef.current = null
-      lastLoadedSignatureRef.current = null
-      queueMicrotask(() => {
-        setImageStateLoading(false)
-      })
-      return
-    }
-    if (action === "skip_load" || action === "noop") return
-    queueMicrotask(() => {
-      void loadImageState()
-    })
-  }, [autoLoad, enabled, initial, loadImageState])
 
   useEffect(() => {
     return () => {
@@ -323,5 +182,5 @@ export function useImageState(projectId: string, enabled: boolean, initial?: Ima
     }
   }, [])
 
-  return { initialImageTransform, imageStateLoading, loadImageState, saveImageState }
+  return { initialImageTransform: initial, saveImageState }
 }

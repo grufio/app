@@ -8,7 +8,6 @@ import { mapSelectedNavIdToRightPanelSection } from "@/services/editor/panel-rou
 
 export function useRightPanelModel(args: {
   selectedNavId: string
-  imageStateLoading: boolean
   imageTxU: { x: bigint; y: bigint; w: bigint; h: bigint } | null
   initialImageTxU: { x: bigint; y: bigint; w: bigint; h: bigint } | null
   workspaceLoading: boolean
@@ -19,7 +18,6 @@ export function useRightPanelModel(args: {
 }) {
   const {
     selectedNavId,
-    imageStateLoading,
     imageTxU,
     initialImageTxU,
     workspaceLoading,
@@ -35,9 +33,8 @@ export function useRightPanelModel(args: {
   }, [projectImages, selectedImageId])
 
   const panelImageTxU = useMemo(() => {
-    if (imageStateLoading) return null
     return imageTxU ?? initialImageTxU ?? null
-  }, [imageStateLoading, imageTxU, initialImageTxU])
+  }, [imageTxU, initialImageTxU])
 
   const workspaceReady = computeWorkspaceReady({
     workspaceLoading,
@@ -47,7 +44,6 @@ export function useRightPanelModel(args: {
   const imagePanelReady = computeImagePanelReady({
     workspaceReady,
     masterImage,
-    imageStateLoading,
     panelImagePxU: panelImageTxU ? { w: panelImageTxU.w, h: panelImageTxU.h } : null,
   })
 

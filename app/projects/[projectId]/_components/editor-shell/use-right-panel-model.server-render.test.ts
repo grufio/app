@@ -18,7 +18,6 @@ describe("useRightPanelModel", () => {
     function Probe() {
       const out = useRightPanelModel({
         selectedNavId: "app/api/img-1",
-        imageStateLoading: false,
         imageTxU: { x: 11n, y: 22n, w: 123n, h: 456n },
         initialImageTxU: null,
         workspaceLoading: false,
