@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import { ApiError } from "./api-error"
 import {
-  formatNormalizedApiError,
+  formatOperationErrorOneLine,
   formatOperationErrorForToast,
   normalizeApiError,
 } from "./error-normalizer"
@@ -140,9 +140,9 @@ describe("formatOperationErrorForToast", () => {
   })
 })
 
-describe("formatNormalizedApiError", () => {
+describe("formatOperationErrorOneLine", () => {
   it("joins title + detail with em-dash when both exist", () => {
-    const msg = formatNormalizedApiError(
+    const msg = formatOperationErrorOneLine(
       new Error("Something (HTTP 409, stage=chain_invalid): bad")
     )
     expect(msg).toBe(
@@ -151,7 +151,7 @@ describe("formatNormalizedApiError", () => {
   })
 
   it("returns title only when no detail", () => {
-    const msg = formatNormalizedApiError(new Error("Failed (HTTP 400): nope"))
+    const msg = formatOperationErrorOneLine(new Error("Failed (HTTP 400): nope"))
     expect(msg).not.toContain("—")
     expect(msg).toMatch(/nope/i)
   })

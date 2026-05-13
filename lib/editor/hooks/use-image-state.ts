@@ -91,7 +91,7 @@ export function createPendingSlot<T>() {
  *
  * Returns:
  * - `initialImageTransform` — seed for the canvas placement controller.
- * - `imageStateError`, `imageStateLoading` — UI gating signals.
+ * - `imageStateLoading` — UI gating signal.
  * - `loadImageState()` — manual reload (rarely needed post-#124).
  * - `saveImageState(t)` — enqueue + flush a transform write. Saves are
  *   coalesced via a pending-slot; the latest payload wins.
