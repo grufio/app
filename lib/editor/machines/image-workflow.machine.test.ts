@@ -137,7 +137,7 @@ describe("createImageWorkflowMachine", () => {
 
     actor.send({ type: "FILTER_APPLY", filterType: "pixelate", filterParams: {} })
     await waitFor(actor, (s) => s.matches({ operation: "error" }))
-    expect(actor.getSnapshot().context.lastOpError).toBe("apply failed")
+    expect(actor.getSnapshot().context.lastOpError).toMatchObject({ message: "apply failed" })
 
     services.applyFilter = vi.fn(async () => {})
     actor.send({ type: "RETRY" })
@@ -267,7 +267,7 @@ describe("createImageWorkflowMachine", () => {
 
     actor.send({ type: "FILTER_APPLY", filterType: "pixelate", filterParams: {} })
     await waitFor(actor, (s) => s.matches({ operation: "error" }))
-    expect(actor.getSnapshot().context.lastOpError).toBe("refresh failed")
+    expect(actor.getSnapshot().context.lastOpError).toMatchObject({ message: "refresh failed" })
 
     actor.send({ type: "RETRY" })
     await waitFor(actor, (s) => s.matches({ operation: "idle" }))
@@ -293,7 +293,7 @@ describe("createImageWorkflowMachine", () => {
 
     actor.send({ type: "TRANSFORM_SAVE", transform: { widthPxU: 1000n, heightPxU: 800n, rotationDeg: 0 } })
     await waitFor(actor, (s) => s.matches({ persistence: "error" }))
-    expect(actor.getSnapshot().context.lastPersistenceError).toBe("persist failed")
+    expect(actor.getSnapshot().context.lastPersistenceError).toMatchObject({ message: "persist failed" })
 
     actor.send({ type: "TRANSFORM_SAVE", transform: { widthPxU: 1001n, heightPxU: 801n, rotationDeg: 1 } })
     await waitFor(actor, (s) => s.matches({ persistence: "idle" }))

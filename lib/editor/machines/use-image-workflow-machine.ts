@@ -91,7 +91,7 @@ export function useImageWorkflowMachine(args: {
         if (isApplying || isSyncing) enteredMutationFlow = true
         if (!enteredMutationFlow) return null
 
-        if (isError) return new Error(snapshot.context.lastOpError || "Failed to apply filter")
+        if (isError) return new Error(snapshot.context.lastOpError?.message ?? "Failed to apply filter")
         if (isIdle) return "resolve"
         return null
       },
@@ -120,7 +120,7 @@ export function useImageWorkflowMachine(args: {
         if (isSyncingNow) enteredSync = true
         if (!enteredSync) return null
 
-        if (isErrorNow) return new Error(snapshot.context.lastOpError || "Failed to refresh workflow source")
+        if (isErrorNow) return new Error(snapshot.context.lastOpError?.message ?? "Failed to refresh workflow source")
         if (isIdleNow) return "resolve"
         return null
       },
