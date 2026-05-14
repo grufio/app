@@ -39,16 +39,15 @@ export function FilterSelectionController({
 }: Props) {
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null)
 
-  const handleApply = () => {
-    if (!selectedCardId) return
-    const filterType = selectedCardId as FilterType
-    onApply(filterType)
-    setSelectedCardId(null)
-  }
-
   const handleClose = () => {
     setSelectedCardId(null)
     onClose()
+  }
+
+  const handleApply = () => {
+    if (!selectedCardId) return
+    onApply(selectedCardId as FilterType)
+    handleClose()
   }
 
   return (
