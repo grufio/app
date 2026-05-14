@@ -34,6 +34,15 @@ export const MAX_CELLS_PER_AXIS = 50
  */
 export const MAX_SUPERPIXEL_TOTAL_CELLS = 2500
 
+/**
+ * Minimum physical supercell size, in millimetres, per axis. A
+ * supercell smaller than this makes the numerate grid too fine to be
+ * a usable paint-by-numbers cell. Enforced as a hard wizard-validation
+ * rule (Apply is blocked until met). The mm size is derived from the
+ * supercell pitch in image pixels and the project's output DPI.
+ */
+export const MIN_SUPERCELL_MM = 4
+
 export function gridFromCells(
   imageWidth: number,
   imageHeight: number,

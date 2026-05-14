@@ -88,7 +88,11 @@ export function NumerateWizard({
     [imageWidth, imageHeight, draft.superpixel_width, draft.superpixel_height],
   )
 
-  const validity = stepValidity(draft, { widthPx: workspace.widthPx, heightPx: workspace.heightPx })
+  const validity = stepValidity(draft, {
+    widthPx: workspace.widthPx,
+    heightPx: workspace.heightPx,
+    dpi: workspace.dpi,
+  })
   const fullValid = isFullyValid(validity)
 
   const onStepClick = (id: StepId) => {
@@ -149,6 +153,7 @@ export function NumerateWizard({
             <GridStep
               imageWidth={imageWidth}
               imageHeight={imageHeight}
+              dpi={workspace.dpi}
               gridMode={gridMode}
               onGridModeChange={setGridMode}
               draft={draft}

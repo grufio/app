@@ -7,14 +7,19 @@ import {
   gridFromCells,
   MAX_CELLS_PER_AXIS,
   MAX_SUPERPIXEL_TOTAL_CELLS,
+  MIN_SUPERCELL_MM,
   type GridStats,
 } from "@/lib/editor/trace/numerate-grid-math"
+import { pxToUnit } from "@/lib/editor/units"
 
 export type GridMode = "cells" | "superpixel"
 
 export function GridStep(props: {
   imageWidth: number
   imageHeight: number
+  /** Project output DPI — converts the supercell pitch (image px) to
+   * mm for the MIN_SUPERCELL_MM check. `null` while workspace loads. */
+  dpi: number | null
   gridMode: GridMode
   onGridModeChange: (mode: GridMode) => void
   draft: NumerateParams
@@ -22,7 +27,7 @@ export function GridStep(props: {
   grid: GridStats
   busy: boolean
 }) {
-  const { imageWidth, imageHeight, gridMode, onGridModeChange, draft, setField, grid, busy } = props
+  const { imageWidth, imageHeight, dpi, gridMode, onGridModeChange, draft, setField, grid, busy } = props
 
   const onCellsXCommit = (raw: string) => {
     const n = Number(raw)
@@ -116,7 +121,7 @@ export function GridStep(props: {
         )}
       </div>
 
-      <GridSummary grid={grid} mode={gridMode} />
+      <GridSummary grid={grid} mode={gridMode} dpi={dpi} />
     </div>
   )
 }
@@ -145,8 +150,8 @@ function ModeTab(props: { active: boolean; onClick: () => void; children: ReactN
   )
 }
 
-function GridSummary(props: { grid: GridStats; mode: GridMode }) {
-  const { grid, mode } = props
+function GridSummary(props: { grid: GridStats; mode: GridMode; dpi: number | null }) {
+  const { grid, mode, dpi } = props
   const derivedLabel =
     mode === "cells"
       ? `Superpixel: ${formatPitch(grid.superpixelWidth)} × ${formatPitch(grid.superpixelHeight)} px`
@@ -154,10 +159,30 @@ function GridSummary(props: { grid: GridStats; mode: GridMode }) {
   // Cells mode is hard-capped at MAX_CELLS_PER_AXIS, so totalCells can
   // only exceed the soft cap via the pitch-driven superpixel mode.
   const overSoftCap = grid.totalCells > MAX_SUPERPIXEL_TOTAL_CELLS
+  // Physical supercell size — needs the project DPI. Below
+  // MIN_SUPERCELL_MM the grid step is invalid and Apply is blocked
+  // (see step-validation.ts); surface the reason here.
+  const supercellWidthMm = dpi != null ? pxToUnit(grid.superpixelWidth, "mm", dpi) : null
+  const supercellHeightMm = dpi != null ? pxToUnit(grid.superpixelHeight, "mm", dpi) : null
+  const belowMinSize =
+    supercellWidthMm != null &&
+    supercellHeightMm != null &&
+    (supercellWidthMm < MIN_SUPERCELL_MM || supercellHeightMm < MIN_SUPERCELL_MM)
   return (
     <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs">
       <div>{derivedLabel}</div>
       <div>Total cells: {grid.totalCells}</div>
+      {supercellWidthMm != null && supercellHeightMm != null ? (
+        <div className="text-muted-foreground">
+          Supercell: {supercellWidthMm.toFixed(2)} × {supercellHeightMm.toFixed(2)} mm
+        </div>
+      ) : null}
+      {belowMinSize ? (
+        <div className="mt-1 text-destructive">
+          Supercell must be at least {MIN_SUPERCELL_MM} mm per side — increase the
+          superpixel size or reduce the cell count to enable Apply.
+        </div>
+      ) : null}
       {overSoftCap ? (
         <div className="mt-1 text-amber-600 dark:text-amber-500">
           Over {MAX_SUPERPIXEL_TOTAL_CELLS} cells — the trace will be large and slow to render.

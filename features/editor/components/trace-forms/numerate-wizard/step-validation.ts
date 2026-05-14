@@ -14,6 +14,8 @@
  * Co-evolves with the upcoming numerate-wizard split (Plan R1).
  */
 import type { NumerateParams } from "@/lib/editor/trace/numerate"
+import { MIN_SUPERCELL_MM } from "@/lib/editor/trace/numerate-grid-math"
+import { pxToUnit } from "@/lib/editor/units"
 
 export type StepId = "grid" | "colors" | "output"
 
@@ -26,6 +28,27 @@ export const STEPS: ReadonlyArray<{ id: StepId; label: string }> = [
 export type WorkspaceDimensions = {
   widthPx: number | null
   heightPx: number | null
+  /** Project output DPI — needed to convert the supercell pitch
+   * (image px) to millimetres for the MIN_SUPERCELL_MM check. `null`
+   * while the workspace is still loading; the 4mm rule is skipped
+   * then and the `output` step blocks Apply instead. */
+  dpi: number | null
+}
+
+/**
+ * True when both supercell axes are at least `MIN_SUPERCELL_MM`. When
+ * `dpi` is null (workspace not loaded) the rule cannot be evaluated,
+ * so it passes — the `output` step's own null-check gates Apply.
+ */
+export function supercellMeetsMinSize(
+  draft: NumerateParams,
+  dpi: number | null,
+): boolean {
+  if (dpi == null) return true
+  return (
+    pxToUnit(draft.superpixel_width, "mm", dpi) >= MIN_SUPERCELL_MM &&
+    pxToUnit(draft.superpixel_height, "mm", dpi) >= MIN_SUPERCELL_MM
+  )
 }
 
 export function stepValidity(
@@ -33,7 +56,10 @@ export function stepValidity(
   workspace: WorkspaceDimensions,
 ): Record<StepId, boolean> {
   return {
-    grid: draft.superpixel_width >= 0.1 && draft.superpixel_height >= 0.1,
+    grid:
+      draft.superpixel_width >= 0.1 &&
+      draft.superpixel_height >= 0.1 &&
+      supercellMeetsMinSize(draft, workspace.dpi),
     colors:
       draft.stroke_width >= 0.1 &&
       draft.stroke_width <= 20 &&
