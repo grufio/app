@@ -43,6 +43,14 @@ export const MAX_SUPERPIXEL_TOTAL_CELLS = 2500
  */
 export const MIN_SUPERCELL_MM = 4
 
+/**
+ * Default physical supercell size, in millimetres, per axis. The
+ * wizard seeds the supercell pitch to this on open (converted to
+ * image px via the project DPI) — comfortably above MIN_SUPERCELL_MM
+ * so the grid step opens valid.
+ */
+export const DEFAULT_SUPERCELL_MM = 6
+
 export function gridFromCells(
   imageWidth: number,
   imageHeight: number,
