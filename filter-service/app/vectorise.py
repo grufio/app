@@ -24,6 +24,7 @@ elements at centroids becomes a one-liner per path.
 """
 from __future__ import annotations
 
+import io
 import re
 
 import numpy as np
@@ -204,10 +205,18 @@ def numerate_to_svg(
         )
         phase("superpixel")
 
-        rgba = pixelated.convert("RGBA")
-        pixels = list(rgba.getdata())
-        traced = vtracer.convert_pixels_to_svg(
-            pixels, size=(bitmap_w, bitmap_h), **VTRACER_PARAMS
+        # Feed vtracer the encoded image bytes, not list(getdata()).
+        # getdata() materialises one Python tuple per pixel — roughly
+        # a gigabyte of objects for a multi-megapixel image, which is
+        # what OOM-killed this endpoint. `pixelated` is a quantised
+        # superpixel grid, so the PNG is tiny and compresses well;
+        # vtracer decodes it in Rust. Output is byte-identical to the
+        # convert_pixels_to_svg path.
+        buf = io.BytesIO()
+        pixelated.save(buf, format="PNG")
+        del pixelated
+        traced = vtracer.convert_raw_image_to_svg(
+            buf.getvalue(), "png", **VTRACER_PARAMS
         )
         phase("vtracer")
 
@@ -304,8 +313,6 @@ def lineart_to_svg(
         prepared = quantised
     phase("blur")
 
-    rgba = prepared.convert("RGBA")
-    pixels = list(rgba.getdata())
     # Map smoothness ∈ [0, 1] to:
     #   corner_threshold ∈ [180, 60]   (0=preserve sharp corners, 1=allow strong curves)
     #   length_threshold ∈ [0, 8]      (0=no simplification, 1=aggressive)
@@ -314,9 +321,15 @@ def lineart_to_svg(
     corner_threshold = int(round(180 - s * 120))
     length_threshold = round(s * 8.0, 2)
     filter_speckle = int(round(s * 32))
-    traced = vtracer.convert_pixels_to_svg(
-        pixels,
-        size=(width, height),
+    # Encoded bytes, not list(getdata()) — see numerate_to_svg: the
+    # per-pixel tuple list is a multi-hundred-MB to GB allocation on
+    # large images. vtracer decodes the PNG in Rust; output matches.
+    buf = io.BytesIO()
+    prepared.save(buf, format="PNG")
+    del prepared
+    traced = vtracer.convert_raw_image_to_svg(
+        buf.getvalue(),
+        "png",
         corner_threshold=corner_threshold,
         length_threshold=length_threshold,
         filter_speckle=filter_speckle,
