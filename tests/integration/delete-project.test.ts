@@ -55,7 +55,7 @@ describe("delete_project()", () => {
         project_id: projectId,
         input_image_id: master.imageId,
         output_image_id: filterOutput.imageId,
-        filter_type: "pixelate",
+        filter_type: "bw_hard",
         stack_order: 1,
       })
     expect(filterErr).toBeNull()
