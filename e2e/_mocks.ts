@@ -48,9 +48,12 @@ export const PROJECT_ID = "00000000-0000-4000-8000-000000000001"
 export type SetupMockRoutesOpts = {
   withImage: boolean
   /**
-   * When true, the list response reports the active image as a deletable
-   * filter_working_copy (kind != master). The right-panel "Delete image"
-   * button enables; defaults to false (master-only mock = immutable).
+   * When true, the list response includes a `display_target` block with
+   * `active_image_id` populated (active = filter_working_copy). Used by
+   * tests that need the "active image present" shape — the master-delete-
+   * cascade refactor moved the actual delete-button gate to
+   * `Boolean(masterImage)` upstream, so this flag no longer drives
+   * `deletable`/`reason` (those fields are gone from the API contract).
    */
   deletableActive?: boolean
   workspace?: Partial<{
@@ -209,12 +212,12 @@ export async function setupMockRoutes(page: Page, opts: SetupMockRoutesOpts) {
             ]
           : [],
       }
-      // Tests that want the right-panel "Delete image" button enabled (e.g.
-      // delete-confirm visual snapshot) flip `deletableActive`. We only
-      // attach a `display_target` in that case, leaving the default mock
-      // shape unchanged for the master/restore happy path.
+      // Tests that need an "active image present" shape flip
+      // `deletableActive`. Post master-delete-cascade refactor the
+      // shape no longer carries `deletable`/`reason` — the client
+      // gates on `Boolean(masterImage)` directly.
       const body = deletableActive
-        ? { ...baseBody, display_target: { active_image_id: activeImageId, kind: "filter_working_copy", deletable: true, reason: null }, fallback_target: null }
+        ? { ...baseBody, display_target: { active_image_id: activeImageId, kind: "filter_working_copy" }, fallback_target: null }
         : baseBody
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) })
     }

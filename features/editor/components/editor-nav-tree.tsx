@@ -46,8 +46,10 @@ export function EditorNavTree(props: {
   hasGrid: boolean
   onImageUploaded: () => void | Promise<void>
   onImageDeleteRequested: (imageId: string) => void | Promise<void>
-  canDeleteActiveImage: boolean
-  deleteTargetImageId: string | null
+  /** When true, render the trash icon on the Image entry. The master
+   * is the only delete-target (cascade through derivatives), so this
+   * is a simple existence flag — `Boolean(masterImage)` upstream. */
+  canDeleteMaster: boolean
   onGridCreateRequested: () => void | Promise<void>
   onGridDeleteRequested: () => void | Promise<void>
 }) {
@@ -59,8 +61,7 @@ export function EditorNavTree(props: {
     hasGrid,
     onImageUploaded,
     onImageDeleteRequested,
-    canDeleteActiveImage,
-    deleteTargetImageId,
+    canDeleteMaster,
     onGridCreateRequested,
     onGridDeleteRequested,
   } = props
@@ -120,7 +121,7 @@ export function EditorNavTree(props: {
             {imageTargetImageId ? (
               <LockNavTreeActions
                 imageId={imageTargetImageId}
-                canDelete={canDeleteActiveImage && deleteTargetImageId === imageTargetImageId}
+                canDelete={canDeleteMaster}
                 onDeleteRequest={handleDeleteImage}
                 onActionError={setActionError}
               />
