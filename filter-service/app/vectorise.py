@@ -27,7 +27,6 @@ from __future__ import annotations
 import io
 import re
 
-import numpy as np
 from PIL import Image, ImageFilter
 import vtracer
 
@@ -75,43 +74,6 @@ def quantise_image(img: Image.Image, num_colors: int) -> Image.Image:
     return quantised.convert("RGB")
 
 
-def build_superpixel_image(
-    img: Image.Image,
-    cells_x: int,
-    cells_y: int,
-    sw: int,
-    sh: int,
-) -> Image.Image:
-    """
-    Collapse the input image into a `cells_x × cells_y` superpixel
-    grid where each cell is replaced by the mean color of an
-    `sw × sh` block of source pixels.
-
-    The caller owns the cell decomposition — this function trusts
-    `cells_x`, `cells_y`, `sw`, `sh` verbatim and crops the input
-    to exactly `cells_x * sw × cells_y * sh` pixels. Any leftover
-    right/bottom strip on the input image is discarded. The
-    numerate SVG composer stretches the result back to the original
-    image dims via a scale transform so coverage stays visually
-    exact.
-
-    Returning the image **only** (no derived `grid_width/height`)
-    guarantees `result.size == (cells_x * sw, cells_y * sh)` by
-    construction — there's only one source of truth for the cell
-    count, fixing the vtracer size mismatch class of bug where
-    caller and callee derived the grid independently and drifted.
-    """
-    arr = np.array(img.convert("RGB"))
-    block_means = (
-        arr[: cells_y * sh, : cells_x * sw]
-        .reshape(cells_y, sh, cells_x, sw, 3)
-        .mean(axis=(1, 3))
-        .astype(np.uint8)
-    )
-    expanded = block_means.repeat(sh, axis=0).repeat(sw, axis=1)
-    return Image.fromarray(expanded, mode="RGB")
-
-
 # vtracer emits an outer `<svg>` envelope; we re-wrap the path body
 # inside our own document so we can layer it under the grid lines
 # and add the white background + viewBox the editor expects.
@@ -125,29 +87,32 @@ def extract_path_elements(svg_str: str) -> list[str]:
 
 
 def grid_lines_svg(
-    width: int,
-    height: int,
+    crop_x: float,
+    crop_y: float,
+    crop_w: float,
+    crop_h: float,
     cells_x: int,
     cells_y: int,
     stroke_width: float,
 ) -> list[str]:
-    """Vertical + horizontal lines that overlay the cell boundaries.
+    """Vertical + horizontal lines overlaying the cell boundaries.
 
-    Lines are drawn at exact float positions (`i * width / cells_x`)
-    so the grid covers the full image even when the pitch isn't an
-    integer multiple of the image dimensions.
+    Lines span only the crop region `(crop_x, crop_y, crop_w, crop_h)`
+    — the part the grid actually covers — at exact float positions, so
+    the cell borders line up with the colour paths and the border area
+    stays empty.
     """
     out: list[str] = []
     for i in range(cells_x + 1):
-        x = i * width / cells_x
+        x = crop_x + i * crop_w / cells_x
         out.append(
-            f'<line x1="{x:.4f}" y1="0" x2="{x:.4f}" y2="{height}" '
+            f'<line x1="{x:.4f}" y1="{crop_y:.4f}" x2="{x:.4f}" y2="{crop_y + crop_h:.4f}" '
             f'stroke="black" stroke-width="{stroke_width}" />'
         )
     for i in range(cells_y + 1):
-        y = i * height / cells_y
+        y = crop_y + i * crop_h / cells_y
         out.append(
-            f'<line x1="0" y1="{y:.4f}" x2="{width}" y2="{y:.4f}" '
+            f'<line x1="{crop_x:.4f}" y1="{y:.4f}" x2="{crop_x + crop_w:.4f}" y2="{y:.4f}" '
             f'stroke="black" stroke-width="{stroke_width}" />'
         )
     return out
@@ -155,66 +120,68 @@ def grid_lines_svg(
 
 def numerate_to_svg(
     img: Image.Image,
-    superpixel_width: float,
-    superpixel_height: float,
+    cells_x: int,
+    cells_y: int,
+    crop_x: float,
+    crop_y: float,
+    crop_w: float,
+    crop_h: float,
     stroke_width: float,
     show_colors: bool,
     num_colors: int = 16,
     on_phase: callable | None = None,
 ) -> tuple[str, int]:
     """
-    Build the numerate SVG. `on_phase(name)` is the optional phase
-    timer hook used by the Python endpoint to surface
-    `X-Profile-Phases`. Returns (svg_string, region_count).
+    Build the numerate SVG from the server-resolved grid.
 
-    Float-pitch handling (F22 follow-up): `superpixel_width/_height`
-    may be fractional (e.g. 50.4666 px from the wizard's "Number of
-    cells" mode). We derive the cell count from the float pitch,
-    round to an integer pitch for the bitmap-quantisation pass
-    (numpy reshape demands integer dims), and then stretch the
-    integer-pitch regions back to the original image dimensions via
-    a `<g transform="scale(...)">` wrapper. Grid lines are drawn at
-    exact float positions, so visually the grid covers the full
-    image with no leftover.
+    The cell grid + crop rect come pre-resolved (`resolveNumerateGrid`
+    on the server is the single source of truth). The pipeline here
+    is: crop the source to the grid region → downsample straight to a
+    `cells_x × cells_y` image (1 cell = 1 px, area-averaged) →
+    quantise that tiny grid → vtracer → region paths. Everything runs
+    on the tiny grid, never the full-res image.
+
+    The colour paths are placed inside the full-image viewBox at the
+    crop offset, scaled to the crop size. Whatever lies outside the
+    crop is the centred border — left empty.
+
+    `on_phase(name)` is the optional phase-timer hook. Returns
+    (svg_string, region_count).
     """
 
     def phase(name: str) -> None:
         if on_phase is not None:
             on_phase(name)
 
-    width, height = img.size
+    img_w, img_h = img.size
 
-    cells_x = max(1, round(width / superpixel_width))
-    cells_y = max(1, round(height / superpixel_height))
-    sw_int = max(1, width // cells_x)
-    sh_int = max(1, height // cells_y)
-    bitmap_w = cells_x * sw_int
-    bitmap_h = cells_y * sh_int
-    scale_x = width / bitmap_w if bitmap_w > 0 else 1.0
-    scale_y = height / bitmap_h if bitmap_h > 0 else 1.0
+    # Crop to the grid region. Round to integer pixel bounds for the
+    # PIL crop; the SVG transform below uses the exact float crop rect
+    # so cell placement stays precise (sub-pixel rounding is invisible).
+    cx0 = max(0, round(crop_x))
+    cy0 = max(0, round(crop_y))
+    cx1 = min(img_w, round(crop_x + crop_w))
+    cy1 = min(img_h, round(crop_y + crop_h))
+    cropped = img.convert("RGB").crop((cx0, cy0, cx1, cy1))
+    phase("crop")
 
     color_paths: list[str] = []
     region_count = 0
 
     if show_colors:
-        quantised = quantise_image(img, num_colors)
+        # Downsample straight to the cell grid: 1 cell = 1 px, each
+        # cell the area-average of its source block (Image.BOX).
+        cell_grid = cropped.resize((cells_x, cells_y), Image.BOX)
+        phase("downsample")
+
+        cell_grid = quantise_image(cell_grid, num_colors)
         phase("quantise")
 
-        pixelated = build_superpixel_image(
-            quantised, cells_x, cells_y, sw_int, sh_int,
-        )
-        phase("superpixel")
-
-        # Feed vtracer the encoded image bytes, not list(getdata()).
-        # getdata() materialises one Python tuple per pixel — roughly
-        # a gigabyte of objects for a multi-megapixel image, which is
-        # what OOM-killed this endpoint. `pixelated` is a quantised
-        # superpixel grid, so the PNG is tiny and compresses well;
-        # vtracer decodes it in Rust. Output is byte-identical to the
-        # convert_pixels_to_svg path.
+        # vtracer decodes the encoded image in Rust — feed it the tiny
+        # cell-grid PNG, not a per-pixel tuple list. Paths come back in
+        # [0, cells_x] × [0, cells_y] coordinate space.
         buf = io.BytesIO()
-        pixelated.save(buf, format="PNG")
-        del pixelated
+        cell_grid.save(buf, format="PNG")
         traced = vtracer.convert_raw_image_to_svg(
             buf.getvalue(), "png", **VTRACER_PARAMS
         )
@@ -224,24 +191,27 @@ def numerate_to_svg(
         region_count = len(color_paths)
         phase("extract")
     else:
+        phase("downsample")
         phase("quantise")
-        phase("superpixel")
         phase("vtracer")
         phase("extract")
 
-    grid = grid_lines_svg(width, height, cells_x, cells_y, stroke_width)
+    grid = grid_lines_svg(crop_x, crop_y, crop_w, crop_h, cells_x, cells_y, stroke_width)
     phase("lines")
 
-    # No opaque background rect — the trace is rendered as a layer
-    # on top of the filter chain tip in the editor, and a future
-    # toggle hides the whole trace layer to reveal the raster
-    # underneath. An opaque white sheet here would block both.
+    # Place the cell-coordinate paths at the crop offset, scaled to the
+    # crop size, within the full-image viewBox. No opaque background —
+    # the trace renders as a layer on top of the filter chain tip; the
+    # border area is simply left empty.
+    scale_x = crop_w / cells_x
+    scale_y = crop_h / cells_y
     svg_content = (
         f'<?xml version="1.0" encoding="UTF-8"?>\n'
         f'<svg xmlns="http://www.w3.org/2000/svg" '
-        f'width="{width}" height="{height}" '
-        f'viewBox="0 0 {width} {height}">\n'
-        f'  <g id="colors" transform="scale({scale_x:.6f} {scale_y:.6f})">\n'
+        f'width="{img_w}" height="{img_h}" '
+        f'viewBox="0 0 {img_w} {img_h}">\n'
+        f'  <g id="colors" transform="translate({crop_x:.4f} {crop_y:.4f}) '
+        f'scale({scale_x:.6f} {scale_y:.6f})">\n'
         f'    {chr(10).join(color_paths)}\n'
         f'  </g>\n'
         f'  <g id="grid">\n'

@@ -7,18 +7,18 @@ import {
   isFullyValid,
   stepValidity,
   STEPS,
-  supercellMeetsMinSize,
-  type WorkspaceDimensions,
+  type WizardContext,
 } from "./step-validation"
 
-// At 72 dpi a 12 px supercell is 12/72*25.4 ≈ 4.23 mm — clears the
-// 4 mm minimum; the schema's 10 px default would not.
-const validDraft: NumerateParams = {
-  ...numerateSchema.parse({}),
-  superpixel_width: 12,
-  superpixel_height: 12,
+const validDraft: NumerateParams = numerateSchema.parse({})
+// 4000x3000 image: default draft (6mm square, 40 primary) resolves to
+// a 40x30 grid with no border — fully valid.
+const validCtx: WizardContext = {
+  imageWidth: 4000,
+  imageHeight: 3000,
+  workspaceWidthPx: 800,
+  workspaceHeightPx: 600,
 }
-const validWorkspace: WorkspaceDimensions = { widthPx: 800, heightPx: 600, dpi: 72 }
 
 describe("STEPS", () => {
   it("orders grid -> colors -> output", () => {
@@ -27,64 +27,37 @@ describe("STEPS", () => {
 })
 
 describe("stepValidity", () => {
-  it("returns all valid for a default draft and a sized workspace", () => {
-    expect(stepValidity(validDraft, validWorkspace)).toEqual({
+  it("returns all valid for the default draft and a sized workspace", () => {
+    expect(stepValidity(validDraft, validCtx)).toEqual({
       grid: true,
       colors: true,
       output: true,
     })
   })
 
-  it("marks grid invalid when a superpixel dimension is below 0.1", () => {
-    const draft: NumerateParams = { ...validDraft, superpixel_width: 0.05 }
-    expect(stepValidity(draft, validWorkspace).grid).toBe(false)
+  it("marks grid invalid when supercell_mm is below the minimum", () => {
+    expect(stepValidity({ ...validDraft, supercell_mm: 3 }, validCtx).grid).toBe(false)
   })
 
-  it("marks grid invalid when a supercell is below MIN_SUPERCELL_MM", () => {
-    // 8 px at 72 dpi ≈ 2.82 mm — under the 4 mm minimum.
-    const draft: NumerateParams = { ...validDraft, superpixel_width: 8 }
-    expect(stepValidity(draft, validWorkspace).grid).toBe(false)
-  })
-
-  it("skips the 4mm rule when dpi is null (output step gates instead)", () => {
-    const draft: NumerateParams = { ...validDraft, superpixel_width: 1, superpixel_height: 1 }
-    expect(stepValidity(draft, { ...validWorkspace, dpi: null }).grid).toBe(true)
+  it("marks grid invalid when the resolved grid has no whole secondary cell", () => {
+    // primary_count 1 on a 4000-wide image -> a 4000px-tall square
+    // cell, taller than the 3000px image -> cellsY = 0.
+    expect(stepValidity({ ...validDraft, primary_count: 1 }, validCtx).grid).toBe(false)
   })
 
   it("marks colors invalid when stroke_width is out of range", () => {
-    expect(stepValidity({ ...validDraft, stroke_width: 0.05 }, validWorkspace).colors).toBe(false)
-    expect(stepValidity({ ...validDraft, stroke_width: 21 }, validWorkspace).colors).toBe(false)
+    expect(stepValidity({ ...validDraft, stroke_width: 0.05 }, validCtx).colors).toBe(false)
+    expect(stepValidity({ ...validDraft, stroke_width: 21 }, validCtx).colors).toBe(false)
   })
 
   it("marks colors invalid when num_colors is out of range", () => {
-    expect(stepValidity({ ...validDraft, num_colors: 1 }, validWorkspace).colors).toBe(false)
-    expect(stepValidity({ ...validDraft, num_colors: 300 }, validWorkspace).colors).toBe(false)
+    expect(stepValidity({ ...validDraft, num_colors: 1 }, validCtx).colors).toBe(false)
+    expect(stepValidity({ ...validDraft, num_colors: 300 }, validCtx).colors).toBe(false)
   })
 
   it("marks output invalid when workspace dimensions are missing", () => {
-    expect(stepValidity(validDraft, { widthPx: null, heightPx: null, dpi: 72 }).output).toBe(false)
-    expect(stepValidity(validDraft, { widthPx: 800, heightPx: null, dpi: 72 }).output).toBe(false)
-  })
-})
-
-describe("supercellMeetsMinSize", () => {
-  it("passes when both axes are at least 4mm at the given dpi", () => {
-    // 12 px @ 72 dpi ≈ 4.23 mm
-    expect(supercellMeetsMinSize({ ...validDraft, superpixel_width: 12, superpixel_height: 12 }, 72)).toBe(true)
-  })
-
-  it("fails when either axis is below 4mm", () => {
-    expect(supercellMeetsMinSize({ ...validDraft, superpixel_width: 8, superpixel_height: 12 }, 72)).toBe(false)
-    expect(supercellMeetsMinSize({ ...validDraft, superpixel_width: 12, superpixel_height: 8 }, 72)).toBe(false)
-  })
-
-  it("scales with dpi — the same pitch fails at a higher dpi", () => {
-    // 12 px @ 300 dpi ≈ 1.02 mm
-    expect(supercellMeetsMinSize({ ...validDraft, superpixel_width: 12, superpixel_height: 12 }, 300)).toBe(false)
-  })
-
-  it("passes (rule deferred) when dpi is null", () => {
-    expect(supercellMeetsMinSize({ ...validDraft, superpixel_width: 0.1, superpixel_height: 0.1 }, null)).toBe(true)
+    expect(stepValidity(validDraft, { ...validCtx, workspaceWidthPx: null, workspaceHeightPx: null }).output).toBe(false)
+    expect(stepValidity(validDraft, { ...validCtx, workspaceHeightPx: null }).output).toBe(false)
   })
 })
 

@@ -3,7 +3,20 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { makeMockSupabase } from "@/lib/supabase/__mocks__/make-mock-supabase"
 import type { Database } from "@/lib/supabase/database.types"
+import type { NumerateParams } from "@/lib/editor/trace/numerate"
 import { numerateImageAndActivate } from "./numerate"
+
+/** Valid numerate params — the base square 6mm supercell, 40 cells on
+ * the primary axis. Tests override one field at a time. */
+const validParams: NumerateParams = {
+  supercell_mm: 6,
+  multiple_axis: "none",
+  multiple: 1,
+  primary_count: 40,
+  stroke_width: 2,
+  show_colors: true,
+  num_colors: 16,
+}
 
 /**
  * Source-image fixture used when production code reaches the lookup
@@ -40,12 +53,12 @@ describe("numerateImageAndActivate validation contract", () => {
     })
   })
 
-  it("rejects superpixelWidth < 1", async () => {
+  it("rejects supercell_mm below the minimum", async () => {
     const result = await numerateImageAndActivate({
       supabase: mockSupabase,
       projectId,
       sourceImageId,
-      params: { superpixel_width: 0, superpixel_height: 10, stroke_width: 2, show_colors: true, num_colors: 16 },
+      params: { ...validParams, supercell_mm: 3 },
     })
     expect(result.ok).toBe(false)
     if (!result.ok) {
@@ -54,64 +67,70 @@ describe("numerateImageAndActivate validation contract", () => {
     }
   })
 
-  it("rejects superpixelHeight < 1", async () => {
+  it("rejects multiple < 1", async () => {
     const result = await numerateImageAndActivate({
       supabase: mockSupabase,
       projectId,
       sourceImageId,
-      params: { superpixel_width: 10, superpixel_height: 0, stroke_width: 2, show_colors: false, num_colors: 16 },
+      params: { ...validParams, multiple: 0 },
     })
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.stage).toBe("validation")
   })
 
-  it("rejects strokeWidth < 1", async () => {
+  it("rejects primary_count < 1", async () => {
     const result = await numerateImageAndActivate({
       supabase: mockSupabase,
       projectId,
       sourceImageId,
-      params: { superpixel_width: 10, superpixel_height: 10, stroke_width: 0, show_colors: true, num_colors: 16 },
+      params: { ...validParams, primary_count: 0 },
     })
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.stage).toBe("validation")
   })
 
-  it("rejects strokeWidth > 20", async () => {
+  it("rejects stroke_width out of range", async () => {
+    const low = await numerateImageAndActivate({
+      supabase: mockSupabase,
+      projectId,
+      sourceImageId,
+      params: { ...validParams, stroke_width: 0 },
+    })
+    expect(low.ok).toBe(false)
+    const high = await numerateImageAndActivate({
+      supabase: mockSupabase,
+      projectId,
+      sourceImageId,
+      params: { ...validParams, stroke_width: 21 },
+    })
+    expect(high.ok).toBe(false)
+  })
+
+  it("rejects NaN supercell_mm (fails the schema min check)", async () => {
     const result = await numerateImageAndActivate({
       supabase: mockSupabase,
       projectId,
       sourceImageId,
-      params: { superpixel_width: 10, superpixel_height: 10, stroke_width: 21, show_colors: true, num_colors: 16 },
+      params: { ...validParams, supercell_mm: NaN },
     })
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.stage).toBe("validation")
   })
 
-  it("rejects NaN superpixelWidth (toInt returns null)", async () => {
+  it("accepts valid params and continues to source lookup", async () => {
     const result = await numerateImageAndActivate({
       supabase: mockSupabase,
       projectId,
       sourceImageId,
-      params: { superpixel_width: NaN, superpixel_height: 10, stroke_width: 2, show_colors: true, num_colors: 16 },
+      params: validParams,
     })
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.stage).toBe("validation")
-  })
-
-  it("accepts boundary values and continues to source lookup", async () => {
-    const result = await numerateImageAndActivate({
-      supabase: mockSupabase,
-      projectId,
-      sourceImageId,
-      params: { superpixel_width: 1, superpixel_height: 1, stroke_width: 20, show_colors: false, num_colors: 16 },
-    })
-    // Source lookup returns null → 404 source_lookup. The validation passed.
+    // Source lookup returns null → 404 source_lookup. Validation passed.
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.stage).toBe("source_lookup")
   })
 })
 
-describe("numerateImageAndActivate lookup + bounds contract", () => {
+describe("numerateImageAndActivate lookup + grid contract", () => {
   const projectId = "test-project-id"
   const sourceImageId = "source-image-id"
 
@@ -133,7 +152,7 @@ describe("numerateImageAndActivate lookup + bounds contract", () => {
       supabase: lockedSupabase,
       projectId,
       sourceImageId,
-      params: { superpixel_width: 10, superpixel_height: 10, stroke_width: 2, show_colors: true, num_colors: 16 },
+      params: validParams,
     })
 
     expect(result.ok).toBe(false)
@@ -143,49 +162,19 @@ describe("numerateImageAndActivate lookup + bounds contract", () => {
     }
   })
 
-  it("does not blow up when superpixel size exceeds source dimensions", async () => {
-    // Mirrors the pixelate "size exceeds source" smoke test: production
-    // code clamps the grid to 1×1 via `Math.max(1, …)`, so the in-line
-    // "Superpixel size too large" guard is effectively dead code (same
-    // pattern in pixelate.ts). The contract we *can* test from here is
-    // that an oversized superpixel doesn't crash — it falls through to
-    // the next stage (source_download in the fixture).
-    const tinySupabase = buildMockSupabase({
-      source: {
-        id: sourceImageId,
-        name: "tiny.png",
-        storage_bucket: "project_images",
-        storage_path: "path/to/tiny.png",
-        format: "png",
-        width_px: 5,
-        height_px: 5,
-        is_locked: false,
-      },
-    })
-
-    const result = await numerateImageAndActivate({
-      supabase: tinySupabase,
-      projectId,
-      sourceImageId,
-      params: { superpixel_width: 100, superpixel_height: 100, stroke_width: 2, show_colors: true, num_colors: 16 },
-    })
-
-    expect(result.ok).toBe(false)
-  })
-
-  it("returns source_download when storage download fails", async () => {
-    // Source row exists, but `download` is rigged to fail in the fixture
-    // — so production code reaches the download stage and surfaces a
-    // source_download failure (without ever calling the Python service).
+  it("rejects a grid where no whole cell fits", async () => {
+    // primary_count 1 on a 1000x800 landscape image → a 1000px-wide
+    // square cell, taller than the 800px image → cellsY = 0 → the
+    // resolved grid is invalid, caught before the download stage.
     const supabase = buildMockSupabase({
       source: {
         id: sourceImageId,
-        name: "ok.png",
+        name: "small.png",
         storage_bucket: "project_images",
-        storage_path: "path/to/ok.png",
+        storage_path: "path/to/small.png",
         format: "png",
-        width_px: 100,
-        height_px: 100,
+        width_px: 1000,
+        height_px: 800,
         is_locked: false,
       },
     })
@@ -194,7 +183,38 @@ describe("numerateImageAndActivate lookup + bounds contract", () => {
       supabase,
       projectId,
       sourceImageId,
-      params: { superpixel_width: 10, superpixel_height: 10, stroke_width: 2, show_colors: true, num_colors: 16 },
+      params: { ...validParams, primary_count: 1 },
+    })
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.stage).toBe("validation")
+      expect(result.reason).toBe("Supercell too large for the image — no whole cell fits")
+    }
+  })
+
+  it("returns source_download when storage download fails", async () => {
+    // Source row exists with a valid grid, but `download` is rigged to
+    // fail — production code reaches the download stage and surfaces a
+    // source_download failure without ever calling the Python service.
+    const supabase = buildMockSupabase({
+      source: {
+        id: sourceImageId,
+        name: "ok.png",
+        storage_bucket: "project_images",
+        storage_path: "path/to/ok.png",
+        format: "png",
+        width_px: 4000,
+        height_px: 3000,
+        is_locked: false,
+      },
+    })
+
+    const result = await numerateImageAndActivate({
+      supabase,
+      projectId,
+      sourceImageId,
+      params: validParams,
     })
 
     expect(result.ok).toBe(false)

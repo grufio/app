@@ -1,17 +1,15 @@
 "use client"
 
 /**
- * Numerate trace wizard. Three-step dialog that replaces the single
- * generic form for numerate only (lineart still uses the generic
- * single-form controller).
+ * Numerate trace wizard. Three-step dialog (numerate only; lineart
+ * still uses the generic single-form controller).
  *
- * Step 1 — Grid: user picks cell count (primary) or superpixel size
- * (fallback). The other value derives via floor-division; leftover
- * pixels (when the image isn't an exact multiple) surface as an
- * inline warning. The Python service crops leftover regions.
+ * Step 1 — Grid: the user sets the base supercell size (mm), an
+ * optional one-axis stretch, and the EXACT cell count on the primary
+ * axis (picked from image orientation). The secondary axis count +
+ * centred border are derived by `resolveNumerateGrid`.
  *
- * Step 2 — Colors: num_colors, show_colors, stroke_width. Stroke
- * width supports fractional values down to 0.1 (PR #66).
+ * Step 2 — Colors: num_colors, show_colors, stroke_width.
  *
  * Step 3 — Output: read-only display of the project's artboard
  * dimensions from `useProjectWorkspace`. If no artboard exists yet,
@@ -23,9 +21,9 @@
  *
  * Layout: this `index.tsx` is the orchestrator. Steps + indicator +
  * footer live in sibling files. Pure validation lives in
- * `step-validation.ts`.
+ * `step-validation.ts`; the grid math in `numerate-grid-math.ts`.
  */
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useMemo, useState } from "react"
 import { toast } from "sonner"
 
 import {
@@ -38,12 +36,11 @@ import {
 import { formatOperationErrorForToast, normalizeApiError } from "@/lib/api/error-normalizer"
 import { useProjectWorkspace } from "@/lib/editor/project-workspace"
 import { numerateSchema, type NumerateParams } from "@/lib/editor/trace/numerate"
-import { DEFAULT_SUPERCELL_MM, gridFromSuperpixel, type GridStats } from "@/lib/editor/trace/numerate-grid-math"
-import { unitToPx } from "@/lib/editor/units"
+import { resolveNumerateGrid, type NumerateGrid } from "@/lib/editor/trace/numerate-grid-math"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
 
 import { ColorsStep } from "./colors-step"
-import { GridStep, type GridMode } from "./grid-step"
+import { GridStep } from "./grid-step"
 import { OutputStep } from "./output-step"
 import { StepIndicator } from "./step-indicator"
 import {
@@ -77,34 +74,29 @@ export function NumerateWizard({
   const workspace = useProjectWorkspace()
   const defaults = useMemo(() => numerateSchema.parse({}) as NumerateParams, [])
   const [draft, setDraft] = useState<NumerateParams>(defaults)
-  const [gridMode, setGridMode] = useState<GridMode>("cells")
   const [activeStep, setActiveStep] = useState<StepId>("grid")
   const [busy, setBusy] = useState(false)
 
   const setField = <K extends keyof NumerateParams>(key: K, value: NumerateParams[K]) =>
     setDraft((prev) => ({ ...prev, [key]: value }))
 
-  // Seed the supercell to DEFAULT_SUPERCELL_MM once the project DPI is
-  // known. superpixel_width/_height are stored in image px (the API
-  // unit); the wizard renders/edits them in mm. Runs once — later DPI
-  // changes or user edits are not clobbered.
-  const seededDefaultRef = useRef(false)
-  useEffect(() => {
-    if (seededDefaultRef.current || workspace.dpi == null) return
-    seededDefaultRef.current = true
-    const px = unitToPx(DEFAULT_SUPERCELL_MM, "mm", workspace.dpi)
-    setDraft((prev) => ({ ...prev, superpixel_width: px, superpixel_height: px }))
-  }, [workspace.dpi])
-
-  const grid = useMemo<GridStats>(
-    () => gridFromSuperpixel(imageWidth, imageHeight, draft.superpixel_width, draft.superpixel_height),
-    [imageWidth, imageHeight, draft.superpixel_width, draft.superpixel_height],
+  const grid = useMemo<NumerateGrid>(
+    () => resolveNumerateGrid(imageWidth, imageHeight, draft),
+    [
+      imageWidth,
+      imageHeight,
+      draft.supercell_mm,
+      draft.multiple_axis,
+      draft.multiple,
+      draft.primary_count,
+    ],
   )
 
   const validity = stepValidity(draft, {
-    widthPx: workspace.widthPx,
-    heightPx: workspace.heightPx,
-    dpi: workspace.dpi,
+    imageWidth,
+    imageHeight,
+    workspaceWidthPx: workspace.widthPx,
+    workspaceHeightPx: workspace.heightPx,
   })
   const fullValid = isFullyValid(validity)
 
@@ -155,7 +147,7 @@ export function NumerateWizard({
         <DialogHeader>
           <DialogTitle>Numerate</DialogTitle>
           <DialogDescription>
-            Create a vector grid overlay from pixelated superpixels.
+            Create a vector grid overlay from supercells.
           </DialogDescription>
         </DialogHeader>
 
@@ -166,9 +158,6 @@ export function NumerateWizard({
             <GridStep
               imageWidth={imageWidth}
               imageHeight={imageHeight}
-              dpi={workspace.dpi}
-              gridMode={gridMode}
-              onGridModeChange={setGridMode}
               draft={draft}
               setField={setField}
               grid={grid}
@@ -180,8 +169,7 @@ export function NumerateWizard({
           ) : null}
           {activeStep === "output" ? (
             <OutputStep
-              imageWidth={imageWidth}
-              imageHeight={imageHeight}
+              grid={grid}
               workspaceWidthPx={workspace.widthPx}
               workspaceHeightPx={workspace.heightPx}
             />

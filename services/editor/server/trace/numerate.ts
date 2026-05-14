@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/lib/supabase/database.types"
 import { numerateSchema, type NumerateParams } from "@/lib/editor/trace/numerate"
+import { isNumerateGridValid, resolveNumerateGrid } from "@/lib/editor/trace/numerate-grid-math"
 import { callFilterService, startFilterProfiler, toInt, type FilterResult } from "@/services/editor/server/filters/_helpers"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 
@@ -21,12 +22,7 @@ export async function numerateImageAndActivate(args: {
   if (!parsed.success) {
     return { ok: false, status: 400, stage: "validation", reason: "Invalid numerate params" }
   }
-  const {
-    superpixel_width: superpixelWidth,
-    superpixel_height: superpixelHeight,
-    stroke_width: strokeWidth,
-    show_colors: showColors,
-  } = parsed.data
+  const { stroke_width: strokeWidth, show_colors: showColors, num_colors: numColors } = parsed.data
 
   const { data: src, error: srcErr } = await supabase
     .from("project_images")
@@ -51,11 +47,17 @@ export async function numerateImageAndActivate(args: {
     return { ok: false, status: 400, stage: "validation", reason: "Invalid source dimensions" }
   }
 
-  const gridWidth = Math.max(1, Math.floor(origWidth / superpixelWidth))
-  const gridHeight = Math.max(1, Math.floor(origHeight / superpixelHeight))
-
-  if (gridWidth < 1 || gridHeight < 1) {
-    return { ok: false, status: 400, stage: "validation", reason: "Superpixel size too large for image" }
+  // Resolve the cell grid + crop rect once, here — the single source
+  // of truth shared with the wizard (`resolveNumerateGrid`). The
+  // Python service just downsamples along this resolved grid.
+  const grid = resolveNumerateGrid(origWidth, origHeight, parsed.data)
+  if (!isNumerateGridValid(grid)) {
+    return {
+      ok: false,
+      status: 400,
+      stage: "validation",
+      reason: "Supercell too large for the image — no whole cell fits",
+    }
   }
 
   const { data: srcBlob, error: downloadErr } = await supabase.storage
@@ -77,10 +79,15 @@ export async function numerateImageAndActivate(args: {
       path: "/filters/numerate",
       body: {
         image_base64: imageBase64,
-        superpixel_width: superpixelWidth,
-        superpixel_height: superpixelHeight,
+        cells_x: grid.cellsX,
+        cells_y: grid.cellsY,
+        crop_x: grid.cropX,
+        crop_y: grid.cropY,
+        crop_w: grid.cropW,
+        crop_h: grid.cropH,
         stroke_width: strokeWidth,
         show_colors: showColors,
+        num_colors: numColors,
       },
     })
     profiler.mark("filter_service")
