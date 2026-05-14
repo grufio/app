@@ -423,6 +423,13 @@ export type Database = {
           storage_path: string
         }[]
       }
+      delete_master_with_cascade: {
+        Args: { p_project_id: string }
+        Returns: {
+          storage_bucket: string
+          storage_path: string
+        }[]
+      }
       delete_project: { Args: { p_project_id: string }; Returns: string }
       remove_project_image_filter: {
         Args: { p_filter_id: string; p_project_id: string; p_rewires?: Json }
