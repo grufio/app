@@ -5,23 +5,26 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/lib/supabase/database.types"
 import { callFilterService, contentTypeFor, pickOutputFormat, startFilterProfiler, toInt, type FilterResult } from "./_helpers"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
-import { pixelateSchema, type PixelateParams } from "@/lib/editor/filters/pixelate"
 
-export type PixelateFilterResult = FilterResult<"pixelate_process">
+export type BwFilterResult = FilterResult<"bw_process">
 
-export async function pixelateImageAndActivate(args: {
+/**
+ * Shared pipeline for the three no-config black-and-white filters
+ * (`bw_hard`, `bw_soft`, `bw_warm`). They differ only in which Python
+ * filter-service route they call and the name-suffix on the derived
+ * image — the lookup / lock-check / download / upload / DB-insert
+ * steps are identical, so they share this core. The thin per-filter
+ * exports below pin `servicePath` + `nameSuffix`.
+ */
+async function applyBwFilter(args: {
   supabase: SupabaseClient<Database>
   projectId: string
   sourceImageId: string
-  params: PixelateParams
-}): Promise<PixelateFilterResult> {
-  const { supabase, projectId, sourceImageId, params } = args
+  servicePath: string
+  nameSuffix: string
+}): Promise<BwFilterResult> {
+  const { supabase, projectId, sourceImageId, servicePath, nameSuffix } = args
   const profiler = startFilterProfiler()
-  const parsed = pixelateSchema.safeParse(params)
-  if (!parsed.success) {
-    return { ok: false, status: 400, stage: "validation", reason: "Invalid pixelate params" }
-  }
-  const { superpixel_width: superpixelWidth, superpixel_height: superpixelHeight, num_colors: numColors, color_mode: colorMode } = parsed.data
 
   const { data: src, error: srcErr } = await supabase
     .from("project_images")
@@ -46,14 +49,6 @@ export async function pixelateImageAndActivate(args: {
     return { ok: false, status: 400, stage: "validation", reason: "Invalid source dimensions" }
   }
 
-  // Calculate grid dimensions
-  const gridWidth = Math.max(1, Math.floor(origWidth / superpixelWidth))
-  const gridHeight = Math.max(1, Math.floor(origHeight / superpixelHeight))
-
-  if (gridWidth < 1 || gridHeight < 1) {
-    return { ok: false, status: 400, stage: "validation", reason: "Superpixel size too large for image" }
-  }
-
   const { data: srcBlob, error: downloadErr } = await supabase.storage
     .from(String(src.storage_bucket ?? PROJECT_IMAGES_BUCKET))
     .download(String(src.storage_path))
@@ -65,7 +60,6 @@ export async function pixelateImageAndActivate(args: {
   const srcBuffer = Buffer.from(await srcBlob.arrayBuffer())
   profiler.mark("source_download")
 
-  // Determine output format
   const outputFormat = pickOutputFormat(src.format)
 
   try {
@@ -73,14 +67,8 @@ export async function pixelateImageAndActivate(args: {
     profiler.mark("base64_encode")
 
     const callResult = await callFilterService({
-      path: "/filters/pixelate",
-      body: {
-        image_base64: imageBase64,
-        superpixel_width: superpixelWidth,
-        superpixel_height: superpixelHeight,
-        color_mode: colorMode,
-        num_colors: numColors,
-      },
+      path: servicePath,
+      body: { image_base64: imageBase64 },
     })
     profiler.mark("filter_service")
 
@@ -88,7 +76,12 @@ export async function pixelateImageAndActivate(args: {
       return {
         ok: false,
         status: callResult.status,
-        stage: callResult.stage === "service_unavailable" ? "service_unavailable" : callResult.stage === "auth" ? "auth" : "pixelate_process",
+        stage:
+          callResult.stage === "service_unavailable"
+            ? "service_unavailable"
+            : callResult.stage === "auth"
+              ? "auth"
+              : "bw_process",
         reason: callResult.reason,
       }
     }
@@ -106,15 +99,23 @@ export async function pixelateImageAndActivate(args: {
       })
 
     if (uploadErr) {
-      return { ok: false, status: 500, stage: "storage_upload", reason: "Failed to upload pixelated image" }
+      return { ok: false, status: 500, stage: "storage_upload", reason: "Failed to upload filtered image" }
     }
     profiler.mark("storage_upload")
+
+    // Strip any known derived-image suffix before appending this
+    // filter's own — keeps names from accreting "(B&W hard) (B&W soft)"
+    // as filters stack.
+    const baseName = src.name.replace(
+      / \((?:filter working|pixelate|line art|numerate|B&W hard|B&W soft|B&W warm)\)/g,
+      "",
+    )
 
     const { error: insertErr } = await supabase.from("project_images").insert({
       id: imageId,
       project_id: projectId,
       kind: "filter_working_copy",
-      name: `${src.name.replace(/ \(filter working\)| \(pixelate\)| \(line art\)| \(numerate\)/g, "")} (pixelate)`,
+      name: `${baseName} ${nameSuffix}`,
       format: outputFormat,
       width_px: origWidth,
       height_px: origHeight,
@@ -130,9 +131,8 @@ export async function pixelateImageAndActivate(args: {
       return { ok: false, status: 400, stage: "db_insert", reason: insertErr.message, code: insertErr.code }
     }
     profiler.mark("db_insert")
-    // State is anchored at master.id; no per-output transform copy.
 
-    profiler.report("pixelate", {
+    profiler.report(servicePath.replace("/filters/", ""), {
       python_phases: callResult.phases,
       output_bytes: outputBuffer.byteLength,
       width: origWidth,
@@ -147,7 +147,46 @@ export async function pixelateImageAndActivate(args: {
       heightPx: origHeight,
     }
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Pixelate process failed"
-    return { ok: false, status: 500, stage: "pixelate_process", reason: msg }
+    const msg = e instanceof Error ? e.message : "B&W filter process failed"
+    return { ok: false, status: 500, stage: "bw_process", reason: msg }
   }
+}
+
+type BwHandlerInput = {
+  supabase: SupabaseClient<Database>
+  projectId: string
+  sourceImageId: string
+  // Accepted for signature-compat with the FILTER_HANDLERS dispatch in
+  // filter-variants.ts. B&W filters have an empty schema — no params.
+  params: Record<string, unknown>
+}
+
+export function bwHardImageAndActivate(input: BwHandlerInput): Promise<BwFilterResult> {
+  return applyBwFilter({
+    supabase: input.supabase,
+    projectId: input.projectId,
+    sourceImageId: input.sourceImageId,
+    servicePath: "/filters/bw_hard",
+    nameSuffix: "(B&W hard)",
+  })
+}
+
+export function bwSoftImageAndActivate(input: BwHandlerInput): Promise<BwFilterResult> {
+  return applyBwFilter({
+    supabase: input.supabase,
+    projectId: input.projectId,
+    sourceImageId: input.sourceImageId,
+    servicePath: "/filters/bw_soft",
+    nameSuffix: "(B&W soft)",
+  })
+}
+
+export function bwWarmImageAndActivate(input: BwHandlerInput): Promise<BwFilterResult> {
+  return applyBwFilter({
+    supabase: input.supabase,
+    projectId: input.projectId,
+    sourceImageId: input.sourceImageId,
+    servicePath: "/filters/bw_warm",
+    nameSuffix: "(B&W warm)",
+  })
 }

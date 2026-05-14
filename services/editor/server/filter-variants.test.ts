@@ -85,7 +85,7 @@ function row(id: string, stackOrder: number, input: string, output: string): Sta
     id,
     input_image_id: input,
     output_image_id: output,
-    filter_type: "pixelate",
+    filter_type: "bw_hard",
     filter_params: { superpixel_width: 10, superpixel_height: 10, num_colors: 16, color_mode: "rgb" },
     stack_order: stackOrder,
     is_hidden: false,

@@ -1,61 +1,31 @@
 "use client"
 
 /**
- * Mounts the filter selection picker + configure surface. The host
- * owns the post-apply UX: success closes/resets the dialog session,
- * errors land in the console. The shell does not need to wire those
- * trivial bits — they have one valid answer.
+ * Mounts the filter selection picker. Post the B&W-filter-triad
+ * refactor there is no configure step — all filters are no-config
+ * presets, so picking a card + clicking Apply in the dialog footer
+ * applies it directly. The host just bridges the picker's `onApply`
+ * to the shell's `onApplyFilter` with an empty params object.
  */
 import { FilterSelectionController } from "@/features/editor/components/FilterSelectionController"
-import { GenericFilterController } from "@/features/editor/components/filter-forms/generic-filter-controller"
+import type { RegisteredFilterId } from "@/lib/editor/filters/registry"
 
 export function EditorDialogHost(props: {
   selectionOpen: boolean
-  activeFilterType: "pixelate" | null
   filterDialogSource: { sourceImageUrl: string; sourceImageWidth: number; sourceImageHeight: number } | null
   onCloseSelection: () => void
-  onSelectFilterType: (filterType: "pixelate") => void
-  onCloseConfigure: () => void
-  /** Called after a successful filter apply (e.g. to reset the
-   * dialog session). The shell wires `filterDialog.reset` here. */
-  onApplied: () => void
-  onApplyFilter: (args: { filterType: "pixelate"; filterParams: Record<string, unknown> }) => Promise<void>
+  onApplyFilter: (args: { filterType: RegisteredFilterId; filterParams: Record<string, unknown> }) => Promise<void>
 }) {
-  const {
-    selectionOpen,
-    activeFilterType,
-    filterDialogSource,
-    onCloseSelection,
-    onSelectFilterType,
-    onCloseConfigure,
-    onApplied,
-    onApplyFilter,
-  } = props
+  const { selectionOpen, filterDialogSource, onCloseSelection, onApplyFilter } = props
 
   return (
-    <>
-      <FilterSelectionController
-        workingImageUrl={filterDialogSource?.sourceImageUrl ?? null}
-        open={selectionOpen}
-        onClose={onCloseSelection}
-        onSelect={onSelectFilterType}
-      />
-      {filterDialogSource && activeFilterType ? (
-        <GenericFilterController
-          filterId={activeFilterType}
-          ctx={{
-            imageWidth: filterDialogSource.sourceImageWidth,
-            imageHeight: filterDialogSource.sourceImageHeight,
-          }}
-          open
-          onClose={onCloseConfigure}
-          onSuccess={onApplied}
-          onError={(error) => {
-            console.error("Failed to apply filter:", error)
-          }}
-          onApplyFilter={onApplyFilter}
-        />
-      ) : null}
-    </>
+    <FilterSelectionController
+      workingImageUrl={filterDialogSource?.sourceImageUrl ?? null}
+      open={selectionOpen}
+      onClose={onCloseSelection}
+      onApply={(filterType) => {
+        void onApplyFilter({ filterType, filterParams: {} })
+      }}
+    />
   )
 }

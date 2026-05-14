@@ -48,16 +48,16 @@ describe("filterDialogReducer", () => {
     expect(
       filterDialogReducer(
         { phase: "selecting", session },
-        { type: "selectFilterType", filterType: "pixelate" },
+        { type: "selectFilterType", filterType: "bw_hard" },
       ),
-    ).toEqual({ phase: "configuring", session, filterType: "pixelate" })
+    ).toEqual({ phase: "configuring", session, filterType: "bw_hard" })
   })
 
   it("selectFilterType is a no-op outside the selecting phase", () => {
     expect(
       filterDialogReducer(initialFilterDialogState, {
         type: "selectFilterType",
-        filterType: "pixelate",
+        filterType: "bw_hard",
       }),
     ).toEqual({ phase: "idle" })
   })
@@ -65,7 +65,7 @@ describe("filterDialogReducer", () => {
   it("closeConfigure returns to idle", () => {
     expect(
       filterDialogReducer(
-        { phase: "configuring", session, filterType: "pixelate" },
+        { phase: "configuring", session, filterType: "bw_hard" },
         { type: "closeConfigure" },
       ),
     ).toEqual({ phase: "idle" })
@@ -77,7 +77,7 @@ describe("filterDialogReducer", () => {
     })
     expect(
       filterDialogReducer(
-        { phase: "configuring", session, filterType: "pixelate" },
+        { phase: "configuring", session, filterType: "bw_hard" },
         { type: "reset" },
       ),
     ).toEqual({ phase: "idle" })

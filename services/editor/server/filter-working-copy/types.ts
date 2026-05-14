@@ -1,3 +1,5 @@
+import type { RegisteredFilterId } from "@/lib/editor/filters/registry"
+
 export type FailStage =
   | "active_lookup"
   | "no_active_image"
@@ -37,7 +39,7 @@ export type FilterWorkingCopyResult = Success | Failure
 export type FilterPanelStackItem = {
   id: string
   name: string
-  filterType: "pixelate" | "lineart" | "numerate" | "unknown"
+  filterType: RegisteredFilterId | "unknown"
   source_image_id: string | null
   is_hidden: boolean
 }

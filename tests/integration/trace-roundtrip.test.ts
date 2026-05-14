@@ -110,7 +110,7 @@ describe("project_image_trace round-trip", () => {
     const { error: badKindErr } = await supabase.from("project_image_trace").upsert(
       {
         project_id: projectId,
-        kind: "pixelate",
+        kind: "bogus_kind",
         params: {},
         output_image_id: master.imageId,
       },

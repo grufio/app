@@ -1,4 +1,5 @@
 import type { OperationError } from "@/lib/api/operation-error"
+import type { RegisteredFilterId } from "@/lib/editor/filters/registry"
 
 export type WorkflowSourceImage = {
   id: string
@@ -25,7 +26,7 @@ export type WorkflowTransformPayload = {
 }
 
 export type ImageWorkflowServices = {
-  applyFilter: (args: { filterType: "pixelate"; filterParams: Record<string, unknown> }) => Promise<void>
+  applyFilter: (args: { filterType: RegisteredFilterId; filterParams: Record<string, unknown> }) => Promise<void>
   removeFilter: (filterId: string) => Promise<void>
   applyCrop: (args: { sourceImageId: string; rect: { x: number; y: number; w: number; h: number } }) => Promise<void>
   restoreBase: () => Promise<void>
@@ -48,7 +49,7 @@ export type ImageWorkflowEvent =
   | { type: "BOOT" }
   | { type: "REFRESH" }
   | { type: "SOURCE_SNAPSHOT"; snapshot: WorkflowSourceSnapshot }
-  | { type: "FILTER_APPLY"; filterType: "pixelate"; filterParams: Record<string, unknown> }
+  | { type: "FILTER_APPLY"; filterType: RegisteredFilterId; filterParams: Record<string, unknown> }
   | { type: "FILTER_REMOVE"; filterId: string }
   | { type: "CROP_APPLY"; rect: { x: number; y: number; w: number; h: number } }
   | { type: "RESTORE" }

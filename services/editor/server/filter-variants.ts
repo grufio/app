@@ -6,9 +6,15 @@ import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role"
 import { getEditorTargetImageRow } from "@/lib/supabase/project-images"
 import { activateProjectImageOnly } from "@/services/editor/server/activate-project-image"
 import { appendProjectImageFilter } from "@/services/editor/server/filter-chain"
-import { pixelateImageAndActivate } from "@/services/editor/server/filters/pixelate"
+import {
+  bwHardImageAndActivate,
+  bwSoftImageAndActivate,
+  bwWarmImageAndActivate,
+} from "@/services/editor/server/filters/bw"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
-import { pixelateSchema } from "@/lib/editor/filters/pixelate"
+import { bwHardSchema } from "@/lib/editor/filters/bw-hard"
+import { bwSoftSchema } from "@/lib/editor/filters/bw-soft"
+import { bwWarmSchema } from "@/lib/editor/filters/bw-warm"
 import { FILTER_REGISTRY, type RegisteredFilterId } from "@/lib/editor/filters/registry"
 
 export type SupportedFilterType = RegisteredFilterId
@@ -22,7 +28,7 @@ export type FilterOpFailure = {
     | "source_lookup"
     | "lock_conflict"
     | "source_download"
-    | "pixelate_process"
+    | "bw_process"
     | "service_unavailable"
     | "auth"
     | "storage_upload"
@@ -67,15 +73,20 @@ function parseFilterType(value: unknown): SupportedFilterType | null {
 
 // Schema-per-filter map. Used by `normalizeFilterParams` to apply
 // defaults / coerce strings without a per-filter if/else cascade.
+// The B&W filters all have empty schemas (no user-config params).
 const FILTER_SCHEMAS = {
-  pixelate: pixelateSchema,
+  bw_hard: bwHardSchema,
+  bw_soft: bwSoftSchema,
+  bw_warm: bwWarmSchema,
 } as const satisfies Record<SupportedFilterType, unknown>
 
 // Handler-per-filter map. Each entry is the per-filter pipeline
 // (Supabase lookup → HTTP call → upload → DB insert) — they all share
 // the `FilterResult` shape, so the dispatch can stay structural.
 const FILTER_HANDLERS = {
-  pixelate: pixelateImageAndActivate,
+  bw_hard: bwHardImageAndActivate,
+  bw_soft: bwSoftImageAndActivate,
+  bw_warm: bwWarmImageAndActivate,
 } as const satisfies Record<SupportedFilterType, unknown>
 
 function normalizeFilterParams(filterType: SupportedFilterType, params: unknown): Record<string, unknown> {

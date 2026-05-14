@@ -115,7 +115,7 @@ export async function numerateImageAndActivate(args: {
       id: imageId,
       project_id: projectId,
       kind: "trace_output",
-      name: `${src.name.replace(/ \(filter working\)| \(pixelate\)| \(line art\)| \(numerate\)/g, "")} (numerate)`,
+      name: `${src.name.replace(/ \((?:filter working|pixelate|line art|numerate|B&W hard|B&W soft|B&W warm)\)/g, "")} (numerate)`,
       format: "svg",
       width_px: origWidth,
       height_px: origHeight,

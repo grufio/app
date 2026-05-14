@@ -13,8 +13,8 @@ describe("FilterSidebarSection", () => {
         null,
         React.createElement(FilterSidebarSection, {
           filterStack: [
-            { id: "f1", filterType: "pixelate" },
-            { id: "f2", filterType: "pixelate" },
+            { id: "f1", filterType: "bw_hard" },
+            { id: "f2", filterType: "bw_hard" },
           ],
           canvasMode: "filter",
           hiddenFilterIds: {},
@@ -30,7 +30,7 @@ describe("FilterSidebarSection", () => {
       )
     )
 
-    expect(html).toContain("Pixelate")
+    expect(html).toContain("B&amp;W Hard")
     expect(html).toContain("aria-label=\"Add filter\"")
   })
 

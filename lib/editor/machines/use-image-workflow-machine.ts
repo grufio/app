@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef } from "react"
 import { useMachine } from "@xstate/react"
 
+import type { RegisteredFilterId } from "@/lib/editor/filters/registry"
+
 import { createImageWorkflowMachine } from "./image-workflow.machine"
 import type {
   ImageWorkflowEvent,
@@ -73,7 +75,7 @@ export function useImageWorkflowMachine(args: {
   const operationError = state.context.lastOpError
   const persistenceError = state.context.lastPersistenceError
 
-  const applyFilter = (args: { filterType: "pixelate"; filterParams: Record<string, unknown> }) => {
+  const applyFilter = (args: { filterType: RegisteredFilterId; filterParams: Record<string, unknown> }) => {
     if (!state.can({ type: "FILTER_APPLY", filterType: args.filterType, filterParams: args.filterParams })) {
       return Promise.reject(new Error("Filter apply is not allowed in the current workflow state"))
     }

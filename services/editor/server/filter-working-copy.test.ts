@@ -222,14 +222,14 @@ describe("getFilterPanelData", () => {
         id: "f1",
         input_image_id: "working-copy-id",
         output_image_id: "img-pixelate",
-        filter_type: "pixelate",
+        filter_type: "bw_hard",
         stack_order: 1,
       },
       {
         id: "f2",
         input_image_id: "img-pixelate",
         output_image_id: "img-lineart",
-        filter_type: "lineart",
+        filter_type: "bw_soft",
         stack_order: 2,
       },
     ]
@@ -279,7 +279,7 @@ describe("getFilterPanelData", () => {
       expect(result.display.id).toBe("img-lineart")
       expect(result.display.isFilterResult).toBe(true)
       expect(result.stack.map((s) => s.id)).toEqual(["f1", "f2"])
-      expect(result.stack.map((s) => s.filterType)).toEqual(["pixelate", "lineart"])
+      expect(result.stack.map((s) => s.filterType)).toEqual(["bw_hard", "bw_soft"])
     }
   })
 
@@ -289,7 +289,7 @@ describe("getFilterPanelData", () => {
         id: "f1",
         input_image_id: "other-image-id",
         output_image_id: "img-pixelate",
-        filter_type: "pixelate",
+        filter_type: "bw_hard",
         stack_order: 1,
       },
     ]

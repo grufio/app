@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { applyProjectImageFilter, cropImageVariant, removeProjectImageFilter, restoreInitialMasterImage } from "@/lib/api/project-images"
 import { isOperationError, type OperationError } from "@/lib/api/operation-error"
+import type { RegisteredFilterId } from "@/lib/editor/filters/registry"
 import { useImageWorkflowMachine } from "@/lib/editor/machines/use-image-workflow-machine"
 import type { ImageState } from "@/lib/editor/hooks/use-image-state"
 import { useImageState } from "@/lib/editor/hooks/use-image-state"
@@ -221,7 +222,7 @@ export function useEditorWorkflowAdapter(args: {
     await restoreInitialMasterImage(projectId)
   }, [projectId])
   const applyFilterService = useCallback(
-    async (op: { filterType: "pixelate"; filterParams: Record<string, unknown> }) => {
+    async (op: { filterType: RegisteredFilterId; filterParams: Record<string, unknown> }) => {
       // Use the trace-free source so filters stack on the raster
       // filter chain, not on a trace SVG.
       const sourceImageId = filterApplySourceIdRef.current ?? activeSourceImageIdRef.current
@@ -271,7 +272,7 @@ export function useEditorWorkflowAdapter(args: {
   )
 
   const handleApplyFilter = useCallback(
-    async (op: { filterType: "pixelate"; filterParams: Record<string, unknown> }) => {
+    async (op: { filterType: RegisteredFilterId; filterParams: Record<string, unknown> }) => {
       await workflow.applyFilter(op)
     },
     [workflow]

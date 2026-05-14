@@ -39,7 +39,7 @@ describe("concurrency contract — append RPC", () => {
       projectId: "p1",
       inputImageId: "img-a",
       outputImageId: "img-b",
-      filterType: "pixelate",
+      filterType: "bw_hard",
       filterParams: {},
     })
     expect(out.ok).toBe(false)
@@ -59,7 +59,7 @@ describe("concurrency contract — append RPC", () => {
       projectId: "p1",
       inputImageId: "wrong-project-img",
       outputImageId: "img-b",
-      filterType: "pixelate",
+      filterType: "bw_hard",
       filterParams: {},
     })
     expect(out.ok).toBe(false)
@@ -81,7 +81,7 @@ describe("concurrency contract — append RPC", () => {
       projectId: "p1",
       inputImageId: "img-a",
       outputImageId: "img-b",
-      filterType: "pixelate",
+      filterType: "bw_hard",
       filterParams: {},
     })
     // Single rpc call — no internal retry loop.

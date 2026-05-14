@@ -20,7 +20,10 @@ type Props = {
   workingImageUrl: string | null
   open: boolean
   onClose: () => void
-  onSelect: (filterType: FilterType) => void
+  /** Applies the picked filter directly. The B&W filters have no
+   * configurable params, so picking a card + clicking Apply is the
+   * whole interaction — there is no separate configure step. */
+  onApply: (filterType: FilterType) => void
 }
 
 const FILTER_CARD_ITEMS = Object.values(FILTER_REGISTRY).map((f) => ({
@@ -32,14 +35,14 @@ export function FilterSelectionController({
   workingImageUrl,
   open,
   onClose,
-  onSelect,
+  onApply,
 }: Props) {
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null)
 
-  const handleSelect = () => {
+  const handleApply = () => {
     if (!selectedCardId) return
     const filterType = selectedCardId as FilterType
-    onSelect(filterType)
+    onApply(filterType)
     setSelectedCardId(null)
   }
 
@@ -69,8 +72,8 @@ export function FilterSelectionController({
               Cancel
             </Button>
           </DialogClose>
-          <Button onClick={handleSelect} disabled={!selectedCardId}>
-            Select
+          <Button onClick={handleApply} disabled={!selectedCardId}>
+            Apply
           </Button>
         </DialogFooter>
       </DialogContent>

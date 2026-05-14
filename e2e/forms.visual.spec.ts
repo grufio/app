@@ -113,21 +113,6 @@ test.describe("forms — visual regressions", () => {
   // S4 follow-up: filter dialogs + create-project + restore/delete modals.
   // Update baselines via `npm run test:e2e:visual:update`.
 
-  // Filter dialog (pixelate-only after F21): switch to Filter tab →
-  // "Add filter" → pick the Pixelate card → "Select".
-  async function openFilterDialog(page: import("@playwright/test").Page, name: "Pixelate") {
-    await page.setExtraHTTPHeaders({ "x-e2e-test": "1", "x-e2e-user": "1" })
-    await setupMockRoutes(page, { withImage: true })
-    await page.goto(`/projects/${PROJECT_ID}`)
-    await freezeAnimations(page)
-
-    await page.getByRole("tab", { name: "Filter" }).click()
-    await page.getByRole("button", { name: "Add filter" }).click()
-    await page.getByRole("button", { name, exact: true }).click()
-    await page.getByRole("button", { name: "Select", exact: true }).click()
-    await expect(page.getByRole("heading", { name, exact: true })).toBeVisible()
-  }
-
   // Trace dialog (numerate, lineart): switch to Trace tab → "Add trace"
   // → pick the kind → "Select".
   async function openTraceDialog(page: import("@playwright/test").Page, name: "Line Art" | "Numerate") {
@@ -142,13 +127,6 @@ test.describe("forms — visual regressions", () => {
     await page.getByRole("button", { name: "Select", exact: true }).click()
     await expect(page.getByRole("heading", { name, exact: true })).toBeVisible()
   }
-
-  test("filter dialog — pixelate", async ({ page }) => {
-    await openFilterDialog(page, "Pixelate")
-    await expect(page.getByRole("dialog", { name: "Pixelate" })).toHaveScreenshot("filter-pixelate-dialog.png", {
-      maxDiffPixels: 200,
-    })
-  })
 
   test("trace dialog — lineart", async ({ page }) => {
     await openTraceDialog(page, "Line Art")

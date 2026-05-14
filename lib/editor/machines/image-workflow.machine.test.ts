@@ -76,13 +76,13 @@ describe("createImageWorkflowMachine", () => {
 
     actor.send({
       type: "FILTER_APPLY",
-      filterType: "pixelate",
+      filterType: "bw_hard",
       filterParams: { superpixel_width: 10, superpixel_height: 10 },
     })
 
     await waitFor(actor, (s) => s.matches({ operation: "idle" }))
     expect(services.applyFilter).toHaveBeenCalledWith({
-      filterType: "pixelate",
+      filterType: "bw_hard",
       filterParams: { superpixel_width: 10, superpixel_height: 10 },
     })
     expect(services.refreshAll).toHaveBeenCalledTimes(1)
@@ -135,7 +135,7 @@ describe("createImageWorkflowMachine", () => {
       },
     })
 
-    actor.send({ type: "FILTER_APPLY", filterType: "pixelate", filterParams: {} })
+    actor.send({ type: "FILTER_APPLY", filterType: "bw_hard", filterParams: {} })
     await waitFor(actor, (s) => s.matches({ operation: "error" }))
     expect(actor.getSnapshot().context.lastOpError).toMatchObject({ message: "apply failed" })
 
@@ -174,7 +174,7 @@ describe("createImageWorkflowMachine", () => {
       },
     })
 
-    actor.send({ type: "FILTER_APPLY", filterType: "pixelate", filterParams: {} })
+    actor.send({ type: "FILTER_APPLY", filterType: "bw_hard", filterParams: {} })
     await waitFor(actor, (s) => s.matches({ operation: "error" }))
     actor.send({ type: "REFRESH" })
     await waitFor(actor, (s) => s.matches({ operation: "idle" }))
@@ -205,7 +205,7 @@ describe("createImageWorkflowMachine", () => {
         error: "",
       },
     })
-    actor.send({ type: "FILTER_APPLY", filterType: "pixelate", filterParams: {} })
+    actor.send({ type: "FILTER_APPLY", filterType: "bw_hard", filterParams: {} })
 
     await waitFor(actor, (s) => s.matches({ operation: "idle" }))
     expect(newApplyFilter).toHaveBeenCalledTimes(1)
@@ -233,7 +233,7 @@ describe("createImageWorkflowMachine", () => {
       },
     })
 
-    actor.send({ type: "FILTER_APPLY", filterType: "pixelate", filterParams: {} })
+    actor.send({ type: "FILTER_APPLY", filterType: "bw_hard", filterParams: {} })
     await waitFor(actor, (s) => s.matches({ operation: "applyingFilter" }))
 
     // A second mutation while busy must not start another mutation actor.
@@ -265,7 +265,7 @@ describe("createImageWorkflowMachine", () => {
       },
     })
 
-    actor.send({ type: "FILTER_APPLY", filterType: "pixelate", filterParams: {} })
+    actor.send({ type: "FILTER_APPLY", filterType: "bw_hard", filterParams: {} })
     await waitFor(actor, (s) => s.matches({ operation: "error" }))
     expect(actor.getSnapshot().context.lastOpError).toMatchObject({ message: "refresh failed" })
 

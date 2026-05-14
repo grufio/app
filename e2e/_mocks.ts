@@ -140,7 +140,7 @@ export async function setupMockRoutes(page: Page, opts: SetupMockRoutesOpts) {
     id: string
     input_image_id: string
     output_image_id: string
-    filter_type: "pixelate" | "lineart" | "numerate"
+    filter_type: "bw_hard" | "bw_soft" | "bw_warm"
     stack_order: number
   }> = []
   const nextImageId = () => {
@@ -332,10 +332,10 @@ export async function setupMockRoutes(page: Page, opts: SetupMockRoutesOpts) {
       if (!hasImage) {
         return route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ error: "No active image" }) })
       }
-      let filterType: "pixelate" | "lineart" | "numerate" = "pixelate"
+      let filterType: "bw_hard" | "bw_soft" | "bw_warm" = "bw_hard"
       try {
-        const body = (await route.request().postDataJSON()) as { filter_type?: "pixelate" | "lineart" | "numerate" }
-        if (body.filter_type === "lineart" || body.filter_type === "numerate" || body.filter_type === "pixelate") {
+        const body = (await route.request().postDataJSON()) as { filter_type?: "bw_hard" | "bw_soft" | "bw_warm" }
+        if (body.filter_type === "bw_soft" || body.filter_type === "bw_warm" || body.filter_type === "bw_hard") {
           filterType = body.filter_type
         }
       } catch {

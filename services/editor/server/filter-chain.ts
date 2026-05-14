@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database, Json } from "@/lib/supabase/database.types"
+import type { RegisteredFilterId } from "@/lib/editor/filters/registry"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 
 export async function appendProjectImageFilter(args: {
@@ -8,7 +9,7 @@ export async function appendProjectImageFilter(args: {
   projectId: string
   inputImageId: string
   outputImageId: string
-  filterType: "pixelate" | "lineart" | "numerate"
+  filterType: RegisteredFilterId
   filterParams: Record<string, unknown>
 }): Promise<{ ok: true } | { ok: false; stage: "chain_append"; reason: string; code?: string }> {
   const { supabase, projectId, inputImageId, outputImageId, filterType, filterParams } = args
