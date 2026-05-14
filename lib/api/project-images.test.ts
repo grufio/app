@@ -30,11 +30,11 @@ describe("project-images API wrapper", () => {
         height_px: 800,
         storage_path: "projects/p/images/img-2",
         source_image_id: "img-1",
-        name: "base (pixelate)",
+        name: "base (B&W hard)",
         is_filter_result: true,
         stack: [
-          { id: "img-2", name: "base (pixelate)", filterType: "pixelate", source_image_id: "img-1" },
-          { id: "img-3", name: "base (line art)", filterType: "lineart", source_image_id: "img-2" },
+          { id: "img-2", name: "base (B&W hard)", filterType: "bw_hard", source_image_id: "img-1" },
+          { id: "img-3", name: "base (B&W soft)", filterType: "bw_soft", source_image_id: "img-2" },
         ],
       },
     }
@@ -46,7 +46,7 @@ describe("project-images API wrapper", () => {
       expect(out.id).toBe("img-2")
       expect(out.isFilterResult).toBe(true)
       expect(out.stack).toHaveLength(2)
-      expect(out.stack[1]).toMatchObject({ filterType: "lineart", source_image_id: "img-2" })
+      expect(out.stack[1]).toMatchObject({ filterType: "bw_soft", source_image_id: "img-2" })
     }
   })
 

@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 
 import { getOrCreateFilterWorkingCopy } from "@/lib/api/project-images"
+import type { RegisteredFilterId } from "@/lib/editor/filters/registry"
 import { reportClientError } from "@/lib/monitoring/with-error-reporting"
 
 export type FilterDisplayImage = {
@@ -28,7 +29,7 @@ export type FilterDisplayImage = {
 export type FilterStackItem = {
   id: string
   name: string
-  filterType: "pixelate" | "lineart" | "numerate" | "unknown"
+  filterType: RegisteredFilterId | "unknown"
   source_image_id: string | null
   is_hidden: boolean
 }

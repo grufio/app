@@ -476,12 +476,8 @@ export function ProjectDetailPageClient({
           />
           <EditorDialogHost
             selectionOpen={filterDialog.selectionOpen}
-            activeFilterType={filterDialog.activeFilterType}
             filterDialogSource={filterDialogSource}
             onCloseSelection={filterDialog.closeSelection}
-            onSelectFilterType={filterDialog.selectFilterType}
-            onCloseConfigure={filterDialog.closeConfigure}
-            onApplied={filterDialog.reset}
             onApplyFilter={handleApplyFilter}
           />
           <EditorTraceDialogHost

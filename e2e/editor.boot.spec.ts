@@ -122,7 +122,7 @@ test("smoke: upload/crop/filter/remove/restore flow keeps deterministic image so
     })
 
     out.filter = await post(`/api/projects/${projectId}/images/filters`, {
-      filter_type: "pixelate",
+      filter_type: "bw_hard",
       filter_params: { superpixel_width: 4 },
     })
 
@@ -230,8 +230,7 @@ test("regression: filter error does not leak into restore dialog", async ({ page
   await selectLeftTab(page, "Filter")
 
   await page.getByRole("button", { name: "New Filter" }).click()
-  await page.getByRole("button", { name: "Pixelate" }).click()
-  await page.getByRole("button", { name: "Select" }).click()
+  await page.getByRole("button", { name: "B&W Hard", exact: true }).click()
   await page.getByRole("button", { name: "Apply" }).click()
   await expect(page.getByText("forced filter failure")).toBeVisible()
 

@@ -2,6 +2,7 @@ import { assign, fromPromise, setup } from "xstate"
 
 import { normalizeApiError } from "@/lib/api/error-normalizer"
 import type { OperationError } from "@/lib/api/operation-error"
+import type { RegisteredFilterId } from "@/lib/editor/filters/registry"
 
 import type {
   ImageWorkflowContext,
@@ -36,7 +37,7 @@ export function createImageWorkflowMachine() {
     },
     actors: {
       applyFilter: fromPromise(
-        async ({ input }: { input: { services: ImageWorkflowServices; filterType: "pixelate"; filterParams: Record<string, unknown> } }) => {
+        async ({ input }: { input: { services: ImageWorkflowServices; filterType: RegisteredFilterId; filterParams: Record<string, unknown> } }) => {
           await input.services.applyFilter({
             filterType: input.filterType,
             filterParams: input.filterParams,

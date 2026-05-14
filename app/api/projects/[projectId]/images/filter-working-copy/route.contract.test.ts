@@ -6,7 +6,7 @@ type DisplayPayload = { id: string; storagePath: string; widthPx: number; height
 
 async function importRouteWithMocks(args: {
   serviceResult:
-    | { ok: true; display: DisplayPayload; displayWithoutTrace: DisplayPayload; stack: Array<{ id: string; name: string; filterType: "pixelate" | "lineart" | "numerate" | "unknown"; source_image_id: string | null }> }
+    | { ok: true; display: DisplayPayload; displayWithoutTrace: DisplayPayload; stack: Array<{ id: string; name: string; filterType: "bw_hard" | "bw_soft" | "bw_warm" | "unknown"; source_image_id: string | null }> }
     | { ok: false; status: number; stage: string; reason: string; code?: string }
 }) {
   vi.resetModules()

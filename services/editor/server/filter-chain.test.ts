@@ -11,7 +11,7 @@ describe("filter-chain service", () => {
       projectId: "p1",
       inputImageId: "i1",
       outputImageId: "i2",
-      filterType: "pixelate",
+      filterType: "bw_hard",
       filterParams: { superpixel_width: 10 },
     })
     expect(out.ok).toBe(true)
@@ -26,7 +26,7 @@ describe("filter-chain service", () => {
       projectId: "p1",
       inputImageId: "i1",
       outputImageId: "i2",
-      filterType: "pixelate",
+      filterType: "bw_hard",
       filterParams: { superpixel_width: 10 },
     })
     expect(out.ok).toBe(false)

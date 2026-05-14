@@ -399,7 +399,7 @@ export async function getOrCreateFilterWorkingCopy(projectId: string): Promise<
       stack: Array<{
         id: string
         name: string
-        filterType: "pixelate" | "lineart" | "numerate" | "unknown"
+        filterType: RegisteredFilterId | "unknown"
         source_image_id: string | null
         is_hidden: boolean
       }>
@@ -430,7 +430,7 @@ export async function getOrCreateFilterWorkingCopy(projectId: string): Promise<
     stack?: Array<{
       id?: string
       name?: string
-      filterType?: "pixelate" | "lineart" | "numerate" | "unknown"
+      filterType?: RegisteredFilterId | "unknown"
       source_image_id?: string | null
       is_hidden?: boolean
     }>
@@ -473,7 +473,7 @@ export async function getOrCreateFilterWorkingCopy(projectId: string): Promise<
     },
     stack: Array.isArray(res.data.stack)
       ? res.data.stack
-          .filter((row): row is { id: string; name: string; filterType: "pixelate" | "lineart" | "numerate" | "unknown"; source_image_id?: string | null; is_hidden?: boolean } =>
+          .filter((row): row is { id: string; name: string; filterType: RegisteredFilterId | "unknown"; source_image_id?: string | null; is_hidden?: boolean } =>
             Boolean(row?.id && row?.name && row?.filterType)
           )
           .map((row) => ({

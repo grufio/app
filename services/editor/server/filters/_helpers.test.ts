@@ -124,7 +124,7 @@ describe("callFilterService", () => {
   it("returns ok on first 2xx response", async () => {
     const fetchImpl = (async () => new Response(stubBytes, { status: 200 })) as unknown as typeof fetch
     const result = await callFilterService({
-      path: "/filters/pixelate",
+      path: "/filters/bw_hard",
       body: { x: 1 },
       fetchImpl,
     })
@@ -141,7 +141,7 @@ describe("callFilterService", () => {
     }) as unknown as typeof fetch
     const sleeps: number[] = []
     const result = await callFilterService({
-      path: "/filters/pixelate",
+      path: "/filters/bw_hard",
       body: { x: 1 },
       fetchImpl,
       sleep: async (ms) => {
@@ -160,7 +160,7 @@ describe("callFilterService", () => {
       return new Response("bad gateway", { status: 502 })
     }) as unknown as typeof fetch
     const result = await callFilterService({
-      path: "/filters/pixelate",
+      path: "/filters/bw_hard",
       body: { x: 1 },
       fetchImpl,
       sleep: async () => {},
@@ -181,7 +181,7 @@ describe("callFilterService", () => {
       return new Response("bad params", { status: 400 })
     }) as unknown as typeof fetch
     const result = await callFilterService({
-      path: "/filters/pixelate",
+      path: "/filters/bw_hard",
       body: { x: 1 },
       fetchImpl,
       sleep: async () => {},
@@ -202,7 +202,7 @@ describe("callFilterService", () => {
       return new Response("unauthorized", { status: 401 })
     }) as unknown as typeof fetch
     const result = await callFilterService({
-      path: "/filters/pixelate",
+      path: "/filters/bw_hard",
       body: { x: 1 },
       fetchImpl,
       sleep: async () => {},
@@ -222,7 +222,7 @@ describe("callFilterService", () => {
       throw new Error("ECONNREFUSED")
     }) as unknown as typeof fetch
     const result = await callFilterService({
-      path: "/filters/pixelate",
+      path: "/filters/bw_hard",
       body: { x: 1 },
       fetchImpl,
       sleep: async () => {},
