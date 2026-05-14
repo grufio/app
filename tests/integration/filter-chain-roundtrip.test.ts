@@ -76,7 +76,7 @@ describe("filter chain round-trip", () => {
       sourceImageId: out2.imageId,
     })
 
-    const append = async (input: string, output: string, type: "pixelate") => {
+    const append = async (input: string, output: string, type: "bw_hard") => {
       const { data, error } = await supabase.rpc("append_project_image_filter", {
         p_project_id: projectId!,
         p_input_image_id: input,
@@ -87,9 +87,9 @@ describe("filter chain round-trip", () => {
       return data as string
     }
 
-    const f1 = await append(master.imageId, out1.imageId, "pixelate")
-    const f2 = await append(out1.imageId, out2.imageId, "pixelate")
-    const f3 = await append(out2.imageId, out3.imageId, "pixelate")
+    const f1 = await append(master.imageId, out1.imageId, "bw_hard")
+    const f2 = await append(out1.imageId, out2.imageId, "bw_hard")
+    const f3 = await append(out2.imageId, out3.imageId, "bw_hard")
 
     const { data: chain } = await supabase
       .from("project_image_filters")
@@ -108,7 +108,7 @@ describe("filter chain round-trip", () => {
       p_project_id: projectId!,
       p_input_image_id: master.imageId, // wrong — tip is out3
       p_output_image_id: out3.imageId,
-      p_filter_type: "pixelate",
+      p_filter_type: "bw_hard",
     })
     expect(tipErr).not.toBeNull()
     expect(String(tipErr?.message ?? "")).toMatch(/tip mismatch/i)
@@ -169,7 +169,7 @@ describe("filter chain round-trip", () => {
       sourceImageId: out1.imageId,
     })
 
-    const append = async (input: string, output: string, type: "pixelate") => {
+    const append = async (input: string, output: string, type: "bw_hard") => {
       const { data, error } = await supabase.rpc("append_project_image_filter", {
         p_project_id: projectId!,
         p_input_image_id: input,
@@ -180,8 +180,8 @@ describe("filter chain round-trip", () => {
       return data as string
     }
 
-    const f1 = await append(master.imageId, out1.imageId, "pixelate")
-    const f2 = await append(out1.imageId, out2.imageId, "pixelate")
+    const f1 = await append(master.imageId, out1.imageId, "bw_hard")
+    const f2 = await append(out1.imageId, out2.imageId, "bw_hard")
 
     const { error: removeErr } = await supabase.rpc("remove_project_image_filter", {
       p_project_id: projectId!,
@@ -234,7 +234,7 @@ describe("filter chain round-trip", () => {
         p_project_id: projectId!,
         p_input_image_id: input,
         p_output_image_id: output,
-        p_filter_type: "pixelate",
+        p_filter_type: "bw_hard",
       })
       expect(error).toBeNull()
       return data as string
