@@ -1,7 +1,6 @@
-import type { ReactNode } from "react"
+import { Asterisk, Hash, Scaling, Square } from "lucide-react"
 
 import { FormField } from "@/components/ui/form-controls"
-import { cn } from "@/lib/utils"
 import type { NumerateParams } from "@/lib/editor/trace/numerate"
 import {
   isNumerateGridValid,
@@ -9,6 +8,18 @@ import {
   type MultipleAxis,
   type NumerateGrid,
 } from "@/lib/editor/trace/numerate-grid-math"
+
+// Module-level icon nodes — stable identity for the FormField memo.
+const ICON_SUPERCELL = <Square aria-hidden="true" />
+const ICON_SHAPE = <Scaling aria-hidden="true" />
+const ICON_FACTOR = <Asterisk aria-hidden="true" />
+const ICON_COUNT = <Hash aria-hidden="true" />
+
+const SHAPE_OPTIONS = [
+  { value: "none", label: "Square cells" },
+  { value: "horizontal", label: "Wider cells" },
+  { value: "vertical", label: "Taller cells" },
+]
 
 export function GridStep(props: {
   imageWidth: number
@@ -21,24 +32,10 @@ export function GridStep(props: {
   busy: boolean
 }) {
   const { imageWidth, imageHeight, draft, setField, grid, busy } = props
-
-  const onSupercellCommit = (raw: string) => {
-    const n = Number(raw)
-    if (Number.isFinite(n) && n > 0) setField("supercell_mm", n)
-  }
-  const onMultipleCommit = (raw: string) => {
-    const n = Number(raw)
-    if (Number.isFinite(n) && n >= 1) setField("multiple", Math.floor(n))
-  }
-  const onPrimaryCountCommit = (raw: string) => {
-    const n = Number(raw)
-    if (Number.isFinite(n) && n >= 1) setField("primary_count", Math.floor(n))
-  }
-
   const primaryLabel = grid.primaryAxis === "horizontal" ? "horizontal" : "vertical"
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-4">
       <div className="text-xs text-muted-foreground">
         Image: {imageWidth} × {imageHeight} px — primary axis: {primaryLabel}
       </div>
@@ -47,82 +44,68 @@ export function GridStep(props: {
         variant="numeric"
         numericMode="decimal"
         label="Supercell size (mm)"
+        labelVisuallyHidden
+        iconStart={ICON_SUPERCELL}
+        unit="mm"
         id="supercell_mm"
         value={String(draft.supercell_mm)}
-        onCommit={onSupercellCommit}
-        onDraftChange={onSupercellCommit}
+        onCommit={(raw) => {
+          const n = Number(raw)
+          if (Number.isFinite(n)) setField("supercell_mm", n)
+        }}
         disabled={busy}
         inputProps={{ min: MIN_SUPERCELL_MM, step: 0.5 }}
-        description={`The square base cell. Minimum ${MIN_SUPERCELL_MM} mm.`}
       />
 
-      <div className="flex flex-col gap-2">
-        <div className="text-xs text-muted-foreground">Stretch the supercell on one axis</div>
-        <div className="flex items-center gap-2 text-xs">
-          {(["none", "horizontal", "vertical"] as const).map((axis) => (
-            <AxisTab
-              key={axis}
-              active={draft.multiple_axis === axis}
-              onClick={() => setField("multiple_axis", axis as MultipleAxis)}
-              disabled={busy}
-            >
-              {axis === "none" ? "Square" : axis === "horizontal" ? "Wider" : "Taller"}
-            </AxisTab>
-          ))}
-        </div>
-        {draft.multiple_axis !== "none" ? (
-          <FormField
-            variant="numeric"
-            numericMode="int"
-            label="Stretch factor"
-            id="multiple"
-            value={String(draft.multiple)}
-            onCommit={onMultipleCommit}
-            onDraftChange={onMultipleCommit}
-            disabled={busy}
-            inputProps={{ min: 1 }}
-          />
-        ) : null}
-      </div>
+      <FormField
+        variant="select"
+        label="Cell shape"
+        labelVisuallyHidden
+        iconStart={ICON_SHAPE}
+        value={draft.multiple_axis}
+        options={SHAPE_OPTIONS}
+        onCommit={(v) => setField("multiple_axis", v as MultipleAxis)}
+        disabled={busy}
+      />
+
+      {draft.multiple_axis !== "none" ? (
+        <FormField
+          variant="numeric"
+          numericMode="int"
+          label="Stretch factor"
+          labelVisuallyHidden
+          iconStart={ICON_FACTOR}
+          unit="×"
+          id="multiple"
+          value={String(draft.multiple)}
+          onCommit={(raw) => {
+            const n = Number(raw)
+            if (Number.isFinite(n)) setField("multiple", Math.floor(n))
+          }}
+          disabled={busy}
+          inputProps={{ min: 1 }}
+        />
+      ) : null}
 
       <FormField
         variant="numeric"
         numericMode="int"
-        label={`Cells (${primaryLabel} — the exact count)`}
+        label={`Cells on the ${primaryLabel} axis`}
+        labelVisuallyHidden
+        iconStart={ICON_COUNT}
+        unit="cells"
         id="primary_count"
         value={String(draft.primary_count)}
-        onCommit={onPrimaryCountCommit}
-        onDraftChange={onPrimaryCountCommit}
+        onCommit={(raw) => {
+          const n = Number(raw)
+          if (Number.isFinite(n)) setField("primary_count", Math.floor(n))
+        }}
         disabled={busy}
         inputProps={{ min: 1 }}
-        description="The other axis derives from the image format; leftover becomes a centred border."
       />
 
       <GridSummary grid={grid} />
     </div>
-  )
-}
-
-function AxisTab(props: {
-  active: boolean
-  onClick: () => void
-  disabled?: boolean
-  children: ReactNode
-}) {
-  return (
-    <button
-      type="button"
-      onClick={props.onClick}
-      disabled={props.disabled}
-      className={cn(
-        "rounded-md border px-2 py-1 text-xs transition-colors disabled:opacity-50",
-        props.active
-          ? "border-foreground bg-foreground text-background"
-          : "border-border text-muted-foreground hover:text-foreground",
-      )}
-    >
-      {props.children}
-    </button>
   )
 }
 
@@ -139,7 +122,8 @@ function GridSummary(props: { grid: NumerateGrid }) {
       </div>
       {grid.borderPx > 0 ? (
         <div className="text-muted-foreground">
-          Border: {Math.round(grid.borderPx)} px on the {grid.primaryAxis === "horizontal" ? "vertical" : "horizontal"} axis
+          Border: {Math.round(grid.borderPx)} px on the{" "}
+          {grid.primaryAxis === "horizontal" ? "vertical" : "horizontal"} axis
           (centred — the format does not divide evenly)
         </div>
       ) : null}
