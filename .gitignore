@@ -48,6 +48,9 @@ next-env.d.ts
 # supabase cli
 supabase/.temp/
 
+# local-only color-lab experiment (test images + venv + script + output)
+/color-lab/
+
 # cursor
 .cursor/
 
