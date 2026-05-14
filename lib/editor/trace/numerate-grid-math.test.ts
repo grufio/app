@@ -1,69 +1,101 @@
 import { describe, expect, it } from "vitest"
 
-import { gridFromCells, gridFromSuperpixel } from "./numerate-grid-math"
+import {
+  isNumerateGridValid,
+  resolveNumerateGrid,
+  type NumerateGridParams,
+} from "./numerate-grid-math"
 
-describe("gridFromCells", () => {
-  it("exact 10x10 grid on 1000x1000 image", () => {
-    const g = gridFromCells(1000, 1000, 10, 10)
-    expect(g.superpixelWidth).toBe(100)
-    expect(g.superpixelHeight).toBe(100)
-    expect(g.totalCells).toBe(100)
+const square = (supercell_mm: number, primary_count: number): NumerateGridParams => ({
+  supercell_mm,
+  multiple_axis: "none",
+  multiple: 1,
+  primary_count,
+})
+
+describe("resolveNumerateGrid", () => {
+  it("worked example: 4000x3000, 5mm square, 100 primary -> 100x75, no border", () => {
+    const g = resolveNumerateGrid(4000, 3000, square(5, 100))
+    expect(g.primaryAxis).toBe("horizontal")
+    expect(g.cellsX).toBe(100)
+    expect(g.cellsY).toBe(75)
+    expect(g.cellMmW).toBe(5)
+    expect(g.cellMmH).toBe(5)
+    expect(g.cropW).toBe(4000)
+    expect(g.cropH).toBe(3000)
+    expect(g.cropX).toBe(0)
+    expect(g.cropY).toBe(0)
+    expect(g.borderPx).toBe(0)
   })
 
-  it("30x30 cells on 1514x914 yields fractional pitch (50.4666 x 30.4666)", () => {
-    const g = gridFromCells(1514, 914, 30, 30)
-    expect(g.superpixelWidth).toBeCloseTo(1514 / 30, 6)
-    expect(g.superpixelHeight).toBeCloseTo(914 / 30, 6)
-    expect(g.totalCells).toBe(900)
+  it("rectangular cells (x2 vertical): 4000x3000, 5mm, 100 primary -> 100x37, centred 40px border", () => {
+    const g = resolveNumerateGrid(4000, 3000, {
+      supercell_mm: 5,
+      multiple_axis: "vertical",
+      multiple: 2,
+      primary_count: 100,
+    })
+    expect(g.cellsX).toBe(100)
+    expect(g.cellsY).toBe(37) // floor(3000 / 80)
+    expect(g.cellMmW).toBe(5)
+    expect(g.cellMmH).toBe(10)
+    expect(g.cropH).toBe(2960) // 37 * 80
+    expect(g.cropY).toBe(20) // (3000 - 2960) / 2
+    expect(g.borderPx).toBe(40)
   })
 
-  it("non-square pitch when image is non-square", () => {
-    const g = gridFromCells(1920, 1080, 16, 9)
-    expect(g.superpixelWidth).toBe(120)
-    expect(g.superpixelHeight).toBe(120)
+  it("non-even format leaves a centred border on the secondary axis", () => {
+    const g = resolveNumerateGrid(4000, 3100, square(5, 100))
+    // cellSourcePx 40x40 -> cellsY = floor(3100/40) = 77, covered 3080
+    expect(g.cellsY).toBe(77)
+    expect(g.cropH).toBe(3080)
+    expect(g.cropY).toBe(10)
+    expect(g.borderPx).toBe(20)
   })
 
-  it("clamps cells to >= 1", () => {
-    const g = gridFromCells(1000, 1000, 0, 0)
-    expect(g.cellsX).toBe(1)
-    expect(g.cellsY).toBe(1)
+  it("portrait image -> primary axis is vertical", () => {
+    const g = resolveNumerateGrid(3000, 4000, square(5, 100))
+    expect(g.primaryAxis).toBe("vertical")
+    expect(g.cellsY).toBe(100)
+    expect(g.cellsX).toBe(75) // floor(3000 / 40)
+    expect(g.cropW).toBe(3000)
+    expect(g.cropX).toBe(0)
+    expect(g.borderPx).toBe(0)
   })
 
-  it("floors fractional cell input", () => {
-    const g = gridFromCells(1000, 1000, 10.7, 5.2)
-    expect(g.cellsX).toBe(10)
-    expect(g.cellsY).toBe(5)
+  it("horizontal multiple stretches cellMmW, not cellMmH", () => {
+    const g = resolveNumerateGrid(4000, 3000, {
+      supercell_mm: 6,
+      multiple_axis: "horizontal",
+      multiple: 3,
+      primary_count: 50,
+    })
+    expect(g.cellMmW).toBe(18)
+    expect(g.cellMmH).toBe(6)
   })
 
-  it("clamps cells to <= MAX_CELLS_PER_AXIS (50)", () => {
-    const g = gridFromCells(4000, 3000, 999, 200)
-    expect(g.cellsX).toBe(50)
-    expect(g.cellsY).toBe(50)
-    expect(g.totalCells).toBe(2500)
-    // pitch derives from the clamped cell count, so coverage stays exact
-    expect(g.superpixelWidth).toBe(4000 / 50)
-    expect(g.superpixelHeight).toBe(3000 / 50)
+  it("clamps multiple to >= 1 and primary_count to >= 1", () => {
+    const g = resolveNumerateGrid(4000, 3000, {
+      supercell_mm: 5,
+      multiple_axis: "vertical",
+      multiple: 0,
+      primary_count: 0,
+    })
+    expect(g.cellMmH).toBe(5) // multiple clamped to 1
+    expect(g.cellsX).toBe(1) // primary_count clamped to 1
   })
 })
 
-describe("gridFromSuperpixel", () => {
-  it("exact 100px pitch on 1000x1000 image", () => {
-    const g = gridFromSuperpixel(1000, 1000, 100, 100)
-    expect(g.cellsX).toBe(10)
-    expect(g.cellsY).toBe(10)
+describe("isNumerateGridValid", () => {
+  it("accepts a grid with whole cells on both axes", () => {
+    expect(isNumerateGridValid(resolveNumerateGrid(4000, 3000, square(5, 100)))).toBe(true)
   })
 
-  it("fractional pitch rounds cells", () => {
-    const g = gridFromSuperpixel(1514, 914, 50.5, 30.5)
-    expect(g.cellsX).toBe(30)
-    expect(g.cellsY).toBe(30)
-    expect(g.superpixelWidth).toBe(50.5)
-    expect(g.superpixelHeight).toBe(30.5)
-  })
-
-  it("clamps superpixel to >= 0.1", () => {
-    const g = gridFromSuperpixel(1000, 1000, 0, 0)
-    expect(g.superpixelWidth).toBe(0.1)
-    expect(g.superpixelHeight).toBe(0.1)
+  it("rejects a degenerate grid where no whole secondary cell fits", () => {
+    // primary_count 1 on a 4000-wide image -> 4000px square cell,
+    // taller than the 3000px image -> cellsY = 0.
+    const g = resolveNumerateGrid(4000, 3000, square(5, 1))
+    expect(g.cellsY).toBe(0)
+    expect(isNumerateGridValid(g)).toBe(false)
   })
 })

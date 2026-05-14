@@ -237,38 +237,38 @@ class LineArtRequest(BaseModel):
 
 class NumerateRequest(BaseModel):
     image_base64: str
-    # F22 follow-up: superpixel pitch is float. The Number-of-cells
-    # mode in the UI computes pitch = imageDim / cellCount, which is
-    # generally not an integer. The Python service rounds for the
-    # bitmap-quantisation step (numpy) and uses the float pitch for
-    # the SVG grid + a scale transform that stretches the integer-
-    # pitch regions back to exact image coverage.
-    superpixel_width: float
-    superpixel_height: float
+    # Resolved grid from the server's `resolveNumerateGrid` — the
+    # single source of truth. `cells_x/_y` is the cell count (1 cell =
+    # 1 px in the downsampled grid); `crop_*` is the source-image
+    # region (px) the grid covers. Whatever lies outside the crop is
+    # the centred border. The service just downsamples along this.
+    cells_x: int
+    cells_y: int
+    crop_x: float
+    crop_y: float
+    crop_w: float
+    crop_h: float
     # F22: stroke width is a float (≥0.1) — see LineArtRequest above.
     stroke_width: float = 1.0
     show_colors: bool = True
     # F20: palette quantisation. vtracer collapses adjacent same-color
-    # cells into one polygon — without quantisation, every cell's
-    # mean is unique and no merging happens. Default 16 matches
-    # pixelate; 256 disables quantisation for parity with the prior
-    # behaviour (each cell its own raw mean).
+    # cells into one polygon — without quantisation, every cell's mean
+    # is unique and no merging happens.
     num_colors: int = 16
 
 
 @app.post("/filters/numerate")
 async def numerate_filter(request: NumerateRequest):
     """
-    F20-rewrite: bitmap → quantised palette → superpixel-grid image
-    → vtracer (polygon / cutout) → grid-line overlay → SVG.
-
-    The vtracer pass collapses adjacent same-color superpixel cells
-    into a single polygon per connected component, preserving the
-    paint-by-numbers anchor (one path per region) while killing the
-    20K-rect string-assembly cost the legacy implementation paid.
+    Numerate: crop the source to the resolved grid region, downsample
+    straight to a `cells_x × cells_y` image (1 cell = 1 px), quantise,
+    vtracer → region paths, overlay grid lines. The whole pipeline
+    runs on the tiny cell grid, never the full-res image.
     """
-    if request.superpixel_width < 0.1 or request.superpixel_height < 0.1:
-        raise HTTPException(status_code=400, detail="Superpixel dimensions must be >= 0.1")
+    if request.cells_x < 1 or request.cells_y < 1:
+        raise HTTPException(status_code=400, detail="cells_x and cells_y must be >= 1")
+    if request.crop_w <= 0 or request.crop_h <= 0:
+        raise HTTPException(status_code=400, detail="crop_w and crop_h must be > 0")
     if request.stroke_width < 0.1 or request.stroke_width > 20:
         raise HTTPException(status_code=400, detail="Stroke width must be between 0.1 and 20")
     if request.num_colors < 2 or request.num_colors > 256:
@@ -282,20 +282,14 @@ async def numerate_filter(request: NumerateRequest):
             img = img.convert("RGB")
         timer.mark("decode")
 
-        width, height = img.size
-        # Float pitch → rounded int for the bitmap-quantisation pass.
-        # The SVG output stretches the integer-pitch regions back to
-        # the original image dims via a scale transform inside
-        # `numerate_to_svg`, so coverage stays exact.
-        grid_width = int(width / request.superpixel_width)
-        grid_height = int(height / request.superpixel_height)
-        if grid_width < 1 or grid_height < 1:
-            raise HTTPException(status_code=400, detail="Superpixel size too large for image")
-
         svg_content, region_count = numerate_to_svg(
             img,
-            superpixel_width=request.superpixel_width,
-            superpixel_height=request.superpixel_height,
+            cells_x=request.cells_x,
+            cells_y=request.cells_y,
+            crop_x=request.crop_x,
+            crop_y=request.crop_y,
+            crop_w=request.crop_w,
+            crop_h=request.crop_h,
             stroke_width=request.stroke_width,
             show_colors=request.show_colors,
             num_colors=request.num_colors,

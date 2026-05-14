@@ -92,10 +92,12 @@ describe("TRACE_REGISTRY", () => {
 })
 
 describe("numerateSchema", () => {
-  it("applies defaults matching frontend + Python", () => {
+  it("applies the supercell-mm grid-model defaults", () => {
     expect(numerateSchema.parse({})).toEqual({
-      superpixel_width: 10,
-      superpixel_height: 10,
+      supercell_mm: 6,
+      multiple_axis: "none",
+      multiple: 1,
+      primary_count: 40,
       stroke_width: 1,
       show_colors: true,
       num_colors: 16,
@@ -116,14 +118,25 @@ describe("numerateSchema", () => {
     expect(numerateSchema.safeParse({ stroke_width: 21 }).success).toBe(false)
   })
 
-  it("rejects superpixel_width < 0.1", () => {
-    expect(numerateSchema.safeParse({ superpixel_width: 0 }).success).toBe(false)
-    expect(numerateSchema.safeParse({ superpixel_width: 0.05 }).success).toBe(false)
+  it("rejects supercell_mm below the minimum", () => {
+    expect(numerateSchema.safeParse({ supercell_mm: 3 }).success).toBe(false)
+    expect(numerateSchema.safeParse({ supercell_mm: 0 }).success).toBe(false)
   })
 
-  it("accepts fractional superpixel_width (Number-of-cells mode)", () => {
-    expect(numerateSchema.safeParse({ superpixel_width: 50.4666 }).success).toBe(true)
-    expect(numerateSchema.parse({ superpixel_width: 50.4666 }).superpixel_width).toBeCloseTo(50.4666)
+  it("accepts supercell_mm at or above the minimum", () => {
+    expect(numerateSchema.safeParse({ supercell_mm: 4 }).success).toBe(true)
+    expect(numerateSchema.parse({ supercell_mm: 6.5 }).supercell_mm).toBeCloseTo(6.5)
+  })
+
+  it("rejects multiple and primary_count below 1", () => {
+    expect(numerateSchema.safeParse({ multiple: 0 }).success).toBe(false)
+    expect(numerateSchema.safeParse({ primary_count: 0 }).success).toBe(false)
+  })
+
+  it("accepts the multiple_axis enum values", () => {
+    expect(numerateSchema.parse({ multiple_axis: "horizontal" }).multiple_axis).toBe("horizontal")
+    expect(numerateSchema.parse({ multiple_axis: "vertical" }).multiple_axis).toBe("vertical")
+    expect(numerateSchema.safeParse({ multiple_axis: "diagonal" }).success).toBe(false)
   })
 })
 
