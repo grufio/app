@@ -13,7 +13,6 @@ import cv2
 import numpy as np
 import io
 import base64
-from typing import Literal
 
 from app.vectorise import lineart_to_svg, numerate_to_svg
 
@@ -78,14 +77,42 @@ app.add_middleware(
 )
 
 
-class PixelateRequest(BaseModel):
+# Rec. 709 luma weights — green-heavy because the eye is most
+# sensitive there. Shared by all three B&W variants.
+_LUMA_709 = np.array([0.2126, 0.7152, 0.0722], dtype=np.float32)
+
+
+class BWRequest(BaseModel):
+    """Request body for the no-config black-and-white filters. The
+    look is a fixed preset per route — there are no user-tunable
+    params, so the only field is the source image."""
+
     image_base64: str
-    superpixel_width: int
-    superpixel_height: int
-    color_mode: Literal["rgb", "grayscale"] = "rgb"
-    num_colors: int = 16
 
 
+def _load_image_rgb(image_base64: str) -> np.ndarray:
+    """Decode a base64 image to an RGB float32 array (H, W, 3), 0-255."""
+    img_bytes = base64.b64decode(image_base64)
+    img = Image.open(io.BytesIO(img_bytes))
+    if img.mode != "RGB":
+        img = img.convert("RGB")
+    return np.asarray(img, dtype=np.float32)
+
+
+def _encode_png(arr: np.ndarray, timer: PhaseTimer) -> Response:
+    """Clamp a float (H, W, 3) array to uint8 and return a PNG Response
+    with the profiling header. Marks the `encode` phase."""
+    out = np.clip(arr, 0, 255).astype(np.uint8)
+    img = Image.fromarray(out, mode="RGB")
+    buf = io.BytesIO()
+    img.save(buf, format="PNG", optimize=True)
+    buf.seek(0)
+    timer.mark("encode")
+    return Response(
+        content=buf.getvalue(),
+        media_type="image/png",
+        headers={"X-Profile-Phases": timer.header()},
+    )
 
 
 @app.get("/health")
@@ -93,75 +120,65 @@ async def health():
     return {"status": "ok"}
 
 
-@app.post("/filters/pixelate")
-async def pixelate_filter(request: PixelateRequest):
-    if request.superpixel_width < 1 or request.superpixel_height < 1:
-        raise HTTPException(status_code=400, detail="Superpixel dimensions must be >= 1")
-    if request.num_colors < 2 or request.num_colors > 256:
-        raise HTTPException(status_code=400, detail="Number of colors must be between 2 and 256")
-
+@app.post("/filters/bw_hard")
+async def bw_hard_filter(request: BWRequest):
+    """High-contrast black-and-white (Inkwell-style): deep blacks,
+    blown highlights. Rec.709 luma → gamma 0.85 (darkens midtones) →
+    steep linear contrast (×1.5 around 128)."""
     timer = PhaseTimer()
     try:
-        img_bytes = base64.b64decode(request.image_base64)
-        img = Image.open(io.BytesIO(img_bytes))
-
-        if img.mode not in ("RGB", "L"):
-            img = img.convert("RGB")
+        rgb = _load_image_rgb(request.image_base64)
         timer.mark("decode")
+        luma = rgb @ _LUMA_709
+        curved = 255.0 * np.power(luma / 255.0, 0.85)
+        contrasted = (curved - 128.0) * 1.5 + 128.0
+        gray = np.clip(contrasted, 0, 255)
+        out = np.stack([gray, gray, gray], axis=-1)
+        timer.mark("luma+curve")
+        return _encode_png(out, timer)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Image processing failed: {str(e)}")
 
-        width, height = img.size
-        grid_width = width // request.superpixel_width
-        grid_height = height // request.superpixel_height
 
-        if grid_width < 1 or grid_height < 1:
-            raise HTTPException(status_code=400, detail=f"Superpixel size too large for image")
-        
-        # Vectorized superpixel averaging via numpy reshape+mean.
-        # Equivalent to the prior nested-loop implementation but ~10-100×
-        # faster on large images. Edge handling matches the original:
-        # the right-/bottom-most partial superpixels (when the image
-        # dimensions aren't an exact multiple of the superpixel size)
-        # remain at the result's default value (zero), as before.
-        sw = request.superpixel_width
-        sh = request.superpixel_height
-        h_crop = grid_height * sh
-        w_crop = grid_width * sw
-        img_array = np.array(img)
-        result_array = np.zeros_like(img_array)
-        if img.mode == "RGB":
-            cropped = img_array[:h_crop, :w_crop]
-            # (grid_h, sh, grid_w, sw, 3) → mean over axes 1 and 3.
-            # `astype(uint8)` truncates floats, matching the prior `//` behaviour.
-            block_means = cropped.reshape(grid_height, sh, grid_width, sw, 3).mean(axis=(1, 3)).astype(np.uint8)
-            expanded = block_means.repeat(sh, axis=0).repeat(sw, axis=1)
-            result_array[:h_crop, :w_crop] = expanded
-        else:
-            cropped = img_array[:h_crop, :w_crop]
-            block_means = cropped.reshape(grid_height, sh, grid_width, sw).mean(axis=(1, 3)).astype(np.uint8)
-            expanded = block_means.repeat(sh, axis=0).repeat(sw, axis=1)
-            result_array[:h_crop, :w_crop] = expanded
-        result = Image.fromarray(result_array, mode=img.mode)
-        timer.mark("mean+expand")
+@app.post("/filters/bw_soft")
+async def bw_soft_filter(request: BWRequest):
+    """Soft black-and-white (Moon-style): gentle, retains shadow and
+    highlight detail. Rec.709 luma → gamma 1.1 (lifts midtones), no
+    extra contrast."""
+    timer = PhaseTimer()
+    try:
+        rgb = _load_image_rgb(request.image_base64)
+        timer.mark("decode")
+        luma = rgb @ _LUMA_709
+        curved = 255.0 * np.power(luma / 255.0, 1.1)
+        gray = np.clip(curved, 0, 255)
+        out = np.stack([gray, gray, gray], axis=-1)
+        timer.mark("luma+curve")
+        return _encode_png(out, timer)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Image processing failed: {str(e)}")
 
-        if request.color_mode == "grayscale":
-            result = result.convert("L")
 
-        if request.num_colors < 256:
-            result = result.quantize(colors=request.num_colors, method=Image.MEDIANCUT)
-            result = result.convert("RGB" if request.color_mode == "rgb" else "L")
-        timer.mark("quantize")
-
-        output = io.BytesIO()
-        result.save(output, format="PNG", optimize=True)
-        output.seek(0)
-        timer.mark("encode")
-
-        return Response(
-            content=output.getvalue(),
-            media_type="image/png",
-            headers={"X-Profile-Phases": timer.header()},
+@app.post("/filters/bw_warm")
+async def bw_warm_filter(request: BWRequest):
+    """Warm-toned black-and-white (Willow-style): fully desaturated,
+    then re-tinted warm — red channel lifted, blue pulled down. The
+    output is true RGB, not greyscale."""
+    timer = PhaseTimer()
+    try:
+        rgb = _load_image_rgb(request.image_base64)
+        timer.mark("decode")
+        luma = rgb @ _LUMA_709
+        out = np.stack(
+            [
+                np.clip(luma * 1.05, 0, 255),
+                np.clip(luma * 1.00, 0, 255),
+                np.clip(luma * 0.92, 0, 255),
+            ],
+            axis=-1,
         )
-
+        timer.mark("luma+tint")
+        return _encode_png(out, timer)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Image processing failed: {str(e)}")
 
