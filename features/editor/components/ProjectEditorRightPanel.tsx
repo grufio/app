@@ -37,6 +37,7 @@ const ImagePanel = dynamic(() => import("./image-panel").then((m) => m.ImagePane
   ssr: false,
   loading: () => null,
 })
+import { buildDeleteMessage } from "./delete-message"
 import type { ProjectCanvasStageHandle } from "./project-canvas-stage"
 import { PanelIconSlot, PanelTwoFieldRow } from "./panel-layout"
 import { RightPanelToggleIconButton } from "./right-panel-controls"
@@ -72,7 +73,12 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
   setDeleteOpen: (v: boolean) => void
   handleDeleteMasterImage: () => void | Promise<void>
   onRequestDeleteImage: () => void
-  canDeleteActiveImage: boolean
+  /** Count of `project_image_filters` rows that will be cascade-
+   * deleted alongside the master. Drives the dialog copy. */
+  cascadeFilterCount: number
+  /** Whether a `project_image_trace` row exists for the project.
+   * Drives the dialog copy. */
+  cascadeHasTrace: boolean
   panelImageTxU: { x: bigint; y: bigint; w: bigint; h: bigint } | null
   workspaceUnit: Unit
   workspaceReady: boolean
@@ -106,7 +112,8 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
     setDeleteOpen,
     handleDeleteMasterImage,
     onRequestDeleteImage,
-    canDeleteActiveImage,
+    cascadeFilterCount,
+    cascadeHasTrace,
     panelImageTxU,
     workspaceUnit,
     workspaceReady,
@@ -218,7 +225,7 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
                 onCommitPosition={(opts) => canvasRef.current?.setImagePosition(opts)}
                 onAlign={(opts) => canvasRef.current?.alignImage(opts)}
                 canRestore={Boolean(masterImage) && !masterImageLoading && !deleteBusy && !restoreBusy}
-                canDelete={Boolean(masterImage) && !masterImageLoading && !deleteBusy && canDeleteActiveImage}
+                canDelete={Boolean(masterImage) && !masterImageLoading && !deleteBusy}
                 onRestore={() => {
                   restoreFocusReturn.captureOnOpen()
                   setRestoreOpen(true)
@@ -270,7 +277,7 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
           <DialogHeader>
             <DialogTitle>Delete image?</DialogTitle>
             <DialogDescription>
-              This will permanently delete the master image from storage and remove its database record.
+              {buildDeleteMessage({ cascadeFilterCount, cascadeHasTrace })}
             </DialogDescription>
           </DialogHeader>
 

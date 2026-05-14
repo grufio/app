@@ -27,8 +27,10 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
   hasGrid: boolean
   onImageUploaded: () => void | Promise<void>
   onImageDeleteRequested: (imageId: string) => void | Promise<void>
-  canDeleteActiveImage: boolean
-  deleteTargetImageId: string | null
+  /** True when a master image exists; gates the trash icon in the
+   * NavTree. Cascade-delete handles the actual fan-out — no need to
+   * disambiguate which image-id is the delete target. */
+  canDeleteMaster: boolean
   onGridCreateRequested: () => void | Promise<void>
   onGridDeleteRequested: () => void | Promise<void>
   activeTab: SidepanelTab
@@ -48,8 +50,7 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
     hasGrid,
     onImageUploaded,
     onImageDeleteRequested,
-    canDeleteActiveImage,
-    deleteTargetImageId,
+    canDeleteMaster,
     onGridCreateRequested,
     onGridDeleteRequested,
     activeTab,
@@ -97,8 +98,7 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
                 hasGrid={hasGrid}
                 onImageUploaded={onImageUploaded}
                 onImageDeleteRequested={onImageDeleteRequested}
-                canDeleteActiveImage={canDeleteActiveImage}
-                deleteTargetImageId={deleteTargetImageId}
+                canDeleteMaster={canDeleteMaster}
                 onGridCreateRequested={onGridCreateRequested}
                 onGridDeleteRequested={onGridDeleteRequested}
               />

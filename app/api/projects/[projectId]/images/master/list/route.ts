@@ -9,7 +9,6 @@ import { NextResponse } from "next/server"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { isUuid, jsonError, requireUser } from "@/lib/api/route-guards"
 import { resolveEditorTargetImageRows } from "@/lib/supabase/project-images"
-import { evaluateDeleteTarget } from "@/services/editor/server/delete-target-policy"
 import { IMAGE_KIND, resolveImageKind } from "@/services/editor/server/image-kind"
 
 export const dynamic = "force-dynamic"
@@ -61,10 +60,10 @@ export async function GET(
   const activeKind = effectiveActive ? resolveImageKind(effectiveActive) : null
   const preferredWorking = resolved.preferredWorking
 
-  const effectivePolicy = evaluateDeleteTarget({
-    targetImageId: effectiveActive?.id ? String(effectiveActive.id) : null,
-    targetKind: effectiveActive ? resolveImageKind(effectiveActive) : null,
-  })
+  // `display_target.deletable` and `display_target.reason` used to
+  // gate the UI delete buttons. After the master-delete-cascade
+  // refactor those gates moved to `Boolean(masterImage)` on the
+  // client, so the policy fields are no longer surfaced here.
   let fallbackTarget: { image_id: string; kind: typeof IMAGE_KIND.WORKING_COPY } | null = null
   if (activeKind === IMAGE_KIND.FILTER_WORKING_COPY) {
     if (preferredWorking?.id && preferredWorking.id !== effectiveActive?.id) {
@@ -77,8 +76,6 @@ export async function GET(
     display_target: {
       active_image_id: effectiveActive?.id ? String(effectiveActive.id) : null,
       kind: activeKind,
-      deletable: effectivePolicy.deletable,
-      reason: effectivePolicy.delete_reason,
     },
     fallback_target: fallbackTarget,
   })

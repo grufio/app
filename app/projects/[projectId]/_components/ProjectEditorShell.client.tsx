@@ -23,6 +23,7 @@ import { buildNavId } from "@/features/editor/navigation/nav-id"
 import { FilterSidebarSection } from "@/features/editor/components/filter-sidebar-section"
 import { TraceSidebarSection } from "@/features/editor/components/trace-sidebar-section"
 import type { OperationError } from "@/lib/api/operation-error"
+import { deleteMasterImageWithCascade } from "@/lib/api/project-images"
 import { useCanvasTxMirror } from "@/lib/editor/hooks/use-canvas-tx-mirror"
 import { useDedupingErrorToast } from "@/lib/editor/hooks/use-deduping-error-toast"
 import { useFilterStackActions } from "@/lib/editor/hooks/use-filter-stack-actions"
@@ -52,7 +53,6 @@ import { useEditorWorkflowAdapter } from "./editor-shell/use-editor-workflow-ada
 import { EditorDialogHost } from "./editor-shell/editor-dialog-host"
 import { EditorTraceDialogHost } from "./editor-shell/editor-trace-dialog-host"
 import { useLeftPanelModel } from "./editor-shell/use-left-panel-model"
-import { isStaleSelectionDeleteError, resolveDeleteTargetImageId } from "./editor-shell/delete-target"
 
 export function ProjectDetailPageClient({
   projectId,
@@ -89,9 +89,7 @@ export function ProjectDetailPageClient({
 
   const {
     images: projectImages,
-    displayTarget,
     refresh: refreshProjectImages,
-    deleteById: deleteImageById,
   } = useProjectImages(projectId)
   const {
     image: filterDisplayImage,
@@ -262,28 +260,20 @@ export function ProjectDetailPageClient({
   })
 
   const handleDeleteMasterImage = useCallback(async () => {
-    const targetId = resolveDeleteTargetImageId({
-      selectedImageId,
-      projectImages,
-      activeImageId: displayTarget.active_image_id,
-    })
-    if (!targetId) {
-      setDeleteError("No active image available for delete.")
+    if (!masterImage?.id) {
+      setDeleteError("No master image to delete.")
       return
     }
-
-    const res = await deleteImageById(targetId)
-    if (!res.ok) {
-      if (isStaleSelectionDeleteError(res.error)) {
-        await refreshProjectImages()
-      }
-      setDeleteError(res.error)
-      return
+    try {
+      await deleteMasterImageWithCascade(projectId)
+      setDeleteOpen(false)
+      clearImageTxU()
+      await refreshProjectImages()
+      await workflow.refreshAndWait()
+    } catch (e) {
+      setDeleteError(e instanceof Error ? e.message : "Failed to delete image")
     }
-    setDeleteOpen(false)
-    clearImageTxU()
-    await workflow.refreshAndWait()
-  }, [clearImageTxU, deleteImageById, displayTarget.active_image_id, projectImages, refreshProjectImages, selectedImageId, setDeleteError, setDeleteOpen, workflow])
+  }, [clearImageTxU, masterImage?.id, projectId, refreshProjectImages, setDeleteError, setDeleteOpen, workflow])
 
   const handleRestoreInitialImage = useCallback(async () => {
     if (workflow.isRestoring) return
@@ -297,7 +287,7 @@ export function ProjectDetailPageClient({
   // Arrow keys → nudge active image.
   useEditorKeyboard({
     enabled: true,
-    canDelete: displayTarget.deletable,
+    canDelete: Boolean(masterImage),
     onDelete: requestDeleteSelectedImage,
     onNudge: handleNudge,
   })
@@ -392,8 +382,7 @@ export function ProjectDetailPageClient({
               hasGrid={hasGrid}
               onImageUploaded={handleImageUploaded}
               onImageDeleteRequested={requestDeleteImage}
-              canDeleteActiveImage={displayTarget.deletable}
-              deleteTargetImageId={displayTarget.active_image_id}
+              canDeleteMaster={Boolean(masterImage)}
               onGridCreateRequested={requestCreateGrid}
               onGridDeleteRequested={requestDeleteGrid}
               filterPanelContent={
@@ -475,7 +464,8 @@ export function ProjectDetailPageClient({
             setDeleteOpen={setDeleteOpen}
             handleDeleteMasterImage={handleDeleteMasterImage}
             onRequestDeleteImage={requestDeleteSelectedImage}
-            canDeleteActiveImage={displayTarget.deletable}
+            cascadeFilterCount={filterStack.length}
+            cascadeHasTrace={Boolean(trace)}
             panelImageTxU={panelImageTxU}
             workspaceUnit={workspaceUnit ?? "cm"}
             workspaceReady={workspaceReady}

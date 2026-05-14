@@ -31,8 +31,6 @@ export function useProjectImages(projectId: string) {
   const [displayTarget, setDisplayTarget] = useState<ProjectImageDisplayTarget>({
     active_image_id: null,
     kind: null,
-    deletable: false,
-    reason: "no_active_image",
   })
   const [fallbackTarget, setFallbackTarget] = useState<ProjectImageFallbackTarget>(null)
   const [loading, setLoading] = useState(false)
@@ -73,8 +71,6 @@ export function useProjectImages(projectId: string) {
           setDisplayTarget({
             active_image_id: null,
             kind: null,
-            deletable: false,
-            reason: "no_active_image",
           })
           setFallbackTarget(null)
           setError(e instanceof Error ? e.message : "Failed to load images")

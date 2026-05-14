@@ -57,14 +57,11 @@ export type ProjectImageItem = {
   created_at: string
 }
 
-export type ImageDeleteReason = "no_active_image" | "master_immutable" | null
 export type ImageKind = "master" | "working_copy" | "filter_working_copy" | "trace_output" | null
 
 export type ProjectImageDisplayTarget = {
   active_image_id: string | null
   kind: ImageKind
-  deletable: boolean
-  reason: ImageDeleteReason
 }
 
 export type ProjectImageFallbackTarget = {
@@ -124,6 +121,26 @@ export async function deleteMasterImage(projectId: string): Promise<void> {
   }
 }
 
+/** DELETE /api/projects/[projectId]/images/master/cascade — cascade-deletes the
+ * project's master + all derivatives + filter rows + state row + trace row +
+ * storage objects. Leaves the project shell intact. */
+export async function deleteMasterImageWithCascade(projectId: string): Promise<void> {
+  const masterListPath = `/api/projects/${projectId}/images/master/list`
+  const masterPath = `/api/projects/${projectId}/images/master`
+  invalidateFetchJsonGetCache(masterListPath)
+  invalidateFetchJsonGetCache(masterPath)
+
+  const res = await fetchJson<unknown>(`/api/projects/${projectId}/images/master/cascade`, {
+    method: "DELETE",
+    credentials: "same-origin",
+  })
+  if (!res.ok) {
+    throw new Error(formatApiError("Failed to delete image", res.status, res.error))
+  }
+  invalidateFetchJsonGetCache(masterListPath)
+  invalidateFetchJsonGetCache(masterPath)
+}
+
 /** GET /api/projects/[projectId]/images/master/list — all non-deleted images + display/fallback targets. */
 export async function listMasterImages(projectId: string): Promise<{ items: ProjectImageItem[]; displayTarget: ProjectImageDisplayTarget; fallbackTarget: ProjectImageFallbackTarget }> {
   const res = await fetchJson<{ items?: ProjectImageItem[]; display_target?: Partial<ProjectImageDisplayTarget>; fallback_target?: ProjectImageFallbackTarget }>(`/api/projects/${projectId}/images/master/list`, {
@@ -142,12 +159,6 @@ export async function listMasterImages(projectId: string): Promise<{ items: Proj
         res.data?.display_target?.kind === "working_copy" ||
         res.data?.display_target?.kind === "filter_working_copy"
           ? res.data.display_target.kind
-          : null,
-      deletable: Boolean(res.data?.display_target?.deletable),
-      reason:
-        res.data?.display_target?.reason === "no_active_image" ||
-        res.data?.display_target?.reason === "master_immutable"
-          ? res.data.display_target.reason
           : null,
     },
     fallbackTarget:
