@@ -2027,7 +2027,7 @@ ALTER TABLE ONLY "public"."project_images"
 
 
 ALTER TABLE ONLY "public"."project_images"
-    ADD CONSTRAINT "project_images_source_image_id_fkey" FOREIGN KEY ("source_image_id") REFERENCES "public"."project_images"("id") ON DELETE CASCADE;
+    ADD CONSTRAINT "project_images_source_image_id_fkey" FOREIGN KEY ("source_image_id") REFERENCES "public"."project_images"("id") ON DELETE RESTRICT;
 
 
 
