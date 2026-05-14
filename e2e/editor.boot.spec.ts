@@ -231,11 +231,10 @@ test("regression: filter error does not leak into restore dialog", async ({ page
 
   await page.getByRole("button", { name: "New Filter" }).click()
   await page.getByRole("button", { name: "B&W Hard", exact: true }).click()
+  // Apply closes the selection dialog immediately; the failed apply
+  // surfaces as a toast, not in-dialog.
   await page.getByRole("button", { name: "Apply" }).click()
   await expect(page.getByText("forced filter failure")).toBeVisible()
-
-  // Close filter dialog before checking image restore dialog.
-  await page.getByRole("button", { name: "Cancel" }).click()
 
   await selectLayerNavItem(page, "Image")
   await page.getByLabel("Restore image").click()
