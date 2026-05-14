@@ -202,6 +202,80 @@ $$;
 ALTER FUNCTION "public"."collect_project_image_delete_targets"("p_project_id" "uuid", "p_root_image_id" "uuid") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."delete_master_with_cascade"("p_project_id" "uuid") RETURNS TABLE("storage_bucket" "text", "storage_path" "text")
+    LANGUAGE "plpgsql"
+    SET "search_path" TO 'public', 'pg_temp'
+    AS $$
+declare
+  v_master_id uuid;
+  v_buckets text[];
+  v_paths text[];
+begin
+  -- Serialise concurrent deletes on the same project so a double-
+  -- click on the UI button doesn't race a second cascade through.
+  perform pg_advisory_xact_lock(hashtext(p_project_id::text));
+
+  -- Find the project's master. If none exists (already gone, never
+  -- uploaded, or kind != master), short-circuit with empty result.
+  select id into v_master_id
+    from public.project_images
+   where project_id = p_project_id
+     and kind = 'master'
+     and deleted_at is null
+   limit 1;
+  if v_master_id is null then return; end if;
+
+  -- Suspend `guard_master_immutable` for this transaction +
+  -- project_id only. Other masters in unrelated projects stay
+  -- protected (the guard checks `old.project_id::text = v_in_project_delete`).
+  perform set_config('app.deleting_project', p_project_id::text, true);
+
+  -- Snapshot storage paths BEFORE any DML so the caller can clean
+  -- up bucket objects. Materialise into parallel arrays so we can
+  -- `unnest` them back into the return rowset after the deletes.
+  select
+    coalesce(array_agg(coalesce(pi.storage_bucket, 'project_images')), '{}'),
+    coalesce(array_agg(pi.storage_path), '{}')
+    into v_buckets, v_paths
+    from public.project_images pi
+   where pi.project_id = p_project_id
+     and pi.storage_path is not null;
+
+  -- 1. Filters first (clears FK RESTRICT from project_image_filters
+  --    → project_images on input_image_id + output_image_id).
+  delete from public.project_image_filters
+   where project_id = p_project_id;
+
+  -- 2. Image rows in dependency order (leaves before parents,
+  --    because project_images.source_image_id → project_images.id
+  --    is ON DELETE RESTRICT — see header). The kind hierarchy is
+  --    fixed by domain:
+  --       master → working_copy → filter_working_copy → trace_output
+  --    project_image_state and project_image_trace cascade via FK
+  --    CASCADE on their *_image_id references — they need no
+  --    explicit deletes here.
+  delete from public.project_images
+   where project_id = p_project_id and kind = 'trace_output';
+  delete from public.project_images
+   where project_id = p_project_id and kind = 'filter_working_copy';
+  delete from public.project_images
+   where project_id = p_project_id and kind = 'working_copy';
+  delete from public.project_images
+   where project_id = p_project_id and kind = 'master';
+
+  -- Return the captured paths to the caller. Use generate_subscripts
+  -- to walk both arrays by parallel index — `unnest` with multiple
+  -- array args + column-definition list is not allowed in plpgsql.
+  return query
+    select v_buckets[i], v_paths[i]
+      from generate_subscripts(v_buckets, 1) as i;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."delete_master_with_cascade"("p_project_id" "uuid") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."delete_project"("p_project_id" "uuid") RETURNS "uuid"
     LANGUAGE "plpgsql"
     AS $$
@@ -2027,7 +2101,7 @@ ALTER TABLE ONLY "public"."project_images"
 
 
 ALTER TABLE ONLY "public"."project_images"
-    ADD CONSTRAINT "project_images_source_image_id_fkey" FOREIGN KEY ("source_image_id") REFERENCES "public"."project_images"("id") ON DELETE RESTRICT;
+    ADD CONSTRAINT "project_images_source_image_id_fkey" FOREIGN KEY ("source_image_id") REFERENCES "public"."project_images"("id") ON DELETE CASCADE;
 
 
 
@@ -2343,6 +2417,11 @@ GRANT ALL ON FUNCTION "public"."cleanup_state_on_softdelete"() TO "service_role"
 GRANT ALL ON FUNCTION "public"."collect_project_image_delete_targets"("p_project_id" "uuid", "p_root_image_id" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."collect_project_image_delete_targets"("p_project_id" "uuid", "p_root_image_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."collect_project_image_delete_targets"("p_project_id" "uuid", "p_root_image_id" "uuid") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."delete_master_with_cascade"("p_project_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."delete_master_with_cascade"("p_project_id" "uuid") TO "service_role";
 
 
 
