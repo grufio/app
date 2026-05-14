@@ -25,7 +25,7 @@
  * footer live in sibling files. Pure validation lives in
  * `step-validation.ts`.
  */
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 
 import {
@@ -38,7 +38,8 @@ import {
 import { formatOperationErrorForToast, normalizeApiError } from "@/lib/api/error-normalizer"
 import { useProjectWorkspace } from "@/lib/editor/project-workspace"
 import { numerateSchema, type NumerateParams } from "@/lib/editor/trace/numerate"
-import { gridFromSuperpixel, type GridStats } from "@/lib/editor/trace/numerate-grid-math"
+import { DEFAULT_SUPERCELL_MM, gridFromSuperpixel, type GridStats } from "@/lib/editor/trace/numerate-grid-math"
+import { unitToPx } from "@/lib/editor/units"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
 
 import { ColorsStep } from "./colors-step"
@@ -83,12 +84,28 @@ export function NumerateWizard({
   const setField = <K extends keyof NumerateParams>(key: K, value: NumerateParams[K]) =>
     setDraft((prev) => ({ ...prev, [key]: value }))
 
+  // Seed the supercell to DEFAULT_SUPERCELL_MM once the project DPI is
+  // known. superpixel_width/_height are stored in image px (the API
+  // unit); the wizard renders/edits them in mm. Runs once — later DPI
+  // changes or user edits are not clobbered.
+  const seededDefaultRef = useRef(false)
+  useEffect(() => {
+    if (seededDefaultRef.current || workspace.dpi == null) return
+    seededDefaultRef.current = true
+    const px = unitToPx(DEFAULT_SUPERCELL_MM, "mm", workspace.dpi)
+    setDraft((prev) => ({ ...prev, superpixel_width: px, superpixel_height: px }))
+  }, [workspace.dpi])
+
   const grid = useMemo<GridStats>(
     () => gridFromSuperpixel(imageWidth, imageHeight, draft.superpixel_width, draft.superpixel_height),
     [imageWidth, imageHeight, draft.superpixel_width, draft.superpixel_height],
   )
 
-  const validity = stepValidity(draft, { widthPx: workspace.widthPx, heightPx: workspace.heightPx })
+  const validity = stepValidity(draft, {
+    widthPx: workspace.widthPx,
+    heightPx: workspace.heightPx,
+    dpi: workspace.dpi,
+  })
   const fullValid = isFullyValid(validity)
 
   const onStepClick = (id: StepId) => {
@@ -149,6 +166,7 @@ export function NumerateWizard({
             <GridStep
               imageWidth={imageWidth}
               imageHeight={imageHeight}
+              dpi={workspace.dpi}
               gridMode={gridMode}
               onGridModeChange={setGridMode}
               draft={draft}

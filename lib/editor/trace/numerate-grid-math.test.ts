@@ -34,6 +34,16 @@ describe("gridFromCells", () => {
     expect(g.cellsX).toBe(10)
     expect(g.cellsY).toBe(5)
   })
+
+  it("clamps cells to <= MAX_CELLS_PER_AXIS (50)", () => {
+    const g = gridFromCells(4000, 3000, 999, 200)
+    expect(g.cellsX).toBe(50)
+    expect(g.cellsY).toBe(50)
+    expect(g.totalCells).toBe(2500)
+    // pitch derives from the clamped cell count, so coverage stays exact
+    expect(g.superpixelWidth).toBe(4000 / 50)
+    expect(g.superpixelHeight).toBe(3000 / 50)
+  })
 })
 
 describe("gridFromSuperpixel", () => {
