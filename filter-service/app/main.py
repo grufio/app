@@ -77,11 +77,6 @@ app.add_middleware(
 )
 
 
-# Rec. 709 luma weights — green-heavy because the eye is most
-# sensitive there. Shared by all three B&W variants.
-_LUMA_709 = np.array([0.2126, 0.7152, 0.0722], dtype=np.float32)
-
-
 class BWRequest(BaseModel):
     """Request body for the no-config black-and-white filters. The
     look is a fixed preset per route — there are no user-tunable
@@ -91,21 +86,41 @@ class BWRequest(BaseModel):
 
 
 def _load_image_rgb(image_base64: str) -> np.ndarray:
-    """Decode a base64 image to an RGB float32 array (H, W, 3), 0-255."""
+    """Decode a base64 image to an RGB uint8 array (H, W, 3), 0-255.
+
+    uint8 (not float32): the B&W handlers derive a single float32
+    luma plane from this and drop the RGB array immediately, so
+    carrying a 4x-larger float copy of the whole image would only
+    inflate peak memory for nothing.
+    """
     img_bytes = base64.b64decode(image_base64)
     img = Image.open(io.BytesIO(img_bytes))
     if img.mode != "RGB":
         img = img.convert("RGB")
-    return np.asarray(img, dtype=np.float32)
+    return np.asarray(img)
+
+
+def _luma_709(rgb_u8: np.ndarray) -> np.ndarray:
+    """Rec.709 luma plane — (H, W) float32, 0-255 — from an
+    (H, W, 3) uint8 RGB array. Rec.709 is green-heavy because the eye
+    is most sensitive there. Computed channel-wise into a single
+    accumulator so no full-res float32 copy of the RGB image is ever
+    materialised."""
+    luma = rgb_u8[:, :, 0].astype(np.float32)
+    luma *= 0.2126
+    luma += rgb_u8[:, :, 1] * np.float32(0.7152)
+    luma += rgb_u8[:, :, 2] * np.float32(0.0722)
+    return luma
 
 
 def _encode_png(arr: np.ndarray, timer: PhaseTimer) -> Response:
-    """Clamp a float (H, W, 3) array to uint8 and return a PNG Response
-    with the profiling header. Marks the `encode` phase."""
-    out = np.clip(arr, 0, 255).astype(np.uint8)
-    img = Image.fromarray(out, mode="RGB")
+    """Return a uint8 (H, W, 3) RGB array as a PNG Response with the
+    profiling header. Marks the `encode` phase. Callers clamp during
+    their own in-place math and pass uint8 directly, so no extra
+    full-image copy is made here."""
+    img = Image.fromarray(arr, mode="RGB")
     buf = io.BytesIO()
-    img.save(buf, format="PNG", optimize=True)
+    img.save(buf, format="PNG")
     buf.seek(0)
     timer.mark("encode")
     return Response(
@@ -127,13 +142,22 @@ async def bw_hard_filter(request: BWRequest):
     steep linear contrast (×1.5 around 128)."""
     timer = PhaseTimer()
     try:
-        rgb = _load_image_rgb(request.image_base64)
+        rgb_u8 = _load_image_rgb(request.image_base64)
         timer.mark("decode")
-        luma = rgb @ _LUMA_709
-        curved = 255.0 * np.power(luma / 255.0, 0.85)
-        contrasted = (curved - 128.0) * 1.5 + 128.0
-        gray = np.clip(contrasted, 0, 255)
-        out = np.stack([gray, gray, gray], axis=-1)
+        luma = _luma_709(rgb_u8)
+        del rgb_u8
+        # Tone curve, all in-place on the single luma plane:
+        # gamma 0.85, then steep linear contrast (x1.5 around 128).
+        luma /= 255.0
+        np.power(luma, 0.85, out=luma)
+        luma *= 255.0
+        luma -= 128.0
+        luma *= 1.5
+        luma += 128.0
+        np.clip(luma, 0, 255, out=luma)
+        gray_u8 = luma.astype(np.uint8)
+        del luma
+        out = np.repeat(gray_u8[:, :, np.newaxis], 3, axis=2)
         timer.mark("luma+curve")
         return _encode_png(out, timer)
     except Exception as e:
@@ -147,12 +171,19 @@ async def bw_soft_filter(request: BWRequest):
     extra contrast."""
     timer = PhaseTimer()
     try:
-        rgb = _load_image_rgb(request.image_base64)
+        rgb_u8 = _load_image_rgb(request.image_base64)
         timer.mark("decode")
-        luma = rgb @ _LUMA_709
-        curved = 255.0 * np.power(luma / 255.0, 1.1)
-        gray = np.clip(curved, 0, 255)
-        out = np.stack([gray, gray, gray], axis=-1)
+        luma = _luma_709(rgb_u8)
+        del rgb_u8
+        # Tone curve, all in-place on the single luma plane:
+        # gamma 1.1 (lifts midtones), no extra contrast.
+        luma /= 255.0
+        np.power(luma, 1.1, out=luma)
+        luma *= 255.0
+        np.clip(luma, 0, 255, out=luma)
+        gray_u8 = luma.astype(np.uint8)
+        del luma
+        out = np.repeat(gray_u8[:, :, np.newaxis], 3, axis=2)
         timer.mark("luma+curve")
         return _encode_png(out, timer)
     except Exception as e:
@@ -166,17 +197,24 @@ async def bw_warm_filter(request: BWRequest):
     output is true RGB, not greyscale."""
     timer = PhaseTimer()
     try:
-        rgb = _load_image_rgb(request.image_base64)
+        rgb_u8 = _load_image_rgb(request.image_base64)
         timer.mark("decode")
-        luma = rgb @ _LUMA_709
-        out = np.stack(
-            [
-                np.clip(luma * 1.05, 0, 255),
-                np.clip(luma * 1.00, 0, 255),
-                np.clip(luma * 0.92, 0, 255),
-            ],
-            axis=-1,
-        )
+        luma = _luma_709(rgb_u8)
+        del rgb_u8
+        # Warm tint: lift red, hold green, pull blue down. Build the
+        # uint8 RGB output directly, reusing one float32 scratch plane
+        # for all three channels instead of stacking three fresh clips.
+        h, w = luma.shape
+        out = np.empty((h, w, 3), dtype=np.uint8)
+        scratch = luma * 1.05
+        np.clip(scratch, 0, 255, out=scratch)
+        out[:, :, 0] = scratch
+        np.clip(luma, 0, 255, out=scratch)
+        out[:, :, 1] = scratch
+        np.multiply(luma, 0.92, out=scratch)
+        np.clip(scratch, 0, 255, out=scratch)
+        out[:, :, 2] = scratch
+        del luma, scratch
         timer.mark("luma+tint")
         return _encode_png(out, timer)
     except Exception as e:
