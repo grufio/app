@@ -3,7 +3,12 @@ import type { ReactNode } from "react"
 import { FormField } from "@/components/ui/form-controls"
 import { cn } from "@/lib/utils"
 import type { NumerateParams } from "@/lib/editor/trace/numerate"
-import { gridFromCells, type GridStats } from "@/lib/editor/trace/numerate-grid-math"
+import {
+  gridFromCells,
+  MAX_CELLS_PER_AXIS,
+  MAX_SUPERPIXEL_TOTAL_CELLS,
+  type GridStats,
+} from "@/lib/editor/trace/numerate-grid-math"
 
 export type GridMode = "cells" | "superpixel"
 
@@ -69,7 +74,7 @@ export function GridStep(props: {
               onCommit={onCellsXCommit}
               onDraftChange={onCellsXCommit}
               disabled={busy}
-              inputProps={{ min: 1, max: imageWidth }}
+              inputProps={{ min: 1, max: MAX_CELLS_PER_AXIS }}
             />
             <FormField
               variant="numeric"
@@ -80,7 +85,7 @@ export function GridStep(props: {
               onCommit={onCellsYCommit}
               onDraftChange={onCellsYCommit}
               disabled={busy}
-              inputProps={{ min: 1, max: imageHeight }}
+              inputProps={{ min: 1, max: MAX_CELLS_PER_AXIS }}
             />
           </>
         ) : (
@@ -146,10 +151,18 @@ function GridSummary(props: { grid: GridStats; mode: GridMode }) {
     mode === "cells"
       ? `Superpixel: ${formatPitch(grid.superpixelWidth)} × ${formatPitch(grid.superpixelHeight)} px`
       : `Cells: ${grid.cellsX} × ${grid.cellsY}`
+  // Cells mode is hard-capped at MAX_CELLS_PER_AXIS, so totalCells can
+  // only exceed the soft cap via the pitch-driven superpixel mode.
+  const overSoftCap = grid.totalCells > MAX_SUPERPIXEL_TOTAL_CELLS
   return (
     <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs">
       <div>{derivedLabel}</div>
       <div>Total cells: {grid.totalCells}</div>
+      {overSoftCap ? (
+        <div className="mt-1 text-amber-600 dark:text-amber-500">
+          Over {MAX_SUPERPIXEL_TOTAL_CELLS} cells — the trace will be large and slow to render.
+        </div>
+      ) : null}
     </div>
   )
 }

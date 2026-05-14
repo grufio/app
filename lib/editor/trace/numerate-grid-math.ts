@@ -19,14 +19,29 @@ export type GridStats = {
   totalCells: number
 }
 
+/**
+ * Hard cap on cells per axis in the wizard's "number of cells" mode.
+ * `gridFromCells` enforces it, so the cells input can never produce a
+ * grid above 50x50 — keeps the numerate SVG (one path per region +
+ * the grid lines) from blowing up.
+ */
+export const MAX_CELLS_PER_AXIS = 50
+
+/**
+ * Soft cap on total cells in "superpixel size" mode. Above this the
+ * wizard warns that the trace will be large/slow, but does not block —
+ * the pitch-driven mode is the power-user path.
+ */
+export const MAX_SUPERPIXEL_TOTAL_CELLS = 2500
+
 export function gridFromCells(
   imageWidth: number,
   imageHeight: number,
   cellsX: number,
   cellsY: number,
 ): GridStats {
-  const safeCellsX = Math.max(1, Math.floor(cellsX))
-  const safeCellsY = Math.max(1, Math.floor(cellsY))
+  const safeCellsX = Math.min(MAX_CELLS_PER_AXIS, Math.max(1, Math.floor(cellsX)))
+  const safeCellsY = Math.min(MAX_CELLS_PER_AXIS, Math.max(1, Math.floor(cellsY)))
   return {
     cellsX: safeCellsX,
     cellsY: safeCellsY,
