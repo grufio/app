@@ -9,7 +9,7 @@
 -- + `project_image_trace` are removed in one transaction, leaving the
 -- project empty. The user can then upload a new master.
 --
--- Why this RPC exists:
+-- Why this RPC exists (two FK chains block a naive delete):
 --   - `project_image_filters.input_image_id` / `output_image_id` are
 --     ON DELETE RESTRICT against `project_images.id`. Without a step
 --     that clears those filter rows first, a master delete (or even
@@ -17,12 +17,23 @@
 --     constraint violation and the transaction rolls back. The
 --     current UI delete-flow (master/route.ts DELETE) fails with
 --     `code=23503` in exactly this scenario.
+--   - `project_images.source_image_id` (self-ref) is ALSO ON DELETE
+--     RESTRICT — the chain
+--     `master ← working_copy ← filter_working_copy ← trace_output`
+--     can't be torn down by deleting the master and relying on FK
+--     cascade. (`db/schema.sql` shows CASCADE, but the actual
+--     migration that created the FK uses RESTRICT — schema-drift,
+--     verified against the integration-test failure.) We must
+--     delete leaves before parents, in kind order.
 --   - `guard_master_immutable` ([schema.sql] trigger
 --     `trg_project_images_guard_master_immutable`) blocks DELETE on
 --     kind='master' rows. The escape hatch is to set
 --     `app.deleting_project = project_id` in the transaction; the
 --     guard then waives the immutability check for that project's
 --     master row.
+--   - `project_image_state` and `project_image_trace` cascade
+--     correctly (ON DELETE CASCADE), so they need no special
+--     handling — they vanish with their parent image row.
 --
 -- Pattern mirror: this is the same lock + GUC + delete pattern as
 -- `delete_project()` ([schema.sql:223-244]). The GUC is reused
@@ -57,6 +68,8 @@ set search_path to 'public', 'pg_temp'
 as $$
 declare
   v_master_id uuid;
+  v_buckets text[];
+  v_paths text[];
 begin
   -- Serialise concurrent deletes on the same project so a double-
   -- click on the UI button doesn't race a second cascade through.
@@ -77,37 +90,45 @@ begin
   -- protected (the guard checks `old.project_id::text = v_in_project_delete`).
   perform set_config('app.deleting_project', p_project_id::text, true);
 
-  -- Single statement, atomic snapshot:
-  -- 1. `collected` reads storage paths for every image row in the
-  --    project BEFORE any modification.
-  -- 2. `_filters` removes the `project_image_filters` rows that
-  --    would otherwise FK-RESTRICT the upcoming image delete.
-  -- 3. `_master` removes the master row. FK CASCADE on
-  --    `source_image_id` (self-ref) then sweeps every derivative
-  --    (working_copy, filter_working_copy, trace_output). FK CASCADE
-  --    on `project_image_state.image_id` and
-  --    `project_image_trace.output_image_id` handles those tables.
-  -- Returning the `collected` rows preserves the pre-delete paths
-  -- for the caller to clean up storage.
+  -- Snapshot storage paths BEFORE any DML so the caller can clean
+  -- up bucket objects. Materialise into parallel arrays so we can
+  -- `unnest` them back into the return rowset after the deletes.
+  select
+    coalesce(array_agg(coalesce(pi.storage_bucket, 'project_images')), '{}'),
+    coalesce(array_agg(pi.storage_path), '{}')
+    into v_buckets, v_paths
+    from public.project_images pi
+   where pi.project_id = p_project_id
+     and pi.storage_path is not null;
+
+  -- 1. Filters first (clears FK RESTRICT from project_image_filters
+  --    → project_images on input_image_id + output_image_id).
+  delete from public.project_image_filters
+   where project_id = p_project_id;
+
+  -- 2. Image rows in dependency order (leaves before parents,
+  --    because project_images.source_image_id → project_images.id
+  --    is ON DELETE RESTRICT — see header). The kind hierarchy is
+  --    fixed by domain:
+  --       master → working_copy → filter_working_copy → trace_output
+  --    project_image_state and project_image_trace cascade via FK
+  --    CASCADE on their *_image_id references — they need no
+  --    explicit deletes here.
+  delete from public.project_images
+   where project_id = p_project_id and kind = 'trace_output';
+  delete from public.project_images
+   where project_id = p_project_id and kind = 'filter_working_copy';
+  delete from public.project_images
+   where project_id = p_project_id and kind = 'working_copy';
+  delete from public.project_images
+   where project_id = p_project_id and kind = 'master';
+
+  -- Return the captured paths to the caller. Use generate_subscripts
+  -- to walk both arrays by parallel index — `unnest` with multiple
+  -- array args + column-definition list is not allowed in plpgsql.
   return query
-    with collected as (
-      select pi.storage_bucket, pi.storage_path
-        from public.project_images pi
-       where pi.project_id = p_project_id
-         and pi.storage_path is not null
-    ),
-    _filters as (
-      delete from public.project_image_filters
-       where project_id = p_project_id
-       returning 1
-    ),
-    _master as (
-      delete from public.project_images
-       where id = v_master_id
-       returning 1
-    )
-    select c.storage_bucket, c.storage_path
-      from collected c;
+    select v_buckets[i], v_paths[i]
+      from generate_subscripts(v_buckets, 1) as i;
 end;
 $$;
 
