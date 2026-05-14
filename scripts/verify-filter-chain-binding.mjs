@@ -38,15 +38,45 @@ function printRows(title, rows) {
   console.error("")
 }
 
+/**
+ * Derive the allowed `filter_type` values from the live CHECK
+ * constraint instead of hardcoding them. A hardcoded list went stale
+ * once already when the filter set was swapped to the B&W variants;
+ * the constraint is the single source of truth. A missing constraint
+ * is itself a gate failure.
+ */
+function deriveAllowedFilterTypes(dbUrl) {
+  const def = runQuery(
+    dbUrl,
+    `
+      select pg_get_constraintdef(oid)
+      from pg_constraint
+      where conrelid = 'public.project_image_filters'::regclass
+        and conname = 'project_image_filters_filter_type_ck';
+    `
+  )
+  if (!def.length) {
+    fail("Could not find CHECK constraint project_image_filters_filter_type_ck — cannot verify filter types.")
+  }
+  const allowed = [...def[0].matchAll(/'([^']+)'::text/g)].map((m) => m[1])
+  if (!allowed.length) {
+    fail(`Could not parse allowed filter types from constraint definition: ${def[0]}`)
+  }
+  return allowed
+}
+
 function main() {
   const dbUrl = getDbUrl()
+
+  const allowedFilterTypes = deriveAllowedFilterTypes(dbUrl)
+  const allowedList = allowedFilterTypes.map((t) => `'${t.replace(/'/g, "''")}'`).join(", ")
 
   const invalidFilterType = runQuery(
     dbUrl,
     `
       select id::text || E'\\t' || project_id::text || E'\\t' || filter_type::text
       from public.project_image_filters
-      where filter_type not in ('pixelate', 'lineart', 'numerate')
+      where filter_type not in (${allowedList})
       order by project_id, stack_order;
     `
   )
