@@ -59,11 +59,11 @@ function InputGroupAddon({
         // basis — see `lib/forms/numeric-variant-classes.ts` for the
         // canonical pattern (input pr-2 + addon !pl-0 → 8px gap).
         "px-2",
-        // Icon sizing + stroke. `stroke-width:1` matches the editor's
-        // thin-line icon convention; CSS overrides lucide's `stroke-width="2"`
+        // Icon sizing + stroke. `stroke-1` matches the editor's thin-line
+        // icon convention; CSS overrides lucide's `stroke-width="2"`
         // attribute, so every form-field icon stays consistent without
         // per-instance `strokeWidth={1}` props.
-        "[&_svg]:size-4 [&_svg]:[stroke-width:1px]",
+        "[&_svg]:size-4 [&_svg]:stroke-1",
         className
       )}
       {...props}
