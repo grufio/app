@@ -69,9 +69,9 @@ export function AddImageMenuAction({
         aria-busy={isUploading}
       >
         {isUploading ? (
-          <Loader2 className="animate-spin" strokeWidth={1} />
+          <Loader2 className="animate-spin" />
         ) : (
-          <Plus strokeWidth={1} />
+          <Plus />
         )}
       </SidebarMenuAction>
     </>

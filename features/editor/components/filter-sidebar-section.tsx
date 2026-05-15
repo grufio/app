@@ -78,7 +78,7 @@ export function FilterSidebarSection(props: {
               className="text-xs font-medium"
               onClick={() => onSelectFilter(filter.id)}
             >
-              <SlidersHorizontal strokeWidth={1} />
+              <SlidersHorizontal />
               <span>{getFilterLabel(filter.filterType)}</span>
             </SidebarMenuButton>
             <SidebarMenuActions>
@@ -87,7 +87,7 @@ export function FilterSidebarSection(props: {
                 aria-label={hiddenFilterIds[filter.id] ? "Show filter" : "Hide filter"}
                 onClick={() => onToggleHidden(filter.id)}
               >
-                {hiddenFilterIds[filter.id] ? <EyeOff className="size-4" strokeWidth={1} /> : <Eye className="size-4" strokeWidth={1} />}
+                {hiddenFilterIds[filter.id] ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
               </SidebarMenuAction>
               <SidebarMenuAction
                 inline
@@ -95,7 +95,7 @@ export function FilterSidebarSection(props: {
                 disabled={isRemovingFilter}
                 onClick={() => onRemoveFilter(filter.id)}
               >
-                <Trash2 strokeWidth={1} />
+                <Trash2 />
               </SidebarMenuAction>
             </SidebarMenuActions>
           </SidebarMenuItem>
@@ -103,11 +103,11 @@ export function FilterSidebarSection(props: {
 
         <SidebarMenuItem>
           <SidebarMenuButton className="text-xs font-medium" disabled>
-            <SlidersHorizontal strokeWidth={1} />
+            <SlidersHorizontal />
             <span>New Filter</span>
           </SidebarMenuButton>
           <SidebarMenuAction aria-label="Add filter" disabled={isAddFilterDisabled} onClick={onOpenSelection}>
-            <Plus strokeWidth={1} />
+            <Plus />
           </SidebarMenuAction>
         </SidebarMenuItem>
       </SidebarMenu>

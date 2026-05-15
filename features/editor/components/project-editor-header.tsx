@@ -24,7 +24,7 @@ export function ProjectEditorHeader(props: {
           aria-label="Back to dashboard"
           className="-ml-1 inline-flex size-8 items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground"
         >
-          <ArrowLeft className="size-4" strokeWidth={1} />
+          <ArrowLeft className="size-4" />
         </Link>
         <div className="min-w-0 flex-1 max-w-md">
           <ProjectTitleEditor

@@ -86,7 +86,7 @@ export function ImagePanel({
             disabled={!canRestore}
             onClick={onRestore}
           >
-            <RotateCcw className="size-4" strokeWidth={1} />
+            <RotateCcw className="size-4" />
           </RightPanelIconButton>
           <RightPanelIconButton
             type="button"
@@ -94,7 +94,7 @@ export function ImagePanel({
             disabled={!canDelete}
             onClick={onDelete}
           >
-            <Trash2 className="size-4" strokeWidth={1} />
+            <Trash2 className="size-4" />
           </RightPanelIconButton>
         </>
       }

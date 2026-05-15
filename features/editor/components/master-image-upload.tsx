@@ -116,7 +116,7 @@ export function MasterImageUpload({
         {...toolbarDropProps}
       >
         <input {...getInputProps()} />
-        <ImagePlus className="size-6" strokeWidth={1} />
+        <ImagePlus className="size-6" />
       </ToolbarIconButton>
     )
   }

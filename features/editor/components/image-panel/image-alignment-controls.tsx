@@ -37,7 +37,7 @@ export function ImageAlignmentControls({
           disabled={controlsDisabled}
           onClick={() => onAlign({ x: "left" })}
         >
-          <AlignLeft className="size-4" strokeWidth={1} />
+          <AlignLeft className="size-4" />
         </RightPanelIconButton>
         <RightPanelIconButton
           type="button"
@@ -45,7 +45,7 @@ export function ImageAlignmentControls({
           disabled={controlsDisabled}
           onClick={() => onAlign({ x: "center" })}
         >
-          <AlignCenter className="size-4" strokeWidth={1} />
+          <AlignCenter className="size-4" />
         </RightPanelIconButton>
         <RightPanelIconButton
           type="button"
@@ -53,7 +53,7 @@ export function ImageAlignmentControls({
           disabled={controlsDisabled}
           onClick={() => onAlign({ x: "right" })}
         >
-          <AlignRight className="size-4" strokeWidth={1} />
+          <AlignRight className="size-4" />
         </RightPanelIconButton>
       </div>
 
@@ -64,7 +64,7 @@ export function ImageAlignmentControls({
           disabled={controlsDisabled}
           onClick={() => onAlign({ y: "top" })}
         >
-          <AlignVerticalJustifyStart className="size-4" strokeWidth={1} />
+          <AlignVerticalJustifyStart className="size-4" />
         </RightPanelIconButton>
         <RightPanelIconButton
           type="button"
@@ -72,7 +72,7 @@ export function ImageAlignmentControls({
           disabled={controlsDisabled}
           onClick={() => onAlign({ y: "center" })}
         >
-          <AlignVerticalJustifyCenter className="size-4" strokeWidth={1} />
+          <AlignVerticalJustifyCenter className="size-4" />
         </RightPanelIconButton>
         <RightPanelIconButton
           type="button"
@@ -80,7 +80,7 @@ export function ImageAlignmentControls({
           disabled={controlsDisabled}
           onClick={() => onAlign({ y: "bottom" })}
         >
-          <AlignVerticalJustifyEnd className="size-4" strokeWidth={1} />
+          <AlignVerticalJustifyEnd className="size-4" />
         </RightPanelIconButton>
       </div>
 

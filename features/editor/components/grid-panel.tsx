@@ -100,7 +100,7 @@ export function GridPanel({
           )}
           onClick={() => onGridVisibleChange(!gridVisible)}
         >
-          {gridVisible ? <Eye className="size-4" strokeWidth={1} /> : <EyeOff className="size-4" strokeWidth={1} />}
+          {gridVisible ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
         </AppButton>
       }
     >
@@ -114,7 +114,7 @@ export function GridPanel({
             numericMode="decimal"
             label={`Grid width (${effectiveUnit})`}
             labelVisuallyHidden
-            iconStart={<ArrowLeftRight aria-hidden="true" strokeWidth={1} />}
+            iconStart={<ArrowLeftRight aria-hidden="true" />}
             unit={effectiveUnit}
             value={computedW}
             onCommit={onCommitW}
@@ -126,7 +126,7 @@ export function GridPanel({
             numericMode="decimal"
             label={`Grid height (${effectiveUnit})`}
             labelVisuallyHidden
-            iconStart={<ArrowUpDown aria-hidden="true" strokeWidth={1} />}
+            iconStart={<ArrowUpDown aria-hidden="true" />}
             unit={effectiveUnit}
             value={computedH}
             onCommit={onCommitH}
@@ -152,7 +152,7 @@ export function GridPanel({
             numericMode="int"
             label="Grid line opacity percent"
             labelVisuallyHidden
-            iconStart={<Percent aria-hidden="true" strokeWidth={1} />}
+            iconStart={<Percent aria-hidden="true" />}
             value={computedOpacity}
             onCommit={onCommitOpacity}
             disabled={controlsDisabled}
