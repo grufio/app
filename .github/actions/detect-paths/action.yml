@@ -24,11 +24,10 @@ description: Compute path-category flags for the current PR/push.
 
 inputs:
   base-ref:
-    description: |
-      Base ref to diff against. For PRs pass
-      `${{ github.event.pull_request.base.ref }}` (e.g. "main"); we
-      prefix with `origin/` internally. Leave empty for push mode —
-      diffs against HEAD~1.
+    description: >-
+      Base ref to diff against. For PRs pass the PR base ref (e.g.
+      "main") — the action prefixes with "origin/" internally. Leave
+      empty for push mode — diffs against HEAD~1.
     required: false
     default: ''
 
