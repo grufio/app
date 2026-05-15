@@ -113,6 +113,16 @@
   [role="button"][aria-disabled="true"] {
     cursor: not-allowed;
   }
+  /*
+   * Lucide-Icons rendern per Default mit stroke-width 2. App-weit wird
+   * 1px-Stroke verwendet — hier global setzen, damit Per-Icon-`strokeWidth={1}`
+   * Props entfallen können und shadcn-Primitives (Dialog-X, Select-Chevron,
+   * Checkbox-Check usw.) automatisch mitziehen. Sonder-Werte über
+   * Tailwind-Utilities (`stroke-[1.5]`) im utilities-Layer überschreiben.
+   */
+  svg.lucide {
+    stroke-width: 1;
+  }
 }
 
 /*

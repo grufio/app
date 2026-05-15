@@ -179,7 +179,7 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
                       numericMode="int"
                       label="Page background opacity percent"
                       labelVisuallyHidden
-                      iconStart={<Percent aria-hidden="true" strokeWidth={1} />}
+                      iconStart={<Percent aria-hidden="true" />}
                       value={String(pageBgOpacity)}
                       onCommit={(next) => {
                         const n = Number(next)
@@ -196,9 +196,9 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
                         onClick={() => onPageBgEnabledChange(!pageBgEnabled)}
                       >
                         {pageBgEnabled ? (
-                          <Eye className="size-4" strokeWidth={1} />
+                          <Eye className="size-4" />
                         ) : (
-                          <EyeOff className="size-4" strokeWidth={1} />
+                          <EyeOff className="size-4" />
                         )}
                       </RightPanelToggleIconButton>
                     </PanelIconSlot>

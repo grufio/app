@@ -86,7 +86,7 @@ export function FormPrimitivesDemoClient() {
               variant="numeric"
               label="N"
               labelVisuallyHidden
-              iconStart={<Ruler aria-hidden="true" strokeWidth={1} />}
+              iconStart={<Ruler aria-hidden="true" />}
               unit="px"
               value={num}
               onCommit={setNum}
@@ -136,7 +136,7 @@ export function FormPrimitivesDemoClient() {
               variant="numeric"
               label="N"
               labelVisuallyHidden
-              iconStart={<Hash aria-hidden="true" strokeWidth={1} />}
+              iconStart={<Hash aria-hidden="true" />}
               value={num}
               onCommit={setNum}
             />
@@ -146,7 +146,7 @@ export function FormPrimitivesDemoClient() {
               variant="numeric"
               label="N"
               labelVisuallyHidden
-              iconStart={<Percent aria-hidden="true" strokeWidth={1} />}
+              iconStart={<Percent aria-hidden="true" />}
               unit="%"
               value="42"
               onCommit={noop}
@@ -157,7 +157,7 @@ export function FormPrimitivesDemoClient() {
               variant="numeric"
               label="N"
               labelVisuallyHidden
-              iconStart={<Ruler aria-hidden="true" strokeWidth={1} />}
+              iconStart={<Ruler aria-hidden="true" />}
               unit="cm"
               value={num}
               onCommit={setNum}
@@ -275,7 +275,7 @@ export function FormPrimitivesDemoClient() {
           <Cell label="AppInput in FieldGroup with addon">
             <AppFieldGroup>
               <AppFieldGroupAddon align="inline-start" aria-hidden="true">
-                <Hash strokeWidth={1} />
+                <Hash />
               </AppFieldGroupAddon>
               <AppInput defaultValue="grouped" className="rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0" />
             </AppFieldGroup>

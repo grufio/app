@@ -202,7 +202,7 @@ export function ImageSizeInputs({
             })
           }}
         >
-          {lockAspect ? <Link2 className="size-4" strokeWidth={1} /> : <Unlink2 className="size-4" strokeWidth={1} />}
+          {lockAspect ? <Link2 className="size-4" /> : <Unlink2 className="size-4" />}
         </RightPanelToggleIconButton>
       </PanelIconSlot>
     </PanelTwoFieldRow>

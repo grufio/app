@@ -61,7 +61,7 @@ export function TraceSidebarSection(props: {
         {trace ? (
           <SidebarMenuItem>
             <SidebarMenuButton isActive className="text-xs font-medium">
-              <ScanLine strokeWidth={1} />
+              <ScanLine />
               <span>{traceLabel(trace.kind)}</span>
             </SidebarMenuButton>
             <SidebarMenuActions>
@@ -71,18 +71,18 @@ export function TraceSidebarSection(props: {
                 disabled={isClearingTrace}
                 onClick={onClearTrace}
               >
-                <Trash2 strokeWidth={1} />
+                <Trash2 />
               </SidebarMenuAction>
             </SidebarMenuActions>
           </SidebarMenuItem>
         ) : (
           <SidebarMenuItem>
             <SidebarMenuButton className="text-xs font-medium" disabled>
-              <ScanLine strokeWidth={1} />
+              <ScanLine />
               <span>New Trace</span>
             </SidebarMenuButton>
             <SidebarMenuAction aria-label="Add trace" disabled={isAddTraceDisabled} onClick={onOpenSelection}>
-              <Plus strokeWidth={1} />
+              <Plus />
             </SidebarMenuAction>
           </SidebarMenuItem>
         )}

@@ -100,7 +100,7 @@ export function GridPanel({
           )}
           onClick={() => onGridVisibleChange(!gridVisible)}
         >
-          {gridVisible ? <Eye className="size-4" strokeWidth={1} /> : <EyeOff className="size-4" strokeWidth={1} />}
+          {gridVisible ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
         </AppButton>
       }
     >
