@@ -1,0 +1,127 @@
+## Single source of truth for path-based CI/Deploy job gating.
+#
+# Replaces three previously-divergent inline detection blocks
+# (ci.yml, deploy.yml, deploy-filter-service.yml). Add new bucketed
+# paths here, not in individual workflow files.
+#
+# Output booleans (`'true'`/`'false'` strings) are consumed via
+# `needs.<job>.outputs.has_*` in the calling workflows.
+#
+# Categories:
+#   has_frontend         UI primitives, pages, Tailwind, e2e Playwright
+#   has_backend          API routes, services, supabase helpers, integration tests, configs
+#   has_db               Supabase migrations, db/schema.sql, generated types
+#   has_filter_service   Python Cloud-Run service
+#   has_ci               .github/, scripts/
+#   has_other            Catch-all: file matched no category and isn't a doc.
+#                        Conservative fallback — triggers integration + e2e.
+#
+# Doc-only files (^docs/, CLAUDE.md, README.md, *.md) are explicitly
+# ignored — neither classified nor counted as `has_other`.
+
+name: Detect Paths
+description: Compute path-category flags for the current PR/push.
+
+inputs:
+  base-ref:
+    description: |
+      Base ref to diff against. For PRs pass
+      `${{ github.event.pull_request.base.ref }}` (e.g. "main"); we
+      prefix with `origin/` internally. Leave empty for push mode —
+      diffs against HEAD~1.
+    required: false
+    default: ''
+
+outputs:
+  has_frontend:
+    description: True if changed files include UI/page/CSS/e2e paths.
+    value: ${{ steps.filter.outputs.has_frontend }}
+  has_backend:
+    description: True if changed files include API/services/integration/config paths.
+    value: ${{ steps.filter.outputs.has_backend }}
+  has_db:
+    description: True if changed files include Supabase migrations or schema.
+    value: ${{ steps.filter.outputs.has_db }}
+  has_filter_service:
+    description: True if changed files are in filter-service/.
+    value: ${{ steps.filter.outputs.has_filter_service }}
+  has_ci:
+    description: True if changed files are in .github/ or scripts/.
+    value: ${{ steps.filter.outputs.has_ci }}
+  has_other:
+    description: True if non-doc files matched no category — safety net.
+    value: ${{ steps.filter.outputs.has_other }}
+
+runs:
+  using: composite
+  steps:
+    - id: filter
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        BASE_INPUT="${{ inputs.base-ref }}"
+        if [ -n "$BASE_INPUT" ]; then
+          DIFF_RANGE="origin/${BASE_INPUT}..HEAD"
+        else
+          DIFF_RANGE="HEAD~1..HEAD"
+        fi
+
+        if FILES=$(git diff --name-only "$DIFF_RANGE" 2>/dev/null); then
+          echo "Comparing against $DIFF_RANGE"
+        else
+          echo "::warning::could not diff against $DIFF_RANGE — treating all tracked files as changed"
+          FILES=$(git ls-files)
+        fi
+
+        echo "Changed files:"
+        if [ -z "$FILES" ]; then
+          echo "  (none)"
+        else
+          echo "$FILES" | sed 's/^/  /'
+        fi
+        echo "---"
+
+        # Doc-only paths: explicitly ignored. Neither classified nor
+        # counted as has_other.
+        IGNORE_RE='^docs/|^CLAUDE\.md$|^README\.md$|\.md$'
+
+        # Per-category regexes. Mirror docs/domains/ci-deploy.md.
+        FRONTEND_RE='^components/|^features/|^app/dashboard/|^app/dev/|^app/login/|^app/projects/|^app/.+\.(tsx|css)$|^lib/forms/|^lib/ui/|^lib/dialog/|^e2e/'
+        BACKEND_RE='^app/api/|^app/auth/|^services/|^lib/api/|^lib/auth/|^lib/editor/|^lib/images/|^lib/monitoring/|^lib/storage/|^lib/supabase/|^lib/test/|^lib/types/|^lib/utils/|^tests/integration/|^package(-lock)?\.json$|^[^/]+\.config\.(ts|mjs)$|^tsconfig.*\.json$'
+        DB_RE='^supabase/migrations/|^supabase/config\.toml$|^db/|^lib/supabase/database\.types\.ts$'
+        FILTER_SERVICE_RE='^filter-service/'
+        CI_RE='^\.github/|^scripts/'
+
+        match() { [ -n "$FILES" ] && echo "$FILES" | grep -qE "$1"; }
+
+        has_frontend=false;       match "$FRONTEND_RE"        && has_frontend=true
+        has_backend=false;        match "$BACKEND_RE"         && has_backend=true
+        has_db=false;             match "$DB_RE"              && has_db=true
+        has_filter_service=false; match "$FILTER_SERVICE_RE"  && has_filter_service=true
+        has_ci=false;             match "$CI_RE"              && has_ci=true
+
+        # has_other = file matched neither IGNORE nor any category.
+        # Surface as a warning so we can extend the regex.
+        union_re="${IGNORE_RE}|${FRONTEND_RE}|${BACKEND_RE}|${DB_RE}|${FILTER_SERVICE_RE}|${CI_RE}"
+        unclassified=""
+        if [ -n "$FILES" ]; then
+          unclassified=$(echo "$FILES" | grep -vE "$union_re" || true)
+        fi
+        has_other=false
+        if [ -n "$unclassified" ]; then
+          has_other=true
+          echo "::warning::Unclassified files (add to a category in .github/actions/detect-paths/action.yml):"
+          echo "$unclassified" | sed 's/^/  /'
+        fi
+
+        {
+          echo "has_frontend=$has_frontend"
+          echo "has_backend=$has_backend"
+          echo "has_db=$has_db"
+          echo "has_filter_service=$has_filter_service"
+          echo "has_ci=$has_ci"
+          echo "has_other=$has_other"
+        } >> "$GITHUB_OUTPUT"
+
+        echo "Outputs: frontend=$has_frontend backend=$has_backend db=$has_db filter_service=$has_filter_service ci=$has_ci other=$has_other"

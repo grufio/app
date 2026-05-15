@@ -118,10 +118,14 @@ refactor. Save your future self the bruise.
   <their-files>` for anything not yours.
 - **No external path-filter actions.** `dorny/paths-filter@v3` had
   a negation-pattern semantic (`!file`) that matched everything,
-  not "everything except". The `detect` job in `ci.yml` and
-  `deploy.yml` use direct `git diff --name-only` against the PR
-  base / `HEAD~1`. New path category? Extend the regex; don't pull
-  in another action.
+  not "everything except". Detection lives in a single composite
+  action: [.github/actions/detect-paths/](.github/actions/detect-paths/).
+  Both `ci.yml` and `deploy.yml` consume the same `has_frontend`,
+  `has_backend`, `has_db`, `has_filter_service`, `has_ci`,
+  `has_other` outputs. New path category? Extend the regex in the
+  composite action (one place) and update the gates in the
+  consuming workflows; don't pull in another action and don't
+  re-add inline detect blocks.
 - **`actions/checkout@v5` needs `fetch-depth: 0`** in any job that
   diffs against the PR base — the default depth-1 clone has no
   base history.

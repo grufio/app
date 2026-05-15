@@ -42,7 +42,8 @@ from inheriting fragile work that should have been a fast unit test.
   selected via Playwright `--grep` patterns from
   [package.json](../../package.json). The PR `e2e` job runs `smoke:`;
   the PR `e2e_visual` job runs `forms.visual.spec.ts` (gated on
-  `has_ui` paths).
+  `has_frontend` paths — see [domains/ci-deploy.md](ci-deploy.md)
+  for the full category list).
 - **Integration test fixtures** are seed-then-cleanup, not shared.
   See [tests/integration/_setup.ts](../../tests/integration/_setup.ts):
   `seedProject({ ownerId? })` + matching `cleanupProject(id)`.

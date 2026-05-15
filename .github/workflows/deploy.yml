@@ -43,13 +43,24 @@ jobs:
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
     outputs:
-      has-migrations: ${{ steps.diff.outputs.has-migrations }}
-      detect-reason: ${{ steps.diff.outputs.reason }}
+      has-migrations:     ${{ steps.diff.outputs.has-migrations }}
+      detect-reason:      ${{ steps.diff.outputs.reason }}
+      has_frontend:       ${{ steps.paths.outputs.has_frontend }}
+      has_backend:        ${{ steps.paths.outputs.has_backend }}
+      has_filter_service: ${{ steps.paths.outputs.has_filter_service }}
+      has_other:          ${{ steps.paths.outputs.has_other }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
         with:
           fetch-depth: 2
+
+      # Path categories for the frontend-only-vs-skip decision (Vercel
+      # hook gating). Orthogonal to the Supabase-CLI pending-migration
+      # check below — that one fires on outstanding-prod-state, this
+      # one decides whether the Vercel build is even needed.
+      - id: paths
+        uses: ./.github/actions/detect-paths
 
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
@@ -220,8 +231,16 @@ jobs:
           curl -fsSL -X POST -H 'Content-Type: application/json' -d "$payload" "$WEBHOOK" || true
 
   frontend-only:
+    # Triggers the Vercel hook when this push has no migrations but
+    # does touch frontend/backend code (or unclassified paths). Skips
+    # for filter-service-only or doc-only pushes — Vercel doesn't
+    # rebuild for either.
     needs: detect
-    if: needs.detect.outputs.has-migrations == 'false'
+    if: |
+      needs.detect.outputs.has-migrations == 'false' &&
+      (needs.detect.outputs.has_frontend == 'true' ||
+       needs.detect.outputs.has_backend == 'true' ||
+       needs.detect.outputs.has_other == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
