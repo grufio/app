@@ -25,19 +25,25 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # detect inspects which paths a PR/push touches and exposes the result
-  # so downstream jobs can opt out for irrelevant changes. lint_test
+  # detect inspects which paths a PR touches and exposes the result so
+  # downstream jobs can opt out for irrelevant changes. lint_test
   # always runs (markdown sanity, license/Co-Authored-By, etc.); the
-  # heavier integration/e2e/remote_verify only fire when the change
-  # touches code, DB, or both.
+  # heavier integration/e2e/remote_verify only fire when their
+  # specific path categories are touched.
+  #
+  # Path detection is delegated to a composite action that's also
+  # consumed by deploy.yml, so the regex lives in exactly one place:
+  # `.github/actions/detect-paths/action.yml`.
   detect:
     runs-on: ubuntu-latest
     timeout-minutes: 2
     outputs:
-      has_code: ${{ steps.filter.outputs.has_code }}
-      has_db:   ${{ steps.filter.outputs.has_db }}
-      has_ci:   ${{ steps.filter.outputs.has_ci }}
-      has_ui:   ${{ steps.filter.outputs.has_ui }}
+      has_frontend:       ${{ steps.filter.outputs.has_frontend }}
+      has_backend:        ${{ steps.filter.outputs.has_backend }}
+      has_db:             ${{ steps.filter.outputs.has_db }}
+      has_filter_service: ${{ steps.filter.outputs.has_filter_service }}
+      has_ci:             ${{ steps.filter.outputs.has_ci }}
+      has_other:          ${{ steps.filter.outputs.has_other }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -45,39 +51,9 @@ jobs:
           fetch-depth: 0
 
       - id: filter
-        name: Compute changed-path flags via git diff
-        run: |
-          set -euo pipefail
-
-          BASE="origin/${{ github.event.pull_request.base.ref }}"
-
-          if FILES=$(git diff --name-only "$BASE..HEAD" 2>/dev/null); then
-            echo "Comparing against $BASE"
-          else
-            echo "::warning::could not diff against $BASE — treating all files as changed"
-            FILES=$(git ls-files)
-          fi
-
-          echo "Changed files:"
-          echo "$FILES" | sed 's/^/  /'
-          echo "---"
-
-          # A category matches if any line of $FILES matches the regex.
-          match() { echo "$FILES" | grep -qE "$1"; }
-
-          has_db=false;   match '^supabase/migrations/|^supabase/config\.toml$|^db/|^lib/supabase/database\.types\.ts$' && has_db=true
-          has_ci=false;   match '^\.github/|^scripts/'                                                            && has_ci=true
-          has_ui=false;   match '^components/|^features/|^app/.+\.tsx$|^app/.+\.css$|^lib/forms/|^lib/ui/'        && has_ui=true
-          has_code=false; match '^app/|^lib/|^services/|^features/|^components/|^tests/|^e2e/|^package.*\.json$|^[^/]+\.config\.(ts|mjs)$' && has_code=true
-
-          {
-            echo "has_db=$has_db"
-            echo "has_ci=$has_ci"
-            echo "has_ui=$has_ui"
-            echo "has_code=$has_code"
-          } >> "$GITHUB_OUTPUT"
-
-          echo "Outputs: db=$has_db ci=$has_ci ui=$has_ui code=$has_code"
+        uses: ./.github/actions/detect-paths
+        with:
+          base-ref: ${{ github.event.pull_request.base.ref }}
 
   lint_test:
     runs-on: ubuntu-latest
@@ -163,9 +139,10 @@ jobs:
 
   integration:
     # Integration tests exercise real code paths against a local Supabase.
-    # Skipped when neither code nor DB changes (pure docs/CI PRs).
+    # Fires when backend/API/services or DB changes; `has_other` is the
+    # conservative fallback when a file matches no category.
     needs: detect
-    if: needs.detect.outputs.has_code == 'true' || needs.detect.outputs.has_db == 'true'
+    if: needs.detect.outputs.has_backend == 'true' || needs.detect.outputs.has_db == 'true' || needs.detect.outputs.has_other == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Free disk space
@@ -248,9 +225,10 @@ jobs:
   e2e:
     # Playwright runs against a real webserver build. Skipped when only
     # docs/CI/DB-migrations change; e2e signals are tied to user-visible
-    # behaviour which only frontend code can affect.
+    # behaviour which any frontend or backend change can affect.
+    # `has_other` is the conservative fallback for unclassified paths.
     needs: detect
-    if: needs.detect.outputs.has_code == 'true'
+    if: needs.detect.outputs.has_frontend == 'true' || needs.detect.outputs.has_backend == 'true' || needs.detect.outputs.has_other == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -304,11 +282,11 @@ jobs:
           retention-days: 30
 
   # Visual-regression Playwright run (forms.visual.spec.ts). Path-gated
-  # on `ui` so pure logic/services PRs skip it. Replaces the manual visual
-  # step that used to live in pre-release.yml.
+  # on `frontend` so pure logic/services PRs skip it. Replaces the manual
+  # visual step that used to live in pre-release.yml.
   e2e_visual:
     needs: detect
-    if: needs.detect.outputs.has_ui == 'true'
+    if: needs.detect.outputs.has_frontend == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

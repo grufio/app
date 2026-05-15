@@ -24,16 +24,44 @@ in ~6 min.
 - [scripts/](../../scripts/) — gate scripts (`verify-rls.mjs`,
   `verify-schema-drift.mjs`, `check-db-schema.mjs`, etc.).
 
-## Path-dispatch matrix (ci.yml)
+## Path-dispatch matrix
+
+Path detection is delegated to a single composite action:
+[.github/actions/detect-paths/action.yml](../../.github/actions/detect-paths/action.yml).
+Both `ci.yml` and `deploy.yml` consume the same `has_*` outputs, so
+new path categories are added in one place.
+
+### Categories (composite action outputs)
+
+| Flag | Matches |
+|---|---|
+| `has_frontend` | `components/`, `features/`, `app/{dashboard,dev,login,projects}/`, `app/*.{tsx,css}`, `lib/{forms,ui,dialog}/`, `e2e/` |
+| `has_backend` | `app/{api,auth}/`, `services/`, `lib/{api,auth,editor,images,monitoring,storage,supabase,test,types,utils}/`, `tests/integration/`, root `package*.json`, `*.config.{ts,mjs}`, `tsconfig*.json` |
+| `has_db` | `supabase/{migrations/,config.toml}`, `db/`, `lib/supabase/database.types.ts` |
+| `has_filter_service` | `filter-service/` |
+| `has_ci` | `.github/`, `scripts/` |
+| `has_other` | Catch-all for non-doc files matching no category — fires integration + e2e conservatively. Surfaces a warning so the category list can be extended. |
+
+Doc-only changes (`docs/`, `CLAUDE.md`, `README.md`, `*.md`) are
+explicitly ignored — they neither classify nor count as `has_other`.
+
+### Job gates
 
 | Job | Triggers when |
 |---|---|
 | `detect` | always |
 | `lint_test` | always (smoke gate) |
 | `remote_verify` | `has_db` (and non-fork) |
-| `integration` | `has_code` OR `has_db` |
-| `e2e` | `has_code` |
-| `e2e_visual` | `has_ui` (forms/components/features/.tsx/.css/lib/forms/lib/ui) |
+| `integration` | `has_backend` OR `has_db` OR `has_other` |
+| `e2e` | `has_frontend` OR `has_backend` OR `has_other` |
+| `e2e_visual` | `has_frontend` |
+
+### deploy.yml Vercel-hook gate
+
+The `frontend-only` job (which fires the Vercel deploy hook on
+no-migration pushes) requires `has_frontend OR has_backend OR
+has_other`. Filter-service-only or doc-only pushes skip Vercel —
+neither rebuilds the Next.js app.
 
 ## Key facts
 
