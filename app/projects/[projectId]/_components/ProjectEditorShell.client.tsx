@@ -268,8 +268,10 @@ export function ProjectDetailPageClient({
       await deleteMasterImageWithCascade(projectId)
       setDeleteOpen(false)
       clearImageTxU()
-      await refreshProjectImages()
-      await workflow.refreshAndWait()
+      // refreshProjectImages and workflow.refreshAndWait fetch
+      // independent stores — run in parallel so the spinner closes
+      // as soon as the slower of the two finishes, not their sum.
+      await Promise.all([refreshProjectImages(), workflow.refreshAndWait()])
     } catch (e) {
       setDeleteError(e instanceof Error ? e.message : "Failed to delete image")
     }

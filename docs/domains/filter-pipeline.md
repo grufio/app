@@ -29,6 +29,11 @@ work.
   — server-side stack management, dispatches to filter-service.
 - [services/editor/server/filter-working-copy.ts](../../services/editor/server/filter-working-copy.ts)
   — manages the `filter_working_copy` image rows.
+- [services/editor/server/working-copy/ensure.ts](../../services/editor/server/working-copy/ensure.ts)
+  — lazy `working_copy` creation. Master upload no longer
+  auto-creates a working_copy; the filter-apply path calls
+  `ensureWorkingCopyExists()` first, which server-side copies
+  from the master via `storage.copy()`.
 - [filter-service/](../../filter-service/) — Python FastAPI that
   executes filters (vectorised pixelate, etc).
 - API routes: `app/api/projects/[id]/filters/{lineart,pixelate,numerate}/route.ts`

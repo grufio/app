@@ -86,14 +86,20 @@ export async function DELETE(
     arr.push(r.storage_path)
     byBucket.set(bucket, arr)
   }
-  const storageCleanupFailures: Array<{ bucket: string; error: string }> = []
-  for (const [bucket, ps] of byBucket) {
-    if (!ps.length) continue
-    const { error: removeErr } = await supabase.storage.from(bucket).remove(ps)
-    if (removeErr) {
-      storageCleanupFailures.push({ bucket, error: removeErr.message })
-    }
-  }
+  // Storage cleanup across buckets is independent — parallelize with
+  // Promise.all so a multi-bucket project doesn't pay round-trip
+  // latency per bucket.
+  const cleanupResults = await Promise.all(
+    Array.from(byBucket.entries())
+      .filter(([, ps]) => ps.length > 0)
+      .map(async ([bucket, ps]) => {
+        const { error: removeErr } = await supabase.storage.from(bucket).remove(ps)
+        return removeErr ? { bucket, error: removeErr.message } : null
+      })
+  )
+  const storageCleanupFailures: Array<{ bucket: string; error: string }> = cleanupResults.filter(
+    (r): r is { bucket: string; error: string } => r !== null
+  )
   if (storageCleanupFailures.length > 0) {
     console.warn("master-cascade: storage cleanup incomplete", {
       projectId,

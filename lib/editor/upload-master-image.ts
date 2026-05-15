@@ -28,8 +28,12 @@ export async function uploadMasterImageClient(args: {
   fetchImpl?: typeof fetch
 }): Promise<UploadMasterImageResult> {
   const { projectId, file, fetchImpl = fetch } = args
-  const { width, height } = await getImageDimensions(file)
-  const { dpiX, dpiY } = await extractImageDPI(file)
+  // Dimensions and DPI extraction are independent file-parsing tasks;
+  // run them in parallel so the UI thread doesn't wait twice.
+  const [{ width, height }, { dpiX, dpiY }] = await Promise.all([
+    getImageDimensions(file),
+    extractImageDPI(file),
+  ])
   const dpi = Number.isFinite(dpiX) && dpiX > 0 ? Math.round(dpiX) : Number.isFinite(dpiY) && dpiY > 0 ? Math.round(dpiY) : null
   const format = guessImageFormat(file)
 

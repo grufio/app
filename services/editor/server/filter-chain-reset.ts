@@ -70,16 +70,25 @@ export async function resetProjectFilterChain(args: {
 
   if (rowsToTombstone && rowsToTombstone.length > 0) {
     const service = createSupabaseServiceRoleClient()
+    // Group storage paths by bucket so we issue one remove(paths)
+    // call per bucket instead of one per row. Buckets run in parallel.
+    const byBucket = new Map<string, string[]>()
     for (const row of rowsToTombstone) {
       if (!row.storage_path) continue
-      try {
-        await service.storage
-          .from(row.storage_bucket ?? PROJECT_IMAGES_BUCKET)
-          .remove([row.storage_path])
-      } catch {
-        // Best effort. Tombstone is committed — orphan is auditable.
-      }
+      const bucket = row.storage_bucket ?? PROJECT_IMAGES_BUCKET
+      const arr = byBucket.get(bucket) ?? []
+      arr.push(row.storage_path)
+      byBucket.set(bucket, arr)
     }
+    await Promise.all(
+      Array.from(byBucket.entries()).map(async ([bucket, paths]) => {
+        try {
+          await service.storage.from(bucket).remove(paths)
+        } catch {
+          // Best effort. Tombstone is committed — orphan is auditable.
+        }
+      })
+    )
   }
 
   return { ok: true, deletedFilterRows: rows.length, softDeletedOutputs: outputImageIds.length }

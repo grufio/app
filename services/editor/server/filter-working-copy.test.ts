@@ -173,8 +173,11 @@ describe("getOrCreateFilterWorkingCopy", () => {
     expect(setup.insertedRows).toHaveLength(1)
   })
 
-  it("returns not found when no active image exists", async () => {
-    getEditorTargetImageRowMock.mockResolvedValueOnce({ row: null, error: null })
+  it("returns not found when neither working_copy nor master exists", async () => {
+    // Lazy working-copy: when preferredWorking is null, the function
+    // tries to materialise one from the master. If no master either,
+    // the no_master path bubbles up as no_active_image.
+    getEditorTargetImageRowMock.mockResolvedValue({ row: null, error: null })
     const setup = makeSupabase({ copies: [] })
 
     const result = await getOrCreateFilterWorkingCopy({ supabase: setup.supabase, projectId })
@@ -182,7 +185,7 @@ describe("getOrCreateFilterWorkingCopy", () => {
     expect(result.ok).toBe(false)
     if (!result.ok) {
       expect(result.stage).toBe("no_active_image")
-      expect(result.reason).toBe("Active image not found")
+      expect(result.reason).toMatch(/no master image/i)
     }
   })
 })
