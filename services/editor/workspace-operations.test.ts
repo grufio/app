@@ -6,10 +6,8 @@ import { describe, expect, it } from "vitest"
 import type { WorkspaceRow } from "./workspace/types"
 import {
   computeLockedDimension,
-  computeWorkspaceDpiChange,
   computeWorkspaceSizeSave,
   computeWorkspaceUnitChange,
-  mapDpiToRasterPreset,
   normalizeUnit,
   pxFromPxU,
 } from "./workspace-operations"
@@ -20,13 +18,6 @@ describe("workspace-operations", () => {
     expect(normalizeUnit("mm")).toBe("mm")
     expect(normalizeUnit("nope")).toBe("cm")
     expect(normalizeUnit(undefined)).toBe("cm")
-  })
-
-  it("mapDpiToRasterPreset maps exact presets only", () => {
-    expect(mapDpiToRasterPreset(300)).toBe("high")
-    expect(mapDpiToRasterPreset(150)).toBe("medium")
-    expect(mapDpiToRasterPreset(72)).toBe("low")
-    expect(mapDpiToRasterPreset(299)).toBe(null)
   })
 
   it("computeLockedDimension uses ratio w/h", () => {
@@ -47,12 +38,10 @@ describe("workspace-operations", () => {
       unit: "cm",
       width_value: 20,
       height_value: 30,
-      output_dpi: 300,
       width_px_u: "0",
       height_px_u: "0",
       width_px: 1,
       height_px: 1,
-      raster_effects_preset: "high",
     }
 
     const r1 = computeWorkspaceSizeSave({ base, draftW: "200", draftH: "300" })
@@ -67,61 +56,39 @@ describe("workspace-operations", () => {
     expect(r1.next.height_px).toBe(300)
   })
 
-  it("computeWorkspaceSizeSave preserves output dpi field", () => {
-    const base: WorkspaceRow = {
-      project_id: "p",
-      unit: "cm",
-      width_value: 20,
-      height_value: 30,
-      output_dpi: 150,
-      width_px_u: "0",
-      height_px_u: "0",
-      width_px: 1,
-      height_px: 1,
-      raster_effects_preset: "medium",
-    }
-
-    const out = computeWorkspaceSizeSave({ base, draftW: "20", draftH: "30" })
-    if ("error" in out) throw new Error("expected ok")
-    expect(out.next.output_dpi).toBe(150)
-  })
-
   it("computeWorkspaceSizeSave rejects out-of-range geometry", () => {
     const base: WorkspaceRow = {
       project_id: "p",
       unit: "px",
       width_value: 20,
       height_value: 30,
-      output_dpi: 150,
       width_px_u: "0",
       height_px_u: "0",
       width_px: 1,
       height_px: 1,
-      raster_effects_preset: "medium",
     }
     const out = computeWorkspaceSizeSave({ base, draftW: "40000", draftH: "300" })
     expect("error" in out ? out.error : "").toBe("Size out of supported range")
   })
 
   it("computeWorkspaceUnitChange preserves canonical geometry", () => {
+    const widthPxU = unitToPxUFixed("200", "mm")
+    const heightPxU = unitToPxUFixed("100", "mm")
     const base: WorkspaceRow = {
       project_id: "p",
       unit: "mm",
       width_value: 200,
       height_value: 100,
-      output_dpi: 150,
-      width_px_u: "11811023622",
-      height_px_u: "5905511811",
-      width_px: 1181,
-      height_px: 591,
-      raster_effects_preset: "medium",
+      width_px_u: widthPxU.toString(),
+      height_px_u: heightPxU.toString(),
+      width_px: 567,
+      height_px: 283,
     }
 
     const out = computeWorkspaceUnitChange({ base, nextUnit: "cm" })
     expect(out.next.unit).toBe("cm")
     expect(out.next.width_px_u).toBe(base.width_px_u)
     expect(out.next.height_px_u).toBe(base.height_px_u)
-    expect(out.next.output_dpi).toBe(base.output_dpi)
   })
 
   it("computeWorkspaceUnitChange derives display values from canonical px_u (no cumulative drift)", () => {
@@ -132,42 +99,14 @@ describe("workspace-operations", () => {
       unit: "mm",
       width_value: 200,
       height_value: 100,
-      output_dpi: 150,
       width_px_u: widthPxU.toString(),
       height_px_u: heightPxU.toString(),
-      width_px: 1181,
-      height_px: 591,
-      raster_effects_preset: "medium",
+      width_px: 567,
+      height_px: 283,
     }
     const toCm = computeWorkspaceUnitChange({ base, nextUnit: "cm" })
     const backToMm = computeWorkspaceUnitChange({ base: { ...toCm.next, unit: "cm" }, nextUnit: "mm" })
     expect(String(backToMm.next.width_value)).toBe("200")
     expect(String(backToMm.next.height_value)).toBe("100")
   })
-
-  it("computeWorkspaceDpiChange preserves canonical geometry", () => {
-    const base: WorkspaceRow = {
-      project_id: "p",
-      unit: "mm",
-      width_value: 200,
-      height_value: 100,
-      output_dpi: 150,
-      width_px_u: "11811023622",
-      height_px_u: "5905511811",
-      width_px: 1181,
-      height_px: 591,
-      raster_effects_preset: "medium",
-    }
-
-    const out = computeWorkspaceDpiChange({ base, nextDpi: 300, nextPreset: "high" })
-    expect(out.next.output_dpi).toBe(300)
-    expect(out.next.raster_effects_preset).toBe("high")
-    expect(out.next.width_px_u).toBe(base.width_px_u)
-    expect(out.next.height_px_u).toBe(base.height_px_u)
-    expect(out.next.width_px).toBe(base.width_px)
-    expect(out.next.height_px).toBe(base.height_px)
-    expect(out.next.width_value).toBe(base.width_value)
-    expect(out.next.height_value).toBe(base.height_value)
-  })
 })
-

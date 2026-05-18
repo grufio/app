@@ -295,7 +295,6 @@ export type ProjectWorkspacePlacementRow = {
   height_px_u?: string | null
   width_px?: number | null
   height_px?: number | null
-  output_dpi?: number | null
 }
 
 export async function getProjectWorkspacePlacementRow(
@@ -304,7 +303,7 @@ export async function getProjectWorkspacePlacementRow(
 ): Promise<{ row: ProjectWorkspacePlacementRow | null; error: null } | { row: null; error: { reason: string; code?: string } }> {
   const { data, error } = await supabase
     .from("project_workspace")
-    .select("width_px_u,height_px_u,width_px,height_px,output_dpi")
+    .select("width_px_u,height_px_u,width_px,height_px")
     .eq("project_id", projectId)
     .maybeSingle()
 

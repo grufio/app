@@ -285,15 +285,12 @@ test.skip("image size: setting 100mm survives reload (no drift)", async ({ page 
     withImage: true,
     workspace: {
       unit: "mm",
-      // Non-300 DPI regression guard: 200mm at 150 dpi.
       width_value: 200,
       height_value: 200,
-      output_dpi: 150,
       width_px_u: unitToPxUFixed("200", "mm").toString(),
       height_px_u: unitToPxUFixed("200", "mm").toString(),
       width_px: clampPx(pxUToPxNumber(unitToPxUFixed("200", "mm"))),
       height_px: clampPx(pxUToPxNumber(unitToPxUFixed("200", "mm"))),
-      raster_effects_preset: "medium",
     },
   })
 
@@ -389,12 +386,10 @@ test.skip("image transform chain: resize + rotate + drag persists", async ({ pag
       unit: "mm",
       width_value: 200,
       height_value: 200,
-      output_dpi: 300,
       width_px_u: unitToPxUFixed("200", "mm").toString(),
       height_px_u: unitToPxUFixed("200", "mm").toString(),
       width_px: clampPx(pxUToPxNumber(unitToPxUFixed("200", "mm"))),
       height_px: clampPx(pxUToPxNumber(unitToPxUFixed("200", "mm"))),
-      raster_effects_preset: "high",
     },
   })
 
@@ -519,90 +514,6 @@ test.skip("image transform chain: resize + rotate + drag persists", async ({ pag
   await expect(page.getByLabel("Image height (mm)")).toHaveValue("120")
 })
 
-test.skip("workspace: DPI-only save keeps canonical artboard geometry stable", async ({ page }) => {
-  await page.setExtraHTTPHeaders({ "x-e2e-test": "1", "x-e2e-user": "1" })
-
-  await setupMockRoutes(page, {
-    withImage: true,
-    workspace: {
-      unit: "mm",
-      width_value: 200,
-      height_value: 200,
-      output_dpi: 150,
-      width_px_u: unitToPxUFixed("200", "mm").toString(),
-      height_px_u: unitToPxUFixed("200", "mm").toString(),
-      width_px: clampPx(pxUToPxNumber(unitToPxUFixed("200", "mm"))),
-      height_px: clampPx(pxUToPxNumber(unitToPxUFixed("200", "mm"))),
-      raster_effects_preset: "medium",
-    },
-  })
-
-  let workspaceRow = {
-    project_id: PROJECT_ID,
-    unit: "mm" as const,
-    width_value: 200,
-    height_value: 200,
-    output_dpi: 150,
-    width_px_u: unitToPxUFixed("200", "mm").toString(),
-    height_px_u: unitToPxUFixed("200", "mm").toString(),
-    width_px: clampPx(pxUToPxNumber(unitToPxUFixed("200", "mm"))),
-    height_px: clampPx(pxUToPxNumber(unitToPxUFixed("200", "mm"))),
-    raster_effects_preset: "medium" as "medium" | "high" | "low" | "custom",
-    page_bg_enabled: false,
-    page_bg_color: "#ffffff",
-    page_bg_opacity: 50,
-  }
-  let lastDpiWriteKeys: string[] = []
-
-  // Stateful workspace mock with trigger-like semantics for project_workspace upserts.
-  await page.route("**/rest/v1/project_workspace**", async (route) => {
-    const req = route.request()
-    if (req.method() === "GET") {
-      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(workspaceRow) })
-    }
-    if (req.method() === "POST" || req.method() === "PATCH") {
-      const body = (await req.postDataJSON()) as Partial<typeof workspaceRow>
-      const bodyKeys = Object.keys(body)
-      if (bodyKeys.includes("output_dpi")) {
-        lastDpiWriteKeys = bodyKeys
-      }
-      const prev = workspaceRow
-      const next = { ...workspaceRow, ...body }
-
-      if (next.width_value !== prev.width_value || next.height_value !== prev.height_value) {
-        next.width_px_u = unitToPxUFixed(String(next.width_value), next.unit).toString()
-        next.height_px_u = unitToPxUFixed(String(next.height_value), next.unit).toString()
-      } else {
-        next.width_px_u = prev.width_px_u
-        next.height_px_u = prev.height_px_u
-      }
-      next.width_px = clampPx(pxUToPxNumber(BigInt(next.width_px_u)))
-      next.height_px = clampPx(pxUToPxNumber(BigInt(next.height_px_u)))
-
-      workspaceRow = next
-      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(workspaceRow) })
-    }
-    return route.fallback()
-  })
-
-  await page.goto(`/projects/${PROJECT_ID}`)
-
-  const beforeWidthPxU = workspaceRow.width_px_u
-  const beforeHeightPxU = workspaceRow.height_px_u
-  const beforeWidthValue = workspaceRow.width_value
-  const beforeHeightValue = workspaceRow.height_value
-
-  await page.getByLabel("Raster effects resolution").click()
-  await page.getByRole("option", { name: "High (300 ppi)" }).click()
-
-  await expect.poll(() => workspaceRow.output_dpi).toBe(300)
-  await expect.poll(() => workspaceRow.width_px_u).toBe(beforeWidthPxU)
-  await expect.poll(() => workspaceRow.height_px_u).toBe(beforeHeightPxU)
-  await expect.poll(() => workspaceRow.width_value).toBe(beforeWidthValue)
-  await expect.poll(() => workspaceRow.height_value).toBe(beforeHeightValue)
-  expect(lastDpiWriteKeys.sort()).toEqual(["output_dpi", "raster_effects_preset"])
-})
-
 test.skip("page background: toggling persists via workspace upsert", async ({ page }) => {
   await page.setExtraHTTPHeaders({ "x-e2e-test": "1", "x-e2e-user": "1" })
   let workspaceUpserts = 0
@@ -613,10 +524,8 @@ test.skip("page background: toggling persists via workspace upsert", async ({ pa
       unit: "mm",
       width_value: 200,
       height_value: 200,
-      output_dpi: 300,
       width_px: 2362.2047,
       height_px: 2362.2047,
-      raster_effects_preset: "high",
       page_bg_enabled: true,
       page_bg_color: "#ffffff",
       page_bg_opacity: 50,

@@ -4,8 +4,11 @@
  * Project workspace (artboard) provider.
  *
  * Responsibilities:
- * - Load and persist `project_workspace` (unit, DPI, canonical µpx size, page background).
+ * - Load and persist `project_workspace` (unit, canonical µpx size, page background).
  * - Expose derived convenience values (px/µpx) for editor components.
+ *
+ * The artboard has no DPI — all conversions use the fixed 1 px = 1/72 inch
+ * mapping (see `lib/editor/units.ts`).
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
 
@@ -18,7 +21,6 @@ import { pxFromPxU } from "@/services/editor/workspace-operations"
 import {
   insertWorkspaceClient,
   selectWorkspaceClient,
-  updateWorkspaceDpiClient,
   updateWorkspaceGeometryClient,
   updateWorkspacePageBgClient,
 } from "@/services/editor/workspace/client"
@@ -61,10 +63,6 @@ type WorkspaceContextValue = {
   saving: boolean
   error: string
   refresh: () => Promise<void>
-  updateWorkspaceDpi: (args: {
-    outputDpi: number
-    rasterEffectsPreset: WorkspaceRow["raster_effects_preset"]
-  }) => Promise<WorkspaceRow | null>
   updateWorkspaceGeometry: (args: {
     unit: WorkspaceRow["unit"]
     widthValue: number
@@ -77,7 +75,6 @@ type WorkspaceContextValue = {
   updateWorkspacePageBg: (args: { enabled: boolean; color: string; opacity: number }) => Promise<WorkspaceRow | null>
   // convenience
   unit: Unit | null
-  dpi: number | null
   widthPxU: bigint | null
   heightPxU: bigint | null
   widthPx: number | null
@@ -116,9 +113,6 @@ export function ProjectWorkspaceProvider({
       width_px_u: (row as unknown as { width_px_u?: unknown }).width_px_u,
       height_px_u: (row as unknown as { height_px_u?: unknown }).height_px_u,
     })
-    // Defer to a microtask so the synchronous setError doesn't run inside
-    // the effect body — the eslint rule react-hooks/set-state-in-effect
-    // is otherwise tripped.
     queueMicrotask(() => {
       setError((prev) => (prev === "Invalid canonical workspace size (µpx)." ? prev : "Invalid canonical workspace size (µpx)."))
     })
@@ -155,37 +149,6 @@ export function ProjectWorkspaceProvider({
       setLoading(false)
     }
   }, [logPrefix, projectId])
-
-  const updateWorkspaceDpi = useCallback(
-    async (args: {
-      outputDpi: number
-      rasterEffectsPreset: WorkspaceRow["raster_effects_preset"]
-    }): Promise<WorkspaceRow | null> => {
-      if (!rowRef.current?.project_id) return null
-      return writeChannelRef.current.enqueueLatestDropStale(async (isStale) => {
-        setSaving(true)
-        setError("")
-        try {
-          const { row: data, error: upErr } = await updateWorkspaceDpiClient({
-            projectId: rowRef.current!.project_id,
-            outputDpi: args.outputDpi,
-            rasterEffectsPreset: args.rasterEffectsPreset,
-          })
-          if (upErr || !data) {
-            if (!isStale()) console.warn(`${logPrefix} save failed`, { op: "dpi", error: upErr })
-            if (!isStale()) setError(mapWorkspacePersistError(upErr))
-            return null
-          }
-          const normalized = normalizeWorkspaceRow(data)
-          if (!isStale()) setRow(normalized)
-          return normalized as unknown as WorkspaceRow
-        } finally {
-          setSaving(false)
-        }
-      })
-    },
-    [logPrefix]
-  )
 
   const updateWorkspaceGeometry = useCallback(
     async (args: {
@@ -278,22 +241,14 @@ export function ProjectWorkspaceProvider({
   )
 
   useEffect(() => {
-    // If server provided initial data, don't refetch on mount.
     if (initialRow?.project_id === projectId) return
-    // Defer to a microtask so refresh's synchronous setLoading/setError
-    // calls run outside the effect body — the eslint rule
-    // react-hooks/set-state-in-effect is otherwise tripped by the
-    // fetch-on-mount pattern.
     queueMicrotask(() => {
       void refresh()
     })
   }, [initialRow?.project_id, projectId, refresh])
 
   const value = useMemo<WorkspaceContextValue>(() => {
-    // `row` is normalized when stored; avoid re-normalizing on every render.
     const unit = row ? (row as unknown as { unit?: Unit }).unit ?? null : null
-    const dpiRaw = row != null ? (row as unknown as { output_dpi?: unknown }).output_dpi : null
-    const dpi = dpiRaw != null && Number.isFinite(Number(dpiRaw)) ? Number(dpiRaw) : null
     const widthPxU = row ? parsePxUOrNull((row as unknown as { width_px_u?: unknown }).width_px_u) : null
     const heightPxU = row ? parsePxUOrNull((row as unknown as { height_px_u?: unknown }).height_px_u) : null
     const widthPx = row && Number.isFinite(Number(row.width_px)) ? Number(row.width_px) : null
@@ -305,17 +260,15 @@ export function ProjectWorkspaceProvider({
       saving,
       error,
       refresh,
-      updateWorkspaceDpi,
       updateWorkspaceGeometry,
       updateWorkspacePageBg,
       unit,
-      dpi,
       widthPxU,
       heightPxU,
       widthPx,
       heightPx,
     }
-  }, [error, loading, projectId, refresh, row, saving, updateWorkspaceDpi, updateWorkspaceGeometry, updateWorkspacePageBg])
+  }, [error, loading, projectId, refresh, row, saving, updateWorkspaceGeometry, updateWorkspacePageBg])
 
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>
 }
@@ -325,4 +278,3 @@ export function useProjectWorkspace() {
   if (!ctx) throw new Error("useProjectWorkspace must be used within ProjectWorkspaceProvider")
   return ctx
 }
-

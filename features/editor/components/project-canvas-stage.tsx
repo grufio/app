@@ -50,7 +50,6 @@ type Props = {
   renderArtboard?: boolean
   artboardWidthPx?: number
   artboardHeightPx?: number
-  artboardDpi?: number
   /**
    * Intrinsic (source) image pixel dimensions from persisted metadata (DB).
    * This must be the canonical source of truth for initial sizing (not DOM layout).
@@ -188,7 +187,6 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     renderArtboard = true,
     artboardWidthPx,
     artboardHeightPx,
-    artboardDpi,
     intrinsicWidthPx,
     intrinsicHeightPx,
     imageDpi,
@@ -442,7 +440,6 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     hasArtboard,
     artW,
     artH,
-    artboardDpi,
     imageDpi,
     intrinsicWidthPx,
     intrinsicHeightPx,
@@ -504,7 +501,6 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   const restoreImageRaw = useRestoreImageController({
     artW,
     artH,
-    artboardDpi,
     restoreBaseSpecRef,
     activeImageId,
     transformControllerRef,

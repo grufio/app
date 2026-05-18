@@ -9,7 +9,7 @@ import { NextResponse } from "next/server"
 
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { isUuid, jsonError, requireUser } from "@/lib/api/route-guards"
-import { computeDpiRelativePlacementPx, placementPxToMicroPx } from "@/lib/editor/image-placement"
+import { computeImagePlacementPx, placementPxToMicroPx } from "@/lib/editor/image-placement"
 import { pxUToPxNumber } from "@/lib/editor/units"
 import { resetProjectFilterChain } from "@/services/editor/server/filter-chain-reset"
 
@@ -89,7 +89,7 @@ export async function POST(
 
   const { data: workspaceRow, error: workspaceErr } = await supabase
     .from("project_workspace")
-    .select("width_px_u,height_px_u,width_px,height_px,output_dpi")
+    .select("width_px_u,height_px_u,width_px,height_px")
     .eq("project_id", projectId)
     .maybeSingle()
   if (workspaceErr) {
@@ -107,12 +107,11 @@ export async function POST(
     return jsonError("Workspace size missing or invalid", 400, { stage: "restore_workspace_invalid_dims" })
   }
 
-  const placement = computeDpiRelativePlacementPx({
+  const placement = computeImagePlacementPx({
     artW,
     artH,
     intrinsicW: Math.max(1, Math.trunc(widthPx)),
     intrinsicH: Math.max(1, Math.trunc(heightPx)),
-    artboardDpi: Number(workspaceRow.output_dpi),
     imageDpi: Number(baseMaster.dpi ?? 0),
   })
   if (!placement) {

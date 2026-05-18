@@ -5,18 +5,14 @@
  *
  * Responsibilities:
  * - Edit workspace unit and artboard dimensions (geometry).
- * - Edit artboard DPI.
  * - Persist changes via `project_workspace` providers.
  *
- * Phase 3.2 of the form-fields unification: width / height inputs are
- * now <FormField variant="numeric">. Aspect-lock uses `onDraftChange`
- * for live binding (typing W updates H draft when locked), `onCommit`
- * for the persist. The lock button + selects cancel pending blur-
- * commits via the imperative `cancelPendingCommit()` handle on each
- * field, replacing the old `ignoreNextBlurSaveRef` pattern.
+ * Note: the artboard has no DPI (Illustrator-style). Internal geometry
+ * uses a fixed 1 px = 1/72 inch mapping; users pick the display unit
+ * (mm/cm/pt/px) for input only.
  */
 import { memo, useCallback, useEffect, useRef, useState } from "react"
-import { ArrowLeftRight, ArrowUpDown, Gauge, Link2, Ruler, Unlink2 } from "lucide-react"
+import { ArrowLeftRight, ArrowUpDown, Link2, Ruler, Unlink2 } from "lucide-react"
 
 import { fmt2, type Unit } from "@/lib/editor/units"
 import { parseNumericInput } from "@/lib/editor/numeric"
@@ -29,28 +25,15 @@ import { PanelIconSlot, PanelTwoFieldRow } from "./panel-layout"
 import { RightPanelToggleIconButton } from "./right-panel-controls"
 import { useProjectWorkspace } from "@/lib/editor/project-workspace"
 import {
-  computeWorkspaceDpiChange,
   computeLockedDimension,
   computeWorkspaceUnitChange,
-  mapDpiToRasterPreset,
   normalizeUnit,
 } from "@/services/editor/workspace-operations"
 import { computeWorkspaceSizeSaveFromDisplay } from "@/services/editor/workspace-unit-controller"
 
-function labelForPreset(p: "high" | "medium" | "low"): string {
-  // Trigger + dropdown both use just the dpi number — the High / Medium /
-  // Low names + parentheses were redundant and made the trigger longer than
-  // the sibling Unit select, breaking the 50/50 grid layout in the
-  // PanelTwoFieldRow.
-  if (p === "high") return "300 ppi"
-  if (p === "medium") return "150 ppi"
-  return "72 ppi"
-}
-
 // Module-level icon JSX so identity stays stable across re-renders. The
 // FormField select variant memoizes on iconStart identity; an inline
-// `<Gauge aria-hidden />` would invalidate the memo every render.
-const ICON_GAUGE = <Gauge aria-hidden="true" />
+// `<Ruler aria-hidden />` would invalidate the memo every render.
 const ICON_RULER = <Ruler aria-hidden="true" />
 const ICON_LR = <ArrowLeftRight aria-hidden="true" />
 const ICON_UD = <ArrowUpDown aria-hidden="true" />
@@ -62,48 +45,21 @@ const UNIT_OPTIONS: ReadonlyArray<SelectFieldOption> = [
   { value: "px", label: "px" },
 ]
 
-const PRESET_OPTIONS_BASE: ReadonlyArray<SelectFieldOption> = [
-  { value: "high", label: labelForPreset("high") },
-  { value: "medium", label: labelForPreset("medium") },
-  { value: "low", label: labelForPreset("low") },
-]
-
-function presetOptions(
-  current: "high" | "medium" | "low" | "custom",
-  outputDpi: number,
-): ReadonlyArray<SelectFieldOption> {
-  if (current !== "custom") return PRESET_OPTIONS_BASE
-  return [
-    ...PRESET_OPTIONS_BASE,
-    { value: "custom", label: `${outputDpi || "?"} ppi` },
-  ]
-}
-
 export const ArtboardPanel = memo(function ArtboardPanel() {
-  const { row, loading, saving, updateWorkspaceDpi, updateWorkspaceGeometry, widthPxU, heightPxU } =
+  const { row, loading, saving, updateWorkspaceGeometry, widthPxU, heightPxU } =
     useProjectWorkspace()
 
   const computedUnit = row ? normalizeUnit((row as unknown as { unit?: unknown })?.unit) : "mm"
-  const computedOutputDpi = row ? Number((row as unknown as { output_dpi?: unknown }).output_dpi) : 300
-  const computedPreset = row
-    ? ((row.raster_effects_preset ??
-        mapDpiToRasterPreset(Number((row as unknown as { output_dpi?: unknown }).output_dpi)) ??
-        "custom") as "high" | "medium" | "low" | "custom")
-    : "high"
   const computedWidth = row ? fmt2(Number(row.width_value)) : ""
   const computedHeight = row ? fmt2(Number(row.height_value)) : ""
 
   // Local drafts only for width / height — aspect-lock has to update the
   // partner field's draft live, which means we need an authoritative
-  // source that lives above the two FormFields. Unit / preset / dpi
-  // commit immediately on selection so they read straight off the row.
+  // source that lives above the two FormFields.
   const [draftWidth, setDraftWidth] = useState(computedWidth)
   const [draftHeight, setDraftHeight] = useState(computedHeight)
   const [lockAspect, setLockAspect] = useState(false)
 
-  // Sync local drafts when upstream changes and we're not editing.
-  // FormField's own draft has the same logic, but we need the upstream
-  // value here for the aspect-lock partner-binding math.
   useEffect(() => {
     setDraftWidth(computedWidth)
   }, [computedWidth])
@@ -149,8 +105,6 @@ export const ArtboardPanel = memo(function ArtboardPanel() {
 
   const onCommitWidth = useCallback(
     (next: string) => {
-      // FormField has already updated its internal draft; mirror it here
-      // so the next aspect-lock partner-update reads the freshest value.
       setDraftWidth(next)
       void saveSize(next, draftHeight)
     },
@@ -197,9 +151,6 @@ export const ArtboardPanel = memo(function ArtboardPanel() {
     [lockAspect, ensureRatio]
   )
 
-  // Cancel pending blur-commit on both fields. Used by the lock toggle
-  // and by select triggers — clicking either implicitly blurs the focused
-  // input, but that blur isn't a user commit.
   const cancelPendingCommits = useCallback(() => {
     widthFieldRef.current?.cancelPendingCommit()
     heightFieldRef.current?.cancelPendingCommit()
@@ -232,27 +183,7 @@ export const ArtboardPanel = memo(function ArtboardPanel() {
     [loading, saving, widthPxU, heightPxU, row, computedUnit, updateWorkspaceGeometry]
   )
 
-  const onPresetChange = useCallback(
-    (next: string) => {
-      if (!row || loading || saving) return
-      if (next !== "high" && next !== "medium" && next !== "low") return
-      const dpi = next === "high" ? 300 : next === "medium" ? 150 : 72
-      const computed = computeWorkspaceDpiChange({ base: row, nextDpi: dpi, nextPreset: next })
-      void updateWorkspaceDpi({
-        outputDpi: computed.next.output_dpi,
-        rasterEffectsPreset: computed.next.raster_effects_preset ?? null,
-      })
-    },
-    [row, loading, saving, updateWorkspaceDpi]
-  )
-
   const sizeControlsDisabled = loading || !row || !widthPxU || !heightPxU
-  // Selects don't include `saving` in their disabled state. A workspace
-  // save (e.g. page-bg toggle) lasts a few hundred ms; flipping the
-  // select to disabled and back animates the `disabled:opacity-50`
-  // transition, which reads as a gray flicker on the trigger text +
-  // chevron. Selects queue a new selection past the in-flight save
-  // anyway, so locking them is unnecessary.
   const selectsDisabled = sizeControlsDisabled
 
   return (
@@ -307,18 +238,6 @@ export const ArtboardPanel = memo(function ArtboardPanel() {
       </PanelTwoFieldRow>
 
       <PanelTwoFieldRow>
-        <FormField
-          variant="select"
-          label="Raster effects resolution"
-          labelVisuallyHidden
-          iconStart={ICON_GAUGE}
-          value={computedPreset}
-          options={presetOptions(computedPreset, computedOutputDpi)}
-          onCommit={onPresetChange}
-          disabled={selectsDisabled}
-          triggerOnPointerDownCapture={cancelPendingCommits}
-        />
-
         <FormField
           variant="select"
           label="Artboard unit"

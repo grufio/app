@@ -3,11 +3,12 @@
  *
  * Responsibilities:
  * - Compute deterministic `project_workspace` updates from UI draft inputs.
- * - Centralize unit/DPI preset normalization and save signatures.
+ * - Centralize unit normalization and save signatures.
  *
  * Notes:
  * - This module is pure (no React/DOM, no Supabase).
- * - It intentionally mirrors existing UI behavior; changes should be covered by tests.
+ * - The artboard has no DPI — `unitToPxUFixed` / `pxUToUnitDisplayFixed`
+ *   use a fixed 1 px = 1/72 inch mapping for all conversions.
  */
 import { clampPx, pxUToUnitDisplayFixed, PX_U_SCALE, type Unit } from "@/lib/editor/units"
 import { normalizeUnit } from "./normalize-unit"
@@ -15,7 +16,6 @@ import type { WorkspaceRow } from "./workspace/types"
 
 export { normalizeUnit }
 
-export type RasterPreset = "high" | "medium" | "low"
 export const WORKSPACE_MIN_PX_U = 1_000_000n
 export const WORKSPACE_MAX_PX_U = 32_768_000_000n
 
@@ -37,20 +37,6 @@ function canonicalPxUFromRow(rawPxU: string | undefined, fallbackPx: number): bi
     }
   }
   return BigInt(clampPx(fallbackPx)) * PX_U_SCALE
-}
-
-/**
- * Raster preset mapping used by the UI: exact DPI presets.
- * - 300 -> high
- * - 150 -> medium
- * - 72  -> low
- * - otherwise: null (custom)
- */
-export function mapDpiToRasterPreset(dpi: number): RasterPreset | null {
-  if (dpi === 300) return "high"
-  if (dpi === 150) return "medium"
-  if (dpi === 72) return "low"
-  return null
 }
 
 export function computeLockedDimension(opts: {
@@ -95,7 +81,6 @@ export function computeWorkspaceSizeSave(opts: {
 
   const next: WorkspaceRow = {
     ...base,
-    // Artboard display values must remain DPI-independent.
     width_value: Number(pxUToUnitDisplayFixed(nextWPxU, base.unit)),
     height_value: Number(pxUToUnitDisplayFixed(nextHPxU, base.unit)),
     width_px_u,
@@ -118,28 +103,10 @@ export function computeWorkspaceUnitChange(opts: {
     next: {
       ...base,
       unit: nextUnit,
-      // Artboard display values must always derive from canonical µpx geometry (DPI-independent).
       width_value: Number(pxUToUnitDisplayFixed(wPxU, nextUnit)),
       height_value: Number(pxUToUnitDisplayFixed(hPxU, nextUnit)),
     },
     signature: `${base.project_id}:unit:${nextUnit}`,
-  }
-}
-
-export function computeWorkspaceDpiChange(opts: {
-  nextDpi: number
-  nextPreset: WorkspaceRow["raster_effects_preset"]
-  base: WorkspaceRow
-}): { next: WorkspaceRow; signature: string } {
-  const { base, nextDpi, nextPreset } = opts
-  return {
-    // Intentional DPI-only update: keep geometry and displayed size stable.
-    next: {
-      ...base,
-      output_dpi: nextDpi,
-      raster_effects_preset: nextPreset ?? null,
-    },
-    signature: `${base.project_id}:dpi:${nextDpi}:${nextPreset ?? "custom"}`,
   }
 }
 

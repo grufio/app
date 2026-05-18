@@ -97,7 +97,6 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
   canvasRef: React.RefObject<ProjectCanvasStageHandle | null>
   artboardWidthPx?: number
   artboardHeightPx?: number
-  artboardDpi?: number
   grid?: {
     spacingXPx: number
     spacingYPx: number
@@ -128,7 +127,6 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
     canvasRef,
     artboardWidthPx,
     artboardHeightPx,
-    artboardDpi,
     grid,
     handleImageTransformChange,
     initialImageTransform,
@@ -195,7 +193,6 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
             mutationsEnabled={!Boolean(toolbar.selectDisabled)}
             artboardWidthPx={artboardWidthPx ?? undefined}
             artboardHeightPx={artboardHeightPx ?? undefined}
-            artboardDpi={typeof artboardDpi === "number" && Number.isFinite(artboardDpi) ? artboardDpi : undefined}
             intrinsicWidthPx={
               typeof masterImage?.width_px === "number" && Number.isFinite(masterImage.width_px) ? masterImage.width_px : undefined
             }

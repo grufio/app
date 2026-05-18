@@ -3,17 +3,17 @@ import crypto from "node:crypto"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/lib/supabase/database.types"
-import { computeDpiRelativePlacementPx } from "@/lib/editor/image-placement"
+import { computeImagePlacementPx } from "@/lib/editor/image-placement"
 import { numerateSchema, type NumerateParams } from "@/lib/editor/trace/numerate"
 import { isNumerateGridValid, resolveNumerateGrid } from "@/lib/editor/trace/numerate-grid-math"
-import { pxUToPxNumber } from "@/lib/editor/units"
+import { GEOMETRY_PPI, pxUToPxNumber } from "@/lib/editor/units"
 import { callFilterService, startFilterProfiler, toInt, type FilterResult } from "@/services/editor/server/filters/_helpers"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 
 const MM_PER_INCH = 25.4
 
-function pxToMm(px: number, dpi: number): number {
-  return (px / dpi) * MM_PER_INCH
+function pxToMm(px: number): number {
+  return (px / GEOMETRY_PPI) * MM_PER_INCH
 }
 
 function parsePxU(value: unknown): bigint | null {
@@ -42,12 +42,11 @@ async function resolveSourceDisplayMm(args: {
   const { supabase, projectId } = args
   const { data: workspace } = await supabase
     .from("project_workspace")
-    .select("output_dpi,width_px_u,height_px_u")
+    .select("width_px_u,height_px_u")
     .eq("project_id", projectId)
     .maybeSingle()
-  const outputDpi = workspace?.output_dpi != null ? Number(workspace.output_dpi) : null
-  if (!workspace || !outputDpi || outputDpi <= 0) {
-    return { ok: false, reason: "Project workspace is missing or has invalid output_dpi" }
+  if (!workspace) {
+    return { ok: false, reason: "Project workspace is missing" }
   }
 
   const { data: master } = await supabase
@@ -75,25 +74,24 @@ async function resolveSourceDisplayMm(args: {
   if (stateW && stateH) {
     return {
       ok: true,
-      displayMmW: pxToMm(pxUToPxNumber(stateW), outputDpi),
-      displayMmH: pxToMm(pxUToPxNumber(stateH), outputDpi),
+      displayMmW: pxToMm(pxUToPxNumber(stateW)),
+      displayMmH: pxToMm(pxUToPxNumber(stateH)),
     }
   }
 
-  // Fresh-upload fallback: use the same DPI-relative placement the
-  // Master-Upload flow uses to seed initial state. Keeps the wizard
-  // bedienbar without requiring the user to manually position first.
+  // Fresh-upload fallback: use the same placement the Master-Upload
+  // flow uses to seed initial state. Keeps the wizard bedienbar
+  // without requiring the user to manually position first.
   const artWPxU = parsePxU(workspace.width_px_u)
   const artHPxU = parsePxU(workspace.height_px_u)
   if (!artWPxU || !artHPxU) {
     return { ok: false, reason: "Workspace size missing (width_px_u/height_px_u)" }
   }
-  const placement = computeDpiRelativePlacementPx({
+  const placement = computeImagePlacementPx({
     artW: pxUToPxNumber(artWPxU),
     artH: pxUToPxNumber(artHPxU),
     intrinsicW: Number(master.width_px ?? 0),
     intrinsicH: Number(master.height_px ?? 0),
-    artboardDpi: outputDpi,
     imageDpi: master.dpi == null ? null : Number(master.dpi),
   })
   if (!placement) {
@@ -101,8 +99,8 @@ async function resolveSourceDisplayMm(args: {
   }
   return {
     ok: true,
-    displayMmW: pxToMm(placement.widthPx, outputDpi),
-    displayMmH: pxToMm(placement.heightPx, outputDpi),
+    displayMmW: pxToMm(placement.widthPx),
+    displayMmH: pxToMm(placement.heightPx),
   }
 }
 

@@ -5,21 +5,12 @@
  * - Create a `projects` row for the user.
  * - Create an initial `project_workspace` row (canonical µpx + cached px).
  *
- * Notes:
- * - This is server-side only (expects an authenticated Supabase server client).
- * - Business rules for workspace sizing are shared with the editor via `lib/editor/units`.
+ * The artboard has no DPI — all conversions use the fixed 1 px = 1/72
+ * inch mapping (see `lib/editor/units.ts`).
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { clampPx, pxUToPxNumber, type Unit, unitToPxUFixed } from "@/lib/editor/units"
-
-type RasterPreset = "high" | "medium" | "low"
-
-function rasterPresetForDpi(dpi: number): RasterPreset {
-  if (dpi >= 300) return "high"
-  if (dpi >= 150) return "medium"
-  return "low"
-}
 
 export type CreateProjectInput = {
   ownerId: string
@@ -27,7 +18,6 @@ export type CreateProjectInput = {
   unit: Unit
   width_value: number
   height_value: number
-  dpi: number
 }
 
 export async function createProjectWithWorkspace(
@@ -37,17 +27,14 @@ export async function createProjectWithWorkspace(
   const unit = input.unit
   const width_value = Number(input.width_value)
   const height_value = Number(input.height_value)
-  const dpi = Number(input.dpi)
 
   const validUnits: Unit[] = ["mm", "cm", "pt", "px"]
   if (!unit || !validUnits.includes(unit)) return { ok: false, stage: "validation", message: "Invalid unit" }
   if (!Number.isFinite(width_value) || width_value <= 0) return { ok: false, stage: "validation", message: "Invalid width_value" }
   if (!Number.isFinite(height_value) || height_value <= 0) return { ok: false, stage: "validation", message: "Invalid height_value" }
-  if (!Number.isFinite(dpi) || dpi <= 0) return { ok: false, stage: "validation", message: "Invalid dpi" }
 
   const name = typeof input.name === "string" && input.name.trim() ? input.name.trim() : "Untitled"
 
-  const output_dpi = dpi
   const widthPxU = unitToPxUFixed(String(width_value), unit)
   const heightPxU = unitToPxUFixed(String(height_value), unit)
   const width_px_u = widthPxU.toString()
@@ -70,8 +57,6 @@ export async function createProjectWithWorkspace(
     unit,
     width_value,
     height_value,
-    output_dpi,
-    raster_effects_preset: rasterPresetForDpi(dpi),
     width_px_u,
     height_px_u,
     width_px,
@@ -86,4 +71,3 @@ export async function createProjectWithWorkspace(
 
   return { ok: true, projectId: project.id }
 }
-

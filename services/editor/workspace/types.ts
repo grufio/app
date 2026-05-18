@@ -11,13 +11,10 @@ export type WorkspaceRow = {
   unit: Unit
   width_value: number
   height_value: number
-  /** Output-only DPI (PDF/export). */
-  output_dpi: number
   width_px_u: string
   height_px_u: string
   width_px: number
   height_px: number
-  raster_effects_preset?: "high" | "medium" | "low" | null
   page_bg_enabled?: boolean
   page_bg_color?: string
   page_bg_opacity?: number

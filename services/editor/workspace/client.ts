@@ -10,7 +10,6 @@ import type { WorkspaceRow } from "./types"
 import {
   insertWorkspace,
   selectWorkspace,
-  updateWorkspaceDpi,
   updateWorkspaceGeometry,
   updateWorkspacePageBg,
 } from "./browser-repo-supabase"
@@ -23,15 +22,6 @@ export function selectWorkspaceClient(projectId: string) {
 export function insertWorkspaceClient(row: WorkspaceRow) {
   const supabase = createSupabaseBrowserClient()
   return insertWorkspace(supabase, row)
-}
-
-export function updateWorkspaceDpiClient(args: {
-  projectId: string
-  outputDpi: number
-  rasterEffectsPreset: WorkspaceRow["raster_effects_preset"]
-}) {
-  const supabase = createSupabaseBrowserClient()
-  return updateWorkspaceDpi(supabase, args)
 }
 
 export function updateWorkspaceGeometryClient(args: {

@@ -1,11 +1,11 @@
-export { computeDpiRelativePlacementPx, FALLBACK_IMAGE_DPI, type ImagePlacementPx } from "@/lib/editor/image-placement"
+export { computeImagePlacementPx, FALLBACK_IMAGE_DPI, type ImagePlacementPx } from "@/lib/editor/image-placement"
 
 /**
  * Placement/persist gating helpers (pure).
  *
  * Responsibilities:
  * - Pick intrinsic image size from metadata/DOM safely.
- * - Compute initial/restore placement using a DPI-relative contract.
+ * - Compute initial/restore placement from intrinsic image DPI (artboard has no DPI).
  * - Gate when persisted transforms should be applied vs user-changed state.
  */
 export function pickIntrinsicSize(args: {

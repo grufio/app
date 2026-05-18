@@ -111,7 +111,6 @@ describe("activateProjectMasterWithState", () => {
         height_px_u: null,
         width_px: 0,
         height_px: 0,
-        output_dpi: 300,
       },
       error: null,
     })
@@ -133,7 +132,6 @@ describe("activateProjectMasterWithState", () => {
         height_px_u: "800000000",
         width_px: 1000,
         height_px: 800,
-        output_dpi: 300,
       },
       error: null,
     })

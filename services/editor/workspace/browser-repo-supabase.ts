@@ -10,7 +10,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { WorkspaceRow } from "./types"
 
 const SELECT_WORKSPACE =
-  "project_id,unit,width_value,height_value,output_dpi,width_px_u,height_px_u,width_px,height_px,raster_effects_preset,page_bg_enabled,page_bg_color,page_bg_opacity"
+  "project_id,unit,width_value,height_value,width_px_u,height_px_u,width_px,height_px,page_bg_enabled,page_bg_color,page_bg_opacity"
 
 function hasOwn(o: unknown, key: string): boolean {
   return Boolean(o) && typeof o === "object" && Object.prototype.hasOwnProperty.call(o, key)
@@ -59,47 +59,6 @@ export async function insertWorkspace(
   return { row: (data as unknown as WorkspaceRow) ?? null, error: null }
 }
 
-export async function updateWorkspaceDpi(
-  supabase: SupabaseClient,
-  args: {
-    projectId: string
-    outputDpi: number
-    rasterEffectsPreset: WorkspaceRow["raster_effects_preset"]
-  }
-): Promise<{ row: WorkspaceRow | null; error: string | null }> {
-  const forbidden = findForbiddenKey(args, [
-    // canonical geometry
-    "widthPxU",
-    "heightPxU",
-    "width_px_u",
-    "height_px_u",
-    "widthPx",
-    "heightPx",
-    "width_px",
-    "height_px",
-    // display geometry
-    "unit",
-    "widthValue",
-    "heightValue",
-    "width_value",
-    "height_value",
-  ])
-  if (forbidden) return { row: null, error: `[update] invalid_payload_for_dpi_update: contains ${forbidden}` }
-
-  const { projectId, outputDpi, rasterEffectsPreset } = args
-  const { data, error } = await supabase
-    .from("project_workspace")
-    .update({
-      output_dpi: outputDpi,
-      raster_effects_preset: rasterEffectsPreset ?? null,
-    })
-    .eq("project_id", projectId)
-    .select(SELECT_WORKSPACE)
-    .single()
-  if (error) return { row: null, error: mapWorkspaceDbError(error.message, "update") }
-  return { row: (data as unknown as WorkspaceRow) ?? null, error: null }
-}
-
 export async function updateWorkspaceGeometry(
   supabase: SupabaseClient,
   args: {
@@ -114,7 +73,7 @@ export async function updateWorkspaceGeometry(
   }
 ): Promise<{ row: WorkspaceRow | null; error: string | null }> {
   const forbidden = findForbiddenKey(args, [
-    // dpi/output-only fields
+    // dpi/output-only fields (artboard has no DPI anymore — reject any straggler payload)
     "outputDpi",
     "rasterEffectsPreset",
     "output_dpi",
@@ -164,4 +123,3 @@ export async function updateWorkspacePageBg(
   if (error) return { row: null, error: mapWorkspaceDbError(error.message, "update") }
   return { row: (data as unknown as WorkspaceRow) ?? null, error: null }
 }
-

@@ -24,7 +24,8 @@ import { FilterSidebarSection } from "@/features/editor/components/filter-sideba
 import { TraceSidebarSection } from "@/features/editor/components/trace-sidebar-section"
 import type { OperationError } from "@/lib/api/operation-error"
 import { deleteMasterImageWithCascade } from "@/lib/api/project-images"
-import { computeDpiRelativePlacementPx } from "@/lib/editor/image-placement"
+import { computeImagePlacementPx } from "@/lib/editor/image-placement"
+import { GEOMETRY_PPI } from "@/lib/editor/units"
 import { useCanvasTxMirror } from "@/lib/editor/hooks/use-canvas-tx-mirror"
 import { useDedupingErrorToast } from "@/lib/editor/hooks/use-deduping-error-toast"
 import { useFilterStackActions } from "@/lib/editor/hooks/use-filter-stack-actions"
@@ -70,7 +71,6 @@ export function ProjectDetailPageClient({
     row: workspaceRow,
     updateWorkspacePageBg,
     unit: workspaceUnit,
-    dpi: workspaceDpi,
     widthPx: artboardWidthPx,
     heightPx: artboardHeightPx,
     loading: workspaceLoading,
@@ -173,36 +173,34 @@ export function ProjectDetailPageClient({
   // mm — numerate-grid math runs on display-mm, not source-px. Live
   // canvas tx (post drag/resize) preferred; SSR-seeded tx is the
   // fresh-upload fallback before the canvas reports its first frame;
-  // final fallback re-runs the DPI-relative placement algorithm.
+  // final fallback re-runs the same placement the upload flow uses.
   // Returns null until workspace + source are both ready.
   const traceSourceImage = useMemo(() => {
     if (!filterSourceImage) return null
-    if (!workspaceDpi || !artboardWidthPx || !artboardHeightPx) return null
+    if (!artboardWidthPx || !artboardHeightPx) return null
     const MM_PER_INCH = 25.4
     let displayMmW: number
     let displayMmH: number
     const liveW = imageTxU?.w ?? initialImageTxU?.w
     const liveH = imageTxU?.h ?? initialImageTxU?.h
     if (liveW && liveH) {
-      displayMmW = (Number(liveW) / 1e6 / workspaceDpi) * MM_PER_INCH
-      displayMmH = (Number(liveH) / 1e6 / workspaceDpi) * MM_PER_INCH
+      displayMmW = (Number(liveW) / 1e6 / GEOMETRY_PPI) * MM_PER_INCH
+      displayMmH = (Number(liveH) / 1e6 / GEOMETRY_PPI) * MM_PER_INCH
     } else {
-      const placement = computeDpiRelativePlacementPx({
+      const placement = computeImagePlacementPx({
         artW: artboardWidthPx,
         artH: artboardHeightPx,
         intrinsicW: filterSourceImage.width_px,
         intrinsicH: filterSourceImage.height_px,
-        artboardDpi: workspaceDpi,
         imageDpi: masterImage?.dpi ?? null,
       })
       if (!placement) return null
-      displayMmW = (placement.widthPx / workspaceDpi) * MM_PER_INCH
-      displayMmH = (placement.heightPx / workspaceDpi) * MM_PER_INCH
+      displayMmW = (placement.widthPx / GEOMETRY_PPI) * MM_PER_INCH
+      displayMmH = (placement.heightPx / GEOMETRY_PPI) * MM_PER_INCH
     }
     return { ...filterSourceImage, displayMmW, displayMmH }
   }, [
     filterSourceImage,
-    workspaceDpi,
     artboardWidthPx,
     artboardHeightPx,
     imageTxU?.w,
@@ -520,7 +518,6 @@ export function ProjectDetailPageClient({
               canvasRef={canvasRef}
               artboardWidthPx={artboardWidthPx ?? undefined}
               artboardHeightPx={artboardHeightPx ?? undefined}
-              artboardDpi={workspaceDpi ?? undefined}
               grid={grid}
               traceOverlaySvgUrl={traceOverlaySvgUrl}
               traceInteractive={leftPanelTab === "trace" && stageToolbar.tool === "direct"}
