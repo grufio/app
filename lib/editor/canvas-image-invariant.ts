@@ -56,16 +56,39 @@ export function deriveStageImage(input: {
 }
 
 /**
- * Picks the canvas-rendered image. Always prefers the trace-free
- * working-copy (`filterDisplayImageWithoutTrace`) so the canvas-
- * source matches the persistence target. Falls back to the workflow
- * stage image while the working-copy payload is still loading.
+ * Picks the canvas-rendered image.
+ *
+ * Priority:
+ *   1. `traceBaseImage` — the cropped source bitmap a numerate trace
+ *      writes alongside its SVG. When present, it replaces the
+ *      filter-tip on the canvas so the SVG overlay sits 1:1 on its
+ *      own bitmap and the cropped-out border doesn't leak through.
+ *      Persistence stays anchored at the filter chain; the canvas
+ *      source ID swap is purely visual for the Trace overlay.
+ *   2. `filterDisplayImageWithoutTrace` — the trace-free working
+ *      copy. Default canvas source for the Image / Filter tabs and
+ *      for any trace kind that doesn't crop (lineart). Matches the
+ *      persistence target.
+ *   3. `stageImage` — workflow-source fallback while the working
+ *      copy is still loading.
  */
 export function pickCanvasImage(input: {
+  traceBaseImage: CanvasSource | null
   filterDisplayImageWithoutTrace: CanvasSource | null
   stageImage: CanvasImage | null
 }): CanvasImage | null {
-  const { filterDisplayImageWithoutTrace, stageImage } = input
+  const { traceBaseImage, filterDisplayImageWithoutTrace, stageImage } = input
+  if (traceBaseImage) {
+    return {
+      id: traceBaseImage.id,
+      signedUrl: traceBaseImage.signedUrl,
+      name: traceBaseImage.name,
+      width_px: traceBaseImage.width_px,
+      height_px: traceBaseImage.height_px,
+      dpi: null,
+      restore_base: null,
+    }
+  }
   if (filterDisplayImageWithoutTrace) {
     return {
       id: filterDisplayImageWithoutTrace.id,

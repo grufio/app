@@ -20,6 +20,7 @@ import {
   clearProjectTrace,
   getProjectTrace,
   type ProjectTrace,
+  type TraceBaseImage,
 } from "@/lib/api/project-trace"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
 
@@ -30,6 +31,10 @@ export function useTraceHandlers(opts: {
 }) {
   const { projectId, refreshFilterImage, refreshMasterImage } = opts
   const [trace, setTrace] = useState<ProjectTrace | null>(null)
+  // Cropped source bitmap that the canvas renders under the SVG
+  // overlay; null for trace kinds that don't crop (lineart) or while
+  // the first GET is still in flight.
+  const [traceBaseImage, setTraceBaseImage] = useState<TraceBaseImage | null>(null)
   const [traceLoading, setTraceLoading] = useState(true)
   const [isApplyingTrace, setIsApplyingTrace] = useState(false)
   const [isClearingTrace, setIsClearingTrace] = useState(false)
@@ -37,7 +42,8 @@ export function useTraceHandlers(opts: {
   const refreshTrace = useCallback(async () => {
     try {
       const next = await getProjectTrace(projectId)
-      setTrace(next)
+      setTrace(next.trace)
+      setTraceBaseImage(next.baseImage)
     } catch (err) {
       console.error("Failed to load trace state:", err)
     } finally {
@@ -78,6 +84,7 @@ export function useTraceHandlers(opts: {
 
   return {
     trace,
+    traceBaseImage,
     traceLoading,
     isApplyingTrace,
     isClearingTrace,
