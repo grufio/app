@@ -5,11 +5,14 @@
  *
  * Responsibilities:
  * - Render the project sidebar and selection.
- * - Provide a resizable panel width via pointer drag.
+ * - Provide a resizable panel width via pointer drag (desktop only).
+ * - On mobile (`< md`) render as a Radix Sheet drawer instead of a
+ *   static sidebar, gated by a toggle in the app-bar.
  */
 import * as React from "react"
 import { SidebarFrame } from "@/components/navigation/SidebarFrame"
 import { SidebarContent } from "@/components/ui/sidebar"
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { EditorSidebarSection } from "./sidebar/editor-sidebar-section"
 import { EditorNavTree } from "./editor-nav-tree"
 import { TabsSidepanel, type SidepanelTab } from "./TabsSidepanel"
@@ -37,6 +40,12 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
   onActiveTabChange: (tab: SidepanelTab) => void
   filterPanelContent?: React.ReactNode
   tracePanelContent?: React.ReactNode
+  /** Mobile-only drawer state. Ignored on `md+` where the panel is
+   * always rendered as a static sidebar. */
+  open?: boolean
+  /** Mobile-only drawer onOpenChange. Triggered by Sheet's built-in
+   * close (Escape, overlay click). Ignored on `md+`. */
+  onOpenChange?: (open: boolean) => void
 }) {
   const {
     projectId,
@@ -57,6 +66,8 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
     onActiveTabChange,
     filterPanelContent,
     tracePanelContent,
+    open = true,
+    onOpenChange,
   } = props
 
   const clamp = (v: number) => Math.max(minRem, Math.min(maxRem, v))
@@ -75,44 +86,62 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
     })
   }
 
+  const panelBody = (
+    <SidebarFrame className="block min-h-0 w-full">
+      <SidebarContent className="gap-0">
+        <TabsSidepanel activeTab={activeTab} onTabChange={onActiveTabChange} />
+        {activeTab === "filter" ? (
+          filterPanelContent
+        ) : activeTab === "trace" ? (
+          tracePanelContent
+        ) : (
+          <EditorSidebarSection title="Projekt">
+            <EditorNavTree
+              projectId={projectId}
+              selectedId={selectedId}
+              onSelect={onSelect}
+              images={images}
+              hasGrid={hasGrid}
+              onImageUploaded={onImageUploaded}
+              onImageDeleteRequested={onImageDeleteRequested}
+              canDeleteMaster={canDeleteMaster}
+              onGridCreateRequested={onGridCreateRequested}
+              onGridDeleteRequested={onGridDeleteRequested}
+            />
+          </EditorSidebarSection>
+        )}
+      </SidebarContent>
+    </SidebarFrame>
+  )
+
   return (
-    <aside
-      className="shrink-0 border-r bg-white relative"
-      aria-label="Layers"
-      style={{ width: `${clamp(widthRem)}rem` }}
-    >
-      <SidebarFrame className="block min-h-0 w-full">
-        <SidebarContent className="gap-0">
-          <TabsSidepanel activeTab={activeTab} onTabChange={onActiveTabChange} />
-          {activeTab === "filter" ? (
-            filterPanelContent
-          ) : activeTab === "trace" ? (
-            tracePanelContent
-          ) : (
-            <EditorSidebarSection title="Projekt">
-              <EditorNavTree
-                projectId={projectId}
-                selectedId={selectedId}
-                onSelect={onSelect}
-                images={images}
-                hasGrid={hasGrid}
-                onImageUploaded={onImageUploaded}
-                onImageDeleteRequested={onImageDeleteRequested}
-                canDeleteMaster={canDeleteMaster}
-                onGridCreateRequested={onGridCreateRequested}
-                onGridDeleteRequested={onGridDeleteRequested}
-              />
-            </EditorSidebarSection>
-          )}
-        </SidebarContent>
-      </SidebarFrame>
-      {/* Resize handle (use border line; no separate visual handle). */}
-      <div
-        aria-hidden="true"
-        className="absolute inset-y-0 -right-1 z-20 w-2 cursor-col-resize"
-        onMouseDown={onResizeMouseDown}
-      />
-    </aside>
+    <>
+      {/* Desktop sidebar — hidden on mobile via CSS, no flash during
+       * hydration. */}
+      <aside
+        id="left-panel"
+        className="relative hidden shrink-0 border-r bg-white md:block"
+        aria-label="Layers"
+        style={{ width: `${clamp(widthRem)}rem` }}
+      >
+        {panelBody}
+        {/* Resize handle (use border line; no separate visual handle). */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-y-0 -right-1 z-20 w-2 cursor-col-resize"
+          onMouseDown={onResizeMouseDown}
+        />
+      </aside>
+
+      {/* Mobile drawer — Radix Sheet, portal-mounted. Body content
+       * is only rendered to the DOM while `open` is true. */}
+      <Sheet open={open} onOpenChange={onOpenChange}>
+        <SheetContent side="left" className="w-full bg-white p-0 sm:max-w-md">
+          <SheetTitle className="sr-only">Layers</SheetTitle>
+          {panelBody}
+        </SheetContent>
+      </Sheet>
+    </>
   )
 })
 
