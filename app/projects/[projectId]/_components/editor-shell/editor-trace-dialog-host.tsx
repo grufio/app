@@ -52,10 +52,9 @@ export function EditorTraceDialogHost(props: {
         onSelect={onSelectKind}
       />
       {/*
-        No `onError` override on either wizard below: the wizards toast
-        the failure themselves via formatOperationErrorForToast +
-        normalizeApiError. A host-side console-only handler would
-        silently hide server errors from the user.
+        No `onError` override: the wizards toast the failure themselves.
+        A host-side console-only handler would silently hide server
+        errors from the user.
       */}
       {configureOpen && traceDialogSource && activeKind === "numerate" ? (
         <NumerateDialog
