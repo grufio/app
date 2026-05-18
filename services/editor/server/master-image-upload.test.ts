@@ -160,15 +160,17 @@ describe("master-image-upload service", () => {
     })
 
     expect(out.ok).toBe(true)
-    expect(uploadSpy).toHaveBeenCalledTimes(2)
-    expect(capture.inserts).toHaveLength(2)
+    // Lazy working-copy: master upload writes ONLY the master file
+    // and inserts ONLY the master row. The working_copy is created
+    // on-demand by the filter-apply path via
+    // `services/editor/server/working-copy/ensure.ts`.
+    expect(uploadSpy).toHaveBeenCalledTimes(1)
+    expect(capture.inserts).toHaveLength(1)
     const masterInsert = capture.inserts.find((row) => row.kind === "master")
-    const workingInsert = capture.inserts.find((row) => row.kind === "working_copy")
     expect(masterInsert?.dpi).toBe(300)
     expect(masterInsert?.width_px).toBe(400)
     expect(masterInsert?.height_px).toBe(200)
-    expect(workingInsert?.kind).toBe("working_copy")
-    expect(workingInsert?.source_image_id).toBe(masterInsert?.id)
+    expect(capture.inserts.find((row) => row.kind === "working_copy")).toBeUndefined()
     expect(activateSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         imageId: masterInsert?.id,
@@ -217,42 +219,15 @@ describe("master-image-upload service", () => {
     expect(removeSpy).toHaveBeenCalled()
   })
 
-  it("rolls back when working_copy insert fails after master insert", async () => {
-    const capture = { inserts: [] as InsertPayload[], deletes: 0, stateUpserts: 0 }
-    const supabase = makeSupabase({
-      capture,
-      selectData: [],
-      insertErrors: [null, { message: "working copy insert failed", code: "23505" }],
-    })
-    uploadSpy.mockResolvedValue({ error: null })
-    removeSpy.mockResolvedValue({ error: null })
-    activateSpy.mockResolvedValueOnce({ ok: true })
-    const file = new File([new Uint8Array([1])], "x.png", { type: "image/png" })
-
-    const out = await uploadMasterImage({
-      supabase: supabase as never,
-      projectId: "p1",
-      file,
-      widthPx: 200,
-      heightPx: 100,
-      dpi: 72,
-      format: "png",
-    })
-
-    expect(out.ok).toBe(false)
-    if (!out.ok) {
-      expect(out.stage).toBe("db_upsert")
-      expect(out.reason).toContain("working copy insert failed")
-    }
-    expect(capture.inserts).toHaveLength(2)
-    expect(capture.stateUpserts).toBe(0)
-    expect(capture.deletes).toBeGreaterThanOrEqual(1)
-    expect(removeSpy).toHaveBeenCalled()
-  })
-
   // Pre-refactor: master upload seeded a project_image_state row for
   // the working copy. After anchoring state at master.id, no pre-seed
   // is needed — the editor's first placement creates the row on
   // demand. Tests for the old "transform_sync" failure path were
   // removed because copyImageTransform no longer runs in this flow.
+  //
+  // Post-lazy-working-copy: the working-copy insert no longer runs in
+  // the upload flow at all (it's lazy on first filter-apply via
+  // `working-copy/ensure.ts`). The "working_copy insert fails" rollback
+  // test was deleted — that failure mode now lives in the ensure helper
+  // and is exercised by `working-copy/ensure.test.ts`.
 })

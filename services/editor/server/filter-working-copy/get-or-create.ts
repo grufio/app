@@ -6,6 +6,7 @@ import type { Database } from "@/lib/supabase/database.types"
 import { resolveEditorTargetImageRows } from "@/lib/supabase/project-images"
 import { SIGNED_URL_TTL } from "@/lib/storage/signed-url-ttl"
 import { resetProjectFilterChain } from "@/services/editor/server/filter-chain-reset"
+import { ensureWorkingCopyExists } from "@/services/editor/server/working-copy/ensure"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 
 import { softDeleteCopies } from "./soft-delete-copies"
@@ -30,7 +31,7 @@ export async function getOrCreateFilterWorkingCopy(args: {
   // The filter chain base is always derived from the project's working_copy, never from a
   // filter output. Using the chain tip here would make every filter apply replace the base
   // and orphan the freshly inserted filter row.
-  const lookup = await resolveEditorTargetImageRows(supabase, projectId)
+  let lookup = await resolveEditorTargetImageRows(supabase, projectId)
   if (lookup.error) {
     return {
       ok: false,
@@ -40,15 +41,30 @@ export async function getOrCreateFilterWorkingCopy(args: {
       code: lookup.error.code,
     }
   }
-  const activeImage = lookup.preferredWorking
-  if (!activeImage) {
-    return {
-      ok: false,
-      status: 404,
-      stage: "no_active_image",
-      reason: "Active image not found",
+  // Lazy working-copy: master uploads no longer auto-create a
+  // working_copy. The filter chain still needs one as its base, so
+  // materialise it here on first filter-apply.
+  if (!lookup.preferredWorking) {
+    const ensured = await ensureWorkingCopyExists({ supabase, projectId })
+    if (!ensured.ok) {
+      if (ensured.stage === "no_master") {
+        return { ok: false, status: 404, stage: "no_active_image", reason: ensured.reason }
+      }
+      return { ok: false, status: 500, stage: "active_lookup", reason: ensured.reason, code: ensured.code }
+    }
+    // Re-resolve so the rest of the function sees the freshly
+    // inserted working_copy row through the same canonical resolver.
+    lookup = await resolveEditorTargetImageRows(supabase, projectId)
+    if (lookup.error || !lookup.preferredWorking) {
+      return {
+        ok: false,
+        status: 500,
+        stage: "active_lookup",
+        reason: lookup.error?.reason ?? "Working-copy ensure succeeded but re-resolve failed",
+      }
     }
   }
+  const activeImage = lookup.preferredWorking
   if (
     !activeImage.name ||
     !activeImage.storage_path ||

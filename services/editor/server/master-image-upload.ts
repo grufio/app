@@ -25,60 +25,10 @@ async function rollbackCreatedUploadRows(args: {
   projectId: string
   masterImageId: string
   masterObjectPath: string
-  workingImageId?: string
-  workingObjectPath?: string
 }) {
-  const { supabase, projectId, masterImageId, masterObjectPath, workingImageId, workingObjectPath } = args
-  if (workingImageId) {
-    await supabase.from("project_images").delete().eq("id", workingImageId).eq("project_id", projectId)
-  }
-  if (workingObjectPath) {
-    await supabase.storage.from(PROJECT_IMAGES_BUCKET).remove([workingObjectPath])
-  }
+  const { supabase, projectId, masterImageId, masterObjectPath } = args
   await supabase.from("project_images").delete().eq("id", masterImageId).eq("project_id", projectId)
   await supabase.storage.from(PROJECT_IMAGES_BUCKET).remove([masterObjectPath])
-}
-
-async function createWorkingCopyFromMaster(args: {
-  supabase: SupabaseClient<Database>
-  projectId: string
-  file: File
-  format: string
-  widthPx: number
-  heightPx: number
-  dpi: number
-  sourceMasterId: string
-}): Promise<{ ok: true; imageId: string; objectPath: string } | { ok: false; reason: string; code?: string }> {
-  const { supabase, projectId, file, format, widthPx, heightPx, dpi, sourceMasterId } = args
-  const imageId = crypto.randomUUID()
-  const objectPath = `projects/${projectId}/images/${imageId}`
-  const uploadResult = await supabase.storage.from(PROJECT_IMAGES_BUCKET).upload(objectPath, file, {
-    upsert: true,
-    contentType: file.type || undefined,
-  })
-  const uploadErr = (uploadResult as { error?: { message?: string; code?: string } } | null | undefined)?.error
-  if (uploadErr) return { ok: false, reason: uploadErr.message ?? "Upload failed", code: (uploadErr as unknown as { code?: string })?.code }
-
-  const { error: insertErr } = await supabase.from("project_images").insert({
-    id: imageId,
-    project_id: projectId,
-    kind: "working_copy",
-    name: `${file.name} (working copy)`,
-    format,
-    width_px: widthPx,
-    height_px: heightPx,
-    dpi,
-    storage_bucket: PROJECT_IMAGES_BUCKET,
-    storage_path: objectPath,
-    file_size_bytes: file.size,
-    is_active: false,
-    source_image_id: sourceMasterId,
-  })
-  if (insertErr) {
-    await supabase.storage.from(PROJECT_IMAGES_BUCKET).remove([objectPath])
-    return { ok: false, reason: insertErr.message, code: (insertErr as unknown as { code?: string })?.code }
-  }
-  return { ok: true, imageId, objectPath }
 }
 
 export async function uploadMasterImage(args: {
@@ -158,32 +108,6 @@ export async function uploadMasterImage(args: {
     }
   }
 
-  const working = await createWorkingCopyFromMaster({
-    supabase,
-    projectId,
-    file,
-    format,
-    widthPx,
-    heightPx,
-    dpi,
-    sourceMasterId: imageId,
-  })
-  if (!working.ok) {
-    await rollbackCreatedUploadRows({
-      supabase,
-      projectId,
-      masterImageId: imageId,
-      masterObjectPath: objectPath,
-    })
-    return {
-      ok: false,
-      status: 400,
-      stage: "db_upsert",
-      reason: working.reason,
-      code: working.code,
-    }
-  }
-
   const activationResult = await activateProjectMasterWithState({
     supabase,
     projectId,
@@ -198,8 +122,6 @@ export async function uploadMasterImage(args: {
       projectId,
       masterImageId: imageId,
       masterObjectPath: objectPath,
-      workingImageId: working.imageId,
-      workingObjectPath: working.objectPath,
     })
     return {
       ok: false,
@@ -210,7 +132,10 @@ export async function uploadMasterImage(args: {
     }
   }
 
-  // State is anchored at master.id and seeded on first canvas
-  // interaction; no pre-seed needed on upload.
+  // Working-copy is no longer auto-created here. It is materialised
+  // lazily on first filter-apply via
+  // `services/editor/server/working-copy/ensure.ts`. Saves one
+  // storage upload + one DB row per master add for users who don't
+  // immediately filter.
   return { ok: true, id: imageId, storagePath: objectPath }
 }

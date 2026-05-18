@@ -51,12 +51,16 @@ export async function GET(
   }
 
   const uiItems = (data ?? []).filter((row) => resolveImageKind(row) !== IMAGE_KIND.MASTER)
+  const masterRow = (data ?? []).find((row) => resolveImageKind(row) === IMAGE_KIND.MASTER)
 
   const resolved = await resolveEditorTargetImageRows(supabase, projectId)
   if (resolved.error) {
     return jsonError(resolved.error.reason, 400, { stage: "active_target_query", code: resolved.error.code })
   }
-  const effectiveActive = resolved.target
+  // Lazy working-copy: when no working_copy or filter chain exists,
+  // fall back to the master as the display target. The editor canvas
+  // reads display_target to know which signed URL to render.
+  const effectiveActive = resolved.target ?? masterRow ?? null
   const activeKind = effectiveActive ? resolveImageKind(effectiveActive) : null
   const preferredWorking = resolved.preferredWorking
 

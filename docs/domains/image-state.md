@@ -11,6 +11,15 @@ output) resolve to the master row before reading or writing — the
 state outlives every filter-base-copy recreation, chain reset, or
 trace tombstone.
 
+The `working_copy` image row itself is **lazy**: master upload no
+longer auto-creates it. A working_copy materialises on the first
+filter-apply via
+[services/editor/server/working-copy/ensure.ts](../../services/editor/server/working-copy/ensure.ts)
+(server-side `storage.copy()` from the master). Until then, the
+master is the canvas display source — the `master/list` route
+returns master.id as `display_target.active_image_id` when no
+working_copy exists.
+
 ## Where it lives
 
 - [lib/supabase/image-state.ts](../../lib/supabase/image-state.ts)
