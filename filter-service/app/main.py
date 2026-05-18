@@ -249,9 +249,10 @@ class NumerateRequest(BaseModel):
     crop_y: float
     crop_w: float
     crop_h: float
-    # F22: stroke width is a float (≥0.1) — see LineArtRequest above.
+    # Stroke width is hardcoded to 1px server-side; the field stays
+    # in the request schema for forward compatibility but the editor
+    # always sends 1.
     stroke_width: float = 1.0
-    show_colors: bool = True
     # F20: palette quantisation. vtracer collapses adjacent same-color
     # cells into one polygon — without quantisation, every cell's mean
     # is unique and no merging happens.
@@ -299,7 +300,6 @@ async def numerate_filter(request: NumerateRequest):
             crop_w=request.crop_w,
             crop_h=request.crop_h,
             stroke_width=request.stroke_width,
-            show_colors=request.show_colors,
             num_colors=request.num_colors,
             on_phase=timer.mark,
         )

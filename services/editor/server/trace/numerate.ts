@@ -3,10 +3,108 @@ import crypto from "node:crypto"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/lib/supabase/database.types"
+import { computeDpiRelativePlacementPx } from "@/lib/editor/image-placement"
 import { numerateSchema, type NumerateParams } from "@/lib/editor/trace/numerate"
 import { isNumerateGridValid, resolveNumerateGrid } from "@/lib/editor/trace/numerate-grid-math"
+import { pxUToPxNumber } from "@/lib/editor/units"
 import { callFilterService, startFilterProfiler, toInt, type FilterResult } from "@/services/editor/server/filters/_helpers"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
+
+const MM_PER_INCH = 25.4
+
+function pxToMm(px: number, dpi: number): number {
+  return (px / dpi) * MM_PER_INCH
+}
+
+function parsePxU(value: unknown): bigint | null {
+  if (typeof value !== "string" || !value.trim()) return null
+  try {
+    const v = BigInt(value)
+    return v > 0n ? v : null
+  } catch {
+    return null
+  }
+}
+
+/** Resolve the source image's displayed size on the artboard, in mm.
+ *
+ * The numerate grid is sized in display-mm — what the user sees on the
+ * artboard is what they get. State preferred (after any positioning
+ * the user did); fresh-upload fallback uses the same algorithm the
+ * Master-Upload flow uses to seed initial placement. */
+async function resolveSourceDisplayMm(args: {
+  supabase: SupabaseClient<Database>
+  projectId: string
+}): Promise<
+  | { ok: true; displayMmW: number; displayMmH: number }
+  | { ok: false; reason: string }
+> {
+  const { supabase, projectId } = args
+  const { data: workspace } = await supabase
+    .from("project_workspace")
+    .select("output_dpi,width_px_u,height_px_u")
+    .eq("project_id", projectId)
+    .maybeSingle()
+  const outputDpi = workspace?.output_dpi != null ? Number(workspace.output_dpi) : null
+  if (!workspace || !outputDpi || outputDpi <= 0) {
+    return { ok: false, reason: "Project workspace is missing or has invalid output_dpi" }
+  }
+
+  const { data: master } = await supabase
+    .from("project_images")
+    .select("id,width_px,height_px,dpi")
+    .eq("project_id", projectId)
+    .eq("kind", "master")
+    .is("deleted_at", null)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle()
+  if (!master?.id) {
+    return { ok: false, reason: "Project has no master image" }
+  }
+
+  const { data: state } = await supabase
+    .from("project_image_state")
+    .select("width_px_u,height_px_u")
+    .eq("project_id", projectId)
+    .eq("image_id", master.id)
+    .maybeSingle()
+
+  const stateW = parsePxU(state?.width_px_u)
+  const stateH = parsePxU(state?.height_px_u)
+  if (stateW && stateH) {
+    return {
+      ok: true,
+      displayMmW: pxToMm(pxUToPxNumber(stateW), outputDpi),
+      displayMmH: pxToMm(pxUToPxNumber(stateH), outputDpi),
+    }
+  }
+
+  // Fresh-upload fallback: use the same DPI-relative placement the
+  // Master-Upload flow uses to seed initial state. Keeps the wizard
+  // bedienbar without requiring the user to manually position first.
+  const artWPxU = parsePxU(workspace.width_px_u)
+  const artHPxU = parsePxU(workspace.height_px_u)
+  if (!artWPxU || !artHPxU) {
+    return { ok: false, reason: "Workspace size missing (width_px_u/height_px_u)" }
+  }
+  const placement = computeDpiRelativePlacementPx({
+    artW: pxUToPxNumber(artWPxU),
+    artH: pxUToPxNumber(artHPxU),
+    intrinsicW: Number(master.width_px ?? 0),
+    intrinsicH: Number(master.height_px ?? 0),
+    artboardDpi: outputDpi,
+    imageDpi: master.dpi == null ? null : Number(master.dpi),
+  })
+  if (!placement) {
+    return { ok: false, reason: "Could not derive initial placement for master" }
+  }
+  return {
+    ok: true,
+    displayMmW: pxToMm(placement.widthPx, outputDpi),
+    displayMmH: pxToMm(placement.heightPx, outputDpi),
+  }
+}
 
 /**
  * Numerate writes two paired image rows: the SVG (`trace_output`)
@@ -37,7 +135,7 @@ export async function numerateImageAndActivate(args: {
   if (!parsed.success) {
     return { ok: false, status: 400, stage: "validation", reason: "Invalid numerate params" }
   }
-  const { stroke_width: strokeWidth, show_colors: showColors, num_colors: numColors } = parsed.data
+  const { num_colors: numColors } = parsed.data
 
   const { data: src, error: srcErr } = await supabase
     .from("project_images")
@@ -62,18 +160,40 @@ export async function numerateImageAndActivate(args: {
     return { ok: false, status: 400, stage: "validation", reason: "Invalid source dimensions" }
   }
 
-  // Resolve the cell grid + crop rect once, here — the single source
-  // of truth shared with the wizard (`resolveNumerateGrid`). The
-  // Python service just downsamples along this resolved grid.
-  const grid = resolveNumerateGrid(origWidth, origHeight, parsed.data)
+  // Resolve the image's displayed size on the artboard (mm). The grid
+  // is sized in display-mm — what the user sees on the artboard is
+  // what they get. State-anchored at master.id; fresh-upload fallback
+  // uses the same placement algorithm as the upload flow.
+  const display = await resolveSourceDisplayMm({ supabase, projectId })
+  if (!display.ok) {
+    // Workspace / master / state missing — preconditions unmet. Surfaced
+    // as `validation` because the FilterFailStage union doesn't have a
+    // dedicated bucket; the reason text carries the specifics.
+    return { ok: false, status: 400, stage: "validation", reason: display.reason }
+  }
+  profiler.mark("display_mm_resolve")
+
+  const grid = resolveNumerateGrid(display.displayMmW, display.displayMmH, parsed.data)
   if (!isNumerateGridValid(grid)) {
     return {
       ok: false,
       status: 400,
       stage: "validation",
-      reason: "Supercell too large for the image — no whole cell fits",
+      reason: "Superpixel too large for the image on the artboard — no whole cell fits",
     }
   }
+
+  // Translate the mm-space crop back into source-pixel coordinates for
+  // the Python service. The source bitmap may have arbitrary dimensions;
+  // we only need the cropped-out area to render the cells from. Border
+  // pixels (the parts that don't make a whole superpixel) are dropped
+  // symmetrically on both axes.
+  const sourcePxPerMmX = origWidth / display.displayMmW
+  const sourcePxPerMmY = origHeight / display.displayMmH
+  const cropW = grid.usedMmW * sourcePxPerMmX
+  const cropH = grid.usedMmH * sourcePxPerMmY
+  const cropX = (origWidth - cropW) / 2
+  const cropY = (origHeight - cropH) / 2
 
   const { data: srcBlob, error: downloadErr } = await supabase.storage
     .from(String(src.storage_bucket ?? PROJECT_IMAGES_BUCKET))
@@ -97,12 +217,12 @@ export async function numerateImageAndActivate(args: {
         image_base64: imageBase64,
         cells_x: grid.cellsX,
         cells_y: grid.cellsY,
-        crop_x: grid.cropX,
-        crop_y: grid.cropY,
-        crop_w: grid.cropW,
-        crop_h: grid.cropH,
-        stroke_width: strokeWidth,
-        show_colors: showColors,
+        crop_x: cropX,
+        crop_y: cropY,
+        crop_w: cropW,
+        crop_h: cropH,
+        // stroke_width is fixed at 1px — it's not a user-facing knob.
+        stroke_width: 1,
         num_colors: numColors,
       },
     })
@@ -138,8 +258,8 @@ export async function numerateImageAndActivate(args: {
     // The SVG's viewBox is the crop size (Python emits no
     // translate-offset any more); the bitmap row carries the same
     // dimensions so the editor renders them 1:1.
-    const baseWidthPx = Math.max(1, Math.round(grid.cropW))
-    const baseHeightPx = Math.max(1, Math.round(grid.cropH))
+    const baseWidthPx = Math.max(1, Math.round(cropW))
+    const baseHeightPx = Math.max(1, Math.round(cropH))
 
     const cleanName = src.name.replace(
       / \((?:filter working|pixelate|line art|numerate|B&W hard|B&W soft|B&W warm)\)/g,

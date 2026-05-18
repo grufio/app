@@ -92,30 +92,11 @@ describe("TRACE_REGISTRY", () => {
 })
 
 describe("numerateSchema", () => {
-  it("applies the supercell-mm grid-model defaults", () => {
+  it("has exactly two user-facing fields with defaults", () => {
     expect(numerateSchema.parse({})).toEqual({
       supercell_mm: 6,
-      multiple_axis: "none",
-      multiple: 1,
-      primary_count: 40,
-      stroke_width: 1,
-      show_colors: true,
       num_colors: 16,
     })
-  })
-
-  it("rejects stroke_width < 0.1", () => {
-    expect(numerateSchema.safeParse({ stroke_width: 0 }).success).toBe(false)
-    expect(numerateSchema.safeParse({ stroke_width: 0.05 }).success).toBe(false)
-  })
-
-  it("accepts fractional stroke_width down to 0.1", () => {
-    expect(numerateSchema.safeParse({ stroke_width: 0.1 }).success).toBe(true)
-    expect(numerateSchema.parse({ stroke_width: 0.5 }).stroke_width).toBe(0.5)
-  })
-
-  it("rejects stroke_width > 20", () => {
-    expect(numerateSchema.safeParse({ stroke_width: 21 }).success).toBe(false)
   })
 
   it("rejects supercell_mm below the minimum", () => {
@@ -128,15 +109,27 @@ describe("numerateSchema", () => {
     expect(numerateSchema.parse({ supercell_mm: 6.5 }).supercell_mm).toBeCloseTo(6.5)
   })
 
-  it("rejects multiple and primary_count below 1", () => {
-    expect(numerateSchema.safeParse({ multiple: 0 }).success).toBe(false)
-    expect(numerateSchema.safeParse({ primary_count: 0 }).success).toBe(false)
+  it("clamps num_colors to its valid range", () => {
+    expect(numerateSchema.safeParse({ num_colors: 1 }).success).toBe(false)
+    expect(numerateSchema.safeParse({ num_colors: 257 }).success).toBe(false)
+    expect(numerateSchema.parse({ num_colors: 8 }).num_colors).toBe(8)
   })
 
-  it("accepts the multiple_axis enum values", () => {
-    expect(numerateSchema.parse({ multiple_axis: "horizontal" }).multiple_axis).toBe("horizontal")
-    expect(numerateSchema.parse({ multiple_axis: "vertical" }).multiple_axis).toBe("vertical")
-    expect(numerateSchema.safeParse({ multiple_axis: "diagonal" }).success).toBe(false)
+  it("ignores legacy params from old wizard payloads", () => {
+    // Old persisted trace rows may carry the dropped fields. Zod's
+    // default `strip` mode passes them through silently — important
+    // so the new server-side validation doesn't reject historical
+    // requests.
+    expect(
+      numerateSchema.parse({
+        supercell_mm: 5,
+        num_colors: 24,
+        primary_count: 99,
+        multiple_axis: "horizontal",
+        stroke_width: 2,
+        show_colors: false,
+      }),
+    ).toEqual({ supercell_mm: 5, num_colors: 24 })
   })
 })
 

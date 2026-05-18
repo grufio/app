@@ -12,6 +12,8 @@ const session: TraceDialogSession = {
   sourceImageWidth: 320,
   sourceImageHeight: 240,
   sourceImageUrl: "https://example.test/img.png",
+  displayMmW: 80,
+  displayMmH: 60,
 }
 
 describe("toTraceDialogSession", () => {
@@ -22,6 +24,8 @@ describe("toTraceDialogSession", () => {
         width_px: 320,
         height_px: 240,
         signedUrl: "https://example.test/img.png",
+        displayMmW: 80,
+        displayMmH: 60,
       }),
     ).toEqual(session)
   })
