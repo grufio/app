@@ -7,11 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "14.1"
-  }
   public: {
     Tables: {
       project_grid: {
@@ -303,12 +298,10 @@ export type Database = {
           height_px: number
           height_px_u: string
           height_value: number
-          output_dpi: number
           page_bg_color: string
           page_bg_enabled: boolean
           page_bg_opacity: number
           project_id: string
-          raster_effects_preset: string | null
           unit: Database["public"]["Enums"]["measure_unit"]
           updated_at: string
           width_px: number
@@ -320,12 +313,10 @@ export type Database = {
           height_px: number
           height_px_u: string
           height_value: number
-          output_dpi?: number
           page_bg_color?: string
           page_bg_enabled?: boolean
           page_bg_opacity?: number
           project_id: string
-          raster_effects_preset?: string | null
           unit?: Database["public"]["Enums"]["measure_unit"]
           updated_at?: string
           width_px: number
@@ -337,12 +328,10 @@ export type Database = {
           height_px?: number
           height_px_u?: string
           height_value?: number
-          output_dpi?: number
           page_bg_color?: string
           page_bg_enabled?: boolean
           page_bg_opacity?: number
           project_id?: string
-          raster_effects_preset?: string | null
           unit?: Database["public"]["Enums"]["measure_unit"]
           updated_at?: string
           width_px?: number
@@ -459,14 +448,6 @@ export type Database = {
           p_y_px_u: string
         }
         Returns: undefined
-      }
-      workspace_value_to_px_u: {
-        Args: {
-          dpi: number
-          u: Database["public"]["Enums"]["measure_unit"]
-          v: number
-        }
-        Returns: number
       }
     }
     Enums: {
