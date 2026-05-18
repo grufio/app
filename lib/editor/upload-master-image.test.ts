@@ -21,7 +21,7 @@ describe("upload-master-image", () => {
     }) as unknown as typeof fetch
 
     const out = await uploadMasterImageClient({ projectId: "p1", file, fetchImpl })
-    expect(out).toEqual({ ok: true })
+    expect(out).toEqual({ ok: true, master: null })
     const body = capturedBody as FormData | null
     expect(body?.get("width_px")).toBe("640")
     expect(body?.get("height_px")).toBe("480")

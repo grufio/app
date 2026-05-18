@@ -76,6 +76,11 @@ export async function POST(
     })
   }
 
-  return NextResponse.json({ ok: true, id: result.id, storage_path: result.storagePath })
+  return NextResponse.json({
+    ok: true,
+    id: result.id,
+    storage_path: result.storagePath,
+    master: result.master,
+  })
 }
 

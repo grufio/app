@@ -13,6 +13,7 @@ import { AddImageMenuAction } from "./add-image-menu-button"
 import { LockNavTreeActions, type MenuActionResult } from "./lock-nav-tree-actions"
 import { buildNavId, parseNavId } from "@/features/editor/navigation/nav-id"
 import { reportClientError } from "@/lib/monitoring/with-error-reporting"
+import type { UploadedMasterSnapshot } from "@/lib/editor/upload-master-image"
 
 export type EditorNavMasterImage = {
   id: string
@@ -28,7 +29,7 @@ export function EditorNavTree(props: {
    * trace outputs) are implementation details and never surface here. */
   masterImage: EditorNavMasterImage | null
   hasGrid: boolean
-  onImageUploaded: () => void | Promise<void>
+  onImageUploaded: (master: UploadedMasterSnapshot | null) => void | Promise<void>
   onImageDeleteRequested: (imageId: string) => void | Promise<void>
   onGridCreateRequested: () => void | Promise<void>
   onGridDeleteRequested: () => void | Promise<void>

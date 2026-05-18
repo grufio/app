@@ -9,6 +9,7 @@ import { uploadMasterImage } from "./master-image-upload"
 // configuration, so we plug these in by overriding `supabase.storage`.
 const uploadSpy = vi.fn()
 const removeSpy = vi.fn()
+const createSignedUrlSpy = vi.fn()
 const activateSpy = vi.fn()
 
 type InsertPayload = Record<string, unknown>
@@ -66,12 +67,22 @@ function makeSupabase(opts: MakeSupabaseOpts) {
   const supabase = makeMockSupabase({
     tables: {
       project_images: {
-        select: { data: selectData, error: selectError },
+        select: ({ ops }) => {
+          if (ops.includes("maybeSingle") || ops.includes("single")) {
+            return { data: selectData[0] ?? null, error: selectError }
+          }
+          return { data: selectData, error: selectError }
+        },
         insert: ({ opArgs }) => {
-          capture.inserts.push(opArgs[0] as InsertPayload)
+          const payload = opArgs[0] as InsertPayload
+          capture.inserts.push(payload)
           const nextError = insertCall < insertErrors.length ? insertErrors[insertCall] : insertError
           insertCall += 1
-          return { data: null, error: nextError ?? null }
+          if (nextError) return { data: null, error: nextError }
+          // Mimic `.select("*").single()` chained after insert: return
+          // the just-inserted row so master-image-upload can build the
+          // snapshot from in-memory state without a re-select.
+          return { data: payload, error: null }
         },
         delete: () => {
           capture.deletes += 1
@@ -103,6 +114,7 @@ function makeSupabase(opts: MakeSupabaseOpts) {
     from: () => ({
       upload: uploadSpy,
       remove: removeSpy,
+      createSignedUrl: createSignedUrlSpy,
     }),
   } as unknown as typeof supabase.storage
 
@@ -165,6 +177,7 @@ describe("master-image-upload service", () => {
     })
     uploadSpy.mockResolvedValue({ error: null })
     removeSpy.mockResolvedValue({ error: null })
+    createSignedUrlSpy.mockResolvedValue({ data: { signedUrl: "https://signed/master" }, error: null })
     activateSpy.mockResolvedValueOnce({ ok: true })
     const file = new File([new Uint8Array([1])], "x.png", { type: "image/png" })
 
@@ -179,6 +192,12 @@ describe("master-image-upload service", () => {
     })
 
     expect(out.ok).toBe(true)
+    if (out.ok) {
+      expect(out.master.signedUrl).toBe("https://signed/master")
+      expect(out.master.width_px).toBe(400)
+      expect(out.master.height_px).toBe(200)
+      expect(out.master.dpi).toBe(300)
+    }
     // Lazy working-copy: master upload writes ONLY the master file
     // and inserts ONLY the master row. The working_copy is created
     // on-demand by the filter-apply path via
@@ -233,7 +252,11 @@ describe("master-image-upload service", () => {
       reason: "Active image is locked",
       code: "image_locked",
     })
-    expect(capture.cleanupRpcCalls).toBeGreaterThanOrEqual(1)
+    // First-upload (selectData=[]): cleanup cascade is skipped — no
+    // prior master to delete. Test focus is the rollback path, not the
+    // cleanup path; cleanup behaviour is exercised by the "replaces"
+    // test above.
+    expect(capture.cleanupRpcCalls).toBe(0)
     expect(capture.stateUpserts).toBe(0)
     expect(removeSpy).toHaveBeenCalled()
   })

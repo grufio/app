@@ -17,6 +17,7 @@ import { EditorSidebarSection } from "./sidebar/editor-sidebar-section"
 import { EditorNavTree, type EditorNavMasterImage } from "./editor-nav-tree"
 import { TabsSidepanel, type SidepanelTab } from "./TabsSidepanel"
 import { useResizableSidebar } from "./use-resizable-sidebar"
+import type { UploadedMasterSnapshot } from "@/lib/editor/upload-master-image"
 
 export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel(props: {
   projectId: string
@@ -30,7 +31,7 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
    * this exactly — null when no master has been uploaded yet. */
   masterImage: EditorNavMasterImage | null
   hasGrid: boolean
-  onImageUploaded: () => void | Promise<void>
+  onImageUploaded: (master: UploadedMasterSnapshot | null) => void | Promise<void>
   onImageDeleteRequested: (imageId: string) => void | Promise<void>
   onGridCreateRequested: () => void | Promise<void>
   onGridDeleteRequested: () => void | Promise<void>

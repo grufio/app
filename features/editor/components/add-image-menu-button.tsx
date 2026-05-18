@@ -7,14 +7,14 @@ import { toast } from "sonner"
 
 import { SidebarMenuAction } from "@/components/ui/sidebar"
 import { formatOperationErrorForToast, normalizeApiError } from "@/lib/api/error-normalizer"
-import { uploadMasterImageClient } from "@/lib/editor/upload-master-image"
+import { uploadMasterImageClient, type UploadedMasterSnapshot } from "@/lib/editor/upload-master-image"
 
 export function AddImageMenuAction({
   projectId,
   onUploaded,
 }: {
   projectId: string
-  onUploaded: () => void | Promise<void>
+  onUploaded: (master: UploadedMasterSnapshot | null) => void | Promise<void>
 }) {
   const [isUploading, setIsUploading] = useState(false)
 
@@ -29,7 +29,7 @@ export function AddImageMenuAction({
           toast.error(formatted.title, formatted.detail ? { description: formatted.detail } : undefined)
           return
         }
-        await onUploaded()
+        await onUploaded(out.master)
       } catch (error) {
         const formatted = formatOperationErrorForToast(normalizeApiError(error))
         toast.error(formatted.title, formatted.detail ? { description: formatted.detail } : undefined)

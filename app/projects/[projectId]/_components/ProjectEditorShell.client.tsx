@@ -82,6 +82,7 @@ export function ProjectDetailPageClient({
     masterImageLoading,
     masterImageError,
     refreshMasterImage,
+    seedMasterImage,
     deleteBusy,
     deleteError,
     setDeleteError,
@@ -133,6 +134,7 @@ export function ProjectDetailPageClient({
     filterSourceImage,
     handleApplyFilter,
     handleImageUploaded,
+    seededMasterIdRef,
     uploadSyncError,
     restoreOperationError,
     workflowFilterPanelError,
@@ -151,6 +153,7 @@ export function ProjectDetailPageClient({
     refreshMasterImage,
     refreshProjectImages,
     refreshFilterImage,
+    seedMasterImage,
   })
   const filterDialog = useFilterDialogSession(filterSourceImage)
   const traceDialog = useTraceDialogSession(filterSourceImage)
@@ -351,8 +354,15 @@ export function ProjectDetailPageClient({
   })
 
   useEffect(() => {
+    // Skip the cascade refresh when this masterImage.id arrived via a
+    // direct seed from the upload-response. The workflow refresh fired
+    // by handleImageUploaded already fans out to refreshProjectImages
+    // in parallel — re-running it here would just burn a roundtrip.
+    if (seededMasterIdRef.current && seededMasterIdRef.current === masterImage?.id) {
+      return
+    }
     void refreshProjectImages()
-  }, [masterImage?.id, refreshProjectImages])
+  }, [masterImage?.id, refreshProjectImages, seededMasterIdRef])
 
   // Canvas source is always the working-copy across all three tabs.
   // Master is an immutable restore source (`guard_master_immutable`),

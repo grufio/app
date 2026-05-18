@@ -13,7 +13,7 @@ import { ImagePlus } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { hasMasterImage } from "@/lib/api/project-images"
-import { uploadMasterImageClient } from "@/lib/editor/upload-master-image"
+import { uploadMasterImageClient, type UploadedMasterSnapshot } from "@/lib/editor/upload-master-image"
 import { formatKbRounded } from "@/lib/utils/file-size"
 import { ToolbarIconButton } from "./toolbar-icon-button"
 
@@ -34,7 +34,7 @@ export function MasterImageUpload({
   variant = "panel",
 }: {
   projectId: string
-  onUploaded: () => void
+  onUploaded: (master: UploadedMasterSnapshot | null) => void
   onUploadingChange?: (uploading: boolean) => void
   variant?: "panel" | "toolbar"
 }) {
@@ -77,7 +77,7 @@ export function MasterImageUpload({
         }
 
         setStatus("hide")
-        onUploaded()
+        onUploaded(out.master)
       } finally {
         setIsUploading(false)
         onUploadingChange?.(false)

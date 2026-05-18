@@ -14,11 +14,36 @@ import { resetProjectFilterChain } from "@/services/editor/server/filter-chain-r
 
 import { insertMasterWithCleanup } from "./master-image-upload/master-insert-flow"
 import { validateUploadInputs, validateUploadLimits } from "./master-image-upload/policy"
-import type { UploadMasterImageResult } from "./master-image-upload/types"
+import type { InsertedMasterRow } from "./master-image-upload/insert-master"
+import type { UploadMasterImageResult, UploadMasterSnapshot } from "./master-image-upload/types"
 import { normalizePositiveInt } from "./master-image-upload/validation"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 
-export type { UploadMasterImageFailure, UploadMasterImageSuccess, UploadMasterImageResult } from "./master-image-upload/types"
+export type { UploadMasterImageFailure, UploadMasterImageSuccess, UploadMasterImageResult, UploadMasterSnapshot } from "./master-image-upload/types"
+
+const SNAPSHOT_SIGNED_URL_TTL_S = 60 * 30
+
+async function buildMasterSnapshot(args: {
+  supabase: SupabaseClient<Database>
+  row: InsertedMasterRow
+}): Promise<UploadMasterSnapshot | null> {
+  const { supabase, row } = args
+  if (!row.storage_path) return null
+  const bucket = row.storage_bucket ?? PROJECT_IMAGES_BUCKET
+  const { data: signed, error } = await supabase.storage.from(bucket).createSignedUrl(row.storage_path, SNAPSHOT_SIGNED_URL_TTL_S)
+  if (error || !signed?.signedUrl) return null
+  return {
+    id: row.id,
+    signedUrl: signed.signedUrl,
+    storage_path: row.storage_path,
+    name: row.name ?? "master image",
+    format: row.format ?? null,
+    width_px: Number(row.width_px ?? 0),
+    height_px: Number(row.height_px ?? 0),
+    dpi: row.dpi == null ? null : Number(row.dpi),
+    file_size_bytes: row.file_size_bytes == null ? null : Number(row.file_size_bytes),
+  }
+}
 
 async function rollbackCreatedUploadRows(args: {
   supabase: SupabaseClient<Database>
@@ -90,6 +115,7 @@ export async function uploadMasterImage(args: {
       code: insertResult.code,
     }
   }
+  const insertedRow = insertResult.row
 
   const filterReset = await resetProjectFilterChain({ supabase, projectId })
   if (!filterReset.ok) {
@@ -137,5 +163,20 @@ export async function uploadMasterImage(args: {
   // `services/editor/server/working-copy/ensure.ts`. Saves one
   // storage upload + one DB row per master add for users who don't
   // immediately filter.
-  return { ok: true, id: imageId, storagePath: objectPath }
+
+  // Sign the freshly-inserted row so the client can seed its
+  // master-image hook without a follow-up GET. Activation flipped
+  // is_active=true on insertedRow's PK, but the local copy still
+  // reads is_active=false — that field isn't part of the snapshot
+  // contract, so no re-fetch needed.
+  const master = await buildMasterSnapshot({ supabase, row: insertedRow })
+  if (!master) {
+    return {
+      ok: false,
+      status: 500,
+      stage: "db_upsert",
+      reason: "Failed to sign uploaded master URL",
+    }
+  }
+  return { ok: true, id: imageId, storagePath: objectPath, master }
 }
