@@ -157,11 +157,23 @@ export function ProjectDetailPageClient({
     refreshFilterImage,
     seedMasterImage,
   })
+  const {
+    imageTxU,
+    initialImageTxU,
+    handleImageTransformChange,
+    handleNudge,
+    clear: clearImageTxU,
+  } = useCanvasTxMirror({
+    canvasRef,
+    activeCanvasImageId,
+    initialImageTransform,
+  })
   const filterDialog = useFilterDialogSession(filterSourceImage)
   // Trace dialog needs the image's displayed size on the artboard in
-  // mm — numerate-grid math runs on display-mm, not source-px. State
-  // preferred (post-resize), fresh-upload fallback via the same DPI-
-  // relative placement algorithm the upload flow uses to seed state.
+  // mm — numerate-grid math runs on display-mm, not source-px. Live
+  // canvas tx (post drag/resize) preferred; SSR-seeded tx is the
+  // fresh-upload fallback before the canvas reports its first frame;
+  // final fallback re-runs the DPI-relative placement algorithm.
   // Returns null until workspace + source are both ready.
   const traceSourceImage = useMemo(() => {
     if (!filterSourceImage) return null
@@ -169,11 +181,11 @@ export function ProjectDetailPageClient({
     const MM_PER_INCH = 25.4
     let displayMmW: number
     let displayMmH: number
-    const seedW = initialImageTransform?.widthPxU
-    const seedH = initialImageTransform?.heightPxU
-    if (seedW && seedH) {
-      displayMmW = (Number(seedW) / 1e6 / workspaceDpi) * MM_PER_INCH
-      displayMmH = (Number(seedH) / 1e6 / workspaceDpi) * MM_PER_INCH
+    const liveW = imageTxU?.w ?? initialImageTxU?.w
+    const liveH = imageTxU?.h ?? initialImageTxU?.h
+    if (liveW && liveH) {
+      displayMmW = (Number(liveW) / 1e6 / workspaceDpi) * MM_PER_INCH
+      displayMmH = (Number(liveH) / 1e6 / workspaceDpi) * MM_PER_INCH
     } else {
       const placement = computeDpiRelativePlacementPx({
         artW: artboardWidthPx,
@@ -193,8 +205,10 @@ export function ProjectDetailPageClient({
     workspaceDpi,
     artboardWidthPx,
     artboardHeightPx,
-    initialImageTransform?.widthPxU,
-    initialImageTransform?.heightPxU,
+    imageTxU?.w,
+    imageTxU?.h,
+    initialImageTxU?.w,
+    initialImageTxU?.h,
     masterImage?.dpi,
   ])
   const traceDialog = useTraceDialogSession(traceSourceImage)
@@ -268,18 +282,6 @@ export function ProjectDetailPageClient({
     if (isAddTraceDisabled) return
     traceDialog.beginSelection()
   }, [isAddTraceDisabled, traceDialog])
-
-  const {
-    imageTxU,
-    initialImageTxU,
-    handleImageTransformChange,
-    handleNudge,
-    clear: clearImageTxU,
-  } = useCanvasTxMirror({
-    canvasRef,
-    activeCanvasImageId,
-    initialImageTransform,
-  })
 
   const {
     selectedImageId,
