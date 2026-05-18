@@ -14,7 +14,8 @@ import numpy as np
 import io
 import base64
 
-from app.vectorise import lineart_to_svg, numerate_to_svg
+from app.lineart import lineart_to_svg
+from app.numerate import numerate_to_svg
 
 
 class PhaseTimer:
@@ -271,8 +272,9 @@ async def numerate_filter(request: NumerateRequest):
         raise HTTPException(status_code=400, detail="crop_w and crop_h must be > 0")
     if request.stroke_width < 0.1 or request.stroke_width > 20:
         raise HTTPException(status_code=400, detail="Stroke width must be between 0.1 and 20")
-    if request.num_colors < 2 or request.num_colors > 256:
-        raise HTTPException(status_code=400, detail="num_colors must be between 2 and 256")
+    # num_colors validation removed: the new numerate pipeline ignores
+    # the param (cell colours come direct from the area-averaged
+    # downsample, future palette map handles colour reduction).
 
     timer = PhaseTimer()
     try:
