@@ -6,6 +6,7 @@ import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role"
 import { getEditorTargetImageRow } from "@/lib/supabase/project-images"
 import { activateProjectImageOnly } from "@/services/editor/server/activate-project-image"
 import { appendProjectImageFilter } from "@/services/editor/server/filter-chain"
+import { ensureFilterWorkingCopyExists } from "@/services/editor/server/filter-working-copy/ensure-filter-copy"
 import {
   bwHardImageAndActivate,
   bwSoftImageAndActivate,
@@ -212,10 +213,62 @@ export async function applyProjectImageFilter(args: {
       code: activeLookup.error.code,
     }
   }
-  const active = activeLookup.row
+  let active = activeLookup.row
   if (!active?.id) return { ok: false, status: 404, stage: "active_lookup", reason: "No active image found" }
   const requestedSourceImageId =
     typeof rawParams.source_image_id === "string" && rawParams.source_image_id.trim() ? rawParams.source_image_id.trim() : null
+
+  // Lazy filter_working_copy: when the editor target is not yet a
+  // filter_working_copy (= no filter has ever been applied on this
+  // project; the post-master-upload state), materialise it now so
+  // the filter chain anchors at a stable id. Skipped when the caller
+  // passes an explicit `source_image_id` — that's the "I know what
+  // I'm doing" path.
+  if (!requestedSourceImageId && resolveImageKind(active) !== IMAGE_KIND.FILTER_WORKING_COPY) {
+    if (active.is_locked) {
+      return { ok: false, status: 409, stage: "lock_conflict", reason: "Active image is locked", code: "image_locked" }
+    }
+    if (
+      !active.name ||
+      !active.storage_path ||
+      !active.format ||
+      !(Number(active.width_px ?? 0) > 0) ||
+      !(Number(active.height_px ?? 0) > 0)
+    ) {
+      return { ok: false, status: 409, stage: "active_lookup", reason: "Active image is missing required fields" }
+    }
+    const ensured = await ensureFilterWorkingCopyExists({
+      supabase,
+      projectId,
+      source: {
+        id: String(active.id),
+        storage_bucket: active.storage_bucket ?? null,
+        storage_path: String(active.storage_path),
+        name: String(active.name),
+        format: String(active.format),
+        width_px: Number(active.width_px),
+        height_px: Number(active.height_px),
+        file_size_bytes: Number(active.file_size_bytes ?? 0),
+      },
+    })
+    if (!ensured.ok) {
+      return {
+        ok: false,
+        status: ensured.status,
+        stage: ensured.stage === "storage_copy" ? "storage_upload" : ensured.stage === "db_insert" ? "db_insert" : "active_lookup",
+        reason: ensured.reason,
+        code: ensured.code,
+      }
+    }
+    // Re-resolve so downstream sees the freshly created
+    // filter_working_copy as the target.
+    const reLookup = await getEditorTargetImageRow(supabase, projectId)
+    if (reLookup.error || !reLookup.row?.id) {
+      return { ok: false, status: 500, stage: "active_lookup", reason: reLookup.error?.reason ?? "Filter source ensure succeeded but re-resolve failed" }
+    }
+    active = reLookup.row
+  }
+
   const sourceImageId = requestedSourceImageId ?? String(active.id)
   if (sourceImageId === String(active.id) && active.is_locked) {
     return { ok: false, status: 409, stage: "lock_conflict", reason: "Active image is locked", code: "image_locked" }
