@@ -40,32 +40,36 @@ export async function cleanupExistingMasters(args: {
   projectId: string
 }): Promise<{ ok: true } | { ok: false; reason: string; code?: string }> {
   const { supabase, projectId } = args
-  const { data, error } = await supabase
-    .from("project_images")
-    .select("id,storage_bucket,storage_path")
-    .eq("project_id", projectId)
-    .eq("kind", "master")
-    .is("deleted_at", null)
 
-  if (error) return { ok: false, reason: error.message, code: (error as { code?: string }).code }
+  // `guard_master_immutable` (BEFORE DELETE) blocks plain DELETE on
+  // kind='master'. The `delete_master_with_cascade` RPC sets the
+  // `app.deleting_project` GUC inside the transaction so the trigger
+  // waives immutability for this project, then deletes every
+  // dependent image row in the correct order and returns their
+  // storage paths so we can remove the bucket objects.
+  const rpc = supabase as unknown as {
+    rpc(
+      fn: "delete_master_with_cascade",
+      args: { p_project_id: string },
+    ): Promise<{
+      data: Array<{ storage_bucket: string | null; storage_path: string | null }> | null
+      error: { message: string; code?: string } | null
+    }>
+  }
+  const { data, error } = await rpc.rpc("delete_master_with_cascade", {
+    p_project_id: projectId,
+  })
 
-  const existing = ((data ?? []) as Array<{ id: string; storage_bucket: string | null; storage_path: string | null }>).map((row) => ({
-    id: String(row.id),
+  if (error) return { ok: false, reason: error.message, code: error.code }
+
+  const removed: ExistingMasterRow[] = (data ?? []).map((row, idx) => ({
+    id: String(idx),
     storage_bucket: row.storage_bucket,
     storage_path: row.storage_path,
   }))
-  if (!existing.length) return { ok: true }
+  if (!removed.length) return { ok: true }
 
-  const { error: deleteErr } = await supabase
-    .from("project_images")
-    .delete()
-    .eq("project_id", projectId)
-    .eq("kind", "master")
-    .is("deleted_at", null)
-
-  if (deleteErr) return { ok: false, reason: deleteErr.message, code: (deleteErr as { code?: string }).code }
-
-  const cleanup = await removeStorageObjectsByBucket(supabase, existing)
+  const cleanup = await removeStorageObjectsByBucket(supabase, removed)
   if (!cleanup.ok) return cleanup
   return { ok: true }
 }
