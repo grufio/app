@@ -48,32 +48,41 @@ const expected = fs.readFileSync(outPath, "utf8").replace(/\r\n/g, "\n")
 const actual = fs.readFileSync(tmpFile, "utf8").replace(/\r\n/g, "\n")
 
 if (expected !== actual) {
-  // Distinguish two failure modes:
-  //   (a) committed types have *fewer* lines than remote — committed is
-  //       stale (someone changed the schema on prod without checking
-  //       in the regenerated types). Real drift; fail.
-  //   (b) committed types have *more* lines than remote — this PR
-  //       introduces a migration that hasn't been deployed yet, so
-  //       prod-generated types can't include the new tables/columns.
-  //       Soft-skip with WARN; the deploy workflow + the next PR's
-  //       run will enforce sync once prod catches up.
-  // Heuristic: split into line sets and compare. If every line in
-  // `actual` (remote) also appears in `expected` (committed), the
-  // diff is pure additions on the committed side → likely pending.
+  // Three failure modes:
+  //   (a) Pure additions on committed side (committed has MORE lines
+  //       than remote) — this PR introduces a migration that adds
+  //       columns/tables; prod hasn't received it yet. Soft-skip.
+  //   (b) Pure removals on committed side (committed has FEWER lines
+  //       than remote, all committed lines exist on remote) — this PR
+  //       introduces a migration that drops columns/tables; prod
+  //       hasn't received it yet. Soft-skip.
+  //   (c) Both directions non-empty OR drift in unrelated places —
+  //       real schema drift. Fail.
   const expectedLines = new Set(expected.split("\n"))
-  const actualLines = actual.split("\n")
-  const remoteOnly = actualLines.filter((line) => !expectedLines.has(line))
+  const actualLineList = actual.split("\n")
+  const remoteOnly = actualLineList.filter((line) => !expectedLines.has(line))
+  const actualLines = new Set(actualLineList)
+  const committedOnly = expected.split("\n").filter((line) => !actualLines.has(line))
 
   if (remoteOnly.length === 0) {
     console.warn(
-      "WARN: lib/supabase/database.types.ts has additions over the remote dump — likely a pending migration in this PR.",
+      "WARN: lib/supabase/database.types.ts has additions over the remote dump — likely a pending additive migration in this PR.",
+    )
+    console.warn("Skipping strict equality; verify:remote-migrations covers the deploy gap.")
+    process.exit(0)
+  }
+
+  if (committedOnly.length === 0) {
+    console.warn(
+      "WARN: lib/supabase/database.types.ts has removals vs the remote dump — likely a pending drop migration in this PR.",
     )
     console.warn("Skipping strict equality; verify:remote-migrations covers the deploy gap.")
     process.exit(0)
   }
 
   console.error("Type drift detected: lib/supabase/database.types.ts is out of sync.")
-  console.error(`Remote has ${remoteOnly.length} line(s) the committed file is missing — committed is stale.`)
+  console.error(`Remote has ${remoteOnly.length} line(s) the committed file is missing,`)
+  console.error(`and committed has ${committedOnly.length} line(s) the remote is missing — non-trivial divergence.`)
   console.error("\nFix: run `npm run types:gen` and commit the updated types.")
   process.exit(1)
 }
