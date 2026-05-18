@@ -12,7 +12,6 @@ export async function createProjectClient(input: {
   unit: Unit
   width_value: number
   height_value: number
-  dpi: number
 }): Promise<{ id: string }> {
   const res = await fetch("/api/projects/create", {
     method: "POST",
