@@ -11,6 +11,7 @@ import * as React from "react"
 import dynamic from "next/dynamic"
 import { Eye, EyeOff, Percent } from "lucide-react"
 
+import { cn } from "@/lib/utils"
 import { SidebarFrame } from "@/components/navigation/SidebarFrame"
 import type { OperationError } from "@/lib/api/operation-error"
 import { AppButton, FormField } from "@/components/ui/form-controls"
@@ -86,6 +87,9 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
   gridVisible: boolean
   onGridVisibleChange: (v: boolean) => void
   canvasRef: React.RefObject<ProjectCanvasStageHandle | null>
+  /** Mobile drawer state. Ignored on `md+` where the panel is
+   * always rendered as a static sidebar. */
+  open?: boolean
 }) {
   const {
     panelWidthRem,
@@ -121,6 +125,7 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
     gridVisible,
     onGridVisibleChange,
     canvasRef,
+    open = true,
   } = props
 
   const restoreFocusReturn = useDialogFocusReturn()
@@ -150,13 +155,27 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
   return (
     <>
       <aside
-        className="shrink-0 border-l bg-background relative"
-        style={{ width: `${clamp(panelWidthRem)}rem` }}
+        id="right-panel"
+        className={cn(
+          // Desktop default (md+): static sidebar, width from CSS-var
+          "shrink-0 border-l bg-background relative w-[var(--panel-w)]",
+          // Mobile (< md): fullscreen drawer absolute within Layout
+          "max-md:absolute max-md:inset-0 max-md:w-full max-md:z-40 max-md:shadow-xl",
+          // Slide-in animation (respects prefers-reduced-motion)
+          "max-md:transition-transform max-md:duration-200 max-md:ease-out",
+          "max-md:motion-reduce:transition-none",
+          open
+            ? "max-md:translate-x-0"
+            : "max-md:translate-x-full max-md:pointer-events-none",
+        )}
+        style={{ "--panel-w": `${clamp(panelWidthRem)}rem` } as React.CSSProperties}
       >
-        {/* Resize handle (use border line; no separate visual handle). */}
+        {/* Resize handle (use border line; no separate visual handle).
+         * Hidden on mobile — the panel is fullscreen there and there's
+         * nothing to resize against. */}
         <div
           aria-hidden="true"
-          className="absolute inset-y-0 -left-1 z-20 w-2 cursor-col-resize"
+          className="absolute inset-y-0 -left-1 z-20 hidden w-2 cursor-col-resize md:block"
           onMouseDown={onResizeMouseDown}
         />
         <SidebarFrame className="block h-full min-h-0 w-full">
