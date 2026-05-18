@@ -21,7 +21,16 @@ type MakeSupabaseOpts = {
   deleteError?: { message: string; code?: string } | null
   stateRow?: Record<string, unknown> | null
   upsertStateError?: { message: string; code?: string } | null
-  capture: { inserts: InsertPayload[]; deletes: number; stateUpserts: number }
+  /** Rows that the master-cleanup RPC reports as removed (storage
+   * paths for cleanup). When `null`, the RPC mock returns `data: null`
+   * to simulate an empty project. */
+  cleanupRpcData?: Array<{ storage_bucket: string | null; storage_path: string | null }> | null
+  capture: {
+    inserts: InsertPayload[]
+    deletes: number
+    stateUpserts: number
+    cleanupRpcCalls: number
+  }
 }
 
 vi.mock("@/services/editor/server/activate-project-image", () => ({
@@ -44,19 +53,20 @@ function makeSupabase(opts: MakeSupabaseOpts) {
       rotation_deg: 0,
     },
     upsertStateError = null,
+    cleanupRpcData = null,
   } = opts
   let insertCall = 0
 
+  // Master cleanup now goes through `delete_master_with_cascade`
+  // (server-side cascade with `app.deleting_project` GUC), so the
+  // mock spies on the RPC call and returns the configured rowset.
+  // `selectData` is retained for any code path that still does a
+  // direct `select` (none in the current flow), but the cleanup
+  // count moves to `cleanupRpcCalls`.
   const supabase = makeMockSupabase({
     tables: {
       project_images: {
-        // The cleanup query is `.eq().eq().is()` (no maybeSingle) and
-        // expects a list. Always return the configured array.
         select: { data: selectData, error: selectError },
-        // Sequential insert behaviour: index N gets insertErrors[N], or
-        // falls back to the global insertError. Lets one test seed a
-        // mid-batch failure (e.g. master insert succeeds, working copy
-        // fails). Capture the row payload via opArgs[0].
         insert: ({ opArgs }) => {
           capture.inserts.push(opArgs[0] as InsertPayload)
           const nextError = insertCall < insertErrors.length ? insertErrors[insertCall] : insertError
@@ -73,6 +83,15 @@ function makeSupabase(opts: MakeSupabaseOpts) {
         upsert: () => {
           capture.stateUpserts += 1
           return { data: null, error: upsertStateError ?? null }
+        },
+      },
+    },
+    rpcs: {
+      delete_master_with_cascade: {
+        data: cleanupRpcData,
+        error: deleteError ?? null,
+        onCall: () => {
+          capture.cleanupRpcCalls += 1
         },
       },
     },
@@ -99,7 +118,7 @@ describe("master-image-upload service", () => {
   })
 
   it("rejects invalid dimensions with validation stage", async () => {
-    const supabase = makeSupabase({ capture: { inserts: [], deletes: 0, stateUpserts: 0 } })
+    const supabase = makeSupabase({ capture: { inserts: [], deletes: 0, stateUpserts: 0, cleanupRpcCalls: 0 } })
     const file = new File([new Uint8Array([1])], "x.png", { type: "image/png" })
     const out = await uploadMasterImage({
       supabase: supabase as never,
@@ -119,7 +138,7 @@ describe("master-image-upload service", () => {
 
   it("applies upload limits from env", async () => {
     process.env.USER_MAX_UPLOAD_BYTES = "1"
-    const supabase = makeSupabase({ capture: { inserts: [], deletes: 0, stateUpserts: 0 } })
+    const supabase = makeSupabase({ capture: { inserts: [], deletes: 0, stateUpserts: 0, cleanupRpcCalls: 0 } })
     const file = new File([new Uint8Array([1, 2])], "x.png", { type: "image/png" })
 
     const out = await uploadMasterImage({
@@ -139,7 +158,7 @@ describe("master-image-upload service", () => {
   })
 
   it("replaces existing master rows, inserts, and activates", async () => {
-    const capture = { inserts: [] as InsertPayload[], deletes: 0, stateUpserts: 0 }
+    const capture = { inserts: [] as InsertPayload[], deletes: 0, stateUpserts: 0, cleanupRpcCalls: 0 }
     const supabase = makeSupabase({
       capture,
       selectData: [{ id: "master-old", storage_bucket: "project_images", storage_path: "projects/p1/images/master-old" }],
@@ -179,12 +198,12 @@ describe("master-image-upload service", () => {
       })
     )
     expect(capture.stateUpserts).toBe(0)
-    expect(capture.deletes).toBeGreaterThanOrEqual(1)
+    expect(capture.cleanupRpcCalls).toBeGreaterThanOrEqual(1)
     expect(activateSpy).toHaveBeenCalledTimes(1)
   })
 
   it("rolls back inserted row and storage object when activation fails", async () => {
-    const capture = { inserts: [] as InsertPayload[], deletes: 0, stateUpserts: 0 }
+    const capture = { inserts: [] as InsertPayload[], deletes: 0, stateUpserts: 0, cleanupRpcCalls: 0 }
     const supabase = makeSupabase({ capture, selectData: [] })
     uploadSpy.mockResolvedValue({ error: null })
     removeSpy.mockResolvedValue({ error: null })
@@ -214,7 +233,7 @@ describe("master-image-upload service", () => {
       reason: "Active image is locked",
       code: "image_locked",
     })
-    expect(capture.deletes).toBeGreaterThanOrEqual(1)
+    expect(capture.cleanupRpcCalls).toBeGreaterThanOrEqual(1)
     expect(capture.stateUpserts).toBe(0)
     expect(removeSpy).toHaveBeenCalled()
   })
