@@ -4,7 +4,7 @@
  * Create-project dialog (dashboard).
  *
  * Responsibilities:
- * - Collect artboard preset and DPI.
+ * - Collect artboard preset.
  * - Call the project creation API and navigate to the new project.
  */
 import { useMemo, useState } from "react"
@@ -25,7 +25,6 @@ import {
 } from "@/components/ui/select"
 import { createProjectClient } from "@/services/projects/client/create-project"
 import {
-  PROJECT_DPI_OPTIONS,
   PROJECT_PRESETS,
   getProjectPresetById,
   getProjectPresetsByGroup,
@@ -38,7 +37,6 @@ export function CreateProjectDialog() {
   const [error, setError] = useState("")
 
   const [presetId, setPresetId] = useState<string>(PROJECT_PRESETS[0]?.id ?? "")
-  const [dpi, setDpi] = useState<string>("300")
 
   const preset = useMemo(() => getProjectPresetById(presetId), [presetId])
 
@@ -52,7 +50,6 @@ export function CreateProjectDialog() {
         unit: preset.unit,
         width_value: preset.width_value,
         height_value: preset.height_value,
-        dpi: Number(dpi),
       })
       router.push(`/projects/${json.id}`)
     } catch (e) {
@@ -72,7 +69,7 @@ export function CreateProjectDialog() {
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Create project</DialogTitle>
-          <DialogDescription>Choose an artboard preset and resolution.</DialogDescription>
+          <DialogDescription>Choose an artboard preset.</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-2">
@@ -101,19 +98,6 @@ export function CreateProjectDialog() {
             </SelectContent>
           </Select>
 
-          <Select value={dpi} onValueChange={setDpi}>
-            <SelectTrigger aria-label="Resolution (DPI)">
-              <SelectValue placeholder="Choose DPI" />
-            </SelectTrigger>
-            <SelectContent>
-              {PROJECT_DPI_OPTIONS.map((v) => (
-                <SelectItem key={String(v)} value={String(v)}>
-                  {v} dpi
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
           {error ? <div className="text-sm text-destructive">{error}</div> : null}
         </div>
 
@@ -129,4 +113,3 @@ export function CreateProjectDialog() {
     </Dialog>
   )
 }
-

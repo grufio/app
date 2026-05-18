@@ -2,7 +2,7 @@
  * Project creation presets (UI-agnostic).
  *
  * Responsibilities:
- * - Provide the canonical list of artboard presets and allowed DPI options.
+ * - Provide the canonical list of artboard presets.
  * - Keep preset grouping logic out of UI components.
  */
 import type { Unit } from "@/lib/editor/units"
@@ -23,8 +23,6 @@ export const PROJECT_PRESETS: ProjectPreset[] = [
   { id: "web-1280x720", label: "Web 1280 × 720 px", unit: "px", width_value: 1280, height_value: 720, group: "web" },
   { id: "web-1080x1080", label: "Web 1080 × 1080 px", unit: "px", width_value: 1080, height_value: 1080, group: "web" },
 ]
-
-export const PROJECT_DPI_OPTIONS = [300, 150, 72] as const
 
 export function getProjectPresetById(presetId: string): ProjectPreset | null {
   return PROJECT_PRESETS.find((p) => p.id === presetId) ?? null
