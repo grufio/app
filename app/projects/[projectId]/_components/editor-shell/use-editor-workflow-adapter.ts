@@ -126,7 +126,14 @@ export function useEditorWorkflowAdapter(args: {
     refreshFilterImage,
     seedMasterImage,
   } = args
-  const [uploadSyncing, setUploadSyncing] = useState(false)
+  // `uploadSyncing` used to guard the source-snapshot loading state
+  // while the upload handler waited on workflow.refreshAndWait(). The
+  // handler no longer blocks on a refresh round-trip — the seeded
+  // master is authoritative, and the loading state of the deferred
+  // hooks (filterImageLoading, masterImageLoading) already covers the
+  // background refresh window. Kept as a constant `false` so the
+  // existing deriveEditorSourceSnapshot signature stays stable.
+  const uploadSyncing = false
   const [uploadSyncError, setUploadSyncError] = useState<unknown>(null)
   const activeSourceImageIdRef = useRef<string | null>(null)
   /** Source ID for filter-apply operations. Tracks the trace-free
@@ -286,21 +293,29 @@ export function useEditorWorkflowAdapter(args: {
   const seededMasterIdRef = useRef<string | null>(null)
   const handleImageUploaded = useCallback(
     async (uploadedMaster: { id: string; signedUrl: string; width_px: number; height_px: number; dpi: number | null; name: string } | null) => {
+      // Upload path is fully synchronous from the UI's standpoint once
+      // the POST resolves: the master snapshot in the response is
+      // authoritative. We seed it and let the source-snapshot useEffect
+      // in the workflow machine pick the new image up through normal
+      // React-tree flow — no REFRESH event, no syncing state, no
+      // 20-second wait that can time out when any single dependent
+      // hook is slow.
+      //
+      // The two remaining derived slices (project_images, filter_image)
+      // are refreshed in the background. UI features that depend on
+      // them surface their own loading/error states; nothing here
+      // should block on them. Background-hook failures have their own
+      // surfaces (filterImageError etc.) — we don't double-surface
+      // them via uploadSyncError.
+      workflow.dismissError()
       if (uploadedMaster?.id) {
         seedMasterImage(uploadedMaster)
         seededMasterIdRef.current = uploadedMaster.id
       }
-      setUploadSyncing(true)
       setUploadSyncError(null)
-      try {
-        await workflow.refreshAndWait()
-      } catch (err) {
-        setUploadSyncError(err)
-      } finally {
-        setUploadSyncing(false)
-      }
+      void Promise.allSettled([refreshProjectImages(), refreshFilterImage()])
     },
-    [seedMasterImage, workflow],
+    [refreshFilterImage, refreshProjectImages, seedMasterImage, workflow],
   )
 
   // OperationError-typed composition. Order: persistence has highest
