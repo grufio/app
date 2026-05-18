@@ -4,20 +4,26 @@ import { buildNavId } from "./nav-id"
 import { recoverSelectedNavId } from "./selection-recovery"
 
 describe("selection-recovery", () => {
-  it("falls back to active master image if selected image becomes stale", () => {
+  it("falls back to the current master image if the selected image is stale", () => {
     const out = recoverSelectedNavId({
       selectedNavId: buildNavId({ kind: "image", imageId: "stale" }),
-      images: [{ id: "img-1" }, { id: "img-2" }],
-      activeMasterImageId: "img-2",
+      masterImageId: "master-1",
     })
-    expect(out).toBe(buildNavId({ kind: "image", imageId: "img-2" }))
+    expect(out).toBe(buildNavId({ kind: "image", imageId: "master-1" }))
   })
 
-  it("falls back to artboard if no active image exists", () => {
+  it("keeps the selection when it already points at the master", () => {
+    const out = recoverSelectedNavId({
+      selectedNavId: buildNavId({ kind: "image", imageId: "master-1" }),
+      masterImageId: "master-1",
+    })
+    expect(out).toBe(buildNavId({ kind: "image", imageId: "master-1" }))
+  })
+
+  it("falls back to artboard when no master image exists", () => {
     const out = recoverSelectedNavId({
       selectedNavId: buildNavId({ kind: "image", imageId: "stale" }),
-      images: [],
-      activeMasterImageId: null,
+      masterImageId: null,
     })
     expect(out).toBe(buildNavId({ kind: "artboard" }))
   })
@@ -25,8 +31,7 @@ describe("selection-recovery", () => {
   it("keeps non-image selections unchanged", () => {
     const out = recoverSelectedNavId({
       selectedNavId: buildNavId({ kind: "artboard" }),
-      images: [{ id: "img-1" }],
-      activeMasterImageId: "img-1",
+      masterImageId: "master-1",
     })
     expect(out).toBe(buildNavId({ kind: "artboard" }))
   })

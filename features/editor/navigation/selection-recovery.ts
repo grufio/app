@@ -1,24 +1,26 @@
 import { buildNavId, isImageNavSelection, parseNavId } from "./nav-id"
 
-type ImageLike = { id: string }
-
 /**
- * Recover stale image selection after list updates (delete/refresh).
+ * Recover a stale image selection. The image node in the editor's nav
+ * tree represents the project's master image; the only legitimate
+ * `image:X` selection is `image:<masterImageId>`. Anything else is
+ * stale (the master was replaced or deleted) and gets recovered to
+ * either the current master or the artboard.
  */
 export function recoverSelectedNavId(args: {
   selectedNavId: string
-  images: ImageLike[]
-  activeMasterImageId?: string | null
+  masterImageId: string | null
 }): string {
-  const { selectedNavId, images, activeMasterImageId } = args
+  const { selectedNavId, masterImageId } = args
   const selected = parseNavId(selectedNavId)
   if (!isImageNavSelection(selected)) return selectedNavId
 
-  const selectedStillExists = images.some((img) => img.id === selected.imageId)
-  if (selectedStillExists) return selectedNavId
+  if (masterImageId && selected.imageId === masterImageId) {
+    return selectedNavId
+  }
 
-  if (activeMasterImageId && images.some((img) => img.id === activeMasterImageId)) {
-    return buildNavId({ kind: "image", imageId: activeMasterImageId })
+  if (masterImageId) {
+    return buildNavId({ kind: "image", imageId: masterImageId })
   }
 
   return buildNavId({ kind: "artboard" })
