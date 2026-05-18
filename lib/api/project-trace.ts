@@ -15,8 +15,25 @@ export type ProjectTrace = {
   kind: TraceKind
   params: Record<string, unknown>
   output_image_id: string
+  /** Bitmap (kind=trace_base) holding the source image cropped to
+   * the trace cell grid. Null for trace kinds that cover the full
+   * source (lineart). When set, the editor renders this bitmap as
+   * the canvas background under the SVG overlay. */
+  base_image_id: string | null
   created_at: string
   updated_at: string
+}
+
+/** Signed-URL view of the trace's `base_image_id` row, resolved
+ * server-side by the trace route so the editor can render the
+ * cropped bitmap as the canvas background without a second
+ * round-trip. Null when the trace has no `base_image_id` (lineart)
+ * or the underlying row vanished. */
+export type TraceBaseImage = {
+  id: string
+  signedUrl: string
+  width_px: number
+  height_px: number
 }
 
 type ApiErrorPayload = Record<string, unknown> | null
@@ -37,16 +54,30 @@ function tracePath(projectId: string): string {
   return `/api/projects/${projectId}/trace`
 }
 
-/** GET /api/projects/[projectId]/trace — current trace state, or null. */
-export async function getProjectTrace(projectId: string): Promise<ProjectTrace | null> {
-  const res = await fetchJson<{ ok?: boolean; trace?: ProjectTrace | null }>(tracePath(projectId), {
+export type ProjectTraceWithBase = {
+  trace: ProjectTrace | null
+  baseImage: TraceBaseImage | null
+}
+
+/** GET /api/projects/[projectId]/trace — current trace state, plus
+ * the resolved signed URL of the trace's base bitmap (when one
+ * exists). Returns nulls when no trace row is set. */
+export async function getProjectTrace(projectId: string): Promise<ProjectTraceWithBase> {
+  const res = await fetchJson<{
+    ok?: boolean
+    trace?: ProjectTrace | null
+    base_image?: TraceBaseImage | null
+  }>(tracePath(projectId), {
     method: "GET",
     credentials: "same-origin",
   })
   if (!res.ok) {
     throw new Error(formatTraceApiError("Failed to load trace", res.status, res.error))
   }
-  return res.data?.trace ?? null
+  return {
+    trace: res.data?.trace ?? null,
+    baseImage: res.data?.base_image ?? null,
+  }
 }
 
 /** POST /api/projects/[projectId]/trace — apply or replace the trace. */
@@ -54,7 +85,13 @@ export async function applyProjectTrace(args: {
   projectId: string
   kind: TraceKind
   params?: Record<string, unknown>
-}): Promise<{ trace: ProjectTrace; image_id: string; width_px: number; height_px: number }> {
+}): Promise<{
+  trace: ProjectTrace
+  image_id: string
+  width_px: number
+  height_px: number
+  baseImage: TraceBaseImage | null
+}> {
   const { projectId, kind, params } = args
   const res = await fetchJson<{
     ok?: boolean
@@ -62,6 +99,7 @@ export async function applyProjectTrace(args: {
     image_id?: string
     width_px?: number
     height_px?: number
+    base_image?: TraceBaseImage | null
   }>(tracePath(projectId), {
     method: "POST",
     credentials: "same-origin",
@@ -80,6 +118,7 @@ export async function applyProjectTrace(args: {
     image_id: String(res.data.image_id),
     width_px: Number(res.data.width_px ?? 0),
     height_px: Number(res.data.height_px ?? 0),
+    baseImage: res.data.base_image ?? null,
   }
 }
 

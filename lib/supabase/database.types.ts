@@ -169,6 +169,7 @@ export type Database = {
       }
       project_image_trace: {
         Row: {
+          base_image_id: string | null
           created_at: string
           kind: string
           output_image_id: string
@@ -177,6 +178,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          base_image_id?: string | null
           created_at?: string
           kind: string
           output_image_id: string
@@ -185,6 +187,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          base_image_id?: string | null
           created_at?: string
           kind?: string
           output_image_id?: string
@@ -193,6 +196,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "project_image_trace_base_image_id_fkey"
+            columns: ["base_image_id"]
+            isOneToOne: false
+            referencedRelation: "project_images"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "project_image_trace_output_image_id_fkey"
             columns: ["output_image_id"]
@@ -465,6 +475,7 @@ export type Database = {
         | "working_copy"
         | "filter_working_copy"
         | "trace_output"
+        | "trace_base"
       measure_unit: "mm" | "cm" | "pt" | "px"
       project_status: "in_progress" | "completed" | "archived"
       workflow_step: "image" | "filter" | "convert" | "output"
@@ -600,6 +611,7 @@ export const Constants = {
         "working_copy",
         "filter_working_copy",
         "trace_output",
+        "trace_base",
       ],
       measure_unit: ["mm", "cm", "pt", "px"],
       project_status: ["in_progress", "completed", "archived"],

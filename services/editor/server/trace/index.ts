@@ -49,6 +49,12 @@ export type ProjectTraceRow = {
   kind: RegisteredTraceId
   params: Record<string, unknown>
   output_image_id: string
+  /** Numerate writes a paired bitmap (the source cropped to the
+   * cell grid) as a `trace_base` image row and links it here. The
+   * editor renders it as the canvas background under the SVG so
+   * the crop is the only thing visible. Null for trace kinds
+   * without a crop (lineart). */
+  base_image_id: string | null
   created_at: string
   updated_at: string
 }
@@ -91,6 +97,7 @@ function rowToTrace(row: {
   kind: string
   params: Record<string, unknown> | null
   output_image_id: string
+  base_image_id: string | null
   created_at: string
   updated_at: string
 }): ProjectTraceRow | null {
@@ -101,28 +108,33 @@ function rowToTrace(row: {
     kind,
     params: row.params ?? {},
     output_image_id: row.output_image_id,
+    base_image_id: row.base_image_id,
     created_at: row.created_at,
     updated_at: row.updated_at,
   }
 }
 
 /**
- * Soft-delete a single project_images row (kind=trace_output) and
- * best-effort remove its storage object. Mirrors the cleanup
- * pattern in `filter-chain-reset.ts`.
+ * Soft-delete a single trace-owned project_images row (kind
+ * `trace_output` or `trace_base`) and best-effort remove its
+ * storage object. Mirrors the cleanup pattern in
+ * `filter-chain-reset.ts`. Both trace kinds share this helper
+ * because the lifecycle is identical — the only difference is
+ * which row table column points at which.
  */
-async function tombstoneTraceOutput(args: {
+async function tombstoneTraceImage(args: {
   supabase: SupabaseClient<Database>
   projectId: string
   imageId: string
+  kind: "trace_output" | "trace_base"
 }): Promise<void> {
-  const { supabase, projectId, imageId } = args
+  const { supabase, projectId, imageId, kind } = args
   const { data: row } = await supabase
     .from("project_images")
     .select("id,storage_bucket,storage_path")
     .eq("project_id", projectId)
     .eq("id", imageId)
-    .eq("kind", "trace_output")
+    .eq("kind", kind)
     .is("deleted_at", null)
     .maybeSingle()
 
@@ -131,7 +143,7 @@ async function tombstoneTraceOutput(args: {
     .update({ deleted_at: new Date().toISOString() })
     .eq("project_id", projectId)
     .eq("id", imageId)
-    .eq("kind", "trace_output")
+    .eq("kind", kind)
     .is("deleted_at", null)
 
   if (row?.storage_path) {
@@ -289,21 +301,23 @@ export async function applyProjectTrace(args: {
     sourceImageId: string
     params: Record<string, unknown>
   }) => Promise<
-    | { ok: true; id: string; storagePath: string; widthPx: number; heightPx: number }
+    | { ok: true; id: string; storagePath: string; widthPx: number; heightPx: number; baseId?: string }
     | TraceOpFailure
   >
   const created = await handler({ supabase, projectId, sourceImageId, params })
   if (!created.ok) return created
+  const newBaseId = created.baseId ?? null
 
-  // Look up the prior trace row's output_image_id (if any) so we can
-  // tombstone it after the new row commits — write-then-cut order
-  // avoids leaving a project without a Trace row mid-replace.
+  // Look up the prior trace row's output + base ids (if any) so we
+  // can tombstone them after the new row commits — write-then-cut
+  // order avoids leaving a project without a Trace row mid-replace.
   const { data: priorRow } = await supabase
     .from("project_image_trace")
-    .select("output_image_id")
+    .select("output_image_id,base_image_id")
     .eq("project_id", projectId)
     .maybeSingle()
   const priorOutputId = priorRow?.output_image_id ? String(priorRow.output_image_id) : null
+  const priorBaseId = priorRow?.base_image_id ? String(priorRow.base_image_id) : null
 
   const { data: upserted, error: upsertErr } = await supabase
     .from("project_image_trace")
@@ -315,15 +329,19 @@ export async function applyProjectTrace(args: {
         // generated DB types insist on a json-typed value here.
         params: params as Json,
         output_image_id: created.id,
+        base_image_id: newBaseId,
       },
       { onConflict: "project_id" },
     )
-    .select("project_id,kind,params,output_image_id,created_at,updated_at")
+    .select("project_id,kind,params,output_image_id,base_image_id,created_at,updated_at")
     .maybeSingle()
   if (upsertErr || !upserted) {
-    // Roll back the freshly-created output image so we don't strand
-    // bytes in storage.
-    await tombstoneTraceOutput({ supabase, projectId, imageId: created.id })
+    // Roll back the freshly-created images so we don't strand bytes
+    // in storage.
+    await tombstoneTraceImage({ supabase, projectId, imageId: created.id, kind: "trace_output" })
+    if (newBaseId) {
+      await tombstoneTraceImage({ supabase, projectId, imageId: newBaseId, kind: "trace_base" })
+    }
     return {
       ok: false,
       status: 400,
@@ -346,14 +364,20 @@ export async function applyProjectTrace(args: {
       .delete()
       .eq("project_id", projectId)
       .eq("output_image_id", created.id)
-    await tombstoneTraceOutput({ supabase, projectId, imageId: created.id })
+    await tombstoneTraceImage({ supabase, projectId, imageId: created.id, kind: "trace_output" })
+    if (newBaseId) {
+      await tombstoneTraceImage({ supabase, projectId, imageId: newBaseId, kind: "trace_base" })
+    }
     return { ok: false, status: activation.status, stage: activation.stage, reason: activation.reason, code: activation.code }
   }
 
   // New row is committed and active. Now safe to tombstone the
-  // prior output image (if there was one).
+  // prior trace artefacts (if any).
   if (priorOutputId && priorOutputId !== created.id) {
-    await tombstoneTraceOutput({ supabase, projectId, imageId: priorOutputId })
+    await tombstoneTraceImage({ supabase, projectId, imageId: priorOutputId, kind: "trace_output" })
+  }
+  if (priorBaseId && priorBaseId !== newBaseId) {
+    await tombstoneTraceImage({ supabase, projectId, imageId: priorBaseId, kind: "trace_base" })
   }
 
   const trace = rowToTrace({
@@ -361,6 +385,7 @@ export async function applyProjectTrace(args: {
     kind: String(upserted.kind),
     params: (upserted.params as Record<string, unknown> | null) ?? null,
     output_image_id: String(upserted.output_image_id),
+    base_image_id: upserted.base_image_id ? String(upserted.base_image_id) : null,
     created_at: String(upserted.created_at),
     updated_at: String(upserted.updated_at),
   })
@@ -389,7 +414,7 @@ export async function getProjectTrace(args: {
   const { supabase, projectId } = args
   const { data, error } = await supabase
     .from("project_image_trace")
-    .select("project_id,kind,params,output_image_id,created_at,updated_at")
+    .select("project_id,kind,params,output_image_id,base_image_id,created_at,updated_at")
     .eq("project_id", projectId)
     .maybeSingle()
   if (error) {
@@ -401,6 +426,7 @@ export async function getProjectTrace(args: {
     kind: String(data.kind),
     params: (data.params as Record<string, unknown> | null) ?? null,
     output_image_id: String(data.output_image_id),
+    base_image_id: data.base_image_id ? String(data.base_image_id) : null,
     created_at: String(data.created_at),
     updated_at: String(data.updated_at),
   })
@@ -428,11 +454,14 @@ export async function clearProjectTrace(args: {
   }
 
   const traceOutputId = current.trace.output_image_id
+  const traceBaseId = current.trace.base_image_id
 
-  // Delete the trace row first, before tombstoning the output, so a
+  // Delete the trace row first, before tombstoning the images, so a
   // failure between the two leaves the project with a still-active
-  // trace row pointing at a still-live image (preferable to a row
-  // referencing a tombstoned image).
+  // trace row pointing at still-live images (preferable to a row
+  // referencing tombstoned ones; and the trace row's ON DELETE
+  // RESTRICT on base_image_id blocks tombstoning the base before
+  // the row goes).
   const { error: deleteErr } = await supabase
     .from("project_image_trace")
     .delete()
@@ -446,7 +475,10 @@ export async function clearProjectTrace(args: {
   // remove-then-activate behaviour by going through the editor
   // target resolver, which already prefers filter-working-copy →
   // working-copy → master.
-  await tombstoneTraceOutput({ supabase, projectId, imageId: traceOutputId })
+  await tombstoneTraceImage({ supabase, projectId, imageId: traceOutputId, kind: "trace_output" })
+  if (traceBaseId) {
+    await tombstoneTraceImage({ supabase, projectId, imageId: traceBaseId, kind: "trace_base" })
+  }
 
   const fallback = await getEditorTargetImageRow(supabase, projectId)
   if (fallback.error || !fallback.row?.id) {

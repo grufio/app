@@ -8,7 +8,22 @@ import { isNumerateGridValid, resolveNumerateGrid } from "@/lib/editor/trace/num
 import { callFilterService, startFilterProfiler, toInt, type FilterResult } from "@/services/editor/server/filters/_helpers"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 
-export type NumerateFilterResult = FilterResult<"numerate_process">
+/**
+ * Numerate writes two paired image rows: the SVG (`trace_output`)
+ * and the source-bitmap cropped to the grid (`trace_base`). The
+ * caller links them via `project_image_trace.base_image_id` so
+ * tombstoning and editor display stay in sync.
+ */
+export type NumerateFilterSuccess = {
+  ok: true
+  id: string
+  storagePath: string
+  widthPx: number
+  heightPx: number
+  baseId: string
+  baseStoragePath: string
+}
+export type NumerateFilterResult = NumerateFilterSuccess | Extract<FilterResult<"numerate_process">, { ok: false }>
 
 export async function numerateImageAndActivate(args: {
   supabase: SupabaseClient<Database>
@@ -77,6 +92,7 @@ export async function numerateImageAndActivate(args: {
 
     const callResult = await callFilterService({
       path: "/filters/numerate",
+      responseKind: "json",
       body: {
         image_base64: imageBase64,
         cells_x: grid.cellsX,
@@ -101,19 +117,89 @@ export async function numerateImageAndActivate(args: {
       }
     }
 
-    const outputBuffer = Buffer.from(callResult.bytes)
+    const payload = callResult.json as
+      | { svg?: unknown; cropped_png_b64?: unknown; region_count?: unknown }
+      | null
+    const svgString = typeof payload?.svg === "string" ? payload.svg : null
+    const croppedB64 =
+      typeof payload?.cropped_png_b64 === "string" ? payload.cropped_png_b64 : null
+    if (!svgString || !croppedB64) {
+      return {
+        ok: false,
+        status: 502,
+        stage: "numerate_process",
+        reason: "Filter service returned an unexpected payload (missing svg or cropped bitmap)",
+      }
+    }
+
+    const svgBuffer = Buffer.from(svgString, "utf-8")
+    const baseBuffer = Buffer.from(croppedB64, "base64")
+
+    // The SVG's viewBox is the crop size (Python emits no
+    // translate-offset any more); the bitmap row carries the same
+    // dimensions so the editor renders them 1:1.
+    const baseWidthPx = Math.max(1, Math.round(grid.cropW))
+    const baseHeightPx = Math.max(1, Math.round(grid.cropH))
+
+    const cleanName = src.name.replace(
+      / \((?:filter working|pixelate|line art|numerate|B&W hard|B&W soft|B&W warm)\)/g,
+      "",
+    )
+
+    // Order matters: write trace_base first so the trace_output row's
+    // source_image_id can reference it. If trace_output fails we
+    // tombstone trace_base in the catch path below.
+    const baseId = crypto.randomUUID()
+    const baseObjectPath = `projects/${projectId}/images/${baseId}`
+    const { error: baseUploadErr } = await supabase.storage
+      .from("project_images")
+      .upload(baseObjectPath, baseBuffer, {
+        contentType: "image/png",
+        upsert: false,
+      })
+    if (baseUploadErr) {
+      return { ok: false, status: 500, stage: "storage_upload", reason: "Failed to upload numerate base image" }
+    }
+
+    const { error: baseInsertErr } = await supabase.from("project_images").insert({
+      id: baseId,
+      project_id: projectId,
+      kind: "trace_base",
+      name: `${cleanName} (numerate base)`,
+      format: "png",
+      width_px: baseWidthPx,
+      height_px: baseHeightPx,
+      storage_bucket: PROJECT_IMAGES_BUCKET,
+      storage_path: baseObjectPath,
+      file_size_bytes: baseBuffer.byteLength,
+      is_active: false,
+      source_image_id: sourceImageId,
+    })
+    if (baseInsertErr) {
+      await supabase.storage.from(PROJECT_IMAGES_BUCKET).remove([baseObjectPath])
+      return { ok: false, status: 400, stage: "db_insert", reason: baseInsertErr.message, code: baseInsertErr.code }
+    }
 
     const imageId = crypto.randomUUID()
     const objectPath = `projects/${projectId}/images/${imageId}`
 
     const { error: uploadErr } = await supabase.storage
       .from("project_images")
-      .upload(objectPath, outputBuffer, {
+      .upload(objectPath, svgBuffer, {
         contentType: "image/svg+xml",
         upsert: false,
       })
 
     if (uploadErr) {
+      // Roll back the freshly-written base bitmap so storage doesn't
+      // accumulate orphans. Soft-delete the DB row too — the
+      // ON DELETE RESTRICT on project_image_trace.base_image_id only
+      // bites once a trace row exists, which hasn't happened yet.
+      await supabase.storage.from(PROJECT_IMAGES_BUCKET).remove([baseObjectPath])
+      await supabase
+        .from("project_images")
+        .update({ deleted_at: new Date().toISOString() })
+        .eq("id", baseId)
       return { ok: false, status: 500, stage: "storage_upload", reason: "Failed to upload numerate image" }
     }
     profiler.mark("storage_upload")
@@ -122,19 +208,23 @@ export async function numerateImageAndActivate(args: {
       id: imageId,
       project_id: projectId,
       kind: "trace_output",
-      name: `${src.name.replace(/ \((?:filter working|pixelate|line art|numerate|B&W hard|B&W soft|B&W warm)\)/g, "")} (numerate)`,
+      name: `${cleanName} (numerate)`,
       format: "svg",
-      width_px: origWidth,
-      height_px: origHeight,
+      width_px: baseWidthPx,
+      height_px: baseHeightPx,
       storage_bucket: PROJECT_IMAGES_BUCKET,
       storage_path: objectPath,
-      file_size_bytes: outputBuffer.byteLength,
+      file_size_bytes: svgBuffer.byteLength,
       is_active: false,
-      source_image_id: sourceImageId,
+      source_image_id: baseId,
     })
 
     if (insertErr) {
-      await supabase.storage.from(PROJECT_IMAGES_BUCKET).remove([objectPath])
+      await supabase.storage.from(PROJECT_IMAGES_BUCKET).remove([objectPath, baseObjectPath])
+      await supabase
+        .from("project_images")
+        .update({ deleted_at: new Date().toISOString() })
+        .eq("id", baseId)
       return { ok: false, status: 400, stage: "db_insert", reason: insertErr.message, code: insertErr.code }
     }
     profiler.mark("db_insert")
@@ -143,17 +233,20 @@ export async function numerateImageAndActivate(args: {
 
     profiler.report("numerate", {
       python_phases: callResult.phases,
-      output_bytes: outputBuffer.byteLength,
-      width: origWidth,
-      height: origHeight,
+      output_bytes: svgBuffer.byteLength,
+      base_bytes: baseBuffer.byteLength,
+      width: baseWidthPx,
+      height: baseHeightPx,
     })
 
     return {
       ok: true,
       id: imageId,
       storagePath: objectPath,
-      widthPx: origWidth,
-      heightPx: origHeight,
+      widthPx: baseWidthPx,
+      heightPx: baseHeightPx,
+      baseId,
+      baseStoragePath: baseObjectPath,
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Numerate process failed"

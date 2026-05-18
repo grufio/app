@@ -27,11 +27,13 @@
  */
 import { useMemo } from "react"
 
+import type { TraceBaseImage } from "@/lib/api/project-trace"
 import type { WorkflowSourceSnapshot } from "@/lib/editor/machines/image-workflow.types"
 import {
   deriveStageImage,
   pickCanvasImage,
   type CanvasImage,
+  type CanvasSource,
 } from "@/lib/editor/canvas-image-invariant"
 import { computeTraceOverlay } from "@/lib/editor/trace-overlay-invariant"
 
@@ -50,8 +52,20 @@ export function useCanvasDerivedState(input: {
   editorImageSource: WorkflowSourceSnapshot
   filterDisplayImage: DisplayImage | null
   filterDisplayImageWithoutTrace: DisplayImage | null
+  /** Numerate trace's cropped source bitmap. When set, replaces
+   * the filter-tip as the canvas background so the SVG overlay
+   * sits 1:1 on its own bitmap and the cropped-out border doesn't
+   * leak through. Null for lineart traces or before the trace
+   * GET resolves. */
+  traceBaseImage: TraceBaseImage | null
 }) {
-  const { leftPanelTab, editorImageSource, filterDisplayImage, filterDisplayImageWithoutTrace } = input
+  const {
+    leftPanelTab,
+    editorImageSource,
+    filterDisplayImage,
+    filterDisplayImageWithoutTrace,
+    traceBaseImage,
+  } = input
 
   const stageImage = useMemo<CanvasImage | null>(
     () =>
@@ -60,11 +74,6 @@ export function useCanvasDerivedState(input: {
         editorImageSourceImage: editorImageSource.image,
       }),
     [editorImageSource],
-  )
-
-  const canvasImage = useMemo<CanvasImage | null>(
-    () => pickCanvasImage({ filterDisplayImageWithoutTrace, stageImage }),
-    [filterDisplayImageWithoutTrace, stageImage],
   )
 
   // Trace overlay gating is the invariant established by PR series
@@ -79,6 +88,32 @@ export function useCanvasDerivedState(input: {
         filterDisplayImageWithoutTrace,
       }),
     [leftPanelTab, filterDisplayImage, filterDisplayImageWithoutTrace],
+  )
+
+  // The cropped trace-base bitmap is the canvas background only when
+  // the SVG overlay is also being rendered — otherwise the user sees
+  // a mysteriously cropped image on the Image / Filter tabs. Gating
+  // on `traceOverlaySvgUrl` keeps the two pieces of the trace view
+  // (canvas swap + SVG overlay) in lock-step.
+  const traceBaseCanvasSource = useMemo<CanvasSource | null>(() => {
+    if (!traceBaseImage || !traceOverlaySvgUrl) return null
+    return {
+      id: traceBaseImage.id,
+      signedUrl: traceBaseImage.signedUrl,
+      name: "",
+      width_px: traceBaseImage.width_px,
+      height_px: traceBaseImage.height_px,
+    }
+  }, [traceBaseImage, traceOverlaySvgUrl])
+
+  const canvasImage = useMemo<CanvasImage | null>(
+    () =>
+      pickCanvasImage({
+        traceBaseImage: traceBaseCanvasSource,
+        filterDisplayImageWithoutTrace,
+        stageImage,
+      }),
+    [traceBaseCanvasSource, filterDisplayImageWithoutTrace, stageImage],
   )
 
   return { stageImage, canvasImage, traceOverlaySvgUrl }

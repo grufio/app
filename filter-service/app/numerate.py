@@ -10,7 +10,12 @@ Produces a paint-by-numbers cell-grid SVG from a source image:
      at its mean colour, in cell-coordinate space.
   4. Overlay the grid lines on top.
   5. Wrap everything in a <g transform> that scales the cell
-     coordinates back to the source-image viewBox.
+     coordinates back to the crop-sized viewBox.
+
+The cropped bitmap is returned alongside the SVG so the editor can
+swap it in as the canvas background — the SVG's viewBox matches
+the crop exactly, so overlay and bitmap line up by construction
+without any border strip leaking through.
 
 No quantise, no vtracer — every cell boundary stays pixel-perfect
 axis-aligned by construction. The future palette map (gruf.io's
@@ -21,13 +26,13 @@ information).
 """
 from __future__ import annotations
 
+import io
+
 import numpy as np
 from PIL import Image
 
 
 def _grid_lines(
-    crop_x: float,
-    crop_y: float,
     crop_w: float,
     crop_h: float,
     cells_x: int,
@@ -36,21 +41,22 @@ def _grid_lines(
 ) -> list[str]:
     """Vertical + horizontal lines overlaying the cell boundaries.
 
-    Lines span only the crop region — the part the grid actually
-    covers — at exact float positions, so the cell borders line up
-    with the colour rects and the border area stays empty.
+    Coordinates live in the crop-sized viewBox (0..crop_w × 0..crop_h)
+    so they overlay the colour rects exactly. The border area outside
+    the crop no longer exists in this SVG — the bitmap returned to
+    the caller is the same crop.
     """
     out: list[str] = []
     for i in range(cells_x + 1):
-        x = crop_x + i * crop_w / cells_x
+        x = i * crop_w / cells_x
         out.append(
-            f'<line x1="{x:.4f}" y1="{crop_y:.4f}" x2="{x:.4f}" y2="{crop_y + crop_h:.4f}" '
+            f'<line x1="{x:.4f}" y1="0" x2="{x:.4f}" y2="{crop_h:.4f}" '
             f'stroke="black" stroke-width="{stroke_width}" />'
         )
     for i in range(cells_y + 1):
-        y = crop_y + i * crop_h / cells_y
+        y = i * crop_h / cells_y
         out.append(
-            f'<line x1="{crop_x:.4f}" y1="{y:.4f}" x2="{crop_x + crop_w:.4f}" y2="{y:.4f}" '
+            f'<line x1="0" y1="{y:.4f}" x2="{crop_w:.4f}" y2="{y:.4f}" '
             f'stroke="black" stroke-width="{stroke_width}" />'
         )
     return out
@@ -68,22 +74,23 @@ def numerate_to_svg(
     show_colors: bool,
     num_colors: int = 16,  # accepted for wizard backward-compat; ignored
     on_phase: callable | None = None,
-) -> tuple[str, int]:
+) -> tuple[str, bytes, int]:
     """
-    Build the numerate SVG from the server-resolved grid.
+    Build the numerate SVG + cropped bitmap from the server-resolved grid.
 
     The cell grid + crop rect come pre-resolved by `resolveNumerateGrid`
     on the server. This function crops, downsamples to a
     `cells_x × cells_y` bitmap (1 cell = 1 px, area-averaged), then
     emits one `<rect>` per cell at its mean colour. Grid lines
-    overlay the cell boundaries. A `<g transform>` scales the cell
-    coordinates back to the crop region inside the full-image viewBox.
+    overlay the cell boundaries. The SVG's viewBox matches the crop
+    size exactly; cell coordinates are scaled (no translate) so the
+    overlay aligns 1:1 with the returned cropped bitmap.
 
     `num_colors` is part of the signature for wizard backward-compat
     but ignored — see module docstring on the future palette map.
 
     `on_phase(name)` is the optional phase-timer hook. Returns
-    (svg_string, region_count).
+    (svg_string, cropped_png_bytes, region_count).
     """
 
     def phase(name: str) -> None:
@@ -93,14 +100,18 @@ def numerate_to_svg(
     img_w, img_h = img.size
 
     # Crop to the grid region. Round to integer pixel bounds for the
-    # PIL crop; the SVG transform below uses the exact float crop
-    # rect so cell placement stays precise.
+    # PIL crop; the SVG below uses the same integer-pixel crop so
+    # cell placement stays precise against the returned bitmap.
     cx0 = max(0, round(crop_x))
     cy0 = max(0, round(crop_y))
     cx1 = min(img_w, round(crop_x + crop_w))
     cy1 = min(img_h, round(crop_y + crop_h))
     cropped = img.convert("RGB").crop((cx0, cy0, cx1, cy1))
     phase("crop")
+
+    # Integer pixel dimensions of the cropped bitmap — these define
+    # both the SVG viewBox and the trace_base image rows in the DB.
+    cropped_w_px, cropped_h_px = cropped.size
 
     color_rects: list[str] = []
     if show_colors:
@@ -134,22 +145,20 @@ def numerate_to_svg(
 
     region_count = len(color_rects)
 
-    grid = _grid_lines(crop_x, crop_y, crop_w, crop_h, cells_x, cells_y, stroke_width)
+    grid = _grid_lines(cropped_w_px, cropped_h_px, cells_x, cells_y, stroke_width)
     phase("lines")
 
-    # Cell coordinates → crop offset, scaled to crop size, within the
-    # full-image viewBox. No opaque background — the trace renders as
-    # a layer over the filter-tip bitmap in the editor; the border
-    # area stays empty.
-    scale_x = crop_w / cells_x
-    scale_y = crop_h / cells_y
+    # Cell coordinates → scaled to the cropped bitmap's size. No
+    # translate: the SVG's viewBox is the crop, the bitmap returned
+    # to the caller is the crop, the editor stacks them 1:1.
+    scale_x = cropped_w_px / cells_x
+    scale_y = cropped_h_px / cells_y
     svg_content = (
         f'<?xml version="1.0" encoding="UTF-8"?>\n'
         f'<svg xmlns="http://www.w3.org/2000/svg" '
-        f'width="{img_w}" height="{img_h}" '
-        f'viewBox="0 0 {img_w} {img_h}">\n'
-        f'  <g id="colors" transform="translate({crop_x:.4f} {crop_y:.4f}) '
-        f'scale({scale_x:.6f} {scale_y:.6f})">\n'
+        f'width="{cropped_w_px}" height="{cropped_h_px}" '
+        f'viewBox="0 0 {cropped_w_px} {cropped_h_px}">\n'
+        f'  <g id="colors" transform="scale({scale_x:.6f} {scale_y:.6f})">\n'
         f'    {chr(10).join(color_rects)}\n'
         f'  </g>\n'
         f'  <g id="grid">\n'
@@ -159,4 +168,9 @@ def numerate_to_svg(
     )
     phase("serialize")
 
-    return svg_content, region_count
+    buf = io.BytesIO()
+    cropped.save(buf, format="PNG")
+    cropped_png = buf.getvalue()
+    phase("encode_cropped")
+
+    return svg_content, cropped_png, region_count
