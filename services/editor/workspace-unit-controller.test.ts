@@ -25,12 +25,10 @@ describe("workspace-unit-controller", () => {
       unit: "mm",
       width_value: 200,
       height_value: 100,
-      output_dpi: 150,
       width_px_u: "0",
       height_px_u: "0",
       width_px: 1,
       height_px: 1,
-      raster_effects_preset: "medium",
     }
     const out = computeWorkspaceSizeSaveFromDisplay({
       base,
@@ -49,12 +47,10 @@ describe("workspace-unit-controller", () => {
       unit: "cm",
       width_value: 21,
       height_value: 29.7,
-      output_dpi: 300,
       width_px_u: "0",
       height_px_u: "0",
       width_px: 1,
       height_px: 1,
-      raster_effects_preset: "high",
     }
     const saved = computeWorkspaceSizeSaveFromDisplay({
       base,
@@ -80,12 +76,10 @@ describe("workspace-unit-controller", () => {
       unit: "px",
       width_value: 1,
       height_value: 1,
-      output_dpi: 150,
       width_px_u: "1000000",
       height_px_u: "1000000",
       width_px: 1,
       height_px: 1,
-      raster_effects_preset: "medium",
     }
     const out = computeWorkspaceSizeSaveFromDisplay({
       base,

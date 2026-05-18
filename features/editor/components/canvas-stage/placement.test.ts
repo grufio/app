@@ -3,10 +3,12 @@
  *
  * Focus:
  * - Intrinsic sizing selection and persisted-transform gating logic.
+ * - Image placement derived from intrinsic DPI (Illustrator-style; the
+ *   artboard has no DPI).
  */
 import { describe, expect, it } from "vitest"
 
-import { computeDpiRelativePlacementPx, FALLBACK_IMAGE_DPI, pickIntrinsicSize, shouldApplyPersistedTransform } from "./placement"
+import { computeImagePlacementPx, FALLBACK_IMAGE_DPI, pickIntrinsicSize, shouldApplyPersistedTransform } from "./placement"
 
 describe("pickIntrinsicSize", () => {
   it("prefers DB intrinsic size when present", () => {
@@ -37,15 +39,14 @@ describe("pickIntrinsicSize", () => {
   })
 })
 
-describe("computeDpiRelativePlacementPx", () => {
-  it("keeps 1:1 size when image dpi equals artboard dpi", () => {
-    const out = computeDpiRelativePlacementPx({
+describe("computeImagePlacementPx", () => {
+  it("keeps 1:1 size when image dpi is 72 (the fixed artboard baseline)", () => {
+    const out = computeImagePlacementPx({
       artW: 1200,
       artH: 800,
       intrinsicW: 640,
       intrinsicH: 480,
-      artboardDpi: 300,
-      imageDpi: 300,
+      imageDpi: 72,
     })
     expect(out).toEqual({
       xPx: 600,
@@ -55,77 +56,61 @@ describe("computeDpiRelativePlacementPx", () => {
     })
   })
 
-  it("scales up when image dpi is higher than artboard dpi", () => {
-    const out = computeDpiRelativePlacementPx({
-      artW: 1200,
-      artH: 800,
-      intrinsicW: 600,
-      intrinsicH: 400,
-      artboardDpi: 300,
-      imageDpi: 600,
+  it("shrinks high-DPI images to match physical print size (300dpi → ×0.24)", () => {
+    // 3000-px image at 300 dpi = 10 inch physical = 720 fix-72 px.
+    const out = computeImagePlacementPx({
+      artW: 2000,
+      artH: 1000,
+      intrinsicW: 3000,
+      intrinsicH: 2000,
+      imageDpi: 300,
     })
     expect(out).toEqual({
-      xPx: 600,
-      yPx: 400,
-      widthPx: 1200,
-      heightPx: 800,
+      xPx: 1000,
+      yPx: 500,
+      widthPx: 720,
+      heightPx: 480,
     })
   })
 
-  it("scales down when image dpi is lower than artboard dpi", () => {
-    const out = computeDpiRelativePlacementPx({
-      artW: 1200,
-      artH: 800,
-      intrinsicW: 600,
-      intrinsicH: 400,
-      artboardDpi: 300,
-      imageDpi: 150,
+  it("enlarges low-DPI images (36dpi → ×2)", () => {
+    const out = computeImagePlacementPx({
+      artW: 2000,
+      artH: 1000,
+      intrinsicW: 100,
+      intrinsicH: 50,
+      imageDpi: 36,
     })
     expect(out).toEqual({
-      xPx: 600,
-      yPx: 400,
-      widthPx: 300,
-      heightPx: 200,
+      xPx: 1000,
+      yPx: 500,
+      widthPx: 200,
+      heightPx: 100,
     })
   })
 
   it("uses 72 fallback when image dpi is missing", () => {
-    const out = computeDpiRelativePlacementPx({
+    const out = computeImagePlacementPx({
       artW: 1200,
       artH: 800,
       intrinsicW: 100,
       intrinsicH: 50,
-      artboardDpi: 300,
       imageDpi: null,
     })
     expect(out).toEqual({
       xPx: 600,
       yPx: 400,
-      widthPx: 100 * (FALLBACK_IMAGE_DPI / 300),
-      heightPx: 50 * (FALLBACK_IMAGE_DPI / 300),
+      widthPx: 100 * (72 / FALLBACK_IMAGE_DPI),
+      heightPx: 50 * (72 / FALLBACK_IMAGE_DPI),
     })
-  })
-
-
-  it("returns null when artboard dpi is missing", () => {
-    const out = computeDpiRelativePlacementPx({
-      artW: 1200,
-      artH: 800,
-      intrinsicW: 1000,
-      intrinsicH: 500,
-      artboardDpi: null,
-      imageDpi: 72,
-    })
-    expect(out).toBeNull()
   })
 
   it("returns null for invalid dimensions", () => {
-    const out = computeDpiRelativePlacementPx({
+    const out = computeImagePlacementPx({
       artW: 0,
       artH: 1000,
       intrinsicW: 1000,
       intrinsicH: 2000,
-      artboardDpi: 300,
       imageDpi: 72,
     })
     expect(out).toBeNull()

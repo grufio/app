@@ -28,7 +28,6 @@ export async function POST(req: Request) {
     unit: Unit
     width_value: number
     height_value: number
-    dpi: number
   }>
 
   const res = await createProjectWithWorkspace(supabase, {
@@ -37,7 +36,6 @@ export async function POST(req: Request) {
     unit: b.unit as Unit,
     width_value: Number(b.width_value),
     height_value: Number(b.height_value),
-    dpi: Number(b.dpi),
   })
   if (!res.ok) return jsonError(res.message, 400, { stage: res.stage })
 

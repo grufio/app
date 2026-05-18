@@ -19,8 +19,8 @@ export type TraceDialogSourceImage = {
   /** Displayed size of the image on the artboard, in millimetres.
    * Numerate-trace grid math is driven by this — what the user sees
    * is what gets traced (less the cropped border). The shell computes
-   * it from `project_image_state` + `workspace.output_dpi`, with a
-   * fresh-upload fallback via `computeDpiRelativePlacementPx`. */
+   * it from `project_image_state` (live µpx, fix-72 internal mapping),
+   * with a fresh-upload fallback via `computeImagePlacementPx`. */
   displayMmW: number
   displayMmH: number
 }

@@ -2,56 +2,51 @@
  * Unit tests for `lib/editor/units.ts`.
  *
  * Focus:
- * - µpx-based conversions stay stable across roundtrips.
+ * - µpx-based conversions stay stable across roundtrips under fixed
+ *   1px = 1/72 inch mapping (Illustrator-style geometry; the artboard
+ *   has no DPI).
  */
 import { describe, expect, it } from "vitest"
 
-import { convertUnit, pxUToUnitDisplay, pxUToUnitDisplayFixed, unitToPxU, unitToPxUFixed } from "./units"
+import { convertUnitFixed, pxUToUnitDisplayFixed, unitToPxUFixed } from "./units"
 
 describe("units", () => {
-  it("convertUnit uses µpx so 10 cm → 100 mm exactly", () => {
-    const dpi = 300
-    expect(convertUnit("10", "cm", "mm", dpi)).toBe("100")
-    expect(convertUnit("100", "mm", "cm", dpi)).toBe("10")
+  it("convertUnitFixed uses µpx so 10 cm → 100 mm exactly", () => {
+    expect(convertUnitFixed("10", "cm", "mm")).toBe("100")
+    expect(convertUnitFixed("100", "mm", "cm")).toBe("10")
   })
 
-  it("100mm@300dpi displays exactly 100", () => {
-    const dpi = 300
-    const pxU = unitToPxU("100", "mm", dpi)
-    const display = pxUToUnitDisplay(pxU, "mm", dpi)
-    expect(display).toBe("100")
+  it("100mm display roundtrip is exact", () => {
+    const pxU = unitToPxUFixed("100", "mm")
+    expect(pxUToUnitDisplayFixed(pxU, "mm")).toBe("100")
   })
 
   it("roundtrip stays stable with µpx", () => {
-    const dpi = 300
-    const pxU = unitToPxU("100", "mm", dpi)
-    const display = pxUToUnitDisplay(pxU, "mm", dpi)
-    const pxU2 = unitToPxU(display, "mm", dpi)
+    const pxU = unitToPxUFixed("100", "mm")
+    const display = pxUToUnitDisplayFixed(pxU, "mm")
+    const pxU2 = unitToPxUFixed(display, "mm")
     expect(pxU2).toBe(pxU)
   })
 
   it("unit toggle does not change canonical µpx", () => {
-    const dpi = 300
-    const pxU = unitToPxU("100", "mm", dpi)
-    const asCm = pxUToUnitDisplay(pxU, "cm", dpi)
-    const pxU2 = unitToPxU(asCm, "cm", dpi)
+    const pxU = unitToPxUFixed("100", "mm")
+    const asCm = pxUToUnitDisplayFixed(pxU, "cm")
+    const pxU2 = unitToPxUFixed(asCm, "cm")
     expect(pxU2).toBe(pxU)
   })
 
   it("toggle sequence preserves canonical µpx", () => {
-    const dpi = 300
-    const pxU = unitToPxU("123.45", "mm", dpi)
-    const mm = pxUToUnitDisplay(pxU, "mm", dpi)
-    const cm = pxUToUnitDisplay(unitToPxU(mm, "mm", dpi), "cm", dpi)
-    const pt = pxUToUnitDisplay(unitToPxU(cm, "cm", dpi), "pt", dpi)
-    const px = pxUToUnitDisplay(unitToPxU(pt, "pt", dpi), "px", dpi)
-    const mm2 = pxUToUnitDisplay(unitToPxU(px, "px", dpi), "mm", dpi)
-    const pxU2 = unitToPxU(mm2, "mm", dpi)
+    const pxU = unitToPxUFixed("123.45", "mm")
+    const mm = pxUToUnitDisplayFixed(pxU, "mm")
+    const cm = pxUToUnitDisplayFixed(unitToPxUFixed(mm, "mm"), "cm")
+    const pt = pxUToUnitDisplayFixed(unitToPxUFixed(cm, "cm"), "pt")
+    const px = pxUToUnitDisplayFixed(unitToPxUFixed(pt, "pt"), "px")
+    const mm2 = pxUToUnitDisplayFixed(unitToPxUFixed(px, "px"), "mm")
+    const pxU2 = unitToPxUFixed(mm2, "mm")
     expect(pxU2).toBe(pxU)
   })
 
   it("stress: display->parse->display is stable (no oscillation)", () => {
-    const dpi = 300
     const units = ["mm", "cm", "pt", "px"] as const
 
     // Deterministic PRNG (LCG) so the test is stable.
@@ -73,10 +68,10 @@ describe("units", () => {
     for (let i = 0; i < 500; i += 1) {
       const unit = units[nextU32() % units.length]
       const input = makeValue()
-      const pxU = unitToPxU(input, unit, dpi)
-      const display1 = pxUToUnitDisplay(pxU, unit, dpi)
-      const pxU2 = unitToPxU(display1, unit, dpi)
-      const display2 = pxUToUnitDisplay(pxU2, unit, dpi)
+      const pxU = unitToPxUFixed(input, unit)
+      const display1 = pxUToUnitDisplayFixed(pxU, unit)
+      const pxU2 = unitToPxUFixed(display1, unit)
+      const display2 = pxUToUnitDisplayFixed(pxU2, unit)
       expect(display2).toBe(display1)
     }
   })
@@ -88,4 +83,3 @@ describe("units", () => {
     expect(pxUToUnitDisplayFixed(pxU, "px")).toBe("72")
   })
 })
-

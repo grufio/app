@@ -8,11 +8,10 @@ import { clampPx, pxUToPxNumber, type Unit, unitToPxUFixed } from "@/lib/editor/
 import type { WorkspaceRow } from "./types"
 
 export function defaultWorkspace(projectId: string): WorkspaceRow {
-  // Default: 20x30cm @ 300dpi (Illustrator-like "new document")
+  // Default: 20x30cm (Illustrator-like "new document"; the artboard has no DPI).
   const unit: Unit = "cm"
   const width_value = 20
   const height_value = 30
-  const output_dpi = 300
   const widthPxU = unitToPxUFixed(String(width_value), unit)
   const heightPxU = unitToPxUFixed(String(height_value), unit)
   return {
@@ -20,8 +19,6 @@ export function defaultWorkspace(projectId: string): WorkspaceRow {
     unit,
     width_value,
     height_value,
-    output_dpi,
-    raster_effects_preset: "high",
     width_px_u: widthPxU.toString(),
     height_px_u: heightPxU.toString(),
     width_px: clampPx(pxUToPxNumber(widthPxU)),
@@ -31,4 +28,3 @@ export function defaultWorkspace(projectId: string): WorkspaceRow {
     page_bg_opacity: 50,
   }
 }
-

@@ -20,7 +20,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
 
-import { computeDpiRelativePlacementPx, placementPxToMicroPx } from "@/lib/editor/image-placement"
+import { computeImagePlacementPx, placementPxToMicroPx } from "@/lib/editor/image-placement"
 import { pxUToPxNumber } from "@/lib/editor/units"
 import {
   getActiveProjectImageLockRow,
@@ -123,12 +123,11 @@ export async function activateProjectMasterWithState(args: {
     }
   }
 
-  const placement = computeDpiRelativePlacementPx({
+  const placement = computeImagePlacementPx({
     artW: artboard.artW,
     artH: artboard.artH,
     intrinsicW: Math.max(1, Math.trunc(widthPx)),
     intrinsicH: Math.max(1, Math.trunc(heightPx)),
-    artboardDpi: Number(workspaceLookup.row.output_dpi),
     imageDpi,
   })
   if (!placement) {

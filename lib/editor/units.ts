@@ -63,9 +63,15 @@ export function formatScaledInt(value: bigint, srcScale: number, maxDp: number):
   return sign + out
 }
 
-export function unitToPxU(value: string, unit: Unit, dpi: number): bigint {
-  const dpiInt = BigInt(dpi)
-  if (dpiInt <= 0n) throw new Error("dpi must be > 0")
+/**
+ * Illustrator-style fixed mapping (geometry only):
+ * - 1in = 72pt = 25.4mm
+ * - 1px = 1pt
+ *
+ * The artboard has no DPI. `px` is always 1/72 inch.
+ */
+export function unitToPxUFixed(value: string, unit: Unit): bigint {
+  const dpiInt = BigInt(GEOMETRY_PPI)
 
   switch (unit) {
     case "px":
@@ -91,19 +97,8 @@ export function unitToPxU(value: string, unit: Unit, dpi: number): bigint {
   }
 }
 
-/**
- * Illustrator-style fixed mapping (geometry only):
- * - 1in = 72pt
- * - 1in = 25.4mm
- * - 1px = 1pt
- */
-export function unitToPxUFixed(value: string, unit: Unit): bigint {
-  return unitToPxU(value, unit, GEOMETRY_PPI)
-}
-
-export function pxUToUnitDisplay(pxU: bigint, unit: Unit, dpi: number): string {
-  const dpiInt = BigInt(dpi)
-  if (dpiInt <= 0n) throw new Error("dpi must be > 0")
+export function pxUToUnitDisplayFixed(pxU: bigint, unit: Unit): string {
+  const dpiInt = BigInt(GEOMETRY_PPI)
 
   switch (unit) {
     case "px":
@@ -125,15 +120,6 @@ export function pxUToUnitDisplay(pxU: bigint, unit: Unit, dpi: number): string {
   }
 }
 
-export function pxUToUnitDisplayFixed(pxU: bigint, unit: Unit): string {
-  return pxUToUnitDisplay(pxU, unit, GEOMETRY_PPI)
-}
-
-export function pxUToUnitDisplayUi(pxU: bigint, unit: Unit, dpi: number): string {
-  const raw = pxUToUnitDisplay(pxU, unit, dpi)
-  return fmt2(Number(raw))
-}
-
 export function pxUToUnitDisplayUiFixed(pxU: bigint, unit: Unit): string {
   const raw = pxUToUnitDisplayFixed(pxU, unit)
   return fmt2(Number(raw))
@@ -147,28 +133,13 @@ export function pxUToPxNumber(pxU: bigint): number {
  * Convert a value from one unit to another via µpx (no float px roundtrip).
  * Use this for unit changes so 10 cm → 100 mm exactly, not 99.99 mm.
  */
-export function convertUnit(value: string, fromUnit: Unit, toUnit: Unit, dpi: number): string {
-  const pxU = unitToPxU(value.trim() || "0", fromUnit, dpi)
-  return pxUToUnitDisplay(pxU, toUnit, dpi)
-}
-
 export function convertUnitFixed(value: string, fromUnit: Unit, toUnit: Unit): string {
   const pxU = unitToPxUFixed(value.trim() || "0", fromUnit)
   return pxUToUnitDisplayFixed(pxU, toUnit)
 }
 
-// Legacy numeric helpers for non-image flows (artboard, etc.).
-export function unitToPx(value: number, unit: Unit, dpi: number): number {
-  return pxUToPxNumber(unitToPxU(String(value), unit, dpi))
-}
-
 export function unitToPxFixed(value: number, unit: Unit): number {
   return pxUToPxNumber(unitToPxUFixed(String(value), unit))
-}
-
-export function pxToUnit(px: number, unit: Unit, dpi: number): number {
-  const pxU = BigInt(Math.round(px * 1e6))
-  return Number(pxUToUnitDisplay(pxU, unit, dpi))
 }
 
 export function clampPx(px: number): number {

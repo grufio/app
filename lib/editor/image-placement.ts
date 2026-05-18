@@ -1,5 +1,20 @@
+/**
+ * Image placement on the artboard.
+ *
+ * The artboard has no DPI (Illustrator-style). Internal coordinates
+ * are fixed-mapping pixels with `1 px = 1/72 inch`. When a raster is
+ * placed for the first time, it appears at its physical size derived
+ * from the intrinsic image DPI:
+ *
+ *   widthPx_internal = intrinsicW_px / imageDpi * 72
+ *
+ * Images without DPI metadata fall back to 72 PPI (web default), so a
+ * 3000-px image renders at ~1058 mm — matches Illustrator behavior for
+ * a placed raster without EXIF DPI.
+ */
 export const FALLBACK_IMAGE_DPI = 72
 const MICRO_PX_SCALE = 1_000_000
+const GEOMETRY_PPI = 72
 
 export type ImagePlacementPx = {
   xPx: number
@@ -8,31 +23,23 @@ export type ImagePlacementPx = {
   heightPx: number
 }
 
-function normalizeArtboardDpi(value: number | null | undefined): number | null {
-  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return null
-  return value
-}
-
 function normalizeImageDpi(value: number | null | undefined): number {
   if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return FALLBACK_IMAGE_DPI
   return value
 }
 
-export function computeDpiRelativePlacementPx(args: {
+export function computeImagePlacementPx(args: {
   artW: number
   artH: number
   intrinsicW: number
   intrinsicH: number
-  artboardDpi?: number | null
   imageDpi?: number | null
 }): ImagePlacementPx | null {
-  const { artW, artH, intrinsicW, intrinsicH, artboardDpi, imageDpi } = args
+  const { artW, artH, intrinsicW, intrinsicH, imageDpi } = args
   if (!(artW > 0 && artH > 0 && intrinsicW > 0 && intrinsicH > 0)) return null
 
-  const outputDpi = normalizeArtboardDpi(artboardDpi)
-  if (!outputDpi) return null
   const sourceDpi = normalizeImageDpi(imageDpi)
-  const scale = sourceDpi / outputDpi
+  const scale = GEOMETRY_PPI / sourceDpi
   if (!Number.isFinite(scale) || scale <= 0) return null
 
   return {

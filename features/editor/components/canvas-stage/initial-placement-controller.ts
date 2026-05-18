@@ -5,34 +5,28 @@
  * freshly mounted image.
  *
  * Decision tree (in order, first match wins):
- * 1. **Bail-outs** — no `src`, no `img`, user has edited, no artboard,
- *    invalid artboard DPI → return immediately.
+ * 1. **Bail-outs** — no `src`, no `img`, user has edited, no artboard
+ *    → return immediately.
  * 2. **Persisted path** — `shouldApplyPersistedTransform()` says yes
  *    (we have a server-side transform anchored at master.id). Apply
  *    those exact µpx values; ignore the default-placement branch.
- * 3. **Default-placement path** — otherwise compute a DPI-relative
- *    placement that fits the image into the artboard. Keyed on
- *    `src + artW + artH + artboardDpi + imageDpi` so DPI changes
- *    re-run the computation, but plain re-renders don't.
+ * 3. **Default-placement path** — otherwise compute placement from
+ *    the image's intrinsic DPI (Illustrator-style; the artboard has
+ *    no DPI). Keyed on `src + artW + artH + imageDpi` so source/EXIF
+ *    changes re-run the computation, but plain re-renders don't.
  *
  * Race-safety: every apply is funneled through
  * `stateSyncGuard.scheduleApply()` — see `state-sync-guard.ts` for the
  * sequence-number cancel semantics. If the persisted state arrives
  * after a default placement is queued, the persisted apply correctly
  * supersedes the default via the bump.
- *
- * The effect has 16 dependencies because it sits at the intersection
- * of three orthogonal triggers (image-source change, artboard-size
- * change, persisted-state arrival) and React's exhaustive-deps lint
- * is happy with that — splitting it into multiple effects would
- * break the "latest-scheduled-apply wins" ordering invariant.
  */
 
 import { useEffect, type MutableRefObject } from "react"
 
 import { numberToMicroPx } from "@/lib/editor/konva"
 
-import { computeDpiRelativePlacementPx, pickIntrinsicSize, shouldApplyPersistedTransform } from "./placement"
+import { computeImagePlacementPx, pickIntrinsicSize, shouldApplyPersistedTransform } from "./placement"
 
 type PersistedTransform = {
   xPxU?: bigint
@@ -54,7 +48,6 @@ export function useInitialImagePlacement(args: {
   hasArtboard: boolean
   artW: number
   artH: number
-  artboardDpi?: number
   imageDpi?: number | null
   intrinsicWidthPx?: number
   intrinsicHeightPx?: number
@@ -72,7 +65,6 @@ export function useInitialImagePlacement(args: {
     hasArtboard,
     artW,
     artH,
-    artboardDpi,
     imageDpi,
     intrinsicWidthPx,
     intrinsicHeightPx,
@@ -90,7 +82,6 @@ export function useInitialImagePlacement(args: {
     if (!img) return
     if (stateSyncGuardRef.current.hasUserChanged()) return
     if (!hasArtboard) return
-    if (typeof artboardDpi !== "number" || !Number.isFinite(artboardDpi) || artboardDpi <= 0) return
 
     if (
       shouldApplyPersistedTransform({
@@ -117,19 +108,18 @@ export function useInitialImagePlacement(args: {
 
     if (stateSyncGuardRef.current.getAppliedKey() === src) return
 
-    const key = `${src}:${artW}x${artH}:adpi${artboardDpi ?? ""}:idpi${imageDpi ?? ""}`
+    const key = `${src}:${artW}x${artH}:idpi${imageDpi ?? ""}`
     if (placedKeyRef.current === key) return
     placedKeyRef.current = key
 
     const intrinsic = pickIntrinsicSize({ intrinsicWidthPx, intrinsicHeightPx, img })
     if (!intrinsic) return
 
-    const placement = computeDpiRelativePlacementPx({
+    const placement = computeImagePlacementPx({
       artW,
       artH,
       intrinsicW: intrinsic.w,
       intrinsicH: intrinsic.h,
-      artboardDpi,
       imageDpi,
     })
     if (!placement) return
@@ -148,7 +138,6 @@ export function useInitialImagePlacement(args: {
     activeImageId,
     artH,
     artW,
-    artboardDpi,
     hasArtboard,
     imageDpi,
     img,

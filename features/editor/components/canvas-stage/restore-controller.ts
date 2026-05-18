@@ -18,7 +18,6 @@ export function useRestoreImageController(opts: {
   artW: number
   artH: number
   restoreBaseSpecRef: RefObject<RestoreBaseSpec | null>
-  artboardDpi?: number | null
   activeImageId?: string | null
   transformControllerRef: RefObject<TransformController | null>
   scheduleBoundsUpdate: () => void
@@ -27,7 +26,6 @@ export function useRestoreImageController(opts: {
     artW,
     artH,
     restoreBaseSpecRef,
-    artboardDpi,
     activeImageId,
     transformControllerRef,
     scheduleBoundsUpdate,
@@ -38,7 +36,6 @@ export function useRestoreImageController(opts: {
       artW,
       artH,
       baseSpec: restoreBaseSpecRef.current,
-      artboardDpi,
       activeImageId,
     })
     if (!resolved.ok) return resolved
@@ -48,5 +45,5 @@ export function useRestoreImageController(opts: {
     })
     scheduleBoundsUpdate()
     return { ok: true } satisfies RestoreImageResult
-  }, [activeImageId, artH, artW, artboardDpi, restoreBaseSpecRef, scheduleBoundsUpdate, transformControllerRef])
+  }, [activeImageId, artH, artW, restoreBaseSpecRef, scheduleBoundsUpdate, transformControllerRef])
 }
