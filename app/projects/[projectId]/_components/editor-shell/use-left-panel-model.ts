@@ -111,8 +111,7 @@ export function useLeftPanelModel(args: {
       }
       return recoverSelectedNavId({
         selectedNavId: next,
-        images: projectImages,
-        activeMasterImageId: masterImageId,
+        masterImageId,
       })
     })
   }, [masterImageId, projectImages, setSelectedNavId])

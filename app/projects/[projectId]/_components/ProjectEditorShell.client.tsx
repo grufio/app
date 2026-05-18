@@ -398,11 +398,14 @@ export function ProjectDetailPageClient({
               onActiveTabChange={setLeftPanelTab}
               selectedId={selectedNavId}
               onSelect={setSelectedNavId}
-              images={leftPanelImages}
+              masterImage={
+                masterImage?.id
+                  ? { id: masterImage.id, label: masterImage.name ?? "Image" }
+                  : null
+              }
               hasGrid={hasGrid}
               onImageUploaded={handleImageUploaded}
               onImageDeleteRequested={requestDeleteImage}
-              canDeleteMaster={Boolean(masterImage)}
               onGridCreateRequested={requestCreateGrid}
               onGridDeleteRequested={requestDeleteGrid}
               filterPanelContent={

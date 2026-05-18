@@ -14,7 +14,7 @@ import { SidebarFrame } from "@/components/navigation/SidebarFrame"
 import { SidebarContent } from "@/components/ui/sidebar"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { EditorSidebarSection } from "./sidebar/editor-sidebar-section"
-import { EditorNavTree } from "./editor-nav-tree"
+import { EditorNavTree, type EditorNavMasterImage } from "./editor-nav-tree"
 import { TabsSidepanel, type SidepanelTab } from "./TabsSidepanel"
 import { useResizableSidebar } from "./use-resizable-sidebar"
 
@@ -26,14 +26,12 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
   onWidthRemChange: (next: number) => void
   selectedId: string
   onSelect: (id: string) => void
-  images: { id: string; label: string }[]
+  /** The project's master image. The nav-tree's image entry mirrors
+   * this exactly — null when no master has been uploaded yet. */
+  masterImage: EditorNavMasterImage | null
   hasGrid: boolean
   onImageUploaded: () => void | Promise<void>
   onImageDeleteRequested: (imageId: string) => void | Promise<void>
-  /** True when a master image exists; gates the trash icon in the
-   * NavTree. Cascade-delete handles the actual fan-out — no need to
-   * disambiguate which image-id is the delete target. */
-  canDeleteMaster: boolean
   onGridCreateRequested: () => void | Promise<void>
   onGridDeleteRequested: () => void | Promise<void>
   activeTab: SidepanelTab
@@ -55,11 +53,10 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
     onWidthRemChange,
     selectedId,
     onSelect,
-    images,
+    masterImage,
     hasGrid,
     onImageUploaded,
     onImageDeleteRequested,
-    canDeleteMaster,
     onGridCreateRequested,
     onGridDeleteRequested,
     activeTab,
@@ -100,11 +97,10 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
               projectId={projectId}
               selectedId={selectedId}
               onSelect={onSelect}
-              images={images}
+              masterImage={masterImage}
               hasGrid={hasGrid}
               onImageUploaded={onImageUploaded}
               onImageDeleteRequested={onImageDeleteRequested}
-              canDeleteMaster={canDeleteMaster}
               onGridCreateRequested={onGridCreateRequested}
               onGridDeleteRequested={onGridDeleteRequested}
             />
