@@ -110,6 +110,20 @@ export function ProjectDetailPageClient({
   const { setRestoreOpen, setDeleteOpen, setLeftPanelTab, showFilter, hideFilter, toggleHiddenFilter, pruneHiddenFilters } = sessionActions
   const [gridVisible, setGridVisible] = useState(true)
   const [selectedNavId, setSelectedNavId] = useState<string>(buildNavId({ kind: "artboard" }))
+  // Mobile-only drawer state for the right-side info panel. On `md+`
+  // the right panel is always-on; this state is ignored there.
+  const [rightPanelOpen, setRightPanelOpen] = useState(false)
+  const handleToggleRightPanel = useCallback(() => {
+    setRightPanelOpen((open) => !open)
+  }, [])
+  useEffect(() => {
+    if (!rightPanelOpen) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setRightPanelOpen(false)
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [rightPanelOpen])
   const canvasRef = useRef<ProjectCanvasStageHandle | null>(null)
   const lastNoWorkingImageMetricRef = useRef("")
   const {
@@ -367,6 +381,8 @@ export function ProjectDetailPageClient({
         projectId={projectId}
         initialTitle={project && project.id === projectId ? project.name : "Untitled"}
         onTitleUpdated={handleTitleUpdated}
+        rightPanelOpen={rightPanelOpen}
+        onToggleRightPanel={handleToggleRightPanel}
       />
 
       <ProjectEditorLayout>
@@ -477,6 +493,7 @@ export function ProjectDetailPageClient({
             gridVisible={gridVisible}
             onGridVisibleChange={setGridVisible}
             canvasRef={canvasRef}
+            open={rightPanelOpen}
           />
           <EditorDialogHost
             selectionOpen={filterDialog.selectionOpen}

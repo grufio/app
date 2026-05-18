@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, PanelRight, PanelRightClose } from "lucide-react"
 import { ProjectTitleEditor } from "./project-title-editor"
 
 /**
@@ -10,15 +10,20 @@ import { ProjectTitleEditor } from "./project-title-editor"
  * Features:
  * - Back link to the dashboard
  * - Header stays minimal; editor tabs live in the left sidebar
+ * - Mobile-only toggle (PanelRight icon) for the info panel:
+ *   on `< md`, the right-side info panel is hidden by default
+ *   and slides in as a fullscreen drawer when this toggle fires.
  */
 export function ProjectEditorHeader(props: {
   projectId: string
   initialTitle?: string
   onTitleUpdated?: (nextTitle: string) => void
+  rightPanelOpen?: boolean
+  onToggleRightPanel?: () => void
 }) {
   return (
     <header className="flex shrink-0 items-center py-1 transition-[width,height] ease-linear">
-      <div className="flex items-center gap-2 px-4">
+      <div className="flex flex-1 items-center gap-2 px-4">
         <Link
           href="/dashboard"
           aria-label="Back to dashboard"
@@ -33,6 +38,22 @@ export function ProjectEditorHeader(props: {
             onTitleUpdated={props.onTitleUpdated}
           />
         </div>
+        {props.onToggleRightPanel ? (
+          <button
+            type="button"
+            aria-expanded={props.rightPanelOpen ?? false}
+            aria-controls="right-panel"
+            aria-label="Toggle info panel"
+            onClick={props.onToggleRightPanel}
+            className="ml-auto inline-flex size-8 items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground md:hidden"
+          >
+            {props.rightPanelOpen ? (
+              <PanelRightClose className="size-4" />
+            ) : (
+              <PanelRight className="size-4" />
+            )}
+          </button>
+        ) : null}
       </div>
     </header>
   )
