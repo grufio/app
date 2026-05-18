@@ -4,18 +4,24 @@
  * Trace dialog host (F21 PR2). Sister to `EditorDialogHost`. Mounts
  * the `TraceSelectionController` (numerate vs lineart picker) and,
  * once a kind is chosen, the appropriate configure surface:
- *   - numerate → 3-step `NumerateWizard` (Grid / Colors / Output)
+ *   - numerate → `NumerateDialog`
  *   - lineart  → single-form `GenericTraceController`
  */
 import { TraceSelectionController } from "@/features/editor/components/TraceSelectionController"
 import { GenericTraceController } from "@/features/editor/components/trace-forms/generic-trace-controller"
-import { NumerateWizard } from "@/features/editor/components/trace-forms/numerate-wizard"
+import { NumerateDialog } from "@/features/editor/components/trace-forms/numerate-dialog"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
 
 export function EditorTraceDialogHost(props: {
   selectionOpen: boolean
   activeKind: RegisteredTraceId | null
-  traceDialogSource: { sourceImageUrl: string; sourceImageWidth: number; sourceImageHeight: number } | null
+  traceDialogSource: {
+    sourceImageUrl: string
+    sourceImageWidth: number
+    sourceImageHeight: number
+    displayMmW: number
+    displayMmH: number
+  } | null
   onCloseSelection: () => void
   onSelectKind: (kind: RegisteredTraceId) => void
   onCloseConfigure: () => void
@@ -51,10 +57,10 @@ export function EditorTraceDialogHost(props: {
         errors from the user.
       */}
       {configureOpen && traceDialogSource && activeKind === "numerate" ? (
-        <NumerateWizard
+        <NumerateDialog
           open
-          imageWidth={traceDialogSource.sourceImageWidth}
-          imageHeight={traceDialogSource.sourceImageHeight}
+          displayMmW={traceDialogSource.displayMmW}
+          displayMmH={traceDialogSource.displayMmH}
           onClose={onCloseConfigure}
           onSuccess={onApplied}
           onApplyTrace={onApplyTrace}

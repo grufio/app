@@ -16,6 +16,13 @@ export type TraceDialogSourceImage = {
   width_px: number
   height_px: number
   signedUrl: string
+  /** Displayed size of the image on the artboard, in millimetres.
+   * Numerate-trace grid math is driven by this — what the user sees
+   * is what gets traced (less the cropped border). The shell computes
+   * it from `project_image_state` + `workspace.output_dpi`, with a
+   * fresh-upload fallback via `computeDpiRelativePlacementPx`. */
+  displayMmW: number
+  displayMmH: number
 }
 
 export type TraceDialogSession = {
@@ -23,6 +30,8 @@ export type TraceDialogSession = {
   sourceImageWidth: number
   sourceImageHeight: number
   sourceImageUrl: string
+  displayMmW: number
+  displayMmH: number
 }
 
 export type TraceDialogState =
@@ -45,6 +54,8 @@ export function toTraceDialogSession(image: TraceDialogSourceImage): TraceDialog
     sourceImageWidth: image.width_px,
     sourceImageHeight: image.height_px,
     sourceImageUrl: image.signedUrl,
+    displayMmW: image.displayMmW,
+    displayMmH: image.displayMmH,
   }
 }
 

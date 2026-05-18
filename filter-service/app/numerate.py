@@ -71,7 +71,6 @@ def numerate_to_svg(
     crop_w: float,
     crop_h: float,
     stroke_width: float,
-    show_colors: bool,
     num_colors: int = 16,  # accepted for wizard backward-compat; ignored
     on_phase: callable | None = None,
 ) -> tuple[str, bytes, int]:
@@ -113,35 +112,31 @@ def numerate_to_svg(
     # both the SVG viewBox and the trace_base image rows in the DB.
     cropped_w_px, cropped_h_px = cropped.size
 
+    # Downsample straight to the cell grid: 1 cell = 1 px, each
+    # cell the area-average of its source block.
+    cell_grid = cropped.resize((cells_x, cells_y), Image.BOX)
+    phase("downsample")
+
+    # FUTURE (separate PR): map each cell colour to its nearest
+    # neighbour in the gruf.io fixed palette (140 colours + 48
+    # greys). Insertion point:
+    #
+    #     cell_grid = map_to_grufio_palette(cell_grid)
+    #
+    # No median-cut quantise here — that would first pick random
+    # palette colours and then re-map to the fixed one (double
+    # loss). Direct mean → palette is single-step.
+
+    arr = np.asarray(cell_grid, dtype=np.uint8)  # (cells_y, cells_x, 3)
     color_rects: list[str] = []
-    if show_colors:
-        # Downsample straight to the cell grid: 1 cell = 1 px, each
-        # cell the area-average of its source block.
-        cell_grid = cropped.resize((cells_x, cells_y), Image.BOX)
-        phase("downsample")
-
-        # FUTURE (separate PR): map each cell colour to its nearest
-        # neighbour in the gruf.io fixed palette (140 colours + 48
-        # greys). Insertion point:
-        #
-        #     cell_grid = map_to_grufio_palette(cell_grid)
-        #
-        # No median-cut quantise here — that would first pick random
-        # palette colours and then re-map to the fixed one (double
-        # loss). Direct mean → palette is single-step.
-
-        arr = np.asarray(cell_grid, dtype=np.uint8)  # (cells_y, cells_x, 3)
-        for y in range(cells_y):
-            for x in range(cells_x):
-                r, g, b = arr[y, x]
-                color_rects.append(
-                    f'<rect x="{x}" y="{y}" width="1" height="1" '
-                    f'fill="#{r:02x}{g:02x}{b:02x}"/>'
-                )
-        phase("render")
-    else:
-        phase("downsample")
-        phase("render")
+    for y in range(cells_y):
+        for x in range(cells_x):
+            r, g, b = arr[y, x]
+            color_rects.append(
+                f'<rect x="{x}" y="{y}" width="1" height="1" '
+                f'fill="#{r:02x}{g:02x}{b:02x}"/>'
+            )
+    phase("render")
 
     region_count = len(color_rects)
 

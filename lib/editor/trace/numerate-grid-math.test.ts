@@ -1,101 +1,61 @@
 import { describe, expect, it } from "vitest"
 
-import {
-  isNumerateGridValid,
-  resolveNumerateGrid,
-  type NumerateGridParams,
-} from "./numerate-grid-math"
-
-const square = (supercell_mm: number, primary_count: number): NumerateGridParams => ({
-  supercell_mm,
-  multiple_axis: "none",
-  multiple: 1,
-  primary_count,
-})
+import { isNumerateGridValid, resolveNumerateGrid } from "./numerate-grid-math"
 
 describe("resolveNumerateGrid", () => {
-  it("worked example: 4000x3000, 5mm square, 100 primary -> 100x75, no border", () => {
-    const g = resolveNumerateGrid(4000, 3000, square(5, 100))
-    expect(g.primaryAxis).toBe("horizontal")
-    expect(g.cellsX).toBe(100)
-    expect(g.cellsY).toBe(75)
-    expect(g.cellMmW).toBe(5)
-    expect(g.cellMmH).toBe(5)
-    expect(g.cropW).toBe(4000)
-    expect(g.cropH).toBe(3000)
-    expect(g.cropX).toBe(0)
-    expect(g.cropY).toBe(0)
-    expect(g.borderPx).toBe(0)
+  it("50x35 mm @ 5 mm → 10x7 cells, no border", () => {
+    const g = resolveNumerateGrid(50, 35, { supercell_mm: 5 })
+    expect(g.cellsX).toBe(10)
+    expect(g.cellsY).toBe(7)
+    expect(g.supercellMm).toBe(5)
+    expect(g.usedMmW).toBe(50)
+    expect(g.usedMmH).toBe(35)
+    expect(g.borderMmX).toBe(0)
+    expect(g.borderMmY).toBe(0)
   })
 
-  it("rectangular cells (x2 vertical): 4000x3000, 5mm, 100 primary -> 100x37, centred 40px border", () => {
-    const g = resolveNumerateGrid(4000, 3000, {
-      supercell_mm: 5,
-      multiple_axis: "vertical",
-      multiple: 2,
-      primary_count: 100,
-    })
-    expect(g.cellsX).toBe(100)
-    expect(g.cellsY).toBe(37) // floor(3000 / 80)
-    expect(g.cellMmW).toBe(5)
-    expect(g.cellMmH).toBe(10)
-    expect(g.cropH).toBe(2960) // 37 * 80
-    expect(g.cropY).toBe(20) // (3000 - 2960) / 2
-    expect(g.borderPx).toBe(40)
+  it("54x39 mm @ 5 mm → 10x7 cells, 4 mm border per axis (centered)", () => {
+    const g = resolveNumerateGrid(54, 39, { supercell_mm: 5 })
+    expect(g.cellsX).toBe(10)
+    expect(g.cellsY).toBe(7)
+    expect(g.usedMmW).toBe(50)
+    expect(g.usedMmH).toBe(35)
+    // 54 - 50 = 4 mm leftover horizontally → 2 mm per side
+    // 39 - 35 = 4 mm leftover vertically → 2 mm per side
+    expect(g.borderMmX).toBeCloseTo(4)
+    expect(g.borderMmY).toBeCloseTo(4)
   })
 
-  it("non-even format leaves a centred border on the secondary axis", () => {
-    const g = resolveNumerateGrid(4000, 3100, square(5, 100))
-    // cellSourcePx 40x40 -> cellsY = floor(3100/40) = 77, covered 3080
-    expect(g.cellsY).toBe(77)
-    expect(g.cropH).toBe(3080)
-    expect(g.cropY).toBe(10)
-    expect(g.borderPx).toBe(20)
+  it("preserves image-display dimensions on the grid", () => {
+    const g = resolveNumerateGrid(80, 50, { supercell_mm: 6 })
+    expect(g.displayMmW).toBe(80)
+    expect(g.displayMmH).toBe(50)
+    expect(g.cellsX).toBe(13) // floor(80/6)
+    expect(g.cellsY).toBe(8) // floor(50/6)
   })
 
-  it("portrait image -> primary axis is vertical", () => {
-    const g = resolveNumerateGrid(3000, 4000, square(5, 100))
-    expect(g.primaryAxis).toBe("vertical")
-    expect(g.cellsY).toBe(100)
-    expect(g.cellsX).toBe(75) // floor(3000 / 40)
-    expect(g.cropW).toBe(3000)
-    expect(g.cropX).toBe(0)
-    expect(g.borderPx).toBe(0)
+  it("supercell larger than image → cells go to 0, grid invalid", () => {
+    const g = resolveNumerateGrid(4, 4, { supercell_mm: 5 })
+    expect(g.cellsX).toBe(0)
+    expect(g.cellsY).toBe(0)
+    expect(isNumerateGridValid(g)).toBe(false)
   })
 
-  it("horizontal multiple stretches cellMmW, not cellMmH", () => {
-    const g = resolveNumerateGrid(4000, 3000, {
-      supercell_mm: 6,
-      multiple_axis: "horizontal",
-      multiple: 3,
-      primary_count: 50,
-    })
-    expect(g.cellMmW).toBe(18)
-    expect(g.cellMmH).toBe(6)
-  })
-
-  it("clamps multiple to >= 1 and primary_count to >= 1", () => {
-    const g = resolveNumerateGrid(4000, 3000, {
-      supercell_mm: 5,
-      multiple_axis: "vertical",
-      multiple: 0,
-      primary_count: 0,
-    })
-    expect(g.cellMmH).toBe(5) // multiple clamped to 1
-    expect(g.cellsX).toBe(1) // primary_count clamped to 1
+  it("supercell 0 short-circuits to invalid grid (defensive)", () => {
+    const g = resolveNumerateGrid(100, 100, { supercell_mm: 0 })
+    expect(g.cellsX).toBe(0)
+    expect(g.cellsY).toBe(0)
+    expect(isNumerateGridValid(g)).toBe(false)
   })
 })
 
 describe("isNumerateGridValid", () => {
-  it("accepts a grid with whole cells on both axes", () => {
-    expect(isNumerateGridValid(resolveNumerateGrid(4000, 3000, square(5, 100)))).toBe(true)
+  it("true when both axes have at least one cell", () => {
+    expect(isNumerateGridValid(resolveNumerateGrid(50, 35, { supercell_mm: 5 }))).toBe(true)
   })
 
-  it("rejects a degenerate grid where no whole secondary cell fits", () => {
-    // primary_count 1 on a 4000-wide image -> 4000px square cell,
-    // taller than the 3000px image -> cellsY = 0.
-    const g = resolveNumerateGrid(4000, 3000, square(5, 1))
-    expect(g.cellsY).toBe(0)
-    expect(isNumerateGridValid(g)).toBe(false)
+  it("false when either axis has zero cells", () => {
+    expect(isNumerateGridValid(resolveNumerateGrid(4, 35, { supercell_mm: 5 }))).toBe(false)
+    expect(isNumerateGridValid(resolveNumerateGrid(35, 4, { supercell_mm: 5 }))).toBe(false)
   })
 })

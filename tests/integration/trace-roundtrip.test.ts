@@ -63,7 +63,7 @@ describe("project_image_trace round-trip", () => {
       .insert({
         project_id: projectId,
         kind: "numerate",
-        params: { stroke_width: 2, show_colors: true },
+        params: { supercell_mm: 6, num_colors: 16 },
         output_image_id: numerateOut.imageId,
       })
     expect(insertErr).toBeNull()

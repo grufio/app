@@ -24,6 +24,7 @@ import { FilterSidebarSection } from "@/features/editor/components/filter-sideba
 import { TraceSidebarSection } from "@/features/editor/components/trace-sidebar-section"
 import type { OperationError } from "@/lib/api/operation-error"
 import { deleteMasterImageWithCascade } from "@/lib/api/project-images"
+import { computeDpiRelativePlacementPx } from "@/lib/editor/image-placement"
 import { useCanvasTxMirror } from "@/lib/editor/hooks/use-canvas-tx-mirror"
 import { useDedupingErrorToast } from "@/lib/editor/hooks/use-deduping-error-toast"
 import { useFilterStackActions } from "@/lib/editor/hooks/use-filter-stack-actions"
@@ -157,7 +158,46 @@ export function ProjectDetailPageClient({
     seedMasterImage,
   })
   const filterDialog = useFilterDialogSession(filterSourceImage)
-  const traceDialog = useTraceDialogSession(filterSourceImage)
+  // Trace dialog needs the image's displayed size on the artboard in
+  // mm — numerate-grid math runs on display-mm, not source-px. State
+  // preferred (post-resize), fresh-upload fallback via the same DPI-
+  // relative placement algorithm the upload flow uses to seed state.
+  // Returns null until workspace + source are both ready.
+  const traceSourceImage = useMemo(() => {
+    if (!filterSourceImage) return null
+    if (!workspaceDpi || !artboardWidthPx || !artboardHeightPx) return null
+    const MM_PER_INCH = 25.4
+    let displayMmW: number
+    let displayMmH: number
+    const seedW = initialImageTransform?.widthPxU
+    const seedH = initialImageTransform?.heightPxU
+    if (seedW && seedH) {
+      displayMmW = (Number(seedW) / 1e6 / workspaceDpi) * MM_PER_INCH
+      displayMmH = (Number(seedH) / 1e6 / workspaceDpi) * MM_PER_INCH
+    } else {
+      const placement = computeDpiRelativePlacementPx({
+        artW: artboardWidthPx,
+        artH: artboardHeightPx,
+        intrinsicW: filterSourceImage.width_px,
+        intrinsicH: filterSourceImage.height_px,
+        artboardDpi: workspaceDpi,
+        imageDpi: masterImage?.dpi ?? null,
+      })
+      if (!placement) return null
+      displayMmW = (placement.widthPx / workspaceDpi) * MM_PER_INCH
+      displayMmH = (placement.heightPx / workspaceDpi) * MM_PER_INCH
+    }
+    return { ...filterSourceImage, displayMmW, displayMmH }
+  }, [
+    filterSourceImage,
+    workspaceDpi,
+    artboardWidthPx,
+    artboardHeightPx,
+    initialImageTransform?.widthPxU,
+    initialImageTransform?.heightPxU,
+    masterImage?.dpi,
+  ])
+  const traceDialog = useTraceDialogSession(traceSourceImage)
   const {
     trace,
     traceBaseImage,
