@@ -174,9 +174,13 @@ export function useEditorWorkflowAdapter(args: {
     // No `loadImageState()` here: state is project-wide and immutable
     // by filter/trace/crop apply (none of those touch the master-anchored
     // row). The current state stays correct across these operations.
-    await refreshMasterImage()
-    await refreshProjectImages()
-    await refreshFilterImage()
+    // Each refresh hits an independent endpoint keyed only by projectId
+    // and writes to its own isolated useState — no ordering constraint.
+    await Promise.all([
+      refreshMasterImage(),
+      refreshProjectImages(),
+      refreshFilterImage(),
+    ])
   }, [refreshFilterImage, refreshMasterImage, refreshProjectImages])
 
   const refreshEditorData = useCallback(async () => {
