@@ -128,28 +128,12 @@ export function NumerateDialog({
             inputProps={{ min: 2, max: 256 }}
           />
 
-          <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs">
-            {valid ? (
-              <>
-                <div>
-                  Raster: <span className="font-medium text-foreground">{grid.cellsX} × {grid.cellsY} Superpixel</span>
-                </div>
-                {grid.borderMmX > 0 || grid.borderMmY > 0 ? (
-                  <div className="mt-1 text-muted-foreground">
-                    Schnitt-Rand: {fmt1(grid.borderMmX)} × {fmt1(grid.borderMmY)} mm (zentriert,
-                    wird beim Apply abgeschnitten)
-                  </div>
-                ) : (
-                  <div className="mt-1 text-muted-foreground">Kein Rand — das Raster geht exakt auf.</div>
-                )}
-              </>
-            ) : (
-              <div className="text-destructive">
-                Superpixel zu groß — kein ganzer Superpixel passt in das Bild. Wähle eine
-                kleinere Superpixel-Breite.
-              </div>
-            )}
-          </div>
+          {!valid ? (
+            <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-destructive">
+              Superpixel zu groß — kein ganzer Superpixel passt in das Bild.
+              Wähle eine kleinere Superpixel-Breite.
+            </div>
+          ) : null}
         </div>
 
         <div className="flex justify-between gap-2 pt-2">
