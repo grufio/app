@@ -11,7 +11,6 @@ import * as React from "react"
 import dynamic from "next/dynamic"
 import { Eye, EyeOff, Percent } from "lucide-react"
 
-import { cn } from "@/lib/utils"
 import { SidebarFrame } from "@/components/navigation/SidebarFrame"
 import type { OperationError } from "@/lib/api/operation-error"
 import { AppButton, FormField } from "@/components/ui/form-controls"
@@ -23,8 +22,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { useDialogFocusReturn } from "@/lib/dialog/use-dialog-focus-return"
 import { SidebarContent } from "@/components/ui/sidebar"
+import { useIsMobile } from "@/lib/ui/use-mobile"
 // Code-split non-canvas panels to reduce initial editor bundle cost.
 const GridPanel = dynamic(() => import("./grid-panel").then((m) => m.GridPanel), {
   ssr: false,
@@ -90,6 +91,9 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
   /** Mobile drawer state. Ignored on `md+` where the panel is
    * always rendered as a static sidebar. */
   open?: boolean
+  /** Mobile drawer onOpenChange. Triggered by Sheet's built-in
+   * close (Escape, overlay click, X button). Ignored on `md+`. */
+  onOpenChange?: (open: boolean) => void
 }) {
   const {
     panelWidthRem,
@@ -126,7 +130,9 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
     onGridVisibleChange,
     canvasRef,
     open = true,
+    onOpenChange,
   } = props
+  const isMobile = useIsMobile()
 
   const restoreFocusReturn = useDialogFocusReturn()
   const deleteFocusReturn = useDialogFocusReturn()
@@ -152,34 +158,9 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
     })
   }
 
-  return (
-    <>
-      <aside
-        id="right-panel"
-        className={cn(
-          // Desktop default (md+): static sidebar, width from CSS-var
-          "shrink-0 border-l bg-background relative w-[var(--panel-w)]",
-          // Mobile (< md): fullscreen drawer absolute within Layout
-          "max-md:absolute max-md:inset-0 max-md:w-full max-md:z-40 max-md:shadow-xl",
-          // Slide-in animation (respects prefers-reduced-motion)
-          "max-md:transition-transform max-md:duration-200 max-md:ease-out",
-          "max-md:motion-reduce:transition-none",
-          open
-            ? "max-md:translate-x-0"
-            : "max-md:translate-x-full max-md:pointer-events-none",
-        )}
-        style={{ "--panel-w": `${clamp(panelWidthRem)}rem` } as React.CSSProperties}
-      >
-        {/* Resize handle (use border line; no separate visual handle).
-         * Hidden on mobile — the panel is fullscreen there and there's
-         * nothing to resize against. */}
-        <div
-          aria-hidden="true"
-          className="absolute inset-y-0 -left-1 z-20 hidden w-2 cursor-col-resize md:block"
-          onMouseDown={onResizeMouseDown}
-        />
-        <SidebarFrame className="block h-full min-h-0 w-full">
-          <SidebarContent className="gap-0">
+  const panelBody = (
+    <SidebarFrame className="block h-full min-h-0 w-full">
+      <SidebarContent className="gap-0">
             {activeSection === "artboard" ? (
               <>
                 <EditorSidebarSection title="Page">
@@ -261,7 +242,46 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
             </div>
           </SidebarContent>
         </SidebarFrame>
-      </aside>
+  )
+
+  return (
+    <>
+      {isMobile ? (
+        // Mobile: render as a Radix Dialog-based Sheet. Portal-mounted,
+        // so the panel is NOT in the DOM until opened — no initial-paint
+        // visibility leak, no off-screen translate trick. Sheet handles
+        // overlay, focus-trap, Escape, animation natively.
+        <Sheet
+          open={open}
+          onOpenChange={(next) => {
+            onOpenChange?.(next)
+          }}
+        >
+          <SheetContent
+            id="right-panel"
+            side="right"
+            className="w-full p-0 sm:max-w-md"
+          >
+            <SheetTitle className="sr-only">Info panel</SheetTitle>
+            {panelBody}
+          </SheetContent>
+        </Sheet>
+      ) : (
+        // Desktop: static sidebar within the editor layout flex row.
+        <aside
+          id="right-panel"
+          className="relative shrink-0 border-l bg-background"
+          style={{ width: `${clamp(panelWidthRem)}rem` }}
+        >
+          {/* Resize handle (use border line; no separate visual handle). */}
+          <div
+            aria-hidden="true"
+            className="absolute inset-y-0 -left-1 z-20 w-2 cursor-col-resize"
+            onMouseDown={onResizeMouseDown}
+          />
+          {panelBody}
+        </aside>
+      )}
 
       {/* Restore confirmation dialog */}
       <Dialog open={restoreOpen} onOpenChange={setRestoreOpen}>
