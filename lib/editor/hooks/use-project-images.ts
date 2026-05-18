@@ -47,6 +47,24 @@ export function useProjectImages(projectId: string) {
     }
   }, [])
 
+  const seedImages = useCallback(
+    (nextItems: ProjectImageItem[], displayTargetSeed?: ProjectImageDisplayTarget) => {
+      if (!mountedRef.current) return
+      lastSignatureRef.current = imageListSignature(projectId, nextItems)
+      setImages(nextItems)
+      setDisplayTarget(
+        displayTargetSeed ?? {
+          active_image_id: null,
+          kind: null,
+        }
+      )
+      setFallbackTarget(null)
+      setError("")
+      setLoading(false)
+    },
+    [projectId]
+  )
+
   const refresh = useCallback(async () => {
     if (inflightRef.current) return await inflightRef.current
     if (!mountedRef.current) return
@@ -160,6 +178,7 @@ export function useProjectImages(projectId: string) {
     error,
     setError,
     refresh,
+    seedImages,
     deleteById,
     setLockedById,
   }

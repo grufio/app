@@ -91,6 +91,7 @@ export function ProjectDetailPageClient({
   const {
     images: projectImages,
     refresh: refreshProjectImages,
+    seedImages: seedProjectImages,
   } = useProjectImages(projectId)
   const {
     image: filterDisplayImage,
@@ -284,14 +285,35 @@ export function ProjectDetailPageClient({
       await deleteMasterImageWithCascade(projectId)
       setDeleteOpen(false)
       clearImageTxU()
-      // refreshProjectImages and workflow.refreshAndWait fetch
-      // independent stores — run in parallel so the spinner closes
-      // as soon as the slower of the two finishes, not their sum.
-      await Promise.all([refreshProjectImages(), workflow.refreshAndWait()])
+      // delete_master_with_cascade is an atomic write: on success,
+      // every image row (master + derivatives) is gone in the DB. The
+      // resulting client state is trivial — null master, empty list.
+      // We seed it directly and let the workflow machine pick up the
+      // empty source via the existing SOURCE_SNAPSHOT useEffect, just
+      // like the upload path does after PR #193.
+      //
+      // Background refresh is idempotent: empty is the stable fixed
+      // point of the cascade, so an eventual refresh just confirms
+      // what we already seeded. No UI wait, no 20s workflow timeout.
+      workflow.dismissError()
+      seedMasterImage(null)
+      seedProjectImages([])
+      void Promise.allSettled([refreshProjectImages(), refreshFilterImage()])
     } catch (e) {
       setDeleteError(e instanceof Error ? e.message : "Failed to delete image")
     }
-  }, [clearImageTxU, masterImage?.id, projectId, refreshProjectImages, setDeleteError, setDeleteOpen, workflow])
+  }, [
+    clearImageTxU,
+    masterImage?.id,
+    projectId,
+    refreshFilterImage,
+    refreshProjectImages,
+    seedMasterImage,
+    seedProjectImages,
+    setDeleteError,
+    setDeleteOpen,
+    workflow,
+  ])
 
   const handleRestoreInitialImage = useCallback(async () => {
     if (workflow.isRestoring) return
