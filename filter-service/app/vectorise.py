@@ -36,9 +36,15 @@ VTRACER_PARAMS = dict(
     mode="polygon",
     hierarchical="cutout",   # one path-element per connected region
     filter_speckle=0,         # don't merge across superpixel cells
-    corner_threshold=180,     # preserve 90° corners
+    # vtracer polygon-mode: corner_threshold is the max angle (deg) at
+    # which a point is still smoothed away — smaller value = MORE
+    # corners kept. 0 keeps every point, so the 1-pixel-per-cell input
+    # stays a true axis-aligned staircase instead of getting flattened
+    # into long diagonals. Do not confuse with spline-mode (lineart),
+    # where the same param has the opposite "sharpness" semantics.
+    corner_threshold=0,
     length_threshold=0,       # no path simplification
-    splice_threshold=180,     # no curve splicing
+    splice_threshold=180,     # spline-mode only; ignored in polygon-mode
     color_precision=8,
     layer_difference=0,
     path_precision=2,
