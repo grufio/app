@@ -5,7 +5,7 @@ import os
 import time
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from PIL import Image
@@ -262,9 +262,15 @@ class NumerateRequest(BaseModel):
 async def numerate_filter(request: NumerateRequest):
     """
     Numerate: crop the source to the resolved grid region, downsample
-    straight to a `cells_x × cells_y` image (1 cell = 1 px), quantise,
-    vtracer → region paths, overlay grid lines. The whole pipeline
-    runs on the tiny cell grid, never the full-res image.
+    straight to a `cells_x × cells_y` image (1 cell = 1 px), emit
+    one rect per cell at its mean colour, overlay grid lines. The
+    whole pipeline runs on the tiny cell grid, never the full-res
+    image.
+
+    Returns JSON with both the rendered SVG and the cropped source
+    bitmap (base64 PNG). The editor stores the bitmap as a
+    `trace_base` row and renders it under the SVG so the cropped-out
+    border doesn't leak through.
     """
     if request.cells_x < 1 or request.cells_y < 1:
         raise HTTPException(status_code=400, detail="cells_x and cells_y must be >= 1")
@@ -284,7 +290,7 @@ async def numerate_filter(request: NumerateRequest):
             img = img.convert("RGB")
         timer.mark("decode")
 
-        svg_content, region_count = numerate_to_svg(
+        svg_content, cropped_png, region_count = numerate_to_svg(
             img,
             cells_x=request.cells_x,
             cells_y=request.cells_y,
@@ -298,9 +304,12 @@ async def numerate_filter(request: NumerateRequest):
             on_phase=timer.mark,
         )
 
-        return Response(
-            content=svg_content,
-            media_type="image/svg+xml",
+        return JSONResponse(
+            content={
+                "svg": svg_content,
+                "cropped_png_b64": base64.b64encode(cropped_png).decode("ascii"),
+                "region_count": region_count,
+            },
             headers={
                 "X-Profile-Phases": timer.header(),
                 "X-Region-Count": str(region_count),

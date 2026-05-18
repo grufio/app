@@ -70,7 +70,16 @@ export function filterServiceHeaders(): Record<string, string> {
 /**
  * Result of a filter-service call after retry/fallback handling.
  *
- * - `ok: true` — service returned 2xx with the rendered image bytes.
+ * The success branch is parameterised on the `responseKind` passed to
+ * `callFilterService`, so callers get either `{ bytes }` (default,
+ * for image-out endpoints) or `{ json }` (numerate's SVG+bitmap
+ * envelope) without runtime narrowing dances.
+ *
+ * - `ok: true` with `bytes` — service returned 2xx with rendered image bytes
+ *   (the default; used by every image-out endpoint).
+ * - `ok: true` with `json` — service returned 2xx with a JSON envelope
+ *   (numerate returns `{svg, cropped_png_b64, region_count}` so the caller
+ *   can split the SVG and the cropped bitmap into separate storage rows).
  * - `service_unavailable` — service was unreachable / 502/503/504 / timed out
  *   across all attempts. Surface this stage so the UI can show a "service
  *   temporarily unavailable" message instead of a raw 500.
@@ -79,9 +88,17 @@ export function filterServiceHeaders(): Record<string, string> {
  *   service. Includes the upstream reason so the UI can decide whether to
  *   retry.
  */
-export type CallFilterServiceResult =
-  | { ok: true; bytes: ArrayBuffer; phases?: string }
-  | { ok: false; status: number; stage: "service_unavailable" | "filter_failed" | "auth"; reason: string }
+export type CallFilterServiceFailure = {
+  ok: false
+  status: number
+  stage: "service_unavailable" | "filter_failed" | "auth"
+  reason: string
+}
+export type CallFilterServiceBytesSuccess = { ok: true; bytes: ArrayBuffer; phases?: string }
+export type CallFilterServiceJsonSuccess = { ok: true; json: unknown; phases?: string }
+export type CallFilterServiceResult<R extends "bytes" | "json" = "bytes"> =
+  | (R extends "json" ? CallFilterServiceJsonSuccess : CallFilterServiceBytesSuccess)
+  | CallFilterServiceFailure
 
 /**
  * Phase-timing helper for filter pipelines (F18).
@@ -168,17 +185,24 @@ const DEFAULT_MAX_ATTEMPTS = 3
  * surfaces a `service_unavailable` stage so the UI can show a friendly
  * "Filter service is temporarily unavailable" instead of a raw 500.
  */
-export async function callFilterService(opts: {
+export async function callFilterService<R extends "bytes" | "json" = "bytes">(opts: {
   path: string
   body: unknown
   timeoutMs?: number
   maxAttempts?: number
+  /** `"bytes"` (default) returns the raw response body as an
+   * ArrayBuffer; `"json"` parses it as JSON and returns the parsed
+   * value. The filter service returns image bytes from every legacy
+   * endpoint and a JSON envelope from `/filters/numerate` (which
+   * pairs the SVG with the cropped source bitmap). */
+  responseKind?: R
   /** Test seam: replaces global fetch + sleep when set. */
   fetchImpl?: typeof fetch
   sleep?: (ms: number) => Promise<void>
-}): Promise<CallFilterServiceResult> {
+}): Promise<CallFilterServiceResult<R>> {
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS
   const maxAttempts = Math.max(1, opts.maxAttempts ?? DEFAULT_MAX_ATTEMPTS)
+  const responseKind = opts.responseKind ?? "bytes"
   const fetchImpl = opts.fetchImpl ?? fetch
   const sleep = opts.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)))
   const url = `${FILTER_SERVICE_BASE_URL}${opts.path}`
@@ -208,8 +232,12 @@ export async function callFilterService(opts: {
 
     if (res?.ok) {
       const phases = res.headers.get("X-Profile-Phases") ?? undefined
+      if (responseKind === "json") {
+        const json = await res.json()
+        return { ok: true, json, phases } as CallFilterServiceResult<R>
+      }
       const bytes = await res.arrayBuffer()
-      return { ok: true, bytes, phases }
+      return { ok: true, bytes, phases } as CallFilterServiceResult<R>
     }
 
     if (res && res.status === 401) {

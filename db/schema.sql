@@ -33,7 +33,8 @@ CREATE TYPE "public"."image_kind" AS ENUM (
     'master',
     'working_copy',
     'filter_working_copy',
-    'trace_output'
+    'trace_output',
+    'trace_base'
 );
 
 
@@ -1572,10 +1573,14 @@ CREATE TABLE IF NOT EXISTS "public"."project_image_trace" (
     "kind" "text" NOT NULL,
     "params" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
     "output_image_id" "uuid" NOT NULL,
+    "base_image_id" "uuid",
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     CONSTRAINT "project_image_trace_kind_ck" CHECK (("kind" = ANY (ARRAY['numerate'::"text", 'lineart'::"text"])))
 );
+
+
+COMMENT ON COLUMN "public"."project_image_trace"."base_image_id" IS 'project_images row (kind=trace_base) holding the source image cropped to the trace cell grid. NULL for trace kinds without a crop (e.g. lineart).';
 
 
 ALTER TABLE "public"."project_image_trace" OWNER TO "postgres";
@@ -2082,6 +2087,11 @@ ALTER TABLE ONLY "public"."project_image_state"
 
 ALTER TABLE ONLY "public"."project_image_state"
     ADD CONSTRAINT "project_image_state_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."project_image_trace"
+    ADD CONSTRAINT "project_image_trace_base_image_id_fkey" FOREIGN KEY ("base_image_id") REFERENCES "public"."project_images"("id") ON DELETE RESTRICT;
 
 
 
