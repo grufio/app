@@ -36,9 +36,6 @@ export function EditorTraceDialogHost(props: {
   } = props
 
   const configureOpen = Boolean(traceDialogSource && activeKind)
-  const onError = (error: Error) => {
-    console.error("Failed to apply trace:", error)
-  }
 
   return (
     <>
@@ -48,6 +45,11 @@ export function EditorTraceDialogHost(props: {
         onClose={onCloseSelection}
         onSelect={onSelectKind}
       />
+      {/*
+        No `onError` override: the wizards toast the failure themselves.
+        A host-side console-only handler would silently hide server
+        errors from the user.
+      */}
       {configureOpen && traceDialogSource && activeKind === "numerate" ? (
         <NumerateWizard
           open
@@ -55,7 +57,6 @@ export function EditorTraceDialogHost(props: {
           imageHeight={traceDialogSource.sourceImageHeight}
           onClose={onCloseConfigure}
           onSuccess={onApplied}
-          onError={onError}
           onApplyTrace={onApplyTrace}
         />
       ) : null}
@@ -69,7 +70,6 @@ export function EditorTraceDialogHost(props: {
           open
           onClose={onCloseConfigure}
           onSuccess={onApplied}
-          onError={onError}
           onApplyTrace={onApplyTrace}
         />
       ) : null}

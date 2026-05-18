@@ -51,9 +51,28 @@ Anything below overrides "common practice" for this repo:
 2. **No unsolicited features.** Refactor + consistency work is OK.
    New UI surfaces or API endpoints require explicit user ack — even if
    they appear "in the plan".
-3. **Root cause over symptom patch.** When a bug surfaces, ask why
-   existing tooling didn't catch it; close the gate, don't just fix
-   the symptom.
+3. **Root cause over symptom patch — keine Fixes, keine Hacks, nur
+   nachhaltige Lösungen.** When a bug surfaces:
+   - **First understand the actual failure** before proposing
+     anything. Read the code paths, the recent commits in the
+     affected area, the test output, the server logs. If you cannot
+     name the concrete failing line + reason, you do NOT yet know
+     enough to propose a fix.
+   - **Never propose "add diagnostics, then we'll see"** as a
+     standalone fix. Adding visibility (toasts, logs, telemetry) so
+     that the user can repro the bug and tell you the message back
+     is a fix-style band-aid that delays the real work and burns
+     iterations. Investigate properly upfront — read commit diffs,
+     run targeted tests, trace the call chain end-to-end.
+   - **Ask why existing tooling didn't catch it; close the gate,
+     don't just fix the symptom.** If a regression slipped past
+     tests, the structural fix includes the missing test, not just
+     the code patch.
+   - If you genuinely cannot determine root cause from code +
+     local repro, **say so explicitly and ask for the missing
+     information** (browser console output, server log, repro
+     steps). Don't paper over the gap by shipping diagnostic
+     infrastructure as the "fix".
 4. **For prod-affecting actions, ask first.** `gh workflow run` on
    prod pipelines, `supabase db push`, Vercel deploy hooks: explicit
    confirmation per trigger, never inferred from a previous "yes".
