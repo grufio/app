@@ -111,19 +111,13 @@ export function ProjectDetailPageClient({
   const [gridVisible, setGridVisible] = useState(true)
   const [selectedNavId, setSelectedNavId] = useState<string>(buildNavId({ kind: "artboard" }))
   // Mobile-only drawer state for the right-side info panel. On `md+`
-  // the right panel is always-on; this state is ignored there.
+  // the right panel is always-on; this state is ignored there. The
+  // Sheet primitive on mobile handles Escape, overlay-click and
+  // focus-trap natively — no custom keydown handler needed here.
   const [rightPanelOpen, setRightPanelOpen] = useState(false)
   const handleToggleRightPanel = useCallback(() => {
     setRightPanelOpen((open) => !open)
   }, [])
-  useEffect(() => {
-    if (!rightPanelOpen) return
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setRightPanelOpen(false)
-    }
-    window.addEventListener("keydown", onKeyDown)
-    return () => window.removeEventListener("keydown", onKeyDown)
-  }, [rightPanelOpen])
   const canvasRef = useRef<ProjectCanvasStageHandle | null>(null)
   const lastNoWorkingImageMetricRef = useRef("")
   const {
@@ -494,6 +488,7 @@ export function ProjectDetailPageClient({
             onGridVisibleChange={setGridVisible}
             canvasRef={canvasRef}
             open={rightPanelOpen}
+            onOpenChange={setRightPanelOpen}
           />
           <EditorDialogHost
             selectionOpen={filterDialog.selectionOpen}
