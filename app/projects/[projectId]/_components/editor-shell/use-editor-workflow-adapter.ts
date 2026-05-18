@@ -107,6 +107,7 @@ export function useEditorWorkflowAdapter(args: {
   refreshMasterImage: () => Promise<void>
   refreshProjectImages: () => Promise<void>
   refreshFilterImage: () => Promise<void>
+  seedMasterImage: (next: { id: string; signedUrl: string; width_px: number; height_px: number; dpi: number | null; name: string } | null) => void
 }) {
   const {
     projectId,
@@ -123,6 +124,7 @@ export function useEditorWorkflowAdapter(args: {
     refreshMasterImage,
     refreshProjectImages,
     refreshFilterImage,
+    seedMasterImage,
   } = args
   const [uploadSyncing, setUploadSyncing] = useState(false)
   const [uploadSyncError, setUploadSyncError] = useState<unknown>(null)
@@ -174,9 +176,13 @@ export function useEditorWorkflowAdapter(args: {
     // No `loadImageState()` here: state is project-wide and immutable
     // by filter/trace/crop apply (none of those touch the master-anchored
     // row). The current state stays correct across these operations.
-    await refreshMasterImage()
-    await refreshProjectImages()
-    await refreshFilterImage()
+    // Each refresh hits an independent endpoint keyed only by projectId
+    // and writes to its own isolated useState — no ordering constraint.
+    await Promise.all([
+      refreshMasterImage(),
+      refreshProjectImages(),
+      refreshFilterImage(),
+    ])
   }, [refreshFilterImage, refreshMasterImage, refreshProjectImages])
 
   const refreshEditorData = useCallback(async () => {
@@ -277,17 +283,25 @@ export function useEditorWorkflowAdapter(args: {
     },
     [workflow]
   )
-  const handleImageUploaded = useCallback(async () => {
-    setUploadSyncing(true)
-    setUploadSyncError(null)
-    try {
-      await workflow.refreshAndWait()
-    } catch (err) {
-      setUploadSyncError(err)
-    } finally {
-      setUploadSyncing(false)
-    }
-  }, [workflow])
+  const seededMasterIdRef = useRef<string | null>(null)
+  const handleImageUploaded = useCallback(
+    async (uploadedMaster: { id: string; signedUrl: string; width_px: number; height_px: number; dpi: number | null; name: string } | null) => {
+      if (uploadedMaster?.id) {
+        seedMasterImage(uploadedMaster)
+        seededMasterIdRef.current = uploadedMaster.id
+      }
+      setUploadSyncing(true)
+      setUploadSyncError(null)
+      try {
+        await workflow.refreshAndWait()
+      } catch (err) {
+        setUploadSyncError(err)
+      } finally {
+        setUploadSyncing(false)
+      }
+    },
+    [seedMasterImage, workflow],
+  )
 
   // OperationError-typed composition. Order: persistence has highest
   // priority (sync failures override op failures), then filter op,
@@ -313,6 +327,7 @@ export function useEditorWorkflowAdapter(args: {
     filterSourceImage,
     handleApplyFilter,
     handleImageUploaded,
+    seededMasterIdRef,
     uploadSyncError,
     filterOperationError,
     restoreOperationError,

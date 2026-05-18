@@ -84,6 +84,15 @@ export function useMasterImage(projectId: string, initialMasterImage?: MasterIma
     }
   }, [])
 
+  const seedMasterImage = useCallback((nextImage: MasterImage | null) => {
+    if (!mountedRef.current) return
+    const nextSig = masterImageSignature(nextImage)
+    lastLoadedSignatureRef.current = nextSig
+    setMasterImage(nextImage)
+    setMasterImageError("")
+    setMasterImageLoading(false)
+  }, [])
+
   const refreshMasterImage = useCallback(async () => {
     if (refreshInflightRef.current) return await refreshInflightRef.current
     if (!mountedRef.current) return
@@ -167,6 +176,7 @@ export function useMasterImage(projectId: string, initialMasterImage?: MasterIma
     masterImageLoading,
     masterImageError,
     refreshMasterImage,
+    seedMasterImage,
     deleteBusy,
     deleteError,
     setDeleteError,

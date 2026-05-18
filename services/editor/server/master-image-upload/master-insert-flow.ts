@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/lib/supabase/database.types"
 
 import { cleanupExistingMasters } from "./cleanup"
-import { insertMasterRow } from "./insert-master"
+import { insertMasterRow, type InsertedMasterRow } from "./insert-master"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 
 export async function insertMasterWithCleanup(args: {
@@ -16,7 +16,10 @@ export async function insertMasterWithCleanup(args: {
   heightPx: number
   imageDpi: number
   objectPath: string
-}): Promise<{ ok: true } | { ok: false; reason: string; code?: string }> {
+}): Promise<
+  | { ok: true; row: InsertedMasterRow }
+  | { ok: false; reason: string; code?: string }
+> {
   const { supabase, projectId, objectPath } = args
 
   const cleanup = await cleanupExistingMasters({ supabase, projectId })
@@ -25,7 +28,7 @@ export async function insertMasterWithCleanup(args: {
     return { ok: false, reason: cleanup.reason, code: cleanup.code }
   }
 
-  let { error: dbErr } = await insertMasterRow(args)
+  let { data: row, error: dbErr } = await insertMasterRow(args)
 
   if (dbErr && (dbErr as { code?: string }).code === "23505") {
     const retryCleanup = await cleanupExistingMasters({ supabase, projectId })
@@ -33,13 +36,17 @@ export async function insertMasterWithCleanup(args: {
       await supabase.storage.from(PROJECT_IMAGES_BUCKET).remove([objectPath])
       return { ok: false, reason: retryCleanup.reason, code: retryCleanup.code }
     }
-    dbErr = (await insertMasterRow(args)).error
+    ;({ data: row, error: dbErr } = await insertMasterRow(args))
   }
 
-  if (dbErr) {
+  if (dbErr || !row) {
     await supabase.storage.from(PROJECT_IMAGES_BUCKET).remove([objectPath])
-    return { ok: false, reason: dbErr.message, code: (dbErr as { code?: string }).code }
+    return {
+      ok: false,
+      reason: dbErr?.message ?? "insertMasterRow returned no row",
+      code: (dbErr as { code?: string } | undefined)?.code,
+    }
   }
 
-  return { ok: true }
+  return { ok: true, row }
 }
