@@ -601,23 +601,6 @@ CREATE OR REPLACE FUNCTION "public"."set_updated_at"() RETURNS "trigger"
 ALTER FUNCTION "public"."set_updated_at"() OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."workspace_value_to_px_u"("v" numeric, "u" "public"."measure_unit", "dpi" numeric) RETURNS bigint
-    LANGUAGE "sql" IMMUTABLE
-    SET "search_path" TO 'public', 'pg_temp'
-    AS $$
-    select case u
-      when 'px' then round(v * 1000000)::bigint
-      when 'mm' then round((v * dpi * 1000000) / 25.4)::bigint
-      when 'cm' then round(((v * 10) * dpi * 1000000) / 25.4)::bigint
-      when 'pt' then round((v * dpi * 1000000) / 72)::bigint
-      else null
-    end
-  $$;
-
-
-ALTER FUNCTION "public"."workspace_value_to_px_u"("v" numeric, "u" "public"."measure_unit", "dpi" numeric) OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "storage"."allow_any_operation"("expected_operations" "text"[]) RETURNS boolean
     LANGUAGE "sql" STABLE
     AS $$
@@ -1573,17 +1556,18 @@ CREATE TABLE IF NOT EXISTS "public"."project_image_trace" (
     "kind" "text" NOT NULL,
     "params" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
     "output_image_id" "uuid" NOT NULL,
-    "base_image_id" "uuid",
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "base_image_id" "uuid",
     CONSTRAINT "project_image_trace_kind_ck" CHECK (("kind" = ANY (ARRAY['numerate'::"text", 'lineart'::"text"])))
 );
 
 
+ALTER TABLE "public"."project_image_trace" OWNER TO "postgres";
+
+
 COMMENT ON COLUMN "public"."project_image_trace"."base_image_id" IS 'project_images row (kind=trace_base) holding the source image cropped to the trace cell grid. NULL for trace kinds without a crop (e.g. lineart).';
 
-
-ALTER TABLE "public"."project_image_trace" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."project_images" (
@@ -1630,19 +1614,15 @@ CREATE TABLE IF NOT EXISTS "public"."project_workspace" (
     "height_px" integer NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "raster_effects_preset" "text",
     "page_bg_enabled" boolean DEFAULT false NOT NULL,
     "page_bg_color" "text" DEFAULT '#ffffff'::"text" NOT NULL,
     "page_bg_opacity" integer DEFAULT 50 NOT NULL,
-    "output_dpi" numeric DEFAULT 300 NOT NULL,
     CONSTRAINT "project_workspace_height_px_check" CHECK (("height_px" > 0)),
     CONSTRAINT "project_workspace_height_px_u_positive" CHECK (((("height_px_u")::bigint >= 1000000) AND (("height_px_u")::bigint <= '32768000000'::bigint))),
     CONSTRAINT "project_workspace_height_value_check" CHECK (("height_value" > (0)::numeric)),
-    CONSTRAINT "project_workspace_output_dpi_positive" CHECK (("output_dpi" > (0)::numeric)),
     CONSTRAINT "project_workspace_page_bg_color_hex" CHECK (("page_bg_color" ~ '^#([0-9a-fA-F]{6})$'::"text")),
     CONSTRAINT "project_workspace_page_bg_opacity_pct" CHECK ((("page_bg_opacity" >= 0) AND ("page_bg_opacity" <= 100))),
     CONSTRAINT "project_workspace_px_cache_consistency" CHECK ((("width_px" = GREATEST(1, (((("width_px_u")::bigint + 500000) / 1000000))::integer)) AND ("height_px" = GREATEST(1, (((("height_px_u")::bigint + 500000) / 1000000))::integer)))),
-    CONSTRAINT "project_workspace_raster_effects_preset_check" CHECK ((("raster_effects_preset" IS NULL) OR ("raster_effects_preset" = ANY (ARRAY['high'::"text", 'medium'::"text", 'low'::"text"])))),
     CONSTRAINT "project_workspace_width_px_check" CHECK (("width_px" > 0)),
     CONSTRAINT "project_workspace_width_px_u_positive" CHECK (((("width_px_u")::bigint >= 1000000) AND (("width_px_u")::bigint <= '32768000000'::bigint))),
     CONSTRAINT "project_workspace_width_value_check" CHECK (("width_value" > (0)::numeric))
@@ -2474,12 +2454,6 @@ GRANT ALL ON FUNCTION "public"."set_active_master_with_state"("p_project_id" "uu
 GRANT ALL ON FUNCTION "public"."set_updated_at"() TO "anon";
 GRANT ALL ON FUNCTION "public"."set_updated_at"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."set_updated_at"() TO "service_role";
-
-
-
-GRANT ALL ON FUNCTION "public"."workspace_value_to_px_u"("v" numeric, "u" "public"."measure_unit", "dpi" numeric) TO "anon";
-GRANT ALL ON FUNCTION "public"."workspace_value_to_px_u"("v" numeric, "u" "public"."measure_unit", "dpi" numeric) TO "authenticated";
-GRANT ALL ON FUNCTION "public"."workspace_value_to_px_u"("v" numeric, "u" "public"."measure_unit", "dpi" numeric) TO "service_role";
 
 
 
