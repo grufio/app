@@ -110,11 +110,15 @@ export function ProjectDetailPageClient({
   const { setRestoreOpen, setDeleteOpen, setLeftPanelTab, showFilter, hideFilter, toggleHiddenFilter, pruneHiddenFilters } = sessionActions
   const [gridVisible, setGridVisible] = useState(true)
   const [selectedNavId, setSelectedNavId] = useState<string>(buildNavId({ kind: "artboard" }))
-  // Mobile-only drawer state for the right-side info panel. On `md+`
-  // the right panel is always-on; this state is ignored there. The
-  // Sheet primitive on mobile handles Escape, overlay-click and
-  // focus-trap natively — no custom keydown handler needed here.
+  // Mobile-only drawer state for the side panels. On `md+` both panels
+  // are always-on; this state is ignored there. The Sheet primitive on
+  // mobile handles Escape, overlay-click and focus-trap natively — no
+  // custom keydown handler needed here.
+  const [leftPanelOpen, setLeftPanelOpen] = useState(false)
   const [rightPanelOpen, setRightPanelOpen] = useState(false)
+  const handleToggleLeftPanel = useCallback(() => {
+    setLeftPanelOpen((open) => !open)
+  }, [])
   const handleToggleRightPanel = useCallback(() => {
     setRightPanelOpen((open) => !open)
   }, [])
@@ -375,6 +379,8 @@ export function ProjectDetailPageClient({
         projectId={projectId}
         initialTitle={project && project.id === projectId ? project.name : "Untitled"}
         onTitleUpdated={handleTitleUpdated}
+        leftPanelOpen={leftPanelOpen}
+        onToggleLeftPanel={handleToggleLeftPanel}
         rightPanelOpen={rightPanelOpen}
         onToggleRightPanel={handleToggleRightPanel}
       />
@@ -425,6 +431,8 @@ export function ProjectDetailPageClient({
                   onOpenSelection={openTraceSelection}
                 />
               }
+              open={leftPanelOpen}
+              onOpenChange={setLeftPanelOpen}
             />
             <ProjectEditorStage
               projectId={projectId}

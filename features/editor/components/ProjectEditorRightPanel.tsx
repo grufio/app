@@ -25,7 +25,6 @@ import {
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { useDialogFocusReturn } from "@/lib/dialog/use-dialog-focus-return"
 import { SidebarContent } from "@/components/ui/sidebar"
-import { useIsMobile } from "@/lib/ui/use-mobile"
 // Code-split non-canvas panels to reduce initial editor bundle cost.
 const GridPanel = dynamic(() => import("./grid-panel").then((m) => m.GridPanel), {
   ssr: false,
@@ -132,7 +131,6 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
     open = true,
     onOpenChange,
   } = props
-  const isMobile = useIsMobile()
 
   const restoreFocusReturn = useDialogFocusReturn()
   const deleteFocusReturn = useDialogFocusReturn()
@@ -246,42 +244,34 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
 
   return (
     <>
-      {isMobile ? (
-        // Mobile: render as a Radix Dialog-based Sheet. Portal-mounted,
-        // so the panel is NOT in the DOM until opened — no initial-paint
-        // visibility leak, no off-screen translate trick. Sheet handles
-        // overlay, focus-trap, Escape, animation natively.
-        <Sheet
-          open={open}
-          onOpenChange={(next) => {
-            onOpenChange?.(next)
-          }}
-        >
-          <SheetContent
-            id="right-panel"
-            side="right"
-            className="w-full p-0 sm:max-w-md"
-          >
-            <SheetTitle className="sr-only">Info panel</SheetTitle>
-            {panelBody}
-          </SheetContent>
-        </Sheet>
-      ) : (
-        // Desktop: static sidebar within the editor layout flex row.
-        <aside
-          id="right-panel"
-          className="relative shrink-0 border-l bg-background"
-          style={{ width: `${clamp(panelWidthRem)}rem` }}
-        >
-          {/* Resize handle (use border line; no separate visual handle). */}
-          <div
-            aria-hidden="true"
-            className="absolute inset-y-0 -left-1 z-20 w-2 cursor-col-resize"
-            onMouseDown={onResizeMouseDown}
-          />
+      {/* Desktop: static sidebar within the editor layout flex row.
+       * `hidden md:flex` keeps it out of the DOM-paint layer on mobile
+       * (display:none, no layout space, no flash during hydration). */}
+      <aside
+        id="right-panel"
+        className="relative hidden shrink-0 flex-col border-l bg-background md:flex"
+        style={{ width: `${clamp(panelWidthRem)}rem` }}
+      >
+        {/* Resize handle (use border line; no separate visual handle). */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-y-0 -left-1 z-20 w-2 cursor-col-resize"
+          onMouseDown={onResizeMouseDown}
+        />
+        {panelBody}
+      </aside>
+
+      {/* Mobile: Radix Sheet (Dialog) — portal-mounted. The contents
+       * are only rendered to the DOM while `open` is true, so on
+       * desktop (where the toggle button is `md:hidden` and can't
+       * fire) the panel body is never double-mounted. Sheet handles
+       * overlay, focus-trap, Escape, and slide-in animation. */}
+      <Sheet open={open} onOpenChange={onOpenChange}>
+        <SheetContent side="right" className="w-full p-0 sm:max-w-md">
+          <SheetTitle className="sr-only">Info panel</SheetTitle>
           {panelBody}
-        </aside>
-      )}
+        </SheetContent>
+      </Sheet>
 
       {/* Restore confirmation dialog */}
       <Dialog open={restoreOpen} onOpenChange={setRestoreOpen}>
