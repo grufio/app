@@ -151,6 +151,17 @@ export type ProjectCanvasStageHandle = {
    */
   alignImage: (opts: AlignImageOptions) => void
   /**
+   * Scale the image proportionally to fit the artboard, preserving
+   * rotation, then center it. The fit uses the rotation-aware bounding
+   * box so rotated images land flush against the artboard edges.
+   */
+  fitImageToArtboard: () => void
+  /**
+   * Read the rotation-aware bounding box of the image node, in µpx.
+   * Returns null when the canvas has no image yet.
+   */
+  getImageBoundingBoxPxU: () => { widthPxU: bigint; heightPxU: bigint } | null
+  /**
    * Restore the "working copy" state of the image back to its original placement.
    * This resets rotation and re-fits the image into the current artboard.
    */
@@ -526,6 +537,16 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     [alignImageRaw, mutationsEnabled]
   )
 
+  const fitImageToArtboard = useCallback(() => {
+    if (!mutationsEnabled || !hasArtboard) return
+    transformControllerRef.current?.fitImageToArtboard({ artW, artH })
+    scheduleBoundsUpdate()
+  }, [artH, artW, hasArtboard, mutationsEnabled, scheduleBoundsUpdate])
+
+  const getImageBoundingBoxPxU = useCallback(() => {
+    return transformControllerRef.current?.getImageBoundingBoxPxU() ?? null
+  }, [])
+
   const imageRender = useMemo(() => {
     if (!img || !imageTx) return null
     const width = pxUToPxNumber(imageTx.widthPxU)
@@ -597,12 +618,14 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
       setImageSize,
       setImagePosition,
       alignImage,
+      fitImageToArtboard,
+      getImageBoundingBoxPxU,
       restoreImage,
       getCropSelection,
       getCropSelectionPx,
       resetCropSelection,
     }),
-    [alignImage, fitToView, getCropSelection, getCropSelectionPx, resetCropSelection, restoreImage, rotate90, setImagePosition, setImageSize, zoomIn, zoomOut]
+    [alignImage, fitImageToArtboard, fitToView, getCropSelection, getCropSelectionPx, getImageBoundingBoxPxU, resetCropSelection, restoreImage, rotate90, setImagePosition, setImageSize, zoomIn, zoomOut]
   )
 
 
