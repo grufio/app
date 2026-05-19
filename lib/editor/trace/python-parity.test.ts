@@ -11,7 +11,7 @@ import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 
 import { lineartSchema } from "./lineart"
-import { numerateSchema } from "./numerate"
+import { pixelateSchema } from "./pixelate"
 
 const PYTHON_PATH = join(__dirname, "../../../filter-service/app/main.py")
 const PYTHON_SOURCE = readFileSync(PYTHON_PATH, "utf-8")
@@ -54,26 +54,22 @@ describe("Python parity: TS trace schema defaults vs Pydantic", () => {
     }
   })
 
-  it("NumerateRequest — num_colors default agrees", () => {
-    // Numerate's TS schema is intentionally narrower than the Pydantic
-    // request: TS holds only user-facing inputs (supercell_mm,
-    // num_colors), while Python additionally takes server-computed
-    // params (cells_x/_y, crop_*, stroke_width-hardcoded). The only
-    // user-facing field that both sides agree on is num_colors.
-    const py = extractPydanticDefaults("NumerateRequest")
-    const ts = numerateSchema.parse({})
+  it("PixelateRequest — num_colors default agrees", () => {
+    // Pixelate's TS schema is intentionally narrower than the Pydantic
+    // request: TS holds only user-facing inputs (supercell_width_mm,
+    // supercell_height_mm, num_colors), while Python additionally takes
+    // server-computed params (cells_x/_y, crop_*, stroke_width-hardcoded).
+    // The only user-facing field that both sides agree on is num_colors.
+    const py = extractPydanticDefaults("PixelateRequest")
+    const ts = pixelateSchema.parse({})
     expect(ts.num_colors).toEqual(py.num_colors)
   })
 
   it("extracts the expected fields (regression guard for parser)", () => {
-    // F20 PR2 dropped the Canny-era LineArt fields (threshold1,
-    // threshold2, invert, min_contour_area). The new vtracer-based
-    // schema has 4 defaults: line_thickness, blur_amount, smoothness,
-    // num_colors.
     expect(Object.keys(extractPydanticDefaults("LineArtRequest"))).toEqual(
       expect.arrayContaining(["line_thickness", "blur_amount", "smoothness", "num_colors"]),
     )
-    expect(Object.keys(extractPydanticDefaults("NumerateRequest"))).toContain("stroke_width")
-    expect(Object.keys(extractPydanticDefaults("NumerateRequest"))).toContain("num_colors")
+    expect(Object.keys(extractPydanticDefaults("PixelateRequest"))).toContain("stroke_width")
+    expect(Object.keys(extractPydanticDefaults("PixelateRequest"))).toContain("num_colors")
   })
 })

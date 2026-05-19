@@ -7,10 +7,10 @@
  * exclusive — one active per project).
  */
 import { lineartTrace } from "./lineart"
-import { numerateTrace } from "./numerate"
+import { pixelateTrace } from "./pixelate"
 
 export const TRACE_REGISTRY = {
-  numerate: numerateTrace,
+  pixelate: pixelateTrace,
   lineart: lineartTrace,
 } as const
 

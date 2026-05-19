@@ -1,6 +1,6 @@
 /**
  * Trace surface — mutually-exclusive bitmap-to-vector operations
- * (numerate, lineart). One row per project in
+ * (pixelate, lineart). One row per project in
  * `project_image_trace`; applying replaces the prior row and
  * tombstones the prior output image.
  *
@@ -13,13 +13,13 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database, Json } from "@/lib/supabase/database.types"
 import { TRACE_REGISTRY, type RegisteredTraceId } from "@/lib/editor/trace/registry"
 import { lineartSchema } from "@/lib/editor/trace/lineart"
-import { numerateSchema } from "@/lib/editor/trace/numerate"
+import { pixelateSchema } from "@/lib/editor/trace/pixelate"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 import { getEditorTargetImageRow, resolveEditorTargetImageRows } from "@/lib/supabase/project-images"
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role"
 import { activateProjectImageOnly } from "@/services/editor/server/activate-project-image"
 import { lineArtImageAndActivate } from "@/services/editor/server/trace/lineart"
-import { numerateImageAndActivate } from "@/services/editor/server/trace/numerate"
+import { pixelateImageAndActivate } from "@/services/editor/server/trace/pixelate"
 
 export type TraceOpFailure = {
   ok: false
@@ -30,7 +30,7 @@ export type TraceOpFailure = {
     | "source_lookup"
     | "lock_conflict"
     | "source_download"
-    | "numerate_process"
+    | "pixelate_process"
     | "lineart_process"
     | "service_unavailable"
     | "auth"
@@ -49,7 +49,7 @@ export type ProjectTraceRow = {
   kind: RegisteredTraceId
   params: Record<string, unknown>
   output_image_id: string
-  /** Numerate writes a paired bitmap (the source cropped to the
+  /** Pixelate writes a paired bitmap (the source cropped to the
    * cell grid) as a `trace_base` image row and links it here. The
    * editor renders it as the canvas background under the SVG so
    * the crop is the only thing visible. Null for trace kinds
@@ -83,12 +83,12 @@ function parseTraceKind(value: unknown): RegisteredTraceId | null {
 }
 
 const TRACE_SCHEMAS = {
-  numerate: numerateSchema,
+  pixelate: pixelateSchema,
   lineart: lineartSchema,
 } as const satisfies Record<RegisteredTraceId, unknown>
 
 const TRACE_HANDLERS = {
-  numerate: numerateImageAndActivate,
+  pixelate: pixelateImageAndActivate,
   lineart: lineArtImageAndActivate,
 } as const satisfies Record<RegisteredTraceId, unknown>
 
@@ -178,7 +178,7 @@ export async function applyProjectTrace(args: {
   const params = parsedParams.data as Record<string, unknown>
 
   // Trace operates on the BITMAP that sits "below" the filter chain
-  // — pixelate-tip if any pixelate filters exist, otherwise the
+  // — the filter-chain tip if any filters exist, otherwise the
   // master / working-copy row. The active image (used everywhere
   // else in the editor) may be the previous trace's SVG output,
   // which is the wrong source: trace pipelines want bitmap pixels,
@@ -187,7 +187,7 @@ export async function applyProjectTrace(args: {
   //
   // Order of preference:
   //   1. explicit `source_image_id` in params (legacy override)
-  //   2. latest pixelate filter-chain output (project_image_filters)
+  //   2. latest filter-chain output (project_image_filters)
   //   3. project's working_copy (kind='working_copy')
   //   4. master image (kind='master')
   const requestedSourceImageId =
@@ -225,7 +225,7 @@ export async function applyProjectTrace(args: {
     sourceIsLocked = lookup.isLocked
   } else {
     // Walk the filter chain for its tip output. project_image_filters
-    // is pixelate-only after F21 PR2; numerate / lineart rows live
+    // is filter-chain rows only; pixelate / lineart trace rows live
     // on project_image_trace and never appear here.
     const { data: chainRows } = await supabase
       .from("project_image_filters")

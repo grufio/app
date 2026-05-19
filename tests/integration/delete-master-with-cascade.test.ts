@@ -116,7 +116,7 @@ describe("delete_master_with_cascade()", () => {
       .insert({
         project_id: projectId,
         output_image_id: traceOutput.imageId,
-        kind: "numerate",
+        kind: "pixelate",
         params: {},
       })
     expect(traceErr).toBeNull()

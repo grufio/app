@@ -1,15 +1,15 @@
 "use client"
 
 /**
- * Trace dialog host (F21 PR2). Sister to `EditorDialogHost`. Mounts
- * the `TraceSelectionController` (numerate vs lineart picker) and,
+ * Trace dialog host. Sister to `EditorDialogHost`. Mounts the
+ * `TraceSelectionController` (pixelate vs lineart picker) and,
  * once a kind is chosen, the appropriate configure surface:
- *   - numerate → `NumerateDialog`
+ *   - pixelate → `PixelateDialog`
  *   - lineart  → single-form `GenericTraceController`
  */
 import { TraceSelectionController } from "@/features/editor/components/TraceSelectionController"
 import { GenericTraceController } from "@/features/editor/components/trace-forms/generic-trace-controller"
-import { NumerateDialog } from "@/features/editor/components/trace-forms/numerate-dialog"
+import { PixelateDialog } from "@/features/editor/components/trace-forms/pixelate-dialog"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
 
 export function EditorTraceDialogHost(props: {
@@ -56,8 +56,8 @@ export function EditorTraceDialogHost(props: {
         A host-side console-only handler would silently hide server
         errors from the user.
       */}
-      {configureOpen && traceDialogSource && activeKind === "numerate" ? (
-        <NumerateDialog
+      {configureOpen && traceDialogSource && activeKind === "pixelate" ? (
+        <PixelateDialog
           open
           displayMmW={traceDialogSource.displayMmW}
           displayMmH={traceDialogSource.displayMmH}
@@ -66,7 +66,7 @@ export function EditorTraceDialogHost(props: {
           onApplyTrace={onApplyTrace}
         />
       ) : null}
-      {configureOpen && traceDialogSource && activeKind && activeKind !== "numerate" ? (
+      {configureOpen && traceDialogSource && activeKind && activeKind !== "pixelate" ? (
         <GenericTraceController
           kind={activeKind}
           ctx={{

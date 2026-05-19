@@ -3,15 +3,16 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { makeMockSupabase } from "@/lib/supabase/__mocks__/make-mock-supabase"
 import type { Database } from "@/lib/supabase/database.types"
-import type { NumerateParams } from "@/lib/editor/trace/numerate"
-import { numerateImageAndActivate } from "./numerate"
+import type { PixelateParams } from "@/lib/editor/trace/pixelate"
+import { pixelateImageAndActivate } from "./pixelate"
 
-const validParams: NumerateParams = {
-  supercell_mm: 6,
+const validParams: PixelateParams = {
+  supercell_width_mm: 6,
+  supercell_height_mm: 6,
   num_colors: 16,
 }
 
-describe("numerateImageAndActivate validation contract", () => {
+describe("pixelateImageAndActivate validation contract", () => {
   let mockSupabase: SupabaseClient<Database>
   const projectId = "test-project-id"
   const sourceImageId = "source-image-id"
@@ -24,40 +25,51 @@ describe("numerateImageAndActivate validation contract", () => {
     })
   })
 
-  it("rejects supercell_mm below the minimum", async () => {
-    const result = await numerateImageAndActivate({
+  it("rejects supercell_width_mm below the minimum", async () => {
+    const result = await pixelateImageAndActivate({
       supabase: mockSupabase,
       projectId,
       sourceImageId,
-      params: { ...validParams, supercell_mm: 3 },
+      params: { ...validParams, supercell_width_mm: 3 },
     })
     expect(result.ok).toBe(false)
     if (!result.ok) {
       expect(result.stage).toBe("validation")
-      expect(result.reason).toBe("Invalid numerate params")
+      expect(result.reason).toBe("Invalid pixelate params")
     }
   })
 
-  it("rejects NaN supercell_mm", async () => {
-    const result = await numerateImageAndActivate({
+  it("rejects supercell_height_mm below the minimum", async () => {
+    const result = await pixelateImageAndActivate({
       supabase: mockSupabase,
       projectId,
       sourceImageId,
-      params: { ...validParams, supercell_mm: NaN },
+      params: { ...validParams, supercell_height_mm: 3 },
+    })
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.stage).toBe("validation")
+  })
+
+  it("rejects NaN supercell dimensions", async () => {
+    const result = await pixelateImageAndActivate({
+      supabase: mockSupabase,
+      projectId,
+      sourceImageId,
+      params: { ...validParams, supercell_width_mm: NaN },
     })
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.stage).toBe("validation")
   })
 
   it("rejects num_colors out of range", async () => {
-    const low = await numerateImageAndActivate({
+    const low = await pixelateImageAndActivate({
       supabase: mockSupabase,
       projectId,
       sourceImageId,
       params: { ...validParams, num_colors: 1 },
     })
     expect(low.ok).toBe(false)
-    const high = await numerateImageAndActivate({
+    const high = await pixelateImageAndActivate({
       supabase: mockSupabase,
       projectId,
       sourceImageId,
@@ -68,29 +80,32 @@ describe("numerateImageAndActivate validation contract", () => {
 
   it("ignores legacy params from old wizard payloads", async () => {
     // Old persisted trace rows may carry primary_count / stroke_width /
-    // show_colors / multiple_axis / multiple — Zod strip mode drops
-    // them silently so the new validation doesn't reject historical
-    // requests. Validation passes; failure is at source_lookup.
-    const result = await numerateImageAndActivate({
+    // show_colors / multiple_axis / multiple / supercell_mm (single-axis)
+    // — Zod strip mode drops them silently so the new validation doesn't
+    // reject historical requests. Validation passes; failure is at
+    // source_lookup.
+    const result = await pixelateImageAndActivate({
       supabase: mockSupabase,
       projectId,
       sourceImageId,
       params: {
-        supercell_mm: 6,
+        supercell_width_mm: 6,
+        supercell_height_mm: 6,
         num_colors: 16,
+        supercell_mm: 8,
         primary_count: 40,
         multiple_axis: "none",
         multiple: 1,
         stroke_width: 2,
         show_colors: true,
-      } as unknown as NumerateParams,
+      } as unknown as PixelateParams,
     })
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.stage).toBe("source_lookup")
   })
 
   it("continues past validation when params are valid", async () => {
-    const result = await numerateImageAndActivate({
+    const result = await pixelateImageAndActivate({
       supabase: mockSupabase,
       projectId,
       sourceImageId,
@@ -102,7 +117,7 @@ describe("numerateImageAndActivate validation contract", () => {
   })
 })
 
-describe("numerateImageAndActivate lookup contract", () => {
+describe("pixelateImageAndActivate lookup contract", () => {
   const projectId = "test-project-id"
   const sourceImageId = "source-image-id"
 
@@ -127,7 +142,7 @@ describe("numerateImageAndActivate lookup contract", () => {
       },
     })
 
-    const result = await numerateImageAndActivate({
+    const result = await pixelateImageAndActivate({
       supabase,
       projectId,
       sourceImageId,
