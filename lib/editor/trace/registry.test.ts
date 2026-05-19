@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { lineartSchema } from "./lineart"
-import { numerateSchema } from "./numerate"
+import { pixelateSchema } from "./pixelate"
 import { TRACE_REGISTRY } from "./registry"
 
 describe("TRACE_REGISTRY UI hints", () => {
@@ -78,10 +78,10 @@ describe("TRACE_REGISTRY UI label coverage", () => {
 })
 
 describe("TRACE_REGISTRY", () => {
-  it("exposes numerate", () => {
-    expect(TRACE_REGISTRY.numerate.id).toBe("numerate")
-    expect(TRACE_REGISTRY.numerate.label).toBe("Numerate")
-    expect(TRACE_REGISTRY.numerate.schema).toBe(numerateSchema)
+  it("exposes pixelate", () => {
+    expect(TRACE_REGISTRY.pixelate.id).toBe("pixelate")
+    expect(TRACE_REGISTRY.pixelate.label).toBe("Pixelate")
+    expect(TRACE_REGISTRY.pixelate.schema).toBe(pixelateSchema)
   })
 
   it("exposes lineart", () => {
@@ -91,45 +91,54 @@ describe("TRACE_REGISTRY", () => {
   })
 })
 
-describe("numerateSchema", () => {
-  it("has exactly two user-facing fields with defaults", () => {
-    expect(numerateSchema.parse({})).toEqual({
-      supercell_mm: 6,
+describe("pixelateSchema", () => {
+  it("has three user-facing fields with defaults", () => {
+    expect(pixelateSchema.parse({})).toEqual({
+      supercell_width_mm: 6,
+      supercell_height_mm: 6,
       num_colors: 16,
     })
   })
 
-  it("rejects supercell_mm below the minimum", () => {
-    expect(numerateSchema.safeParse({ supercell_mm: 3 }).success).toBe(false)
-    expect(numerateSchema.safeParse({ supercell_mm: 0 }).success).toBe(false)
+  it("rejects supercell_width_mm below the minimum", () => {
+    expect(pixelateSchema.safeParse({ supercell_width_mm: 3 }).success).toBe(false)
+    expect(pixelateSchema.safeParse({ supercell_width_mm: 0 }).success).toBe(false)
   })
 
-  it("accepts supercell_mm at or above the minimum", () => {
-    expect(numerateSchema.safeParse({ supercell_mm: 4 }).success).toBe(true)
-    expect(numerateSchema.parse({ supercell_mm: 6.5 }).supercell_mm).toBeCloseTo(6.5)
+  it("rejects supercell_height_mm below the minimum", () => {
+    expect(pixelateSchema.safeParse({ supercell_height_mm: 3 }).success).toBe(false)
+    expect(pixelateSchema.safeParse({ supercell_height_mm: 0 }).success).toBe(false)
+  })
+
+  it("accepts independent width and height", () => {
+    expect(
+      pixelateSchema.parse({ supercell_width_mm: 6, supercell_height_mm: 4 }),
+    ).toEqual({ supercell_width_mm: 6, supercell_height_mm: 4, num_colors: 16 })
   })
 
   it("clamps num_colors to its valid range", () => {
-    expect(numerateSchema.safeParse({ num_colors: 1 }).success).toBe(false)
-    expect(numerateSchema.safeParse({ num_colors: 257 }).success).toBe(false)
-    expect(numerateSchema.parse({ num_colors: 8 }).num_colors).toBe(8)
+    expect(pixelateSchema.safeParse({ num_colors: 1 }).success).toBe(false)
+    expect(pixelateSchema.safeParse({ num_colors: 257 }).success).toBe(false)
+    expect(pixelateSchema.parse({ num_colors: 8 }).num_colors).toBe(8)
   })
 
   it("ignores legacy params from old wizard payloads", () => {
-    // Old persisted trace rows may carry the dropped fields. Zod's
-    // default `strip` mode passes them through silently — important
-    // so the new server-side validation doesn't reject historical
+    // Old persisted trace rows may carry dropped/renamed fields.
+    // Zod's default `strip` mode passes them through silently —
+    // important so server-side validation doesn't reject historical
     // requests.
     expect(
-      numerateSchema.parse({
-        supercell_mm: 5,
+      pixelateSchema.parse({
+        supercell_width_mm: 5,
+        supercell_height_mm: 5,
         num_colors: 24,
+        supercell_mm: 8, // legacy single-axis field
         primary_count: 99,
         multiple_axis: "horizontal",
         stroke_width: 2,
         show_colors: false,
       }),
-    ).toEqual({ supercell_mm: 5, num_colors: 24 })
+    ).toEqual({ supercell_width_mm: 5, supercell_height_mm: 5, num_colors: 24 })
   })
 })
 

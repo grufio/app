@@ -4,8 +4,8 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/lib/supabase/database.types"
 import { computeImagePlacementPx } from "@/lib/editor/image-placement"
-import { numerateSchema, type NumerateParams } from "@/lib/editor/trace/numerate"
-import { isNumerateGridValid, resolveNumerateGrid } from "@/lib/editor/trace/numerate-grid-math"
+import { pixelateSchema, type PixelateParams } from "@/lib/editor/trace/pixelate"
+import { isPixelateGridValid, resolvePixelateGrid } from "@/lib/editor/trace/pixelate-grid-math"
 import { GEOMETRY_PPI, pxUToPxNumber } from "@/lib/editor/units"
 import { callFilterService, startFilterProfiler, toInt, type FilterResult } from "@/services/editor/server/filters/_helpers"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
@@ -28,7 +28,7 @@ function parsePxU(value: unknown): bigint | null {
 
 /** Resolve the source image's displayed size on the artboard, in mm.
  *
- * The numerate grid is sized in display-mm — what the user sees on the
+ * The pixelate grid is sized in display-mm — what the user sees on the
  * artboard is what they get. State preferred (after any positioning
  * the user did); fresh-upload fallback uses the same algorithm the
  * Master-Upload flow uses to seed initial placement. */
@@ -105,12 +105,12 @@ async function resolveSourceDisplayMm(args: {
 }
 
 /**
- * Numerate writes two paired image rows: the SVG (`trace_output`)
+ * Pixelate writes two paired image rows: the SVG (`trace_output`)
  * and the source-bitmap cropped to the grid (`trace_base`). The
  * caller links them via `project_image_trace.base_image_id` so
  * tombstoning and editor display stay in sync.
  */
-export type NumerateFilterSuccess = {
+export type PixelateFilterSuccess = {
   ok: true
   id: string
   storagePath: string
@@ -119,19 +119,19 @@ export type NumerateFilterSuccess = {
   baseId: string
   baseStoragePath: string
 }
-export type NumerateFilterResult = NumerateFilterSuccess | Extract<FilterResult<"numerate_process">, { ok: false }>
+export type PixelateFilterResult = PixelateFilterSuccess | Extract<FilterResult<"pixelate_process">, { ok: false }>
 
-export async function numerateImageAndActivate(args: {
+export async function pixelateImageAndActivate(args: {
   supabase: SupabaseClient<Database>
   projectId: string
   sourceImageId: string
-  params: NumerateParams
-}): Promise<NumerateFilterResult> {
+  params: PixelateParams
+}): Promise<PixelateFilterResult> {
   const { supabase, projectId, sourceImageId, params } = args
   const profiler = startFilterProfiler()
-  const parsed = numerateSchema.safeParse(params)
+  const parsed = pixelateSchema.safeParse(params)
   if (!parsed.success) {
-    return { ok: false, status: 400, stage: "validation", reason: "Invalid numerate params" }
+    return { ok: false, status: 400, stage: "validation", reason: "Invalid pixelate params" }
   }
   const { num_colors: numColors } = parsed.data
 
@@ -164,15 +164,12 @@ export async function numerateImageAndActivate(args: {
   // uses the same placement algorithm as the upload flow.
   const display = await resolveSourceDisplayMm({ supabase, projectId })
   if (!display.ok) {
-    // Workspace / master / state missing — preconditions unmet. Surfaced
-    // as `validation` because the FilterFailStage union doesn't have a
-    // dedicated bucket; the reason text carries the specifics.
     return { ok: false, status: 400, stage: "validation", reason: display.reason }
   }
   profiler.mark("display_mm_resolve")
 
-  const grid = resolveNumerateGrid(display.displayMmW, display.displayMmH, parsed.data)
-  if (!isNumerateGridValid(grid)) {
+  const grid = resolvePixelateGrid(display.displayMmW, display.displayMmH, parsed.data)
+  if (!isPixelateGridValid(grid)) {
     return {
       ok: false,
       status: 400,
@@ -209,7 +206,7 @@ export async function numerateImageAndActivate(args: {
     profiler.mark("base64_encode")
 
     const callResult = await callFilterService({
-      path: "/filters/numerate",
+      path: "/filters/pixelate",
       responseKind: "json",
       body: {
         image_base64: imageBase64,
@@ -230,7 +227,7 @@ export async function numerateImageAndActivate(args: {
       return {
         ok: false,
         status: callResult.status,
-        stage: callResult.stage === "service_unavailable" ? "service_unavailable" : callResult.stage === "auth" ? "auth" : "numerate_process",
+        stage: callResult.stage === "service_unavailable" ? "service_unavailable" : callResult.stage === "auth" ? "auth" : "pixelate_process",
         reason: callResult.reason,
       }
     }
@@ -245,7 +242,7 @@ export async function numerateImageAndActivate(args: {
       return {
         ok: false,
         status: 502,
-        stage: "numerate_process",
+        stage: "pixelate_process",
         reason: "Filter service returned an unexpected payload (missing svg or cropped bitmap)",
       }
     }
@@ -276,14 +273,14 @@ export async function numerateImageAndActivate(args: {
         upsert: false,
       })
     if (baseUploadErr) {
-      return { ok: false, status: 500, stage: "storage_upload", reason: "Failed to upload numerate base image" }
+      return { ok: false, status: 500, stage: "storage_upload", reason: "Failed to upload pixelate base image" }
     }
 
     const { error: baseInsertErr } = await supabase.from("project_images").insert({
       id: baseId,
       project_id: projectId,
       kind: "trace_base",
-      name: `${cleanName} (numerate base)`,
+      name: `${cleanName} (pixelate base)`,
       format: "png",
       width_px: baseWidthPx,
       height_px: baseHeightPx,
@@ -318,7 +315,7 @@ export async function numerateImageAndActivate(args: {
         .from("project_images")
         .update({ deleted_at: new Date().toISOString() })
         .eq("id", baseId)
-      return { ok: false, status: 500, stage: "storage_upload", reason: "Failed to upload numerate image" }
+      return { ok: false, status: 500, stage: "storage_upload", reason: "Failed to upload pixelate image" }
     }
     profiler.mark("storage_upload")
 
@@ -326,7 +323,7 @@ export async function numerateImageAndActivate(args: {
       id: imageId,
       project_id: projectId,
       kind: "trace_output",
-      name: `${cleanName} (numerate)`,
+      name: `${cleanName} (pixelate)`,
       format: "svg",
       width_px: baseWidthPx,
       height_px: baseHeightPx,
@@ -349,7 +346,7 @@ export async function numerateImageAndActivate(args: {
     // State is anchored at master.id (see image-state route handler);
     // no per-output transform copy needed.
 
-    profiler.report("numerate", {
+    profiler.report("pixelate", {
       python_phases: callResult.phases,
       output_bytes: svgBuffer.byteLength,
       base_bytes: baseBuffer.byteLength,
@@ -367,7 +364,7 @@ export async function numerateImageAndActivate(args: {
       baseStoragePath: baseObjectPath,
     }
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Numerate process failed"
-    return { ok: false, status: 500, stage: "numerate_process", reason: msg }
+    const msg = e instanceof Error ? e.message : "Pixelate process failed"
+    return { ok: false, status: 500, stage: "pixelate_process", reason: msg }
   }
 }

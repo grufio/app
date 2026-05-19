@@ -1,5 +1,5 @@
 """
-Numerate filter pipeline — direct SVG renderer.
+Pixelate filter pipeline — direct SVG renderer.
 
 Produces a paint-by-numbers cell-grid SVG from a source image:
 
@@ -62,7 +62,7 @@ def _grid_lines(
     return out
 
 
-def numerate_to_svg(
+def pixelate_to_svg(
     img: Image.Image,
     cells_x: int,
     cells_y: int,
@@ -75,9 +75,9 @@ def numerate_to_svg(
     on_phase: callable | None = None,
 ) -> tuple[str, bytes, int]:
     """
-    Build the numerate SVG + cropped bitmap from the server-resolved grid.
+    Build the pixelate SVG + cropped bitmap from the server-resolved grid.
 
-    The cell grid + crop rect come pre-resolved by `resolveNumerateGrid`
+    The cell grid + crop rect come pre-resolved by `resolvePixelateGrid`
     on the server. This function crops, downsamples to a
     `cells_x × cells_y` bitmap (1 cell = 1 px, area-averaged), then
     emits one `<rect>` per cell at its mean colour. Grid lines

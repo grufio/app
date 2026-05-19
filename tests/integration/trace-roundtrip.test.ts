@@ -2,7 +2,7 @@
  * Integration test: project_image_trace round-trip (F21 PR 1).
  *
  * The Trace surface is mutually exclusive — one row per project,
- * `kind` constrained to {numerate, lineart}, `output_image_id`
+ * `kind` constrained to {pixelate, lineart}, `output_image_id`
  * referencing `project_images`. This test proves the schema
  * invariants directly via the supabase-js client; the full
  * apply/clear pipeline (which calls the Python filter service)
@@ -44,7 +44,7 @@ describe("project_image_trace round-trip", () => {
     ownerId = seeded.ownerId
 
     const master = await seedImage({ supabase, projectId, kind: "master" })
-    const numerateOut = await seedImage({
+    const pixelateOut = await seedImage({
       supabase,
       projectId,
       kind: "trace_output",
@@ -57,14 +57,14 @@ describe("project_image_trace round-trip", () => {
       sourceImageId: master.imageId,
     })
 
-    // 1. Insert numerate trace.
+    // 1. Insert pixelate trace.
     const { error: insertErr } = await supabase
       .from("project_image_trace")
       .insert({
         project_id: projectId,
-        kind: "numerate",
+        kind: "pixelate",
         params: { supercell_mm: 6, num_colors: 16 },
-        output_image_id: numerateOut.imageId,
+        output_image_id: pixelateOut.imageId,
       })
     expect(insertErr).toBeNull()
 
@@ -77,8 +77,8 @@ describe("project_image_trace round-trip", () => {
     expect(afterInsert).toHaveLength(1)
     expect(afterInsert?.[0]).toMatchObject({
       project_id: projectId,
-      kind: "numerate",
-      output_image_id: numerateOut.imageId,
+      kind: "pixelate",
+      output_image_id: pixelateOut.imageId,
     })
 
     // 3. Upsert lineart on the same project — replaces, not stacks.
@@ -149,7 +149,7 @@ describe("project_image_trace round-trip", () => {
 
     await supabase.from("project_image_trace").insert({
       project_id: projectId,
-      kind: "numerate",
+      kind: "pixelate",
       params: {},
       output_image_id: traceOut.imageId,
     })

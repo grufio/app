@@ -15,7 +15,7 @@ import io
 import base64
 
 from app.lineart import lineart_to_svg
-from app.numerate import numerate_to_svg
+from app.pixelate import pixelate_to_svg
 
 
 class PhaseTimer:
@@ -236,9 +236,9 @@ class LineArtRequest(BaseModel):
     num_colors: int = 8
 
 
-class NumerateRequest(BaseModel):
+class PixelateRequest(BaseModel):
     image_base64: str
-    # Resolved grid from the server's `resolveNumerateGrid` — the
+    # Resolved grid from the server's `resolvePixelateGrid` — the
     # single source of truth. `cells_x/_y` is the cell count (1 cell =
     # 1 px in the downsampled grid); `crop_*` is the source-image
     # region (px) the grid covers. Whatever lies outside the crop is
@@ -259,10 +259,10 @@ class NumerateRequest(BaseModel):
     num_colors: int = 16
 
 
-@app.post("/filters/numerate")
-async def numerate_filter(request: NumerateRequest):
+@app.post("/filters/pixelate")
+async def pixelate_filter(request: PixelateRequest):
     """
-    Numerate: crop the source to the resolved grid region, downsample
+    Pixelate: crop the source to the resolved grid region, downsample
     straight to a `cells_x × cells_y` image (1 cell = 1 px), emit
     one rect per cell at its mean colour, overlay grid lines. The
     whole pipeline runs on the tiny cell grid, never the full-res
@@ -279,7 +279,7 @@ async def numerate_filter(request: NumerateRequest):
         raise HTTPException(status_code=400, detail="crop_w and crop_h must be > 0")
     if request.stroke_width < 0.1 or request.stroke_width > 20:
         raise HTTPException(status_code=400, detail="Stroke width must be between 0.1 and 20")
-    # num_colors validation removed: the new numerate pipeline ignores
+    # num_colors validation removed: the new pixelate pipeline ignores
     # the param (cell colours come direct from the area-averaged
     # downsample, future palette map handles colour reduction).
 
@@ -291,7 +291,7 @@ async def numerate_filter(request: NumerateRequest):
             img = img.convert("RGB")
         timer.mark("decode")
 
-        svg_content, cropped_png, region_count = numerate_to_svg(
+        svg_content, cropped_png, region_count = pixelate_to_svg(
             img,
             cells_x=request.cells_x,
             cells_y=request.cells_y,

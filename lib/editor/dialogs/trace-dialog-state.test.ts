@@ -52,9 +52,9 @@ describe("traceDialogReducer", () => {
     expect(
       traceDialogReducer(
         { phase: "selecting", session },
-        { type: "selectKind", kind: "numerate" },
+        { type: "selectKind", kind: "pixelate" },
       ),
-    ).toEqual({ phase: "configuring", session, kind: "numerate" })
+    ).toEqual({ phase: "configuring", session, kind: "pixelate" })
 
     expect(
       traceDialogReducer(
@@ -68,7 +68,7 @@ describe("traceDialogReducer", () => {
     expect(
       traceDialogReducer(initialTraceDialogState, {
         type: "selectKind",
-        kind: "numerate",
+        kind: "pixelate",
       }),
     ).toEqual({ phase: "idle" })
   })
@@ -76,7 +76,7 @@ describe("traceDialogReducer", () => {
   it("closeConfigure returns to idle", () => {
     expect(
       traceDialogReducer(
-        { phase: "configuring", session, kind: "numerate" },
+        { phase: "configuring", session, kind: "pixelate" },
         { type: "closeConfigure" },
       ),
     ).toEqual({ phase: "idle" })
@@ -88,7 +88,7 @@ describe("traceDialogReducer", () => {
     ).toEqual({ phase: "idle" })
     expect(
       traceDialogReducer(
-        { phase: "configuring", session, kind: "numerate" },
+        { phase: "configuring", session, kind: "pixelate" },
         { type: "reset" },
       ),
     ).toEqual({ phase: "idle" })

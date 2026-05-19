@@ -1,19 +1,21 @@
 "use client"
 
 /**
- * Numerate trace dialog.
+ * Pixelate trace dialog.
  *
- * Single-form dialog (no wizard steps). Two user inputs:
- *   - supercell_mm — superpixel edge length in mm
+ * Single-form dialog (no wizard steps). Three user inputs:
+ *   - supercell_width_mm — superpixel width in mm
+ *   - supercell_height_mm — superpixel height in mm (rectangular cells)
  *   - num_colors — palette quantisation count
  *
  * Stroke width is fixed at 1px server-side. Cell count derives from
  * the image's displayed size on the artboard (passed in as
- * `displayMmW`/`displayMmH`) divided by `supercell_mm`. Whatever
- * doesn't divide into a whole superpixel is a centred border that
- * gets cropped at trace time.
+ * `displayMmW`/`displayMmH`) divided by the supercell axis dimensions.
+ * Whatever doesn't divide into a whole superpixel is a centred border
+ * that gets cropped at trace time — shown live in the dialog footer.
  */
 import { useMemo, useState } from "react"
+import { ArrowLeftRight, ArrowUpDown, Palette } from "lucide-react"
 import { toast } from "sonner"
 
 import {
@@ -25,12 +27,12 @@ import {
 } from "@/components/ui/dialog"
 import { AppButton, FormField } from "@/components/ui/form-controls"
 import { formatOperationErrorForToast, normalizeApiError } from "@/lib/api/error-normalizer"
-import { numerateSchema, type NumerateParams } from "@/lib/editor/trace/numerate"
+import { pixelateSchema, type PixelateParams } from "@/lib/editor/trace/pixelate"
 import {
   MIN_SUPERCELL_MM,
-  isNumerateGridValid,
-  resolveNumerateGrid,
-} from "@/lib/editor/trace/numerate-grid-math"
+  isPixelateGridValid,
+  resolvePixelateGrid,
+} from "@/lib/editor/trace/pixelate-grid-math"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
 
 type Props = {
@@ -46,7 +48,7 @@ function fmt1(n: number): string {
   return n.toFixed(1)
 }
 
-export function NumerateDialog({
+export function PixelateDialog({
   open,
   displayMmW,
   displayMmH,
@@ -54,18 +56,22 @@ export function NumerateDialog({
   onSuccess,
   onApplyTrace,
 }: Props) {
-  const defaults = useMemo(() => numerateSchema.parse({}) as NumerateParams, [])
-  const [draft, setDraft] = useState<NumerateParams>(defaults)
+  const defaults = useMemo(() => pixelateSchema.parse({}) as PixelateParams, [])
+  const [draft, setDraft] = useState<PixelateParams>(defaults)
   const [busy, setBusy] = useState(false)
 
-  const setField = <K extends keyof NumerateParams>(key: K, value: NumerateParams[K]) =>
+  const setField = <K extends keyof PixelateParams>(key: K, value: PixelateParams[K]) =>
     setDraft((prev) => ({ ...prev, [key]: value }))
 
   const grid = useMemo(
-    () => resolveNumerateGrid(displayMmW, displayMmH, draft),
+    () => resolvePixelateGrid(displayMmW, displayMmH, draft),
     [displayMmW, displayMmH, draft],
   )
-  const valid = isNumerateGridValid(grid)
+  const valid = isPixelateGridValid(grid)
+  // The full leftover per axis is split evenly into a centred border;
+  // surfacing each side keeps "wieviel wird abgeschnitten" readable.
+  const borderSideMmX = grid.borderMmX / 2
+  const borderSideMmY = grid.borderMmY / 2
 
   const handleCancel = () => {
     if (busy) return
@@ -76,7 +82,7 @@ export function NumerateDialog({
     if (busy || !valid) return
     setBusy(true)
     try {
-      await onApplyTrace({ kind: "numerate", params: draft as Record<string, unknown> })
+      await onApplyTrace({ kind: "pixelate", params: draft as Record<string, unknown> })
       onSuccess()
       onClose()
     } catch (e) {
@@ -93,7 +99,7 @@ export function NumerateDialog({
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && handleCancel()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Numerate</DialogTitle>
+          <DialogTitle>Pixelate</DialogTitle>
           <DialogDescription>
             Bild: {fmt1(displayMmW)} × {fmt1(displayMmH)} mm
           </DialogDescription>
@@ -103,12 +109,32 @@ export function NumerateDialog({
           <FormField
             variant="numeric"
             numericMode="decimal"
-            label="Superpixel-Breite (mm)"
-            id="supercell_mm"
-            value={String(draft.supercell_mm)}
+            label="Superpixel-Breite"
+            labelVisuallyHidden
+            iconStart={<ArrowLeftRight aria-hidden="true" />}
+            unit="mm"
+            id="supercell_width_mm"
+            value={String(draft.supercell_width_mm)}
             onCommit={(raw) => {
               const n = Number(raw)
-              if (Number.isFinite(n)) setField("supercell_mm", n)
+              if (Number.isFinite(n)) setField("supercell_width_mm", n)
+            }}
+            disabled={busy}
+            inputProps={{ min: MIN_SUPERCELL_MM, step: 0.5 }}
+          />
+
+          <FormField
+            variant="numeric"
+            numericMode="decimal"
+            label="Superpixel-Höhe"
+            labelVisuallyHidden
+            iconStart={<ArrowUpDown aria-hidden="true" />}
+            unit="mm"
+            id="supercell_height_mm"
+            value={String(draft.supercell_height_mm)}
+            onCommit={(raw) => {
+              const n = Number(raw)
+              if (Number.isFinite(n)) setField("supercell_height_mm", n)
             }}
             disabled={busy}
             inputProps={{ min: MIN_SUPERCELL_MM, step: 0.5 }}
@@ -118,6 +144,8 @@ export function NumerateDialog({
             variant="numeric"
             numericMode="int"
             label="Anzahl Farben"
+            labelVisuallyHidden
+            iconStart={<Palette aria-hidden="true" />}
             id="num_colors"
             value={String(draft.num_colors)}
             onCommit={(raw) => {
@@ -131,9 +159,13 @@ export function NumerateDialog({
           {!valid ? (
             <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-destructive">
               Superpixel zu groß — kein ganzer Superpixel passt in das Bild.
-              Wähle eine kleinere Superpixel-Breite.
+              Wähle eine kleinere Superpixel-Breite oder -Höhe.
             </div>
-          ) : null}
+          ) : (
+            <div className="text-xs text-muted-foreground">
+              Schnitt-Rand: ↔ {fmt1(borderSideMmX)} mm · ↕ {fmt1(borderSideMmY)} mm
+            </div>
+          )}
         </div>
 
         <div className="flex justify-between gap-2 pt-2">
