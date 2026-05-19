@@ -3,19 +3,27 @@
 /**
  * Pixelate trace dialog.
  *
- * Single-form dialog (no wizard steps). Three user inputs:
+ * Two-pane layout (ResizablePanelGroup): live client-side preview on
+ * the left, parameter form on the right. The preview pipeline runs
+ * entirely in the browser — source → ≤1000px scratch → cellsX × cellsY
+ * mini (downsample + median-cut quantize) → nearest-neighbour upscale
+ * onto the display canvas with zoom/pan. Apply hits the server.
+ *
+ * Three user inputs:
  *   - supercell_width_mm — superpixel width in mm
  *   - supercell_height_mm — superpixel height in mm (rectangular cells)
- *   - num_colors — palette quantisation count
- *
- * Stroke width is fixed at 1px server-side. Cell count derives from
- * the image's displayed size on the artboard (passed in as
- * `displayMmW`/`displayMmH`) divided by the supercell axis dimensions.
- * Whatever doesn't divide into a whole superpixel is a centred border
- * that gets cropped at trace time — shown live in the dialog footer.
+ *   - num_colors — palette quantisation count (also drives preview)
  */
-import { useMemo, useState } from "react"
-import { ArrowLeftRight, ArrowUpDown, Palette } from "lucide-react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import {
+  ArrowLeftRight,
+  ArrowUpDown,
+  Loader2,
+  Maximize2,
+  Palette,
+  ZoomIn,
+  ZoomOut,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import {
@@ -25,6 +33,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/components/ui/resizable"
 import { AppButton, FormField } from "@/components/ui/form-controls"
 import { formatOperationErrorForToast, normalizeApiError } from "@/lib/api/error-normalizer"
 import { pixelateSchema, type PixelateParams } from "@/lib/editor/trace/pixelate"
@@ -33,10 +47,20 @@ import {
   isPixelateGridValid,
   resolvePixelateGrid,
 } from "@/lib/editor/trace/pixelate-grid-math"
+import {
+  buildMiniCanvas,
+  buildScratchCanvas,
+  renderDisplay,
+} from "@/lib/editor/trace/pixelate-preview"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
+
+const SCRATCH_MAX_EDGE = 1000
+const ZOOM_STEP = 1.5
+const ZOOM_MAX_MULTIPLIER = 20
 
 type Props = {
   open: boolean
+  sourceImageUrl: string
   displayMmW: number
   displayMmH: number
   onClose: () => void
@@ -53,8 +77,11 @@ function fmt1(n: number): string {
   return n.toFixed(1)
 }
 
+type ZoomMode = "fit" | "manual"
+
 export function PixelateDialog({
   open,
+  sourceImageUrl,
   displayMmW,
   displayMmH,
   onClose,
@@ -73,16 +100,181 @@ export function PixelateDialog({
     [displayMmW, displayMmH, draft],
   )
   const valid = isPixelateGridValid(grid)
-  // The full leftover per axis is split evenly into a centred border;
-  // surfacing each side keeps "wieviel wird abgeschnitten" readable.
   const borderSideMmX = grid.borderMmX / 2
   const borderSideMmY = grid.borderMmY / 2
 
+  // --- preview pipeline state ---
+  // Scratch is tagged with the URL it was built from. When the user
+  // opens the dialog with a different source, the derived `scratch`
+  // becomes null until the new load resolves — no setState-in-effect
+  // reset needed, the spinner shows naturally.
+  const [scratchData, setScratchData] = useState<{ url: string; canvas: HTMLCanvasElement } | null>(null)
+  const scratch = scratchData?.url === sourceImageUrl ? scratchData.canvas : null
+  const [previewSize, setPreviewSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 })
+  const [zoomMode, setZoomMode] = useState<ZoomMode>("fit")
+  const [manualZoom, setManualZoom] = useState<number>(1)
+  const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
+  const [dragging, setDragging] = useState(false)
+
+  const previewPaneRef = useRef<HTMLDivElement | null>(null)
+  const displayCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const dragRef = useRef<{ startX: number; startY: number; startPanX: number; startPanY: number } | null>(null)
+
+  // Stage 1 + 2: load source image, build scratch canvas
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    const img = new Image()
+    img.crossOrigin = "anonymous"
+    img.onload = () => {
+      if (cancelled) return
+      setScratchData({ url: sourceImageUrl, canvas: buildScratchCanvas(img, SCRATCH_MAX_EDGE) })
+    }
+    img.onerror = () => {
+      if (!cancelled) console.error("Failed to load preview source:", sourceImageUrl)
+    }
+    img.src = sourceImageUrl
+    return () => {
+      cancelled = true
+    }
+  }, [open, sourceImageUrl])
+
+  // ResizeObserver: track preview-pane CSS size
+  useEffect(() => {
+    const el = previewPaneRef.current
+    if (!el) return
+    const ro = new ResizeObserver((entries) => {
+      const rect = entries[0]?.contentRect
+      if (!rect) return
+      setPreviewSize({ w: Math.max(0, rect.width), h: Math.max(0, rect.height) })
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [open])
+
+  // Crop in scratch-pixel space (derived purely from grid + scratch dims)
+  const crop = useMemo(() => {
+    if (!scratch || !valid || displayMmW <= 0 || displayMmH <= 0) return null
+    const mmToScratchPx = scratch.width / displayMmW
+    return {
+      x: (grid.borderMmX / 2) * mmToScratchPx,
+      y: (grid.borderMmY / 2) * mmToScratchPx,
+      w: grid.usedMmW * mmToScratchPx,
+      h: grid.usedMmH * mmToScratchPx,
+    }
+  }, [scratch, valid, displayMmW, displayMmH, grid.borderMmX, grid.borderMmY, grid.usedMmW, grid.usedMmH])
+
+  // Stage 3: mini canvas (downsample + quantize) — synchronous build,
+  // <5ms for typical params. Derive via useMemo so it doesn't trigger
+  // a setState-in-effect cascade on every param tick.
+  const mini = useMemo(() => {
+    if (!scratch || !crop || !valid) return null
+    return buildMiniCanvas({
+      scratch,
+      crop,
+      cellsX: grid.cellsX,
+      cellsY: grid.cellsY,
+      numColors: draft.num_colors,
+    })
+  }, [scratch, crop, valid, grid.cellsX, grid.cellsY, draft.num_colors])
+
+  // Fit-zoom derives from current crop + preview size
+  const fitZoom = useMemo(() => {
+    if (!crop || crop.w <= 0 || crop.h <= 0 || previewSize.w <= 0 || previewSize.h <= 0) {
+      return 0
+    }
+    return Math.min(previewSize.w / crop.w, previewSize.h / crop.h)
+  }, [crop, previewSize.w, previewSize.h])
+
+  const effectiveZoom = zoomMode === "fit" ? fitZoom : manualZoom
+  const dstW = crop ? crop.w * effectiveZoom : 0
+  const dstH = crop ? crop.h * effectiveZoom : 0
+
+  // Pan is stored unclamped (last user-intended target); clamping is
+  // a render concern, recomputed from current zoom + pane size. No
+  // useEffect needed — fully derived.
+  const clampedPan = useMemo(
+    () => clampPan(pan, dstW, dstH, previewSize.w, previewSize.h),
+    [pan, dstW, dstH, previewSize.w, previewSize.h],
+  )
+
+  // Stage 4: render display canvas
+  useEffect(() => {
+    const display = displayCanvasRef.current
+    if (!display || !mini || !crop || effectiveZoom <= 0 || previewSize.w <= 0) return
+    renderDisplay({
+      display,
+      mini,
+      previewW: previewSize.w,
+      previewH: previewSize.h,
+      dstW,
+      dstH,
+      panX: clampedPan.x,
+      panY: clampedPan.y,
+      dpr: typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1,
+    })
+  }, [mini, crop, effectiveZoom, dstW, dstH, previewSize.w, previewSize.h, clampedPan.x, clampedPan.y])
+
+  // --- pan + zoom interactions ---
+  const canPan = zoomMode === "manual" && (dstW > previewSize.w || dstH > previewSize.h)
+
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!canPan) return
+      ;(e.target as Element).setPointerCapture(e.pointerId)
+      dragRef.current = {
+        startX: e.clientX,
+        startY: e.clientY,
+        startPanX: clampedPan.x,
+        startPanY: clampedPan.y,
+      }
+      setDragging(true)
+    },
+    [canPan, clampedPan.x, clampedPan.y],
+  )
+  const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current
+    if (!drag) return
+    setPan({
+      x: drag.startPanX + (e.clientX - drag.startX),
+      y: drag.startPanY + (e.clientY - drag.startY),
+    })
+  }, [])
+  const handlePointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (dragRef.current) {
+      ;(e.target as Element).releasePointerCapture(e.pointerId)
+      dragRef.current = null
+      setDragging(false)
+    }
+  }, [])
+
+  const handleFit = useCallback(() => {
+    setZoomMode("fit")
+  }, [])
+  const handleZoomIn = useCallback(() => {
+    if (fitZoom <= 0) return
+    const base = zoomMode === "fit" ? fitZoom : manualZoom
+    const next = Math.min(fitZoom * ZOOM_MAX_MULTIPLIER, base * ZOOM_STEP)
+    setManualZoom(next)
+    setZoomMode("manual")
+  }, [fitZoom, manualZoom, zoomMode])
+  const handleZoomOut = useCallback(() => {
+    if (fitZoom <= 0) return
+    const base = zoomMode === "fit" ? fitZoom : manualZoom
+    const next = Math.max(fitZoom, base / ZOOM_STEP)
+    if (next <= fitZoom + 1e-6) {
+      setZoomMode("fit")
+    } else {
+      setManualZoom(next)
+      setZoomMode("manual")
+    }
+  }, [fitZoom, manualZoom, zoomMode])
+
+  // --- apply / cancel ---
   const handleCancel = () => {
     if (busy) return
     onClose()
   }
-
   const handleApply = async () => {
     if (busy || !valid) return
     setBusy(true)
@@ -105,9 +297,12 @@ export function PixelateDialog({
     }
   }
 
+  const showSpinner = !scratch
+  const showInvalid = scratch !== null && !valid
+
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && handleCancel()}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-5xl max-h-[85vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Pixelate</DialogTitle>
           <DialogDescription>
@@ -115,78 +310,172 @@ export function PixelateDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-col gap-4">
-          <FormField
-            variant="numeric"
-            numericMode="decimal"
-            label="Superpixel-Breite"
-            labelVisuallyHidden
-            iconStart={<ArrowLeftRight aria-hidden="true" />}
-            unit="mm"
-            id="supercell_width_mm"
-            value={String(draft.supercell_width_mm)}
-            onCommit={(raw) => {
-              const n = Number(raw)
-              if (Number.isFinite(n)) setField("supercell_width_mm", n)
-            }}
-            disabled={busy}
-            inputProps={{ min: MIN_SUPERCELL_MM, step: 0.5 }}
-          />
+        <ResizablePanelGroup
+          orientation="horizontal"
+          className="min-h-[480px] flex-1 overflow-hidden rounded-md border"
+        >
+          <ResizablePanel defaultSize={75} minSize={55}>
+            <div
+              ref={previewPaneRef}
+              className="relative h-full w-full overflow-hidden bg-muted"
+              style={{ cursor: canPan ? (dragging ? "grabbing" : "grab") : "default" }}
+              onPointerDown={handlePointerDown}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerUp}
+              onPointerCancel={handlePointerUp}
+            >
+              <canvas
+                ref={displayCanvasRef}
+                className="absolute inset-0 block"
+                style={{ touchAction: "none" }}
+              />
 
-          <FormField
-            variant="numeric"
-            numericMode="decimal"
-            label="Superpixel-Höhe"
-            labelVisuallyHidden
-            iconStart={<ArrowUpDown aria-hidden="true" />}
-            unit="mm"
-            id="supercell_height_mm"
-            value={String(draft.supercell_height_mm)}
-            onCommit={(raw) => {
-              const n = Number(raw)
-              if (Number.isFinite(n)) setField("supercell_height_mm", n)
-            }}
-            disabled={busy}
-            inputProps={{ min: MIN_SUPERCELL_MM, step: 0.5 }}
-          />
+              {showSpinner ? (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+                  <Loader2 className="size-6 animate-spin text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground">Vorschau wird geladen…</span>
+                </div>
+              ) : null}
+              {showInvalid ? (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-xs text-muted-foreground">Keine gültige Aufteilung</span>
+                </div>
+              ) : null}
 
-          <FormField
-            variant="numeric"
-            numericMode="int"
-            label="Anzahl Farben"
-            labelVisuallyHidden
-            iconStart={<Palette aria-hidden="true" />}
-            id="num_colors"
-            value={String(draft.num_colors)}
-            onCommit={(raw) => {
-              const n = Number(raw)
-              if (Number.isFinite(n)) setField("num_colors", Math.floor(n))
-            }}
-            disabled={busy}
-            inputProps={{ min: 2, max: 256 }}
-          />
-
-          {!valid ? (
-            <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-destructive">
-              Superpixel zu groß — kein ganzer Superpixel passt in das Bild.
-              Wähle eine kleinere Superpixel-Breite oder -Höhe.
+              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-0.5 rounded-full border bg-background/90 px-1 py-1 shadow-md backdrop-blur">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-7"
+                  onClick={handleZoomOut}
+                  disabled={!mini || effectiveZoom <= fitZoom + 1e-6}
+                  aria-label="Verkleinern"
+                >
+                  <ZoomOut className="size-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-7"
+                  onClick={handleFit}
+                  disabled={!mini || zoomMode === "fit"}
+                  aria-label="Einpassen"
+                >
+                  <Maximize2 className="size-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-7"
+                  onClick={handleZoomIn}
+                  disabled={!mini || effectiveZoom >= fitZoom * ZOOM_MAX_MULTIPLIER - 1e-6}
+                  aria-label="Vergrößern"
+                >
+                  <ZoomIn className="size-4" />
+                </Button>
+              </div>
             </div>
-          ) : (
-            <div className="text-xs text-muted-foreground">
-              Schnitt-Rand: ↔ {fmt1(borderSideMmX)} mm · ↕ {fmt1(borderSideMmY)} mm
-            </div>
-          )}
-        </div>
+          </ResizablePanel>
 
-        <div className="flex justify-between gap-2 pt-2">
-          <AppButton type="button" variant="outline" onClick={handleCancel} disabled={busy}>
-            Cancel
-          </AppButton>
-          <AppButton type="button" onClick={() => void handleApply()} disabled={!valid || busy}>
-            {busy ? "Applying..." : "Apply"}
-          </AppButton>
-        </div>
+          <ResizableHandle withHandle />
+
+          <ResizablePanel defaultSize={25} minSize={22}>
+            <div className="flex h-full flex-col gap-4 p-4 overflow-auto">
+              <FormField
+                variant="numeric"
+                numericMode="decimal"
+                label="Superpixel-Breite"
+                labelVisuallyHidden
+                iconStart={<ArrowLeftRight aria-hidden="true" />}
+                unit="mm"
+                id="supercell_width_mm"
+                value={String(draft.supercell_width_mm)}
+                onCommit={(raw) => {
+                  const n = Number(raw)
+                  if (Number.isFinite(n)) setField("supercell_width_mm", n)
+                }}
+                disabled={busy}
+                inputProps={{ min: MIN_SUPERCELL_MM, step: 0.5 }}
+              />
+
+              <FormField
+                variant="numeric"
+                numericMode="decimal"
+                label="Superpixel-Höhe"
+                labelVisuallyHidden
+                iconStart={<ArrowUpDown aria-hidden="true" />}
+                unit="mm"
+                id="supercell_height_mm"
+                value={String(draft.supercell_height_mm)}
+                onCommit={(raw) => {
+                  const n = Number(raw)
+                  if (Number.isFinite(n)) setField("supercell_height_mm", n)
+                }}
+                disabled={busy}
+                inputProps={{ min: MIN_SUPERCELL_MM, step: 0.5 }}
+              />
+
+              <FormField
+                variant="numeric"
+                numericMode="int"
+                label="Anzahl Farben"
+                labelVisuallyHidden
+                iconStart={<Palette aria-hidden="true" />}
+                id="num_colors"
+                value={String(draft.num_colors)}
+                onCommit={(raw) => {
+                  const n = Number(raw)
+                  if (Number.isFinite(n)) setField("num_colors", Math.floor(n))
+                }}
+                disabled={busy}
+                inputProps={{ min: 2, max: 256 }}
+              />
+
+              {!valid ? (
+                <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-destructive">
+                  Superpixel zu groß — kein ganzer Superpixel passt in das Bild.
+                  Wähle eine kleinere Superpixel-Breite oder -Höhe.
+                </div>
+              ) : (
+                <div className="text-xs text-muted-foreground">
+                  Schnitt-Rand: ↔ {fmt1(borderSideMmX)} mm · ↕ {fmt1(borderSideMmY)} mm
+                </div>
+              )}
+
+              <div className="mt-auto flex justify-between gap-2 pt-2">
+                <AppButton type="button" variant="outline" onClick={handleCancel} disabled={busy}>
+                  Cancel
+                </AppButton>
+                <AppButton type="button" onClick={() => void handleApply()} disabled={!valid || busy}>
+                  {busy ? "Applying..." : "Apply"}
+                </AppButton>
+              </div>
+            </div>
+          </ResizablePanel>
+        </ResizablePanelGroup>
       </DialogContent>
     </Dialog>
   )
 }
+
+// Clamp pan so the image edges don't gap into the pane.
+// When the image is smaller than the pane on an axis, center it.
+function clampPan(
+  candidate: { x: number; y: number },
+  dstW: number,
+  dstH: number,
+  previewW: number,
+  previewH: number,
+): { x: number; y: number } {
+  return {
+    x:
+      dstW <= previewW
+        ? (previewW - dstW) / 2
+        : Math.min(0, Math.max(previewW - dstW, candidate.x)),
+    y:
+      dstH <= previewH
+        ? (previewH - dstH) / 2
+        : Math.min(0, Math.max(previewH - dstH, candidate.y)),
+  }
+}
+
