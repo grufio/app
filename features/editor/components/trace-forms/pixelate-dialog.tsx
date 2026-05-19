@@ -34,6 +34,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
 import {
@@ -301,22 +302,18 @@ export function PixelateDialog({
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && handleCancel()}>
-      <DialogContent className="overflow-hidden p-0 md:max-h-[600px] md:max-w-[800px] lg:max-w-[900px]">
-        <DialogTitle className="sr-only">Pixelate</DialogTitle>
-        <DialogDescription className="sr-only">
-          Bild: {fmt1(displayMmW)} × {fmt1(displayMmH)} mm
-        </DialogDescription>
+      <DialogContent className="flex flex-col gap-0 overflow-hidden p-0 md:max-h-[640px] md:max-w-[800px] lg:max-w-[900px]">
+        <DialogHeader className="flex-row items-center justify-between space-y-0 border-b px-4 py-3">
+          <DialogTitle className="text-base font-medium">Pixelate</DialogTitle>
+          <DialogDescription className="m-0 text-xs text-muted-foreground">
+            Bild: {fmt1(displayMmW)} × {fmt1(displayMmH)} mm
+          </DialogDescription>
+        </DialogHeader>
         <SidebarProvider className="items-start">
-          <main className="flex h-[560px] flex-1 flex-col overflow-hidden">
-            <header className="flex h-12 shrink-0 items-center justify-between border-b px-4">
-              <h2 className="text-sm font-medium">Pixelate</h2>
-              <span className="text-xs text-muted-foreground">
-                Bild: {fmt1(displayMmW)} × {fmt1(displayMmH)} mm
-              </span>
-            </header>
+          <main className="flex h-[520px] flex-1 overflow-hidden">
             <div
               ref={previewPaneRef}
-              className="relative flex-1 overflow-hidden bg-muted"
+              className="relative h-full w-full overflow-hidden bg-muted"
               style={{ cursor: canPan ? (dragging ? "grabbing" : "grab") : "default" }}
               onPointerDown={handlePointerDown}
               onPointerMove={handlePointerMove}
