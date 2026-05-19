@@ -126,8 +126,12 @@ export async function pixelateImageAndActivate(args: {
   projectId: string
   sourceImageId: string
   params: PixelateParams
+  /** Client-supplied display-mm. When present, used directly so the
+   * server doesn't fall back to potentially-stale project_image_state. */
+  displayMmW?: number
+  displayMmH?: number
 }): Promise<PixelateFilterResult> {
-  const { supabase, projectId, sourceImageId, params } = args
+  const { supabase, projectId, sourceImageId, params, displayMmW, displayMmH } = args
   const profiler = startFilterProfiler()
   const parsed = pixelateSchema.safeParse(params)
   if (!parsed.success) {
@@ -160,9 +164,15 @@ export async function pixelateImageAndActivate(args: {
 
   // Resolve the image's displayed size on the artboard (mm). The grid
   // is sized in display-mm — what the user sees on the artboard is
-  // what they get. State-anchored at master.id; fresh-upload fallback
-  // uses the same placement algorithm as the upload flow.
-  const display = await resolveSourceDisplayMm({ supabase, projectId })
+  // what they get. Client-supplied values win (they come from the
+  // dialog's live canvas mirror); fall back to DB-side resolution
+  // (state-anchored at master.id; placement-algorithm fallback) only
+  // when the client didn't send them.
+  const display =
+    typeof displayMmW === "number" && displayMmW > 0 &&
+    typeof displayMmH === "number" && displayMmH > 0
+      ? ({ ok: true, displayMmW, displayMmH } as const)
+      : await resolveSourceDisplayMm({ supabase, projectId })
   if (!display.ok) {
     return { ok: false, status: 400, stage: "validation", reason: display.reason }
   }

@@ -56,10 +56,20 @@ export function useTraceHandlers(opts: {
   }, [refreshTrace])
 
   const handleApplyTrace = useCallback(
-    async ({ kind, params }: { kind: RegisteredTraceId; params: Record<string, unknown> }) => {
+    async ({
+      kind,
+      params,
+      displayMmW,
+      displayMmH,
+    }: {
+      kind: RegisteredTraceId
+      params: Record<string, unknown>
+      displayMmW?: number
+      displayMmH?: number
+    }) => {
       setIsApplyingTrace(true)
       try {
-        await applyProjectTrace({ projectId, kind, params })
+        await applyProjectTrace({ projectId, kind, params, displayMmW, displayMmH })
         await Promise.all([refreshTrace(), refreshFilterImage(), refreshMasterImage()])
       } finally {
         setIsApplyingTrace(false)

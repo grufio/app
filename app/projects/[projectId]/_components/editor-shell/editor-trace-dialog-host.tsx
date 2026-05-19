@@ -28,7 +28,12 @@ export function EditorTraceDialogHost(props: {
   /** Called after a successful trace apply (e.g. to reset the dialog
    * session). The shell wires `traceDialog.reset` here. */
   onApplied: () => void
-  onApplyTrace: (args: { kind: RegisteredTraceId; params: Record<string, unknown> }) => Promise<void>
+  onApplyTrace: (args: {
+    kind: RegisteredTraceId
+    params: Record<string, unknown>
+    displayMmW?: number
+    displayMmH?: number
+  }) => Promise<void>
 }) {
   const {
     selectionOpen,
