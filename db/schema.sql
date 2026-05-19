@@ -159,6 +159,42 @@ $$;
 ALTER FUNCTION "public"."append_project_image_filter"("p_project_id" "uuid", "p_input_image_id" "uuid", "p_output_image_id" "uuid", "p_filter_type" "text", "p_filter_params" "jsonb") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."check_recipe_components_sum"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    AS $_$
+DECLARE
+  v_recipe_id uuid;
+  v_table     regclass := TG_ARGV[0]::regclass;
+  v_sum       numeric;
+BEGIN
+  v_recipe_id := COALESCE(NEW.recipe_id, OLD.recipe_id);
+  EXECUTE format(
+    'SELECT COALESCE(SUM(share_pct), 0) FROM %s WHERE recipe_id = $1',
+    v_table
+  )
+  INTO v_sum
+  USING v_recipe_id;
+  -- sum = 0 means no components left for this recipe. This happens when
+  -- the parent recipe was deleted and child components cascaded out;
+  -- treating it as a non-error skips a spurious failure on cascade.
+  -- A standalone recipe with zero components is degenerate but harmless
+  -- (parent row exists, no mix info), and prevented in practice by app code.
+  IF v_sum = 0 THEN
+    RETURN NULL;
+  END IF;
+  IF v_sum NOT BETWEEN 99.5 AND 100.5 THEN
+    RAISE EXCEPTION
+      'recipe % share_pct sum % out of tolerance [99.5, 100.5]',
+      v_recipe_id, v_sum;
+  END IF;
+  RETURN NULL;
+END;
+$_$;
+
+
+ALTER FUNCTION "public"."check_recipe_components_sum"() OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."cleanup_state_on_softdelete"() RETURNS "trigger"
     LANGUAGE "plpgsql"
     AS $$
@@ -1496,6 +1532,213 @@ SET default_tablespace = '';
 SET default_table_access_method = "heap";
 
 
+CREATE TABLE IF NOT EXISTS "public"."color_acryl_schmincke_primacryl" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "code" "text" NOT NULL,
+    "name" "text" NOT NULL,
+    "density_g_per_ml" numeric,
+    "swatch_storage_path" "text",
+    "pigment_codes" "text"[],
+    "lightfastness" smallint,
+    "opacity" "text",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "color_acryl_schmincke_primacryl_density_g_per_ml_check" CHECK (("density_g_per_ml" > (0)::numeric)),
+    CONSTRAINT "color_acryl_schmincke_primacryl_lightfastness_check" CHECK ((("lightfastness" >= 1) AND ("lightfastness" <= 5))),
+    CONSTRAINT "color_acryl_schmincke_primacryl_opacity_check" CHECK (("opacity" = ANY (ARRAY['opaque'::"text", 'semi_opaque'::"text", 'semi_transparent'::"text"])))
+);
+
+
+ALTER TABLE "public"."color_acryl_schmincke_primacryl" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."color_acryl_schmincke_primacryl_variants" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "paint_id" "uuid" NOT NULL,
+    "size_ml" smallint NOT NULL,
+    "stock_count" smallint DEFAULT 0 NOT NULL,
+    "weight_g" numeric,
+    "price_eur" numeric(10,2),
+    "price_updated_at" timestamp with time zone,
+    "sku" "text",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "color_acryl_schmincke_primacryl_variants_price_eur_check" CHECK (("price_eur" >= (0)::numeric)),
+    CONSTRAINT "color_acryl_schmincke_primacryl_variants_price_paired" CHECK ((("price_eur" IS NULL) = ("price_updated_at" IS NULL))),
+    CONSTRAINT "color_acryl_schmincke_primacryl_variants_size_ml_check" CHECK (("size_ml" > 0)),
+    CONSTRAINT "color_acryl_schmincke_primacryl_variants_stock_count_check" CHECK (("stock_count" >= 0)),
+    CONSTRAINT "color_acryl_schmincke_primacryl_variants_weight_g_check" CHECK (("weight_g" > (0)::numeric))
+);
+
+
+ALTER TABLE "public"."color_acryl_schmincke_primacryl_variants" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."color_oil_schmincke_norma" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "code" "text" NOT NULL,
+    "name" "text" NOT NULL,
+    "density_g_per_ml" numeric,
+    "swatch_storage_path" "text",
+    "pigment_codes" "text"[],
+    "lightfastness" smallint,
+    "opacity" "text",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "color_oil_schmincke_norma_density_g_per_ml_check" CHECK (("density_g_per_ml" > (0)::numeric)),
+    CONSTRAINT "color_oil_schmincke_norma_lightfastness_check" CHECK ((("lightfastness" >= 1) AND ("lightfastness" <= 5))),
+    CONSTRAINT "color_oil_schmincke_norma_opacity_check" CHECK (("opacity" = ANY (ARRAY['opaque'::"text", 'semi_opaque'::"text", 'semi_transparent'::"text"])))
+);
+
+
+ALTER TABLE "public"."color_oil_schmincke_norma" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."color_oil_schmincke_norma_variants" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "paint_id" "uuid" NOT NULL,
+    "size_ml" smallint NOT NULL,
+    "stock_count" smallint DEFAULT 0 NOT NULL,
+    "weight_g" numeric,
+    "price_eur" numeric(10,2),
+    "price_updated_at" timestamp with time zone,
+    "sku" "text",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "color_oil_schmincke_norma_variants_price_eur_check" CHECK (("price_eur" >= (0)::numeric)),
+    CONSTRAINT "color_oil_schmincke_norma_variants_price_paired" CHECK ((("price_eur" IS NULL) = ("price_updated_at" IS NULL))),
+    CONSTRAINT "color_oil_schmincke_norma_variants_size_ml_check" CHECK (("size_ml" > 0)),
+    CONSTRAINT "color_oil_schmincke_norma_variants_stock_count_check" CHECK (("stock_count" >= 0)),
+    CONSTRAINT "color_oil_schmincke_norma_variants_weight_g_check" CHECK (("weight_g" > (0)::numeric))
+);
+
+
+ALTER TABLE "public"."color_oil_schmincke_norma_variants" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."lab_custom" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "rgb_r" smallint NOT NULL,
+    "rgb_g" smallint NOT NULL,
+    "rgb_b" smallint NOT NULL,
+    "hex" "text" NOT NULL,
+    "oklab_l" double precision NOT NULL,
+    "oklab_a" double precision NOT NULL,
+    "oklab_b" double precision NOT NULL,
+    "name" "text",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "lab_custom_hex_check" CHECK (("hex" ~ '^#[0-9A-Fa-f]{6}$'::"text")),
+    CONSTRAINT "lab_custom_rgb_b_check" CHECK ((("rgb_b" >= 0) AND ("rgb_b" <= 255))),
+    CONSTRAINT "lab_custom_rgb_g_check" CHECK ((("rgb_g" >= 0) AND ("rgb_g" <= 255))),
+    CONSTRAINT "lab_custom_rgb_r_check" CHECK ((("rgb_r" >= 0) AND ("rgb_r" <= 255)))
+);
+
+
+ALTER TABLE "public"."lab_custom" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."lab_custom_variants" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "lab_custom_id" "uuid" NOT NULL,
+    "size_ml" smallint NOT NULL,
+    "stock_count" smallint DEFAULT 0 NOT NULL,
+    "weight_g" numeric,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "lab_custom_variants_size_ml_check" CHECK (("size_ml" > 0)),
+    CONSTRAINT "lab_custom_variants_stock_count_check" CHECK (("stock_count" >= 0)),
+    CONSTRAINT "lab_custom_variants_weight_g_check" CHECK (("weight_g" > (0)::numeric))
+);
+
+
+ALTER TABLE "public"."lab_custom_variants" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."lab_grays" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "notation" "text" NOT NULL,
+    "palette_index" smallint NOT NULL,
+    "value" numeric NOT NULL,
+    "oklab_l" double precision NOT NULL,
+    "oklab_a" double precision NOT NULL,
+    "oklab_b" double precision NOT NULL,
+    "rgb_r" smallint NOT NULL,
+    "rgb_g" smallint NOT NULL,
+    "rgb_b" smallint NOT NULL,
+    "hex" "text" NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "lab_grays_hex_check" CHECK (("hex" ~ '^#[0-9A-Fa-f]{6}$'::"text")),
+    CONSTRAINT "lab_grays_palette_index_check" CHECK (("palette_index" >= 0)),
+    CONSTRAINT "lab_grays_rgb_b_check" CHECK ((("rgb_b" >= 0) AND ("rgb_b" <= 255))),
+    CONSTRAINT "lab_grays_rgb_g_check" CHECK ((("rgb_g" >= 0) AND ("rgb_g" <= 255))),
+    CONSTRAINT "lab_grays_rgb_r_check" CHECK ((("rgb_r" >= 0) AND ("rgb_r" <= 255)))
+);
+
+
+ALTER TABLE "public"."lab_grays" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."lab_grays_variants" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "lab_grays_id" "uuid" NOT NULL,
+    "size_ml" smallint NOT NULL,
+    "stock_count" smallint DEFAULT 0 NOT NULL,
+    "weight_g" numeric,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "lab_grays_variants_size_ml_check" CHECK (("size_ml" > 0)),
+    CONSTRAINT "lab_grays_variants_stock_count_check" CHECK (("stock_count" >= 0)),
+    CONSTRAINT "lab_grays_variants_weight_g_check" CHECK (("weight_g" > (0)::numeric))
+);
+
+
+ALTER TABLE "public"."lab_grays_variants" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."lab_munsell" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "notation" "text" NOT NULL,
+    "palette_index" smallint NOT NULL,
+    "hue_pct" numeric NOT NULL,
+    "hue_family" "text" NOT NULL,
+    "value" numeric NOT NULL,
+    "chroma" numeric NOT NULL,
+    "oklab_l" double precision NOT NULL,
+    "oklab_a" double precision NOT NULL,
+    "oklab_b" double precision NOT NULL,
+    "rgb_r" smallint NOT NULL,
+    "rgb_g" smallint NOT NULL,
+    "rgb_b" smallint NOT NULL,
+    "hex" "text" NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "lab_munsell_hex_check" CHECK (("hex" ~ '^#[0-9A-Fa-f]{6}$'::"text")),
+    CONSTRAINT "lab_munsell_palette_index_check" CHECK (("palette_index" >= 0)),
+    CONSTRAINT "lab_munsell_rgb_b_check" CHECK ((("rgb_b" >= 0) AND ("rgb_b" <= 255))),
+    CONSTRAINT "lab_munsell_rgb_g_check" CHECK ((("rgb_g" >= 0) AND ("rgb_g" <= 255))),
+    CONSTRAINT "lab_munsell_rgb_r_check" CHECK ((("rgb_r" >= 0) AND ("rgb_r" <= 255)))
+);
+
+
+ALTER TABLE "public"."lab_munsell" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."lab_munsell_variants" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "lab_munsell_id" "uuid" NOT NULL,
+    "size_ml" smallint NOT NULL,
+    "stock_count" smallint DEFAULT 0 NOT NULL,
+    "weight_g" numeric,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "lab_munsell_variants_size_ml_check" CHECK (("size_ml" > 0)),
+    CONSTRAINT "lab_munsell_variants_stock_count_check" CHECK (("stock_count" >= 0)),
+    CONSTRAINT "lab_munsell_variants_weight_g_check" CHECK (("weight_g" > (0)::numeric))
+);
+
+
+ALTER TABLE "public"."lab_munsell_variants" OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."project_grid" (
     "project_id" "uuid" NOT NULL,
     "color" "text" NOT NULL,
@@ -1559,7 +1802,7 @@ CREATE TABLE IF NOT EXISTS "public"."project_image_trace" (
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "base_image_id" "uuid",
-    CONSTRAINT "project_image_trace_kind_ck" CHECK (("kind" = ANY (ARRAY['numerate'::"text", 'lineart'::"text"])))
+    CONSTRAINT "project_image_trace_kind_ck" CHECK (("kind" = ANY (ARRAY['pixelate'::"text", 'lineart'::"text"])))
 );
 
 
@@ -1644,6 +1887,154 @@ CREATE TABLE IF NOT EXISTS "public"."projects" (
 
 
 ALTER TABLE "public"."projects" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."recipes_colors_acryl_schmincke_primacryl" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "lab_munsell_id" "uuid",
+    "lab_custom_id" "uuid",
+    "preview_rgb_r" smallint NOT NULL,
+    "preview_rgb_g" smallint NOT NULL,
+    "preview_rgb_b" smallint NOT NULL,
+    "sequence" smallint NOT NULL,
+    "notes" "text",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "recipes_colors_acryl_schmincke_primacryl_preview_rgb_b_check" CHECK ((("preview_rgb_b" >= 0) AND ("preview_rgb_b" <= 255))),
+    CONSTRAINT "recipes_colors_acryl_schmincke_primacryl_preview_rgb_g_check" CHECK ((("preview_rgb_g" >= 0) AND ("preview_rgb_g" <= 255))),
+    CONSTRAINT "recipes_colors_acryl_schmincke_primacryl_preview_rgb_r_check" CHECK ((("preview_rgb_r" >= 0) AND ("preview_rgb_r" <= 255))),
+    CONSTRAINT "recipes_colors_acryl_schmincke_primacryl_sequence_check" CHECK (("sequence" >= 1)),
+    CONSTRAINT "recipes_colors_acryl_schmincke_primacryl_target_xor" CHECK ((("lab_munsell_id" IS NULL) <> ("lab_custom_id" IS NULL)))
+);
+
+
+ALTER TABLE "public"."recipes_colors_acryl_schmincke_primacryl" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."recipes_colors_acryl_schmincke_primacryl_components" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "recipe_id" "uuid" NOT NULL,
+    "paint_id" "uuid" NOT NULL,
+    "share_pct" numeric NOT NULL,
+    "position" smallint NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "recipes_colors_acryl_schmincke_primacryl_compon_share_pct_check" CHECK ((("share_pct" > (0)::numeric) AND ("share_pct" <= (100)::numeric))),
+    CONSTRAINT "recipes_colors_acryl_schmincke_primacryl_compone_position_check" CHECK (("position" >= 0))
+);
+
+
+ALTER TABLE "public"."recipes_colors_acryl_schmincke_primacryl_components" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."recipes_colors_oil_schmincke_norma" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "lab_munsell_id" "uuid",
+    "lab_custom_id" "uuid",
+    "preview_rgb_r" smallint NOT NULL,
+    "preview_rgb_g" smallint NOT NULL,
+    "preview_rgb_b" smallint NOT NULL,
+    "sequence" smallint NOT NULL,
+    "notes" "text",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "recipes_colors_oil_schmincke_norma_preview_rgb_b_check" CHECK ((("preview_rgb_b" >= 0) AND ("preview_rgb_b" <= 255))),
+    CONSTRAINT "recipes_colors_oil_schmincke_norma_preview_rgb_g_check" CHECK ((("preview_rgb_g" >= 0) AND ("preview_rgb_g" <= 255))),
+    CONSTRAINT "recipes_colors_oil_schmincke_norma_preview_rgb_r_check" CHECK ((("preview_rgb_r" >= 0) AND ("preview_rgb_r" <= 255))),
+    CONSTRAINT "recipes_colors_oil_schmincke_norma_sequence_check" CHECK (("sequence" >= 1)),
+    CONSTRAINT "recipes_colors_oil_schmincke_norma_target_xor" CHECK ((("lab_munsell_id" IS NULL) <> ("lab_custom_id" IS NULL)))
+);
+
+
+ALTER TABLE "public"."recipes_colors_oil_schmincke_norma" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."recipes_colors_oil_schmincke_norma_components" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "recipe_id" "uuid" NOT NULL,
+    "paint_id" "uuid" NOT NULL,
+    "share_pct" numeric NOT NULL,
+    "position" smallint NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "recipes_colors_oil_schmincke_norma_components_position_check" CHECK (("position" >= 0)),
+    CONSTRAINT "recipes_colors_oil_schmincke_norma_components_share_pct_check" CHECK ((("share_pct" > (0)::numeric) AND ("share_pct" <= (100)::numeric)))
+);
+
+
+ALTER TABLE "public"."recipes_colors_oil_schmincke_norma_components" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."recipes_grays_acryl_schmincke_primacryl" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "lab_grays_id" "uuid",
+    "lab_custom_id" "uuid",
+    "preview_rgb_r" smallint NOT NULL,
+    "preview_rgb_g" smallint NOT NULL,
+    "preview_rgb_b" smallint NOT NULL,
+    "sequence" smallint NOT NULL,
+    "notes" "text",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "recipes_grays_acryl_schmincke_primacryl_preview_rgb_b_check" CHECK ((("preview_rgb_b" >= 0) AND ("preview_rgb_b" <= 255))),
+    CONSTRAINT "recipes_grays_acryl_schmincke_primacryl_preview_rgb_g_check" CHECK ((("preview_rgb_g" >= 0) AND ("preview_rgb_g" <= 255))),
+    CONSTRAINT "recipes_grays_acryl_schmincke_primacryl_preview_rgb_r_check" CHECK ((("preview_rgb_r" >= 0) AND ("preview_rgb_r" <= 255))),
+    CONSTRAINT "recipes_grays_acryl_schmincke_primacryl_sequence_check" CHECK (("sequence" >= 1)),
+    CONSTRAINT "recipes_grays_acryl_schmincke_primacryl_target_xor" CHECK ((("lab_grays_id" IS NULL) <> ("lab_custom_id" IS NULL)))
+);
+
+
+ALTER TABLE "public"."recipes_grays_acryl_schmincke_primacryl" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."recipes_grays_acryl_schmincke_primacryl_components" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "recipe_id" "uuid" NOT NULL,
+    "paint_id" "uuid" NOT NULL,
+    "share_pct" numeric NOT NULL,
+    "position" smallint NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "recipes_grays_acryl_schmincke_primacryl_compone_share_pct_check" CHECK ((("share_pct" > (0)::numeric) AND ("share_pct" <= (100)::numeric))),
+    CONSTRAINT "recipes_grays_acryl_schmincke_primacryl_componen_position_check" CHECK (("position" >= 0))
+);
+
+
+ALTER TABLE "public"."recipes_grays_acryl_schmincke_primacryl_components" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."recipes_grays_oil_schmincke_norma" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "lab_grays_id" "uuid",
+    "lab_custom_id" "uuid",
+    "preview_rgb_r" smallint NOT NULL,
+    "preview_rgb_g" smallint NOT NULL,
+    "preview_rgb_b" smallint NOT NULL,
+    "sequence" smallint NOT NULL,
+    "notes" "text",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "recipes_grays_oil_schmincke_norma_preview_rgb_b_check" CHECK ((("preview_rgb_b" >= 0) AND ("preview_rgb_b" <= 255))),
+    CONSTRAINT "recipes_grays_oil_schmincke_norma_preview_rgb_g_check" CHECK ((("preview_rgb_g" >= 0) AND ("preview_rgb_g" <= 255))),
+    CONSTRAINT "recipes_grays_oil_schmincke_norma_preview_rgb_r_check" CHECK ((("preview_rgb_r" >= 0) AND ("preview_rgb_r" <= 255))),
+    CONSTRAINT "recipes_grays_oil_schmincke_norma_sequence_check" CHECK (("sequence" >= 1)),
+    CONSTRAINT "recipes_grays_oil_schmincke_norma_target_xor" CHECK ((("lab_grays_id" IS NULL) <> ("lab_custom_id" IS NULL)))
+);
+
+
+ALTER TABLE "public"."recipes_grays_oil_schmincke_norma" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."recipes_grays_oil_schmincke_norma_components" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "recipe_id" "uuid" NOT NULL,
+    "paint_id" "uuid" NOT NULL,
+    "share_pct" numeric NOT NULL,
+    "position" smallint NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "recipes_grays_oil_schmincke_norma_components_position_check" CHECK (("position" >= 0)),
+    CONSTRAINT "recipes_grays_oil_schmincke_norma_components_share_pct_check" CHECK ((("share_pct" > (0)::numeric) AND ("share_pct" <= (100)::numeric)))
+);
+
+
+ALTER TABLE "public"."recipes_grays_oil_schmincke_norma_components" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."schema_migrations" (
@@ -1807,6 +2198,116 @@ ALTER TABLE ONLY "public"."schema_migrations" ALTER COLUMN "id" SET DEFAULT "nex
 
 
 
+ALTER TABLE ONLY "public"."color_acryl_schmincke_primacryl"
+    ADD CONSTRAINT "color_acryl_schmincke_primacryl_code_unique" UNIQUE ("code");
+
+
+
+ALTER TABLE ONLY "public"."color_acryl_schmincke_primacryl"
+    ADD CONSTRAINT "color_acryl_schmincke_primacryl_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."color_acryl_schmincke_primacryl_variants"
+    ADD CONSTRAINT "color_acryl_schmincke_primacryl_variants_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."color_acryl_schmincke_primacryl_variants"
+    ADD CONSTRAINT "color_acryl_schmincke_primacryl_variants_unique" UNIQUE ("paint_id", "size_ml");
+
+
+
+ALTER TABLE ONLY "public"."color_oil_schmincke_norma"
+    ADD CONSTRAINT "color_oil_schmincke_norma_code_unique" UNIQUE ("code");
+
+
+
+ALTER TABLE ONLY "public"."color_oil_schmincke_norma"
+    ADD CONSTRAINT "color_oil_schmincke_norma_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."color_oil_schmincke_norma_variants"
+    ADD CONSTRAINT "color_oil_schmincke_norma_variants_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."color_oil_schmincke_norma_variants"
+    ADD CONSTRAINT "color_oil_schmincke_norma_variants_unique" UNIQUE ("paint_id", "size_ml");
+
+
+
+ALTER TABLE ONLY "public"."lab_custom"
+    ADD CONSTRAINT "lab_custom_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."lab_custom"
+    ADD CONSTRAINT "lab_custom_rgb_unique" UNIQUE ("rgb_r", "rgb_g", "rgb_b");
+
+
+
+ALTER TABLE ONLY "public"."lab_custom_variants"
+    ADD CONSTRAINT "lab_custom_variants_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."lab_custom_variants"
+    ADD CONSTRAINT "lab_custom_variants_unique" UNIQUE ("lab_custom_id", "size_ml");
+
+
+
+ALTER TABLE ONLY "public"."lab_grays"
+    ADD CONSTRAINT "lab_grays_notation_unique" UNIQUE ("notation");
+
+
+
+ALTER TABLE ONLY "public"."lab_grays"
+    ADD CONSTRAINT "lab_grays_palette_index_unique" UNIQUE ("palette_index");
+
+
+
+ALTER TABLE ONLY "public"."lab_grays"
+    ADD CONSTRAINT "lab_grays_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."lab_grays_variants"
+    ADD CONSTRAINT "lab_grays_variants_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."lab_grays_variants"
+    ADD CONSTRAINT "lab_grays_variants_unique" UNIQUE ("lab_grays_id", "size_ml");
+
+
+
+ALTER TABLE ONLY "public"."lab_munsell"
+    ADD CONSTRAINT "lab_munsell_notation_unique" UNIQUE ("notation");
+
+
+
+ALTER TABLE ONLY "public"."lab_munsell"
+    ADD CONSTRAINT "lab_munsell_palette_index_unique" UNIQUE ("palette_index");
+
+
+
+ALTER TABLE ONLY "public"."lab_munsell"
+    ADD CONSTRAINT "lab_munsell_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."lab_munsell_variants"
+    ADD CONSTRAINT "lab_munsell_variants_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."lab_munsell_variants"
+    ADD CONSTRAINT "lab_munsell_variants_unique" UNIQUE ("lab_munsell_id", "size_ml");
+
+
+
 ALTER TABLE ONLY "public"."project_grid"
     ADD CONSTRAINT "project_grid_pkey" PRIMARY KEY ("project_id");
 
@@ -1854,6 +2355,86 @@ ALTER TABLE ONLY "public"."project_workspace"
 
 ALTER TABLE ONLY "public"."projects"
     ADD CONSTRAINT "projects_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."recipes_colors_acryl_schmincke_primacryl_components"
+    ADD CONSTRAINT "recipes_colors_acryl_schmincke_primacryl_components_paint_uq" UNIQUE ("recipe_id", "paint_id");
+
+
+
+ALTER TABLE ONLY "public"."recipes_colors_acryl_schmincke_primacryl_components"
+    ADD CONSTRAINT "recipes_colors_acryl_schmincke_primacryl_components_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."recipes_colors_acryl_schmincke_primacryl_components"
+    ADD CONSTRAINT "recipes_colors_acryl_schmincke_primacryl_components_pos_uq" UNIQUE ("recipe_id", "position");
+
+
+
+ALTER TABLE ONLY "public"."recipes_colors_acryl_schmincke_primacryl"
+    ADD CONSTRAINT "recipes_colors_acryl_schmincke_primacryl_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."recipes_colors_oil_schmincke_norma_components"
+    ADD CONSTRAINT "recipes_colors_oil_schmincke_norma_components_paint_uq" UNIQUE ("recipe_id", "paint_id");
+
+
+
+ALTER TABLE ONLY "public"."recipes_colors_oil_schmincke_norma_components"
+    ADD CONSTRAINT "recipes_colors_oil_schmincke_norma_components_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."recipes_colors_oil_schmincke_norma_components"
+    ADD CONSTRAINT "recipes_colors_oil_schmincke_norma_components_pos_uq" UNIQUE ("recipe_id", "position");
+
+
+
+ALTER TABLE ONLY "public"."recipes_colors_oil_schmincke_norma"
+    ADD CONSTRAINT "recipes_colors_oil_schmincke_norma_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."recipes_grays_acryl_schmincke_primacryl_components"
+    ADD CONSTRAINT "recipes_grays_acryl_schmincke_primacryl_components_paint_uq" UNIQUE ("recipe_id", "paint_id");
+
+
+
+ALTER TABLE ONLY "public"."recipes_grays_acryl_schmincke_primacryl_components"
+    ADD CONSTRAINT "recipes_grays_acryl_schmincke_primacryl_components_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."recipes_grays_acryl_schmincke_primacryl_components"
+    ADD CONSTRAINT "recipes_grays_acryl_schmincke_primacryl_components_pos_uq" UNIQUE ("recipe_id", "position");
+
+
+
+ALTER TABLE ONLY "public"."recipes_grays_acryl_schmincke_primacryl"
+    ADD CONSTRAINT "recipes_grays_acryl_schmincke_primacryl_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."recipes_grays_oil_schmincke_norma_components"
+    ADD CONSTRAINT "recipes_grays_oil_schmincke_norma_components_paint_uq" UNIQUE ("recipe_id", "paint_id");
+
+
+
+ALTER TABLE ONLY "public"."recipes_grays_oil_schmincke_norma_components"
+    ADD CONSTRAINT "recipes_grays_oil_schmincke_norma_components_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."recipes_grays_oil_schmincke_norma_components"
+    ADD CONSTRAINT "recipes_grays_oil_schmincke_norma_components_pos_uq" UNIQUE ("recipe_id", "position");
+
+
+
+ALTER TABLE ONLY "public"."recipes_grays_oil_schmincke_norma"
+    ADD CONSTRAINT "recipes_grays_oil_schmincke_norma_pkey" PRIMARY KEY ("id");
 
 
 
@@ -1952,6 +2533,38 @@ CREATE INDEX "projects_owner_updated_at_idx" ON "public"."projects" USING "btree
 
 
 
+CREATE UNIQUE INDEX "recipes_colors_acryl_schmincke_primacryl_custom_seq_uq" ON "public"."recipes_colors_acryl_schmincke_primacryl" USING "btree" ("lab_custom_id", "sequence") WHERE ("lab_custom_id" IS NOT NULL);
+
+
+
+CREATE UNIQUE INDEX "recipes_colors_acryl_schmincke_primacryl_munsell_seq_uq" ON "public"."recipes_colors_acryl_schmincke_primacryl" USING "btree" ("lab_munsell_id", "sequence") WHERE ("lab_munsell_id" IS NOT NULL);
+
+
+
+CREATE UNIQUE INDEX "recipes_colors_oil_schmincke_norma_custom_seq_uq" ON "public"."recipes_colors_oil_schmincke_norma" USING "btree" ("lab_custom_id", "sequence") WHERE ("lab_custom_id" IS NOT NULL);
+
+
+
+CREATE UNIQUE INDEX "recipes_colors_oil_schmincke_norma_munsell_seq_uq" ON "public"."recipes_colors_oil_schmincke_norma" USING "btree" ("lab_munsell_id", "sequence") WHERE ("lab_munsell_id" IS NOT NULL);
+
+
+
+CREATE UNIQUE INDEX "recipes_grays_acryl_schmincke_primacryl_custom_seq_uq" ON "public"."recipes_grays_acryl_schmincke_primacryl" USING "btree" ("lab_custom_id", "sequence") WHERE ("lab_custom_id" IS NOT NULL);
+
+
+
+CREATE UNIQUE INDEX "recipes_grays_acryl_schmincke_primacryl_grays_seq_uq" ON "public"."recipes_grays_acryl_schmincke_primacryl" USING "btree" ("lab_grays_id", "sequence") WHERE ("lab_grays_id" IS NOT NULL);
+
+
+
+CREATE UNIQUE INDEX "recipes_grays_oil_schmincke_norma_custom_seq_uq" ON "public"."recipes_grays_oil_schmincke_norma" USING "btree" ("lab_custom_id", "sequence") WHERE ("lab_custom_id" IS NOT NULL);
+
+
+
+CREATE UNIQUE INDEX "recipes_grays_oil_schmincke_norma_grays_seq_uq" ON "public"."recipes_grays_oil_schmincke_norma" USING "btree" ("lab_grays_id", "sequence") WHERE ("lab_grays_id" IS NOT NULL);
+
+
+
 CREATE UNIQUE INDEX "bname" ON "storage"."buckets" USING "btree" ("name");
 
 
@@ -1985,6 +2598,22 @@ CREATE UNIQUE INDEX "vector_indexes_name_bucket_id_idx" ON "storage"."vector_ind
 
 
 CREATE OR REPLACE TRIGGER "project_images_softdelete_cascade_state" AFTER UPDATE OF "deleted_at" ON "public"."project_images" FOR EACH ROW WHEN ((("old"."deleted_at" IS NULL) AND ("new"."deleted_at" IS NOT NULL))) EXECUTE FUNCTION "public"."cleanup_state_on_softdelete"();
+
+
+
+CREATE CONSTRAINT TRIGGER "recipes_colors_acryl_schmincke_primacryl_components_sum_check" AFTER INSERT OR DELETE OR UPDATE ON "public"."recipes_colors_acryl_schmincke_primacryl_components" DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION "public"."check_recipe_components_sum"('public.recipes_colors_acryl_schmincke_primacryl_components');
+
+
+
+CREATE CONSTRAINT TRIGGER "recipes_colors_oil_schmincke_norma_components_sum_check" AFTER INSERT OR DELETE OR UPDATE ON "public"."recipes_colors_oil_schmincke_norma_components" DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION "public"."check_recipe_components_sum"('public.recipes_colors_oil_schmincke_norma_components');
+
+
+
+CREATE CONSTRAINT TRIGGER "recipes_grays_acryl_schmincke_primacryl_components_sum_check" AFTER INSERT OR DELETE OR UPDATE ON "public"."recipes_grays_acryl_schmincke_primacryl_components" DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION "public"."check_recipe_components_sum"('public.recipes_grays_acryl_schmincke_primacryl_components');
+
+
+
+CREATE CONSTRAINT TRIGGER "recipes_grays_oil_schmincke_norma_components_sum_check" AFTER INSERT OR DELETE OR UPDATE ON "public"."recipes_grays_oil_schmincke_norma_components" DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION "public"."check_recipe_components_sum"('public.recipes_grays_oil_schmincke_norma_components');
 
 
 
@@ -2037,6 +2666,31 @@ CREATE OR REPLACE TRIGGER "protect_objects_delete" BEFORE DELETE ON "storage"."o
 
 
 CREATE OR REPLACE TRIGGER "update_objects_updated_at" BEFORE UPDATE ON "storage"."objects" FOR EACH ROW EXECUTE FUNCTION "storage"."update_updated_at_column"();
+
+
+
+ALTER TABLE ONLY "public"."color_acryl_schmincke_primacryl_variants"
+    ADD CONSTRAINT "color_acryl_schmincke_primacryl_variants_paint_id_fkey" FOREIGN KEY ("paint_id") REFERENCES "public"."color_acryl_schmincke_primacryl"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."color_oil_schmincke_norma_variants"
+    ADD CONSTRAINT "color_oil_schmincke_norma_variants_paint_id_fkey" FOREIGN KEY ("paint_id") REFERENCES "public"."color_oil_schmincke_norma"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."lab_custom_variants"
+    ADD CONSTRAINT "lab_custom_variants_lab_custom_id_fkey" FOREIGN KEY ("lab_custom_id") REFERENCES "public"."lab_custom"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."lab_grays_variants"
+    ADD CONSTRAINT "lab_grays_variants_lab_grays_id_fkey" FOREIGN KEY ("lab_grays_id") REFERENCES "public"."lab_grays"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."lab_munsell_variants"
+    ADD CONSTRAINT "lab_munsell_variants_lab_munsell_id_fkey" FOREIGN KEY ("lab_munsell_id") REFERENCES "public"."lab_munsell"("id") ON DELETE CASCADE;
 
 
 
@@ -2105,6 +2759,86 @@ ALTER TABLE ONLY "public"."projects"
 
 
 
+ALTER TABLE ONLY "public"."recipes_colors_acryl_schmincke_primacryl_components"
+    ADD CONSTRAINT "recipes_colors_acryl_schmincke_primacryl_compone_recipe_id_fkey" FOREIGN KEY ("recipe_id") REFERENCES "public"."recipes_colors_acryl_schmincke_primacryl"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."recipes_colors_acryl_schmincke_primacryl_components"
+    ADD CONSTRAINT "recipes_colors_acryl_schmincke_primacryl_componen_paint_id_fkey" FOREIGN KEY ("paint_id") REFERENCES "public"."color_acryl_schmincke_primacryl"("id") ON DELETE RESTRICT;
+
+
+
+ALTER TABLE ONLY "public"."recipes_colors_acryl_schmincke_primacryl"
+    ADD CONSTRAINT "recipes_colors_acryl_schmincke_primacryl_lab_custom_id_fkey" FOREIGN KEY ("lab_custom_id") REFERENCES "public"."lab_custom"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."recipes_colors_acryl_schmincke_primacryl"
+    ADD CONSTRAINT "recipes_colors_acryl_schmincke_primacryl_lab_munsell_id_fkey" FOREIGN KEY ("lab_munsell_id") REFERENCES "public"."lab_munsell"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."recipes_colors_oil_schmincke_norma_components"
+    ADD CONSTRAINT "recipes_colors_oil_schmincke_norma_components_paint_id_fkey" FOREIGN KEY ("paint_id") REFERENCES "public"."color_oil_schmincke_norma"("id") ON DELETE RESTRICT;
+
+
+
+ALTER TABLE ONLY "public"."recipes_colors_oil_schmincke_norma_components"
+    ADD CONSTRAINT "recipes_colors_oil_schmincke_norma_components_recipe_id_fkey" FOREIGN KEY ("recipe_id") REFERENCES "public"."recipes_colors_oil_schmincke_norma"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."recipes_colors_oil_schmincke_norma"
+    ADD CONSTRAINT "recipes_colors_oil_schmincke_norma_lab_custom_id_fkey" FOREIGN KEY ("lab_custom_id") REFERENCES "public"."lab_custom"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."recipes_colors_oil_schmincke_norma"
+    ADD CONSTRAINT "recipes_colors_oil_schmincke_norma_lab_munsell_id_fkey" FOREIGN KEY ("lab_munsell_id") REFERENCES "public"."lab_munsell"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."recipes_grays_acryl_schmincke_primacryl_components"
+    ADD CONSTRAINT "recipes_grays_acryl_schmincke_primacryl_componen_recipe_id_fkey" FOREIGN KEY ("recipe_id") REFERENCES "public"."recipes_grays_acryl_schmincke_primacryl"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."recipes_grays_acryl_schmincke_primacryl_components"
+    ADD CONSTRAINT "recipes_grays_acryl_schmincke_primacryl_component_paint_id_fkey" FOREIGN KEY ("paint_id") REFERENCES "public"."color_acryl_schmincke_primacryl"("id") ON DELETE RESTRICT;
+
+
+
+ALTER TABLE ONLY "public"."recipes_grays_acryl_schmincke_primacryl"
+    ADD CONSTRAINT "recipes_grays_acryl_schmincke_primacryl_lab_custom_id_fkey" FOREIGN KEY ("lab_custom_id") REFERENCES "public"."lab_custom"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."recipes_grays_acryl_schmincke_primacryl"
+    ADD CONSTRAINT "recipes_grays_acryl_schmincke_primacryl_lab_grays_id_fkey" FOREIGN KEY ("lab_grays_id") REFERENCES "public"."lab_grays"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."recipes_grays_oil_schmincke_norma_components"
+    ADD CONSTRAINT "recipes_grays_oil_schmincke_norma_components_paint_id_fkey" FOREIGN KEY ("paint_id") REFERENCES "public"."color_oil_schmincke_norma"("id") ON DELETE RESTRICT;
+
+
+
+ALTER TABLE ONLY "public"."recipes_grays_oil_schmincke_norma_components"
+    ADD CONSTRAINT "recipes_grays_oil_schmincke_norma_components_recipe_id_fkey" FOREIGN KEY ("recipe_id") REFERENCES "public"."recipes_grays_oil_schmincke_norma"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."recipes_grays_oil_schmincke_norma"
+    ADD CONSTRAINT "recipes_grays_oil_schmincke_norma_lab_custom_id_fkey" FOREIGN KEY ("lab_custom_id") REFERENCES "public"."lab_custom"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."recipes_grays_oil_schmincke_norma"
+    ADD CONSTRAINT "recipes_grays_oil_schmincke_norma_lab_grays_id_fkey" FOREIGN KEY ("lab_grays_id") REFERENCES "public"."lab_grays"("id") ON DELETE CASCADE;
+
+
+
 ALTER TABLE ONLY "storage"."objects"
     ADD CONSTRAINT "objects_bucketId_fkey" FOREIGN KEY ("bucket_id") REFERENCES "storage"."buckets"("id");
 
@@ -2127,6 +2861,76 @@ ALTER TABLE ONLY "storage"."s3_multipart_uploads_parts"
 
 ALTER TABLE ONLY "storage"."vector_indexes"
     ADD CONSTRAINT "vector_indexes_bucket_id_fkey" FOREIGN KEY ("bucket_id") REFERENCES "storage"."buckets_vectors"("id");
+
+
+
+ALTER TABLE "public"."color_acryl_schmincke_primacryl" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "color_acryl_schmincke_primacryl_select" ON "public"."color_acryl_schmincke_primacryl" FOR SELECT TO "authenticated" USING (true);
+
+
+
+ALTER TABLE "public"."color_acryl_schmincke_primacryl_variants" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "color_acryl_schmincke_primacryl_variants_select" ON "public"."color_acryl_schmincke_primacryl_variants" FOR SELECT TO "authenticated" USING (true);
+
+
+
+ALTER TABLE "public"."color_oil_schmincke_norma" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "color_oil_schmincke_norma_select" ON "public"."color_oil_schmincke_norma" FOR SELECT TO "authenticated" USING (true);
+
+
+
+ALTER TABLE "public"."color_oil_schmincke_norma_variants" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "color_oil_schmincke_norma_variants_select" ON "public"."color_oil_schmincke_norma_variants" FOR SELECT TO "authenticated" USING (true);
+
+
+
+ALTER TABLE "public"."lab_custom" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "lab_custom_select" ON "public"."lab_custom" FOR SELECT TO "authenticated" USING (true);
+
+
+
+ALTER TABLE "public"."lab_custom_variants" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "lab_custom_variants_select" ON "public"."lab_custom_variants" FOR SELECT TO "authenticated" USING (true);
+
+
+
+ALTER TABLE "public"."lab_grays" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "lab_grays_select" ON "public"."lab_grays" FOR SELECT TO "authenticated" USING (true);
+
+
+
+ALTER TABLE "public"."lab_grays_variants" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "lab_grays_variants_select" ON "public"."lab_grays_variants" FOR SELECT TO "authenticated" USING (true);
+
+
+
+ALTER TABLE "public"."lab_munsell" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "lab_munsell_select" ON "public"."lab_munsell" FOR SELECT TO "authenticated" USING (true);
+
+
+
+ALTER TABLE "public"."lab_munsell_variants" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "lab_munsell_variants_select" ON "public"."lab_munsell_variants" FOR SELECT TO "authenticated" USING (true);
 
 
 
@@ -2323,6 +3127,62 @@ CREATE POLICY "projects_update_owner" ON "public"."projects" FOR UPDATE USING ((
 
 
 
+ALTER TABLE "public"."recipes_colors_acryl_schmincke_primacryl" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."recipes_colors_acryl_schmincke_primacryl_components" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "recipes_colors_acryl_schmincke_primacryl_components_select" ON "public"."recipes_colors_acryl_schmincke_primacryl_components" FOR SELECT TO "authenticated" USING (true);
+
+
+
+CREATE POLICY "recipes_colors_acryl_schmincke_primacryl_select" ON "public"."recipes_colors_acryl_schmincke_primacryl" FOR SELECT TO "authenticated" USING (true);
+
+
+
+ALTER TABLE "public"."recipes_colors_oil_schmincke_norma" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."recipes_colors_oil_schmincke_norma_components" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "recipes_colors_oil_schmincke_norma_components_select" ON "public"."recipes_colors_oil_schmincke_norma_components" FOR SELECT TO "authenticated" USING (true);
+
+
+
+CREATE POLICY "recipes_colors_oil_schmincke_norma_select" ON "public"."recipes_colors_oil_schmincke_norma" FOR SELECT TO "authenticated" USING (true);
+
+
+
+ALTER TABLE "public"."recipes_grays_acryl_schmincke_primacryl" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."recipes_grays_acryl_schmincke_primacryl_components" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "recipes_grays_acryl_schmincke_primacryl_components_select" ON "public"."recipes_grays_acryl_schmincke_primacryl_components" FOR SELECT TO "authenticated" USING (true);
+
+
+
+CREATE POLICY "recipes_grays_acryl_schmincke_primacryl_select" ON "public"."recipes_grays_acryl_schmincke_primacryl" FOR SELECT TO "authenticated" USING (true);
+
+
+
+ALTER TABLE "public"."recipes_grays_oil_schmincke_norma" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."recipes_grays_oil_schmincke_norma_components" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "recipes_grays_oil_schmincke_norma_components_select" ON "public"."recipes_grays_oil_schmincke_norma_components" FOR SELECT TO "authenticated" USING (true);
+
+
+
+CREATE POLICY "recipes_grays_oil_schmincke_norma_select" ON "public"."recipes_grays_oil_schmincke_norma" FOR SELECT TO "authenticated" USING (true);
+
+
+
 ALTER TABLE "public"."schema_migrations" ENABLE ROW LEVEL SECURITY;
 
 
@@ -2339,6 +3199,10 @@ ALTER TABLE "storage"."migrations" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "storage"."objects" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "pigment_swatches_select" ON "storage"."objects" FOR SELECT TO "authenticated" USING (("bucket_id" = 'pigment_swatches'::"text"));
+
 
 
 CREATE POLICY "project_images_storage_delete_owner" ON "storage"."objects" FOR DELETE USING ((("bucket_id" = 'project_images'::"text") AND ("name" ~ '^projects/[0-9a-fA-F-]{36}/images/.+'::"text") AND (EXISTS ( SELECT 1
@@ -2395,6 +3259,12 @@ GRANT ALL ON SCHEMA "storage" TO "dashboard_user";
 GRANT ALL ON FUNCTION "public"."append_project_image_filter"("p_project_id" "uuid", "p_input_image_id" "uuid", "p_output_image_id" "uuid", "p_filter_type" "text", "p_filter_params" "jsonb") TO "anon";
 GRANT ALL ON FUNCTION "public"."append_project_image_filter"("p_project_id" "uuid", "p_input_image_id" "uuid", "p_output_image_id" "uuid", "p_filter_type" "text", "p_filter_params" "jsonb") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."append_project_image_filter"("p_project_id" "uuid", "p_input_image_id" "uuid", "p_output_image_id" "uuid", "p_filter_type" "text", "p_filter_params" "jsonb") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."check_recipe_components_sum"() TO "anon";
+GRANT ALL ON FUNCTION "public"."check_recipe_components_sum"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."check_recipe_components_sum"() TO "service_role";
 
 
 
@@ -2457,6 +3327,66 @@ GRANT ALL ON FUNCTION "public"."set_updated_at"() TO "service_role";
 
 
 
+GRANT ALL ON TABLE "public"."color_acryl_schmincke_primacryl" TO "anon";
+GRANT ALL ON TABLE "public"."color_acryl_schmincke_primacryl" TO "authenticated";
+GRANT ALL ON TABLE "public"."color_acryl_schmincke_primacryl" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."color_acryl_schmincke_primacryl_variants" TO "anon";
+GRANT ALL ON TABLE "public"."color_acryl_schmincke_primacryl_variants" TO "authenticated";
+GRANT ALL ON TABLE "public"."color_acryl_schmincke_primacryl_variants" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."color_oil_schmincke_norma" TO "anon";
+GRANT ALL ON TABLE "public"."color_oil_schmincke_norma" TO "authenticated";
+GRANT ALL ON TABLE "public"."color_oil_schmincke_norma" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."color_oil_schmincke_norma_variants" TO "anon";
+GRANT ALL ON TABLE "public"."color_oil_schmincke_norma_variants" TO "authenticated";
+GRANT ALL ON TABLE "public"."color_oil_schmincke_norma_variants" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."lab_custom" TO "anon";
+GRANT ALL ON TABLE "public"."lab_custom" TO "authenticated";
+GRANT ALL ON TABLE "public"."lab_custom" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."lab_custom_variants" TO "anon";
+GRANT ALL ON TABLE "public"."lab_custom_variants" TO "authenticated";
+GRANT ALL ON TABLE "public"."lab_custom_variants" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."lab_grays" TO "anon";
+GRANT ALL ON TABLE "public"."lab_grays" TO "authenticated";
+GRANT ALL ON TABLE "public"."lab_grays" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."lab_grays_variants" TO "anon";
+GRANT ALL ON TABLE "public"."lab_grays_variants" TO "authenticated";
+GRANT ALL ON TABLE "public"."lab_grays_variants" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."lab_munsell" TO "anon";
+GRANT ALL ON TABLE "public"."lab_munsell" TO "authenticated";
+GRANT ALL ON TABLE "public"."lab_munsell" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."lab_munsell_variants" TO "anon";
+GRANT ALL ON TABLE "public"."lab_munsell_variants" TO "authenticated";
+GRANT ALL ON TABLE "public"."lab_munsell_variants" TO "service_role";
+
+
+
 GRANT ALL ON TABLE "public"."project_grid" TO "anon";
 GRANT ALL ON TABLE "public"."project_grid" TO "authenticated";
 GRANT ALL ON TABLE "public"."project_grid" TO "service_role";
@@ -2496,6 +3426,54 @@ GRANT ALL ON TABLE "public"."project_workspace" TO "service_role";
 GRANT ALL ON TABLE "public"."projects" TO "anon";
 GRANT ALL ON TABLE "public"."projects" TO "authenticated";
 GRANT ALL ON TABLE "public"."projects" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."recipes_colors_acryl_schmincke_primacryl" TO "anon";
+GRANT ALL ON TABLE "public"."recipes_colors_acryl_schmincke_primacryl" TO "authenticated";
+GRANT ALL ON TABLE "public"."recipes_colors_acryl_schmincke_primacryl" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."recipes_colors_acryl_schmincke_primacryl_components" TO "anon";
+GRANT ALL ON TABLE "public"."recipes_colors_acryl_schmincke_primacryl_components" TO "authenticated";
+GRANT ALL ON TABLE "public"."recipes_colors_acryl_schmincke_primacryl_components" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."recipes_colors_oil_schmincke_norma" TO "anon";
+GRANT ALL ON TABLE "public"."recipes_colors_oil_schmincke_norma" TO "authenticated";
+GRANT ALL ON TABLE "public"."recipes_colors_oil_schmincke_norma" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."recipes_colors_oil_schmincke_norma_components" TO "anon";
+GRANT ALL ON TABLE "public"."recipes_colors_oil_schmincke_norma_components" TO "authenticated";
+GRANT ALL ON TABLE "public"."recipes_colors_oil_schmincke_norma_components" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."recipes_grays_acryl_schmincke_primacryl" TO "anon";
+GRANT ALL ON TABLE "public"."recipes_grays_acryl_schmincke_primacryl" TO "authenticated";
+GRANT ALL ON TABLE "public"."recipes_grays_acryl_schmincke_primacryl" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."recipes_grays_acryl_schmincke_primacryl_components" TO "anon";
+GRANT ALL ON TABLE "public"."recipes_grays_acryl_schmincke_primacryl_components" TO "authenticated";
+GRANT ALL ON TABLE "public"."recipes_grays_acryl_schmincke_primacryl_components" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."recipes_grays_oil_schmincke_norma" TO "anon";
+GRANT ALL ON TABLE "public"."recipes_grays_oil_schmincke_norma" TO "authenticated";
+GRANT ALL ON TABLE "public"."recipes_grays_oil_schmincke_norma" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."recipes_grays_oil_schmincke_norma_components" TO "anon";
+GRANT ALL ON TABLE "public"."recipes_grays_oil_schmincke_norma_components" TO "authenticated";
+GRANT ALL ON TABLE "public"."recipes_grays_oil_schmincke_norma_components" TO "service_role";
 
 
 
