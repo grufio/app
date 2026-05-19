@@ -296,7 +296,7 @@ export function PixelateDialog({
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && handleCancel()}>
-      <DialogContent className="overflow-hidden p-0 md:max-w-[800px]">
+      <DialogContent className="overflow-hidden p-0 md:max-h-[680px] md:max-w-[800px]">
         <DialogTitle className="sr-only">Pixelate</DialogTitle>
         <DialogDescription className="sr-only">
           Bild: {fmt1(displayMmW)} × {fmt1(displayMmH)} mm
