@@ -1,21 +1,15 @@
 "use client"
 
 /**
- * Pixelate trace dialog.
+ * Pixelate trace dialog — strict shadcn `sidebar-13` (settings-dialog)
+ * pattern. DialogContent wraps a SidebarProvider with main + right
+ * Sidebar; the title sits in a header INSIDE main (like the breadcrumb
+ * in settings-dialog), the form lives in the Sidebar, action buttons
+ * in SidebarFooter. AspectRatio gives the preview canvas a fixed 1:1
+ * pane so previewSize is non-zero from first paint.
  *
- * Layout pattern from shadcn block `sidebar-13` (settings-dialog):
- *   <DialogContent> → <SidebarProvider items-start>
- *     ├── <main h-[560px] flex flex-1 flex-col>   ← Preview canvas
- *     └── <Sidebar side="right" collapsible="none"> ← Form + Footer
- *
- * The hardcoded `h-[560px]` on main is the key: it gives the
- * preview pane a definite height so ResizeObserver can report
- * non-zero dimensions and the canvas actually draws.
- *
- * Three user inputs:
- *   - supercell_width_mm — superpixel width in mm
- *   - supercell_height_mm — superpixel height in mm (rectangular cells)
- *   - num_colors — palette quantisation count (drives preview)
+ * State / rendering logic (image load → scratch → mini → renderDisplay
+ * with zoom/pan) is unchanged from the previous iteration.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import {
@@ -29,12 +23,12 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
+import { AspectRatio } from "@/components/ui/aspect-ratio"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
 import {
@@ -302,80 +296,91 @@ export function PixelateDialog({
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && handleCancel()}>
-      <DialogContent className="flex flex-col gap-0 overflow-hidden p-0 md:max-h-[640px] md:max-w-[800px] lg:max-w-[900px]">
-        <DialogHeader className="flex-row items-center justify-between space-y-0 border-b px-4 py-3">
-          <DialogTitle className="text-base font-medium">Pixelate</DialogTitle>
-          <DialogDescription className="m-0 text-xs text-muted-foreground">
-            Bild: {fmt1(displayMmW)} × {fmt1(displayMmH)} mm
-          </DialogDescription>
-        </DialogHeader>
-        <SidebarProvider className="min-h-0">
-          <main className="flex h-[420px] flex-1 overflow-hidden">
-            <div
-              ref={previewPaneRef}
-              className="relative h-full w-full overflow-hidden bg-muted"
-              style={{ cursor: canPan ? (dragging ? "grabbing" : "grab") : "default" }}
-              onPointerDown={handlePointerDown}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerUp}
-              onPointerCancel={handlePointerUp}
-            >
-              <canvas
-                ref={displayCanvasRef}
-                className="absolute inset-0 block"
-                style={{ touchAction: "none" }}
-              />
+      <DialogContent className="overflow-hidden p-0 md:max-w-[800px]">
+        <DialogTitle className="sr-only">Pixelate</DialogTitle>
+        <DialogDescription className="sr-only">
+          Bild: {fmt1(displayMmW)} × {fmt1(displayMmH)} mm
+        </DialogDescription>
 
-              {showSpinner ? (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
-                  <Loader2 className="size-6 animate-spin text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground">Vorschau wird geladen…</span>
-                </div>
-              ) : null}
-              {showInvalid ? (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-xs text-muted-foreground">Keine gültige Aufteilung</span>
-                </div>
-              ) : null}
+        <SidebarProvider
+          className="items-start"
+          style={{ "--sidebar-width": "200px" } as React.CSSProperties}
+        >
+          <main className="flex flex-1 flex-col overflow-hidden">
+            <header className="flex h-12 shrink-0 items-center justify-between border-b px-4">
+              <span className="text-sm font-medium">Pixelate</span>
+              <span className="text-xs text-muted-foreground">
+                Bild: {fmt1(displayMmW)} × {fmt1(displayMmH)} mm
+              </span>
+            </header>
+            <AspectRatio ratio={1} className="overflow-hidden bg-muted">
+              <div
+                ref={previewPaneRef}
+                className="relative size-full"
+                style={{ cursor: canPan ? (dragging ? "grabbing" : "grab") : "default" }}
+                onPointerDown={handlePointerDown}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                onPointerCancel={handlePointerUp}
+              >
+                <canvas
+                  ref={displayCanvasRef}
+                  className="absolute inset-0 block"
+                  style={{ touchAction: "none" }}
+                />
 
-              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-0.5 rounded-full border bg-background/90 px-1 py-1 shadow-md backdrop-blur">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-7"
-                  onClick={handleZoomOut}
-                  disabled={!mini || effectiveZoom <= fitZoom + 1e-6}
-                  aria-label="Verkleinern"
-                >
-                  <ZoomOut className="size-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-7"
-                  onClick={handleFit}
-                  disabled={!mini || zoomMode === "fit"}
-                  aria-label="Einpassen"
-                >
-                  <Maximize2 className="size-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-7"
-                  onClick={handleZoomIn}
-                  disabled={!mini || effectiveZoom >= fitZoom * ZOOM_MAX_MULTIPLIER - 1e-6}
-                  aria-label="Vergrößern"
-                >
-                  <ZoomIn className="size-4" />
-                </Button>
+                {showSpinner ? (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+                    <Loader2 className="size-6 animate-spin text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground">Vorschau wird geladen…</span>
+                  </div>
+                ) : null}
+                {showInvalid ? (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-xs text-muted-foreground">Keine gültige Aufteilung</span>
+                  </div>
+                ) : null}
+
+                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-0.5 rounded-full border bg-background/90 px-1 py-1 shadow-md backdrop-blur">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-7"
+                    onClick={handleZoomOut}
+                    disabled={!mini || effectiveZoom <= fitZoom + 1e-6}
+                    aria-label="Verkleinern"
+                  >
+                    <ZoomOut className="size-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-7"
+                    onClick={handleFit}
+                    disabled={!mini || zoomMode === "fit"}
+                    aria-label="Einpassen"
+                  >
+                    <Maximize2 className="size-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-7"
+                    onClick={handleZoomIn}
+                    disabled={!mini || effectiveZoom >= fitZoom * ZOOM_MAX_MULTIPLIER - 1e-6}
+                    aria-label="Vergrößern"
+                  >
+                    <ZoomIn className="size-4" />
+                  </Button>
+                </div>
               </div>
-            </div>
+            </AspectRatio>
           </main>
+
           <Sidebar side="right" collapsible="none" className="hidden md:flex">
             <SidebarContent>
               <SidebarGroup>
-                <SidebarGroupContent className="flex flex-col gap-3 p-2">
+                <SidebarGroupContent className="flex flex-col gap-3 p-3">
                   <FormField
                     variant="numeric"
                     numericMode="decimal"
