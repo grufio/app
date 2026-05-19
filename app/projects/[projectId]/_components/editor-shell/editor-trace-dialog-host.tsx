@@ -64,6 +64,7 @@ export function EditorTraceDialogHost(props: {
       {configureOpen && traceDialogSource && activeKind === "pixelate" ? (
         <PixelateDialog
           open
+          sourceImageUrl={traceDialogSource.sourceImageUrl}
           displayMmW={traceDialogSource.displayMmW}
           displayMmH={traceDialogSource.displayMmH}
           onClose={onCloseConfigure}
