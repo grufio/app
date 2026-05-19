@@ -196,6 +196,18 @@ export function PixelateDialog({
   // Stage 4: render display canvas
   useEffect(() => {
     const display = displayCanvasRef.current
+    // eslint-disable-next-line no-console
+    console.log("[pixelate-preview]", {
+      hasDisplay: !!display,
+      hasMini: !!mini,
+      hasCrop: !!crop,
+      hasScratch: !!scratch,
+      effectiveZoom,
+      previewSize,
+      cellsX: grid.cellsX,
+      cellsY: grid.cellsY,
+      valid,
+    })
     if (!display || !mini || !crop || effectiveZoom <= 0 || previewSize.w <= 0) return
     renderDisplay({
       display,
