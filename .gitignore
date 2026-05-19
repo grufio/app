@@ -51,6 +51,9 @@ supabase/.temp/
 # local-only color-lab experiment (test images + venv + script + output)
 /color-lab/
 
+# local-only Flutter-app SQLite dump used as Schmincke-Norma seed source
+/import/
+
 # cursor
 .cursor/
 

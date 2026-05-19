@@ -13,10 +13,11 @@
  * the TypeScript world.
  *
  * Future extension: when other buckets are introduced (e.g.
- * `final_canvases`, `pigment_swatches`), add them here so the contract
- * stays in one place.
+ * `final_canvases`), add them here so the contract stays in one place.
  */
 
 export const PROJECT_IMAGES_BUCKET = "project_images" as const
+export const PIGMENT_SWATCHES_BUCKET = "pigment_swatches" as const
 
 export type ProjectImagesBucket = typeof PROJECT_IMAGES_BUCKET
+export type PigmentSwatchesBucket = typeof PIGMENT_SWATCHES_BUCKET
