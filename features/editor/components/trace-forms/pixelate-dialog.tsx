@@ -83,6 +83,13 @@ export function PixelateDialog({
   onSuccess,
   onApplyTrace,
 }: Props) {
+  // eslint-disable-next-line no-console
+  console.warn("[pixelate-render]", {
+    sourceImageUrl: sourceImageUrl?.slice(0, 80),
+    displayMmW,
+    displayMmH,
+  })
+
   const defaults = useMemo(() => pixelateSchema.parse({}) as PixelateParams, [])
   const [draft, setDraft] = useState<PixelateParams>(defaults)
   const [busy, setBusy] = useState(false)
@@ -206,6 +213,22 @@ export function PixelateDialog({
   // Stage 4: render display canvas
   useEffect(() => {
     const display = displayCanvasRef.current
+    // eslint-disable-next-line no-console
+    console.warn("[pixelate-stage4]", {
+      hasDisplay: !!display,
+      hasMini: !!mini,
+      hasCrop: !!crop,
+      hasScratch: !!scratch,
+      effectiveZoom,
+      previewSize,
+      fitZoom,
+      zoomMode,
+      cellsX: grid.cellsX,
+      cellsY: grid.cellsY,
+      valid,
+      displayMmW,
+      displayMmH,
+    })
     if (!display || !mini || !crop || effectiveZoom <= 0 || previewSize.w <= 0) return
     renderDisplay({
       display,
