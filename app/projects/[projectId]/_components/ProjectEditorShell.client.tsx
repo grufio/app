@@ -210,6 +210,20 @@ export function ProjectDetailPageClient({
     masterImage?.dpi,
   ])
   const traceDialog = useTraceDialogSession(traceSourceImage)
+  // Snapshot from `traceDialog.session` carries the stable identity
+  // (sourceImageUrl + intrinsic px), but `displayMmW`/`displayMmH`
+  // must reflect the *live* canvas mirror so a resize between
+  // begin-selection and Apply is honoured by the server. Override
+  // only the live fields here.
+  const liveTraceDialogSource = useMemo(() => {
+    if (!traceDialog.session) return null
+    if (!traceSourceImage) return traceDialog.session
+    return {
+      ...traceDialog.session,
+      displayMmW: traceSourceImage.displayMmW,
+      displayMmH: traceSourceImage.displayMmH,
+    }
+  }, [traceDialog.session, traceSourceImage])
   const {
     trace,
     traceBaseImage,
@@ -581,7 +595,7 @@ export function ProjectDetailPageClient({
           <EditorTraceDialogHost
             selectionOpen={traceDialog.selectionOpen}
             activeKind={traceDialog.activeKind}
-            traceDialogSource={traceDialog.session}
+            traceDialogSource={liveTraceDialogSource}
             onCloseSelection={traceDialog.closeSelection}
             onSelectKind={traceDialog.selectKind}
             onCloseConfigure={traceDialog.closeConfigure}
