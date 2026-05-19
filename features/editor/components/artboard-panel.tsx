@@ -12,7 +12,7 @@
  * (mm/cm/pt/px) for input only.
  */
 import { memo, useCallback, useEffect, useRef, useState } from "react"
-import { ArrowLeftRight, ArrowUpDown, Link2, Ruler, Unlink2 } from "lucide-react"
+import { ArrowLeftRight, ArrowUpDown, Link2, Maximize2, Ruler, Unlink2 } from "lucide-react"
 
 import { fmt2, type Unit } from "@/lib/editor/units"
 import { parseNumericInput } from "@/lib/editor/numeric"
@@ -45,7 +45,15 @@ const UNIT_OPTIONS: ReadonlyArray<SelectFieldOption> = [
   { value: "px", label: "px" },
 ]
 
-export const ArtboardPanel = memo(function ArtboardPanel() {
+type Props = {
+  canFitToImage?: boolean
+  onFitToImage?: () => void
+}
+
+export const ArtboardPanel = memo(function ArtboardPanel({
+  canFitToImage = false,
+  onFitToImage,
+}: Props) {
   const { row, loading, saving, updateWorkspaceGeometry, widthPxU, heightPxU } =
     useProjectWorkspace()
 
@@ -250,7 +258,18 @@ export const ArtboardPanel = memo(function ArtboardPanel() {
           triggerOnPointerDownCapture={cancelPendingCommits}
         />
 
-        <PanelIconSlot />
+        <PanelIconSlot>
+          <RightPanelToggleIconButton
+            type="button"
+            active={false}
+            aria-label="Fit artboard to image"
+            disabled={!canFitToImage || sizeControlsDisabled}
+            onPointerDownCapture={cancelPendingCommits}
+            onClick={() => onFitToImage?.()}
+          >
+            <Maximize2 className="size-4" />
+          </RightPanelToggleIconButton>
+        </PanelIconSlot>
       </PanelTwoFieldRow>
     </div>
   )

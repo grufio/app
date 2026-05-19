@@ -16,7 +16,13 @@ import {
 } from "@/lib/editor/konva"
 import type { ImagePlacementPx } from "./placement"
 import { createCommitScheduler } from "./transform-commit-scheduler"
-import { alignNodeAndBuildImageTx, buildRestoreImageTx, resolveBasePositionMicroPx } from "./transform-ops"
+import {
+  alignNodeAndBuildImageTx,
+  buildRestoreImageTx,
+  fitNodeToArtboardAndBuildImageTx,
+  getImageBoundingBoxPxU as readImageBboxPxU,
+  resolveBasePositionMicroPx,
+} from "./transform-ops"
 import type { AlignImageOpts, ImageTx, TransformCommit } from "./transform-types"
 
 export type TransformControllerDeps = {
@@ -44,6 +50,17 @@ export type TransformController = {
    */
   setImagePosition: (opts: { xPxU?: MicroPx; yPxU?: MicroPx }) => void
   alignImage: (opts: AlignImageOpts) => void
+  /**
+   * Scale the image to fit the artboard, preserving rotation, then
+   * center it. No-op when bbox/artboard dimensions are degenerate.
+   */
+  fitImageToArtboard: (opts: { artW: number; artH: number }) => void
+  /**
+   * Read the rotation-aware bounding box of the current image node
+   * as µpx. Returns null when the node/layer is unavailable or the
+   * bbox is degenerate.
+   */
+  getImageBoundingBoxPxU: () => { widthPxU: MicroPx; heightPxU: MicroPx } | null
   restoreImage: (opts: {
     placement: ImagePlacementPx
   }) => void
@@ -147,6 +164,31 @@ export function createTransformController(deps: TransformControllerDeps): Transf
     deps.onCommit?.({ xPxU: next.xPxU, yPxU: next.yPxU, widthPxU: next.widthPxU, heightPxU: next.heightPxU, rotationDeg: deps.getRotationDeg() })
   }
 
+  const fitImageToArtboard = (opts: { artW: number; artH: number }) => {
+    scheduler.cancel()
+    const layer = deps.getLayer()
+    const node = deps.getImageNode()
+    if (!layer || !node) return
+    const prev = deps.getImageTx()
+    if (!prev) return
+
+    const next = fitNodeToArtboardAndBuildImageTx({ node, layer, prev, artW: opts.artW, artH: opts.artH })
+    if (!next) return
+
+    applyMicroPxToNode(node, next.widthPxU, next.heightPxU)
+    applyMicroPxPositionToNode(node, next.xPxU, next.yPxU)
+    deps.markUserChanged()
+    deps.setImageTx(next)
+    deps.onCommit?.({ xPxU: next.xPxU, yPxU: next.yPxU, widthPxU: next.widthPxU, heightPxU: next.heightPxU, rotationDeg: deps.getRotationDeg() })
+  }
+
+  const getImageBoundingBoxPxU = () => {
+    const layer = deps.getLayer()
+    const node = deps.getImageNode()
+    if (!layer || !node) return null
+    return readImageBboxPxU({ node, layer })
+  }
+
   const restoreImage = (opts: {
     placement: ImagePlacementPx
   }) => {
@@ -177,6 +219,8 @@ export function createTransformController(deps: TransformControllerDeps): Transf
     setImageSize,
     setImagePosition,
     alignImage,
+    fitImageToArtboard,
+    getImageBoundingBoxPxU,
     restoreImage,
   }
 }

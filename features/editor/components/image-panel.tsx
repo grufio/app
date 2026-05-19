@@ -19,7 +19,7 @@
  * means the right-panel shell doesn't need to know about image
  * lifecycle ops.
  */
-import { RotateCcw, Trash2 } from "lucide-react"
+import { Maximize2, RotateCcw, Trash2 } from "lucide-react"
 
 import type { Unit } from "@/lib/editor/units"
 
@@ -44,10 +44,12 @@ type Props = {
   onCommit: (widthPxU: bigint, heightPxU: bigint) => void
   onCommitPosition: (opts: { xPxU?: bigint; yPxU?: bigint }) => void
   onAlign: (opts: { x?: "left" | "center" | "right"; y?: "top" | "center" | "bottom" }) => void
-  // Header actions — restore (open dialog) and delete (request delete).
+  // Header actions — restore (open dialog), fit-to-artboard, delete (request delete).
   canRestore?: boolean
+  canFit?: boolean
   canDelete?: boolean
   onRestore?: () => void
+  onFitToArtboard?: () => void
   onDelete?: () => void
 }
 
@@ -69,8 +71,10 @@ export function ImagePanel({
   onCommitPosition,
   onAlign,
   canRestore = false,
+  canFit = false,
   canDelete = false,
   onRestore,
+  onFitToArtboard,
   onDelete,
 }: Props) {
   const controlsDisabled = Boolean(disabled) || !ready
@@ -87,6 +91,14 @@ export function ImagePanel({
             onClick={onRestore}
           >
             <RotateCcw className="size-4" />
+          </RightPanelIconButton>
+          <RightPanelIconButton
+            type="button"
+            aria-label="Fit image to artboard"
+            disabled={!canFit}
+            onClick={onFitToArtboard}
+          >
+            <Maximize2 className="size-4" />
           </RightPanelIconButton>
           <RightPanelIconButton
             type="button"

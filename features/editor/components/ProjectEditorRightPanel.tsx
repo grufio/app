@@ -44,8 +44,9 @@ import { PanelIconSlot, PanelTwoFieldRow } from "./panel-layout"
 import { RightPanelToggleIconButton } from "./right-panel-controls"
 import { EditorSidebarSection } from "./sidebar/editor-sidebar-section"
 import { useResizableSidebar } from "./use-resizable-sidebar"
-import type { Unit } from "@/lib/editor/units"
+import { clampPx, pxUToPxNumber, pxUToUnitDisplayFixed, type Unit } from "@/lib/editor/units"
 import { useImagePanelEnabled } from "@/lib/editor/hooks/use-image-panel-enabled"
+import { useProjectWorkspace } from "@/lib/editor/project-workspace"
 import type { EditorRightPanelSection } from "@/services/editor/section-registry"
 
 export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPanel(props: {
@@ -140,6 +141,37 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
     workspaceReady,
   })
 
+  const { updateWorkspaceGeometry, unit: workspaceUnitLive } = useProjectWorkspace()
+
+  const canFit = Boolean(masterImage) && !masterImageLoading && !deleteBusy
+
+  const handleFitImageToArtboard = React.useCallback(() => {
+    canvasRef.current?.fitImageToArtboard()
+  }, [canvasRef])
+
+  const handleFitArtboardToImage = React.useCallback(async () => {
+    const bbox = canvasRef.current?.getImageBoundingBoxPxU()
+    if (!bbox) return
+    const unit = (workspaceUnitLive ?? workspaceUnit) as Unit
+    const widthValue = Number(pxUToUnitDisplayFixed(bbox.widthPxU, unit))
+    const heightValue = Number(pxUToUnitDisplayFixed(bbox.heightPxU, unit))
+    const widthPx = clampPx(pxUToPxNumber(bbox.widthPxU))
+    const heightPx = clampPx(pxUToPxNumber(bbox.heightPxU))
+    await updateWorkspaceGeometry({
+      unit,
+      widthValue,
+      heightValue,
+      widthPxU: bbox.widthPxU.toString(),
+      heightPxU: bbox.heightPxU.toString(),
+      widthPx,
+      heightPx,
+    })
+    canvasRef.current?.setImagePosition({
+      xPxU: bbox.widthPxU / 2n,
+      yPxU: bbox.heightPxU / 2n,
+    })
+  }, [canvasRef, updateWorkspaceGeometry, workspaceUnit, workspaceUnitLive])
+
   const clamp = (v: number) => Math.max(minPanelRem, Math.min(maxPanelRem, v))
   const startResize = useResizableSidebar()
 
@@ -203,7 +235,7 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
                   </PanelTwoFieldRow>
                 </EditorSidebarSection>
                 <EditorSidebarSection title="Artboard" testId="editor-artboard-panel">
-                  <ArtboardPanel />
+                  <ArtboardPanel canFitToImage={canFit} onFitToImage={handleFitArtboardToImage} />
                 </EditorSidebarSection>
               </>
             ) : null}
@@ -223,7 +255,9 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
                 onCommitPosition={(opts) => canvasRef.current?.setImagePosition(opts)}
                 onAlign={(opts) => canvasRef.current?.alignImage(opts)}
                 canRestore={Boolean(masterImage) && !masterImageLoading && !deleteBusy && !restoreBusy}
+                canFit={canFit}
                 canDelete={Boolean(masterImage) && !masterImageLoading && !deleteBusy}
+                onFitToArtboard={handleFitImageToArtboard}
                 onRestore={() => {
                   restoreFocusReturn.captureOnOpen()
                   setRestoreOpen(true)
