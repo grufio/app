@@ -309,8 +309,8 @@ export function PixelateDialog({
             Bild: {fmt1(displayMmW)} × {fmt1(displayMmH)} mm
           </DialogDescription>
         </DialogHeader>
-        <SidebarProvider className="items-start">
-          <main className="flex h-[520px] flex-1 overflow-hidden">
+        <SidebarProvider className="min-h-0">
+          <main className="flex h-[420px] flex-1 overflow-hidden">
             <div
               ref={previewPaneRef}
               className="relative h-full w-full overflow-hidden bg-muted"
