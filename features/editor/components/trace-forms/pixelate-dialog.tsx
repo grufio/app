@@ -338,10 +338,10 @@ export function PixelateDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-1 min-h-[480px] gap-4 overflow-hidden">
+        <div className="flex h-[520px] gap-4 overflow-hidden">
           <div
             ref={previewPaneRef}
-            className="relative flex-[3] overflow-hidden rounded-md border bg-muted"
+            className="relative h-full w-3/4 overflow-hidden rounded-md border bg-muted"
             style={{ cursor: canPan ? (dragging ? "grabbing" : "grab") : "default" }}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
@@ -400,7 +400,7 @@ export function PixelateDialog({
             </div>
           </div>
 
-          <div className="flex-[1] flex flex-col gap-4 overflow-auto">
+          <div className="flex h-full w-1/4 flex-col gap-4 overflow-auto">
             <FormField
               variant="numeric"
               numericMode="decimal"
