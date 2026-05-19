@@ -26,7 +26,12 @@ type GenericTraceControllerProps = {
   onClose: () => void
   onSuccess: () => void
   onError?: (error: Error) => void
-  onApplyTrace: (args: { kind: RegisteredTraceId; params: Record<string, unknown> }) => Promise<void>
+  onApplyTrace: (args: {
+    kind: RegisteredTraceId
+    params: Record<string, unknown>
+    displayMmW?: number
+    displayMmH?: number
+  }) => Promise<void>
 }
 
 export function GenericTraceController({

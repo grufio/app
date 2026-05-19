@@ -41,7 +41,12 @@ type Props = {
   displayMmH: number
   onClose: () => void
   onSuccess: () => void
-  onApplyTrace: (args: { kind: RegisteredTraceId; params: Record<string, unknown> }) => Promise<void>
+  onApplyTrace: (args: {
+    kind: RegisteredTraceId
+    params: Record<string, unknown>
+    displayMmW?: number
+    displayMmH?: number
+  }) => Promise<void>
 }
 
 function fmt1(n: number): string {
@@ -82,7 +87,12 @@ export function PixelateDialog({
     if (busy || !valid) return
     setBusy(true)
     try {
-      await onApplyTrace({ kind: "pixelate", params: draft as Record<string, unknown> })
+      await onApplyTrace({
+        kind: "pixelate",
+        params: draft as Record<string, unknown>,
+        displayMmW,
+        displayMmH,
+      })
       onSuccess()
       onClose()
     } catch (e) {
