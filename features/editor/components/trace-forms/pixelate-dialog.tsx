@@ -3,16 +3,19 @@
 /**
  * Pixelate trace dialog.
  *
- * Vertical shadcn-standard layout: DialogHeader → AspectRatio
- * preview → form fields → DialogFooter. The preview pipeline runs
- * entirely in the browser — source → ≤1000px scratch → cellsX × cellsY
- * mini (downsample + median-cut quantize) → nearest-neighbour upscale
- * onto the display canvas with zoom/pan. Apply hits the server.
+ * Layout pattern from shadcn block `sidebar-13` (settings-dialog):
+ *   <DialogContent> → <SidebarProvider items-start>
+ *     ├── <main h-[560px] flex flex-1 flex-col>   ← Preview canvas
+ *     └── <Sidebar side="right" collapsible="none"> ← Form + Footer
+ *
+ * The hardcoded `h-[560px]` on main is the key: it gives the
+ * preview pane a definite height so ResizeObserver can report
+ * non-zero dimensions and the canvas actually draws.
  *
  * Three user inputs:
  *   - supercell_width_mm — superpixel width in mm
  *   - supercell_height_mm — superpixel height in mm (rectangular cells)
- *   - num_colors — palette quantisation count (also drives preview)
+ *   - num_colors — palette quantisation count (drives preview)
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import {
@@ -26,16 +29,21 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
-import { AspectRatio } from "@/components/ui/aspect-ratio"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
-  DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarProvider,
+} from "@/components/ui/sidebar"
 import { AppButton, FormField } from "@/components/ui/form-controls"
 import { formatOperationErrorForToast, normalizeApiError } from "@/lib/api/error-normalizer"
 import { pixelateSchema, type PixelateParams } from "@/lib/editor/trace/pixelate"
@@ -54,7 +62,6 @@ import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
 const SCRATCH_MAX_EDGE = 1000
 const ZOOM_STEP = 1.5
 const ZOOM_MAX_MULTIPLIER = 20
-const PREVIEW_ASPECT = 4 / 3
 
 type Props = {
   open: boolean
@@ -133,9 +140,7 @@ export function PixelateDialog({
     }
   }, [open, sourceImageUrl])
 
-  // ResizeObserver: track preview-pane CSS size. AspectRatio gives
-  // the pane definite dimensions before the observer fires, so this
-  // is purely about handling user resizes (window or dialog).
+  // ResizeObserver: track preview-pane CSS size.
   useLayoutEffect(() => {
     const el = previewPaneRef.current
     if (!el) return
@@ -152,7 +157,7 @@ export function PixelateDialog({
     return () => ro.disconnect()
   }, [open])
 
-  // Crop in scratch-pixel space (derived purely from grid + scratch dims)
+  // Crop in scratch-pixel space
   const crop = useMemo(() => {
     if (!scratch || !valid || displayMmW <= 0 || displayMmH <= 0) return null
     const mmToScratchPx = scratch.width / displayMmW
@@ -164,8 +169,7 @@ export function PixelateDialog({
     }
   }, [scratch, valid, displayMmW, displayMmH, grid.borderMmX, grid.borderMmY, grid.usedMmW, grid.usedMmH])
 
-  // Stage 3: mini canvas (downsample + quantize) — synchronous build,
-  // < 5ms for typical params.
+  // Stage 3: mini canvas (downsample + quantize)
   const mini = useMemo(() => {
     if (!scratch || !crop || !valid) return null
     return buildMiniCanvas({
@@ -297,153 +301,162 @@ export function PixelateDialog({
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && handleCancel()}>
-      <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Pixelate</DialogTitle>
-          <DialogDescription>
-            Bild: {fmt1(displayMmW)} × {fmt1(displayMmH)} mm
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent className="overflow-hidden p-0 md:max-h-[600px] md:max-w-[800px] lg:max-w-[900px]">
+        <DialogTitle className="sr-only">Pixelate</DialogTitle>
+        <DialogDescription className="sr-only">
+          Bild: {fmt1(displayMmW)} × {fmt1(displayMmH)} mm
+        </DialogDescription>
+        <SidebarProvider className="items-start">
+          <main className="flex h-[560px] flex-1 flex-col overflow-hidden">
+            <header className="flex h-12 shrink-0 items-center justify-between border-b px-4">
+              <h2 className="text-sm font-medium">Pixelate</h2>
+              <span className="text-xs text-muted-foreground">
+                Bild: {fmt1(displayMmW)} × {fmt1(displayMmH)} mm
+              </span>
+            </header>
+            <div
+              ref={previewPaneRef}
+              className="relative flex-1 overflow-hidden bg-muted"
+              style={{ cursor: canPan ? (dragging ? "grabbing" : "grab") : "default" }}
+              onPointerDown={handlePointerDown}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerUp}
+              onPointerCancel={handlePointerUp}
+            >
+              <canvas
+                ref={displayCanvasRef}
+                className="absolute inset-0 block"
+                style={{ touchAction: "none" }}
+              />
 
-        <AspectRatio ratio={PREVIEW_ASPECT} className="overflow-hidden rounded-md border bg-muted">
-          <div
-            ref={previewPaneRef}
-            className="relative size-full"
-            style={{ cursor: canPan ? (dragging ? "grabbing" : "grab") : "default" }}
-            onPointerDown={handlePointerDown}
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerUp}
-            onPointerCancel={handlePointerUp}
-          >
-            <canvas
-              ref={displayCanvasRef}
-              className="absolute inset-0 block"
-              style={{ touchAction: "none" }}
-            />
+              {showSpinner ? (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+                  <Loader2 className="size-6 animate-spin text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground">Vorschau wird geladen…</span>
+                </div>
+              ) : null}
+              {showInvalid ? (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-xs text-muted-foreground">Keine gültige Aufteilung</span>
+                </div>
+              ) : null}
 
-            {showSpinner ? (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
-                <Loader2 className="size-6 animate-spin text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">Vorschau wird geladen…</span>
+              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-0.5 rounded-full border bg-background/90 px-1 py-1 shadow-md backdrop-blur">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-7"
+                  onClick={handleZoomOut}
+                  disabled={!mini || effectiveZoom <= fitZoom + 1e-6}
+                  aria-label="Verkleinern"
+                >
+                  <ZoomOut className="size-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-7"
+                  onClick={handleFit}
+                  disabled={!mini || zoomMode === "fit"}
+                  aria-label="Einpassen"
+                >
+                  <Maximize2 className="size-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-7"
+                  onClick={handleZoomIn}
+                  disabled={!mini || effectiveZoom >= fitZoom * ZOOM_MAX_MULTIPLIER - 1e-6}
+                  aria-label="Vergrößern"
+                >
+                  <ZoomIn className="size-4" />
+                </Button>
               </div>
-            ) : null}
-            {showInvalid ? (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-xs text-muted-foreground">Keine gültige Aufteilung</span>
-              </div>
-            ) : null}
-
-            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-0.5 rounded-full border bg-background/90 px-1 py-1 shadow-md backdrop-blur">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-7"
-                onClick={handleZoomOut}
-                disabled={!mini || effectiveZoom <= fitZoom + 1e-6}
-                aria-label="Verkleinern"
-              >
-                <ZoomOut className="size-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-7"
-                onClick={handleFit}
-                disabled={!mini || zoomMode === "fit"}
-                aria-label="Einpassen"
-              >
-                <Maximize2 className="size-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-7"
-                onClick={handleZoomIn}
-                disabled={!mini || effectiveZoom >= fitZoom * ZOOM_MAX_MULTIPLIER - 1e-6}
-                aria-label="Vergrößern"
-              >
-                <ZoomIn className="size-4" />
-              </Button>
             </div>
-          </div>
-        </AspectRatio>
+          </main>
+          <Sidebar side="right" collapsible="none" className="hidden md:flex">
+            <SidebarContent>
+              <SidebarGroup>
+                <SidebarGroupContent className="flex flex-col gap-3 p-2">
+                  <FormField
+                    variant="numeric"
+                    numericMode="decimal"
+                    label="Superpixel-Breite"
+                    labelVisuallyHidden
+                    iconStart={<ArrowLeftRight aria-hidden="true" />}
+                    unit="mm"
+                    id="supercell_width_mm"
+                    value={String(draft.supercell_width_mm)}
+                    onCommit={(raw) => {
+                      const n = Number(raw)
+                      if (Number.isFinite(n)) setField("supercell_width_mm", n)
+                    }}
+                    disabled={busy}
+                    inputProps={{ min: MIN_SUPERCELL_MM, step: 0.5 }}
+                  />
 
-        <FormField
-          variant="numeric"
-          numericMode="decimal"
-          label="Superpixel-Breite"
-          labelVisuallyHidden
-          iconStart={<ArrowLeftRight aria-hidden="true" />}
-          unit="mm"
-          id="supercell_width_mm"
-          value={String(draft.supercell_width_mm)}
-          onCommit={(raw) => {
-            const n = Number(raw)
-            if (Number.isFinite(n)) setField("supercell_width_mm", n)
-          }}
-          disabled={busy}
-          inputProps={{ min: MIN_SUPERCELL_MM, step: 0.5 }}
-        />
+                  <FormField
+                    variant="numeric"
+                    numericMode="decimal"
+                    label="Superpixel-Höhe"
+                    labelVisuallyHidden
+                    iconStart={<ArrowUpDown aria-hidden="true" />}
+                    unit="mm"
+                    id="supercell_height_mm"
+                    value={String(draft.supercell_height_mm)}
+                    onCommit={(raw) => {
+                      const n = Number(raw)
+                      if (Number.isFinite(n)) setField("supercell_height_mm", n)
+                    }}
+                    disabled={busy}
+                    inputProps={{ min: MIN_SUPERCELL_MM, step: 0.5 }}
+                  />
 
-        <FormField
-          variant="numeric"
-          numericMode="decimal"
-          label="Superpixel-Höhe"
-          labelVisuallyHidden
-          iconStart={<ArrowUpDown aria-hidden="true" />}
-          unit="mm"
-          id="supercell_height_mm"
-          value={String(draft.supercell_height_mm)}
-          onCommit={(raw) => {
-            const n = Number(raw)
-            if (Number.isFinite(n)) setField("supercell_height_mm", n)
-          }}
-          disabled={busy}
-          inputProps={{ min: MIN_SUPERCELL_MM, step: 0.5 }}
-        />
+                  <FormField
+                    variant="numeric"
+                    numericMode="int"
+                    label="Anzahl Farben"
+                    labelVisuallyHidden
+                    iconStart={<Palette aria-hidden="true" />}
+                    id="num_colors"
+                    value={String(draft.num_colors)}
+                    onCommit={(raw) => {
+                      const n = Number(raw)
+                      if (Number.isFinite(n)) setField("num_colors", Math.floor(n))
+                    }}
+                    disabled={busy}
+                    inputProps={{ min: 2, max: 256 }}
+                  />
 
-        <FormField
-          variant="numeric"
-          numericMode="int"
-          label="Anzahl Farben"
-          labelVisuallyHidden
-          iconStart={<Palette aria-hidden="true" />}
-          id="num_colors"
-          value={String(draft.num_colors)}
-          onCommit={(raw) => {
-            const n = Number(raw)
-            if (Number.isFinite(n)) setField("num_colors", Math.floor(n))
-          }}
-          disabled={busy}
-          inputProps={{ min: 2, max: 256 }}
-        />
-
-        {!valid ? (
-          <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-destructive">
-            Superpixel zu groß — kein ganzer Superpixel passt in das Bild.
-            Wähle eine kleinere Superpixel-Breite oder -Höhe.
-          </div>
-        ) : (
-          <div className="text-xs text-muted-foreground">
-            Schnitt-Rand: ↔ {fmt1(borderSideMmX)} mm · ↕ {fmt1(borderSideMmY)} mm
-          </div>
-        )}
-
-        <DialogFooter>
-          <AppButton type="button" variant="outline" onClick={handleCancel} disabled={busy}>
-            Cancel
-          </AppButton>
-          <AppButton type="button" onClick={() => void handleApply()} disabled={!valid || busy}>
-            {busy ? "Applying..." : "Apply"}
-          </AppButton>
-        </DialogFooter>
+                  {!valid ? (
+                    <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-destructive">
+                      Superpixel zu groß — kein ganzer Superpixel passt in das Bild.
+                      Wähle eine kleinere Superpixel-Breite oder -Höhe.
+                    </div>
+                  ) : (
+                    <div className="text-xs text-muted-foreground">
+                      Schnitt-Rand: ↔ {fmt1(borderSideMmX)} mm · ↕ {fmt1(borderSideMmY)} mm
+                    </div>
+                  )}
+                </SidebarGroupContent>
+              </SidebarGroup>
+            </SidebarContent>
+            <SidebarFooter className="flex flex-row justify-between gap-2 border-t p-3">
+              <AppButton type="button" variant="outline" onClick={handleCancel} disabled={busy}>
+                Cancel
+              </AppButton>
+              <AppButton type="button" onClick={() => void handleApply()} disabled={!valid || busy}>
+                {busy ? "Applying..." : "Apply"}
+              </AppButton>
+            </SidebarFooter>
+          </Sidebar>
+        </SidebarProvider>
       </DialogContent>
     </Dialog>
   )
 }
 
-// Clamp pan so the image edges don't gap into the pane.
-// When the image is smaller than the pane on an axis, center it.
 function clampPan(
   candidate: { x: number; y: number },
   dstW: number,
