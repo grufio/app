@@ -14,7 +14,7 @@
  *   - supercell_height_mm — superpixel height in mm (rectangular cells)
  *   - num_colors — palette quantisation count (also drives preview)
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import {
   ArrowLeftRight,
   ArrowUpDown,
@@ -134,14 +134,24 @@ export function PixelateDialog({
     }
   }, [open, sourceImageUrl])
 
-  // ResizeObserver: track preview-pane CSS size
-  useEffect(() => {
+  // ResizeObserver: track preview-pane CSS size. useLayoutEffect +
+  // synchronous getBoundingClientRect for the initial size — without
+  // this, the dialog's portal-mount timing can leave previewSize at
+  // 0×0 long enough that the first render skips, and the resulting
+  // empty canvas never re-paints because the observer fires once on
+  // observe but with the post-layout (correct) values that arrive
+  // after the initial commit.
+  useLayoutEffect(() => {
     const el = previewPaneRef.current
     if (!el) return
+    const rect = el.getBoundingClientRect()
+    if (rect.width > 0 && rect.height > 0) {
+      setPreviewSize({ w: rect.width, h: rect.height })
+    }
     const ro = new ResizeObserver((entries) => {
-      const rect = entries[0]?.contentRect
-      if (!rect) return
-      setPreviewSize({ w: Math.max(0, rect.width), h: Math.max(0, rect.height) })
+      const next = entries[0]?.contentRect
+      if (!next) return
+      setPreviewSize({ w: Math.max(0, next.width), h: Math.max(0, next.height) })
     })
     ro.observe(el)
     return () => ro.disconnect()
