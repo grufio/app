@@ -96,7 +96,7 @@
     "react-dom": "19.2.3",
     "react-dropzone": "^14.3.8",
     "react-konva": "^19.2.3",
-    "react-resizable-panels": "^4.11.1",
+    "react-resizable-panels": "^3.0.6",
     "sharp": "^0.34.5",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.4.0",

@@ -311,7 +311,7 @@ export function PixelateDialog({
         </DialogHeader>
 
         <ResizablePanelGroup
-          orientation="horizontal"
+          direction="horizontal"
           className="min-h-[480px] flex-1 overflow-hidden rounded-md border"
         >
           <ResizablePanel defaultSize={75} minSize={55}>
