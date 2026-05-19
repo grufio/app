@@ -34,11 +34,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "@/components/ui/resizable"
 import { AppButton, FormField } from "@/components/ui/form-controls"
 import { formatOperationErrorForToast, normalizeApiError } from "@/lib/api/error-normalizer"
 import { pixelateSchema, type PixelateParams } from "@/lib/editor/trace/pixelate"
@@ -310,149 +305,140 @@ export function PixelateDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <ResizablePanelGroup
-          orientation="horizontal"
-          className="min-h-[480px] flex-1 overflow-hidden rounded-md border"
-        >
-          <ResizablePanel defaultSize={75} minSize={55}>
-            <div
-              ref={previewPaneRef}
-              className="relative h-full w-full overflow-hidden bg-muted"
-              style={{ cursor: canPan ? (dragging ? "grabbing" : "grab") : "default" }}
-              onPointerDown={handlePointerDown}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerUp}
-              onPointerCancel={handlePointerUp}
-            >
-              <canvas
-                ref={displayCanvasRef}
-                className="absolute inset-0 block"
-                style={{ touchAction: "none" }}
-              />
+        <div className="flex flex-1 min-h-[480px] gap-4 overflow-hidden">
+          <div
+            ref={previewPaneRef}
+            className="relative flex-[3] overflow-hidden rounded-md border bg-muted"
+            style={{ cursor: canPan ? (dragging ? "grabbing" : "grab") : "default" }}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerUp}
+          >
+            <canvas
+              ref={displayCanvasRef}
+              className="absolute inset-0 block"
+              style={{ touchAction: "none" }}
+            />
 
-              {showSpinner ? (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
-                  <Loader2 className="size-6 animate-spin text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground">Vorschau wird geladen…</span>
-                </div>
-              ) : null}
-              {showInvalid ? (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-xs text-muted-foreground">Keine gültige Aufteilung</span>
-                </div>
-              ) : null}
-
-              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-0.5 rounded-full border bg-background/90 px-1 py-1 shadow-md backdrop-blur">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-7"
-                  onClick={handleZoomOut}
-                  disabled={!mini || effectiveZoom <= fitZoom + 1e-6}
-                  aria-label="Verkleinern"
-                >
-                  <ZoomOut className="size-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-7"
-                  onClick={handleFit}
-                  disabled={!mini || zoomMode === "fit"}
-                  aria-label="Einpassen"
-                >
-                  <Maximize2 className="size-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-7"
-                  onClick={handleZoomIn}
-                  disabled={!mini || effectiveZoom >= fitZoom * ZOOM_MAX_MULTIPLIER - 1e-6}
-                  aria-label="Vergrößern"
-                >
-                  <ZoomIn className="size-4" />
-                </Button>
+            {showSpinner ? (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+                <Loader2 className="size-6 animate-spin text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">Vorschau wird geladen…</span>
               </div>
-            </div>
-          </ResizablePanel>
-
-          <ResizableHandle withHandle />
-
-          <ResizablePanel defaultSize={25} minSize={22}>
-            <div className="flex h-full flex-col gap-4 p-4 overflow-auto">
-              <FormField
-                variant="numeric"
-                numericMode="decimal"
-                label="Superpixel-Breite"
-                labelVisuallyHidden
-                iconStart={<ArrowLeftRight aria-hidden="true" />}
-                unit="mm"
-                id="supercell_width_mm"
-                value={String(draft.supercell_width_mm)}
-                onCommit={(raw) => {
-                  const n = Number(raw)
-                  if (Number.isFinite(n)) setField("supercell_width_mm", n)
-                }}
-                disabled={busy}
-                inputProps={{ min: MIN_SUPERCELL_MM, step: 0.5 }}
-              />
-
-              <FormField
-                variant="numeric"
-                numericMode="decimal"
-                label="Superpixel-Höhe"
-                labelVisuallyHidden
-                iconStart={<ArrowUpDown aria-hidden="true" />}
-                unit="mm"
-                id="supercell_height_mm"
-                value={String(draft.supercell_height_mm)}
-                onCommit={(raw) => {
-                  const n = Number(raw)
-                  if (Number.isFinite(n)) setField("supercell_height_mm", n)
-                }}
-                disabled={busy}
-                inputProps={{ min: MIN_SUPERCELL_MM, step: 0.5 }}
-              />
-
-              <FormField
-                variant="numeric"
-                numericMode="int"
-                label="Anzahl Farben"
-                labelVisuallyHidden
-                iconStart={<Palette aria-hidden="true" />}
-                id="num_colors"
-                value={String(draft.num_colors)}
-                onCommit={(raw) => {
-                  const n = Number(raw)
-                  if (Number.isFinite(n)) setField("num_colors", Math.floor(n))
-                }}
-                disabled={busy}
-                inputProps={{ min: 2, max: 256 }}
-              />
-
-              {!valid ? (
-                <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-destructive">
-                  Superpixel zu groß — kein ganzer Superpixel passt in das Bild.
-                  Wähle eine kleinere Superpixel-Breite oder -Höhe.
-                </div>
-              ) : (
-                <div className="text-xs text-muted-foreground">
-                  Schnitt-Rand: ↔ {fmt1(borderSideMmX)} mm · ↕ {fmt1(borderSideMmY)} mm
-                </div>
-              )}
-
-              <div className="mt-auto flex justify-between gap-2 pt-2">
-                <AppButton type="button" variant="outline" onClick={handleCancel} disabled={busy}>
-                  Cancel
-                </AppButton>
-                <AppButton type="button" onClick={() => void handleApply()} disabled={!valid || busy}>
-                  {busy ? "Applying..." : "Apply"}
-                </AppButton>
+            ) : null}
+            {showInvalid ? (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-xs text-muted-foreground">Keine gültige Aufteilung</span>
               </div>
+            ) : null}
+
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-0.5 rounded-full border bg-background/90 px-1 py-1 shadow-md backdrop-blur">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-7"
+                onClick={handleZoomOut}
+                disabled={!mini || effectiveZoom <= fitZoom + 1e-6}
+                aria-label="Verkleinern"
+              >
+                <ZoomOut className="size-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-7"
+                onClick={handleFit}
+                disabled={!mini || zoomMode === "fit"}
+                aria-label="Einpassen"
+              >
+                <Maximize2 className="size-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-7"
+                onClick={handleZoomIn}
+                disabled={!mini || effectiveZoom >= fitZoom * ZOOM_MAX_MULTIPLIER - 1e-6}
+                aria-label="Vergrößern"
+              >
+                <ZoomIn className="size-4" />
+              </Button>
             </div>
-          </ResizablePanel>
-        </ResizablePanelGroup>
+          </div>
+
+          <div className="flex-[1] flex flex-col gap-4 overflow-auto">
+            <FormField
+              variant="numeric"
+              numericMode="decimal"
+              label="Superpixel-Breite"
+              labelVisuallyHidden
+              iconStart={<ArrowLeftRight aria-hidden="true" />}
+              unit="mm"
+              id="supercell_width_mm"
+              value={String(draft.supercell_width_mm)}
+              onCommit={(raw) => {
+                const n = Number(raw)
+                if (Number.isFinite(n)) setField("supercell_width_mm", n)
+              }}
+              disabled={busy}
+              inputProps={{ min: MIN_SUPERCELL_MM, step: 0.5 }}
+            />
+
+            <FormField
+              variant="numeric"
+              numericMode="decimal"
+              label="Superpixel-Höhe"
+              labelVisuallyHidden
+              iconStart={<ArrowUpDown aria-hidden="true" />}
+              unit="mm"
+              id="supercell_height_mm"
+              value={String(draft.supercell_height_mm)}
+              onCommit={(raw) => {
+                const n = Number(raw)
+                if (Number.isFinite(n)) setField("supercell_height_mm", n)
+              }}
+              disabled={busy}
+              inputProps={{ min: MIN_SUPERCELL_MM, step: 0.5 }}
+            />
+
+            <FormField
+              variant="numeric"
+              numericMode="int"
+              label="Anzahl Farben"
+              labelVisuallyHidden
+              iconStart={<Palette aria-hidden="true" />}
+              id="num_colors"
+              value={String(draft.num_colors)}
+              onCommit={(raw) => {
+                const n = Number(raw)
+                if (Number.isFinite(n)) setField("num_colors", Math.floor(n))
+              }}
+              disabled={busy}
+              inputProps={{ min: 2, max: 256 }}
+            />
+
+            {!valid ? (
+              <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-destructive">
+                Superpixel zu groß — kein ganzer Superpixel passt in das Bild.
+                Wähle eine kleinere Superpixel-Breite oder -Höhe.
+              </div>
+            ) : (
+              <div className="text-xs text-muted-foreground">
+                Schnitt-Rand: ↔ {fmt1(borderSideMmX)} mm · ↕ {fmt1(borderSideMmY)} mm
+              </div>
+            )}
+
+            <div className="mt-auto flex justify-between gap-2 pt-2">
+              <AppButton type="button" variant="outline" onClick={handleCancel} disabled={busy}>
+                Cancel
+              </AppButton>
+              <AppButton type="button" onClick={() => void handleApply()} disabled={!valid || busy}>
+                {busy ? "Applying..." : "Apply"}
+              </AppButton>
+            </div>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   )
