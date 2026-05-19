@@ -83,6 +83,9 @@ export function PixelateDialog({
   onSuccess,
   onApplyTrace,
 }: Props) {
+  // eslint-disable-next-line no-console
+  console.warn("[pixelate-render]", { sourceImageUrl, displayMmW, displayMmH })
+
   const defaults = useMemo(() => pixelateSchema.parse({}) as PixelateParams, [])
   const [draft, setDraft] = useState<PixelateParams>(defaults)
   const [busy, setBusy] = useState(false)
