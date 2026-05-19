@@ -234,9 +234,7 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
                     </PanelIconSlot>
                   </PanelTwoFieldRow>
                 </EditorSidebarSection>
-                <EditorSidebarSection title="Artboard" testId="editor-artboard-panel">
-                  <ArtboardPanel canFitToImage={canFit} onFitToImage={handleFitArtboardToImage} />
-                </EditorSidebarSection>
+                <ArtboardPanel canFitToImage={canFit} onFitToImage={handleFitArtboardToImage} />
               </>
             ) : null}
             {activeSection === "grid" ? (
