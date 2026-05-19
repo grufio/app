@@ -3,8 +3,8 @@
 /**
  * Pixelate trace dialog.
  *
- * Two-pane layout (ResizablePanelGroup): live client-side preview on
- * the left, parameter form on the right. The preview pipeline runs
+ * Vertical shadcn-standard layout: DialogHeader → AspectRatio
+ * preview → form fields → DialogFooter. The preview pipeline runs
  * entirely in the browser — source → ≤1000px scratch → cellsX × cellsY
  * mini (downsample + median-cut quantize) → nearest-neighbour upscale
  * onto the display canvas with zoom/pan. Apply hits the server.
@@ -26,14 +26,16 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
+import { AspectRatio } from "@/components/ui/aspect-ratio"
+import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
 import { AppButton, FormField } from "@/components/ui/form-controls"
 import { formatOperationErrorForToast, normalizeApiError } from "@/lib/api/error-normalizer"
 import { pixelateSchema, type PixelateParams } from "@/lib/editor/trace/pixelate"
@@ -52,6 +54,7 @@ import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
 const SCRATCH_MAX_EDGE = 1000
 const ZOOM_STEP = 1.5
 const ZOOM_MAX_MULTIPLIER = 20
+const PREVIEW_ASPECT = 4 / 3
 
 type Props = {
   open: boolean
@@ -83,13 +86,6 @@ export function PixelateDialog({
   onSuccess,
   onApplyTrace,
 }: Props) {
-  // eslint-disable-next-line no-console
-  console.warn("[pixelate-render]", {
-    sourceImageUrl: sourceImageUrl?.slice(0, 80),
-    displayMmW,
-    displayMmH,
-  })
-
   const defaults = useMemo(() => pixelateSchema.parse({}) as PixelateParams, [])
   const [draft, setDraft] = useState<PixelateParams>(defaults)
   const [busy, setBusy] = useState(false)
@@ -106,10 +102,6 @@ export function PixelateDialog({
   const borderSideMmY = grid.borderMmY / 2
 
   // --- preview pipeline state ---
-  // Scratch is tagged with the URL it was built from. When the user
-  // opens the dialog with a different source, the derived `scratch`
-  // becomes null until the new load resolves — no setState-in-effect
-  // reset needed, the spinner shows naturally.
   const [scratchData, setScratchData] = useState<{ url: string; canvas: HTMLCanvasElement } | null>(null)
   const scratch = scratchData?.url === sourceImageUrl ? scratchData.canvas : null
   const [previewSize, setPreviewSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 })
@@ -141,13 +133,9 @@ export function PixelateDialog({
     }
   }, [open, sourceImageUrl])
 
-  // ResizeObserver: track preview-pane CSS size. useLayoutEffect +
-  // synchronous getBoundingClientRect for the initial size — without
-  // this, the dialog's portal-mount timing can leave previewSize at
-  // 0×0 long enough that the first render skips, and the resulting
-  // empty canvas never re-paints because the observer fires once on
-  // observe but with the post-layout (correct) values that arrive
-  // after the initial commit.
+  // ResizeObserver: track preview-pane CSS size. AspectRatio gives
+  // the pane definite dimensions before the observer fires, so this
+  // is purely about handling user resizes (window or dialog).
   useLayoutEffect(() => {
     const el = previewPaneRef.current
     if (!el) return
@@ -177,8 +165,7 @@ export function PixelateDialog({
   }, [scratch, valid, displayMmW, displayMmH, grid.borderMmX, grid.borderMmY, grid.usedMmW, grid.usedMmH])
 
   // Stage 3: mini canvas (downsample + quantize) — synchronous build,
-  // <5ms for typical params. Derive via useMemo so it doesn't trigger
-  // a setState-in-effect cascade on every param tick.
+  // < 5ms for typical params.
   const mini = useMemo(() => {
     if (!scratch || !crop || !valid) return null
     return buildMiniCanvas({
@@ -190,7 +177,6 @@ export function PixelateDialog({
     })
   }, [scratch, crop, valid, grid.cellsX, grid.cellsY, draft.num_colors])
 
-  // Fit-zoom derives from current crop + preview size
   const fitZoom = useMemo(() => {
     if (!crop || crop.w <= 0 || crop.h <= 0 || previewSize.w <= 0 || previewSize.h <= 0) {
       return 0
@@ -202,9 +188,6 @@ export function PixelateDialog({
   const dstW = crop ? crop.w * effectiveZoom : 0
   const dstH = crop ? crop.h * effectiveZoom : 0
 
-  // Pan is stored unclamped (last user-intended target); clamping is
-  // a render concern, recomputed from current zoom + pane size. No
-  // useEffect needed — fully derived.
   const clampedPan = useMemo(
     () => clampPan(pan, dstW, dstH, previewSize.w, previewSize.h),
     [pan, dstW, dstH, previewSize.w, previewSize.h],
@@ -213,22 +196,6 @@ export function PixelateDialog({
   // Stage 4: render display canvas
   useEffect(() => {
     const display = displayCanvasRef.current
-    // eslint-disable-next-line no-console
-    console.warn("[pixelate-stage4]", {
-      hasDisplay: !!display,
-      hasMini: !!mini,
-      hasCrop: !!crop,
-      hasScratch: !!scratch,
-      effectiveZoom,
-      previewSize,
-      fitZoom,
-      zoomMode,
-      cellsX: grid.cellsX,
-      cellsY: grid.cellsY,
-      valid,
-      displayMmW,
-      displayMmH,
-    })
     if (!display || !mini || !crop || effectiveZoom <= 0 || previewSize.w <= 0) return
     renderDisplay({
       display,
@@ -330,7 +297,7 @@ export function PixelateDialog({
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && handleCancel()}>
-      <DialogContent className="sm:max-w-5xl max-h-[85vh] flex flex-col">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Pixelate</DialogTitle>
           <DialogDescription>
@@ -338,10 +305,10 @@ export function PixelateDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-1 min-h-[480px] gap-4 overflow-hidden">
+        <AspectRatio ratio={PREVIEW_ASPECT} className="overflow-hidden rounded-md border bg-muted">
           <div
             ref={previewPaneRef}
-            className="relative flex-[3] overflow-hidden rounded-md border bg-muted"
+            className="relative size-full"
             style={{ cursor: canPan ? (dragging ? "grabbing" : "grab") : "default" }}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
@@ -399,79 +366,77 @@ export function PixelateDialog({
               </Button>
             </div>
           </div>
+        </AspectRatio>
 
-          <div className="flex-[1] flex flex-col gap-4 overflow-auto">
-            <FormField
-              variant="numeric"
-              numericMode="decimal"
-              label="Superpixel-Breite"
-              labelVisuallyHidden
-              iconStart={<ArrowLeftRight aria-hidden="true" />}
-              unit="mm"
-              id="supercell_width_mm"
-              value={String(draft.supercell_width_mm)}
-              onCommit={(raw) => {
-                const n = Number(raw)
-                if (Number.isFinite(n)) setField("supercell_width_mm", n)
-              }}
-              disabled={busy}
-              inputProps={{ min: MIN_SUPERCELL_MM, step: 0.5 }}
-            />
+        <FormField
+          variant="numeric"
+          numericMode="decimal"
+          label="Superpixel-Breite"
+          labelVisuallyHidden
+          iconStart={<ArrowLeftRight aria-hidden="true" />}
+          unit="mm"
+          id="supercell_width_mm"
+          value={String(draft.supercell_width_mm)}
+          onCommit={(raw) => {
+            const n = Number(raw)
+            if (Number.isFinite(n)) setField("supercell_width_mm", n)
+          }}
+          disabled={busy}
+          inputProps={{ min: MIN_SUPERCELL_MM, step: 0.5 }}
+        />
 
-            <FormField
-              variant="numeric"
-              numericMode="decimal"
-              label="Superpixel-Höhe"
-              labelVisuallyHidden
-              iconStart={<ArrowUpDown aria-hidden="true" />}
-              unit="mm"
-              id="supercell_height_mm"
-              value={String(draft.supercell_height_mm)}
-              onCommit={(raw) => {
-                const n = Number(raw)
-                if (Number.isFinite(n)) setField("supercell_height_mm", n)
-              }}
-              disabled={busy}
-              inputProps={{ min: MIN_SUPERCELL_MM, step: 0.5 }}
-            />
+        <FormField
+          variant="numeric"
+          numericMode="decimal"
+          label="Superpixel-Höhe"
+          labelVisuallyHidden
+          iconStart={<ArrowUpDown aria-hidden="true" />}
+          unit="mm"
+          id="supercell_height_mm"
+          value={String(draft.supercell_height_mm)}
+          onCommit={(raw) => {
+            const n = Number(raw)
+            if (Number.isFinite(n)) setField("supercell_height_mm", n)
+          }}
+          disabled={busy}
+          inputProps={{ min: MIN_SUPERCELL_MM, step: 0.5 }}
+        />
 
-            <FormField
-              variant="numeric"
-              numericMode="int"
-              label="Anzahl Farben"
-              labelVisuallyHidden
-              iconStart={<Palette aria-hidden="true" />}
-              id="num_colors"
-              value={String(draft.num_colors)}
-              onCommit={(raw) => {
-                const n = Number(raw)
-                if (Number.isFinite(n)) setField("num_colors", Math.floor(n))
-              }}
-              disabled={busy}
-              inputProps={{ min: 2, max: 256 }}
-            />
+        <FormField
+          variant="numeric"
+          numericMode="int"
+          label="Anzahl Farben"
+          labelVisuallyHidden
+          iconStart={<Palette aria-hidden="true" />}
+          id="num_colors"
+          value={String(draft.num_colors)}
+          onCommit={(raw) => {
+            const n = Number(raw)
+            if (Number.isFinite(n)) setField("num_colors", Math.floor(n))
+          }}
+          disabled={busy}
+          inputProps={{ min: 2, max: 256 }}
+        />
 
-            {!valid ? (
-              <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-destructive">
-                Superpixel zu groß — kein ganzer Superpixel passt in das Bild.
-                Wähle eine kleinere Superpixel-Breite oder -Höhe.
-              </div>
-            ) : (
-              <div className="text-xs text-muted-foreground">
-                Schnitt-Rand: ↔ {fmt1(borderSideMmX)} mm · ↕ {fmt1(borderSideMmY)} mm
-              </div>
-            )}
-
-            <div className="mt-auto flex justify-between gap-2 pt-2">
-              <AppButton type="button" variant="outline" onClick={handleCancel} disabled={busy}>
-                Cancel
-              </AppButton>
-              <AppButton type="button" onClick={() => void handleApply()} disabled={!valid || busy}>
-                {busy ? "Applying..." : "Apply"}
-              </AppButton>
-            </div>
+        {!valid ? (
+          <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-destructive">
+            Superpixel zu groß — kein ganzer Superpixel passt in das Bild.
+            Wähle eine kleinere Superpixel-Breite oder -Höhe.
           </div>
-        </div>
+        ) : (
+          <div className="text-xs text-muted-foreground">
+            Schnitt-Rand: ↔ {fmt1(borderSideMmX)} mm · ↕ {fmt1(borderSideMmY)} mm
+          </div>
+        )}
+
+        <DialogFooter>
+          <AppButton type="button" variant="outline" onClick={handleCancel} disabled={busy}>
+            Cancel
+          </AppButton>
+          <AppButton type="button" onClick={() => void handleApply()} disabled={!valid || busy}>
+            {busy ? "Applying..." : "Apply"}
+          </AppButton>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   )
@@ -497,4 +462,3 @@ function clampPan(
         : Math.min(0, Math.max(previewH - dstH, candidate.y)),
   }
 }
-
