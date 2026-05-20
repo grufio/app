@@ -54,6 +54,37 @@ import {
 } from "@/lib/editor/trace/pixelate-preview"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
 
+// Temporary runtime diagnostics — populated on each render + on Apply.
+// Inspect via DevTools: window.__pixelateDebug, window.__pixelateApply.
+// Will be removed in the same PR that fixes the underlying bugs.
+declare global {
+  interface Window {
+    __pixelateDebug?: {
+      previewSize: { w: number; h: number }
+      previewPaneRect: DOMRect | undefined
+      canvasRect: DOMRect | undefined
+      canvasAttrs: { width: number; height: number } | undefined
+      fitZoom: number
+      effectiveZoom: number
+      hasScratch: boolean
+      hasMini: boolean
+      hasCrop: boolean
+      cellsX: number
+      cellsY: number
+      displayMmW: number
+      displayMmH: number
+      timestamp: number
+    }
+    __pixelateApply?: {
+      sent: { displayMmW: number; displayMmH: number; params: Record<string, unknown> }
+      sentAt: number
+      result?: "ok" | "error"
+      error?: string
+      resultAt?: number
+    }
+  }
+}
+
 const SCRATCH_MAX_EDGE = 1000
 const ZOOM_STEP = 1.5
 const ZOOM_MAX_MULTIPLIER = 20
@@ -272,6 +303,12 @@ export function PixelateDialog({
   const handleApply = async () => {
     if (busy || !valid) return
     setBusy(true)
+    if (typeof window !== "undefined") {
+      window.__pixelateApply = {
+        sent: { displayMmW, displayMmH, params: { ...(draft as Record<string, unknown>) } },
+        sentAt: Date.now(),
+      }
+    }
     try {
       await onApplyTrace({
         kind: "pixelate",
@@ -279,9 +316,18 @@ export function PixelateDialog({
         displayMmW,
         displayMmH,
       })
+      if (typeof window !== "undefined" && window.__pixelateApply) {
+        window.__pixelateApply.result = "ok"
+        window.__pixelateApply.resultAt = Date.now()
+      }
       onSuccess()
       onClose()
     } catch (e) {
+      if (typeof window !== "undefined" && window.__pixelateApply) {
+        window.__pixelateApply.result = "error"
+        window.__pixelateApply.error = String(e)
+        window.__pixelateApply.resultAt = Date.now()
+      }
       const error = e instanceof Error ? e : new Error(String(e))
       console.error("Failed to apply trace:", error)
       const formatted = formatOperationErrorForToast(normalizeApiError(error))
@@ -290,6 +336,30 @@ export function PixelateDialog({
       setBusy(false)
     }
   }
+
+  // Diagnose: populate window.__pixelateDebug on every render.
+  // Runs intentionally without dep array — latest values captured each pass.
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    window.__pixelateDebug = {
+      previewSize,
+      previewPaneRect: previewPaneRef.current?.getBoundingClientRect(),
+      canvasRect: displayCanvasRef.current?.getBoundingClientRect(),
+      canvasAttrs: displayCanvasRef.current
+        ? { width: displayCanvasRef.current.width, height: displayCanvasRef.current.height }
+        : undefined,
+      fitZoom,
+      effectiveZoom,
+      hasScratch: !!scratch,
+      hasMini: !!mini,
+      hasCrop: !!crop,
+      cellsX: grid.cellsX,
+      cellsY: grid.cellsY,
+      displayMmW,
+      displayMmH,
+      timestamp: Date.now(),
+    }
+  })
 
   const showSpinner = !scratch
   const showInvalid = scratch !== null && !valid
