@@ -257,11 +257,6 @@ export async function pixelateImageAndActivate(args: {
     displayMmH: masterState.displayMmH,
     grid,
   })
-  const cropX = crop.x
-  const cropY = crop.y
-  const cropW = crop.w
-  const cropH = crop.h
-
   // Trace display rect (µpx), centred on the master. The trace
   // bitmap is delivered at crop dimensions (no padding to master
   // intrinsic); the canvas uses this rect to position + size the
@@ -295,10 +290,10 @@ export async function pixelateImageAndActivate(args: {
         image_base64: imageBase64,
         cells_x: grid.cellsX,
         cells_y: grid.cellsY,
-        crop_x: cropX,
-        crop_y: cropY,
-        crop_w: cropW,
-        crop_h: cropH,
+        crop_x: crop.x,
+        crop_y: crop.y,
+        crop_w: crop.w,
+        crop_h: crop.h,
         // stroke_width is fixed at 1px — it's not a user-facing knob.
         stroke_width: 1,
         num_colors: numColors,
@@ -339,10 +334,10 @@ export async function pixelateImageAndActivate(args: {
     // Crop bounds (clamped to the source image) — matches the math
     // in filter-service/app/pixelate.py:104-107 so the stored bitmap
     // dimensions describe the actual cropped region.
-    const cropLeft = Math.max(0, Math.round(cropX))
-    const cropTop = Math.max(0, Math.round(cropY))
-    const croppedWidth = Math.max(1, Math.min(origWidth, Math.round(cropX + cropW)) - cropLeft)
-    const croppedHeight = Math.max(1, Math.min(origHeight, Math.round(cropY + cropH)) - cropTop)
+    const cropLeft = Math.max(0, Math.round(crop.x))
+    const cropTop = Math.max(0, Math.round(crop.y))
+    const croppedWidth = Math.max(1, Math.min(origWidth, Math.round(crop.x + crop.w)) - cropLeft)
+    const croppedHeight = Math.max(1, Math.min(origHeight, Math.round(crop.y + crop.h)) - cropTop)
 
     const cleanName = src.name.replace(
       / \((?:filter working|pixelate|line art|numerate|B&W hard|B&W soft|B&W warm)\)/g,
