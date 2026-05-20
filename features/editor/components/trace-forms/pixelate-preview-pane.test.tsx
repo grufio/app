@@ -7,7 +7,7 @@
  * React/JSX wiring: cellsX × cellsY drive the canvas bitmap attrs,
  * and the canvas remounts (cleanly) after the scratch image loads.
  */
-import { cleanup, render, waitFor } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("@/lib/editor/trace/pixelate-preview", () => ({
@@ -84,5 +84,39 @@ describe("PixelatePreviewPane", () => {
     const canvas = getByTestId("pixelate-preview-mini") as HTMLCanvasElement
     expect(canvas.getAttribute("width")).toBe("1")
     expect(canvas.getAttribute("height")).toBe("1")
+  })
+
+  it("zoom controls update the displayed zoom label and step ranges", async () => {
+    const { getByTestId, getByLabelText, queryByTestId } = render(
+      <PixelatePreviewPane
+        sourceImageUrl="https://example.test/a.png"
+        displayMmW={100}
+        displayMmH={75}
+        params={defaults}
+      />,
+    )
+
+    // Zoom controls appear after the scratch loads.
+    await waitFor(() => {
+      expect(queryByTestId("pixelate-preview-zoom-controls")).not.toBeNull()
+    })
+
+    const label = () => getByTestId("pixelate-preview-zoom-label").textContent
+
+    // Default: 100% (= fit-to-pane). Verkleinern is disabled at floor.
+    expect(label()).toBe("100%")
+    expect((getByLabelText("Verkleinern") as HTMLButtonElement).disabled).toBe(true)
+
+    // Step up via Vergrößern (×1.5 → 150%).
+    await act(async () => {
+      fireEvent.click(getByLabelText("Vergrößern"))
+    })
+    expect(label()).toBe("150%")
+
+    // Einpassen returns to 100%.
+    await act(async () => {
+      fireEvent.click(getByLabelText("Einpassen"))
+    })
+    expect(label()).toBe("100%")
   })
 })
