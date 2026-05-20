@@ -3,15 +3,24 @@
 /**
  * Pixelate preview pane: a single canvas displaying the cropped,
  * quantised pixelate grid. The pane is a **fixed square** so the
- * dialog layout doesn't shift between images. The canvas inside uses
- * `object-fit: contain` to scale to the smaller of pane width/height
- * (whichever the image aspect hits first); the leftover area stays
- * `bg-muted` grey. `image-rendering: pixelated` does the nearest-
- * neighbour upscale.
+ * dialog layout doesn't shift between images.
+ *
+ * Aspect: the canvas's CSS box uses `aspect-ratio: usedMmW / usedMmH`,
+ * NOT the bitmap's cellsX × cellsY aspect — otherwise non-square
+ * supercells (e.g. 6 mm × 10 mm) distort the displayed image because
+ * each cell is drawn into ONE bitmap pixel regardless of its real-
+ * world shape. `image-rendering: pixelated` keeps the per-cell upscale
+ * sharp; `bg-muted` shows wherever the canvas doesn't reach in the
+ * square pane.
  *
  * Zoom: the pane has an outer scrolling container; an inner box
  * scales with `zoom` (1.0 = square pane size). Pan is the browser's
  * built-in scroll, so we don't need any JS-side measurement.
+ *
+ * Source: loaded `HTMLImageElement` is fed directly to
+ * `buildMiniCanvas` via `drawImage`. No scratch-canvas intermediate —
+ * the previous 2000px-edge downsample threw away source detail at
+ * small supercell sizes.
  *
  * Inputs are reactive: when `params` changes, the mini canvas is
  * redrawn in-place (React owns its `width`/`height` attributes via
@@ -28,11 +37,9 @@ import {
 } from "@/lib/editor/trace/pixelate-grid-math"
 import { type PixelateParams } from "@/lib/editor/trace/pixelate"
 import { buildMiniCanvas } from "@/lib/editor/trace/pixelate-preview"
-import { useScratchCanvas } from "@/lib/editor/trace/use-scratch-canvas"
+import { useSourceImage } from "@/lib/editor/trace/use-source-image"
 
-const SCRATCH_MAX_EDGE = 2000
-
-// Zoom: 1.0 == fit-to-pane (canvas fills pane width). 4.0 == 4× that.
+// Zoom: 1.0 == fit-to-square-pane. 8.0 == 8× that.
 const ZOOM_STEP = 1.5
 const ZOOM_MIN = 1
 const ZOOM_MAX = 8
@@ -45,7 +52,7 @@ type Props = {
 }
 
 export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, params }: Props) {
-  const scratch = useScratchCanvas(sourceImageUrl, SCRATCH_MAX_EDGE)
+  const source = useSourceImage(sourceImageUrl)
   const grid = useMemo(
     () => resolvePixelateGrid(displayMmW, displayMmH, params),
     [displayMmW, displayMmH, params],
@@ -56,36 +63,41 @@ export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
   const [zoom, setZoom] = useState(1)
 
   const crop = useMemo(() => {
-    if (!scratch || !valid || displayMmW <= 0 || displayMmH <= 0) return null
+    if (!source || !valid || displayMmW <= 0 || displayMmH <= 0) return null
     return centeredCropPixels({
-      pixelW: scratch.width,
-      pixelH: scratch.height,
+      pixelW: source.naturalWidth,
+      pixelH: source.naturalHeight,
       displayMmW,
       displayMmH,
       grid,
     })
-  }, [scratch, valid, displayMmW, displayMmH, grid])
+  }, [source, valid, displayMmW, displayMmH, grid])
 
   useEffect(() => {
     const target = miniCanvasRef.current
-    if (!target || !scratch || !crop || !valid) return
+    if (!target || !source || !crop || !valid) return
     buildMiniCanvas({
       target,
-      scratch,
+      source,
       crop,
       cellsX: grid.cellsX,
       cellsY: grid.cellsY,
       numColors: params.num_colors,
     })
-  }, [scratch, crop, valid, grid.cellsX, grid.cellsY, params.num_colors])
+  }, [source, crop, valid, grid.cellsX, grid.cellsY, params.num_colors])
 
-  const showSpinner = !scratch
-  const showInvalid = scratch !== null && !valid
+  const showSpinner = !source
+  const showInvalid = source !== null && !valid
 
   const handleZoomIn = () => setZoom((z) => Math.min(ZOOM_MAX, z * ZOOM_STEP))
   const handleZoomOut = () => setZoom((z) => Math.max(ZOOM_MIN, z / ZOOM_STEP))
   const handleFit = () => setZoom(1)
   const zoomLabel = `${Math.round(zoom * 100)}%`
+
+  const cropAspect =
+    grid.usedMmW > 0 && grid.usedMmH > 0
+      ? `${grid.usedMmW} / ${grid.usedMmH}`
+      : undefined
 
   return (
     <div
@@ -93,7 +105,7 @@ export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
       style={{ aspectRatio: "1 / 1" }}
     >
       <div
-        className="relative"
+        className="relative flex items-center justify-center"
         style={{
           width: `${zoom * 100}%`,
           aspectRatio: "1 / 1",
@@ -103,8 +115,13 @@ export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
           ref={miniCanvasRef}
           width={grid.cellsX || 1}
           height={grid.cellsY || 1}
-          className="block size-full"
-          style={{ objectFit: "contain", imageRendering: "pixelated" }}
+          className="block"
+          style={{
+            maxWidth: "100%",
+            maxHeight: "100%",
+            aspectRatio: cropAspect,
+            imageRendering: "pixelated",
+          }}
           data-testid="pixelate-preview-mini"
         />
       </div>
@@ -120,7 +137,7 @@ export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
         </div>
       ) : null}
 
-      {scratch && valid ? (
+      {source && valid ? (
         <div className="pointer-events-none absolute bottom-2 left-0 right-0 z-10 flex justify-center">
           <div
             className="pointer-events-auto flex items-center gap-0.5 rounded-full border bg-background/90 px-1 py-1 shadow-md backdrop-blur"
