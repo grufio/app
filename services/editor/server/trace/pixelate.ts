@@ -215,10 +215,6 @@ export async function pixelateImageAndActivate(args: {
     displayMmH: display.displayMmH,
     grid,
   })
-  const cropX = crop.x
-  const cropY = crop.y
-  const cropW = crop.w
-  const cropH = crop.h
 
   const { data: srcBlob, error: downloadErr } = await supabase.storage
     .from(String(src.storage_bucket ?? PROJECT_IMAGES_BUCKET))
@@ -242,10 +238,10 @@ export async function pixelateImageAndActivate(args: {
         image_base64: imageBase64,
         cells_x: grid.cellsX,
         cells_y: grid.cellsY,
-        crop_x: cropX,
-        crop_y: cropY,
-        crop_w: cropW,
-        crop_h: cropH,
+        crop_x: crop.x,
+        crop_y: crop.y,
+        crop_w: crop.w,
+        crop_h: crop.h,
         // stroke_width is fixed at 1px — it's not a user-facing knob.
         stroke_width: 1,
         num_colors: numColors,
@@ -289,20 +285,20 @@ export async function pixelateImageAndActivate(args: {
       pythonSvg: svgString,
       origWidth,
       origHeight,
-      offsetX: cropX,
-      offsetY: cropY,
+      offsetX: crop.x,
+      offsetY: crop.y,
     })
     const svgBuffer = Buffer.from(paddedSvg, "utf-8")
 
     const croppedPngBuffer = Buffer.from(croppedB64, "base64")
-    const padLeft = Math.max(0, Math.round(cropX))
-    const padTop = Math.max(0, Math.round(cropY))
+    const padLeft = Math.max(0, Math.round(crop.x))
+    const padTop = Math.max(0, Math.round(crop.y))
     // `extend.right/bottom` is what's added past the existing bitmap.
-    // Python's cropped PNG is `round(cropX + cropW) - max(0, round(cropX))` wide
+    // Python's cropped PNG is `round(crop.x + crop.w) - max(0, round(crop.x))` wide
     // (see filter-service/app/pixelate.py:104-107). We back-compute that
     // here so `padLeft + croppedWidth + padRight === origWidth`.
-    const croppedWidth = Math.max(1, Math.min(origWidth, Math.round(cropX + cropW)) - padLeft)
-    const croppedHeight = Math.max(1, Math.min(origHeight, Math.round(cropY + cropH)) - padTop)
+    const croppedWidth = Math.max(1, Math.min(origWidth, Math.round(crop.x + crop.w)) - padLeft)
+    const croppedHeight = Math.max(1, Math.min(origHeight, Math.round(crop.y + crop.h)) - padTop)
     const padRight = Math.max(0, origWidth - padLeft - croppedWidth)
     const padBottom = Math.max(0, origHeight - padTop - croppedHeight)
     const baseBuffer = await sharp(croppedPngBuffer)

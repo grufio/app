@@ -18,17 +18,13 @@ export const pixelateSchema = z.object({
 
 export type PixelateParams = z.infer<typeof pixelateSchema>
 
+// `meta` + `ui` are only consumed by `GenericTraceController` (which
+// renders `BaseFilterController` + `GenericFilterForm`). Pixelate uses
+// the bespoke `PixelateDialog` + `PixelateForm`, which hardcode the
+// labels in German and ignore both fields — so we don't carry the
+// orphan English copy here.
 export const pixelateTrace = {
   id: "pixelate",
   label: "Pixelate",
   schema: pixelateSchema,
-  meta: {
-    title: "Pixelate",
-    description: "Cell-grid overlay sized in mm from the image on the artboard.",
-  },
-  ui: {
-    supercell_width_mm: { kind: "decimal", label: "Superpixel width (mm)", min: MIN_SUPERCELL_MM, step: 0.5 },
-    supercell_height_mm: { kind: "decimal", label: "Superpixel height (mm)", min: MIN_SUPERCELL_MM, step: 0.5 },
-    num_colors: { label: "Number of Colors", min: 2, max: 256 },
-  },
 } as const satisfies TraceDefinition<typeof pixelateSchema>
