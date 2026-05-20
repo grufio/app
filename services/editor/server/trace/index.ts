@@ -179,7 +179,15 @@ export async function applyProjectTrace(args: {
   const schema = TRACE_SCHEMAS[kind]
   const parsedParams = schema.safeParse(rawParams)
   if (!parsedParams.success) {
-    return { ok: false, status: 400, stage: "validation", reason: `Invalid ${kind} params` }
+    const issues = parsedParams.error.issues
+      .map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
+      .join("; ")
+    return {
+      ok: false,
+      status: 400,
+      stage: "validation",
+      reason: `Invalid ${kind} params: ${issues || "unknown"}`,
+    }
   }
   const params = parsedParams.data as Record<string, unknown>
 

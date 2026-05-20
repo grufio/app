@@ -18,7 +18,15 @@ export async function lineArtImageAndActivate(args: {
   const { supabase, projectId, sourceImageId, params } = args
   const parsed = lineartSchema.safeParse(params)
   if (!parsed.success) {
-    return { ok: false, status: 400, stage: "validation", reason: "Invalid line art params" }
+    const issues = parsed.error.issues
+      .map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
+      .join("; ")
+    return {
+      ok: false,
+      status: 400,
+      stage: "validation",
+      reason: `Invalid line art params: ${issues || "unknown"}`,
+    }
   }
   const {
     line_thickness: lineThickness,

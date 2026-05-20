@@ -35,7 +35,7 @@ describe("pixelateImageAndActivate validation contract", () => {
     expect(result.ok).toBe(false)
     if (!result.ok) {
       expect(result.stage).toBe("validation")
-      expect(result.reason).toBe("Invalid pixelate params")
+      expect(result.reason).toMatch(/^Invalid pixelate params:/)
     }
   })
 
