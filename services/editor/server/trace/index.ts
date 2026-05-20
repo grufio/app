@@ -55,6 +55,15 @@ export type ProjectTraceRow = {
    * the crop is the only thing visible. Null for trace kinds
    * without a crop (lineart). */
   base_image_id: string | null
+  /** Pixelate writes its crop-derived display rect (µpx, text-
+   * encoded) so the canvas can render the trace at its own size
+   * inside the master's bounding box without any client-side math.
+   * Legacy rows + lineart leave these at "0" — the editor falls
+   * back to the master state's transform when the width is "0". */
+  display_x_px_u: string
+  display_y_px_u: string
+  display_width_px_u: string
+  display_height_px_u: string
   created_at: string
   updated_at: string
 }
@@ -98,6 +107,10 @@ function rowToTrace(row: {
   params: Record<string, unknown> | null
   output_image_id: string
   base_image_id: string | null
+  display_x_px_u: string | null
+  display_y_px_u: string | null
+  display_width_px_u: string | null
+  display_height_px_u: string | null
   created_at: string
   updated_at: string
 }): ProjectTraceRow | null {
@@ -109,6 +122,10 @@ function rowToTrace(row: {
     params: row.params ?? {},
     output_image_id: row.output_image_id,
     base_image_id: row.base_image_id,
+    display_x_px_u: row.display_x_px_u ?? "0",
+    display_y_px_u: row.display_y_px_u ?? "0",
+    display_width_px_u: row.display_width_px_u ?? "0",
+    display_height_px_u: row.display_height_px_u ?? "0",
     created_at: row.created_at,
     updated_at: row.updated_at,
   }
@@ -317,12 +334,33 @@ export async function applyProjectTrace(args: {
     displayMmW?: number
     displayMmH?: number
   }) => Promise<
-    | { ok: true; id: string; storagePath: string; widthPx: number; heightPx: number; baseId?: string }
+    | {
+        ok: true
+        id: string
+        storagePath: string
+        widthPx: number
+        heightPx: number
+        baseId?: string
+        displayRectPxU?: {
+          xPxU: bigint
+          yPxU: bigint
+          widthPxU: bigint
+          heightPxU: bigint
+        }
+      }
     | TraceOpFailure
   >
   const created = await handler({ supabase, projectId, sourceImageId, params, displayMmW, displayMmH })
   if (!created.ok) return created
   const newBaseId = created.baseId ?? null
+  const displayRect = created.displayRectPxU
+    ? {
+        display_x_px_u: created.displayRectPxU.xPxU.toString(),
+        display_y_px_u: created.displayRectPxU.yPxU.toString(),
+        display_width_px_u: created.displayRectPxU.widthPxU.toString(),
+        display_height_px_u: created.displayRectPxU.heightPxU.toString(),
+      }
+    : null
 
   // Look up the prior trace row's output + base ids (if any) so we
   // can tombstone them after the new row commits — write-then-cut
@@ -346,10 +384,11 @@ export async function applyProjectTrace(args: {
         params: params as Json,
         output_image_id: created.id,
         base_image_id: newBaseId,
+        ...(displayRect ?? {}),
       },
       { onConflict: "project_id" },
     )
-    .select("project_id,kind,params,output_image_id,base_image_id,created_at,updated_at")
+    .select("project_id,kind,params,output_image_id,base_image_id,display_x_px_u,display_y_px_u,display_width_px_u,display_height_px_u,created_at,updated_at")
     .maybeSingle()
   if (upsertErr || !upserted) {
     // Roll back the freshly-created images so we don't strand bytes
@@ -402,6 +441,10 @@ export async function applyProjectTrace(args: {
     params: (upserted.params as Record<string, unknown> | null) ?? null,
     output_image_id: String(upserted.output_image_id),
     base_image_id: upserted.base_image_id ? String(upserted.base_image_id) : null,
+    display_x_px_u: upserted.display_x_px_u != null ? String(upserted.display_x_px_u) : null,
+    display_y_px_u: upserted.display_y_px_u != null ? String(upserted.display_y_px_u) : null,
+    display_width_px_u: upserted.display_width_px_u != null ? String(upserted.display_width_px_u) : null,
+    display_height_px_u: upserted.display_height_px_u != null ? String(upserted.display_height_px_u) : null,
     created_at: String(upserted.created_at),
     updated_at: String(upserted.updated_at),
   })
@@ -430,7 +473,7 @@ export async function getProjectTrace(args: {
   const { supabase, projectId } = args
   const { data, error } = await supabase
     .from("project_image_trace")
-    .select("project_id,kind,params,output_image_id,base_image_id,created_at,updated_at")
+    .select("project_id,kind,params,output_image_id,base_image_id,display_x_px_u,display_y_px_u,display_width_px_u,display_height_px_u,created_at,updated_at")
     .eq("project_id", projectId)
     .maybeSingle()
   if (error) {
@@ -443,6 +486,10 @@ export async function getProjectTrace(args: {
     params: (data.params as Record<string, unknown> | null) ?? null,
     output_image_id: String(data.output_image_id),
     base_image_id: data.base_image_id ? String(data.base_image_id) : null,
+    display_x_px_u: data.display_x_px_u != null ? String(data.display_x_px_u) : null,
+    display_y_px_u: data.display_y_px_u != null ? String(data.display_y_px_u) : null,
+    display_width_px_u: data.display_width_px_u != null ? String(data.display_width_px_u) : null,
+    display_height_px_u: data.display_height_px_u != null ? String(data.display_height_px_u) : null,
     created_at: String(data.created_at),
     updated_at: String(data.updated_at),
   })

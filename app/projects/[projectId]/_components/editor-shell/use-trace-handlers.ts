@@ -22,14 +22,24 @@ import {
   type ProjectTrace,
   type TraceBaseImage,
 } from "@/lib/api/project-trace"
+import type { ImageState } from "@/lib/editor/hooks/use-image-state"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
 
 export function useTraceHandlers(opts: {
   projectId: string
   refreshFilterImage: () => Promise<void> | void
   refreshMasterImage: () => Promise<void> | void
+  /** Persists the current canvas transform before the apply call.
+   * Closes the resize→apply race: pixelate's server now reads the
+   * master display size from `project_image_state` (authoritative),
+   * so a save still in-flight when Apply fires would let the trace
+   * be computed against stale dims. Awaiting saveImageState here
+   * serialises the write before the apply request. No-op when the
+   * mirror matches the last persisted signature (see flushOnce). */
+  saveImageState: (t: ImageState) => Promise<void>
+  getCurrentImageTx: () => ImageState | null
 }) {
-  const { projectId, refreshFilterImage, refreshMasterImage } = opts
+  const { projectId, refreshFilterImage, refreshMasterImage, saveImageState, getCurrentImageTx } = opts
   const [trace, setTrace] = useState<ProjectTrace | null>(null)
   // Cropped source bitmap that the canvas renders under the SVG
   // overlay; null for trace kinds that don't crop (lineart) or while
@@ -69,13 +79,15 @@ export function useTraceHandlers(opts: {
     }) => {
       setIsApplyingTrace(true)
       try {
+        const currentTx = getCurrentImageTx()
+        if (currentTx) await saveImageState(currentTx)
         await applyProjectTrace({ projectId, kind, params, displayMmW, displayMmH })
         await Promise.all([refreshTrace(), refreshFilterImage(), refreshMasterImage()])
       } finally {
         setIsApplyingTrace(false)
       }
     },
-    [projectId, refreshFilterImage, refreshMasterImage, refreshTrace],
+    [projectId, refreshFilterImage, refreshMasterImage, refreshTrace, saveImageState, getCurrentImageTx],
   )
 
   const handleClearTrace = useCallback(async () => {

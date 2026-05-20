@@ -130,6 +130,7 @@ export function ProjectDetailPageClient({
   const {
     sourceSnapshot,
     initialImageTransform,
+    saveImageState,
     workflow,
     editorImageSource,
     activeCanvasImageId,
@@ -232,7 +233,22 @@ export function ProjectDetailPageClient({
     isClearingTrace,
     handleApplyTrace,
     handleClearTrace,
-  } = useTraceHandlers({ projectId, refreshFilterImage, refreshMasterImage })
+  } = useTraceHandlers({
+    projectId,
+    refreshFilterImage,
+    refreshMasterImage,
+    saveImageState,
+    getCurrentImageTx: useCallback(() => {
+      if (!imageTxU) return null
+      return {
+        xPxU: imageTxU.x,
+        yPxU: imageTxU.y,
+        widthPxU: imageTxU.w,
+        heightPxU: imageTxU.h,
+        rotationDeg: initialImageTransform?.rotationDeg ?? 0,
+      }
+    }, [imageTxU, initialImageTransform]),
+  })
 
   // PR-6b-3b: `workflowFilterPanelError` is OperationError | null;
   // `filterDialog.error` is still a string. Coerce + null-safe pick.
@@ -452,6 +468,37 @@ export function ProjectDetailPageClient({
     traceBaseImage,
   })
 
+  // The Trace renders at a smaller crop-derived rect inside the
+  // master's bounding box, not at the master's display rect. The
+  // server wrote x/y/w/h to `project_image_trace.display_*_px_u`
+  // at apply time (centred on the master), so the client is a pure
+  // reader here — pull the 4 BigInts and pass them through to the
+  // canvas's initial-placement-controller. For master + filter
+  // working-copy paths the master's display rect (initialImage-
+  // Transform) is correct, so pass it through unchanged. Legacy
+  // trace rows (display_width_px_u === "0") also fall through to
+  // the master rect — preserves backward compatibility until
+  // existing traces are re-applied.
+  const canvasInitialImageTransform = useMemo(() => {
+    if (!initialImageTransform) return null
+    if (!canvasImage || !masterImage) return initialImageTransform
+    if (canvasImage.id === masterImage.id) return initialImageTransform
+    if (
+      canvasImage.id === traceBaseImage?.id &&
+      trace?.display_width_px_u &&
+      trace.display_width_px_u !== "0"
+    ) {
+      return {
+        ...initialImageTransform,
+        xPxU: BigInt(trace.display_x_px_u),
+        yPxU: BigInt(trace.display_y_px_u),
+        widthPxU: BigInt(trace.display_width_px_u),
+        heightPxU: BigInt(trace.display_height_px_u),
+      }
+    }
+    return initialImageTransform
+  }, [canvasImage, masterImage, traceBaseImage, trace, initialImageTransform])
+
   const grid = useMemo(() => {
     if (!gridVisible) return null
     return computeRenderableGrid({ row: gridRow, spacingXPx, spacingYPx, lineWidthPx })
@@ -536,7 +583,7 @@ export function ProjectDetailPageClient({
               traceOverlaySvgUrl={traceOverlaySvgUrl}
               traceInteractive={leftPanelTab === "trace" && stageToolbar.tool === "direct"}
               handleImageTransformChange={handleImageTransformChange}
-              initialImageTransform={initialImageTransform}
+              initialImageTransform={canvasInitialImageTransform}
               saveImageState={workflow.saveTransform}
               pageBgEnabled={pageBgEnabled}
               pageBgColor={pageBgColor}
