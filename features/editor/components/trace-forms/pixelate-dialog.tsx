@@ -146,7 +146,7 @@ export function PixelateDialog({
               />
             </main>
             <Sidebar side="right" collapsible="none" className="hidden md:flex">
-              <SidebarContent>
+              <SidebarContent className="gap-0">
                 <PixelateForm
                   params={draft}
                   onParamsChange={setField}
