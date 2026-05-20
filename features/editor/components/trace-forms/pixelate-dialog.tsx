@@ -102,14 +102,22 @@ export function PixelateDialog({
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && handleCancel()}>
-      <DialogContent className="overflow-hidden p-0 md:max-h-[500px] md:max-w-[700px] lg:max-w-[800px]">
+      <DialogContent className="overflow-hidden p-0 md:max-h-[85vh] md:max-w-[700px] lg:max-w-[800px]">
         <DialogTitle className="sr-only">Pixelate</DialogTitle>
         <DialogDescription className="sr-only">
           Bild: {fmt1(displayMmW)} × {fmt1(displayMmH)} mm
         </DialogDescription>
 
-        <SidebarProvider className="items-start">
-          <main className="flex h-[480px] flex-1 flex-col overflow-hidden">
+        {/*
+          SidebarProvider defaults to `min-h-svh` for full-page nav
+          layouts. Inside a Dialog this pushes Sidebar's `h-full` to
+          ≈viewport height, clipping `SidebarFooter` (Apply/Cancel)
+          past the dialog's overflow-hidden. Override to `min-h-0`.
+          Pane is sized to image aspect (no fixed `h-[480px]` on main)
+          so the dialog wraps the preview without letterbox below.
+        */}
+        <SidebarProvider className="items-start min-h-0">
+          <main className="flex flex-1 flex-col overflow-hidden">
             <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
               <span className="text-sm font-medium">Pixelate</span>
               <span className="ml-auto text-xs text-muted-foreground">

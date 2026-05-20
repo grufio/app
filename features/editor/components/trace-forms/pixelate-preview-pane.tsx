@@ -3,8 +3,8 @@
 /**
  * Pixelate preview pane: a single canvas displaying the cropped,
  * quantised pixelate grid. CSS `image-rendering: pixelated` does the
- * nearest-neighbour upscale, `object-fit: contain` handles aspect
- * letterboxing — no JS-side measurement of the pane size.
+ * nearest-neighbour upscale; the pane's CSS `aspect-ratio` matches
+ * the image so the canvas fills the pane completely — no letterbox.
  *
  * Inputs are reactive: when `params` changes, the mini canvas is
  * redrawn in-place (React owns its `width`/`height` attributes via
@@ -68,14 +68,26 @@ export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
   const showSpinner = !scratch
   const showInvalid = scratch !== null && !valid
 
+  // Pane sized to the image's display aspect — canvas fills it 1:1
+  // via size-full, no letterbox. Width comes from main's flex layout;
+  // height is computed from aspect-ratio. The Dialog's max-h-[85vh]
+  // protects very tall portrait images from exceeding viewport.
+  const paneStyle: React.CSSProperties = {
+    aspectRatio: displayMmW > 0 && displayMmH > 0 ? `${displayMmW} / ${displayMmH}` : undefined,
+    imageRendering: "pixelated",
+  }
+
   return (
-    <div className="relative flex flex-1 overflow-hidden bg-muted">
+    <div
+      className="relative w-full overflow-hidden bg-muted"
+      style={{ aspectRatio: displayMmW > 0 && displayMmH > 0 ? `${displayMmW} / ${displayMmH}` : undefined }}
+    >
       <canvas
         ref={miniCanvasRef}
         width={grid.cellsX || 1}
         height={grid.cellsY || 1}
         className="block size-full"
-        style={{ objectFit: "contain", imageRendering: "pixelated" }}
+        style={paneStyle}
         data-testid="pixelate-preview-mini"
       />
       {showSpinner ? (
