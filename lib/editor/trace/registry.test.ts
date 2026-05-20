@@ -7,7 +7,7 @@ import { TRACE_REGISTRY } from "./registry"
 describe("TRACE_REGISTRY UI hints", () => {
   it("each ui-hint field has a matching schema field", () => {
     for (const trace of Object.values(TRACE_REGISTRY)) {
-      if (!trace.ui) continue
+      if (!("ui" in trace) || !trace.ui) continue
       for (const fieldName of Object.keys(trace.ui)) {
         const ok = trace.schema.safeParse({ [fieldName]: undefined }).success ||
           trace.schema.safeParse({}).success
@@ -18,7 +18,7 @@ describe("TRACE_REGISTRY UI hints", () => {
 
   it("each ui-hint accepts the schema's default value", () => {
     for (const trace of Object.values(TRACE_REGISTRY)) {
-      if (!trace.ui) continue
+      if (!("ui" in trace) || !trace.ui) continue
       const defaults = trace.schema.parse({}) as Record<string, unknown>
       for (const [fieldName, hint] of Object.entries(trace.ui)) {
         const v = defaults[fieldName]
@@ -37,7 +37,7 @@ describe("TRACE_REGISTRY UI hints", () => {
       fieldName: string,
     ) => issues.some((i) => i.path[0] === fieldName && i.code !== "custom")
     for (const trace of Object.values(TRACE_REGISTRY)) {
-      if (!trace.ui) continue
+      if (!("ui" in trace) || !trace.ui) continue
       for (const [fieldName, hint] of Object.entries(trace.ui)) {
         const min = (hint as { min?: number }).min
         const max = (hint as { max?: number }).max
@@ -67,7 +67,7 @@ describe("TRACE_REGISTRY UI hints", () => {
 describe("TRACE_REGISTRY UI label coverage", () => {
   it("each ui-hint has a non-empty label", () => {
     for (const [traceId, trace] of Object.entries(TRACE_REGISTRY)) {
-      if (!trace.ui) continue
+      if (!("ui" in trace) || !trace.ui) continue
       for (const [fieldName, hint] of Object.entries(trace.ui)) {
         const label = (hint as { label?: string }).label
         expect(typeof label, `${traceId}.${fieldName}.label is missing`).toBe("string")
