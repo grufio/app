@@ -166,21 +166,39 @@ export function PixelateDialog({
     }
   }, [open, sourceImageUrl])
 
-  // ResizeObserver: track preview-pane CSS size.
+  // Track preview-pane CSS size. The initial useLayoutEffect read
+  // can happen before Radix Dialog's portal has completed its first
+  // layout pass — `getBoundingClientRect()` returns 0×0 then, even
+  // though the element is destined for 600×600. ResizeObserver
+  // *should* fire when layout settles, but in practice it doesn't
+  // pick up the post-mount synchronous layout change in this stack.
+  // Diagnose (PR #221) confirmed: previewPaneRect = 600×600 but
+  // previewSize stuck at {0, 0}.
+  //
+  // Fix: alongside the observer, schedule a requestAnimationFrame
+  // retry. After the next paint, layout is guaranteed complete and
+  // getBoundingClientRect returns the real dimensions.
   useLayoutEffect(() => {
     const el = previewPaneRef.current
     if (!el) return
-    const rect = el.getBoundingClientRect()
-    if (rect.width > 0 && rect.height > 0) {
-      setPreviewSize({ w: rect.width, h: rect.height })
+    const measure = () => {
+      const rect = el.getBoundingClientRect()
+      if (rect.width > 0 && rect.height > 0) {
+        setPreviewSize({ w: rect.width, h: rect.height })
+      }
     }
+    measure()
+    const rafId = requestAnimationFrame(measure)
     const ro = new ResizeObserver((entries) => {
       const next = entries[0]?.contentRect
       if (!next) return
       setPreviewSize({ w: Math.max(0, next.width), h: Math.max(0, next.height) })
     })
     ro.observe(el)
-    return () => ro.disconnect()
+    return () => {
+      cancelAnimationFrame(rafId)
+      ro.disconnect()
+    }
   }, [open])
 
   // Crop in scratch-pixel space
