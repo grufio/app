@@ -1,13 +1,18 @@
 "use client"
 
 /**
- * Pixelate trace dialog — strict shadcn sidebar-13 layout
- * ([components/settings-dialog.tsx](components/settings-dialog.tsx)).
+ * Pixelate trace dialog — sidebar-13 layout with a **full-width
+ * header** above the sidebar/main row. The shadcn `sidebar-13`
+ * template puts the header inside `main` (so it's the main column's
+ * width only); we lift it out so it spans the dialog regardless of
+ * sidebar width.
  *
- * Thin shell: owns draft params + apply lifecycle, composes the
- * three sub-components inside the standard sidebar-13 skeleton:
- *   - main → header + <PixelatePreviewPane>
- *   - Sidebar (right) → SidebarContent (<PixelateForm>) + SidebarFooter (Apply/Cancel)
+ * Thin shell: owns draft params + apply lifecycle, composes:
+ *   - header → title + size readout + auto close button
+ *   - SidebarProvider →
+ *       - main → <PixelatePreviewPane>
+ *       - Sidebar (right) → SidebarContent (<PixelateForm>)
+ *                         + SidebarFooter (Apply/Cancel)
  */
 import { useMemo, useState } from "react"
 import { toast } from "sonner"
@@ -109,58 +114,68 @@ export function PixelateDialog({
         </DialogDescription>
 
         {/*
-          SidebarProvider defaults to `min-h-svh` for full-page nav
-          layouts. Inside a Dialog this pushes Sidebar's `h-full` to
-          ≈viewport height, clipping `SidebarFooter` (Apply/Cancel)
-          past the dialog's overflow-hidden. Override to `min-h-0`.
-          Pane is sized to image aspect (no fixed `h-[480px]` on main)
-          so the dialog wraps the preview without letterbox below.
+          DialogContent uses `grid w-full gap-4` in the shadcn
+          primitive. With header + SidebarProvider as sibling grid
+          items there'd be a visible 16px strip between them. A
+          single flex-col wrapper keeps them flush.
+
+          The DialogContent's auto close button sits at `absolute
+          top-2 right-2` and lands inside this header bar.
         */}
-        <SidebarProvider className="items-start min-h-0">
-          <main className="flex flex-1 flex-col overflow-hidden">
-            <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-              <span className="text-sm font-medium">Pixelate</span>
-              <span className="ml-auto text-xs text-muted-foreground">
-                {fmt1(displayMmW)} × {fmt1(displayMmH)} mm
-              </span>
-            </header>
-            <PixelatePreviewPane
-              sourceImageUrl={sourceImageUrl}
-              displayMmW={displayMmW}
-              displayMmH={displayMmH}
-              params={draft}
-            />
-          </main>
-          <Sidebar side="right" collapsible="none" className="hidden md:flex">
-            <SidebarContent>
-              <PixelateForm
+        <div className="flex min-h-0 flex-col">
+          <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+            <span className="text-sm font-medium">Pixelate</span>
+            <span className="ml-auto pr-10 text-xs text-muted-foreground">
+              {fmt1(displayMmW)} × {fmt1(displayMmH)} mm
+            </span>
+          </header>
+
+          {/*
+            SidebarProvider defaults to `min-h-svh` for full-page nav
+            layouts. Inside a Dialog this pushes Sidebar's `h-full`
+            to ≈viewport height, clipping `SidebarFooter` past the
+            dialog's overflow. Override to `min-h-0`.
+          */}
+          <SidebarProvider className="items-start min-h-0">
+            <main className="flex flex-1 flex-col overflow-hidden">
+              <PixelatePreviewPane
+                sourceImageUrl={sourceImageUrl}
+                displayMmW={displayMmW}
+                displayMmH={displayMmH}
                 params={draft}
-                onParamsChange={setField}
-                disabled={busy}
-                grid={grid}
               />
-            </SidebarContent>
-            <SidebarFooter className="border-t p-3">
-              <div className="flex justify-between gap-2">
-                <AppButton
-                  type="button"
-                  variant="outline"
-                  onClick={handleCancel}
+            </main>
+            <Sidebar side="right" collapsible="none" className="hidden md:flex">
+              <SidebarContent>
+                <PixelateForm
+                  params={draft}
+                  onParamsChange={setField}
                   disabled={busy}
-                >
-                  Cancel
-                </AppButton>
-                <AppButton
-                  type="button"
-                  onClick={() => void handleApply()}
-                  disabled={!valid || busy}
-                >
-                  {busy ? "Applying..." : "Apply"}
-                </AppButton>
-              </div>
-            </SidebarFooter>
-          </Sidebar>
-        </SidebarProvider>
+                  grid={grid}
+                />
+              </SidebarContent>
+              <SidebarFooter className="border-t p-3">
+                <div className="flex justify-between gap-2">
+                  <AppButton
+                    type="button"
+                    variant="outline"
+                    onClick={handleCancel}
+                    disabled={busy}
+                  >
+                    Cancel
+                  </AppButton>
+                  <AppButton
+                    type="button"
+                    onClick={() => void handleApply()}
+                    disabled={!valid || busy}
+                  >
+                    {busy ? "Applying..." : "Apply"}
+                  </AppButton>
+                </div>
+              </SidebarFooter>
+            </Sidebar>
+          </SidebarProvider>
+        </div>
       </DialogContent>
     </Dialog>
   )
