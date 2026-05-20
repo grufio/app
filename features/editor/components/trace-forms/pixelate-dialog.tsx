@@ -6,11 +6,16 @@
  * Sidebar; the title sits in a header inside main, the form lives in
  * the Sidebar, action buttons in SidebarFooter.
  *
- * Preview rendering: the mini canvas (cellsX × cellsY bitmap, drawn
- * by `buildMiniCanvas`) is displayed directly via CSS
- * `image-rendering: pixelated`. The browser handles nearest-neighbour
- * upscale to display size, so no JS-side measurement of the preview
- * pane is needed.
+ * Preview rendering: the full scratch image is drawn as the base
+ * layer (showing the whole original at its natural aspect inside the
+ * 1:1 pane). The mini canvas (cellsX × cellsY bitmap drawn by
+ * `buildMiniCanvas`) overlays exactly the crop region — outside the
+ * crop the user keeps seeing the original image, so the discarded
+ * centred border is visible context rather than gone from the
+ * preview entirely. The browser handles the pixelated upscale via
+ * CSS `image-rendering: pixelated`; positioning is CSS-percent based
+ * relative to the inner aspect container, so no JS-side pane
+ * measurement is needed.
  */
 import { useEffect, useMemo, useRef, useState } from "react"
 import { ArrowLeftRight, ArrowUpDown, Loader2, Palette } from "lucide-react"
@@ -90,6 +95,7 @@ export function PixelateDialog({
   const [scratchData, setScratchData] = useState<{ url: string; canvas: HTMLCanvasElement } | null>(null)
   const scratch = scratchData?.url === sourceImageUrl ? scratchData.canvas : null
 
+  const baseCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const miniCanvasRef = useRef<HTMLCanvasElement | null>(null)
 
   // Stage 1 + 2: load source image, build scratch canvas
@@ -122,6 +128,18 @@ export function PixelateDialog({
       h: grid.usedMmH * mmToScratchPx,
     }
   }, [scratch, valid, displayMmW, displayMmH, grid.borderMmX, grid.borderMmY, grid.usedMmW, grid.usedMmH])
+
+  // Draw the full scratch into the base canvas. React owns the base
+  // canvas's width/height attrs via JSX props; this effect only fills
+  // the pixels when the scratch (re)loads.
+  useEffect(() => {
+    const target = baseCanvasRef.current
+    if (!target || !scratch) return
+    const ctx = target.getContext("2d")
+    if (!ctx) return
+    ctx.clearRect(0, 0, target.width, target.height)
+    ctx.drawImage(scratch, 0, 0)
+  }, [scratch])
 
   // Stage 3: draw mini canvas (cellsX × cellsY, quantized). React
   // owns target.width/height via JSX props on the <canvas> below;
@@ -188,19 +206,41 @@ export function PixelateDialog({
               </span>
             </header>
             <AspectRatio ratio={1} className="overflow-hidden bg-muted">
-              <div className="relative size-full">
-                <canvas
-                  ref={miniCanvasRef}
-                  width={grid.cellsX}
-                  height={grid.cellsY}
-                  className="block"
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "contain",
-                    imageRendering: "pixelated",
-                  }}
-                />
+              <div className="relative flex size-full items-center justify-center">
+                {scratch ? (
+                  <div
+                    className="relative"
+                    style={{
+                      maxWidth: "100%",
+                      maxHeight: "100%",
+                      aspectRatio: `${displayMmW} / ${displayMmH}`,
+                    }}
+                  >
+                    <canvas
+                      ref={baseCanvasRef}
+                      width={scratch.width}
+                      height={scratch.height}
+                      className="block size-full"
+                      data-testid="pixelate-preview-base"
+                    />
+                    {valid ? (
+                      <canvas
+                        ref={miniCanvasRef}
+                        width={grid.cellsX}
+                        height={grid.cellsY}
+                        className="absolute block"
+                        style={{
+                          top: `${(grid.borderMmY / 2 / displayMmH) * 100}%`,
+                          left: `${(grid.borderMmX / 2 / displayMmW) * 100}%`,
+                          width: `${(grid.usedMmW / displayMmW) * 100}%`,
+                          height: `${(grid.usedMmH / displayMmH) * 100}%`,
+                          imageRendering: "pixelated",
+                        }}
+                        data-testid="pixelate-preview-mini"
+                      />
+                    ) : null}
+                  </div>
+                ) : null}
 
                 {showSpinner ? (
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
