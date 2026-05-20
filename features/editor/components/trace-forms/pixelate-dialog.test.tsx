@@ -10,12 +10,6 @@ import { cleanup, render, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("@/lib/editor/trace/pixelate-preview", () => ({
-  buildScratchCanvas: () => {
-    const c = document.createElement("canvas")
-    c.width = 100
-    c.height = 75
-    return c
-  },
   buildMiniCanvas: () => {
     /* noop in jsdom */
   },
