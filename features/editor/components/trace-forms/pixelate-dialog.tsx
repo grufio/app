@@ -1,27 +1,17 @@
 "use client"
 
 /**
- * Pixelate trace dialog — strict shadcn `sidebar-13` (settings-dialog)
- * pattern. DialogContent wraps a SidebarProvider with main + right
- * Sidebar; the title sits in a header inside main, the form lives in
- * the Sidebar, action buttons in SidebarFooter.
+ * Pixelate trace dialog — strict shadcn sidebar-13 layout
+ * ([components/settings-dialog.tsx](components/settings-dialog.tsx)).
  *
- * Preview rendering: the full scratch image is drawn as the base
- * layer (showing the whole original at its natural aspect inside the
- * 1:1 pane). The mini canvas (cellsX × cellsY bitmap drawn by
- * `buildMiniCanvas`) overlays exactly the crop region — outside the
- * crop the user keeps seeing the original image, so the discarded
- * centred border is visible context rather than gone from the
- * preview entirely. The browser handles the pixelated upscale via
- * CSS `image-rendering: pixelated`; positioning is CSS-percent based
- * relative to the inner aspect container, so no JS-side pane
- * measurement is needed.
+ * Thin shell: owns draft params + apply lifecycle, composes the
+ * three sub-components inside the standard sidebar-13 skeleton:
+ *   - main → header + <PixelatePreviewPane>
+ *   - Sidebar (right) → SidebarContent (<PixelateForm>) + SidebarFooter (Apply/Cancel)
  */
-import { useEffect, useMemo, useRef, useState } from "react"
-import { ArrowLeftRight, ArrowUpDown, Loader2, Palette } from "lucide-react"
+import { useMemo, useState } from "react"
 import { toast } from "sonner"
 
-import { AspectRatio } from "@/components/ui/aspect-ratio"
 import {
   Dialog,
   DialogContent,
@@ -32,22 +22,16 @@ import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
   SidebarProvider,
 } from "@/components/ui/sidebar"
-import { AppButton, FormField } from "@/components/ui/form-controls"
+import { AppButton } from "@/components/ui/form-controls"
 import { formatOperationErrorForToast, normalizeApiError } from "@/lib/api/error-normalizer"
 import { pixelateSchema, type PixelateParams } from "@/lib/editor/trace/pixelate"
-import {
-  MIN_SUPERCELL_MM,
-  isPixelateGridValid,
-  resolvePixelateGrid,
-} from "@/lib/editor/trace/pixelate-grid-math"
-import { buildMiniCanvas, buildScratchCanvas } from "@/lib/editor/trace/pixelate-preview"
+import { isPixelateGridValid, resolvePixelateGrid } from "@/lib/editor/trace/pixelate-grid-math"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
 
-const SCRATCH_MAX_EDGE = 1000
+import { PixelateForm } from "./pixelate-form"
+import { PixelatePreviewPane } from "./pixelate-preview-pane"
 
 type Props = {
   open: boolean
@@ -89,73 +73,6 @@ export function PixelateDialog({
     [displayMmW, displayMmH, draft],
   )
   const valid = isPixelateGridValid(grid)
-  const borderSideMmX = grid.borderMmX / 2
-  const borderSideMmY = grid.borderMmY / 2
-
-  const [scratchData, setScratchData] = useState<{ url: string; canvas: HTMLCanvasElement } | null>(null)
-  const scratch = scratchData?.url === sourceImageUrl ? scratchData.canvas : null
-
-  const baseCanvasRef = useRef<HTMLCanvasElement | null>(null)
-  const miniCanvasRef = useRef<HTMLCanvasElement | null>(null)
-
-  // Stage 1 + 2: load source image, build scratch canvas
-  useEffect(() => {
-    if (!open) return
-    let cancelled = false
-    const img = new Image()
-    img.crossOrigin = "anonymous"
-    img.onload = () => {
-      if (cancelled) return
-      setScratchData({ url: sourceImageUrl, canvas: buildScratchCanvas(img, SCRATCH_MAX_EDGE) })
-    }
-    img.onerror = () => {
-      if (!cancelled) console.error("Failed to load preview source:", sourceImageUrl)
-    }
-    img.src = sourceImageUrl
-    return () => {
-      cancelled = true
-    }
-  }, [open, sourceImageUrl])
-
-  // Crop in scratch-pixel space (border-trim symmetric on both axes)
-  const crop = useMemo(() => {
-    if (!scratch || !valid || displayMmW <= 0 || displayMmH <= 0) return null
-    const mmToScratchPx = scratch.width / displayMmW
-    return {
-      x: (grid.borderMmX / 2) * mmToScratchPx,
-      y: (grid.borderMmY / 2) * mmToScratchPx,
-      w: grid.usedMmW * mmToScratchPx,
-      h: grid.usedMmH * mmToScratchPx,
-    }
-  }, [scratch, valid, displayMmW, displayMmH, grid.borderMmX, grid.borderMmY, grid.usedMmW, grid.usedMmH])
-
-  // Draw the full scratch into the base canvas. React owns the base
-  // canvas's width/height attrs via JSX props; this effect only fills
-  // the pixels when the scratch (re)loads.
-  useEffect(() => {
-    const target = baseCanvasRef.current
-    if (!target || !scratch) return
-    const ctx = target.getContext("2d")
-    if (!ctx) return
-    ctx.clearRect(0, 0, target.width, target.height)
-    ctx.drawImage(scratch, 0, 0)
-  }, [scratch])
-
-  // Stage 3: draw mini canvas (cellsX × cellsY, quantized). React
-  // owns target.width/height via JSX props on the <canvas> below;
-  // this effect only redraws the bitmap when inputs change.
-  useEffect(() => {
-    const target = miniCanvasRef.current
-    if (!target || !scratch || !crop || !valid) return
-    buildMiniCanvas({
-      target,
-      scratch,
-      crop,
-      cellsX: grid.cellsX,
-      cellsY: grid.cellsY,
-      numColors: draft.num_colors,
-    })
-  }, [scratch, crop, valid, grid.cellsX, grid.cellsY, draft.num_colors])
 
   const handleCancel = () => {
     if (busy) return
@@ -183,154 +100,56 @@ export function PixelateDialog({
     }
   }
 
-  const showSpinner = !scratch
-  const showInvalid = scratch !== null && !valid
-
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && handleCancel()}>
-      <DialogContent className="overflow-hidden p-0 md:max-h-[680px] md:max-w-[800px]">
+      <DialogContent className="overflow-hidden p-0 md:max-h-[500px] md:max-w-[700px] lg:max-w-[800px]">
         <DialogTitle className="sr-only">Pixelate</DialogTitle>
         <DialogDescription className="sr-only">
           Bild: {fmt1(displayMmW)} × {fmt1(displayMmH)} mm
         </DialogDescription>
 
-        <SidebarProvider
-          className="items-start"
-          style={{ "--sidebar-width": "200px" } as React.CSSProperties}
-        >
-          <main className="flex flex-1 flex-col overflow-hidden">
-            <header className="flex h-12 shrink-0 items-center justify-between border-b px-4">
+        <SidebarProvider className="items-start">
+          <main className="flex h-[480px] flex-1 flex-col overflow-hidden">
+            <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
               <span className="text-sm font-medium">Pixelate</span>
-              <span className="text-xs text-muted-foreground">
-                Bild: {fmt1(displayMmW)} × {fmt1(displayMmH)} mm
+              <span className="ml-auto text-xs text-muted-foreground">
+                {fmt1(displayMmW)} × {fmt1(displayMmH)} mm
               </span>
             </header>
-            <AspectRatio ratio={1} className="overflow-hidden bg-muted">
-              <div className="relative flex size-full items-center justify-center">
-                {scratch ? (
-                  <div
-                    className="relative"
-                    style={{
-                      maxWidth: "100%",
-                      maxHeight: "100%",
-                      aspectRatio: `${displayMmW} / ${displayMmH}`,
-                    }}
-                  >
-                    <canvas
-                      ref={baseCanvasRef}
-                      width={scratch.width}
-                      height={scratch.height}
-                      className="block size-full"
-                      data-testid="pixelate-preview-base"
-                    />
-                    {valid ? (
-                      <canvas
-                        ref={miniCanvasRef}
-                        width={grid.cellsX}
-                        height={grid.cellsY}
-                        className="absolute block"
-                        style={{
-                          top: `${(grid.borderMmY / 2 / displayMmH) * 100}%`,
-                          left: `${(grid.borderMmX / 2 / displayMmW) * 100}%`,
-                          width: `${(grid.usedMmW / displayMmW) * 100}%`,
-                          height: `${(grid.usedMmH / displayMmH) * 100}%`,
-                          imageRendering: "pixelated",
-                        }}
-                        data-testid="pixelate-preview-mini"
-                      />
-                    ) : null}
-                  </div>
-                ) : null}
-
-                {showSpinner ? (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
-                    <Loader2 className="size-6 animate-spin text-muted-foreground" />
-                    <span className="text-xs text-muted-foreground">Vorschau wird geladen…</span>
-                  </div>
-                ) : null}
-                {showInvalid ? (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-xs text-muted-foreground">Keine gültige Aufteilung</span>
-                  </div>
-                ) : null}
-              </div>
-            </AspectRatio>
+            <PixelatePreviewPane
+              sourceImageUrl={sourceImageUrl}
+              displayMmW={displayMmW}
+              displayMmH={displayMmH}
+              params={draft}
+            />
           </main>
-
           <Sidebar side="right" collapsible="none" className="hidden md:flex">
             <SidebarContent>
-              <SidebarGroup>
-                <SidebarGroupContent className="flex flex-col gap-3 p-3">
-                  <FormField
-                    variant="numeric"
-                    numericMode="decimal"
-                    label="Superpixel-Breite"
-                    labelVisuallyHidden
-                    iconStart={<ArrowLeftRight aria-hidden="true" />}
-                    unit="mm"
-                    id="supercell_width_mm"
-                    value={String(draft.supercell_width_mm)}
-                    onCommit={(raw) => {
-                      const n = Number(raw)
-                      if (Number.isFinite(n)) setField("supercell_width_mm", n)
-                    }}
-                    disabled={busy}
-                    inputProps={{ min: MIN_SUPERCELL_MM, step: 0.5 }}
-                  />
-
-                  <FormField
-                    variant="numeric"
-                    numericMode="decimal"
-                    label="Superpixel-Höhe"
-                    labelVisuallyHidden
-                    iconStart={<ArrowUpDown aria-hidden="true" />}
-                    unit="mm"
-                    id="supercell_height_mm"
-                    value={String(draft.supercell_height_mm)}
-                    onCommit={(raw) => {
-                      const n = Number(raw)
-                      if (Number.isFinite(n)) setField("supercell_height_mm", n)
-                    }}
-                    disabled={busy}
-                    inputProps={{ min: MIN_SUPERCELL_MM, step: 0.5 }}
-                  />
-
-                  <FormField
-                    variant="numeric"
-                    numericMode="int"
-                    label="Anzahl Farben"
-                    labelVisuallyHidden
-                    iconStart={<Palette aria-hidden="true" />}
-                    id="num_colors"
-                    value={String(draft.num_colors)}
-                    onCommit={(raw) => {
-                      const n = Number(raw)
-                      if (Number.isFinite(n)) setField("num_colors", Math.floor(n))
-                    }}
-                    disabled={busy}
-                    inputProps={{ min: 2, max: 256 }}
-                  />
-
-                  {!valid ? (
-                    <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-destructive">
-                      Superpixel zu groß — kein ganzer Superpixel passt in das Bild.
-                      Wähle eine kleinere Superpixel-Breite oder -Höhe.
-                    </div>
-                  ) : (
-                    <div className="text-xs text-muted-foreground">
-                      Schnitt-Rand: ↔ {fmt1(borderSideMmX)} mm · ↕ {fmt1(borderSideMmY)} mm
-                    </div>
-                  )}
-                </SidebarGroupContent>
-              </SidebarGroup>
+              <PixelateForm
+                params={draft}
+                onParamsChange={setField}
+                disabled={busy}
+                grid={grid}
+              />
             </SidebarContent>
-            <SidebarFooter className="flex flex-row justify-between gap-2 border-t p-3">
-              <AppButton type="button" variant="outline" onClick={handleCancel} disabled={busy}>
-                Cancel
-              </AppButton>
-              <AppButton type="button" onClick={() => void handleApply()} disabled={!valid || busy}>
-                {busy ? "Applying..." : "Apply"}
-              </AppButton>
+            <SidebarFooter className="border-t p-3">
+              <div className="flex justify-between gap-2">
+                <AppButton
+                  type="button"
+                  variant="outline"
+                  onClick={handleCancel}
+                  disabled={busy}
+                >
+                  Cancel
+                </AppButton>
+                <AppButton
+                  type="button"
+                  onClick={() => void handleApply()}
+                  disabled={!valid || busy}
+                >
+                  {busy ? "Applying..." : "Apply"}
+                </AppButton>
+              </div>
             </SidebarFooter>
           </Sidebar>
         </SidebarProvider>
