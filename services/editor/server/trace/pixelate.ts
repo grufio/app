@@ -141,7 +141,15 @@ export async function pixelateImageAndActivate(args: {
   const profiler = startFilterProfiler()
   const parsed = pixelateSchema.safeParse(params)
   if (!parsed.success) {
-    return { ok: false, status: 400, stage: "validation", reason: "Invalid pixelate params" }
+    const issues = parsed.error.issues
+      .map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
+      .join("; ")
+    return {
+      ok: false,
+      status: 400,
+      stage: "validation",
+      reason: `Invalid pixelate params: ${issues || "unknown"}`,
+    }
   }
   const { num_colors: numColors } = parsed.data
 
