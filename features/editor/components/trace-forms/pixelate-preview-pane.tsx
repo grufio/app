@@ -113,18 +113,17 @@ export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
       >
         <canvas
           ref={miniCanvasRef}
-          width={grid.cellsX || 1}
-          height={grid.cellsY || 1}
+          // Canvas bitmap = full source-crop resolution. buildMiniCanvas
+          // paints solid cell blocks at that size — no source→cells
+          // downsample touches the visible bitmap.
+          width={crop ? Math.max(1, Math.round(crop.w)) : 1}
+          height={crop ? Math.max(1, Math.round(crop.h)) : 1}
           className="block"
           style={{
-            // Explicit `width: 100%` is required: without it the
-            // canvas falls back to its intrinsic bitmap size (cellsX
-            // × cellsY = e.g. 16 × 11 *CSS* px = tiny icon), since
-            // `max-width`/`max-height` are upper bounds, not the
-            // size itself. With `width: 100%` + `aspect-ratio:
-            // usedMm`, the browser solves for height and caps via
-            // max-height when needed (portrait images letterbox
-            // left/right instead of overflowing vertically).
+            // Without explicit `width: 100%` the canvas falls back to
+            // its intrinsic bitmap size in CSS px. The aspect-ratio +
+            // max-height combo lets portrait images letterbox left/right
+            // inside the square pane instead of overflowing vertically.
             width: "100%",
             maxWidth: "100%",
             maxHeight: "100%",
