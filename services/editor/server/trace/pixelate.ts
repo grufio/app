@@ -301,7 +301,15 @@ export async function pixelateImageAndActivate(args: {
     const croppedHeight = Math.max(1, Math.min(origHeight, Math.round(crop.y + crop.h)) - padTop)
     const padRight = Math.max(0, origWidth - padLeft - croppedWidth)
     const padBottom = Math.max(0, origHeight - padTop - croppedHeight)
+    // `ensureAlpha` forces the pipeline into RGBA. Python returns the
+    // cropped PNG in RGB mode (PIL `.convert("RGB").crop(...)`), and
+    // sharp's `.extend({background:{alpha:0}})` silently drops the
+    // alpha component when the input has no alpha channel — the
+    // border ends up opaque (RGB only), so the trace bitmap shows
+    // through wherever the SVG cells don't cover it. Forcing RGBA
+    // first makes the transparent border actually transparent.
     const baseBuffer = await sharp(croppedPngBuffer)
+      .ensureAlpha()
       .extend({
         top: padTop,
         bottom: padBottom,
