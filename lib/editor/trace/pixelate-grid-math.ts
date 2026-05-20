@@ -75,3 +75,31 @@ export function resolvePixelateGrid(
 export function isPixelateGridValid(grid: PixelateGrid): boolean {
   return grid.cellsX >= 1 && grid.cellsY >= 1
 }
+
+/**
+ * Maps the centred mm-space crop (`grid.borderMm/2 … usedMm`) onto a
+ * pixel-space crop rect, given the image's pixel dimensions. Used on
+ * both client (with `scratch.width/height`) and server (with the
+ * source image's `origWidth/origHeight`) so the crop algorithm lives
+ * in exactly one place.
+ *
+ * Returns the top-left corner + size of the cropped region, in the
+ * same pixel-space as `pixelW/pixelH`.
+ */
+export function centeredCropPixels(args: {
+  pixelW: number
+  pixelH: number
+  displayMmW: number
+  displayMmH: number
+  grid: PixelateGrid
+}): { x: number; y: number; w: number; h: number } {
+  const { pixelW, pixelH, displayMmW, displayMmH, grid } = args
+  const pxPerMmX = pixelW / displayMmW
+  const pxPerMmY = pixelH / displayMmH
+  return {
+    x: (grid.borderMmX / 2) * pxPerMmX,
+    y: (grid.borderMmY / 2) * pxPerMmY,
+    w: grid.usedMmW * pxPerMmX,
+    h: grid.usedMmH * pxPerMmY,
+  }
+}

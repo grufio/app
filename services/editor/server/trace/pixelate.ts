@@ -1,11 +1,17 @@
 import crypto from "node:crypto"
 
+import sharp from "sharp"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/lib/supabase/database.types"
 import { computeImagePlacementPx } from "@/lib/editor/image-placement"
 import { pixelateSchema, type PixelateParams } from "@/lib/editor/trace/pixelate"
-import { isPixelateGridValid, resolvePixelateGrid } from "@/lib/editor/trace/pixelate-grid-math"
+import {
+  centeredCropPixels,
+  isPixelateGridValid,
+  resolvePixelateGrid,
+} from "@/lib/editor/trace/pixelate-grid-math"
+import { padSvgToFullImage } from "@/lib/editor/trace/pixelate-svg-pad"
 import { GEOMETRY_PPI, pxUToPxNumber } from "@/lib/editor/units"
 import { callFilterService, startFilterProfiler, toInt, type FilterResult } from "@/services/editor/server/filters/_helpers"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
@@ -192,13 +198,19 @@ export async function pixelateImageAndActivate(args: {
   // the Python service. The source bitmap may have arbitrary dimensions;
   // we only need the cropped-out area to render the cells from. Border
   // pixels (the parts that don't make a whole superpixel) are dropped
-  // symmetrically on both axes.
-  const sourcePxPerMmX = origWidth / display.displayMmW
-  const sourcePxPerMmY = origHeight / display.displayMmH
-  const cropW = grid.usedMmW * sourcePxPerMmX
-  const cropH = grid.usedMmH * sourcePxPerMmY
-  const cropX = (origWidth - cropW) / 2
-  const cropY = (origHeight - cropH) / 2
+  // symmetrically on both axes. Shared helper keeps the math byte-
+  // identical to the client-side preview.
+  const crop = centeredCropPixels({
+    pixelW: origWidth,
+    pixelH: origHeight,
+    displayMmW: display.displayMmW,
+    displayMmH: display.displayMmH,
+    grid,
+  })
+  const cropX = crop.x
+  const cropY = crop.y
+  const cropW = crop.w
+  const cropH = crop.h
 
   const { data: srcBlob, error: downloadErr } = await supabase.storage
     .from(String(src.storage_bucket ?? PROJECT_IMAGES_BUCKET))
@@ -257,14 +269,50 @@ export async function pixelateImageAndActivate(args: {
       }
     }
 
-    const svgBuffer = Buffer.from(svgString, "utf-8")
-    const baseBuffer = Buffer.from(croppedB64, "base64")
+    // Pad both the SVG and the PNG to the master image's intrinsic
+    // pixel dimensions. The trace_base / trace_output rows must match
+    // master.id's intrinsic size — `project_image_state` is anchored
+    // at master.id and the editor places the trace into the master's
+    // display rect. If the trace bitmap is the cropped size only,
+    // Konva stretches it (factor `displayMm / usedMm`) → wrong size on
+    // canvas. Padding to origWidth × origHeight with transparent border
+    // makes the bitmap aspect match the master, no stretch.
+    const paddedSvg = padSvgToFullImage({
+      pythonSvg: svgString,
+      origWidth,
+      origHeight,
+      offsetX: cropX,
+      offsetY: cropY,
+    })
+    const svgBuffer = Buffer.from(paddedSvg, "utf-8")
 
-    // The SVG's viewBox is the crop size (Python emits no
-    // translate-offset any more); the bitmap row carries the same
-    // dimensions so the editor renders them 1:1.
-    const baseWidthPx = Math.max(1, Math.round(cropW))
-    const baseHeightPx = Math.max(1, Math.round(cropH))
+    const croppedPngBuffer = Buffer.from(croppedB64, "base64")
+    const padLeft = Math.max(0, Math.round(cropX))
+    const padTop = Math.max(0, Math.round(cropY))
+    // `extend.right/bottom` is what's added past the existing bitmap.
+    // Python's cropped PNG is `round(cropX + cropW) - max(0, round(cropX))` wide
+    // (see filter-service/app/pixelate.py:104-107). We back-compute that
+    // here so `padLeft + croppedWidth + padRight === origWidth`.
+    const croppedWidth = Math.max(1, Math.min(origWidth, Math.round(cropX + cropW)) - padLeft)
+    const croppedHeight = Math.max(1, Math.min(origHeight, Math.round(cropY + cropH)) - padTop)
+    const padRight = Math.max(0, origWidth - padLeft - croppedWidth)
+    const padBottom = Math.max(0, origHeight - padTop - croppedHeight)
+    const baseBuffer = await sharp(croppedPngBuffer)
+      .extend({
+        top: padTop,
+        bottom: padBottom,
+        left: padLeft,
+        right: padRight,
+        background: { r: 0, g: 0, b: 0, alpha: 0 },
+      })
+      .png()
+      .toBuffer()
+    profiler.mark("pad_output")
+
+    // Both rows carry the master's intrinsic dimensions so the editor
+    // renders trace 1:1 against the master display rect (no stretch).
+    const baseWidthPx = origWidth
+    const baseHeightPx = origHeight
 
     const cleanName = src.name.replace(
       / \((?:filter working|pixelate|line art|numerate|B&W hard|B&W soft|B&W warm)\)/g,
