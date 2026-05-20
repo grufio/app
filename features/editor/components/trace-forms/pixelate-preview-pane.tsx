@@ -121,7 +121,7 @@ export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
       ) : null}
 
       {scratch && valid ? (
-        <div className="pointer-events-none sticky bottom-2 left-0 right-0 flex justify-center">
+        <div className="pointer-events-none absolute bottom-2 left-0 right-0 z-10 flex justify-center">
           <div
             className="pointer-events-auto flex items-center gap-0.5 rounded-full border bg-background/90 px-1 py-1 shadow-md backdrop-blur"
             data-testid="pixelate-preview-zoom-controls"
