@@ -3,18 +3,19 @@
  *
  * Component test for PixelateDialog.
  *
- * The previous renderer (4-stage pipeline with JS-side upscale) suffered
- * a regression class where `previewSize` React state never received the
- * pane's DOM dimensions, leaving the display canvas at the browser
- * default 300×150. The fix moves the upscale into CSS
- * (`image-rendering: pixelated`), so React owns the canvas `width` /
- * `height` attributes via JSX props derived from the form-driven grid.
+ * The dialog renders TWO canvas layers in the preview pane:
+ *   - `pixelate-preview-base`  — full original scratch (intrinsic dims),
+ *     so the discarded centred border stays visible to the user.
+ *   - `pixelate-preview-mini`  — cellsX × cellsY bitmap positioned over
+ *     the crop region; `image-rendering: pixelated` does the upscale.
  *
- * This test pins that wiring: with `displayMmW=100, displayMmH=75` and
- * the schema-default `supercell_width_mm=supercell_height_mm=6`, the
- * resolved grid is 16 × 12 cells — the canvas must mount with exactly
- * those bitmap dimensions. Catches: cellsX/Y mis-wired to form state,
- * canvas left at browser defaults, mini-canvas not mounted at all.
+ * This test pins the React/JSX wiring of the mini canvas: with
+ * `displayMmW=100, displayMmH=75` and the schema defaults
+ * (supercell 6mm), the resolved grid is 16 × 12 cells — the mini
+ * canvas must mount with exactly those bitmap dimensions. It also
+ * asserts the base canvas is present so the "show full image" layer
+ * cannot silently regress. Catches: cellsX/Y mis-wired to form
+ * state, mini left at browser defaults, base layer omitted.
  */
 import { render, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -83,7 +84,7 @@ describe("PixelateDialog", () => {
     vi.unstubAllGlobals()
   })
 
-  it("mounts preview canvas with grid-derived bitmap dimensions", async () => {
+  it("mounts base + mini canvases with grid-derived bitmap dimensions", async () => {
     render(
       <PixelateDialog
         open
@@ -97,18 +98,25 @@ describe("PixelateDialog", () => {
     )
 
     // Dialog content is portal-mounted; query the global document.
-    // Wait until scratch has loaded so the canvas effect has run at
-    // least once — the attrs are React-owned so they're correct from
-    // first paint, but waiting for spinner removal proves the wire-up.
+    // Wait until scratch has loaded (base canvas only renders then).
     await waitFor(() => {
-      const spinner = document.body.querySelector('[role="status"], svg.lucide-loader-2')
-      expect(spinner).toBeNull()
+      const base = document.body.querySelector('[data-testid="pixelate-preview-base"]')
+      expect(base).not.toBeNull()
     })
 
-    const canvas = document.body.querySelector<HTMLCanvasElement>("canvas")
-    expect(canvas).not.toBeNull()
-    // Defaults: supercell 6×6mm. displayMm 100×75 → cellsX=16, cellsY=12.
-    expect(canvas?.getAttribute("width")).toBe("16")
-    expect(canvas?.getAttribute("height")).toBe("12")
+    // Base canvas reflects the (mocked) scratch intrinsic size 100×75.
+    const base = document.body.querySelector<HTMLCanvasElement>(
+      '[data-testid="pixelate-preview-base"]',
+    )
+    expect(base?.getAttribute("width")).toBe("100")
+    expect(base?.getAttribute("height")).toBe("75")
+
+    // Mini canvas: supercell 6×6mm defaults, displayMm 100×75 → 16×12 cells.
+    const mini = document.body.querySelector<HTMLCanvasElement>(
+      '[data-testid="pixelate-preview-mini"]',
+    )
+    expect(mini).not.toBeNull()
+    expect(mini?.getAttribute("width")).toBe("16")
+    expect(mini?.getAttribute("height")).toBe("12")
   })
 })
