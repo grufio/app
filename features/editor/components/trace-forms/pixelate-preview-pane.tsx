@@ -117,6 +117,15 @@ export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
           height={grid.cellsY || 1}
           className="block"
           style={{
+            // Explicit `width: 100%` is required: without it the
+            // canvas falls back to its intrinsic bitmap size (cellsX
+            // × cellsY = e.g. 16 × 11 *CSS* px = tiny icon), since
+            // `max-width`/`max-height` are upper bounds, not the
+            // size itself. With `width: 100%` + `aspect-ratio:
+            // usedMm`, the browser solves for height and caps via
+            // max-height when needed (portrait images letterbox
+            // left/right instead of overflowing vertically).
+            width: "100%",
             maxWidth: "100%",
             maxHeight: "100%",
             aspectRatio: cropAspect,
