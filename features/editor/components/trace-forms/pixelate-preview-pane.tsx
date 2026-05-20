@@ -2,12 +2,15 @@
 
 /**
  * Pixelate preview pane: a single canvas displaying the cropped,
- * quantised pixelate grid. CSS `image-rendering: pixelated` does the
- * nearest-neighbour upscale; the pane's CSS `aspect-ratio` matches
- * the image so the canvas fills the pane completely — no letterbox.
+ * quantised pixelate grid. The pane is a **fixed square** so the
+ * dialog layout doesn't shift between images. The canvas inside uses
+ * `object-fit: contain` to scale to the smaller of pane width/height
+ * (whichever the image aspect hits first); the leftover area stays
+ * `bg-muted` grey. `image-rendering: pixelated` does the nearest-
+ * neighbour upscale.
  *
- * Zoom: the pane has an outer scrolling container; the canvas's CSS
- * width grows with `zoom` (1.0 = fits the pane). Pan is the browser's
+ * Zoom: the pane has an outer scrolling container; an inner box
+ * scales with `zoom` (1.0 = square pane size). Pan is the browser's
  * built-in scroll, so we don't need any JS-side measurement.
  *
  * Inputs are reactive: when `params` changes, the mini canvas is
@@ -79,9 +82,6 @@ export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
   const showSpinner = !scratch
   const showInvalid = scratch !== null && !valid
 
-  const aspectRatio =
-    displayMmW > 0 && displayMmH > 0 ? `${displayMmW} / ${displayMmH}` : undefined
-
   const handleZoomIn = () => setZoom((z) => Math.min(ZOOM_MAX, z * ZOOM_STEP))
   const handleZoomOut = () => setZoom((z) => Math.max(ZOOM_MIN, z / ZOOM_STEP))
   const handleFit = () => setZoom(1)
@@ -90,13 +90,13 @@ export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
   return (
     <div
       className="relative w-full overflow-auto bg-muted"
-      style={{ aspectRatio }}
+      style={{ aspectRatio: "1 / 1" }}
     >
       <div
         className="relative"
         style={{
           width: `${zoom * 100}%`,
-          aspectRatio,
+          aspectRatio: "1 / 1",
         }}
       >
         <canvas
@@ -104,7 +104,7 @@ export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
           width={grid.cellsX || 1}
           height={grid.cellsY || 1}
           className="block size-full"
-          style={{ imageRendering: "pixelated" }}
+          style={{ objectFit: "contain", imageRendering: "pixelated" }}
           data-testid="pixelate-preview-mini"
         />
       </div>
