@@ -10,10 +10,12 @@
  *   - Sidebar (right) → SidebarContent (<PixelateForm>) + SidebarFooter (Apply/Cancel)
  */
 import { useMemo, useState } from "react"
+import { XIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogTitle,
@@ -102,7 +104,10 @@ export function PixelateDialog({
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && handleCancel()}>
-      <DialogContent className="overflow-hidden p-0 md:max-h-[85vh] md:max-w-[700px] lg:max-w-[800px]">
+      <DialogContent
+        showCloseButton={false}
+        className="overflow-hidden p-0 md:max-h-[85vh] md:max-w-[700px] lg:max-w-[800px]"
+      >
         <DialogTitle className="sr-only">Pixelate</DialogTitle>
         <DialogDescription className="sr-only">
           Bild: {fmt1(displayMmW)} × {fmt1(displayMmH)} mm
@@ -123,6 +128,20 @@ export function PixelateDialog({
               <span className="ml-auto text-xs text-muted-foreground">
                 {fmt1(displayMmW)} × {fmt1(displayMmH)} mm
               </span>
+              {/*
+                In the sidebar-13 template the Sidebar sits on the
+                LEFT, so the DialogContent's default `top-2 right-2` X
+                lands over the main header automatically. We moved the
+                Sidebar to the right (inspector-panel UX), so the auto
+                X would sit over the form column. Render an explicit
+                close button here instead and suppress the auto one.
+              */}
+              <DialogClose
+                aria-label="Close"
+                className="ml-2 inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <XIcon className="size-4" />
+              </DialogClose>
             </header>
             <PixelatePreviewPane
               sourceImageUrl={sourceImageUrl}
