@@ -3,28 +3,20 @@
 /**
  * Pixelate trace dialog — strict shadcn `sidebar-13` (settings-dialog)
  * pattern. DialogContent wraps a SidebarProvider with main + right
- * Sidebar; the title sits in a header INSIDE main (like the breadcrumb
- * in settings-dialog), the form lives in the Sidebar, action buttons
- * in SidebarFooter. AspectRatio gives the preview canvas a fixed 1:1
- * pane so previewSize is non-zero from first paint.
+ * Sidebar; the title sits in a header inside main, the form lives in
+ * the Sidebar, action buttons in SidebarFooter.
  *
- * State / rendering logic (image load → scratch → mini → renderDisplay
- * with zoom/pan) is unchanged from the previous iteration.
+ * Preview rendering: the mini canvas (cellsX × cellsY bitmap, drawn
+ * by `buildMiniCanvas`) is displayed directly via CSS
+ * `image-rendering: pixelated`. The browser handles nearest-neighbour
+ * upscale to display size, so no JS-side measurement of the preview
+ * pane is needed.
  */
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import {
-  ArrowLeftRight,
-  ArrowUpDown,
-  Loader2,
-  Maximize2,
-  Palette,
-  ZoomIn,
-  ZoomOut,
-} from "lucide-react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { ArrowLeftRight, ArrowUpDown, Loader2, Palette } from "lucide-react"
 import { toast } from "sonner"
 
 import { AspectRatio } from "@/components/ui/aspect-ratio"
-import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
@@ -47,47 +39,10 @@ import {
   isPixelateGridValid,
   resolvePixelateGrid,
 } from "@/lib/editor/trace/pixelate-grid-math"
-import {
-  buildMiniCanvas,
-  buildScratchCanvas,
-  renderDisplay,
-} from "@/lib/editor/trace/pixelate-preview"
+import { buildMiniCanvas, buildScratchCanvas } from "@/lib/editor/trace/pixelate-preview"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
 
-// Temporary runtime diagnostics — populated on each render + on Apply.
-// Inspect via DevTools: window.__pixelateDebug, window.__pixelateApply.
-// Will be removed in the same PR that fixes the underlying bugs.
-declare global {
-  interface Window {
-    __pixelateDebug?: {
-      previewSize: { w: number; h: number }
-      previewPaneRect: DOMRect | undefined
-      canvasRect: DOMRect | undefined
-      canvasAttrs: { width: number; height: number } | undefined
-      fitZoom: number
-      effectiveZoom: number
-      hasScratch: boolean
-      hasMini: boolean
-      hasCrop: boolean
-      cellsX: number
-      cellsY: number
-      displayMmW: number
-      displayMmH: number
-      timestamp: number
-    }
-    __pixelateApply?: {
-      sent: { displayMmW: number; displayMmH: number; params: Record<string, unknown> }
-      sentAt: number
-      result?: "ok" | "error"
-      error?: string
-      resultAt?: number
-    }
-  }
-}
-
 const SCRATCH_MAX_EDGE = 1000
-const ZOOM_STEP = 1.5
-const ZOOM_MAX_MULTIPLIER = 20
 
 type Props = {
   open: boolean
@@ -107,8 +62,6 @@ type Props = {
 function fmt1(n: number): string {
   return n.toFixed(1)
 }
-
-type ZoomMode = "fit" | "manual"
 
 export function PixelateDialog({
   open,
@@ -134,18 +87,10 @@ export function PixelateDialog({
   const borderSideMmX = grid.borderMmX / 2
   const borderSideMmY = grid.borderMmY / 2
 
-  // --- preview pipeline state ---
   const [scratchData, setScratchData] = useState<{ url: string; canvas: HTMLCanvasElement } | null>(null)
   const scratch = scratchData?.url === sourceImageUrl ? scratchData.canvas : null
-  const [previewSize, setPreviewSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 })
-  const [zoomMode, setZoomMode] = useState<ZoomMode>("fit")
-  const [manualZoom, setManualZoom] = useState<number>(1)
-  const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
-  const [dragging, setDragging] = useState(false)
 
-  const previewPaneRef = useRef<HTMLDivElement | null>(null)
-  const displayCanvasRef = useRef<HTMLCanvasElement | null>(null)
-  const dragRef = useRef<{ startX: number; startY: number; startPanX: number; startPanY: number } | null>(null)
+  const miniCanvasRef = useRef<HTMLCanvasElement | null>(null)
 
   // Stage 1 + 2: load source image, build scratch canvas
   useEffect(() => {
@@ -166,42 +111,7 @@ export function PixelateDialog({
     }
   }, [open, sourceImageUrl])
 
-  // Track preview-pane CSS size. The initial useLayoutEffect read
-  // can happen before Radix Dialog's portal has completed its first
-  // layout pass — `getBoundingClientRect()` returns 0×0 then, even
-  // though the element is destined for 600×600. ResizeObserver
-  // *should* fire when layout settles, but in practice it doesn't
-  // pick up the post-mount synchronous layout change in this stack.
-  // Diagnose (PR #221) confirmed: previewPaneRect = 600×600 but
-  // previewSize stuck at {0, 0}.
-  //
-  // Fix: alongside the observer, schedule a requestAnimationFrame
-  // retry. After the next paint, layout is guaranteed complete and
-  // getBoundingClientRect returns the real dimensions.
-  useLayoutEffect(() => {
-    const el = previewPaneRef.current
-    if (!el) return
-    const measure = () => {
-      const rect = el.getBoundingClientRect()
-      if (rect.width > 0 && rect.height > 0) {
-        setPreviewSize({ w: rect.width, h: rect.height })
-      }
-    }
-    measure()
-    const rafId = requestAnimationFrame(measure)
-    const ro = new ResizeObserver((entries) => {
-      const next = entries[0]?.contentRect
-      if (!next) return
-      setPreviewSize({ w: Math.max(0, next.width), h: Math.max(0, next.height) })
-    })
-    ro.observe(el)
-    return () => {
-      cancelAnimationFrame(rafId)
-      ro.disconnect()
-    }
-  }, [open])
-
-  // Crop in scratch-pixel space
+  // Crop in scratch-pixel space (border-trim symmetric on both axes)
   const crop = useMemo(() => {
     if (!scratch || !valid || displayMmW <= 0 || displayMmH <= 0) return null
     const mmToScratchPx = scratch.width / displayMmW
@@ -213,10 +123,14 @@ export function PixelateDialog({
     }
   }, [scratch, valid, displayMmW, displayMmH, grid.borderMmX, grid.borderMmY, grid.usedMmW, grid.usedMmH])
 
-  // Stage 3: mini canvas (downsample + quantize)
-  const mini = useMemo(() => {
-    if (!scratch || !crop || !valid) return null
-    return buildMiniCanvas({
+  // Stage 3: draw mini canvas (cellsX × cellsY, quantized). React
+  // owns target.width/height via JSX props on the <canvas> below;
+  // this effect only redraws the bitmap when inputs change.
+  useEffect(() => {
+    const target = miniCanvasRef.current
+    if (!target || !scratch || !crop || !valid) return
+    buildMiniCanvas({
+      target,
       scratch,
       crop,
       cellsX: grid.cellsX,
@@ -225,95 +139,6 @@ export function PixelateDialog({
     })
   }, [scratch, crop, valid, grid.cellsX, grid.cellsY, draft.num_colors])
 
-  const fitZoom = useMemo(() => {
-    if (!crop || crop.w <= 0 || crop.h <= 0 || previewSize.w <= 0 || previewSize.h <= 0) {
-      return 0
-    }
-    return Math.min(previewSize.w / crop.w, previewSize.h / crop.h)
-  }, [crop, previewSize.w, previewSize.h])
-
-  const effectiveZoom = zoomMode === "fit" ? fitZoom : manualZoom
-  const dstW = crop ? crop.w * effectiveZoom : 0
-  const dstH = crop ? crop.h * effectiveZoom : 0
-
-  const clampedPan = useMemo(
-    () => clampPan(pan, dstW, dstH, previewSize.w, previewSize.h),
-    [pan, dstW, dstH, previewSize.w, previewSize.h],
-  )
-
-  // Stage 4: render display canvas
-  useEffect(() => {
-    const display = displayCanvasRef.current
-    if (!display || !mini || !crop || effectiveZoom <= 0 || previewSize.w <= 0) return
-    renderDisplay({
-      display,
-      mini,
-      previewW: previewSize.w,
-      previewH: previewSize.h,
-      dstW,
-      dstH,
-      panX: clampedPan.x,
-      panY: clampedPan.y,
-      dpr: typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1,
-    })
-  }, [mini, crop, effectiveZoom, dstW, dstH, previewSize.w, previewSize.h, clampedPan.x, clampedPan.y])
-
-  // --- pan + zoom interactions ---
-  const canPan = zoomMode === "manual" && (dstW > previewSize.w || dstH > previewSize.h)
-
-  const handlePointerDown = useCallback(
-    (e: React.PointerEvent<HTMLDivElement>) => {
-      if (!canPan) return
-      ;(e.target as Element).setPointerCapture(e.pointerId)
-      dragRef.current = {
-        startX: e.clientX,
-        startY: e.clientY,
-        startPanX: clampedPan.x,
-        startPanY: clampedPan.y,
-      }
-      setDragging(true)
-    },
-    [canPan, clampedPan.x, clampedPan.y],
-  )
-  const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    const drag = dragRef.current
-    if (!drag) return
-    setPan({
-      x: drag.startPanX + (e.clientX - drag.startX),
-      y: drag.startPanY + (e.clientY - drag.startY),
-    })
-  }, [])
-  const handlePointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    if (dragRef.current) {
-      ;(e.target as Element).releasePointerCapture(e.pointerId)
-      dragRef.current = null
-      setDragging(false)
-    }
-  }, [])
-
-  const handleFit = useCallback(() => {
-    setZoomMode("fit")
-  }, [])
-  const handleZoomIn = useCallback(() => {
-    if (fitZoom <= 0) return
-    const base = zoomMode === "fit" ? fitZoom : manualZoom
-    const next = Math.min(fitZoom * ZOOM_MAX_MULTIPLIER, base * ZOOM_STEP)
-    setManualZoom(next)
-    setZoomMode("manual")
-  }, [fitZoom, manualZoom, zoomMode])
-  const handleZoomOut = useCallback(() => {
-    if (fitZoom <= 0) return
-    const base = zoomMode === "fit" ? fitZoom : manualZoom
-    const next = Math.max(fitZoom, base / ZOOM_STEP)
-    if (next <= fitZoom + 1e-6) {
-      setZoomMode("fit")
-    } else {
-      setManualZoom(next)
-      setZoomMode("manual")
-    }
-  }, [fitZoom, manualZoom, zoomMode])
-
-  // --- apply / cancel ---
   const handleCancel = () => {
     if (busy) return
     onClose()
@@ -321,12 +146,6 @@ export function PixelateDialog({
   const handleApply = async () => {
     if (busy || !valid) return
     setBusy(true)
-    if (typeof window !== "undefined") {
-      window.__pixelateApply = {
-        sent: { displayMmW, displayMmH, params: { ...(draft as Record<string, unknown>) } },
-        sentAt: Date.now(),
-      }
-    }
     try {
       await onApplyTrace({
         kind: "pixelate",
@@ -334,18 +153,9 @@ export function PixelateDialog({
         displayMmW,
         displayMmH,
       })
-      if (typeof window !== "undefined" && window.__pixelateApply) {
-        window.__pixelateApply.result = "ok"
-        window.__pixelateApply.resultAt = Date.now()
-      }
       onSuccess()
       onClose()
     } catch (e) {
-      if (typeof window !== "undefined" && window.__pixelateApply) {
-        window.__pixelateApply.result = "error"
-        window.__pixelateApply.error = String(e)
-        window.__pixelateApply.resultAt = Date.now()
-      }
       const error = e instanceof Error ? e : new Error(String(e))
       console.error("Failed to apply trace:", error)
       const formatted = formatOperationErrorForToast(normalizeApiError(error))
@@ -354,30 +164,6 @@ export function PixelateDialog({
       setBusy(false)
     }
   }
-
-  // Diagnose: populate window.__pixelateDebug on every render.
-  // Runs intentionally without dep array — latest values captured each pass.
-  useEffect(() => {
-    if (typeof window === "undefined") return
-    window.__pixelateDebug = {
-      previewSize,
-      previewPaneRect: previewPaneRef.current?.getBoundingClientRect(),
-      canvasRect: displayCanvasRef.current?.getBoundingClientRect(),
-      canvasAttrs: displayCanvasRef.current
-        ? { width: displayCanvasRef.current.width, height: displayCanvasRef.current.height }
-        : undefined,
-      fitZoom,
-      effectiveZoom,
-      hasScratch: !!scratch,
-      hasMini: !!mini,
-      hasCrop: !!crop,
-      cellsX: grid.cellsX,
-      cellsY: grid.cellsY,
-      displayMmW,
-      displayMmH,
-      timestamp: Date.now(),
-    }
-  })
 
   const showSpinner = !scratch
   const showInvalid = scratch !== null && !valid
@@ -402,19 +188,18 @@ export function PixelateDialog({
               </span>
             </header>
             <AspectRatio ratio={1} className="overflow-hidden bg-muted">
-              <div
-                ref={previewPaneRef}
-                className="relative size-full"
-                style={{ cursor: canPan ? (dragging ? "grabbing" : "grab") : "default" }}
-                onPointerDown={handlePointerDown}
-                onPointerMove={handlePointerMove}
-                onPointerUp={handlePointerUp}
-                onPointerCancel={handlePointerUp}
-              >
+              <div className="relative size-full">
                 <canvas
-                  ref={displayCanvasRef}
-                  className="absolute inset-0 block"
-                  style={{ touchAction: "none" }}
+                  ref={miniCanvasRef}
+                  width={grid.cellsX}
+                  height={grid.cellsY}
+                  className="block"
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "contain",
+                    imageRendering: "pixelated",
+                  }}
                 />
 
                 {showSpinner ? (
@@ -428,39 +213,6 @@ export function PixelateDialog({
                     <span className="text-xs text-muted-foreground">Keine gültige Aufteilung</span>
                   </div>
                 ) : null}
-
-                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-0.5 rounded-full border bg-background/90 px-1 py-1 shadow-md backdrop-blur">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-7"
-                    onClick={handleZoomOut}
-                    disabled={!mini || effectiveZoom <= fitZoom + 1e-6}
-                    aria-label="Verkleinern"
-                  >
-                    <ZoomOut className="size-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-7"
-                    onClick={handleFit}
-                    disabled={!mini || zoomMode === "fit"}
-                    aria-label="Einpassen"
-                  >
-                    <Maximize2 className="size-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-7"
-                    onClick={handleZoomIn}
-                    disabled={!mini || effectiveZoom >= fitZoom * ZOOM_MAX_MULTIPLIER - 1e-6}
-                    aria-label="Vergrößern"
-                  >
-                    <ZoomIn className="size-4" />
-                  </Button>
-                </div>
               </div>
             </AspectRatio>
           </main>
@@ -545,23 +297,4 @@ export function PixelateDialog({
       </DialogContent>
     </Dialog>
   )
-}
-
-function clampPan(
-  candidate: { x: number; y: number },
-  dstW: number,
-  dstH: number,
-  previewW: number,
-  previewH: number,
-): { x: number; y: number } {
-  return {
-    x:
-      dstW <= previewW
-        ? (previewW - dstW) / 2
-        : Math.min(0, Math.max(previewW - dstW, candidate.x)),
-    y:
-      dstH <= previewH
-        ? (previewH - dstH) / 2
-        : Math.min(0, Math.max(previewH - dstH, candidate.y)),
-  }
 }
