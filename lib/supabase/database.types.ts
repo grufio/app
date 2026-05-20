@@ -166,6 +166,10 @@ export type Database = {
         Row: {
           base_image_id: string | null
           created_at: string
+          display_height_px_u: string
+          display_width_px_u: string
+          display_x_px_u: string
+          display_y_px_u: string
           kind: string
           output_image_id: string
           params: Json
@@ -175,6 +179,10 @@ export type Database = {
         Insert: {
           base_image_id?: string | null
           created_at?: string
+          display_height_px_u?: string
+          display_width_px_u?: string
+          display_x_px_u?: string
+          display_y_px_u?: string
           kind: string
           output_image_id: string
           params?: Json
@@ -184,6 +192,10 @@ export type Database = {
         Update: {
           base_image_id?: string | null
           created_at?: string
+          display_height_px_u?: string
+          display_width_px_u?: string
+          display_x_px_u?: string
+          display_y_px_u?: string
           kind?: string
           output_image_id?: string
           params?: Json

@@ -1,6 +1,5 @@
 import crypto from "node:crypto"
 
-import sharp from "sharp"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/lib/supabase/database.types"
@@ -11,7 +10,6 @@ import {
   isPixelateGridValid,
   resolvePixelateGrid,
 } from "@/lib/editor/trace/pixelate-grid-math"
-import { padSvgToFullImage } from "@/lib/editor/trace/pixelate-svg-pad"
 import { GEOMETRY_PPI, pxUToPxNumber } from "@/lib/editor/units"
 import { callFilterService, startFilterProfiler, toInt, type FilterResult } from "@/services/editor/server/filters/_helpers"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
@@ -20,6 +18,10 @@ const MM_PER_INCH = 25.4
 
 function pxToMm(px: number): number {
   return (px / GEOMETRY_PPI) * MM_PER_INCH
+}
+
+function mmToMicroPx(mm: number): bigint {
+  return BigInt(Math.round((mm / MM_PER_INCH) * GEOMETRY_PPI * 1_000_000))
 }
 
 function parsePxU(value: unknown): bigint | null {
@@ -32,19 +34,30 @@ function parsePxU(value: unknown): bigint | null {
   }
 }
 
-/** Resolve the source image's displayed size on the artboard, in mm.
+/** Master-image display state on the artboard, in mm + µpx.
  *
- * The pixelate grid is sized in display-mm — what the user sees on the
- * artboard is what they get. State preferred (after any positioning
- * the user did); fresh-upload fallback uses the same algorithm the
- * Master-Upload flow uses to seed initial placement. */
-async function resolveSourceDisplayMm(args: {
+ * The pixelate grid is sized in display-mm (what the user sees on the
+ * artboard is what they get), and the trace's centred display rect
+ * needs the master's x/y/w/h in µpx so we can shift the smaller
+ * trace into the master's centre with one server-side computation.
+ * State preferred (after any positioning the user did); fresh-upload
+ * fallback uses `computeImagePlacementPx` and leaves x/y null (no
+ * persisted origin → trace centres at 0n, the canvas's default
+ * paint origin). */
+type MasterStateOk = {
+  ok: true
+  displayMmW: number
+  displayMmH: number
+  xPxU: bigint | null
+  yPxU: bigint | null
+  widthPxU: bigint
+  heightPxU: bigint
+}
+
+async function resolveMasterState(args: {
   supabase: SupabaseClient<Database>
   projectId: string
-}): Promise<
-  | { ok: true; displayMmW: number; displayMmH: number }
-  | { ok: false; reason: string }
-> {
+}): Promise<MasterStateOk | { ok: false; reason: string }> {
   const { supabase, projectId } = args
   const { data: workspace } = await supabase
     .from("project_workspace")
@@ -70,7 +83,7 @@ async function resolveSourceDisplayMm(args: {
 
   const { data: state } = await supabase
     .from("project_image_state")
-    .select("width_px_u,height_px_u")
+    .select("x_px_u,y_px_u,width_px_u,height_px_u")
     .eq("project_id", projectId)
     .eq("image_id", master.id)
     .maybeSingle()
@@ -82,6 +95,10 @@ async function resolveSourceDisplayMm(args: {
       ok: true,
       displayMmW: pxToMm(pxUToPxNumber(stateW)),
       displayMmH: pxToMm(pxUToPxNumber(stateH)),
+      xPxU: parsePxU(state?.x_px_u),
+      yPxU: parsePxU(state?.y_px_u),
+      widthPxU: stateW,
+      heightPxU: stateH,
     }
   }
 
@@ -107,6 +124,10 @@ async function resolveSourceDisplayMm(args: {
     ok: true,
     displayMmW: pxToMm(placement.widthPx),
     displayMmH: pxToMm(placement.heightPx),
+    xPxU: null,
+    yPxU: null,
+    widthPxU: BigInt(Math.round(placement.widthPx * 1_000_000)),
+    heightPxU: BigInt(Math.round(placement.heightPx * 1_000_000)),
   }
 }
 
@@ -115,6 +136,12 @@ async function resolveSourceDisplayMm(args: {
  * and the source-bitmap cropped to the grid (`trace_base`). The
  * caller links them via `project_image_trace.base_image_id` so
  * tombstoning and editor display stay in sync.
+ *
+ * `displayRectPxU` carries the trace's fixed display rect (x/y/w/h
+ * µpx, centred on the master). The orchestrator writes it onto the
+ * `project_image_trace` row so the canvas can render the trace at
+ * its own crop-derived size, independent of the master's display
+ * rect.
  */
 export type PixelateFilterSuccess = {
   ok: true
@@ -124,6 +151,12 @@ export type PixelateFilterSuccess = {
   heightPx: number
   baseId: string
   baseStoragePath: string
+  displayRectPxU: {
+    xPxU: bigint
+    yPxU: bigint
+    widthPxU: bigint
+    heightPxU: bigint
+  }
 }
 export type PixelateFilterResult = PixelateFilterSuccess | Extract<FilterResult<"pixelate_process">, { ok: false }>
 
@@ -132,8 +165,11 @@ export async function pixelateImageAndActivate(args: {
   projectId: string
   sourceImageId: string
   params: PixelateParams
-  /** Client-supplied display-mm. When present, used directly so the
-   * server doesn't fall back to potentially-stale project_image_state. */
+  /** Client-supplied display-mm. Kept for drift detection only —
+   * the server reads master display-mm from project_image_state
+   * (anchored at master.id) as the source of truth. The dialog's
+   * apply path awaits any pending state save before calling /trace,
+   * so the DB is guaranteed to be current when this handler runs. */
   displayMmW?: number
   displayMmH?: number
 }): Promise<PixelateFilterResult> {
@@ -176,23 +212,29 @@ export async function pixelateImageAndActivate(args: {
     return { ok: false, status: 400, stage: "validation", reason: "Invalid source dimensions" }
   }
 
-  // Resolve the image's displayed size on the artboard (mm). The grid
-  // is sized in display-mm — what the user sees on the artboard is
-  // what they get. Client-supplied values win (they come from the
-  // dialog's live canvas mirror); fall back to DB-side resolution
-  // (state-anchored at master.id; placement-algorithm fallback) only
-  // when the client didn't send them.
-  const display =
+  // Resolve the master's displayed size + origin on the artboard.
+  // DB is authoritative (project_image_state anchored at master.id);
+  // the client-supplied hint is checked for drift only — a divergence
+  // means the client's tx mirror lagged the actual saved state and is
+  // worth surfacing in logs while we iron out the apply-path race.
+  const masterState = await resolveMasterState({ supabase, projectId })
+  if (!masterState.ok) {
+    return { ok: false, status: 400, stage: "validation", reason: masterState.reason }
+  }
+  if (
     typeof displayMmW === "number" && displayMmW > 0 &&
-    typeof displayMmH === "number" && displayMmH > 0
-      ? ({ ok: true, displayMmW, displayMmH } as const)
-      : await resolveSourceDisplayMm({ supabase, projectId })
-  if (!display.ok) {
-    return { ok: false, status: 400, stage: "validation", reason: display.reason }
+    typeof displayMmH === "number" && displayMmH > 0 &&
+    (Math.abs(displayMmW - masterState.displayMmW) > 0.5 ||
+      Math.abs(displayMmH - masterState.displayMmH) > 0.5)
+  ) {
+    console.warn(
+      `[pixelate] client/db displayMm drift project=${projectId} ` +
+        `client=${displayMmW}x${displayMmH} db=${masterState.displayMmW}x${masterState.displayMmH}`,
+    )
   }
   profiler.mark("display_mm_resolve")
 
-  const grid = resolvePixelateGrid(display.displayMmW, display.displayMmH, parsed.data)
+  const grid = resolvePixelateGrid(masterState.displayMmW, masterState.displayMmH, parsed.data)
   if (!isPixelateGridValid(grid)) {
     return {
       ok: false,
@@ -211,10 +253,20 @@ export async function pixelateImageAndActivate(args: {
   const crop = centeredCropPixels({
     pixelW: origWidth,
     pixelH: origHeight,
-    displayMmW: display.displayMmW,
-    displayMmH: display.displayMmH,
+    displayMmW: masterState.displayMmW,
+    displayMmH: masterState.displayMmH,
     grid,
   })
+  // Trace display rect (µpx), centred on the master. The trace
+  // bitmap is delivered at crop dimensions (no padding to master
+  // intrinsic); the canvas uses this rect to position + size the
+  // smaller trace inside the master's bounding box.
+  const traceWidthPxU = mmToMicroPx(grid.usedMmW)
+  const traceHeightPxU = mmToMicroPx(grid.usedMmH)
+  const masterXPxU = masterState.xPxU ?? 0n
+  const masterYPxU = masterState.yPxU ?? 0n
+  const traceXPxU = masterXPxU + (masterState.widthPxU - traceWidthPxU) / 2n
+  const traceYPxU = masterYPxU + (masterState.heightPxU - traceHeightPxU) / 2n
 
   const { data: srcBlob, error: downloadErr } = await supabase.storage
     .from(String(src.storage_bucket ?? PROJECT_IMAGES_BUCKET))
@@ -273,58 +325,19 @@ export async function pixelateImageAndActivate(args: {
       }
     }
 
-    // Pad both the SVG and the PNG to the master image's intrinsic
-    // pixel dimensions. The trace_base / trace_output rows must match
-    // master.id's intrinsic size — `project_image_state` is anchored
-    // at master.id and the editor places the trace into the master's
-    // display rect. If the trace bitmap is the cropped size only,
-    // Konva stretches it (factor `displayMm / usedMm`) → wrong size on
-    // canvas. Padding to origWidth × origHeight with transparent border
-    // makes the bitmap aspect match the master, no stretch.
-    const paddedSvg = padSvgToFullImage({
-      pythonSvg: svgString,
-      origWidth,
-      origHeight,
-      offsetX: crop.x,
-      offsetY: crop.y,
-    })
-    const svgBuffer = Buffer.from(paddedSvg, "utf-8")
-
-    const croppedPngBuffer = Buffer.from(croppedB64, "base64")
-    const padLeft = Math.max(0, Math.round(crop.x))
-    const padTop = Math.max(0, Math.round(crop.y))
-    // `extend.right/bottom` is what's added past the existing bitmap.
-    // Python's cropped PNG is `round(crop.x + crop.w) - max(0, round(crop.x))` wide
-    // (see filter-service/app/pixelate.py:104-107). We back-compute that
-    // here so `padLeft + croppedWidth + padRight === origWidth`.
-    const croppedWidth = Math.max(1, Math.min(origWidth, Math.round(crop.x + crop.w)) - padLeft)
-    const croppedHeight = Math.max(1, Math.min(origHeight, Math.round(crop.y + crop.h)) - padTop)
-    const padRight = Math.max(0, origWidth - padLeft - croppedWidth)
-    const padBottom = Math.max(0, origHeight - padTop - croppedHeight)
-    // `ensureAlpha` forces the pipeline into RGBA. Python returns the
-    // cropped PNG in RGB mode (PIL `.convert("RGB").crop(...)`), and
-    // sharp's `.extend({background:{alpha:0}})` silently drops the
-    // alpha component when the input has no alpha channel — the
-    // border ends up opaque (RGB only), so the trace bitmap shows
-    // through wherever the SVG cells don't cover it. Forcing RGBA
-    // first makes the transparent border actually transparent.
-    const baseBuffer = await sharp(croppedPngBuffer)
-      .ensureAlpha()
-      .extend({
-        top: padTop,
-        bottom: padBottom,
-        left: padLeft,
-        right: padRight,
-        background: { r: 0, g: 0, b: 0, alpha: 0 },
-      })
-      .png()
-      .toBuffer()
-    profiler.mark("pad_output")
-
-    // Both rows carry the master's intrinsic dimensions so the editor
-    // renders trace 1:1 against the master display rect (no stretch).
-    const baseWidthPx = origWidth
-    const baseHeightPx = origHeight
+    // Both bitmap + SVG are stored at their actual crop dimensions.
+    // The canvas renders them inside the per-trace display rect
+    // (see `displayRectPxU` above) so they sit in the centred crop
+    // region of the master without any stretch.
+    const svgBuffer = Buffer.from(svgString, "utf-8")
+    const baseBuffer = Buffer.from(croppedB64, "base64")
+    // Crop bounds (clamped to the source image) — matches the math
+    // in filter-service/app/pixelate.py:104-107 so the stored bitmap
+    // dimensions describe the actual cropped region.
+    const cropLeft = Math.max(0, Math.round(crop.x))
+    const cropTop = Math.max(0, Math.round(crop.y))
+    const croppedWidth = Math.max(1, Math.min(origWidth, Math.round(crop.x + crop.w)) - cropLeft)
+    const croppedHeight = Math.max(1, Math.min(origHeight, Math.round(crop.y + crop.h)) - cropTop)
 
     const cleanName = src.name.replace(
       / \((?:filter working|pixelate|line art|numerate|B&W hard|B&W soft|B&W warm)\)/g,
@@ -352,8 +365,8 @@ export async function pixelateImageAndActivate(args: {
       kind: "trace_base",
       name: `${cleanName} (pixelate base)`,
       format: "png",
-      width_px: baseWidthPx,
-      height_px: baseHeightPx,
+      width_px: croppedWidth,
+      height_px: croppedHeight,
       storage_bucket: PROJECT_IMAGES_BUCKET,
       storage_path: baseObjectPath,
       file_size_bytes: baseBuffer.byteLength,
@@ -395,8 +408,8 @@ export async function pixelateImageAndActivate(args: {
       kind: "trace_output",
       name: `${cleanName} (pixelate)`,
       format: "svg",
-      width_px: baseWidthPx,
-      height_px: baseHeightPx,
+      width_px: croppedWidth,
+      height_px: croppedHeight,
       storage_bucket: PROJECT_IMAGES_BUCKET,
       storage_path: objectPath,
       file_size_bytes: svgBuffer.byteLength,
@@ -413,25 +426,32 @@ export async function pixelateImageAndActivate(args: {
       return { ok: false, status: 400, stage: "db_insert", reason: insertErr.message, code: insertErr.code }
     }
     profiler.mark("db_insert")
-    // State is anchored at master.id (see image-state route handler);
-    // no per-output transform copy needed.
+    // State is anchored at master.id; the trace's own display rect
+    // travels with the project_image_trace row (handled by the
+    // orchestrator) so no per-output transform copy is needed.
 
     profiler.report("pixelate", {
       python_phases: callResult.phases,
       output_bytes: svgBuffer.byteLength,
       base_bytes: baseBuffer.byteLength,
-      width: baseWidthPx,
-      height: baseHeightPx,
+      width: croppedWidth,
+      height: croppedHeight,
     })
 
     return {
       ok: true,
       id: imageId,
       storagePath: objectPath,
-      widthPx: baseWidthPx,
-      heightPx: baseHeightPx,
+      widthPx: croppedWidth,
+      heightPx: croppedHeight,
       baseId,
       baseStoragePath: baseObjectPath,
+      displayRectPxU: {
+        xPxU: traceXPxU,
+        yPxU: traceYPxU,
+        widthPxU: traceWidthPxU,
+        heightPxU: traceHeightPxU,
+      },
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Pixelate process failed"

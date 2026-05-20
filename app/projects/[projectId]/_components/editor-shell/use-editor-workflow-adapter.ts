@@ -336,6 +336,11 @@ export function useEditorWorkflowAdapter(args: {
   return {
     sourceSnapshot,
     initialImageTransform,
+    /** Raw await-able save from `useImageState`. The workflow
+     * machine's `saveTransform` event is fire-and-forget; trace's
+     * apply path needs to await persistence directly to close the
+     * resize→apply race (see use-trace-handlers). */
+    saveImageState,
     workflow,
     editorImageSource,
     activeCanvasImageId,
