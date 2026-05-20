@@ -3,20 +3,27 @@
 /**
  * React hook for the persisted image-transform save path.
  *
- * The hook owns **only** the save side: a pending-slot that coalesces
- * rapid canvas commits and a flush pump that serialises writes to
- * `POST /api/projects/[projectId]/image-state`.
+ * The hook owns the save side (pending-slot + flush pump serialising
+ * writes to `POST /api/projects/[projectId]/image-state`) **and** a
+ * live mirror of the last persisted transform: starts as the SSR seed
+ * (`initial`), then updates on every successful save.
  *
- * The seed (`initial`) is the SSR snapshot of `project_image_state`
- * fetched by the page server component and is returned **as a direct
- * passthrough** — the hook does not copy it into local React state.
- * That was the source of the long-standing "always default size on
- * reopen" bug: an earlier design held `initial` in `useState`,
- * combined with an `enabled` lifecycle flag that wiped the seed when
- * the canvas source wasn't ready yet. Removing the local state makes
- * that bug class structurally impossible — there is no slot to wipe.
+ * The live mirror matters when a new active image lands on the canvas
+ * after the user has resized the master in-session — e.g. apply a
+ * pixelate trace, the new `trace_base` image becomes active. The
+ * canvas's `initial-placement-controller` re-applies the persisted
+ * transform whenever the active image changes; without the mirror it
+ * would see the stale SSR seed and snap the trace back to the master's
+ * original placement, ignoring the user's resize.
  *
- * What lives elsewhere now:
+ * History note: an earlier design held `initial` in `useState` PLUS an
+ * `enabled` lifecycle flag that wiped the state when the canvas source
+ * wasn't ready yet — that combination produced the "always default
+ * size on reopen" bug. Reintroducing useState alone (no enabled flag,
+ * no wipe path) keeps the new bug class — stale seed snaps newly
+ * activated images back to defaults — fixed structurally.
+ *
+ * What lives elsewhere:
  * - SSR fetch: `services/editor/server/image-state.ts` →
  *   `app/projects/[projectId]/page.tsx`.
  * - Canvas application of the seed:
@@ -26,7 +33,7 @@
  * Post PR #124 the state row is anchored at the project's `master.id`
  * server-side, so the hook still needs no image-id input.
  */
-import { useCallback, useEffect, useRef } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 
 import { saveImageState as saveImageStateApi } from "@/lib/api/image-state"
 import { ApiError } from "@/lib/api/api-error"
@@ -87,11 +94,16 @@ export function createPendingSlot<T>() {
 
 /**
  * @param projectId — route key for the API + log prefix.
- * @param initial — SSR-provided transform seed. Returned unchanged as
- *   `initialImageTransform`. The hook never mutates or stores it.
+ * @param initial — SSR-provided transform seed. Used as the initial
+ *   value of the live mirror; subsequent successful saves replace it.
  *
  * Returns:
- * - `initialImageTransform` — the seed, passed through verbatim.
+ * - `initialImageTransform` — live mirror of the persisted transform.
+ *   Starts as the SSR seed; updated after each successful save so
+ *   downstream consumers (canvas-stage's initial-placement-controller)
+ *   see the user's latest persisted size when a new active image
+ *   (trace_base / filter_working_copy) replaces the master on the
+ *   canvas.
  * - `saveImageState(t)` — enqueue + flush a transform write. Saves are
  *   coalesced via a pending-slot; the latest payload wins. Errors are
  *   logged + reported via `reportClientError` and otherwise swallowed
@@ -103,6 +115,12 @@ export function useImageState(projectId: string, initial: ImageState | null) {
   const pendingSlotRef = useRef<ReturnType<typeof createPendingSlot<ImageState>> | null>(null)
   if (!pendingSlotRef.current) pendingSlotRef.current = createPendingSlot<ImageState>()
   const inflightRef = useRef<Promise<void> | null>(null)
+
+  // Live mirror of the persisted transform. `initial` is only the
+  // first-render seed; React's useState ignores subsequent prop
+  // changes by design, which is what we want — the mirror is
+  // authoritative once the user has saved anything.
+  const [persistedTransform, setPersistedTransform] = useState<ImageState | null>(initial)
 
   const flushOnce = useCallback(async (p: Pending<ImageState>): Promise<void> => {
     const t = p.value
@@ -131,6 +149,15 @@ export function useImageState(projectId: string, initial: ImageState | null) {
     // same payload would be incorrectly deduped after transient failures.
     lastSavedSignatureRef.current = signature
     pendingSlotRef.current?.clearIfSeq(p.seq)
+    // Live-update the mirror so subsequent active-image transitions
+    // adopt the user's latest persisted size instead of the SSR seed.
+    setPersistedTransform({
+      xPxU: t.xPxU,
+      yPxU: t.yPxU,
+      widthPxU: t.widthPxU,
+      heightPxU: t.heightPxU,
+      rotationDeg: t.rotationDeg,
+    })
   }, [projectId])
 
   const flush = useCallback(async (): Promise<void> => {
@@ -182,5 +209,5 @@ export function useImageState(projectId: string, initial: ImageState | null) {
     }
   }, [])
 
-  return { initialImageTransform: initial, saveImageState }
+  return { initialImageTransform: persistedTransform, saveImageState }
 }
