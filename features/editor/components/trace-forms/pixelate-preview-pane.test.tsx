@@ -4,8 +4,9 @@
  * Component test for PixelatePreviewPane.
  *
  * jsdom can't render the canvas content, so we only assert the
- * React/JSX wiring: cellsX × cellsY drive the canvas bitmap attrs,
- * and the canvas remounts (cleanly) after the scratch image loads.
+ * React/JSX wiring: the canvas bitmap is sized to the source-crop
+ * resolution (not cellsX × cellsY) and the canvas remounts (cleanly)
+ * after the source image loads.
  */
 import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -47,7 +48,7 @@ describe("PixelatePreviewPane", () => {
     vi.unstubAllGlobals()
   })
 
-  it("renders the mini canvas with grid-derived bitmap dimensions", async () => {
+  it("renders the mini canvas at source-crop resolution (not cellsX × cellsY)", async () => {
     const { getByTestId } = render(
       <PixelatePreviewPane
         sourceImageUrl="https://example.test/a.png"
@@ -57,16 +58,18 @@ describe("PixelatePreviewPane", () => {
       />,
     )
 
-    // displayMm 100×75 + supercell 6×6 → cellsX=16, cellsY=12
+    // FakeImage is 100×75 naturalWidth/Height. usedMm 96×72 → crop in
+    // source px = 96 × (100/100) = 96, 72 × (75/75) = 72. Canvas
+    // bitmap mirrors that crop, not cellsX × cellsY (16 × 12).
     await waitFor(() => {
       const canvas = getByTestId("pixelate-preview-mini") as HTMLCanvasElement
-      expect(canvas.getAttribute("width")).toBe("16")
-      expect(canvas.getAttribute("height")).toBe("12")
+      expect(canvas.getAttribute("width")).toBe("96")
+      expect(canvas.getAttribute("height")).toBe("72")
     })
   })
 
   it("falls back to 1×1 bitmap when grid would be invalid", () => {
-    // 4 mm image with 5 mm supercell → cellsX=0, invalid grid.
+    // 4 mm image with 5 mm supercell → cellsX=0, invalid grid, crop=null.
     const { getByTestId } = render(
       <PixelatePreviewPane
         sourceImageUrl="https://example.test/a.png"

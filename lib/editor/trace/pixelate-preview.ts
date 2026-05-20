@@ -1,20 +1,21 @@
 /**
  * Client-side render helper for the Pixelate preview dialog.
  *
- * `buildMiniCanvas` crops the source image onto a caller-owned
- * `target` canvas (sized cellsX × cellsY by React via JSX props),
- * then quantizes to `numColors` via median-cut. The browser does the
- * nearest-neighbour upscale to display size via CSS
- * `image-rendering: pixelated`.
+ * The output canvas is sized at the **source crop resolution**
+ * (crop.w × crop.h source pixels), NOT at cellsX × cellsY. Each cell
+ * is then painted as a solid-colour `fillRect` over its source-pixel
+ * area. Effect: the displayed bitmap has full source resolution, the
+ * browser doesn't have to upscale a tiny 16 × 11 bitmap to fit the
+ * pane (which on some browsers/zoom-levels produced fuzzy edges
+ * despite `image-rendering: pixelated`).
  *
- * The source is accepted as `CanvasImageSource` so callers can pass
- * `HTMLImageElement` (the loaded source image) directly. No scratch-
- * canvas intermediate — the previous 2000px-edge downsample threw
- * away detail for large source images at small supercell sizes.
- * `ctx.drawImage` is hardware-accelerated for the source→cells
- * downsample, so we don't need a pre-cached lower-resolution copy.
+ * Per-cell colours are computed once via a small offscreen canvas
+ * (drawImage downsample to cellsX × cellsY + median-cut quantise).
+ * The offscreen is throwaway — only the resulting palette is painted
+ * onto the visible target.
  *
- * React-free; the dialog wires the lifecycle.
+ * Caller (React) owns `target.width` / `target.height` via JSX props
+ * set to `crop.w` / `crop.h`.
  */
 import quantize from "quantize"
 import type { RgbPixel } from "quantize"
@@ -31,21 +32,28 @@ export function buildMiniCanvas(args: {
   const ctx = target.getContext("2d", { willReadFrequently: true })
   if (!ctx) throw new Error("buildMiniCanvas: 2D context unavailable")
 
-  ctx.imageSmoothingEnabled = true
-  ctx.imageSmoothingQuality = "high"
-  ctx.drawImage(source, crop.x, crop.y, crop.w, crop.h, 0, 0, cellsX, cellsY)
+  // (1) Compute per-cell colours on a tiny offscreen canvas. The
+  // bilinear downsample isn't ideal for huge ratios but it's the
+  // fast path and the user can't see this canvas — only the final
+  // palette is rendered to the visible target.
+  const palette = document.createElement("canvas")
+  palette.width = cellsX
+  palette.height = cellsY
+  const pctx = palette.getContext("2d", { willReadFrequently: true })
+  if (!pctx) throw new Error("buildMiniCanvas: offscreen 2D context unavailable")
+  pctx.imageSmoothingEnabled = true
+  pctx.imageSmoothingQuality = "high"
+  pctx.drawImage(source, crop.x, crop.y, crop.w, crop.h, 0, 0, cellsX, cellsY)
 
   if (numColors >= 2 && cellsX * cellsY >= 2) {
-    const imageData = ctx.getImageData(0, 0, cellsX, cellsY)
+    const imageData = pctx.getImageData(0, 0, cellsX, cellsY)
     const buf = imageData.data
     const pixelCount = cellsX * cellsY
-
     const pixels: RgbPixel[] = new Array(pixelCount)
     for (let i = 0; i < pixelCount; i += 1) {
       const o = i * 4
       pixels[i] = [buf[o], buf[o + 1], buf[o + 2]]
     }
-
     const cmap = quantize(pixels, numColors)
     if (cmap) {
       for (let i = 0; i < pixelCount; i += 1) {
@@ -55,7 +63,28 @@ export function buildMiniCanvas(args: {
         buf[o + 1] = mapped[1]
         buf[o + 2] = mapped[2]
       }
-      ctx.putImageData(imageData, 0, 0)
+      pctx.putImageData(imageData, 0, 0)
+    }
+  }
+
+  // (2) Paint the cell palette onto the visible target at source-crop
+  // resolution. Each cell is one solid rectangle, no source
+  // downsample touches the visible canvas.
+  const cellData = pctx.getImageData(0, 0, cellsX, cellsY)
+  ctx.imageSmoothingEnabled = false
+  const cellW = target.width / cellsX
+  const cellH = target.height / cellsY
+  for (let cy = 0; cy < cellsY; cy += 1) {
+    for (let cx = 0; cx < cellsX; cx += 1) {
+      const i = (cy * cellsX + cx) * 4
+      ctx.fillStyle = `rgb(${cellData.data[i]}, ${cellData.data[i + 1]}, ${cellData.data[i + 2]})`
+      // +1 px overdraw to avoid sub-pixel seams between adjacent cells.
+      ctx.fillRect(
+        Math.floor(cx * cellW),
+        Math.floor(cy * cellH),
+        Math.ceil(cellW) + 1,
+        Math.ceil(cellH) + 1,
+      )
     }
   }
 }
