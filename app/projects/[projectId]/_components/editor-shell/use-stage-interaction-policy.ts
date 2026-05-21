@@ -47,7 +47,6 @@ function useEditorInteractionController(args: {
 
 export function useStageInteractionPolicy(args: {
   canvasRef: RefObject<ProjectCanvasStageHandle | null>
-  canvasMode: "image" | "filter"
   leftPanelTab: string
   sourceReady: boolean
   selectedNavId: string
@@ -58,7 +57,6 @@ export function useStageInteractionPolicy(args: {
 }) {
   const {
     canvasRef,
-    canvasMode,
     leftPanelTab,
     sourceReady,
     selectedNavId,
@@ -161,7 +159,7 @@ export function useStageInteractionPolicy(args: {
       panEnabled: toolbar.tool === "hand",
       directActive: toolbar.tool === "direct",
     }),
-    [canvasMode, cropDisabled, handleToolbarToolChange, isCropping, rotateDisabled, showDirectSelect, toolbar]
+    [cropDisabled, handleToolbarToolChange, isCropping, rotateDisabled, showDirectSelect, toolbar]
   )
 
   return {

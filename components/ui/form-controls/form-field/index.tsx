@@ -48,7 +48,7 @@ import { cn } from "@/lib/utils"
 import { ColorVariant } from "./color"
 import { NumericOrTextVariant } from "./numeric-text"
 import { SelectVariant } from "./select"
-import type { FormFieldHandle, FormFieldProps, SelectFieldOption } from "./types"
+import type { FormFieldHandle, FormFieldProps } from "./types"
 
 export type { FormFieldHandle, FormFieldProps, SelectFieldOption } from "./types"
 

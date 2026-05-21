@@ -87,7 +87,7 @@ export function FilterSidebarSection(props: {
                 aria-label={hiddenFilterIds[filter.id] ? "Show filter" : "Hide filter"}
                 onClick={() => onToggleHidden(filter.id)}
               >
-                {hiddenFilterIds[filter.id] ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                {hiddenFilterIds[filter.id] ? <EyeOff /> : <Eye />}
               </SidebarMenuAction>
               <SidebarMenuAction
                 inline
