@@ -61,7 +61,15 @@ export function useTraceHandlers(opts: {
     }
   }, [projectId])
 
+  // Fetch-on-mount. The setState calls inside `refreshTrace` are the
+  // result of a real async side effect (GET /trace), not a derived-
+  // state computation — `useSyncExternalStore` (the rule's
+  // recommendation) is for subscriptions, not one-shot fetches. A
+  // Suspense + `use()` migration would be the architecturally clean
+  // path but reaches deep into the shell; deferring until the trace
+  // surface graduates to a resource loader.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void refreshTrace()
   }, [refreshTrace])
 
