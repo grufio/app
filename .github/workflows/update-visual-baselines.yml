@@ -1,0 +1,87 @@
+name: Update visual baselines
+
+# Regenerates Linux chromium baselines for `e2e/forms.visual.spec.ts`
+# by running Playwright with `--update-snapshots`. Pushes a branch and
+# opens a PR.
+#
+# Trigger via `gh workflow run update-visual-baselines.yml` or the UI.
+# Once the resulting PR is merged, flip `E2E_VISUAL_SOFT_FAIL` in
+# `ci.yml` to `"false"` so visual diffs become a hard gate.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v5
+        with:
+          path: .playwright-browsers
+          key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      - name: Install Playwright browsers (Chromium)
+        if: ${{ steps.playwright-cache.outputs.cache-hit != 'true' }}
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: .playwright-browsers
+        run: npx -y playwright install --with-deps chromium
+
+      - name: Update baselines (forms.visual.spec.ts)
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: .playwright-browsers
+        run: npm run test:e2e:visual -- --update-snapshots
+
+      - name: Bail if no changes
+        id: changes
+        run: |
+          if git diff --quiet e2e/forms.visual.spec.ts-snapshots/; then
+            echo "No baseline changes, exiting."
+            echo "has-changes=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has-changes=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Configure git
+        if: steps.changes.outputs.has-changes == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Push branch + open PR
+        if: steps.changes.outputs.has-changes == 'true'
+        run: |
+          BR="chore/update-visual-baselines-$(date -u +%Y%m%d-%H%M%S)"
+          git checkout -b "$BR"
+          git add e2e/forms.visual.spec.ts-snapshots/
+          git commit -m "chore(e2e): update chromium-linux visual baselines"
+          git push -u origin "$BR"
+          gh pr create \
+            --title "chore(e2e): update chromium-linux visual baselines" \
+            --body "Automated baseline regen of \`e2e/forms.visual.spec.ts-snapshots/\` via \`update-visual-baselines.yml\`. After merge, flip \`E2E_VISUAL_SOFT_FAIL\` in \`.github/workflows/ci.yml\` to \`\"false\"\` so visual diffs become a hard gate." \
+            --base main

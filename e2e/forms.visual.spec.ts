@@ -95,8 +95,10 @@ test.describe("forms — visual regressions", () => {
     await freezeAnimations(page)
 
     // Switch the layer tree to the Image node so the right panel shows the
-    // Image section (with size/position/align/lock fields).
-    const layers = page.getByLabel("Layers")
+    // Image section (with size/position/align/lock fields). Use the aside's
+    // role/name to disambiguate from the mobile toggle button which also
+    // matches `getByLabel("Layers")` (its aria-label is "Toggle layers panel").
+    const layers = page.getByRole("complementary", { name: "Layers" })
     await expect(layers).toBeVisible()
     const imageBtn = layers.getByRole("button", { name: "Image", exact: true }).first()
     await imageBtn.click()
