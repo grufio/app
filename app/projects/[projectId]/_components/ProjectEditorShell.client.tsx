@@ -227,7 +227,6 @@ export function ProjectDetailPageClient({
   }, [traceDialog.session, traceSourceImage])
   const {
     trace,
-    traceBaseImage,
     traceLoading,
     isApplyingTrace,
     isClearingTrace,
@@ -467,7 +466,6 @@ export function ProjectDetailPageClient({
     editorImageSource,
     filterDisplayImage,
     filterDisplayImageWithoutTrace,
-    traceBaseImage,
   })
 
   const grid = useMemo(() => {

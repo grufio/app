@@ -58,37 +58,30 @@ export function deriveStageImage(input: {
 /**
  * Picks the canvas-rendered image.
  *
+ * Post the working-copy refactor, the canvas always renders the
+ * working_copy (or its filter chain tip). The trace SVG overlays via
+ * `TraceInlineSvg` on top, positioned by the master state in
+ * `project_image_state`. The `trace_base` bitmap is Python-service
+ * data for cell-color sampling; it is NOT rendered on the canvas.
+ *
+ * Earlier versions of this picker preferred `trace_base` whenever a
+ * trace was active, which routed the canvas through trace_base's
+ * source-crop intrinsic pixels (landscape, regardless of the user's
+ * resize) and rendered the trace at the original image proportions.
+ * That bug class is closed by always staying on the working_copy /
+ * filter tip.
+ *
  * Priority:
- *   1. `traceBaseImage` — the cropped source bitmap a pixelate trace
- *      writes alongside its SVG. When present, it replaces the
- *      filter-tip on the canvas so the SVG overlay sits 1:1 on its
- *      own bitmap and the cropped-out border doesn't leak through.
- *      Persistence stays anchored at the filter chain; the canvas
- *      source ID swap is purely visual for the Trace overlay.
- *   2. `filterDisplayImageWithoutTrace` — the trace-free working
- *      copy. Default canvas source for the Image / Filter tabs and
- *      for any trace kind that doesn't crop (lineart). Matches the
- *      persistence target.
- *   3. `stageImage` — workflow-source fallback while the working
+ *   1. `filterDisplayImageWithoutTrace` — the trace-free working
+ *      copy. Default canvas source for Image / Filter / Trace tabs.
+ *   2. `stageImage` — workflow-source fallback while the working
  *      copy is still loading.
  */
 export function pickCanvasImage(input: {
-  traceBaseImage: CanvasSource | null
   filterDisplayImageWithoutTrace: CanvasSource | null
   stageImage: CanvasImage | null
 }): CanvasImage | null {
-  const { traceBaseImage, filterDisplayImageWithoutTrace, stageImage } = input
-  if (traceBaseImage) {
-    return {
-      id: traceBaseImage.id,
-      signedUrl: traceBaseImage.signedUrl,
-      name: traceBaseImage.name,
-      width_px: traceBaseImage.width_px,
-      height_px: traceBaseImage.height_px,
-      dpi: null,
-      restore_base: null,
-    }
-  }
+  const { filterDisplayImageWithoutTrace, stageImage } = input
   if (filterDisplayImageWithoutTrace) {
     return {
       id: filterDisplayImageWithoutTrace.id,
