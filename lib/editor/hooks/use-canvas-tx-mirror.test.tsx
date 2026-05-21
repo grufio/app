@@ -33,6 +33,7 @@ describe("useCanvasTxMirror", () => {
         canvasRef: makeCanvasRefStub(),
         activeCanvasImageId: "img-1",
         initialImageTransform: null,
+        masterImageId: "master-A",
       })
     )
     expect(result.current.imageTxU).toBe(null)
@@ -44,6 +45,7 @@ describe("useCanvasTxMirror", () => {
         canvasRef: makeCanvasRefStub(),
         activeCanvasImageId: "img-1",
         initialImageTransform: null,
+        masterImageId: "master-A",
       })
     )
     act(() => {
@@ -63,6 +65,7 @@ describe("useCanvasTxMirror", () => {
         canvasRef: makeCanvasRefStub(),
         activeCanvasImageId: "img-1",
         initialImageTransform: null,
+        masterImageId: "master-A",
       })
     )
     act(() => {
@@ -82,6 +85,7 @@ describe("useCanvasTxMirror", () => {
         canvasRef: makeCanvasRefStub(),
         activeCanvasImageId: "img-1",
         initialImageTransform: null,
+        masterImageId: "master-A",
       })
     )
     act(() => {
@@ -94,20 +98,44 @@ describe("useCanvasTxMirror", () => {
     expect(result.current.imageTxU).toBe(first)
   })
 
-  it("clear() resets the mirror to null", () => {
-    const { result } = renderHook(() =>
-      useCanvasTxMirror({
-        canvasRef: makeCanvasRefStub(),
-        activeCanvasImageId: "img-1",
-        initialImageTransform: null,
-      })
+  it("resets the mirror to null when masterImageId changes", () => {
+    // Replaces the explicit `clear()` method: the lifecycle is now
+    // bound to the master row. Caller does not need to remember to
+    // clean up on master delete or replace.
+    const { result, rerender } = renderHook(
+      ({ masterImageId }: { masterImageId: string | null }) =>
+        useCanvasTxMirror({
+          canvasRef: makeCanvasRefStub(),
+          activeCanvasImageId: "img-1",
+          initialImageTransform: null,
+          masterImageId,
+        }),
+      { initialProps: { masterImageId: "master-A" as string | null } },
     )
     act(() => {
       result.current.handleImageTransformChange({ xPxU: 1n, yPxU: 2n, widthPxU: 3n, heightPxU: 4n })
     })
+    expect(result.current.imageTxU).not.toBe(null)
+
+    rerender({ masterImageId: "master-B" })
+    expect(result.current.imageTxU).toBe(null)
+  })
+
+  it("resets the mirror when master is destroyed (masterImageId → null)", () => {
+    const { result, rerender } = renderHook(
+      ({ masterImageId }: { masterImageId: string | null }) =>
+        useCanvasTxMirror({
+          canvasRef: makeCanvasRefStub(),
+          activeCanvasImageId: "img-1",
+          initialImageTransform: null,
+          masterImageId,
+        }),
+      { initialProps: { masterImageId: "master-A" as string | null } },
+    )
     act(() => {
-      result.current.clear()
+      result.current.handleImageTransformChange({ xPxU: 1n, yPxU: 2n, widthPxU: 3n, heightPxU: 4n })
     })
+    rerender({ masterImageId: null })
     expect(result.current.imageTxU).toBe(null)
   })
 
@@ -118,6 +146,7 @@ describe("useCanvasTxMirror", () => {
         canvasRef: makeCanvasRefStub(setImagePosition),
         activeCanvasImageId: "img-1",
         initialImageTransform: null,
+        masterImageId: "master-A",
       })
     )
     act(() => {
@@ -133,6 +162,7 @@ describe("useCanvasTxMirror", () => {
         canvasRef: makeCanvasRefStub(setImagePosition),
         activeCanvasImageId: "img-1",
         initialImageTransform: null,
+        masterImageId: "master-A",
       })
     )
     act(() => {
@@ -158,6 +188,7 @@ describe("useCanvasTxMirror", () => {
         canvasRef: makeCanvasRefStub(setImagePosition),
         activeCanvasImageId: "img-1",
         initialImageTransform: null,
+        masterImageId: "master-A",
       })
     )
     act(() => {
@@ -176,6 +207,7 @@ describe("useCanvasTxMirror", () => {
         canvasRef: makeCanvasRefStub(),
         activeCanvasImageId: "img-1",
         initialImageTransform: { xPxU: 5n, yPxU: 6n, widthPxU: 100n, heightPxU: 200n },
+        masterImageId: "master-A",
       })
     )
     expect(result.current.initialImageTxU).toEqual({ x: 5n, y: 6n, w: 100n, h: 200n })
@@ -187,6 +219,7 @@ describe("useCanvasTxMirror", () => {
         canvasRef: makeCanvasRefStub(),
         activeCanvasImageId: null,
         initialImageTransform: { xPxU: 5n, yPxU: 6n, widthPxU: 100n, heightPxU: 200n },
+        masterImageId: "master-A",
       })
     )
     expect(result.current.initialImageTxU).toBe(null)
@@ -203,6 +236,7 @@ describe("useCanvasTxMirror", () => {
         canvasRef: ref,
         activeCanvasImageId: "img-1",
         initialImageTransform: null,
+        masterImageId: "master-A",
       })
       return { mirror, ref }
     })

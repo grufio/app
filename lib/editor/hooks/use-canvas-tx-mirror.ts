@@ -25,17 +25,18 @@
  *     `useEditorKeyboard.onNudge`. Reads the current mirror and
  *     dispatches `setImagePosition` through the canvas ref. No-ops
  *     when the mirror is null (canvas has no image yet).
- *   - `clear()` — force the mirror to null. Called when the master
- *     image is deleted so the right panel doesn't briefly show a
- *     stale transform before the canvas's null-callback fires.
  *
- * Pre-Tier-C the shell owned all five inline as `useState` /
- * `useMemo` / `useCallback`s. Every input is already a hook
- * parameter — the shell was just plumbing.
+ * Lifecycle: the mirror is bound to `masterImageId` via
+ * `useUpdateEffect`. When the master changes (delete, replace), the
+ * mirror auto-resets to null so consumers don't see stale state from
+ * the previous master. Callers don't need imperative cleanup —
+ * historically the shell called a `clear()` method which was removed
+ * in favour of this lifecycle binding (mirrors `useImageState`).
  */
 import { useCallback, useMemo, useState, type RefObject } from "react"
 
 import type { ProjectCanvasStageHandle } from "@/features/editor"
+import { useUpdateEffect } from "@/lib/react/use-update-effect"
 
 export type ImageTxU = { x: bigint; y: bigint; w: bigint; h: bigint }
 
@@ -73,9 +74,21 @@ export function useCanvasTxMirror(args: {
   canvasRef: RefObject<ProjectCanvasStageHandle | null>
   activeCanvasImageId: string | null
   initialImageTransform: InitialImageTransform
+  /**
+   * Active master row's id, or `null` when no master exists. When this
+   * changes (= master deleted / replaced) the live mirror auto-resets
+   * so the next image doesn't inherit the previous master's transform.
+   */
+  masterImageId: string | null
 }) {
-  const { canvasRef, activeCanvasImageId, initialImageTransform } = args
+  const { canvasRef, activeCanvasImageId, initialImageTransform, masterImageId } = args
   const [imageTxU, setImageTxU] = useState<ImageTxU | null>(null)
+
+  // Auto-reset on master transitions. Synchronous reset — no async
+  // work to abort here (unlike `useImageState`).
+  useUpdateEffect(() => {
+    setImageTxU(null)
+  }, [masterImageId])
 
   const initialImageTxU = useMemo<ImageTxU | null>(
     () => deriveInitialImageTxU({ activeCanvasImageId, initialImageTransform }),
@@ -107,13 +120,10 @@ export function useCanvasTxMirror(args: {
     [canvasRef, imageTxU]
   )
 
-  const clear = useCallback(() => setImageTxU(null), [])
-
   return {
     imageTxU,
     initialImageTxU,
     handleImageTransformChange,
     handleNudge,
-    clear,
   }
 }

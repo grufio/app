@@ -51,13 +51,19 @@ export async function getImageState(projectId: string): Promise<GetImageStateRes
   return res.data
 }
 
-/** POST /api/projects/[projectId]/image-state — persists the image transform (size + position + rotation). Throws `ApiError` on non-2xx. */
-export async function saveImageState(projectId: string, body: SaveImageStateBody): Promise<void> {
+/** POST /api/projects/[projectId]/image-state — persists the image transform (size + position + rotation). Throws `ApiError` on non-2xx.
+ * Accepts an optional `AbortSignal` so callers can cancel in-flight requests (e.g. when the master changes mid-save). */
+export async function saveImageState(
+  projectId: string,
+  body: SaveImageStateBody,
+  options?: { signal?: AbortSignal },
+): Promise<void> {
   const res = await fetchJson<unknown>(IMAGE_STATE_URL(projectId), {
     method: "POST",
     credentials: "same-origin",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    signal: options?.signal,
   })
   if (!res.ok) {
     throw new ApiError({

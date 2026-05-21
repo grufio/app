@@ -131,7 +131,6 @@ export function ProjectDetailPageClient({
     sourceSnapshot,
     initialImageTransform,
     saveImageState,
-    clearPersistedImageState,
     workflow,
     editorImageSource,
     activeCanvasImageId,
@@ -163,11 +162,11 @@ export function ProjectDetailPageClient({
     initialImageTxU,
     handleImageTransformChange,
     handleNudge,
-    clear: clearImageTxU,
   } = useCanvasTxMirror({
     canvasRef,
     activeCanvasImageId,
     initialImageTransform,
+    masterImageId: masterImage?.id ?? null,
   })
   const filterDialog = useFilterDialogSession(filterSourceImage)
   // Trace dialog needs the image's displayed size on the artboard in
@@ -353,14 +352,18 @@ export function ProjectDetailPageClient({
     try {
       await deleteMasterImageWithCascade(projectId)
       setDeleteOpen(false)
-      clearImageTxU()
-      clearPersistedImageState()
       // delete_master_with_cascade is an atomic write: on success,
       // every image row (master + derivatives) is gone in the DB. The
       // resulting client state is trivial — null master, empty list.
       // We seed it directly and let the workflow machine pick up the
       // empty source via the existing SOURCE_SNAPSHOT useEffect, just
       // like the upload path does after PR #193.
+      //
+      // The two state mirrors (`useImageState.persistedTransform` and
+      // `useCanvasTxMirror.imageTxU`) auto-reset because both hooks
+      // are keyed on `masterImage?.id`; `seedMasterImage(null)` below
+      // flips that id to null, the hooks' `useUpdateEffect`s fire,
+      // mirrors clear. No imperative cleanup needed.
       //
       // Background refresh is idempotent: empty is the stable fixed
       // point of the cascade, so an eventual refresh just confirms
@@ -373,8 +376,6 @@ export function ProjectDetailPageClient({
       setDeleteError(e instanceof Error ? e.message : "Failed to delete image")
     }
   }, [
-    clearImageTxU,
-    clearPersistedImageState,
     masterImage?.id,
     projectId,
     refreshFilterImage,
