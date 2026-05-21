@@ -19,9 +19,15 @@
  * History note: an earlier design held `initial` in `useState` PLUS an
  * `enabled` lifecycle flag that wiped the state when the canvas source
  * wasn't ready yet — that combination produced the "always default
- * size on reopen" bug. Reintroducing useState alone (no enabled flag,
- * no wipe path) keeps the new bug class — stale seed snaps newly
- * activated images back to defaults — fixed structurally.
+ * size on reopen" bug. The new wipe path is keyed on `masterImageId`
+ * via `useUpdateEffect`: it fires only on structural transitions
+ * (master delete, replace) — never on transient source-loading — so
+ * the 2025 bug class stays fixed.
+ *
+ * In-flight saves carry an `AbortSignal`; on master change all
+ * controllers are aborted, the browser cancels the fetch natively,
+ * and the rejecting promise is filtered (no error report, no stale
+ * setPersistedTransform).
  *
  * What lives elsewhere:
  * - SSR fetch: `services/editor/server/image-state.ts` →
@@ -31,7 +37,8 @@
  * - Persistence wire format: `lib/editor/imageState/`.
  *
  * Post PR #124 the state row is anchored at the project's `master.id`
- * server-side, so the hook still needs no image-id input.
+ * server-side. The `masterImageId` param on the client mirrors that
+ * anchor so the in-memory mirror lifecycle matches the DB lifecycle.
  */
 import { useCallback, useEffect, useRef, useState } from "react"
 
@@ -39,6 +46,7 @@ import { saveImageState as saveImageStateApi } from "@/lib/api/image-state"
 import { ApiError } from "@/lib/api/api-error"
 import { toSaveImageStateBody } from "@/lib/editor/imageState"
 import { reportClientError } from "@/lib/monitoring/with-error-reporting"
+import { useUpdateEffect } from "@/lib/react/use-update-effect"
 
 export type ImageState = {
   xPxU?: bigint
@@ -58,6 +66,10 @@ function buildTransformSignature(p: {
   rotation_deg: number | string
 }): string {
   return `${p.x_px_u ?? ""}|${p.y_px_u ?? ""}|${p.width_px_u}|${p.height_px_u}|${p.rotation_deg}`
+}
+
+function isAbortError(e: unknown): boolean {
+  return e instanceof Error && e.name === "AbortError"
 }
 
 /**
@@ -94,32 +106,31 @@ export function createPendingSlot<T>() {
 
 /**
  * @param projectId — route key for the API + log prefix.
+ * @param masterImageId — the active master row's id, or `null` when no
+ *   master exists. When this changes (= master deleted or replaced),
+ *   the live mirror is reset and in-flight saves are aborted.
  * @param initial — SSR-provided transform seed. Used as the initial
  *   value of the live mirror; subsequent successful saves replace it.
  *
  * Returns:
  * - `initialImageTransform` — live mirror of the persisted transform.
- *   Starts as the SSR seed; updated after each successful save so
- *   downstream consumers (canvas-stage's initial-placement-controller)
- *   see the user's latest persisted size when a new active image
- *   (trace_base / filter_working_copy) replaces the master on the
- *   canvas.
- * - `saveImageState(t)` — enqueue + flush a transform write. Saves are
- *   coalesced via a pending-slot; the latest payload wins. Errors are
- *   logged + reported via `reportClientError` and otherwise swallowed
- *   (the canvas remains responsive; the workflow machine surfaces the
- *   persistence error separately for UI).
+ * - `saveImageState(t)` — enqueue + flush a transform write.
  */
-export function useImageState(projectId: string, initial: ImageState | null) {
+export function useImageState(
+  projectId: string,
+  masterImageId: string | null,
+  initial: ImageState | null,
+) {
   const lastSavedSignatureRef = useRef<string | null>(null)
   const pendingSlotRef = useRef<ReturnType<typeof createPendingSlot<ImageState>> | null>(null)
   if (!pendingSlotRef.current) pendingSlotRef.current = createPendingSlot<ImageState>()
   const inflightRef = useRef<Promise<void> | null>(null)
+  const inflightControllersRef = useRef<Set<AbortController>>(new Set())
 
   // Live mirror of the persisted transform. `initial` is only the
   // first-render seed; React's useState ignores subsequent prop
-  // changes by design, which is what we want — the mirror is
-  // authoritative once the user has saved anything.
+  // changes by design. The `masterImageId` useUpdateEffect handles
+  // the reset on master transitions.
   const [persistedTransform, setPersistedTransform] = useState<ImageState | null>(initial)
 
   const flushOnce = useCallback(async (p: Pending<ImageState>): Promise<void> => {
@@ -144,7 +155,23 @@ export function useImageState(projectId: string, initial: ImageState | null) {
       return
     }
 
-    await saveImageStateApi(projectId, payload)
+    const controller = new AbortController()
+    inflightControllersRef.current.add(controller)
+    try {
+      await saveImageStateApi(projectId, payload, { signal: controller.signal })
+    } catch (e) {
+      if (isAbortError(e)) {
+        // Master changed mid-flight (or component unmounted) → the
+        // reset already cleared the slot; the in-flight save is
+        // discarded by design. Don't promote to error report.
+        pendingSlotRef.current?.clearIfSeq(p.seq)
+        return
+      }
+      throw e
+    } finally {
+      inflightControllersRef.current.delete(controller)
+    }
+
     // Mark as saved only after a successful write. Otherwise retries with the
     // same payload would be incorrectly deduped after transient failures.
     lastSavedSignatureRef.current = signature
@@ -185,6 +212,7 @@ export function useImageState(projectId: string, initial: ImageState | null) {
         pendingSlotRef.current?.set(t)
         await flush()
       } catch (e) {
+        if (isAbortError(e)) return
         if (e instanceof ApiError) {
           const stage = typeof e.payload?.stage === "string" ? e.payload.stage : null
           const payloadError = typeof e.payload?.error === "string" ? e.payload.error : null
@@ -203,22 +231,25 @@ export function useImageState(projectId: string, initial: ImageState | null) {
     [flush, projectId]
   )
 
+  // Unmount cleanup: abort in-flight saves so their resolved promises
+  // don't call setPersistedTransform on a dead component.
   useEffect(() => {
     return () => {
       pendingSlotRef.current?.clearAll()
+      for (const c of inflightControllersRef.current) c.abort()
+      inflightControllersRef.current.clear()
     }
   }, [])
 
-  // Reset the mirror when the master is destroyed (delete-with-cascade).
-  // Without this, a stale user-resized value carries over to the next
-  // upload — initial-placement-controller reads it as "persisted state
-  // for the new master" and applies it instead of computing fresh
-  // placement from the new image's intrinsic + DPI.
-  const clearPersisted = useCallback(() => {
+  // Auto-reset on master transitions (delete, replace). Fires only on
+  // updates — initial mount keeps the SSR seed intact.
+  useUpdateEffect(() => {
+    for (const c of inflightControllersRef.current) c.abort()
+    inflightControllersRef.current.clear()
     pendingSlotRef.current?.clearAll()
     lastSavedSignatureRef.current = null
     setPersistedTransform(null)
-  }, [])
+  }, [masterImageId])
 
-  return { initialImageTransform: persistedTransform, saveImageState, clearPersisted }
+  return { initialImageTransform: persistedTransform, saveImageState }
 }

@@ -45,7 +45,25 @@ describe("image-state API wrapper", () => {
       credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
+      signal: undefined,
     })
+  })
+
+  it("POST forwards an AbortSignal when provided", async () => {
+    const okPost: FetchJsonResult<unknown> = { ok: true, status: 200, data: {} }
+    fetchJsonMock.mockResolvedValueOnce(okPost)
+
+    const controller = new AbortController()
+    await saveImageState(
+      "project-1",
+      { width_px_u: "1", height_px_u: "1", rotation_deg: 0 },
+      { signal: controller.signal },
+    )
+
+    expect(fetchJsonMock).toHaveBeenCalledWith(
+      "/api/projects/project-1/image-state",
+      expect.objectContaining({ signal: controller.signal }),
+    )
   })
 
   it("throws ApiError on failed POST (e.g. lock_conflict)", async () => {
