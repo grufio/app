@@ -131,6 +131,7 @@ export function ProjectDetailPageClient({
     sourceSnapshot,
     initialImageTransform,
     saveImageState,
+    clearPersistedImageState,
     workflow,
     editorImageSource,
     activeCanvasImageId,
@@ -353,6 +354,7 @@ export function ProjectDetailPageClient({
       await deleteMasterImageWithCascade(projectId)
       setDeleteOpen(false)
       clearImageTxU()
+      clearPersistedImageState()
       // delete_master_with_cascade is an atomic write: on success,
       // every image row (master + derivatives) is gone in the DB. The
       // resulting client state is trivial — null master, empty list.
@@ -372,6 +374,7 @@ export function ProjectDetailPageClient({
     }
   }, [
     clearImageTxU,
+    clearPersistedImageState,
     masterImage?.id,
     projectId,
     refreshFilterImage,
