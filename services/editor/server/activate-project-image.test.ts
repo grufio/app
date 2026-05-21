@@ -29,7 +29,24 @@ import {
   activateProjectImageOnly as activateProjectImageOnlyService,
 } from "./activate-project-image"
 
-const supabase = {} as SupabaseClient
+function createSupabaseStub(
+  opts: { updateError?: { message: string; code?: string } | null } = {},
+): SupabaseClient {
+  const updateResult = { error: opts.updateError ?? null }
+  const eq = vi.fn()
+  const builder = {
+    eq,
+    then(onFulfilled: (v: typeof updateResult) => unknown, onRejected?: (reason: unknown) => unknown) {
+      return Promise.resolve(updateResult).then(onFulfilled, onRejected)
+    },
+  }
+  eq.mockReturnValue(builder)
+  const update = vi.fn().mockReturnValue(builder)
+  const from = vi.fn().mockReturnValue({ update })
+  return { from } as unknown as SupabaseClient
+}
+
+const supabase = createSupabaseStub()
 
 const masterArgs = {
   supabase,
@@ -141,6 +158,32 @@ describe("activateProjectMasterWithState", () => {
     expect(out).toEqual({ ok: true })
     expect(vi.mocked(setActiveProjectImageState)).toHaveBeenCalledOnce()
     expect(vi.mocked(setActiveProjectImageOnly)).not.toHaveBeenCalled()
+  })
+
+  it("fails fast when persisting initial display rect errors", async () => {
+    const failingSupabase = createSupabaseStub({
+      updateError: { message: "constraint violation", code: "23502" },
+    })
+    vi.mocked(getActiveProjectImageLockRow).mockResolvedValue({ row: null, error: null })
+    vi.mocked(getProjectWorkspacePlacementRow).mockResolvedValue({
+      row: {
+        width_px_u: "1000000000",
+        height_px_u: "800000000",
+        width_px: 1000,
+        height_px: 800,
+      },
+      error: null,
+    })
+
+    const out = await activateProjectMasterWithState({ ...masterArgs, supabase: failingSupabase })
+    expect(out).toEqual({
+      ok: false,
+      status: 400,
+      stage: "active_switch",
+      reason: "Failed to persist initial display rect: constraint violation",
+      code: "23502",
+    })
+    expect(vi.mocked(setActiveProjectImageState)).not.toHaveBeenCalled()
   })
 })
 

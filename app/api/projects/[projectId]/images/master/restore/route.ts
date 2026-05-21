@@ -9,21 +9,9 @@ import { NextResponse } from "next/server"
 
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { isUuid, jsonError, requireUser } from "@/lib/api/route-guards"
-import { computeImagePlacementPx, placementPxToMicroPx } from "@/lib/editor/image-placement"
-import { pxUToPxNumber } from "@/lib/editor/units"
 import { resetProjectFilterChain } from "@/services/editor/server/filter-chain-reset"
 
 export const dynamic = "force-dynamic"
-
-function parsePositiveBigInt(value: unknown): bigint | null {
-  if (typeof value !== "string" || !value.trim()) return null
-  try {
-    const out = BigInt(value)
-    return out > 0n ? out : null
-  } catch {
-    return null
-  }
-}
 
 export async function POST(
   _req: Request,
@@ -67,7 +55,7 @@ export async function POST(
 
   const { data: baseMaster, error: baseErr } = await supabase
     .from("project_images")
-    .select("id,width_px,height_px,dpi")
+    .select("id,initial_display_x_px_u,initial_display_y_px_u,initial_display_width_px_u,initial_display_height_px_u")
     .eq("project_id", projectId)
     .eq("kind", "master")
     .is("deleted_at", null)
@@ -81,51 +69,29 @@ export async function POST(
     return jsonError("Initial master image not found", 404, { stage: "restore_base_missing" })
   }
 
-  const widthPx = Number(baseMaster.width_px ?? 0)
-  const heightPx = Number(baseMaster.height_px ?? 0)
-  if (!(widthPx > 0 && heightPx > 0)) {
-    return jsonError("Invalid initial master dimensions", 400, { stage: "restore_base_invalid_dims" })
+  // Restore from the persisted initial display rect written at upload
+  // time (see `activateProjectMasterWithState`). The columns are
+  // NOT NULL with DEFAULT '0'; treat '0' as "uninitialised" (= legacy
+  // pre-migration master, no clean recovery for PoC) and bail with a
+  // clear error rather than silently writing zeros into the state row.
+  if (
+    baseMaster.initial_display_width_px_u === "0" ||
+    baseMaster.initial_display_height_px_u === "0"
+  ) {
+    return jsonError(
+      "Initial display rect missing on master row (legacy upload — re-upload to use restore)",
+      400,
+      { stage: "restore_initial_display_missing" },
+    )
   }
-
-  const { data: workspaceRow, error: workspaceErr } = await supabase
-    .from("project_workspace")
-    .select("width_px_u,height_px_u,width_px,height_px")
-    .eq("project_id", projectId)
-    .maybeSingle()
-  if (workspaceErr) {
-    return jsonError(workspaceErr.message, 400, { stage: "restore_workspace_query" })
-  }
-  if (!workspaceRow) {
-    return jsonError("Workspace missing", 400, { stage: "restore_workspace_missing" })
-  }
-
-  const widthPxU = parsePositiveBigInt(workspaceRow.width_px_u)
-  const heightPxU = parsePositiveBigInt(workspaceRow.height_px_u)
-  const artW = widthPxU ? pxUToPxNumber(widthPxU) : Number(workspaceRow.width_px ?? 0)
-  const artH = heightPxU ? pxUToPxNumber(heightPxU) : Number(workspaceRow.height_px ?? 0)
-  if (!(artW > 0 && artH > 0)) {
-    return jsonError("Workspace size missing or invalid", 400, { stage: "restore_workspace_invalid_dims" })
-  }
-
-  const placement = computeImagePlacementPx({
-    artW,
-    artH,
-    intrinsicW: Math.max(1, Math.trunc(widthPx)),
-    intrinsicH: Math.max(1, Math.trunc(heightPx)),
-    imageDpi: Number(baseMaster.dpi ?? 0),
-  })
-  if (!placement) {
-    return jsonError("Failed to compute initial placement", 400, { stage: "restore_placement" })
-  }
-  const placementU = placementPxToMicroPx(placement)
 
   const { error: rpcErr } = await supabase.rpc("set_active_master_with_state", {
     p_project_id: projectId,
     p_image_id: baseMaster.id,
-    p_x_px_u: placementU.xPxU,
-    p_y_px_u: placementU.yPxU,
-    p_width_px_u: placementU.widthPxU,
-    p_height_px_u: placementU.heightPxU,
+    p_x_px_u: baseMaster.initial_display_x_px_u,
+    p_y_px_u: baseMaster.initial_display_y_px_u,
+    p_width_px_u: baseMaster.initial_display_width_px_u,
+    p_height_px_u: baseMaster.initial_display_height_px_u,
   })
   if (rpcErr) {
     return jsonError(rpcErr.message, 400, { stage: "restore_rpc" })
