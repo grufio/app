@@ -54,6 +54,15 @@ export function useStageInteractionPolicy(args: {
   activeCanvasImageId: string | null
   isCropping: boolean
   onApplyCrop: (rect: { x: number; y: number; w: number; h: number }) => void
+  /** True when the canvas is rendering the `trace_base` bitmap (i.e.
+   * the user is on the Trace tab with a trace applied). The trace is
+   * fixed at apply-time (PR #239 design — its display rect is
+   * persisted to project_image_trace.display_*_px_u and must not be
+   * mutated by drag/resize). When true, the object tool's drag
+   * affordance is suppressed so user gestures can't accidentally
+   * overwrite the master's project_image_state row through the canvas
+   * commit pipeline. */
+  canvasIsTrace: boolean
 }) {
   const {
     canvasRef,
@@ -64,6 +73,7 @@ export function useStageInteractionPolicy(args: {
     activeCanvasImageId,
     isCropping,
     onApplyCrop,
+    canvasIsTrace,
   } = args
 
   const toolbar = useFloatingToolbarControls({
@@ -155,11 +165,11 @@ export function useStageInteractionPolicy(args: {
       rotateDisabled,
       cropEnabled: !cropDisabled && toolbar.tool === "crop",
       cropBusy: isCropping,
-      imageDraggable: toolbar.tool === "object",
+      imageDraggable: toolbar.tool === "object" && !canvasIsTrace,
       panEnabled: toolbar.tool === "hand",
       directActive: toolbar.tool === "direct",
     }),
-    [cropDisabled, handleToolbarToolChange, isCropping, rotateDisabled, showDirectSelect, toolbar]
+    [canvasIsTrace, cropDisabled, handleToolbarToolChange, isCropping, rotateDisabled, showDirectSelect, toolbar]
   )
 
   return {

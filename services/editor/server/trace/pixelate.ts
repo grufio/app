@@ -239,16 +239,23 @@ export async function pixelateImageAndActivate(args: {
     displayMmH: masterState.displayMmH,
     grid,
   })
-  // Trace display rect (µpx), centred on the master. The trace
-  // bitmap is delivered at crop dimensions (no padding to master
-  // intrinsic); the canvas uses this rect to position + size the
-  // smaller trace inside the master's bounding box.
+  // Trace display rect (µpx). Bitmap is delivered at crop dimensions
+  // (no padding to master intrinsic); the canvas uses this rect to
+  // position + size the smaller trace inside the master's bounding
+  // box. `xPxU`/`yPxU` are *centre* coordinates throughout this
+  // codebase (Konva.Image is rendered with offsetX/Y = width/2,
+  // height/2 — see project-canvas-stage.tsx:713). The trace's centre
+  // coincides with the master's centre by construction (the cropped
+  // region is taken from the centre of the master display rect), so
+  // trace.x/y = master.x/y — no offset arithmetic.
   const traceWidthPxU = mmToMicroPx(grid.usedMmW)
   const traceHeightPxU = mmToMicroPx(grid.usedMmH)
-  const masterXPxU = masterState.xPxU ?? 0n
-  const masterYPxU = masterState.yPxU ?? 0n
-  const traceXPxU = masterXPxU + (masterState.widthPxU - traceWidthPxU) / 2n
-  const traceYPxU = masterYPxU + (masterState.heightPxU - traceHeightPxU) / 2n
+  // Fresh-upload fallback when no project_image_state row exists yet:
+  // default the centre to (master.w/2, master.h/2), which matches a
+  // top-left-anchored placement at (0, 0). Production race-closure in
+  // handleApplyTrace usually persists state before this point.
+  const traceXPxU = masterState.xPxU ?? masterState.widthPxU / 2n
+  const traceYPxU = masterState.yPxU ?? masterState.heightPxU / 2n
 
   const { data: srcBlob, error: downloadErr } = await supabase.storage
     .from(String(src.storage_bucket ?? PROJECT_IMAGES_BUCKET))

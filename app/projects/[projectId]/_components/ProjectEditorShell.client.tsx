@@ -333,6 +333,15 @@ export function ProjectDetailPageClient({
     return "image"
   }, [editorImageSource.status, leftPanelTab])
 
+  // True when the canvas is rendering the trace_base bitmap (Trace
+  // tab + a trace exists). The trace is fixed at apply-time (PR #239),
+  // so drag/resize is disabled and saveImageState is gated below.
+  // Conservative: if the SVG-overlay gating in useCanvasDerivedState
+  // falls through to filterDisplayImageWithoutTrace, this stays true
+  // anyway — slightly over-locks drag in an edge case, no functional
+  // bug.
+  const canvasIsTrace = leftPanelTab === "trace" && Boolean(traceBaseImage)
+
   const { toolbar, stageToolbar, applyCropSelection } = useStageInteractionPolicy({
     canvasRef,
     leftPanelTab,
@@ -342,6 +351,7 @@ export function ProjectDetailPageClient({
     activeCanvasImageId,
     isCropping: workflow.isCropping,
     onApplyCrop: workflow.applyCrop,
+    canvasIsTrace,
   })
 
   const handleDeleteMasterImage = useCallback(async () => {
@@ -582,7 +592,7 @@ export function ProjectDetailPageClient({
               traceInteractive={leftPanelTab === "trace" && stageToolbar.tool === "direct"}
               handleImageTransformChange={handleImageTransformChange}
               initialImageTransform={canvasInitialImageTransform}
-              saveImageState={workflow.saveTransform}
+              saveImageState={canvasIsTrace ? undefined : workflow.saveTransform}
               pageBgEnabled={pageBgEnabled}
               pageBgColor={pageBgColor}
               pageBgOpacity={pageBgOpacity}
