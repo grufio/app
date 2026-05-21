@@ -87,6 +87,3 @@ export async function uploadMasterImageClient(args: {
   const body = (await res.json().catch(() => null)) as Record<string, unknown> | null
   return { ok: true, master: parseMasterSnapshot(body?.master) }
 }
-
-// Backward-compatible alias during migration to explicit client/server naming.
-export const uploadMasterImage = uploadMasterImageClient
