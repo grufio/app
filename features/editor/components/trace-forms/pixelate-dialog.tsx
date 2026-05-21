@@ -122,7 +122,13 @@ export function PixelateDialog({
           <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
             <span className="text-sm font-medium">Pixelate</span>
             <span className="ml-auto pr-10 text-xs text-muted-foreground">
-              {fmt1(displayMmW)} × {fmt1(displayMmH)} mm
+              <span>Image: {fmt1(displayMmW)} × {fmt1(displayMmH)} mm</span>
+              <span className="mx-2">·</span>
+              <span>Grid: {grid.cellsX} × {grid.cellsY} cells</span>
+              <span className="mx-2">·</span>
+              <span>Used: {fmt1(grid.usedMmW)} × {fmt1(grid.usedMmH)} mm</span>
+              <span className="mx-2">·</span>
+              <span>Cut: {fmt1(grid.borderMmX)} × {fmt1(grid.borderMmY)} mm</span>
             </span>
           </header>
 
