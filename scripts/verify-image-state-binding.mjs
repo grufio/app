@@ -152,8 +152,8 @@ function main() {
   const functionConflictDrift = runQuery(
     dbUrl,
     `
-      select 'set_active_master_with_state_conflict_key_drift'
-      where pg_get_functiondef('public.set_active_master_with_state(uuid, uuid, text, text, text, text)'::regprocedure)
+      select 'set_active_image_with_state_conflict_key_drift'
+      where pg_get_functiondef('public.set_active_image_with_state(uuid, uuid, text, text, text, text)'::regprocedure)
             not ilike '%ON CONFLICT (project_id, image_id)%';
     `
   )
@@ -167,7 +167,7 @@ function main() {
     duplicateImageStateRows
   )
   printRows("Gate failed: project_image_state primary key drifted from (project_id, image_id):", pkDrift)
-  printRows("Gate failed: set_active_master_with_state uses wrong ON CONFLICT key:", functionConflictDrift)
+  printRows("Gate failed: set_active_image_with_state uses wrong ON CONFLICT key:", functionConflictDrift)
 
   if (
     multipleActive.length ||

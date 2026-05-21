@@ -20,10 +20,6 @@ function pxToMm(px: number): number {
   return (px / GEOMETRY_PPI) * MM_PER_INCH
 }
 
-function mmToMicroPx(mm: number): bigint {
-  return BigInt(Math.round((mm / MM_PER_INCH) * GEOMETRY_PPI * 1_000_000))
-}
-
 function parsePxU(value: unknown): bigint | null {
   if (typeof value !== "string" || !value.trim()) return null
   try {
@@ -137,16 +133,12 @@ async function resolveMasterState(args: {
  * caller links them via `project_image_trace.base_image_id` so
  * tombstoning and editor display stay in sync.
  *
- * Pixelate is a destructive crop of the master: applying floor-
- * grids the display rect to whole cells, so the floor-grid
- * remainder (e.g. 2mm at 200mm master + 6mm cells) is removed from
- * the master display rect. The handler returns:
- *   - `masterPreState` — the master's display rect *before* the
- *     crop. Stored on the trace row so clear-trace can restore the
- *     master to its pre-apply size.
- *   - `masterPostState` — the cropped rect to write into
- *     `project_image_state` for master.id. Master centre is
- *     unchanged; only the bounding box shrinks.
+ * Pixelate is non-destructive (post the working-copy refactor): it
+ * does NOT mutate `project_image_state` on apply. The trace is a
+ * pure overlay — bitmap + SVG cells sit on top of the working_copy
+ * at the working_copy's current display rect. The floor-grid
+ * remainder (e.g. 2mm at 200mm working_copy + 6mm cells) is the
+ * uncovered border where the working_copy is visible underneath.
  */
 export type PixelateFilterSuccess = {
   ok: true
@@ -156,18 +148,6 @@ export type PixelateFilterSuccess = {
   heightPx: number
   baseId: string
   baseStoragePath: string
-  masterPreState: {
-    xPxU: bigint
-    yPxU: bigint
-    widthPxU: bigint
-    heightPxU: bigint
-  }
-  masterPostState: {
-    xPxU: bigint
-    yPxU: bigint
-    widthPxU: bigint
-    heightPxU: bigint
-  }
 }
 export type PixelateFilterResult = PixelateFilterSuccess | Extract<FilterResult<"pixelate_process">, { ok: false }>
 
@@ -250,20 +230,6 @@ export async function pixelateImageAndActivate(args: {
     displayMmH: masterState.displayMmH,
     grid,
   })
-  // Pre/post master state for the destructive-crop apply. xPxU/yPxU
-  // are *centre* coordinates throughout this codebase (Konva.Image
-  // renders with offsetX/Y = width/2, height/2 — see project-canvas-
-  // stage.tsx:713); the master centre is unchanged by the crop, only
-  // the bounding box shrinks to the floor-grid size.
-  const masterPreWidthPxU = masterState.widthPxU
-  const masterPreHeightPxU = masterState.heightPxU
-  const masterPreXPxU = masterState.xPxU ?? masterState.widthPxU / 2n
-  const masterPreYPxU = masterState.yPxU ?? masterState.heightPxU / 2n
-  const masterPostWidthPxU = mmToMicroPx(grid.usedMmW)
-  const masterPostHeightPxU = mmToMicroPx(grid.usedMmH)
-  // Same centre — only the bounding box shrinks symmetrically.
-  const masterPostXPxU = masterPreXPxU
-  const masterPostYPxU = masterPreYPxU
 
   const { data: srcBlob, error: downloadErr } = await supabase.storage
     .from(String(src.storage_bucket ?? PROJECT_IMAGES_BUCKET))
@@ -443,18 +409,6 @@ export async function pixelateImageAndActivate(args: {
       heightPx: croppedHeight,
       baseId,
       baseStoragePath: baseObjectPath,
-      masterPreState: {
-        xPxU: masterPreXPxU,
-        yPxU: masterPreYPxU,
-        widthPxU: masterPreWidthPxU,
-        heightPxU: masterPreHeightPxU,
-      },
-      masterPostState: {
-        xPxU: masterPostXPxU,
-        yPxU: masterPostYPxU,
-        widthPxU: masterPostWidthPxU,
-        heightPxU: masterPostHeightPxU,
-      },
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Pixelate process failed"
