@@ -55,15 +55,16 @@ export type ProjectTraceRow = {
    * the crop is the only thing visible. Null for trace kinds
    * without a crop (lineart). */
   base_image_id: string | null
-  /** Pixelate writes its crop-derived display rect (µpx, text-
-   * encoded) so the canvas can render the trace at its own size
-   * inside the master's bounding box without any client-side math.
-   * Legacy rows + lineart leave these at "0" — the editor falls
-   * back to the master state's transform when the width is "0". */
-  display_x_px_u: string
-  display_y_px_u: string
-  display_width_px_u: string
-  display_height_px_u: string
+  /** Pre-apply master display rect (µpx, text-encoded). Pixelate is
+   * a destructive crop of the master — applying floor-grids the
+   * master state to whole cells. These columns store the master's
+   * rect *before* the crop so clear-trace can restore the master to
+   * its original size. Legacy rows + lineart store "0" — clear
+   * skips the restore in that case. */
+  master_pre_x_px_u: string
+  master_pre_y_px_u: string
+  master_pre_width_px_u: string
+  master_pre_height_px_u: string
   created_at: string
   updated_at: string
 }
@@ -107,10 +108,10 @@ function rowToTrace(row: {
   params: Record<string, unknown> | null
   output_image_id: string
   base_image_id: string | null
-  display_x_px_u: string | null
-  display_y_px_u: string | null
-  display_width_px_u: string | null
-  display_height_px_u: string | null
+  master_pre_x_px_u: string | null
+  master_pre_y_px_u: string | null
+  master_pre_width_px_u: string | null
+  master_pre_height_px_u: string | null
   created_at: string
   updated_at: string
 }): ProjectTraceRow | null {
@@ -122,10 +123,10 @@ function rowToTrace(row: {
     params: row.params ?? {},
     output_image_id: row.output_image_id,
     base_image_id: row.base_image_id,
-    display_x_px_u: row.display_x_px_u ?? "0",
-    display_y_px_u: row.display_y_px_u ?? "0",
-    display_width_px_u: row.display_width_px_u ?? "0",
-    display_height_px_u: row.display_height_px_u ?? "0",
+    master_pre_x_px_u: row.master_pre_x_px_u ?? "0",
+    master_pre_y_px_u: row.master_pre_y_px_u ?? "0",
+    master_pre_width_px_u: row.master_pre_width_px_u ?? "0",
+    master_pre_height_px_u: row.master_pre_height_px_u ?? "0",
     created_at: row.created_at,
     updated_at: row.updated_at,
   }
@@ -326,7 +327,13 @@ export async function applyProjectTrace(args: {
         widthPx: number
         heightPx: number
         baseId?: string
-        displayRectPxU?: {
+        masterPreState?: {
+          xPxU: bigint
+          yPxU: bigint
+          widthPxU: bigint
+          heightPxU: bigint
+        }
+        masterPostState?: {
           xPxU: bigint
           yPxU: bigint
           widthPxU: bigint
@@ -338,12 +345,12 @@ export async function applyProjectTrace(args: {
   const created = await handler({ supabase, projectId, sourceImageId, params })
   if (!created.ok) return created
   const newBaseId = created.baseId ?? null
-  const displayRect = created.displayRectPxU
+  const masterPre = created.masterPreState
     ? {
-        display_x_px_u: created.displayRectPxU.xPxU.toString(),
-        display_y_px_u: created.displayRectPxU.yPxU.toString(),
-        display_width_px_u: created.displayRectPxU.widthPxU.toString(),
-        display_height_px_u: created.displayRectPxU.heightPxU.toString(),
+        master_pre_x_px_u: created.masterPreState.xPxU.toString(),
+        master_pre_y_px_u: created.masterPreState.yPxU.toString(),
+        master_pre_width_px_u: created.masterPreState.widthPxU.toString(),
+        master_pre_height_px_u: created.masterPreState.heightPxU.toString(),
       }
     : null
 
@@ -369,11 +376,11 @@ export async function applyProjectTrace(args: {
         params: params as Json,
         output_image_id: created.id,
         base_image_id: newBaseId,
-        ...(displayRect ?? {}),
+        ...(masterPre ?? {}),
       },
       { onConflict: "project_id" },
     )
-    .select("project_id,kind,params,output_image_id,base_image_id,display_x_px_u,display_y_px_u,display_width_px_u,display_height_px_u,created_at,updated_at")
+    .select("project_id,kind,params,output_image_id,base_image_id,master_pre_x_px_u,master_pre_y_px_u,master_pre_width_px_u,master_pre_height_px_u,created_at,updated_at")
     .maybeSingle()
   if (upsertErr || !upserted) {
     // Roll back the freshly-created images so we don't strand bytes
@@ -420,16 +427,48 @@ export async function applyProjectTrace(args: {
     await tombstoneTraceImage({ supabase, projectId, imageId: priorBaseId, kind: "trace_base" })
   }
 
+  // Apply the destructive crop on the master state row. The trace
+  // is fixed at apply-time floor-grid dims; the right panel + the
+  // canvas on every tab read master state, so updating it here
+  // makes the new (smaller) rect appear consistently. The pre-apply
+  // rect lives on the trace row so clear-trace can restore it.
+  if (created.masterPostState) {
+    const { error: stateErr } = await supabase
+      .from("project_image_state")
+      .update({
+        x_px_u: created.masterPostState.xPxU.toString(),
+        y_px_u: created.masterPostState.yPxU.toString(),
+        width_px_u: created.masterPostState.widthPxU.toString(),
+        height_px_u: created.masterPostState.heightPxU.toString(),
+      })
+      .eq("project_id", projectId)
+      .eq("image_id", (await supabase
+        .from("project_images")
+        .select("id")
+        .eq("project_id", projectId)
+        .eq("kind", "master")
+        .is("deleted_at", null)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle()).data?.id ?? "")
+    if (stateErr) {
+      // Trace is already written; log but don't fail. Master state
+      // staying at pre-apply size means the trace renders mis-sized
+      // but is still recoverable via clear.
+      console.warn(`[trace.apply] master-state update failed project=${projectId}`, stateErr.message)
+    }
+  }
+
   const trace = rowToTrace({
     project_id: String(upserted.project_id),
     kind: String(upserted.kind),
     params: (upserted.params as Record<string, unknown> | null) ?? null,
     output_image_id: String(upserted.output_image_id),
     base_image_id: upserted.base_image_id ? String(upserted.base_image_id) : null,
-    display_x_px_u: upserted.display_x_px_u != null ? String(upserted.display_x_px_u) : null,
-    display_y_px_u: upserted.display_y_px_u != null ? String(upserted.display_y_px_u) : null,
-    display_width_px_u: upserted.display_width_px_u != null ? String(upserted.display_width_px_u) : null,
-    display_height_px_u: upserted.display_height_px_u != null ? String(upserted.display_height_px_u) : null,
+    master_pre_x_px_u: upserted.master_pre_x_px_u != null ? String(upserted.master_pre_x_px_u) : null,
+    master_pre_y_px_u: upserted.master_pre_y_px_u != null ? String(upserted.master_pre_y_px_u) : null,
+    master_pre_width_px_u: upserted.master_pre_width_px_u != null ? String(upserted.master_pre_width_px_u) : null,
+    master_pre_height_px_u: upserted.master_pre_height_px_u != null ? String(upserted.master_pre_height_px_u) : null,
     created_at: String(upserted.created_at),
     updated_at: String(upserted.updated_at),
   })
@@ -458,7 +497,7 @@ export async function getProjectTrace(args: {
   const { supabase, projectId } = args
   const { data, error } = await supabase
     .from("project_image_trace")
-    .select("project_id,kind,params,output_image_id,base_image_id,display_x_px_u,display_y_px_u,display_width_px_u,display_height_px_u,created_at,updated_at")
+    .select("project_id,kind,params,output_image_id,base_image_id,master_pre_x_px_u,master_pre_y_px_u,master_pre_width_px_u,master_pre_height_px_u,created_at,updated_at")
     .eq("project_id", projectId)
     .maybeSingle()
   if (error) {
@@ -471,10 +510,10 @@ export async function getProjectTrace(args: {
     params: (data.params as Record<string, unknown> | null) ?? null,
     output_image_id: String(data.output_image_id),
     base_image_id: data.base_image_id ? String(data.base_image_id) : null,
-    display_x_px_u: data.display_x_px_u != null ? String(data.display_x_px_u) : null,
-    display_y_px_u: data.display_y_px_u != null ? String(data.display_y_px_u) : null,
-    display_width_px_u: data.display_width_px_u != null ? String(data.display_width_px_u) : null,
-    display_height_px_u: data.display_height_px_u != null ? String(data.display_height_px_u) : null,
+    master_pre_x_px_u: data.master_pre_x_px_u != null ? String(data.master_pre_x_px_u) : null,
+    master_pre_y_px_u: data.master_pre_y_px_u != null ? String(data.master_pre_y_px_u) : null,
+    master_pre_width_px_u: data.master_pre_width_px_u != null ? String(data.master_pre_width_px_u) : null,
+    master_pre_height_px_u: data.master_pre_height_px_u != null ? String(data.master_pre_height_px_u) : null,
     created_at: String(data.created_at),
     updated_at: String(data.updated_at),
   })
@@ -503,6 +542,12 @@ export async function clearProjectTrace(args: {
 
   const traceOutputId = current.trace.output_image_id
   const traceBaseId = current.trace.base_image_id
+  const masterPre = {
+    xPxU: current.trace.master_pre_x_px_u,
+    yPxU: current.trace.master_pre_y_px_u,
+    widthPxU: current.trace.master_pre_width_px_u,
+    heightPxU: current.trace.master_pre_height_px_u,
+  }
 
   // Delete the trace row first, before tombstoning the images, so a
   // failure between the two leaves the project with a still-active
@@ -516,6 +561,40 @@ export async function clearProjectTrace(args: {
     .eq("project_id", projectId)
   if (deleteErr) {
     return { ok: false, status: 400, stage: "trace_lookup", reason: deleteErr.message, code: (deleteErr as { code?: string }).code }
+  }
+
+  // Restore the master display rect to its pre-apply state. Pixelate
+  // apply destructively crops the master state (floor-grid removes
+  // the cell-incomplete remainder); clear-trace must undo that. "0"
+  // means the trace was applied before this migration landed (or by
+  // a non-pixelate kind) — skip the restore in that case.
+  if (masterPre.widthPxU !== "0" && masterPre.heightPxU !== "0") {
+    const { data: masterRow } = await supabase
+      .from("project_images")
+      .select("id")
+      .eq("project_id", projectId)
+      .eq("kind", "master")
+      .is("deleted_at", null)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle()
+    if (masterRow?.id) {
+      const { error: restoreErr } = await supabase
+        .from("project_image_state")
+        .update({
+          x_px_u: masterPre.xPxU,
+          y_px_u: masterPre.yPxU,
+          width_px_u: masterPre.widthPxU,
+          height_px_u: masterPre.heightPxU,
+        })
+        .eq("project_id", projectId)
+        .eq("image_id", masterRow.id)
+      if (restoreErr) {
+        // Trace row + images cleanup follow; the master rect stays
+        // at the cropped size. User can resize manually back.
+        console.warn(`[trace.clear] master-state restore failed project=${projectId}`, restoreErr.message)
+      }
+    }
   }
 
   // Pick the new active image: walk back to the master (or the

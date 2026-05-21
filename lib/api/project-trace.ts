@@ -20,16 +20,16 @@ export type ProjectTrace = {
    * source (lineart). When set, the editor renders this bitmap as
    * the canvas background under the SVG overlay. */
   base_image_id: string | null
-  /** Pixelate's crop-derived display rect (µpx, text-encoded BigInt)
-   * so the canvas can render the trace at its own size and position
-   * inside the master's bounding box without any client-side math.
-   * Legacy rows + non-cropping traces (lineart) carry "0"; the
-   * canvas falls back to the master state's transform when width is
-   * "0". */
-  display_x_px_u: string
-  display_y_px_u: string
-  display_width_px_u: string
-  display_height_px_u: string
+  /** Pre-apply master display rect (µpx, text-encoded BigInt). The
+   * pixelate apply path destructively crops the master display
+   * state to the floor-grid dimensions; these columns preserve the
+   * master's rect *before* the crop so clear-trace can restore it.
+   * Legacy rows + non-cropping traces (lineart) carry "0" — clear
+   * skips the restore in that case. */
+  master_pre_x_px_u: string
+  master_pre_y_px_u: string
+  master_pre_width_px_u: string
+  master_pre_height_px_u: string
   created_at: string
   updated_at: string
 }

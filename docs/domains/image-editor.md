@@ -121,21 +121,24 @@ Update this section when those invariants change.
 
 The canvas source depends on the tab. Image and Filter render the
 trace-free filter chain tip (`filterDisplayImageWithoutTrace`).
-Trace swaps the canvas source to `trace_base` (the cropped source
-bitmap) when a trace exists, with the inline-SVG overlay sitting
-on top. The trace's display rect is centred on the master's
-bounding box, sized to the floor-grid crop, and frozen at
-apply-time — mid-session resizes of the master don't reflow the
-trace. The master image itself is never the canvas source — it's
-an immutable restore source surfaced through the layer tree, and
-it serves as the **persistence anchor** for `project_image_state`
+Trace swaps the canvas source to `trace_base` (the cropped +
+pixelated source bitmap) when a trace exists, with the inline-SVG
+overlay sitting on top. All three tabs render at the same
+`project_image_state` rect anchored at master.id — pixelate apply
+*destructively crops* this rect to the floor-grid dimensions (e.g.
+200×200 mm → 198×198 mm at 6mm cells), so the user sees identical
+size + position on every tab. The pre-apply rect is preserved on
+the trace row (`master_pre_*_px_u`) so clear-trace can restore it.
+The master image itself is never the canvas source — it's an
+immutable restore source surfaced through the layer tree, and it
+serves as the **persistence anchor** for `project_image_state`
 (PR #124).
 
 | Tab | Sidebar | State read | State written | Stage display |
 |---|---|---|---|---|
 | **Image** | layers (`editor-nav-tree`) | `project_image_state` at master.id | `project_image_state` at master.id | filter-base-copy raster |
 | **Filter** | filter stack (`FilterSidebarSection`) | `project_image_filters` + `filter_working_copy` rows; `project_image_state` at master.id | `project_image_filters`, `project_images(kind='filter_working_copy')`, `project_image_state` at master.id | filter chain tip raster |
-| **Trace** | trace section (`TraceSidebarSection`) | `project_image_trace` (incl. `display_*_px_u` rect), filter chain tip raster | `project_image_trace` (single row, with persisted display rect), `project_images(kind='trace_output'/'trace_base')`, `project_image_state` at master.id | `trace_base` bitmap at its persisted display rect + inline-SVG overlay |
+| **Trace** | trace section (`TraceSidebarSection`) | `project_image_trace` (incl. `master_pre_*_px_u` for restore-on-clear), `project_image_state` at master.id | `project_image_trace` (single row), `project_images(kind='trace_output'/'trace_base')`, **`project_image_state` cropped to floor-grid at master.id** | `trace_base` bitmap + inline-SVG overlay, rendered at `project_image_state` for master.id |
 | Colors / Output | — | — | — | removed 2026-05-11 (PR #89) |
 
 ### Invariants (do not regress)
@@ -151,15 +154,14 @@ it serves as the **persistence anchor** for `project_image_state`
   The master image (`kind='master'`) is immutable
   (`guard_master_immutable` trigger) and is never the Konva render
   source. `pickCanvasImage` ([lib/editor/canvas-image-invariant.ts](../../lib/editor/canvas-image-invariant.ts))
-  prefers `trace_base` when a trace exists (Trace tab) — it
-  renders at its own persisted display rect from
-  `project_image_trace.display_*_px_u` (PR #239), centred on the
-  master's bounding box and frozen at apply-time. Otherwise the
-  canvas falls back to the trace-free filter chain tip
-  (`filterDisplayImageWithoutTrace`). The persistence decoupling
-  above means a drift between canvas-source id and save-target id
-  no longer silently breaks the user — saves still land at
-  master.id.
+  prefers `trace_base` when a trace exists (Trace tab); otherwise
+  the canvas falls back to the trace-free filter chain tip
+  (`filterDisplayImageWithoutTrace`). All sources render at the
+  same `project_image_state` rect anchored at master.id, so
+  Image / Filter / Trace tabs show identical size + position. The
+  persistence decoupling above means a drift between canvas-source
+  id and save-target id no longer silently breaks the user — saves
+  still land at master.id.
 - **Filter operates on raster, never on SVG.** PR #82 fixed a class
   where Filter would be applied to a trace SVG. Filter always reads
   `filterDisplayImageWithoutTrace`.
@@ -170,9 +172,17 @@ it serves as the **persistence anchor** for `project_image_state`
   the trace SVG render as a DOM-overlay on top of the Konva.Image,
   not as a replacement. PR #86 dropped the opaque white `<rect>`
   from the Python source so the underlying bitmap shows through.
-  Post-PR-#239 the bitmap below the SVG is `trace_base` (the
-  cropped source) on the Trace tab, not the filter chain tip — but
-  the overlay architecture is unchanged.
+  The bitmap below the SVG is `trace_base` (cropped + pixelated
+  source) on the Trace tab; the overlay architecture is unchanged
+  from #84/#86.
+- **Pixelate apply is a destructive crop on the master state.**
+  PR #246/#247's per-trace display rect and UI/persistence gates
+  were reverted in favour of writing the cropped dims directly to
+  `project_image_state` for master.id at apply time. The pre-apply
+  rect lives on `project_image_trace.master_pre_*_px_u` so clear-
+  trace can restore it. This keeps Image / Filter / Trace tabs
+  visually consistent and removes the entire "per-tab display rect
+  override" complexity.
 - **`traceOverlaySvgUrl` is gated on Trace-tab AND trace-aware ≠
   trace-free display IDs.** Otherwise the overlay either shows the
   wrong thing (on Filter/Image tab) or shows nothing useful (when
