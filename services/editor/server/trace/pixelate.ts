@@ -77,12 +77,29 @@ async function resolveMasterState(args: {
     return { ok: false, reason: "Project has no master image" }
   }
 
-  const { data: state } = await supabase
-    .from("project_image_state")
-    .select("x_px_u,y_px_u,width_px_u,height_px_u")
+  // State is anchored at working_copy.id post the working-copy refactor
+  // (PR #257). Read state row keyed there; if no working_copy or no
+  // state row exists, fall back to the intrinsic-based default
+  // placement below (= fresh-upload behaviour).
+  const { data: workingCopy } = await supabase
+    .from("project_images")
+    .select("id")
     .eq("project_id", projectId)
-    .eq("image_id", master.id)
+    .eq("kind", "working_copy")
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
     .maybeSingle()
+
+  const stateAnchorId = workingCopy?.id ?? null
+  const { data: state } = stateAnchorId
+    ? await supabase
+        .from("project_image_state")
+        .select("x_px_u,y_px_u,width_px_u,height_px_u")
+        .eq("project_id", projectId)
+        .eq("image_id", stateAnchorId)
+        .maybeSingle()
+    : { data: null }
 
   const stateW = parsePxU(state?.width_px_u)
   const stateH = parsePxU(state?.height_px_u)
