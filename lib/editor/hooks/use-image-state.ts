@@ -209,5 +209,16 @@ export function useImageState(projectId: string, initial: ImageState | null) {
     }
   }, [])
 
-  return { initialImageTransform: persistedTransform, saveImageState }
+  // Reset the mirror when the master is destroyed (delete-with-cascade).
+  // Without this, a stale user-resized value carries over to the next
+  // upload — initial-placement-controller reads it as "persisted state
+  // for the new master" and applies it instead of computing fresh
+  // placement from the new image's intrinsic + DPI.
+  const clearPersisted = useCallback(() => {
+    pendingSlotRef.current?.clearAll()
+    lastSavedSignatureRef.current = null
+    setPersistedTransform(null)
+  }, [])
+
+  return { initialImageTransform: persistedTransform, saveImageState, clearPersisted }
 }

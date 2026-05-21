@@ -176,7 +176,7 @@ export function useEditorWorkflowAdapter(args: {
   // save path; the SSR seed (`initialImageState`) is passed through
   // verbatim. There is no client-side mount-load because SSR already
   // delivered the persisted row.
-  const { initialImageTransform, saveImageState } = useImageState(projectId, initialImageState)
+  const { initialImageTransform, saveImageState, clearPersisted: clearPersistedImageState } = useImageState(projectId, initialImageState)
 
   const refreshEditorDataOnce = useCallback(async () => {
     // No `loadImageState()` here: state is project-wide and immutable
@@ -340,6 +340,11 @@ export function useEditorWorkflowAdapter(args: {
      * apply path needs to await persistence directly to close the
      * resize→apply race (see use-trace-handlers). */
     saveImageState,
+    /** Reset the persistedTransform mirror. Call after the master is
+     * destroyed (delete-with-cascade) so the next upload starts with
+     * fresh placement instead of inheriting the previous master's
+     * user-resized state. */
+    clearPersistedImageState,
     workflow,
     editorImageSource,
     activeCanvasImageId,
