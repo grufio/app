@@ -236,6 +236,10 @@ export type Database = {
           format: string
           height_px: number
           id: string
+          initial_display_height_px_u: string
+          initial_display_width_px_u: string
+          initial_display_x_px_u: string
+          initial_display_y_px_u: string
           is_active: boolean
           is_locked: boolean
           kind: Database["public"]["Enums"]["image_kind"]
@@ -256,6 +260,10 @@ export type Database = {
           format: string
           height_px: number
           id?: string
+          initial_display_height_px_u?: string
+          initial_display_width_px_u?: string
+          initial_display_x_px_u?: string
+          initial_display_y_px_u?: string
           is_active?: boolean
           is_locked?: boolean
           kind: Database["public"]["Enums"]["image_kind"]
@@ -276,6 +284,10 @@ export type Database = {
           format?: string
           height_px?: number
           id?: string
+          initial_display_height_px_u?: string
+          initial_display_width_px_u?: string
+          initial_display_x_px_u?: string
+          initial_display_y_px_u?: string
           is_active?: boolean
           is_locked?: boolean
           kind?: Database["public"]["Enums"]["image_kind"]

@@ -140,6 +140,35 @@ export async function activateProjectMasterWithState(args: {
   }
 
   const placementU = placementPxToMicroPx(placement)
+
+  // Persist the initial display rect on the master row itself, before
+  // setting it as active. These columns are immutable after this
+  // write — restore-master (round arrow) reads them directly so the
+  // initial placement survives any later destructive ops on
+  // `project_image_state` (e.g. pixelate apply cropping it). Fail
+  // fast on error so we never leave a master row with NULL/'0'
+  // initial_display_* (= permanent restore inconsistency for that
+  // master).
+  const { error: initialErr } = await supabase
+    .from("project_images")
+    .update({
+      initial_display_x_px_u: placementU.xPxU,
+      initial_display_y_px_u: placementU.yPxU,
+      initial_display_width_px_u: placementU.widthPxU,
+      initial_display_height_px_u: placementU.heightPxU,
+    })
+    .eq("id", imageId)
+    .eq("project_id", projectId)
+  if (initialErr) {
+    return {
+      ok: false,
+      status: 400,
+      stage: "active_switch",
+      reason: `Failed to persist initial display rect: ${initialErr.message}`,
+      code: (initialErr as { code?: string }).code,
+    }
+  }
+
   return setActiveProjectImageState({
     supabase,
     projectId,
