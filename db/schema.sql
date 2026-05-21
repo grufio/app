@@ -553,7 +553,7 @@ $$;
 ALTER FUNCTION "public"."set_active_image"("p_project_id" "uuid", "p_image_id" "uuid") OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."set_active_master_with_state"("p_project_id" "uuid", "p_image_id" "uuid", "p_x_px_u" "text", "p_y_px_u" "text", "p_width_px_u" "text", "p_height_px_u" "text") RETURNS "void"
+CREATE OR REPLACE FUNCTION "public"."set_active_image_with_state"("p_project_id" "uuid", "p_image_id" "uuid", "p_x_px_u" "text", "p_y_px_u" "text", "p_width_px_u" "text", "p_height_px_u" "text") RETURNS "void"
     LANGUAGE "plpgsql"
     SET "search_path" TO 'public', 'pg_temp'
     AS $$
@@ -565,19 +565,15 @@ declare
 begin
   perform pg_advisory_xact_lock(hashtext(p_project_id::text));
 
-  -- Defense-in-depth: the application-level split (PR-2) guarantees
-  -- only master ids reach this RPC, but guard at the boundary anyway.
   if not exists (
     select 1 from public.project_images
     where id = p_image_id
       and project_id = p_project_id
-      and kind = 'master'
       and deleted_at is null
   ) then
-    raise exception 'image_id must be a live master image'
+    raise exception 'image_id must be a live project_image'
       using errcode = '23514',
-            detail = format('project_id=%s image_id=%s', p_project_id, p_image_id),
-            hint = 'project_image_state is anchored at master.id (PR #124).';
+            detail = format('project_id=%s image_id=%s', p_project_id, p_image_id);
   end if;
 
   v_x_u := p_x_px_u::bigint;
@@ -592,35 +588,23 @@ begin
   perform public.set_active_image(p_project_id, p_image_id);
 
   insert into public.project_image_state (
-    project_id,
-    image_id,
-    x_px_u,
-    y_px_u,
-    width_px_u,
-    height_px_u,
-    rotation_deg
+    project_id, image_id, x_px_u, y_px_u, width_px_u, height_px_u, rotation_deg
   ) values (
-    p_project_id,
-    p_image_id,
-    v_x_u::text,
-    v_y_u::text,
-    v_w_u::text,
-    v_h_u::text,
-    0
+    p_project_id, p_image_id, v_x_u::text, v_y_u::text, v_w_u::text, v_h_u::text, 0
   )
   on conflict (project_id, image_id)
-  do update
-    set x_px_u = excluded.x_px_u,
-        y_px_u = excluded.y_px_u,
-        width_px_u = excluded.width_px_u,
-        height_px_u = excluded.height_px_u,
-        rotation_deg = excluded.rotation_deg,
-        updated_at = now();
+  do update set
+    x_px_u = excluded.x_px_u,
+    y_px_u = excluded.y_px_u,
+    width_px_u = excluded.width_px_u,
+    height_px_u = excluded.height_px_u,
+    rotation_deg = excluded.rotation_deg,
+    updated_at = now();
 end;
 $$;
 
 
-ALTER FUNCTION "public"."set_active_master_with_state"("p_project_id" "uuid", "p_image_id" "uuid", "p_x_px_u" "text", "p_y_px_u" "text", "p_width_px_u" "text", "p_height_px_u" "text") OWNER TO "postgres";
+ALTER FUNCTION "public"."set_active_image_with_state"("p_project_id" "uuid", "p_image_id" "uuid", "p_x_px_u" "text", "p_y_px_u" "text", "p_width_px_u" "text", "p_height_px_u" "text") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."set_updated_at"() RETURNS "trigger"
@@ -3323,9 +3307,9 @@ GRANT ALL ON FUNCTION "public"."set_active_image"("p_project_id" "uuid", "p_imag
 
 
 
-GRANT ALL ON FUNCTION "public"."set_active_master_with_state"("p_project_id" "uuid", "p_image_id" "uuid", "p_x_px_u" "text", "p_y_px_u" "text", "p_width_px_u" "text", "p_height_px_u" "text") TO "anon";
-GRANT ALL ON FUNCTION "public"."set_active_master_with_state"("p_project_id" "uuid", "p_image_id" "uuid", "p_x_px_u" "text", "p_y_px_u" "text", "p_width_px_u" "text", "p_height_px_u" "text") TO "authenticated";
-GRANT ALL ON FUNCTION "public"."set_active_master_with_state"("p_project_id" "uuid", "p_image_id" "uuid", "p_x_px_u" "text", "p_y_px_u" "text", "p_width_px_u" "text", "p_height_px_u" "text") TO "service_role";
+GRANT ALL ON FUNCTION "public"."set_active_image_with_state"("p_project_id" "uuid", "p_image_id" "uuid", "p_x_px_u" "text", "p_y_px_u" "text", "p_width_px_u" "text", "p_height_px_u" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."set_active_image_with_state"("p_project_id" "uuid", "p_image_id" "uuid", "p_x_px_u" "text", "p_y_px_u" "text", "p_width_px_u" "text", "p_height_px_u" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."set_active_image_with_state"("p_project_id" "uuid", "p_image_id" "uuid", "p_x_px_u" "text", "p_y_px_u" "text", "p_width_px_u" "text", "p_height_px_u" "text") TO "service_role";
 
 
 
