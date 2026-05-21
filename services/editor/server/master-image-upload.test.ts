@@ -35,7 +35,7 @@ type MakeSupabaseOpts = {
 }
 
 vi.mock("@/services/editor/server/activate-project-image", () => ({
-  activateProjectMasterWithState: (...args: unknown[]) => activateSpy(...args),
+  activateProjectMasterAndWorkingCopy: (...args: unknown[]) => activateSpy(...args),
 }))
 
 function makeSupabase(opts: MakeSupabaseOpts) {
@@ -198,20 +198,25 @@ describe("master-image-upload service", () => {
       expect(out.master.height_px).toBe(200)
       expect(out.master.dpi).toBe(300)
     }
-    // Lazy working-copy: master upload writes ONLY the master file
-    // and inserts ONLY the master row. The working_copy is created
-    // on-demand by the filter-apply path via
-    // `services/editor/server/working-copy/ensure.ts`.
+    // Eager working-copy: master upload writes the master file once
+    // (working_copy shares storage_path) and inserts BOTH the master
+    // row and the working_copy row. The working_copy is the editable
+    // anchor; the master row is immutable.
     expect(uploadSpy).toHaveBeenCalledTimes(1)
-    expect(capture.inserts).toHaveLength(1)
+    expect(capture.inserts).toHaveLength(2)
     const masterInsert = capture.inserts.find((row) => row.kind === "master")
     expect(masterInsert?.dpi).toBe(300)
     expect(masterInsert?.width_px).toBe(400)
     expect(masterInsert?.height_px).toBe(200)
-    expect(capture.inserts.find((row) => row.kind === "working_copy")).toBeUndefined()
+    const workingCopyInsert = capture.inserts.find((row) => row.kind === "working_copy")
+    expect(workingCopyInsert?.source_image_id).toBe(masterInsert?.id)
+    expect(workingCopyInsert?.storage_path).toBe(masterInsert?.storage_path)
+    expect(workingCopyInsert?.width_px).toBe(400)
+    expect(workingCopyInsert?.height_px).toBe(200)
     expect(activateSpy).toHaveBeenCalledWith(
       expect.objectContaining({
-        imageId: masterInsert?.id,
+        masterImageId: masterInsert?.id,
+        workingCopyImageId: workingCopyInsert?.id,
         widthPx: 400,
         heightPx: 200,
       })

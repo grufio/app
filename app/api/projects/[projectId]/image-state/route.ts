@@ -14,8 +14,7 @@
 import { NextResponse } from "next/server"
 
 import { createSupabaseServerClient } from "@/lib/supabase/server"
-import { getProjectMasterImageRow } from "@/lib/supabase/project-images"
-import { loadBoundImageState, upsertBoundImageState } from "@/lib/supabase/image-state"
+import { loadBoundImageState, resolveStateAnchorImage, upsertBoundImageState } from "@/lib/supabase/image-state"
 import { isUuid, jsonError, readJson, requireUser } from "@/lib/api/route-guards"
 import { validateIncomingImageStateUpsert, type IncomingImageStatePayload } from "@/lib/editor/imageState"
 
@@ -25,13 +24,13 @@ export const dynamic = "force-dynamic"
  * GET /api/projects/[projectId]/image-state
  *
  * Returns the project's persisted transform.
- * - `{ exists: false, state: null }` when the project has no master
- *   image (empty editor / pre-upload).
+ * - `{ exists: false, state: null }` when the project has no anchor
+ *   image yet (= no master/working_copy uploaded).
  * - `{ exists: true, state: ImageStateRow }` when a row exists for
- *   master.id.
+ *   the resolved anchor (= working_copy.id, master.id legacy fallback).
  *
- * No query parameters: the persistence key is always master.id,
- * resolved server-side via `getProjectMasterImageRow`.
+ * The persistence key is the project's working_copy.id, resolved
+ * server-side via `resolveStateAnchorImage`.
  */
 export async function GET(_req: Request, { params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params
@@ -43,13 +42,13 @@ export async function GET(_req: Request, { params }: { params: Promise<{ project
   const u = await requireUser(supabase)
   if (!u.ok) return u.res
 
-  const { row: masterRow, error: masterErr } = await getProjectMasterImageRow(supabase, projectId)
-  if (masterErr) return jsonError(masterErr, 400, { stage: "master_lookup" })
-  if (!masterRow) {
+  const anchor = await resolveStateAnchorImage(supabase, projectId)
+  if ("error" in anchor) return jsonError(anchor.error, 400, { stage: "anchor_lookup" })
+  if ("notFound" in anchor) {
     return NextResponse.json({ exists: false, state: null })
   }
 
-  const { row: data, error: readErr, unsupported } = await loadBoundImageState(supabase, projectId, masterRow.id)
+  const { row: data, error: readErr, unsupported } = await loadBoundImageState(supabase, projectId, anchor.id)
   if (readErr) return jsonError(readErr, 400, { stage: "select_state" })
   if (unsupported) {
     return jsonError("Unsupported image state: missing width_px_u/height_px_u", 400, { stage: "schema_missing", where: "validate_state" })
@@ -73,7 +72,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ project
  * (deploy-window backward compat — see `validate.ts`).
  *
  * Lock-guard: blocks the write with `409 lock_conflict` if the
- * master row has `is_locked = true`.
+ * working_copy row has `is_locked = true`.
  */
 export async function POST(req: Request, { params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params
@@ -103,26 +102,25 @@ export async function POST(req: Request, { params }: { params: Promise<{ project
     return jsonError("Invalid fields", 400, { stage: "validation", where: "validate" })
   }
 
-  // Persistence + lock-guard both anchor at the project's master row.
-  // Single query fetches id + is_locked.
-  const { row: masterRow, error: masterErr } = await getProjectMasterImageRow(supabase, projectId)
-  if (masterErr) return jsonError(masterErr, 400, { stage: "master_lookup" })
-  if (!masterRow) {
+  // Persistence + lock-guard both anchor at the working_copy row (post
+  // the working-copy refactor). Legacy projects without a working_copy
+  // fall back to master.id via resolveStateAnchorImage.
+  const anchor = await resolveStateAnchorImage(supabase, projectId)
+  if ("error" in anchor) return jsonError(anchor.error, 400, { stage: "anchor_lookup" })
+  if ("notFound" in anchor) {
     return jsonError("Project has no master image", 409, { stage: "no_master_image" })
   }
-  if (masterRow.is_locked) {
-    return jsonError("Master image is locked", 409, { stage: "lock_conflict", reason: "image_locked" })
+  if (anchor.is_locked) {
+    return jsonError("Working copy is locked", 409, { stage: "lock_conflict", reason: "image_locked" })
   }
 
   // Per-axis preservation: when the payload omits x_px_u or y_px_u
-  // (validator returns `undefined`), read the current row at master.id
-  // and fill in the unchanged axis from there. We only do the read
-  // when needed so the common full-payload case (drag-end, alignImage,
-  // restoreImage) keeps a single round-trip.
+  // (validator returns `undefined`), read the current row at the anchor
+  // and fill in the unchanged axis from there.
   let resolvedXPxU: string | null = validated.x_px_u ?? null
   let resolvedYPxU: string | null = validated.y_px_u ?? null
   if (validated.x_px_u === undefined || validated.y_px_u === undefined) {
-    const existing = await loadBoundImageState(supabase, projectId, masterRow.id)
+    const existing = await loadBoundImageState(supabase, projectId, anchor.id)
     if (existing.error) {
       return jsonError(existing.error, 400, { stage: "select_existing_for_merge" })
     }
@@ -132,7 +130,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ project
 
   const upsert = await upsertBoundImageState(supabase, {
     project_id: projectId,
-    image_id: masterRow.id,
+    image_id: anchor.id,
     x_px_u: resolvedXPxU,
     y_px_u: resolvedYPxU,
     width_px_u: validated.width_px_u,

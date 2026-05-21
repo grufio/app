@@ -462,7 +462,7 @@ export type Database = {
         Args: { p_image_id: string; p_project_id: string }
         Returns: undefined
       }
-      set_active_master_with_state: {
+      set_active_image_with_state: {
         Args: {
           p_height_px_u: string
           p_image_id: string

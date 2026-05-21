@@ -1,7 +1,7 @@
 /**
  * Unit tests for the activation helpers.
  *
- * Post-PR: split into `activateProjectMasterWithState` (for master
+ * Post-PR: split into `activateProjectMasterAndWorkingCopy` (for master
  * uploads, writes `project_image_state`) and `activateProjectImageOnly`
  * (for filter/trace/crop apply, flips `is_active` only). Tests focus
  * on the gate paths that don't require a real Supabase environment —
@@ -25,7 +25,7 @@ import {
   setActiveProjectImageOnly,
 } from "@/lib/supabase/project-images"
 import {
-  activateProjectMasterWithState,
+  activateProjectMasterAndWorkingCopy,
   activateProjectImageOnly as activateProjectImageOnlyService,
 } from "./activate-project-image"
 
@@ -51,7 +51,8 @@ const supabase = createSupabaseStub()
 const masterArgs = {
   supabase,
   projectId: "p1",
-  imageId: "img1",
+  masterImageId: "master-1",
+  workingCopyImageId: "wc-1",
   widthPx: 1000,
   heightPx: 800,
   imageDpi: 300,
@@ -70,14 +71,14 @@ beforeEach(() => {
   vi.mocked(setActiveProjectImageOnly).mockReset()
 })
 
-describe("activateProjectMasterWithState", () => {
+describe("activateProjectMasterAndWorkingCopy", () => {
   it("returns active_switch error when lock-row lookup fails", async () => {
     vi.mocked(getActiveProjectImageLockRow).mockResolvedValue({
       row: null,
       error: { reason: "boom", code: "lock_lookup_failed" },
     })
 
-    const out = await activateProjectMasterWithState(masterArgs)
+    const out = await activateProjectMasterAndWorkingCopy(masterArgs)
     expect(out).toEqual({
       ok: false,
       status: 400,
@@ -93,7 +94,7 @@ describe("activateProjectMasterWithState", () => {
       error: null,
     })
 
-    const out = await activateProjectMasterWithState(masterArgs)
+    const out = await activateProjectMasterAndWorkingCopy(masterArgs)
     expect(out).toEqual({
       ok: false,
       status: 409,
@@ -110,7 +111,7 @@ describe("activateProjectMasterWithState", () => {
       error: { reason: "no workspace", code: "ws_missing" },
     })
 
-    const out = await activateProjectMasterWithState(masterArgs)
+    const out = await activateProjectMasterAndWorkingCopy(masterArgs)
     expect(out).toEqual({
       ok: false,
       status: 400,
@@ -132,7 +133,7 @@ describe("activateProjectMasterWithState", () => {
       error: null,
     })
 
-    const out = await activateProjectMasterWithState(masterArgs)
+    const out = await activateProjectMasterAndWorkingCopy(masterArgs)
     expect(out).toEqual({
       ok: false,
       status: 400,
@@ -154,7 +155,7 @@ describe("activateProjectMasterWithState", () => {
     })
     vi.mocked(setActiveProjectImageState).mockResolvedValue({ ok: true })
 
-    const out = await activateProjectMasterWithState(masterArgs)
+    const out = await activateProjectMasterAndWorkingCopy(masterArgs)
     expect(out).toEqual({ ok: true })
     expect(vi.mocked(setActiveProjectImageState)).toHaveBeenCalledOnce()
     expect(vi.mocked(setActiveProjectImageOnly)).not.toHaveBeenCalled()
@@ -175,7 +176,7 @@ describe("activateProjectMasterWithState", () => {
       error: null,
     })
 
-    const out = await activateProjectMasterWithState({ ...masterArgs, supabase: failingSupabase })
+    const out = await activateProjectMasterAndWorkingCopy({ ...masterArgs, supabase: failingSupabase })
     expect(out).toEqual({
       ok: false,
       status: 400,

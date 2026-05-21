@@ -1,9 +1,11 @@
 /**
- * API route: restore active image to initial uploaded master.
+ * API route: restore the editor's working_copy state to the master's
+ * initial upload placement.
  *
- * Responsibilities:
- * - Resolve the initial master image for the project (earliest kind='master').
- * - Activate it and reset persisted image state in one DB operation.
+ * The master row is immutable; its `initial_display_*` columns hold the
+ * placement computed at upload time. This route reads those values and
+ * writes them as the new `project_image_state` row at the
+ * working_copy.id (= the editable surface). Master itself is untouched.
  */
 import { NextResponse } from "next/server"
 
@@ -12,6 +14,7 @@ import { isUuid, jsonError, requireUser } from "@/lib/api/route-guards"
 import { resetProjectFilterChain } from "@/services/editor/server/filter-chain-reset"
 import { computeImagePlacementPx, placementPxToMicroPx } from "@/lib/editor/image-placement"
 import { pxUToPxNumber } from "@/lib/editor/units"
+import { resolveStateAnchorImage } from "@/lib/supabase/image-state"
 
 export const dynamic = "force-dynamic"
 
@@ -145,9 +148,18 @@ export async function POST(
     heightPxU = placementU.heightPxU
   }
 
-  const { error: rpcErr } = await supabase.rpc("set_active_master_with_state", {
+  // Resolve the state anchor (working_copy.id post-refactor; master.id
+  // fallback for legacy projects). Restore writes state to this image
+  // — the master row itself stays immutable.
+  const anchor = await resolveStateAnchorImage(supabase, projectId)
+  if ("error" in anchor) return jsonError(anchor.error, 400, { stage: "anchor_lookup" })
+  if ("notFound" in anchor) {
+    return jsonError("Project has no master image", 404, { stage: "restore_anchor_missing" })
+  }
+
+  const { error: rpcErr } = await supabase.rpc("set_active_image_with_state", {
     p_project_id: projectId,
-    p_image_id: baseMaster.id,
+    p_image_id: anchor.id,
     p_x_px_u: xPxU,
     p_y_px_u: yPxU,
     p_width_px_u: widthPxU,
@@ -162,6 +174,6 @@ export async function POST(
     return jsonError(filterReset.reason, 500, { stage: "filter_chain_reset", code: filterReset.code })
   }
 
-  return NextResponse.json({ ok: true, image_id: String(baseMaster.id) })
+  return NextResponse.json({ ok: true, image_id: anchor.id })
 }
 

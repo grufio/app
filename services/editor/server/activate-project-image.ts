@@ -3,20 +3,18 @@
  *
  * Two flavours, picked by caller-context:
  *
- * - `activateProjectMasterWithState` — for the master upload flow.
- *   Computes a fresh DPI-relative placement and writes a
- *   `project_image_state` row at the master.id. Use only when the
- *   incoming `imageId` is a `kind='master'` row.
+ * - `activateProjectMasterAndWorkingCopy` — for the master upload flow.
+ *   Computes a fresh DPI-relative placement, persists `initial_display_*`
+ *   on the master row (immutable), and writes `project_image_state` at
+ *   the working_copy.id with the same placement. Caller inserts both
+ *   master + working_copy rows beforehand and passes both ids.
  *
  * - `activateProjectImageOnly` — for filter/trace/crop apply flows.
  *   Flips `is_active` for a non-master variant (filter_working_copy,
  *   trace_output, crop output). Does NOT touch `project_image_state`
- *   because state is anchored at master.id (PR #124) and the editor
- *   reads it from there regardless of which surface is rendered.
- *
- * Splitting closes the C-D1 finding from the editor-stack review:
- * the old combined helper wrote junk state rows at non-master ids
- * that were never read.
+ *   because state is anchored at working_copy.id (post the
+ *   working-copy refactor) and the editor reads it from there
+ *   regardless of which surface is rendered.
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
 
@@ -85,21 +83,27 @@ async function guardActiveLockNotHeldByOther(args: {
 }
 
 /**
- * Master upload flow: flip `is_active` AND seed a fresh
- * `project_image_state` row at master.id with a DPI-relative
- * placement. Caller MUST pass a `kind='master'` imageId.
+ * Master upload flow: write `initial_display_*` on the master row
+ * (immutable upload-time placement, anchor for round-arrow restore)
+ * AND seed `project_image_state` at the **working_copy.id** with the
+ * same DPI-relative placement, AND flip is_active onto the working_copy.
+ *
+ * Per the user-model, the master is immutable after insert. All
+ * editable display-state lives on the working_copy. Both rows are
+ * passed in (caller inserts them before invoking).
  */
-export async function activateProjectMasterWithState(args: {
+export async function activateProjectMasterAndWorkingCopy(args: {
   supabase: SupabaseClient<Database>
   projectId: string
-  imageId: string
+  masterImageId: string
+  workingCopyImageId: string
   widthPx: number
   heightPx: number
   imageDpi?: number | null
 }): Promise<ActivateOk | ActivateError> {
-  const { supabase, projectId, imageId, widthPx, heightPx, imageDpi } = args
+  const { supabase, projectId, masterImageId, workingCopyImageId, widthPx, heightPx, imageDpi } = args
 
-  const lockGuard = await guardActiveLockNotHeldByOther({ supabase, projectId, imageId })
+  const lockGuard = await guardActiveLockNotHeldByOther({ supabase, projectId, imageId: workingCopyImageId })
   if (!lockGuard.ok) return lockGuard
 
   const workspaceLookup = await getProjectWorkspacePlacementRow(supabase, projectId)
@@ -141,14 +145,12 @@ export async function activateProjectMasterWithState(args: {
 
   const placementU = placementPxToMicroPx(placement)
 
-  // Persist the initial display rect on the master row itself, before
-  // setting it as active. These columns are immutable after this
-  // write — restore-master (round arrow) reads them directly so the
-  // initial placement survives any later destructive ops on
-  // `project_image_state` (e.g. pixelate apply cropping it). Fail
-  // fast on error so we never leave a master row with NULL/'0'
-  // initial_display_* (= permanent restore inconsistency for that
-  // master).
+  // Persist the initial display rect on the master row. These columns
+  // are immutable after this write — restore (round arrow) reads them
+  // directly so the initial placement survives any later mutations on
+  // `project_image_state` (= the working_copy state). Fail fast so we
+  // never leave a master row with NULL/'0' initial_display_*
+  // (= permanent restore inconsistency for that master).
   const { error: initialErr } = await supabase
     .from("project_images")
     .update({
@@ -157,7 +159,7 @@ export async function activateProjectMasterWithState(args: {
       initial_display_width_px_u: placementU.widthPxU,
       initial_display_height_px_u: placementU.heightPxU,
     })
-    .eq("id", imageId)
+    .eq("id", masterImageId)
     .eq("project_id", projectId)
   if (initialErr) {
     return {
@@ -169,10 +171,13 @@ export async function activateProjectMasterWithState(args: {
     }
   }
 
+  // Set the working_copy as active + write state row at working_copy.id.
+  // Master row itself stays is_active=false; it is the immutable
+  // source-of-truth, never the editor-active surface.
   return setActiveProjectImageState({
     supabase,
     projectId,
-    imageId,
+    imageId: workingCopyImageId,
     xPxU: placementU.xPxU,
     yPxU: placementU.yPxU,
     widthPxU: placementU.widthPxU,
