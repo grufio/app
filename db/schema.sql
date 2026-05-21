@@ -1786,10 +1786,6 @@ CREATE TABLE IF NOT EXISTS "public"."project_image_trace" (
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "base_image_id" "uuid",
-    "master_pre_x_px_u" "text" DEFAULT '0'::"text" NOT NULL,
-    "master_pre_y_px_u" "text" DEFAULT '0'::"text" NOT NULL,
-    "master_pre_width_px_u" "text" DEFAULT '0'::"text" NOT NULL,
-    "master_pre_height_px_u" "text" DEFAULT '0'::"text" NOT NULL,
     CONSTRAINT "project_image_trace_kind_ck" CHECK (("kind" = ANY (ARRAY['pixelate'::"text", 'lineart'::"text"])))
 );
 
