@@ -9,7 +9,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/lib/supabase/database.types"
-import { activateProjectMasterWithState } from "@/services/editor/server/activate-project-image"
+import { activateProjectMasterAndWorkingCopy } from "@/services/editor/server/activate-project-image"
 import { resetProjectFilterChain } from "@/services/editor/server/filter-chain-reset"
 
 import { insertMasterWithCleanup } from "./master-image-upload/master-insert-flow"
@@ -134,10 +134,51 @@ export async function uploadMasterImage(args: {
     }
   }
 
-  const activationResult = await activateProjectMasterWithState({
+  // Eager working_copy: inserted immediately alongside the master so
+  // the editor always has an editable surface. storage_path is shared
+  // with master (= same file, no extra storage). Any destructive
+  // bitmap operation in the future would copy-on-write, but resize/
+  // drag/pixelate apply (post-refactor) don't mutate the bitmap.
+  const workingCopyId = crypto.randomUUID()
+  const workingCopyName = (insertedRow.name ?? "image") + " (working copy)"
+  const { error: workingCopyErr } = await supabase
+    .from("project_images")
+    .insert({
+      id: workingCopyId,
+      project_id: projectId,
+      kind: "working_copy",
+      source_image_id: imageId,
+      name: workingCopyName,
+      format: insertedRow.format,
+      width_px: insertedRow.width_px,
+      height_px: insertedRow.height_px,
+      dpi: insertedRow.dpi,
+      storage_bucket: insertedRow.storage_bucket,
+      storage_path: insertedRow.storage_path,
+      file_size_bytes: insertedRow.file_size_bytes,
+      is_active: false, // flipped to true by the activation RPC below
+    })
+  if (workingCopyErr) {
+    await rollbackCreatedUploadRows({
+      supabase,
+      projectId,
+      masterImageId: imageId,
+      masterObjectPath: objectPath,
+    })
+    return {
+      ok: false,
+      status: 500,
+      stage: "db_upsert",
+      reason: `Failed to insert working_copy row: ${workingCopyErr.message}`,
+      code: (workingCopyErr as unknown as { code?: string })?.code,
+    }
+  }
+
+  const activationResult = await activateProjectMasterAndWorkingCopy({
     supabase,
     projectId,
-    imageId,
+    masterImageId: imageId,
+    workingCopyImageId: workingCopyId,
     widthPx,
     heightPx,
     imageDpi: dpi,
@@ -149,6 +190,8 @@ export async function uploadMasterImage(args: {
       masterImageId: imageId,
       masterObjectPath: objectPath,
     })
+    // Working-copy row is cascade-deleted via source_image_id FK when
+    // master row is deleted above; no separate delete needed here.
     return {
       ok: false,
       status: activationResult.status,
@@ -157,12 +200,6 @@ export async function uploadMasterImage(args: {
       code: activationResult.code,
     }
   }
-
-  // Working-copy is no longer auto-created here. It is materialised
-  // lazily on first filter-apply via
-  // `services/editor/server/working-copy/ensure.ts`. Saves one
-  // storage upload + one DB row per master add for users who don't
-  // immediately filter.
 
   // Sign the freshly-inserted row so the client can seed its
   // master-image hook without a follow-up GET. Activation flipped

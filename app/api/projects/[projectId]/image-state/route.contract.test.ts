@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
 
 const VALID_UUID = "c104be01-d7b0-4af4-a446-8326cd47a282"
-const MASTER_UUID = "2f5d1b28-0d9c-4d04-b2c5-8f1f3f7df5b0"
+const ANCHOR_UUID = "2f5d1b28-0d9c-4d04-b2c5-8f1f3f7df5b0"
 
 function makeSupabaseStub(opts: {
   projectAccessible: boolean
@@ -27,10 +27,15 @@ function makeSupabaseStub(opts: {
 
 type CapturedUpsert = { value: Record<string, unknown> | null }
 
+type AnchorResolution =
+  | { id: string; is_locked: boolean }
+  | { error: string }
+  | { notFound: true }
+
 async function importRouteWithMocks(args: {
   supabase: unknown
-  /** Project's master row (id + is_locked), or null when the project has no master. */
-  master: { id: string; is_locked: boolean } | null
+  /** Resolved state anchor (working_copy.id post-refactor), or notFound when no master/working_copy. */
+  anchor: AnchorResolution
   loadState?: { row: Record<string, unknown> | null; error: string | null; unsupported?: boolean }
   upsertOk?: boolean
   /** When provided, captures the row passed to `upsertBoundImageState`. */
@@ -50,14 +55,8 @@ async function importRouteWithMocks(args: {
     }
   })
 
-  vi.doMock("@/lib/supabase/project-images", () => ({
-    getProjectMasterImageRow: async () => ({
-      row: args.master,
-      error: null,
-    }),
-  }))
-
   vi.doMock("@/lib/supabase/image-state", () => ({
+    resolveStateAnchorImage: async () => args.anchor,
     loadBoundImageState: async () => ({
       row: args.loadState?.row ?? null,
       error: args.loadState?.error ?? null,
@@ -73,9 +72,9 @@ async function importRouteWithMocks(args: {
 }
 
 describe("image-state route contract", () => {
-  it("GET returns exists:false when the project has no master", async () => {
+  it("GET returns exists:false when the project has no anchor image", async () => {
     const supabase = makeSupabaseStub({ projectAccessible: true })
-    const mod = await importRouteWithMocks({ supabase, master: null })
+    const mod = await importRouteWithMocks({ supabase, anchor: { notFound: true } })
 
     const res = await mod.GET(new Request("http://test.local"), { params: Promise.resolve({ projectId: VALID_UUID }) })
     expect(res.status).toBe(200)
@@ -85,7 +84,7 @@ describe("image-state route contract", () => {
 
   it("POST rejects payload missing required transform fields", async () => {
     const supabase = makeSupabaseStub({ projectAccessible: true })
-    const mod = await importRouteWithMocks({ supabase, master: { id: MASTER_UUID, is_locked: false } })
+    const mod = await importRouteWithMocks({ supabase, anchor: { id: ANCHOR_UUID, is_locked: false } })
 
     const res = await mod.POST(
       new Request("http://test.local", {
@@ -104,9 +103,9 @@ describe("image-state route contract", () => {
     expect(body.stage).toBe("validation")
   })
 
-  it("POST blocks writes when the master row is locked (409 lock_conflict)", async () => {
+  it("POST blocks writes when the anchor image is locked (409 lock_conflict)", async () => {
     const supabase = makeSupabaseStub({ projectAccessible: true })
-    const mod = await importRouteWithMocks({ supabase, master: { id: MASTER_UUID, is_locked: true } })
+    const mod = await importRouteWithMocks({ supabase, anchor: { id: ANCHOR_UUID, is_locked: true } })
 
     const res = await mod.POST(
       new Request("http://test.local", {
@@ -128,9 +127,9 @@ describe("image-state route contract", () => {
     expect(body.stage).toBe("lock_conflict")
   })
 
-  it("POST returns no_master_image when the project has no master row", async () => {
+  it("POST returns no_master_image when the project has no anchor image", async () => {
     const supabase = makeSupabaseStub({ projectAccessible: true })
-    const mod = await importRouteWithMocks({ supabase, master: null })
+    const mod = await importRouteWithMocks({ supabase, anchor: { notFound: true } })
 
     const res = await mod.POST(
       new Request("http://test.local", {
@@ -152,12 +151,12 @@ describe("image-state route contract", () => {
     expect(body.stage).toBe("no_master_image")
   })
 
-  it("POST anchors the upsert at master.id (not at any body-level image id)", async () => {
+  it("POST anchors the upsert at the resolved anchor (= working_copy.id), not at any body-level image id", async () => {
     const supabase = makeSupabaseStub({ projectAccessible: true })
     const captured: CapturedUpsert = { value: null }
     const mod = await importRouteWithMocks({
       supabase,
-      master: { id: MASTER_UUID, is_locked: false },
+      anchor: { id: ANCHOR_UUID, is_locked: false },
       upsertOk: true,
       captureUpsert: captured,
     })
@@ -181,7 +180,7 @@ describe("image-state route contract", () => {
     )
 
     expect(res.status).toBe(200)
-    expect(captured.value?.image_id).toBe(MASTER_UUID)
+    expect(captured.value?.image_id).toBe(ANCHOR_UUID)
     expect(captured.value?.x_px_u).toBe("555555")
     expect(captured.value?.y_px_u).toBe("666666")
   })
@@ -191,11 +190,11 @@ describe("image-state route contract", () => {
     const captured: CapturedUpsert = { value: null }
     const mod = await importRouteWithMocks({
       supabase,
-      master: { id: MASTER_UUID, is_locked: false },
+      anchor: { id: ANCHOR_UUID, is_locked: false },
       upsertOk: true,
       loadState: {
         row: {
-          image_id: MASTER_UUID,
+          image_id: ANCHOR_UUID,
           x_px_u: "111111",
           y_px_u: "222222",
           width_px_u: "1000000",
@@ -233,7 +232,7 @@ describe("image-state route contract", () => {
     const captured: CapturedUpsert = { value: null }
     const mod = await importRouteWithMocks({
       supabase,
-      master: { id: MASTER_UUID, is_locked: false },
+      anchor: { id: ANCHOR_UUID, is_locked: false },
       upsertOk: true,
       // loadState NOT provided — should not be needed.
       captureUpsert: captured,
@@ -263,7 +262,7 @@ describe("image-state route contract", () => {
     const supabase = makeSupabaseStub({ projectAccessible: true })
     const mod = await importRouteWithMocks({
       supabase,
-      master: { id: MASTER_UUID, is_locked: false },
+      anchor: { id: ANCHOR_UUID, is_locked: false },
       upsertOk: true,
     })
 
