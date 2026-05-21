@@ -17,19 +17,8 @@ export type ProjectTrace = {
   output_image_id: string
   /** Bitmap (kind=trace_base) holding the source image cropped to
    * the trace cell grid. Null for trace kinds that cover the full
-   * source (lineart). When set, the editor renders this bitmap as
-   * the canvas background under the SVG overlay. */
+   * source (lineart). */
   base_image_id: string | null
-  /** Pre-apply master display rect (µpx, text-encoded BigInt). The
-   * pixelate apply path destructively crops the master display
-   * state to the floor-grid dimensions; these columns preserve the
-   * master's rect *before* the crop so clear-trace can restore it.
-   * Legacy rows + non-cropping traces (lineart) carry "0" — clear
-   * skips the restore in that case. */
-  master_pre_x_px_u: string
-  master_pre_y_px_u: string
-  master_pre_width_px_u: string
-  master_pre_height_px_u: string
   created_at: string
   updated_at: string
 }

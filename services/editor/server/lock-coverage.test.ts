@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest"
  * project advisory key — `pg_advisory_xact_lock(hashtext(p_project_id::text))`.
  *
  * Postgres advisory locks are reentrant within a transaction, so nested
- * RPC calls (e.g. `set_active_master_with_state` → `set_active_image`)
+ * RPC calls (e.g. `set_active_image_with_state` → `set_active_image`)
  * are safe; what's *unsafe* is a sibling RPC silently mutating project
  * state without taking the same lock — that race re-introduces the
  * concurrency bug class fixed in 20260507120000.
@@ -30,7 +30,7 @@ const PROJECT_MUTATING_RPCS = [
   "remove_project_image_filter",
   "delete_project",
   "set_active_image",
-  "set_active_master_with_state",
+  "set_active_image_with_state",
 ] as const
 
 const ADVISORY_LOCK_RE = /PERFORM\s+"?pg_advisory_xact_lock"?\s*\(\s*"?hashtext"?\s*\([^)]*p_project_id[^)]*\)\s*\)/i
@@ -42,11 +42,10 @@ describe("project advisory lock coverage", () => {
     // Match the function header — quoted or unquoted, case-insensitive — then
     // greedy-grab through the dollar-quoted body. pg_dump uses `AS $_$ … $_$`
     // (with optional inner tag); hand-edited variants use `AS $$ … $$`.
-    // Iterate ALL definitions: a function may be overloaded (e.g.
-    // set_active_master_with_state has both an integer and a text-px-units
-    // signature) and pg_dump's emission order is not stable across reseeds.
-    // The lock invariant holds if at least one overload takes the lock
-    // directly OR transitively (delegating to another locked RPC).
+    // Iterate ALL definitions: a function may be overloaded and
+    // pg_dump's emission order is not stable across reseeds. The lock
+    // invariant holds if at least one overload takes the lock directly
+    // OR transitively (delegating to another locked RPC).
     const fnRe = new RegExp(
       `CREATE\\s+(?:OR\\s+REPLACE\\s+)?FUNCTION\\s+"?public"?\\."?${rpcName}"?\\s*\\([^)]*\\)[\\s\\S]+?\\$([_a-zA-Z]*)\\$[\\s\\S]+?\\$\\1\\$`,
       "ig",
@@ -59,8 +58,8 @@ describe("project advisory lock coverage", () => {
 
     // Transitive: function body calls another known-locked RPC. This covers
     // wrapper overloads that delegate to a sibling that already holds the
-    // lock (set_active_master_with_state's integer overload calls
-    // set_active_image, which is in this list).
+    // lock (e.g. set_active_image_with_state calls set_active_image, which
+    // is in this list).
     const otherLocked = new Set(PROJECT_MUTATING_RPCS.filter((n) => n !== rpcName))
     const transitive = matches.filter((m) =>
       Array.from(otherLocked).some((delegate) => new RegExp(`\\bperform\\b[\\s\\S]*?\\b${delegate}\\b`, "i").test(m[0]))

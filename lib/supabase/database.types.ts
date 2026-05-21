@@ -167,10 +167,6 @@ export type Database = {
           base_image_id: string | null
           created_at: string
           kind: string
-          master_pre_height_px_u: string
-          master_pre_width_px_u: string
-          master_pre_x_px_u: string
-          master_pre_y_px_u: string
           output_image_id: string
           params: Json
           project_id: string
@@ -180,10 +176,6 @@ export type Database = {
           base_image_id?: string | null
           created_at?: string
           kind: string
-          master_pre_height_px_u?: string
-          master_pre_width_px_u?: string
-          master_pre_x_px_u?: string
-          master_pre_y_px_u?: string
           output_image_id: string
           params?: Json
           project_id: string
@@ -193,10 +185,6 @@ export type Database = {
           base_image_id?: string | null
           created_at?: string
           kind?: string
-          master_pre_height_px_u?: string
-          master_pre_width_px_u?: string
-          master_pre_x_px_u?: string
-          master_pre_y_px_u?: string
           output_image_id?: string
           params?: Json
           project_id?: string
