@@ -147,11 +147,6 @@ export function clampPx(px: number): number {
   return Math.max(1, Math.round(px))
 }
 
-export function clampPxFloat(px: number): number {
-  if (!Number.isFinite(px)) return 1
-  return Math.max(1, px)
-}
-
 export function fmt2(n: number): string {
   if (!Number.isFinite(n)) return ""
   return n.toFixed(UI_DISPLAY_DECIMALS).replace(/\.?0+$/, "")

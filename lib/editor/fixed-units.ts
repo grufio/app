@@ -182,9 +182,3 @@ export function unitToPxDeterministic(value: number, unit: FixedUnit, dpi: numbe
   const px10k = unit10kToPx10kRoundTripSafe(unit10k, unit, dpi1k)
   return fromPx10k(px10k)
 }
-
-export function roundTripUnit10kFromPx10k(px10k: bigint, unit: FixedUnit, dpi: number): bigint {
-  const dpi1k = toDpi1k(dpi)
-  return px10kToUnit10kDeterministic(px10k, unit, dpi1k)
-}
-

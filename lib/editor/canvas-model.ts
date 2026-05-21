@@ -56,13 +56,3 @@ export function zoomAround(view: Viewport, pointer: Pointer, factor: number, min
 export function panBy(view: Viewport, dx: number, dy: number): Viewport {
   return { ...view, x: view.x - dx, y: view.y - dy }
 }
-
-export function scaleToMatchAspect(imgW: number, imgH: number, targetW?: number, targetH?: number): number | null {
-  if (!Number.isFinite(imgW) || !Number.isFinite(imgH) || imgW <= 0 || imgH <= 0) return null
-  const w = Number(targetW)
-  const h = Number(targetH)
-  if (Number.isFinite(w) && w > 0) return w / imgW
-  if (Number.isFinite(h) && h > 0) return h / imgH
-  return null
-}
-
