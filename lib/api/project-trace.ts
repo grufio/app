@@ -92,16 +92,14 @@ export async function getProjectTrace(projectId: string): Promise<ProjectTraceWi
 
 /** POST /api/projects/[projectId]/trace — apply or replace the trace.
  *
- * `displayMmW`/`displayMmH` come from the dialog's live canvas
- * mirror so the server doesn't have to re-derive them from
- * `project_image_state` (which can lag user resizes). When omitted
- * the server falls back to its own DB-side resolver. */
+ * The server reads the master image's displayed mm size from
+ * `project_image_state` directly (see `resolveMasterState`); the
+ * `handleApplyTrace` race-closure awaits any pending state-save
+ * before this call, so no client hint is needed. */
 export async function applyProjectTrace(args: {
   projectId: string
   kind: TraceKind
   params?: Record<string, unknown>
-  displayMmW?: number
-  displayMmH?: number
 }): Promise<{
   trace: ProjectTrace
   image_id: string
@@ -109,7 +107,7 @@ export async function applyProjectTrace(args: {
   height_px: number
   baseImage: TraceBaseImage | null
 }> {
-  const { projectId, kind, params, displayMmW, displayMmH } = args
+  const { projectId, kind, params } = args
   const res = await fetchJson<{
     ok?: boolean
     trace?: ProjectTrace
@@ -124,8 +122,6 @@ export async function applyProjectTrace(args: {
     body: JSON.stringify({
       kind,
       params: params ?? {},
-      ...(typeof displayMmW === "number" ? { display_mm_w: displayMmW } : {}),
-      ...(typeof displayMmH === "number" ? { display_mm_h: displayMmH } : {}),
     }),
   })
   if (!res.ok) {

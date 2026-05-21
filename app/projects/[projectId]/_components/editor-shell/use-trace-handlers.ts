@@ -69,19 +69,15 @@ export function useTraceHandlers(opts: {
     async ({
       kind,
       params,
-      displayMmW,
-      displayMmH,
     }: {
       kind: RegisteredTraceId
       params: Record<string, unknown>
-      displayMmW?: number
-      displayMmH?: number
     }) => {
       setIsApplyingTrace(true)
       try {
         const currentTx = getCurrentImageTx()
         if (currentTx) await saveImageState(currentTx)
-        await applyProjectTrace({ projectId, kind, params, displayMmW, displayMmH })
+        await applyProjectTrace({ projectId, kind, params })
         await Promise.all([refreshTrace(), refreshFilterImage(), refreshMasterImage()])
       } finally {
         setIsApplyingTrace(false)

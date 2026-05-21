@@ -165,15 +165,8 @@ export async function pixelateImageAndActivate(args: {
   projectId: string
   sourceImageId: string
   params: PixelateParams
-  /** Client-supplied display-mm. Kept for drift detection only —
-   * the server reads master display-mm from project_image_state
-   * (anchored at master.id) as the source of truth. The dialog's
-   * apply path awaits any pending state save before calling /trace,
-   * so the DB is guaranteed to be current when this handler runs. */
-  displayMmW?: number
-  displayMmH?: number
 }): Promise<PixelateFilterResult> {
-  const { supabase, projectId, sourceImageId, params, displayMmW, displayMmH } = args
+  const { supabase, projectId, sourceImageId, params } = args
   const profiler = startFilterProfiler()
   const parsed = pixelateSchema.safeParse(params)
   if (!parsed.success) {
@@ -213,24 +206,13 @@ export async function pixelateImageAndActivate(args: {
   }
 
   // Resolve the master's displayed size + origin on the artboard.
-  // DB is authoritative (project_image_state anchored at master.id);
-  // the client-supplied hint is checked for drift only — a divergence
-  // means the client's tx mirror lagged the actual saved state and is
-  // worth surfacing in logs while we iron out the apply-path race.
+  // `project_image_state` is authoritative (anchored at master.id);
+  // the trace apply path in `handleApplyTrace` awaits any pending
+  // state save before calling /trace, so the DB row is guaranteed
+  // to be current when this handler runs.
   const masterState = await resolveMasterState({ supabase, projectId })
   if (!masterState.ok) {
     return { ok: false, status: 400, stage: "validation", reason: masterState.reason }
-  }
-  if (
-    typeof displayMmW === "number" && displayMmW > 0 &&
-    typeof displayMmH === "number" && displayMmH > 0 &&
-    (Math.abs(displayMmW - masterState.displayMmW) > 0.5 ||
-      Math.abs(displayMmH - masterState.displayMmH) > 0.5)
-  ) {
-    console.warn(
-      `[pixelate] client/db displayMm drift project=${projectId} ` +
-        `client=${displayMmW}x${displayMmH} db=${masterState.displayMmW}x${masterState.displayMmH}`,
-    )
   }
   profiler.mark("display_mm_resolve")
 

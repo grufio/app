@@ -31,8 +31,6 @@ export function EditorTraceDialogHost(props: {
   onApplyTrace: (args: {
     kind: RegisteredTraceId
     params: Record<string, unknown>
-    displayMmW?: number
-    displayMmH?: number
   }) => Promise<void>
 }) {
   const {
