@@ -357,7 +357,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   const selectionHandlePx = 8
   const fitPadding = Math.max(0, Number(fitPaddingPx) || 0)
 
-  const { gridLines, snappedGridLines, snapWorldToDeviceHalfPixel } = useSnappedGridLines({
+  const { snappedGridLines, snapWorldToDeviceHalfPixel } = useSnappedGridLines({
     drawArtboard,
     grid: grid ?? null,
     artW,

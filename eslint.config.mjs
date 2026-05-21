@@ -75,6 +75,11 @@ const eslintConfig = defineConfig([
     "playwright-report/**",
     "test-results/**",
     "next-env.d.ts",
+    // Gitignored experiment dir + vitest coverage output. Both carry
+    // vendored JS (color-lab's Python venv ships colour/htmlcov;
+    // coverage ships block-navigation.js) that lint shouldn't walk.
+    "color-lab/**",
+    "coverage/**",
   ]),
 ]);
 

@@ -92,13 +92,14 @@ export function useEditorWorkflowAdapter(args: {
   masterImage: { id?: string; signedUrl?: string; name?: string; width_px?: number; height_px?: number } | null
   masterImageLoading: boolean
   masterImageError: string
-  filterDisplayImage: { id: string; signedUrl: string; width_px: number; height_px: number; name: string } | null
-  /** Trace-free counterpart to `filterDisplayImage`. Used as the
-   * source for `applyFilter` because filters operate on bitmaps —
-   * if a project has an active trace, `filterDisplayImage.id`
-   * points to the trace SVG, which the pixelate Python service
-   * can't decode. The without-trace variant is always the real
-   * raster filter chain tip. */
+  /** Trace-free filter chain tip. Used as the source for
+   * `applyFilter` because filters operate on bitmaps — if a project
+   * has an active trace, the filter chain tip points to the trace
+   * SVG, which the pixelate Python service can't decode. The
+   * without-trace variant is always the real raster filter chain
+   * tip. (The shell still receives a `filterDisplayImage` from
+   * `useFilterImage` for the canvas overlay path, but the adapter
+   * doesn't need it.) */
   filterDisplayImageWithoutTrace: { id: string; signedUrl: string; width_px: number; height_px: number; name: string } | null
   filterImageLoading: boolean
   filterImageLoadedOnce: boolean
@@ -115,7 +116,6 @@ export function useEditorWorkflowAdapter(args: {
     masterImage,
     masterImageLoading,
     masterImageError,
-    filterDisplayImage,
     filterDisplayImageWithoutTrace,
     filterImageLoading,
     filterImageLoadedOnce,
@@ -172,7 +172,6 @@ export function useEditorWorkflowAdapter(args: {
     filterApplySourceIdRef.current = filterDisplayImageWithoutTrace?.id ?? (sourceSnapshot.status === "ready" ? sourceSnapshot.image.id : null)
   }, [filterDisplayImageWithoutTrace, sourceSnapshot])
 
-  const activeSnapshotImageId = sourceSnapshot.status === "ready" ? sourceSnapshot.image.id : null
   // State is anchored at master.id (PR #124). The hook only owns the
   // save path; the SSR seed (`initialImageState`) is passed through
   // verbatim. There is no client-side mount-load because SSR already

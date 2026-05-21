@@ -147,7 +147,6 @@ export function ProjectDetailPageClient({
     masterImage,
     masterImageLoading,
     masterImageError,
-    filterDisplayImage,
     filterDisplayImageWithoutTrace,
     filterImageLoading,
     filterImageLoadedOnce,
@@ -313,7 +312,6 @@ export function ProjectDetailPageClient({
 
   const {
     selectedImageId,
-    leftPanelImages,
     requestDeleteImage,
     requestDeleteSelectedImage,
     requestCreateGrid,
@@ -336,7 +334,6 @@ export function ProjectDetailPageClient({
 
   const { toolbar, stageToolbar, applyCropSelection } = useStageInteractionPolicy({
     canvasRef,
-    canvasMode,
     leftPanelTab,
     sourceReady: editorImageSource.status === "ready",
     selectedNavId,

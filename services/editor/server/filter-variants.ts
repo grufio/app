@@ -273,11 +273,10 @@ export async function applyProjectImageFilter(args: {
   if (sourceImageId === String(active.id) && active.is_locked) {
     return { ok: false, status: 409, stage: "lock_conflict", reason: "Active image is locked", code: "image_locked" }
   }
-  let sourceImageDpi = Number(active.dpi ?? 72)
   if (sourceImageId !== String(active.id)) {
     const { data: sourceRow, error: sourceErr } = await supabase
       .from("project_images")
-      .select("dpi")
+      .select("id")
       .eq("project_id", projectId)
       .eq("id", sourceImageId)
       .is("deleted_at", null)
@@ -285,7 +284,6 @@ export async function applyProjectImageFilter(args: {
     if (sourceErr || !sourceRow) {
       return { ok: false, status: 404, stage: "source_lookup", reason: sourceErr?.message ?? "Source image not found" }
     }
-    sourceImageDpi = Number(sourceRow.dpi ?? 72)
   }
 
   const created = await createDerivedImageFromSource({

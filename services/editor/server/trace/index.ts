@@ -227,15 +227,14 @@ export async function applyProjectTrace(args: {
       : null
 
   let sourceImageId: string
-  let sourceImageDpi = 72
   let sourceIsLocked = false
 
   const resolveSourceById = async (
     imageId: string,
-  ): Promise<{ ok: true; dpi: number; isLocked: boolean } | { ok: false; reason: string; code?: string }> => {
+  ): Promise<{ ok: true; isLocked: boolean } | { ok: false; reason: string; code?: string }> => {
     const { data: row, error } = await supabase
       .from("project_images")
-      .select("dpi,is_locked")
+      .select("is_locked")
       .eq("project_id", projectId)
       .eq("id", imageId)
       .is("deleted_at", null)
@@ -243,7 +242,7 @@ export async function applyProjectTrace(args: {
     if (error || !row) {
       return { ok: false, reason: error?.message ?? "Source image not found", code: error?.code }
     }
-    return { ok: true, dpi: Number(row.dpi ?? 72), isLocked: Boolean(row.is_locked) }
+    return { ok: true, isLocked: Boolean(row.is_locked) }
   }
 
   if (requestedSourceImageId) {
@@ -252,7 +251,6 @@ export async function applyProjectTrace(args: {
     if (!lookup.ok) {
       return { ok: false, status: 404, stage: "source_lookup", reason: lookup.reason, code: lookup.code }
     }
-    sourceImageDpi = lookup.dpi
     sourceIsLocked = lookup.isLocked
   } else {
     // Walk the filter chain for its tip output. project_image_filters
@@ -272,7 +270,6 @@ export async function applyProjectTrace(args: {
       if (!lookup.ok) {
         return { ok: false, status: 404, stage: "source_lookup", reason: lookup.reason, code: lookup.code }
       }
-      sourceImageDpi = lookup.dpi
       sourceIsLocked = lookup.isLocked
     } else {
       // No filter chain — fall back to the same "active editor
@@ -289,16 +286,14 @@ export async function applyProjectTrace(args: {
       // If none exists yet (no filter has ever been opened on this
       // project), fall back to the active master directly.
       let bitmapRowId: string | null = null
-      let bitmapDpi = 72
       let bitmapIsLocked = false
       if (lookup.preferredWorking?.id) {
         bitmapRowId = String(lookup.preferredWorking.id)
-        bitmapDpi = Number(lookup.preferredWorking.dpi ?? 72)
         bitmapIsLocked = Boolean(lookup.preferredWorking.is_locked)
       } else {
         const { data: masterRow, error: masterErr } = await supabase
           .from("project_images")
-          .select("id,dpi,is_locked")
+          .select("id,is_locked")
           .eq("project_id", projectId)
           .eq("kind", "master")
           .eq("is_active", true)
@@ -309,7 +304,6 @@ export async function applyProjectTrace(args: {
         }
         if (masterRow?.id) {
           bitmapRowId = String(masterRow.id)
-          bitmapDpi = Number(masterRow.dpi ?? 72)
           bitmapIsLocked = Boolean(masterRow.is_locked)
         }
       }
@@ -317,7 +311,6 @@ export async function applyProjectTrace(args: {
         return { ok: false, status: 404, stage: "active_lookup", reason: "No bitmap source image found for trace" }
       }
       sourceImageId = bitmapRowId
-      sourceImageDpi = bitmapDpi
       sourceIsLocked = bitmapIsLocked
     }
   }
