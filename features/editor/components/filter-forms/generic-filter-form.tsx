@@ -9,9 +9,9 @@
  * after the schema fields, and the `transformBeforeSubmit` hook to
  * inject context-only params right before `onApply`.
  *
- * Replaces the per-filter `lineart-form.tsx` / `pixelate-form.tsx` /
- * `numerate-form.tsx` (~410 LOC combined) without losing label,
- * description, validation, or live-helper behaviour.
+ * Replaces the per-filter `lineart-form.tsx` / `pixelate-form.tsx`
+ * (~410 LOC combined) without losing label, description,
+ * validation, or live-helper behaviour.
  */
 import { useMemo, useState } from "react"
 import type * as React from "react"

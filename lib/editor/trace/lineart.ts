@@ -16,7 +16,7 @@ export const lineartSchema = z.object({
   smoothness: z.coerce.number().min(0).max(1).default(0.6),
   // Palette quantisation. Same field name + range as pixelate so
   // both UI surfaces feel consistent. Lineart's organic regions
-  // tend to need fewer colors than numerate's superpixel grid;
+  // tend to need fewer colors than pixelate's superpixel grid;
   // default 8 mirrors the classic paint-by-numbers paint count.
   num_colors: z.coerce.number().int().min(2).max(256).default(8),
 })

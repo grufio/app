@@ -1,10 +1,10 @@
 /**
- * Pure helpers shared by filter services (pixelate / lineart / numerate).
+ * Pure helpers shared by filter services (pixelate / lineart / bw).
  *
  * The filter pipelines themselves call out to the Python service over HTTP and
  * are awkward to unit-test, but the IO-free pieces (input rounding, output
  * format negotiation) are testable on their own and ship from here so the
- * three callers stay in sync.
+ * callers stay in sync.
  */
 
 export function toInt(value: number): number | null {
@@ -72,13 +72,13 @@ export function filterServiceHeaders(): Record<string, string> {
  *
  * The success branch is parameterised on the `responseKind` passed to
  * `callFilterService`, so callers get either `{ bytes }` (default,
- * for image-out endpoints) or `{ json }` (numerate's SVG+bitmap
+ * for image-out endpoints) or `{ json }` (pixelate's SVG+bitmap
  * envelope) without runtime narrowing dances.
  *
  * - `ok: true` with `bytes` — service returned 2xx with rendered image bytes
  *   (the default; used by every image-out endpoint).
  * - `ok: true` with `json` — service returned 2xx with a JSON envelope
- *   (numerate returns `{svg, cropped_png_b64, region_count}` so the caller
+ *   (pixelate returns `{svg, cropped_png_b64, region_count}` so the caller
  *   can split the SVG and the cropped bitmap into separate storage rows).
  * - `service_unavailable` — service was unreachable / 502/503/504 / timed out
  *   across all attempts. Surface this stage so the UI can show a "service
@@ -193,7 +193,7 @@ export async function callFilterService<R extends "bytes" | "json" = "bytes">(op
   /** `"bytes"` (default) returns the raw response body as an
    * ArrayBuffer; `"json"` parses it as JSON and returns the parsed
    * value. The filter service returns image bytes from every legacy
-   * endpoint and a JSON envelope from `/filters/numerate` (which
+   * endpoint and a JSON envelope from `/filters/pixelate` (which
    * pairs the SVG with the cropped source bitmap). */
   responseKind?: R
   /** Test seam: replaces global fetch + sleep when set. */

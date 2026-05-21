@@ -2,7 +2,7 @@
  * Client-side API wrappers for the Trace surface (F21).
  *
  * Trace is mutually exclusive — a project carries at most one
- * trace artefact at a time (numerate xor lineart). Applying
+ * trace artefact at a time (pixelate xor lineart). Applying
  * replaces; clearing falls the canvas back to the master image.
  */
 import { fetchJson, invalidateFetchJsonGetCache } from "@/lib/api/http"

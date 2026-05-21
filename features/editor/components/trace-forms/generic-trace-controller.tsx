@@ -47,7 +47,7 @@ export function GenericTraceController({
   const traceDef = TRACE_REGISTRY[kind] as FilterDefinition<z.ZodType, TraceRenderContext>
   const title = traceDef.meta?.title ?? traceDef.label
   const description = traceDef.meta?.description ?? ""
-  // Lineart's apply step shows "Processing..." while numerate uses
+  // Lineart's apply step shows "Processing..." while pixelate uses
   // the default "Apply"; preserve from the legacy per-filter
   // controller.
   const applyingLabel = kind === "lineart" ? "Processing..." : undefined

@@ -52,7 +52,7 @@ export type FilterDialogMeta = {
 /**
  * Per-render context the GenericFilterForm hands to bitmap-filter
  * hooks. Filters get image dimensions; that's all the bitmap side
- * needs. Trace operations (numerate, lineart) have their own
+ * needs. Trace operations (pixelate, lineart) have their own
  * `TraceRenderContext` in `lib/editor/trace/types.ts` — kept
  * separate so the two surfaces can't cross-leak via the context
  * shape.
@@ -83,15 +83,15 @@ export type FilterDefinition<TSchema extends z.ZodType, TCtx = FilterRenderConte
   ui?: Record<string, FilterFieldUI>
   /**
    * Optional render hook the GenericFilterForm calls after the schema-
-   * driven fields. Pixelate uses it to surface the live "pixel count"
-   * grid; numerate to show the inherited Pixelate superpixel banner.
+   * driven fields. Used by filter forms that want to surface live
+   * derived state (e.g. a pixel-count grid) below the field stack.
    */
   helperState?: (args: { params: z.infer<TSchema>; ctx: TCtx }) => ReactNode
   /**
    * Optional pre-submit transform. Lets a filter inject context-only
-   * params (e.g. numerate inherits superpixel_width/_height from
-   * Pixelate) without exposing them as form fields. Returned object
-   * replaces the form-collected params before `onApply`.
+   * params (e.g. inherit dimensions from an upstream filter) without
+   * exposing them as form fields. Returned object replaces the
+   * form-collected params before `onApply`.
    */
   transformBeforeSubmit?: (args: { params: z.infer<TSchema>; ctx: TCtx }) => z.infer<TSchema>
 }

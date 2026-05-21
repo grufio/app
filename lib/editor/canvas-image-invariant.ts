@@ -59,7 +59,7 @@ export function deriveStageImage(input: {
  * Picks the canvas-rendered image.
  *
  * Priority:
- *   1. `traceBaseImage` — the cropped source bitmap a numerate trace
+ *   1. `traceBaseImage` — the cropped source bitmap a pixelate trace
  *      writes alongside its SVG. When present, it replaces the
  *      filter-tip on the canvas so the SVG overlay sits 1:1 on its
  *      own bitmap and the cropped-out border doesn't leak through.

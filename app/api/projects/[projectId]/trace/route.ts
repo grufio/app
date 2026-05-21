@@ -1,7 +1,7 @@
 /**
  * Trace API surface (F21).
  *
- * Single-row-per-project Trace artefact (numerate xor lineart).
+ * Single-row-per-project Trace artefact (pixelate xor lineart).
  * Replacing a Trace overwrites the row and tombstones the prior
  * output image; clearing deletes the row and re-activates the
  * fallback image (filter-tip or master).
