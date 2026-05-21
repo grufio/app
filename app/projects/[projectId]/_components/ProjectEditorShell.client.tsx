@@ -170,7 +170,7 @@ export function ProjectDetailPageClient({
   })
   const filterDialog = useFilterDialogSession(filterSourceImage)
   // Trace dialog needs the image's displayed size on the artboard in
-  // mm — numerate-grid math runs on display-mm, not source-px. Live
+  // mm — pixelate-grid math runs on display-mm, not source-px. Live
   // canvas tx (post drag/resize) preferred; SSR-seeded tx is the
   // fresh-upload fallback before the canvas reports its first frame;
   // final fallback re-runs the same placement the upload flow uses.

@@ -25,6 +25,12 @@ export function resolveImageKind(row: Row): ImageKind {
   }
   // Defensive fallback for rows that somehow lost their kind value (the column is
   // NOT NULL, so this should be unreachable in practice).
+  //
+  // The `(numerate)` match is a legacy name suffix from before the
+  // numerate→pixelate rename. New traces are written as `(pixelate)`
+  // / `(pixelate base)` by the trace handlers — left in place so
+  // any pre-rename trace_output rows still classify correctly if
+  // the defensive path ever fires.
   const normalizedName = String(row.name ?? "").toLowerCase()
   if (normalizedName.endsWith("(numerate)") || normalizedName.endsWith("(line art)")) return "trace_output"
   if (normalizedName.endsWith("(filter working)")) return "filter_working_copy"
