@@ -10,13 +10,11 @@
  * `image_id` is the project's `working_copy.id`. The master row is
  * immutable per user-model; all editable-state mutations belong to the
  * working_copy. Callers resolve working_copy.id via
- * `resolveStateAnchorImage` before invoking these helpers. Legacy
- * projects without a working_copy row fall back to master.id (one-time
- * compatibility, will be removed once the data migration is verified).
+ * `resolveStateAnchorImage` before invoking these helpers.
  *
  * History: anchor was at master.id (PR #124) until the working-copy
- * refactor (this PR). PR #124's bug — state orphaned by filter-chain
- * tip mutations — stays fixed because working_copy is itself stable
+ * refactor. PR #124's bug — state orphaned by filter-chain tip
+ * mutations — stays fixed because working_copy is itself stable
  * (one per project, not affected by filter_working_copy chain resets).
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
@@ -121,15 +119,14 @@ export async function upsertBoundImageState(
 }
 
 /**
- * Resolve the project's "state anchor" image — the image row id under
- * which `project_image_state` is keyed.
+ * Resolve the project's state anchor image — the row id under which
+ * `project_image_state` is keyed.
  *
- * Returns the working_copy.id (= the editable surface, post refactor).
- * For legacy projects that don't have a working_copy yet (= created
- * before the eager-working-copy upload change), falls back to master.id
- * so the existing state row is still found. The follow-up migration
- * backfills working_copy rows for these legacy projects, after which
- * the fallback path is no longer hit.
+ * The anchor is always the working_copy. Master upload creates it
+ * eagerly (see `master-image-upload.ts`); the migration in this PR
+ * backfilled working_copy rows for existing masters. Projects without
+ * a working_copy are reported as `notFound` (the same response the
+ * route uses for "no master image yet").
  */
 export async function resolveStateAnchorImage(
   supabase: SupabaseClient,
@@ -147,21 +144,6 @@ export async function resolveStateAnchorImage(
   if (wcErr) return { error: wcErr.message }
   if (workingCopy?.id) {
     return { id: String(workingCopy.id), is_locked: Boolean(workingCopy.is_locked) }
-  }
-
-  // Legacy fallback: project has master but no working_copy.
-  const { data: master, error: masterErr } = await supabase
-    .from("project_images")
-    .select("id,is_locked")
-    .eq("project_id", projectId)
-    .eq("kind", "master")
-    .is("deleted_at", null)
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle()
-  if (masterErr) return { error: masterErr.message }
-  if (master?.id) {
-    return { id: String(master.id), is_locked: Boolean(master.is_locked) }
   }
   return { notFound: true }
 }
