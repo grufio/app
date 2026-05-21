@@ -48,8 +48,6 @@ type Props = {
   onApplyTrace: (args: {
     kind: RegisteredTraceId
     params: Record<string, unknown>
-    displayMmW?: number
-    displayMmH?: number
   }) => Promise<void>
 }
 
@@ -90,8 +88,6 @@ export function PixelateDialog({
       await onApplyTrace({
         kind: "pixelate",
         params: draft as Record<string, unknown>,
-        displayMmW,
-        displayMmH,
       })
       onSuccess()
       onClose()

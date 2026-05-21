@@ -28,11 +28,6 @@ export const dynamic = "force-dynamic"
 type ApplyTraceRequest = {
   kind?: string
   params?: Record<string, unknown>
-  /** Image's displayed mm size on the artboard at apply-time.
-   * Optional; sent by the dialog from its live canvas mirror so the
-   * server doesn't have to read potentially-stale `project_image_state`. */
-  display_mm_w?: number
-  display_mm_h?: number
 }
 
 /** Resolve the trace's base image (cropped source bitmap) to a
@@ -101,8 +96,6 @@ export async function POST(
       projectId: context.projectId,
       kind: body.kind,
       params: body.params,
-      displayMmW: typeof body.display_mm_w === "number" ? body.display_mm_w : undefined,
-      displayMmH: typeof body.display_mm_h === "number" ? body.display_mm_h : undefined,
     })
     if (!result.ok) {
       return jsonError(result.reason, result.status, { stage: result.stage, code: result.code })

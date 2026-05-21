@@ -180,14 +180,8 @@ export async function applyProjectTrace(args: {
   projectId: string
   kind: unknown
   params?: unknown
-  /** Client-supplied displayed-mm size of the source on the artboard.
-   * When provided, the per-trace handler uses these directly instead
-   * of re-deriving from `project_image_state` (which can lag user
-   * resizes; the dialog already has live values via the canvas mirror). */
-  displayMmW?: number
-  displayMmH?: number
 }): Promise<TraceApplySuccess | TraceOpFailure> {
-  const { supabase, projectId, displayMmW, displayMmH } = args
+  const { supabase, projectId } = args
   const kind = parseTraceKind(args.kind)
   if (!kind) {
     return { ok: false, status: 400, stage: "validation", reason: "Unsupported trace kind" }
@@ -324,8 +318,6 @@ export async function applyProjectTrace(args: {
     projectId: string
     sourceImageId: string
     params: Record<string, unknown>
-    displayMmW?: number
-    displayMmH?: number
   }) => Promise<
     | {
         ok: true
@@ -343,7 +335,7 @@ export async function applyProjectTrace(args: {
       }
     | TraceOpFailure
   >
-  const created = await handler({ supabase, projectId, sourceImageId, params, displayMmW, displayMmH })
+  const created = await handler({ supabase, projectId, sourceImageId, params })
   if (!created.ok) return created
   const newBaseId = created.baseId ?? null
   const displayRect = created.displayRectPxU

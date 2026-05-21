@@ -212,9 +212,10 @@ export function ProjectDetailPageClient({
   const traceDialog = useTraceDialogSession(traceSourceImage)
   // Snapshot from `traceDialog.session` carries the stable identity
   // (sourceImageUrl + intrinsic px), but `displayMmW`/`displayMmH`
-  // must reflect the *live* canvas mirror so a resize between
-  // begin-selection and Apply is honoured by the server. Override
-  // only the live fields here.
+  // must reflect the *live* canvas mirror so a mid-dialog resize is
+  // reflected in the dialog's "image: 178 × 178 mm" header and in
+  // the live grid-math (cell count + cut border). Override only the
+  // live fields here.
   const liveTraceDialogSource = useMemo(() => {
     if (!traceDialog.session) return null
     if (!traceSourceImage) return traceDialog.session
