@@ -24,6 +24,7 @@ import { FilterSidebarSection } from "@/features/editor/components/filter-sideba
 import { TraceSidebarSection } from "@/features/editor/components/trace-sidebar-section"
 import type { OperationError } from "@/lib/api/operation-error"
 import { deleteMasterImageWithCascade } from "@/lib/api/project-images"
+import { shouldPersistCanvasTransform } from "@/lib/editor/canvas-persistence-gate"
 import { computeImagePlacementPx } from "@/lib/editor/image-placement"
 import { GEOMETRY_PPI } from "@/lib/editor/units"
 import { useCanvasTxMirror } from "@/lib/editor/hooks/use-canvas-tx-mirror"
@@ -127,6 +128,14 @@ export function ProjectDetailPageClient({
   }, [])
   const canvasRef = useRef<ProjectCanvasStageHandle | null>(null)
   const lastNoWorkingImageMetricRef = useRef("")
+  // Stable getter for the canvas-image-id-driven persistence gate. The
+  // gate inputs (canvasImage, masterImage, filterDisplayImageWithoutTrace)
+  // are derived later in the render — useTraceHandlers needs the gated
+  // save callback *before* they exist, so we route the check through a
+  // ref that gets reassigned to a fresh closure each render. The
+  // gated-save callbacks are stable (only depend on the raw save fns),
+  // safe to pass to hooks that mount earlier in the tree.
+  const passCanvasPersistGateRef = useRef<() => boolean>(() => false)
   const {
     sourceSnapshot,
     initialImageTransform,
@@ -225,6 +234,22 @@ export function ProjectDetailPageClient({
       displayMmH: traceSourceImage.displayMmH,
     }
   }, [traceDialog.session, traceSourceImage])
+  // Awaitable save gated by the canvas-image whitelist (master + filter
+  // chain tip). Used by useTraceHandlers' apply-pre-step; closes a hole
+  // that PR #246's UI gate missed where a trace-tab apply could write
+  // trace dims into the master state row. See canvas-persistence-gate.ts.
+  const gatedAwaitableSave = useCallback(
+    async (t: Parameters<typeof saveImageState>[0]) => {
+      if (!passCanvasPersistGateRef.current()) {
+        console.warn(
+          "[canvas-persist] skipped apply-pre-step save: canvas-image is not a master-derivative",
+        )
+        return
+      }
+      await saveImageState(t)
+    },
+    [saveImageState],
+  )
   const {
     trace,
     traceBaseImage,
@@ -237,7 +262,7 @@ export function ProjectDetailPageClient({
     projectId,
     refreshFilterImage,
     refreshMasterImage,
-    saveImageState,
+    saveImageState: gatedAwaitableSave,
     getCurrentImageTx: useCallback(() => {
       if (!imageTxU) return null
       return {
@@ -475,6 +500,35 @@ export function ProjectDetailPageClient({
     filterDisplayImageWithoutTrace,
     traceBaseImage,
   })
+  // Reassign the canvas-persist-gate getter after each render so the
+  // gated save callbacks (defined earlier, passed to useTraceHandlers)
+  // read the latest canvasImage/master/filter-tip ids. Save calls are
+  // user-event driven (drag commit, apply-pre-step), so the
+  // one-render lag between a tab switch and the effect firing is
+  // never observed in practice.
+  useEffect(() => {
+    passCanvasPersistGateRef.current = () =>
+      shouldPersistCanvasTransform({
+        canvasImageId: canvasImage?.id ?? null,
+        masterImageId: masterImage?.id ?? null,
+        filterDisplayImageWithoutTraceId: filterDisplayImageWithoutTrace?.id ?? null,
+      })
+  }, [canvasImage, masterImage, filterDisplayImageWithoutTrace])
+  // Fire-and-forget save for the canvas-stage transform-commit prop.
+  // Same gate as gatedAwaitableSave but feeds the workflow machine
+  // (which runs the save through saveTransformService).
+  const gatedSaveTransform = useCallback(
+    (tx: Parameters<typeof workflow.saveTransform>[0]) => {
+      if (!passCanvasPersistGateRef.current()) {
+        console.warn(
+          "[canvas-persist] skipped canvas-commit save: canvas-image is not a master-derivative",
+        )
+        return
+      }
+      workflow.saveTransform(tx)
+    },
+    [workflow],
+  )
 
   // The Trace renders at a smaller crop-derived rect inside the
   // master's bounding box, not at the master's display rect. The
@@ -592,7 +646,7 @@ export function ProjectDetailPageClient({
               traceInteractive={leftPanelTab === "trace" && stageToolbar.tool === "direct"}
               handleImageTransformChange={handleImageTransformChange}
               initialImageTransform={canvasInitialImageTransform}
-              saveImageState={canvasIsTrace ? undefined : workflow.saveTransform}
+              saveImageState={gatedSaveTransform}
               pageBgEnabled={pageBgEnabled}
               pageBgColor={pageBgColor}
               pageBgOpacity={pageBgOpacity}
