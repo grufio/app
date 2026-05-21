@@ -16,8 +16,16 @@ import { useEffect, useState } from "react"
 export function useSvgText(src: string | null): string | null {
   const [text, setText] = useState<string | null>(null)
 
+  // Fetch-on-src-change. The setText calls reflect a real async
+  // result (or the src going null), not a derived value from props
+  // — `useSyncExternalStore` (the rule's recommendation) is for
+  // subscriptions, not one-shot fetches. A Suspense + `use()`
+  // refactor would be the cleaner long-term path but requires a
+  // Suspense boundary in project-canvas-stage; deferred until the
+  // overlay graduates to a resource loader.
   useEffect(() => {
     if (!src) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setText(null)
       return
     }

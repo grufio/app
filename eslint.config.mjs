@@ -14,14 +14,14 @@ const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   // eslint-plugin-react-hooks v6 (shipped with eslint-config-next 16.2.5)
-  // adds `react-hooks/set-state-in-effect` as an error. The rule flags 8
-  // pre-existing call-sites we'd need to refactor to `useSyncExternalStore`
-  // / derived state — that's a separate quality PR. Downgrade to warn so
-  // the deps-update doesn't break the gate; lift back to error once those
-  // sites are addressed.
+  // adds `react-hooks/set-state-in-effect` as an error. The 8 pre-existing
+  // call-sites are now resolved: 5 dropped with dead code, 1 refactored to
+  // derived state (trace-inline-svg's selectedFill suppression), 2 carry
+  // targeted eslint-disable-next-line comments where the pattern is
+  // legitimate fetch-on-mount that the rule doesn't model
+  // (use-trace-handlers, use-svg-text). Rule restored to error.
   {
     rules: {
-      "react-hooks/set-state-in-effect": "warn",
       // Treat `_`-prefixed args/vars as intentionally unused (matches the
       // common JS convention; helpful for vi.fn signatures where we keep
       // the parameter to satisfy a typed call shape but don't read it).

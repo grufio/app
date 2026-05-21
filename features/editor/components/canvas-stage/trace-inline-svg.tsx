@@ -102,13 +102,6 @@ export function TraceInlineSvg({ svgText, imageRect, view, rotation = 0, forward
     }
   }, [])
 
-  // Clear any standing selection when interactivity is turned off
-  // (tab/tool change). Without this the previously-clicked region
-  // would keep its yellow outline even after pointer-events go off.
-  useEffect(() => {
-    if (!interactive) setSelectedFill(null)
-  }, [interactive])
-
   // Click + wheel on the container — native listeners, not React
   // props. See file header for why React's event delegation can't
   // reach the dangerouslySetInnerHTML descendants reliably.
@@ -163,17 +156,21 @@ export function TraceInlineSvg({ svgText, imageRect, view, rotation = 0, forward
   // Reflect `selectedFill` into the DOM by toggling `data-selected`
   // on every matching path. Direct DOM mutation is more debuggable
   // than the earlier approach of generating CSS rules with arbitrary
-  // fill strings in the selector.
+  // fill strings in the selector. When `interactive` is off we
+  // suppress the visual selection without clearing the state —
+  // re-enabling the tool brings the prior selection back, matching
+  // the rest of the editor where tool toggles don't lose state.
+  const visibleFill = interactive ? selectedFill : null
   useEffect(() => {
     const root = containerRef.current
     if (!root) return
     const paths = root.querySelectorAll<SVGElement>("[data-trace-region]")
     paths.forEach((p) => {
-      const matches = selectedFill != null && p.getAttribute("data-fill") === selectedFill
+      const matches = visibleFill != null && p.getAttribute("data-fill") === visibleFill
       if (matches) p.setAttribute("data-selected", "")
       else p.removeAttribute("data-selected")
     })
-  }, [selectedFill, prepared])
+  }, [visibleFill, prepared])
 
   if (!prepared) return null
 
