@@ -51,19 +51,10 @@ describe("deriveStageImage", () => {
   })
 })
 
-const traceBase: CanvasSource = {
-  id: "trace-base-id",
-  signedUrl: "https://example.test/trace-base.png",
-  name: "trace-base",
-  width_px: 600,
-  height_px: 450,
-}
-
 describe("pickCanvasImage — invariant: canvas source is always the working-copy", () => {
   it("returns the working-copy when filterDisplayImageWithoutTrace is set", () => {
     expect(
       pickCanvasImage({
-        traceBaseImage: null,
         filterDisplayImageWithoutTrace: workingCopy,
         stageImage: stageFromWorking,
       })?.id,
@@ -73,7 +64,6 @@ describe("pickCanvasImage — invariant: canvas source is always the working-cop
   it("falls back to stageImage when the working-copy is missing (still loading)", () => {
     expect(
       pickCanvasImage({
-        traceBaseImage: null,
         filterDisplayImageWithoutTrace: null,
         stageImage: stageFromWorking,
       })?.id,
@@ -83,7 +73,6 @@ describe("pickCanvasImage — invariant: canvas source is always the working-cop
   it("returns null when all inputs are null", () => {
     expect(
       pickCanvasImage({
-        traceBaseImage: null,
         filterDisplayImageWithoutTrace: null,
         stageImage: null,
       }),
@@ -94,32 +83,8 @@ describe("pickCanvasImage — invariant: canvas source is always the working-cop
     const staleStage: CanvasImage = { ...stageFromWorking, id: "stale-id" }
     expect(
       pickCanvasImage({
-        traceBaseImage: null,
         filterDisplayImageWithoutTrace: workingCopy,
         stageImage: staleStage,
-      })?.id,
-    ).toBe(workingCopy.id)
-  })
-})
-
-describe("pickCanvasImage — trace_base override", () => {
-  it("returns trace_base when set, even with a working-copy present", () => {
-    const picked = pickCanvasImage({
-      traceBaseImage: traceBase,
-      filterDisplayImageWithoutTrace: workingCopy,
-      stageImage: stageFromWorking,
-    })
-    expect(picked?.id).toBe(traceBase.id)
-    expect(picked?.width_px).toBe(traceBase.width_px)
-    expect(picked?.height_px).toBe(traceBase.height_px)
-  })
-
-  it("falls back to the working-copy when trace_base is null (lineart path)", () => {
-    expect(
-      pickCanvasImage({
-        traceBaseImage: null,
-        filterDisplayImageWithoutTrace: workingCopy,
-        stageImage: stageFromWorking,
       })?.id,
     ).toBe(workingCopy.id)
   })
