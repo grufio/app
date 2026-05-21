@@ -137,11 +137,16 @@ async function resolveMasterState(args: {
  * caller links them via `project_image_trace.base_image_id` so
  * tombstoning and editor display stay in sync.
  *
- * `displayRectPxU` carries the trace's fixed display rect (x/y/w/h
- * µpx, centred on the master). The orchestrator writes it onto the
- * `project_image_trace` row so the canvas can render the trace at
- * its own crop-derived size, independent of the master's display
- * rect.
+ * Pixelate is a destructive crop of the master: applying floor-
+ * grids the display rect to whole cells, so the floor-grid
+ * remainder (e.g. 2mm at 200mm master + 6mm cells) is removed from
+ * the master display rect. The handler returns:
+ *   - `masterPreState` — the master's display rect *before* the
+ *     crop. Stored on the trace row so clear-trace can restore the
+ *     master to its pre-apply size.
+ *   - `masterPostState` — the cropped rect to write into
+ *     `project_image_state` for master.id. Master centre is
+ *     unchanged; only the bounding box shrinks.
  */
 export type PixelateFilterSuccess = {
   ok: true
@@ -151,7 +156,13 @@ export type PixelateFilterSuccess = {
   heightPx: number
   baseId: string
   baseStoragePath: string
-  displayRectPxU: {
+  masterPreState: {
+    xPxU: bigint
+    yPxU: bigint
+    widthPxU: bigint
+    heightPxU: bigint
+  }
+  masterPostState: {
     xPxU: bigint
     yPxU: bigint
     widthPxU: bigint
@@ -239,23 +250,20 @@ export async function pixelateImageAndActivate(args: {
     displayMmH: masterState.displayMmH,
     grid,
   })
-  // Trace display rect (µpx). Bitmap is delivered at crop dimensions
-  // (no padding to master intrinsic); the canvas uses this rect to
-  // position + size the smaller trace inside the master's bounding
-  // box. `xPxU`/`yPxU` are *centre* coordinates throughout this
-  // codebase (Konva.Image is rendered with offsetX/Y = width/2,
-  // height/2 — see project-canvas-stage.tsx:713). The trace's centre
-  // coincides with the master's centre by construction (the cropped
-  // region is taken from the centre of the master display rect), so
-  // trace.x/y = master.x/y — no offset arithmetic.
-  const traceWidthPxU = mmToMicroPx(grid.usedMmW)
-  const traceHeightPxU = mmToMicroPx(grid.usedMmH)
-  // Fresh-upload fallback when no project_image_state row exists yet:
-  // default the centre to (master.w/2, master.h/2), which matches a
-  // top-left-anchored placement at (0, 0). Production race-closure in
-  // handleApplyTrace usually persists state before this point.
-  const traceXPxU = masterState.xPxU ?? masterState.widthPxU / 2n
-  const traceYPxU = masterState.yPxU ?? masterState.heightPxU / 2n
+  // Pre/post master state for the destructive-crop apply. xPxU/yPxU
+  // are *centre* coordinates throughout this codebase (Konva.Image
+  // renders with offsetX/Y = width/2, height/2 — see project-canvas-
+  // stage.tsx:713); the master centre is unchanged by the crop, only
+  // the bounding box shrinks to the floor-grid size.
+  const masterPreWidthPxU = masterState.widthPxU
+  const masterPreHeightPxU = masterState.heightPxU
+  const masterPreXPxU = masterState.xPxU ?? masterState.widthPxU / 2n
+  const masterPreYPxU = masterState.yPxU ?? masterState.heightPxU / 2n
+  const masterPostWidthPxU = mmToMicroPx(grid.usedMmW)
+  const masterPostHeightPxU = mmToMicroPx(grid.usedMmH)
+  // Same centre — only the bounding box shrinks symmetrically.
+  const masterPostXPxU = masterPreXPxU
+  const masterPostYPxU = masterPreYPxU
 
   const { data: srcBlob, error: downloadErr } = await supabase.storage
     .from(String(src.storage_bucket ?? PROJECT_IMAGES_BUCKET))
@@ -435,11 +443,17 @@ export async function pixelateImageAndActivate(args: {
       heightPx: croppedHeight,
       baseId,
       baseStoragePath: baseObjectPath,
-      displayRectPxU: {
-        xPxU: traceXPxU,
-        yPxU: traceYPxU,
-        widthPxU: traceWidthPxU,
-        heightPxU: traceHeightPxU,
+      masterPreState: {
+        xPxU: masterPreXPxU,
+        yPxU: masterPreYPxU,
+        widthPxU: masterPreWidthPxU,
+        heightPxU: masterPreHeightPxU,
+      },
+      masterPostState: {
+        xPxU: masterPostXPxU,
+        yPxU: masterPostYPxU,
+        widthPxU: masterPostWidthPxU,
+        heightPxU: masterPostHeightPxU,
       },
     }
   } catch (e) {

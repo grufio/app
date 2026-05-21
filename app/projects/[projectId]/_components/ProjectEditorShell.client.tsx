@@ -24,7 +24,6 @@ import { FilterSidebarSection } from "@/features/editor/components/filter-sideba
 import { TraceSidebarSection } from "@/features/editor/components/trace-sidebar-section"
 import type { OperationError } from "@/lib/api/operation-error"
 import { deleteMasterImageWithCascade } from "@/lib/api/project-images"
-import { shouldPersistCanvasTransform } from "@/lib/editor/canvas-persistence-gate"
 import { computeImagePlacementPx } from "@/lib/editor/image-placement"
 import { GEOMETRY_PPI } from "@/lib/editor/units"
 import { useCanvasTxMirror } from "@/lib/editor/hooks/use-canvas-tx-mirror"
@@ -128,14 +127,6 @@ export function ProjectDetailPageClient({
   }, [])
   const canvasRef = useRef<ProjectCanvasStageHandle | null>(null)
   const lastNoWorkingImageMetricRef = useRef("")
-  // Stable getter for the canvas-image-id-driven persistence gate. The
-  // gate inputs (canvasImage, masterImage, filterDisplayImageWithoutTrace)
-  // are derived later in the render — useTraceHandlers needs the gated
-  // save callback *before* they exist, so we route the check through a
-  // ref that gets reassigned to a fresh closure each render. The
-  // gated-save callbacks are stable (only depend on the raw save fns),
-  // safe to pass to hooks that mount earlier in the tree.
-  const passCanvasPersistGateRef = useRef<() => boolean>(() => false)
   const {
     sourceSnapshot,
     initialImageTransform,
@@ -234,22 +225,6 @@ export function ProjectDetailPageClient({
       displayMmH: traceSourceImage.displayMmH,
     }
   }, [traceDialog.session, traceSourceImage])
-  // Awaitable save gated by the canvas-image whitelist (master + filter
-  // chain tip). Used by useTraceHandlers' apply-pre-step; closes a hole
-  // that PR #246's UI gate missed where a trace-tab apply could write
-  // trace dims into the master state row. See canvas-persistence-gate.ts.
-  const gatedAwaitableSave = useCallback(
-    async (t: Parameters<typeof saveImageState>[0]) => {
-      if (!passCanvasPersistGateRef.current()) {
-        console.warn(
-          "[canvas-persist] skipped apply-pre-step save: canvas-image is not a master-derivative",
-        )
-        return
-      }
-      await saveImageState(t)
-    },
-    [saveImageState],
-  )
   const {
     trace,
     traceBaseImage,
@@ -262,7 +237,7 @@ export function ProjectDetailPageClient({
     projectId,
     refreshFilterImage,
     refreshMasterImage,
-    saveImageState: gatedAwaitableSave,
+    saveImageState,
     getCurrentImageTx: useCallback(() => {
       if (!imageTxU) return null
       return {
@@ -358,15 +333,6 @@ export function ProjectDetailPageClient({
     return "image"
   }, [editorImageSource.status, leftPanelTab])
 
-  // True when the canvas is rendering the trace_base bitmap (Trace
-  // tab + a trace exists). The trace is fixed at apply-time (PR #239),
-  // so drag/resize is disabled and saveImageState is gated below.
-  // Conservative: if the SVG-overlay gating in useCanvasDerivedState
-  // falls through to filterDisplayImageWithoutTrace, this stays true
-  // anyway — slightly over-locks drag in an edge case, no functional
-  // bug.
-  const canvasIsTrace = leftPanelTab === "trace" && Boolean(traceBaseImage)
-
   const { toolbar, stageToolbar, applyCropSelection } = useStageInteractionPolicy({
     canvasRef,
     leftPanelTab,
@@ -376,7 +342,6 @@ export function ProjectDetailPageClient({
     activeCanvasImageId,
     isCropping: workflow.isCropping,
     onApplyCrop: workflow.applyCrop,
-    canvasIsTrace,
   })
 
   const handleDeleteMasterImage = useCallback(async () => {
@@ -500,66 +465,6 @@ export function ProjectDetailPageClient({
     filterDisplayImageWithoutTrace,
     traceBaseImage,
   })
-  // Reassign the canvas-persist-gate getter after each render so the
-  // gated save callbacks (defined earlier, passed to useTraceHandlers)
-  // read the latest canvasImage/master/filter-tip ids. Save calls are
-  // user-event driven (drag commit, apply-pre-step), so the
-  // one-render lag between a tab switch and the effect firing is
-  // never observed in practice.
-  useEffect(() => {
-    passCanvasPersistGateRef.current = () =>
-      shouldPersistCanvasTransform({
-        canvasImageId: canvasImage?.id ?? null,
-        masterImageId: masterImage?.id ?? null,
-        filterDisplayImageWithoutTraceId: filterDisplayImageWithoutTrace?.id ?? null,
-      })
-  }, [canvasImage, masterImage, filterDisplayImageWithoutTrace])
-  // Fire-and-forget save for the canvas-stage transform-commit prop.
-  // Same gate as gatedAwaitableSave but feeds the workflow machine
-  // (which runs the save through saveTransformService).
-  const gatedSaveTransform = useCallback(
-    (tx: Parameters<typeof workflow.saveTransform>[0]) => {
-      if (!passCanvasPersistGateRef.current()) {
-        console.warn(
-          "[canvas-persist] skipped canvas-commit save: canvas-image is not a master-derivative",
-        )
-        return
-      }
-      workflow.saveTransform(tx)
-    },
-    [workflow],
-  )
-
-  // The Trace renders at a smaller crop-derived rect inside the
-  // master's bounding box, not at the master's display rect. The
-  // server wrote x/y/w/h to `project_image_trace.display_*_px_u`
-  // at apply time (centred on the master), so the client is a pure
-  // reader here — pull the 4 BigInts and pass them through to the
-  // canvas's initial-placement-controller. For master + filter
-  // working-copy paths the master's display rect (initialImage-
-  // Transform) is correct, so pass it through unchanged. Legacy
-  // trace rows (display_width_px_u === "0") also fall through to
-  // the master rect — preserves backward compatibility until
-  // existing traces are re-applied.
-  const canvasInitialImageTransform = useMemo(() => {
-    if (!initialImageTransform) return null
-    if (!canvasImage || !masterImage) return initialImageTransform
-    if (canvasImage.id === masterImage.id) return initialImageTransform
-    if (
-      canvasImage.id === traceBaseImage?.id &&
-      trace?.display_width_px_u &&
-      trace.display_width_px_u !== "0"
-    ) {
-      return {
-        ...initialImageTransform,
-        xPxU: BigInt(trace.display_x_px_u),
-        yPxU: BigInt(trace.display_y_px_u),
-        widthPxU: BigInt(trace.display_width_px_u),
-        heightPxU: BigInt(trace.display_height_px_u),
-      }
-    }
-    return initialImageTransform
-  }, [canvasImage, masterImage, traceBaseImage, trace, initialImageTransform])
 
   const grid = useMemo(() => {
     if (!gridVisible) return null
@@ -645,8 +550,8 @@ export function ProjectDetailPageClient({
               traceOverlaySvgUrl={traceOverlaySvgUrl}
               traceInteractive={leftPanelTab === "trace" && stageToolbar.tool === "direct"}
               handleImageTransformChange={handleImageTransformChange}
-              initialImageTransform={canvasInitialImageTransform}
-              saveImageState={gatedSaveTransform}
+              initialImageTransform={initialImageTransform}
+              saveImageState={workflow.saveTransform}
               pageBgEnabled={pageBgEnabled}
               pageBgColor={pageBgColor}
               pageBgOpacity={pageBgOpacity}
