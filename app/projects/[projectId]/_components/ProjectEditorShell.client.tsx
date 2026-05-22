@@ -24,8 +24,7 @@ import { FilterSidebarSection } from "@/features/editor/components/filter-sideba
 import { TraceSidebarSection } from "@/features/editor/components/trace-sidebar-section"
 import type { OperationError } from "@/lib/api/operation-error"
 import { deleteMasterImageWithCascade } from "@/lib/api/project-images"
-import { computeImagePlacementPx } from "@/lib/editor/image-placement"
-import { GEOMETRY_PPI } from "@/lib/editor/units"
+import { resolveTraceDisplayMm } from "@/lib/editor/trace/resolve-trace-display-mm"
 import { useCanvasTxMirror } from "@/lib/editor/hooks/use-canvas-tx-mirror"
 import { useDedupingErrorToast } from "@/lib/editor/hooks/use-deduping-error-toast"
 import { useFilterStackActions } from "@/lib/editor/hooks/use-filter-stack-actions"
@@ -181,36 +180,23 @@ export function ProjectDetailPageClient({
   // Returns null until workspace + source are both ready.
   const traceSourceImage = useMemo(() => {
     if (!filterSourceImage) return null
-    if (!artboardWidthPx || !artboardHeightPx) return null
-    const MM_PER_INCH = 25.4
-    let displayMmW: number
-    let displayMmH: number
-    const liveW = imageTxU?.w ?? initialImageTxU?.w
-    const liveH = imageTxU?.h ?? initialImageTxU?.h
-    if (liveW && liveH) {
-      displayMmW = (Number(liveW) / 1e6 / GEOMETRY_PPI) * MM_PER_INCH
-      displayMmH = (Number(liveH) / 1e6 / GEOMETRY_PPI) * MM_PER_INCH
-    } else {
-      const placement = computeImagePlacementPx({
-        artW: artboardWidthPx,
-        artH: artboardHeightPx,
-        intrinsicW: filterSourceImage.width_px,
-        intrinsicH: filterSourceImage.height_px,
-        imageDpi: masterImage?.dpi ?? null,
-      })
-      if (!placement) return null
-      displayMmW = (placement.widthPx / GEOMETRY_PPI) * MM_PER_INCH
-      displayMmH = (placement.heightPx / GEOMETRY_PPI) * MM_PER_INCH
-    }
-    return { ...filterSourceImage, displayMmW, displayMmH }
+    const displayMm = resolveTraceDisplayMm({
+      imageTxU,
+      initialImageTxU,
+      artboardWidthPx,
+      artboardHeightPx,
+      intrinsicW: filterSourceImage.width_px,
+      intrinsicH: filterSourceImage.height_px,
+      imageDpi: masterImage?.dpi ?? null,
+    })
+    if (!displayMm) return null
+    return { ...filterSourceImage, displayMmW: displayMm.displayMmW, displayMmH: displayMm.displayMmH }
   }, [
     filterSourceImage,
     artboardWidthPx,
     artboardHeightPx,
-    imageTxU?.w,
-    imageTxU?.h,
-    initialImageTxU?.w,
-    initialImageTxU?.h,
+    imageTxU,
+    initialImageTxU,
     masterImage?.dpi,
   ])
   const traceDialog = useTraceDialogSession(traceSourceImage)
