@@ -14,6 +14,12 @@ import { reportClientError } from "@/lib/monitoring/with-error-reporting"
 
 export type MasterImage = {
   id: string
+  /** Stable per-project identity = the immutable `kind='master'` row id.
+   * Distinct from `id` (the active/editor-target image, which flips on
+   * filter/crop/trace apply). Used as the reset key for the persisted
+   * display transform + canvas mirror so those survive an apply and
+   * only reset on a real master delete/replace. Null when no master. */
+  masterRowId: string | null
   signedUrl: string
   width_px: number
   height_px: number
@@ -29,6 +35,7 @@ export type MasterImage = {
 
 function toMasterImage(payload: {
   id?: unknown
+  masterRowId?: unknown
   signedUrl?: unknown
   width_px?: unknown
   height_px?: unknown
@@ -42,6 +49,7 @@ function toMasterImage(payload: {
     | undefined
   return {
     id: String(payload.id ?? ""),
+    masterRowId: payload.masterRowId == null ? null : String(payload.masterRowId),
     signedUrl: String(payload.signedUrl ?? ""),
     width_px: Number(payload.width_px ?? 0),
     height_px: Number(payload.height_px ?? 0),
@@ -61,7 +69,7 @@ function toMasterImage(payload: {
 
 function masterImageSignature(img: MasterImage | null): string {
   if (!img) return "__missing__"
-  return `${img.id}|${img.signedUrl}|${img.width_px}|${img.height_px}|${img.dpi ?? ""}|${img.name}|${img.restore_base?.id ?? ""}|${img.restore_base?.width_px ?? ""}|${img.restore_base?.height_px ?? ""}|${img.restore_base?.dpi ?? ""}`
+  return `${img.id}|${img.masterRowId ?? ""}|${img.signedUrl}|${img.width_px}|${img.height_px}|${img.dpi ?? ""}|${img.name}|${img.restore_base?.id ?? ""}|${img.restore_base?.width_px ?? ""}|${img.restore_base?.height_px ?? ""}|${img.restore_base?.dpi ?? ""}`
 }
 
 export function useMasterImage(projectId: string, initialMasterImage?: MasterImage | null) {

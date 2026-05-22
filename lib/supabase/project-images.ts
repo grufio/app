@@ -151,48 +151,6 @@ export async function getEditorTargetImageRow(
   return { row: resolved.target, error: null }
 }
 
-export async function getActiveProjectImageRow(
-  supabase: SupabaseClient,
-  projectId: string
-): Promise<{ row: ActiveProjectImageRow | null; error: null } | { row: null; error: { stage: "active_lookup"; reason: string; code?: string } }> {
-  const { data, error } = await supabase
-    .from("project_images")
-    .select("id,name,storage_bucket,storage_path,format,width_px,height_px,file_size_bytes,dpi,source_image_id,kind,is_locked")
-    .eq("project_id", projectId)
-    .eq("is_active", true)
-    .is("deleted_at", null)
-    .maybeSingle()
-
-  if (error) {
-    return {
-      row: null,
-      error: {
-        stage: "active_lookup",
-        reason: error.message,
-        code: readErrorCode(error),
-      },
-    }
-  }
-  return { row: toActiveProjectImageRow(data as unknown as Record<string, unknown>), error: null }
-}
-
-export async function getActiveMasterImageId(
-  supabase: SupabaseClient,
-  projectId: string
-): Promise<{ imageId: string | null; error: string | null }> {
-  const { data, error } = await supabase
-    .from("project_images")
-    .select("id")
-    .eq("project_id", projectId)
-    .eq("is_active", true)
-    .is("deleted_at", null)
-    .maybeSingle()
-
-  if (error) return { imageId: null, error: error.message }
-  if (!data?.id) return { imageId: null, error: null }
-  return { imageId: String(data.id), error: null }
-}
-
 // Returns the project's `kind='master'` image id. This is the stable
 // anchor for project_image_state persistence — every editor surface
 // (working_copy, filter_working_copy, trace_output) resolves to this

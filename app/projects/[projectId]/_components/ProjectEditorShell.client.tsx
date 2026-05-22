@@ -166,7 +166,11 @@ export function ProjectDetailPageClient({
     canvasRef,
     activeCanvasImageId,
     initialImageTransform,
-    masterImageId: masterImage?.id ?? null,
+    // Stable master identity (not the active image id) — see
+    // `useImageState` call in use-editor-workflow-adapter.ts. Keeps the
+    // canvas-tx mirror (and the image-size readout) alive across a
+    // filter/crop/trace apply; resets only on a real master change.
+    masterImageId: masterImage?.masterRowId ?? null,
   })
   const filterDialog = useFilterDialogSession(filterSourceImage)
   // Trace dialog needs the image's displayed size on the artboard in
