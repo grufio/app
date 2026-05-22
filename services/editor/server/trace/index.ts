@@ -357,10 +357,25 @@ export async function applyProjectTrace(args: {
     }
   }
 
+  // The trace is an OVERLAY, not the editor's active surface. Keep the
+  // editing surface we traced from (`sourceImageId` = working_copy /
+  // filter tip) active — do NOT activate trace_output.
+  //
+  // Why: the canvas bitmap is `filterDisplayImageWithoutTrace` and the
+  // SVG overlay resolves via `project_image_trace.output_image_id`
+  // (`resolveTraceDisplay`), never via `is_active`. Activating
+  // trace_output flipped the project's active image, which the
+  // master-image route returns as the editor's "primary image";
+  // `refreshMasterImage()` after apply then changed `masterImageId`,
+  // resetting the persisted display transform + the canvas mirror and
+  // snapping the canvas back to the intrinsic default placement
+  // (original aspect / size — the long-standing pixelate bug).
+  // Re-activating the source also heals any project whose working_copy
+  // was left inactive by a pre-fix apply (stale active trace_output).
   const activation = await activateProjectImageOnly({
     supabase,
     projectId,
-    imageId: created.id,
+    imageId: sourceImageId,
   })
   if (!activation.ok) {
     // The new row is already committed; revert it to leave the
@@ -377,8 +392,8 @@ export async function applyProjectTrace(args: {
     return { ok: false, status: activation.status, stage: activation.stage, reason: activation.reason, code: activation.code }
   }
 
-  // New row is committed and active. Now safe to tombstone the
-  // prior trace artefacts (if any).
+  // New trace row is committed + source surface active. Now safe to
+  // tombstone the prior trace artefacts (if any).
   if (priorOutputId && priorOutputId !== created.id) {
     await tombstoneTraceImage({ supabase, projectId, imageId: priorOutputId, kind: "trace_output" })
   }
