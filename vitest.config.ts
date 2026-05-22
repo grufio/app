@@ -58,10 +58,13 @@ export default defineConfig({
         ".next/**",
       ],
       thresholds: {
-        lines: 24,
+        // Ratchet only upward. Current actual ~35% lines/statements; the
+        // floor sits just below to lock in gains without flaking on small
+        // run-to-run deltas. Each test wave bumps this toward the new actual.
+        lines: 40,
         functions: 73,
         branches: 72,
-        statements: 24,
+        statements: 40,
       },
     },
   },

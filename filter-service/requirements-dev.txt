@@ -1,0 +1,8 @@
+# Test-only dependencies for the filter-service pytest suite.
+# Production deps are pulled in via -r so `app.main` (which imports
+# the lineart/pixelate pipelines at module load) can be imported.
+-r requirements.txt
+
+pytest==8.3.4
+httpx==0.28.1
+pytest-cov==6.0.0

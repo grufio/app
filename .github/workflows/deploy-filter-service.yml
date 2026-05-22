@@ -29,6 +29,19 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # Gate the deploy on the pytest suite: a red suite must not reach
+      # Cloud Run. Same command as the CI `filter_service_tests` job.
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run filter-service tests
+        working-directory: filter-service
+        run: |
+          pip install -r requirements-dev.txt
+          pytest --cov=app --cov-fail-under=70
+
       - name: Authenticate to Google Cloud (Workload Identity Federation)
         uses: google-github-actions/auth@v2
         with:
