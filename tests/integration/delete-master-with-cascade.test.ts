@@ -32,6 +32,7 @@ import {
   getServiceClient,
   seedImage,
   seedProject,
+  seedTrace,
 } from "./_setup"
 import type { Database } from "@/lib/supabase/database.types"
 
@@ -163,6 +164,100 @@ describe("delete_master_with_cascade()", () => {
       .select("output_image_id", { count: "exact", head: true })
       .eq("project_id", projectId)
     expect(traceCount).toBe(0)
+  })
+
+  // M4: the full trace topology exercises BOTH ON DELETE RESTRICT FKs.
+  //   master → working_copy → {filter_working_copy, trace_base, trace_output}
+  // with a project_image_trace row whose:
+  //   - base_image_id   → trace_base   (project_image_trace_base_image_id_fkey, RESTRICT)
+  //   - output_image_id → trace_output (output_image_id FK, CASCADE)
+  // The trace_base also has source_image_id → working_copy (RESTRICT).
+  // Against the old RPC (no trace_base delete) this aborts with 23503
+  // at the working_copy delete (trace_base.source_image_id still
+  // points at it). The fix deletes trace_base after trace_output (whose
+  // CASCADE drops the trace row, releasing base_image_id RESTRICT) and
+  // before working_copy. Contract: 0 trace_base rows + 0 remaining
+  // image rows after the cascade. Holds under both RESTRICT and CASCADE
+  // source_image_id semantics.
+  it("removes trace_base too — both source_image_id and base_image_id RESTRICT paths", async () => {
+    const { projectId, ownerId } = await seedProject({ supabase })
+    seeded.push({ projectId, ownerId })
+
+    const master = await seedImage({ supabase, projectId, kind: "master" })
+    const workingCopy = await seedImage({
+      supabase,
+      projectId,
+      kind: "working_copy",
+      sourceImageId: master.imageId,
+    })
+    const filterOutput = await seedImage({
+      supabase,
+      projectId,
+      kind: "filter_working_copy",
+      sourceImageId: workingCopy.imageId,
+    })
+    // trace_base is sourced from the working_copy (RESTRICT path A).
+    const traceBase = await seedImage({
+      supabase,
+      projectId,
+      kind: "trace_base",
+      sourceImageId: workingCopy.imageId,
+    })
+    const traceOutput = await seedImage({
+      supabase,
+      projectId,
+      kind: "trace_output",
+      sourceImageId: filterOutput.imageId,
+    })
+
+    // Single trace row points at BOTH trace_base (RESTRICT path B) and
+    // trace_output (CASCADE).
+    await seedTrace({
+      supabase,
+      projectId,
+      outputImageId: traceOutput.imageId,
+      baseImageId: traceBase.imageId,
+    })
+
+    const { data: paths, error: rpcErr } = await (supabase as unknown as CascadeRpc).rpc(
+      "delete_master_with_cascade",
+      { p_project_id: projectId },
+    )
+    expect(rpcErr).toBeNull()
+    expect(paths).not.toBeNull()
+    // 5 images: master, working_copy, filter_working_copy, trace_base, trace_output.
+    expect(paths?.length).toBe(5)
+    const pathStrings = (paths ?? []).map((r) => r.storage_path).filter(Boolean) as string[]
+    expect(pathStrings).toHaveLength(5)
+
+    // No trace_base row survives the cascade.
+    const { count: traceBaseCount } = await supabase
+      .from("project_images")
+      .select("id", { count: "exact", head: true })
+      .eq("project_id", projectId)
+      .eq("kind", "trace_base")
+    expect(traceBaseCount).toBe(0)
+
+    // No image rows of any kind survive.
+    const { count: imageCount } = await supabase
+      .from("project_images")
+      .select("id", { count: "exact", head: true })
+      .eq("project_id", projectId)
+    expect(imageCount).toBe(0)
+
+    // The trace row went via output_image_id CASCADE.
+    const { count: traceCount } = await supabase
+      .from("project_image_trace")
+      .select("output_image_id", { count: "exact", head: true })
+      .eq("project_id", projectId)
+    expect(traceCount).toBe(0)
+
+    // Project shell survives, as for the other cascade cases.
+    const { count: projectCount } = await supabase
+      .from("projects")
+      .select("id", { count: "exact", head: true })
+      .eq("id", projectId)
+    expect(projectCount).toBe(1)
   })
 
   it("is idempotent: second call on an empty project returns no rows, no error", async () => {
