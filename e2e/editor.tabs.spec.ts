@@ -95,24 +95,6 @@ test("regression: Trace add button is enabled with active image, opens selector"
   await setupMockRoutes(page, { withImage: true })
 
   await gotoProject(page)
-
-  // The trace selection dialog only opens once `traceSourceImage` resolves,
-  // and that needs the Konva image node to have mounted and reported its
-  // transform into the mirror — `useTraceDialogSession.beginSelection()` is a
-  // no-op while the source image is null (see
-  // `lib/editor/hooks/use-trace-dialog-session.ts:31-35` +
-  // `resolveTraceDisplayMm` returning null before a transform/artboard is
-  // available). Wait on the same e2e hook the pixelate-aspect gate uses
-  // (`e2e/pixelate-aspect.spec.ts:76-82`) so the click lands after the image
-  // is ready — clicking "Add trace" before that silently does nothing.
-  await expect
-    .poll(async () =>
-      page.evaluate(() =>
-        Boolean((globalThis as { __gruf_editor?: { image?: unknown } }).__gruf_editor?.image),
-      ),
-    )
-    .toBe(true)
-
   await selectLeftTab(page, "Trace")
 
   const addTrace = page.getByLabel("Add trace")

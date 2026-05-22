@@ -135,21 +135,6 @@ test.describe("forms — visual regressions", () => {
     await page.goto(`/projects/${PROJECT_ID}`)
     await freezeAnimations(page)
 
-    // The trace selection dialog only opens once `traceSourceImage` resolves,
-    // which needs the Konva image node mounted + its transform reported into
-    // the mirror (`beginSelection()` is a no-op while the source is null —
-    // see `lib/editor/hooks/use-trace-dialog-session.ts:31-35`). Wait on the
-    // same e2e hook the pixelate-aspect gate uses
-    // (`e2e/pixelate-aspect.spec.ts:76-82`) before clicking "Add trace".
-    await expect(page.getByTestId("editor-canvas-root")).toBeVisible()
-    await expect
-      .poll(async () =>
-        page.evaluate(() =>
-          Boolean((globalThis as { __gruf_editor?: { image?: unknown } }).__gruf_editor?.image),
-        ),
-      )
-      .toBe(true)
-
     await page.getByRole("tab", { name: "Trace" }).click()
     await page.getByRole("button", { name: "Add trace" }).click()
     await page.getByRole("button", { name, exact: true }).click()
