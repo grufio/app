@@ -89,6 +89,30 @@ export async function GET(
   const dpiRaw = Number(img.dpi)
   const dpi = Number.isFinite(dpiRaw) && dpiRaw > 0 ? Math.round(dpiRaw) : null
 
+  // Build the success payload ONCE (everything except the signed URL) so the
+  // cache-hit and cache-miss return paths cannot drift. PR #267 added
+  // `masterRowId` to only the cache-hit branch; the cache-miss branch then
+  // returned without it, the client coerced the missing field to `null`, and
+  // that null flipped the `masterRowId`-keyed reset of useImageState /
+  // useCanvasTxMirror — discarding the persisted display transform. Keeping a
+  // single shape here is the structural guard against repeating that.
+  const responsePayload = {
+    exists: true as const,
+    id: img.id,
+    storage_path: img.storage_path,
+    name: img.name,
+    format: img.format,
+    width_px: img.width_px,
+    height_px: img.height_px,
+    dpi,
+    file_size_bytes: img.file_size_bytes,
+    // Stable identity = immutable kind='master' row id (same query as
+    // restore_base). The client uses this — not `id` (the active image,
+    // which flips on filter/crop/trace apply) — as the reset key.
+    masterRowId: restoreBase?.id ? String(restoreBase.id) : null,
+    restore_base: restoreBasePayload,
+  }
+
   const now = Date.now()
   const bucket = img.storage_bucket ?? PROJECT_IMAGES_BUCKET
   const cacheKey = `${u.user.id}:${bucket}:${img.storage_path}`
@@ -96,23 +120,7 @@ export async function GET(
   if (cached && cached.expiresAtMs - SIGNED_URL_RENEW_BUFFER_MS > now) {
     signedUrlCache.delete(cacheKey)
     signedUrlCache.set(cacheKey, cached)
-    return NextResponse.json({
-      exists: true,
-      id: img.id,
-      signedUrl: cached.url,
-      storage_path: img.storage_path,
-      name: img.name,
-      format: img.format,
-      width_px: img.width_px,
-      height_px: img.height_px,
-      dpi,
-      file_size_bytes: img.file_size_bytes,
-      // Stable identity = immutable kind='master' row id (same query as
-      // restore_base). The client uses this — not `id` (the active image,
-      // which flips on filter/crop/trace apply) — as the reset key.
-      masterRowId: restoreBase?.id ? String(restoreBase.id) : null,
-      restore_base: restoreBasePayload,
-    })
+    return NextResponse.json({ ...responsePayload, signedUrl: cached.url })
   }
 
   const { data: signed, error: signedErr } = await supabase.storage.from(bucket).createSignedUrl(img.storage_path, SIGNED_URL_TTL_S)
@@ -127,19 +135,7 @@ export async function GET(
     if (firstKey) signedUrlCache.delete(firstKey)
   }
 
-  return NextResponse.json({
-    exists: true,
-    id: img.id,
-    signedUrl: signed.signedUrl,
-    storage_path: img.storage_path,
-    name: img.name,
-    format: img.format,
-    width_px: img.width_px,
-    height_px: img.height_px,
-    dpi,
-    file_size_bytes: img.file_size_bytes,
-    restore_base: restoreBasePayload,
-  })
+  return NextResponse.json({ ...responsePayload, signedUrl: signed.signedUrl })
 }
 
 export async function DELETE(
