@@ -126,7 +126,14 @@ export async function seedProject(args: {
 export async function seedImage(args: {
   supabase: SupabaseClient<Database>
   projectId: string
-  kind: "master" | "working_copy" | "filter_working_copy" | "trace_output"
+  kind:
+    | "master"
+    | "working_copy"
+    | "filter_working_copy"
+    | "trace_base"
+    | "trace_output"
+  // Required for any non-master kind: `non_master_requires_source_kind_ck`
+  // (NOT VALID but enforced for new rows) demands source_image_id IS NOT NULL.
   sourceImageId?: string | null
   name?: string
 }): Promise<{ imageId: string }> {
@@ -147,6 +154,39 @@ export async function seedImage(args: {
     throw new Error(`seedImage: insert failed: ${error.message}`)
   }
   return { imageId }
+}
+
+/**
+ * Seeds the project's single `project_image_trace` row (PK is
+ * `project_id`, so exactly one per project). Wires both image
+ * pointers:
+ *   - `output_image_id` (NOT NULL) → a trace_output row. Its FK is
+ *     ON DELETE CASCADE, so deleting the trace_output removes this
+ *     trace row.
+ *   - `baseImageId` (optional) → a trace_base row. Its FK
+ *     (`project_image_trace_base_image_id_fkey`) is ON DELETE
+ *     RESTRICT, so the trace_base cannot be deleted while this row
+ *     still points at it. Pass it to exercise the second RESTRICT
+ *     path in the delete cascade (M4).
+ */
+export async function seedTrace(args: {
+  supabase: SupabaseClient<Database>
+  projectId: string
+  outputImageId: string
+  baseImageId?: string | null
+  kind?: "pixelate" | "lineart"
+}): Promise<void> {
+  const { supabase, projectId, outputImageId, baseImageId, kind } = args
+  const { error } = await supabase.from("project_image_trace").insert({
+    project_id: projectId,
+    kind: kind ?? "pixelate",
+    params: {},
+    output_image_id: outputImageId,
+    base_image_id: baseImageId ?? null,
+  })
+  if (error) {
+    throw new Error(`seedTrace: insert failed: ${error.message}`)
+  }
 }
 
 /**
