@@ -101,7 +101,7 @@ type Props = {
    * `mutationsEnabled` gates the baseline "this image can be edited"
    * capability. After PR #128/#129 this is **independent of the
    * active tab** — Filter, Trace, Image all allow mutations because
-   * `project_image_state` is anchored at master.id (project-wide).
+   * `project_image_state` is anchored at working_copy.id (project-wide).
    * Driven from `selectDisabled` in the toolbar — locks during
    * filter-apply / crop-busy windows. */
   mutationsEnabled?: boolean

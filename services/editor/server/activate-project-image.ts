@@ -187,7 +187,7 @@ export async function activateProjectMasterAndWorkingCopy(args: {
 
 /**
  * Filter / trace / crop apply flows: flip `is_active` for a non-master
- * variant. State is anchored at master.id and stays untouched.
+ * variant. State is anchored at working_copy.id and stays untouched.
  */
 export async function activateProjectImageOnly(args: {
   supabase: SupabaseClient<Database>

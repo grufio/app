@@ -312,8 +312,8 @@ export async function setActiveProjectImageState(args: {
  * Flip `is_active` for the given image without touching
  * `project_image_state`. Used by filter/trace/crop apply flows: those
  * produce a new display image (filter_working_copy / trace_output /
- * crop output), but state is anchored at master.id (PR #124) and stays
- * untouched. Wraps the existing `set_active_image` RPC.
+ * crop output), but state is anchored at working_copy.id (PR #257) and
+ * stays untouched. Wraps the existing `set_active_image` RPC.
  */
 export async function setActiveProjectImageOnly(args: {
   supabase: SupabaseClient

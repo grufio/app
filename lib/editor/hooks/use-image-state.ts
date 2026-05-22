@@ -36,9 +36,10 @@
  *   `features/editor/components/canvas-stage/initial-placement-controller.ts`.
  * - Persistence wire format: `lib/editor/imageState/`.
  *
- * Post PR #124 the state row is anchored at the project's `master.id`
- * server-side. The `masterImageId` param on the client mirrors that
- * anchor so the in-memory mirror lifecycle matches the DB lifecycle.
+ * Post PR #257 the state row is anchored at the project's
+ * `working_copy.id` server-side. The `masterImageId` param on the
+ * client mirrors the project's image lifecycle so the in-memory
+ * mirror lifecycle matches the DB lifecycle.
  */
 import { useCallback, useEffect, useRef, useState } from "react"
 

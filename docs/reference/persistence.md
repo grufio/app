@@ -35,15 +35,15 @@ Table: `public.project_grid`
 - `line_width_value`
 - `color`
 
-#### Image transform (anchored at master.id)
+#### Image transform (anchored at working_copy.id)
 
 Table: `public.project_image_state`
 
 - `width_px_u`, `height_px_u` (canonical size of the placed image)
 - `x_px_u`, `y_px_u` (position)
 - `rotation_deg`
-- `image_id` — the project's `master.id` (PR #124 anchor;
-  see [domains/image-state.md](../domains/image-state.md))
+- `image_id` — the project's `working_copy.id` (PR #257 anchor,
+  re-anchored from master.id; see [domains/image-state.md](../domains/image-state.md))
 
 #### Image metadata
 

@@ -167,7 +167,7 @@ export async function cropImageAndActivate(args: {
     await supabase.storage.from(PROJECT_IMAGES_BUCKET).remove([objectPath])
     return { ok: false, status: 400, stage: "db_insert", reason: insertErr.message, code: (insertErr as { code?: string }).code }
   }
-  // State is anchored at master.id; no per-output transform copy.
+  // State is anchored at working_copy.id; no per-output transform copy.
   // Crop visually preserves the master-state canvas size: the cropped
   // image displays at the same dimensions the source had, effectively
   // a zoom-in. Pre-refactor behaviour scaled the transform by the crop

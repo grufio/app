@@ -5,11 +5,12 @@
  * - Define the minimal request/response shapes used by the image-state API routes.
  * - Keep transport types decoupled from in-memory BigInt types.
  *
- * Post PR #124: state is anchored at the project's master.id server-side.
- * The save body carries only transform fields; the server resolves the
- * persistence key (master.id) and the lock-guard target internally.
- * `ImageStateRow` keeps `image_id` because the server still emits it in
- * the GET response for debug visibility (it's always master.id post-#124).
+ * Post PR #257: state is anchored at the project's working_copy.id
+ * server-side. The save body carries only transform fields; the server
+ * resolves the persistence key (working_copy.id) and the lock-guard
+ * target internally. `ImageStateRow` keeps `image_id` because the server
+ * still emits it in the GET response for debug visibility (it's always
+ * working_copy.id post-#257).
  */
 export type ImageStateRow = {
   image_id?: string | null

@@ -137,7 +137,7 @@ export async function lineArtImageAndActivate(args: {
       return { ok: false, status: 400, stage: "db_insert", reason: insertErr.message, code: insertErr.code }
     }
 
-    // State is anchored at master.id; no per-output transform copy.
+    // State is anchored at working_copy.id; no per-output transform copy.
 
 
     return {
