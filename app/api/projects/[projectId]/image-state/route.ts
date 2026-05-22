@@ -2,11 +2,12 @@
  * API route: persisted image state (transform) for a project.
  *
  * Responsibilities:
- * - GET: read `project_image_state` for the project (anchored at master.id).
- * - POST: validate transform fields, then upsert at master.id.
+ * - GET: read `project_image_state` for the project (anchored at working_copy.id).
+ * - POST: validate transform fields, then upsert at working_copy.id.
  *
- * State is always anchored at the project's master.id (PR #124). The
- * client sends only transform fields; the server resolves the
+ * State is always anchored at the project's working_copy.id (PR #257,
+ * re-anchored from master.id; resolved via `resolveStateAnchorImage`).
+ * The client sends only transform fields; the server resolves the
  * persistence key and the lock-guard target from `projectId` alone.
  * Legacy clients still in flight may include `image_id` and `role`
  * in the body — both are accepted by the validator and ignored.

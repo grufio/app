@@ -213,11 +213,11 @@ export async function pixelateImageAndActivate(args: {
     return { ok: false, status: 400, stage: "validation", reason: "Invalid source dimensions" }
   }
 
-  // Resolve the master's displayed size + origin on the artboard.
-  // `project_image_state` is authoritative (anchored at master.id);
-  // the trace apply path in `handleApplyTrace` awaits any pending
-  // state save before calling /trace, so the DB row is guaranteed
-  // to be current when this handler runs.
+  // Resolve the image's displayed size + origin on the artboard.
+  // `project_image_state` is authoritative (anchored at working_copy.id,
+  // PR #257); the trace apply path in `handleApplyTrace` awaits any
+  // pending state save before calling /trace, so the DB row is
+  // guaranteed to be current when this handler runs.
   const masterState = await resolveMasterState({ supabase, projectId })
   if (!masterState.ok) {
     return { ok: false, status: 400, stage: "validation", reason: masterState.reason }
@@ -406,9 +406,9 @@ export async function pixelateImageAndActivate(args: {
       return { ok: false, status: 400, stage: "db_insert", reason: insertErr.message, code: insertErr.code }
     }
     profiler.mark("db_insert")
-    // State is anchored at master.id; the trace's own display rect
-    // travels with the project_image_trace row (handled by the
-    // orchestrator) so no per-output transform copy is needed.
+    // State is anchored at working_copy.id (PR #257); the trace's own
+    // display rect travels with the project_image_trace row (handled by
+    // the orchestrator) so no per-output transform copy is needed.
 
     profiler.report("pixelate", {
       python_phases: callResult.phases,

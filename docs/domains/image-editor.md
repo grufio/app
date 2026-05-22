@@ -52,20 +52,21 @@ result. It splits into three layers: pure-math canvas model
   `trace_output` (PR #119) is the SVG sink for pixelate / lineart;
   it sits outside the filter chain and is referenced by
   `project_image_trace.output_image_id`. `trace_base` is the
-  cropped source bitmap that pixelate writes alongside the SVG —
-  the editor renders it under the SVG overlay on the Trace tab so
-  the crop region is the only thing visible.
-- **State is anchored at `master.id` (PR #124).** Every
-  `project_image_state` row's `image_id` is the project's master
-  row id — the stable, immutable anchor. The API route
+  cropped source bitmap that pixelate writes alongside the SVG; it
+  is Python-service data for cell-colour sampling and is **not**
+  rendered on the canvas (PR #262 — the canvas stays on the
+  working_copy / filter tip with the SVG overlaid on top).
+- **State is anchored at `working_copy.id` (PR #257, re-anchored
+  from master.id / PR #124).** Every `project_image_state` row's
+  `image_id` is the project's working_copy row id. The API route
   ([app/api/projects/[projectId]/image-state/route.ts](../../app/api/projects/%5BprojectId%5D/image-state/route.ts))
-  resolves to master.id on both GET and POST via
-  `getProjectMasterImageId` in
-  [lib/supabase/project-images.ts](../../lib/supabase/project-images.ts).
+  resolves to working_copy.id on both GET and POST via
+  `resolveStateAnchorImage` in
+  [lib/supabase/image-state.ts](../../lib/supabase/image-state.ts).
   The body's `image_id` identifies which editor surface the user
   was operating on (used for the in-project + lock-guard check) —
   it is **not** the persistence key.
-- **`set_active_master_with_state` is the canonical bind RPC for
+- **`set_active_image_with_state` is the canonical bind RPC for
   master swaps.** It links a `project_images` row to the
   `project_image_state` row in one transaction and is used by
   the restore/replace-master flow at
@@ -89,7 +90,7 @@ user clicks "restore" in right panel
    → restore/route.ts
      ├── load baseMaster from project_images
      ├── compute placement via lib/editor/image-placement
-     ├── set_active_master_with_state RPC (atomic bind)
+     ├── set_active_image_with_state RPC (atomic bind)
      └── 200 { ok: true }
    ← UI re-renders from new project_image_state row
 ```
@@ -97,7 +98,7 @@ user clicks "restore" in right panel
 ## Conventions
 
 - **Never write to `project_image_state` directly.** Go through
-  `set_active_master_with_state` (binds with the active master) or
+  `set_active_image_with_state` (binds with the active master) or
   the typed helpers in `lib/supabase/image-state.ts`.
 - **Every coord/size persisted is `*_px_u: text`**, not `numeric`.
   The numeric-from-string conversions live in
@@ -114,54 +115,59 @@ user clicks "restore" in right panel
 
 Captures the user-facing flow across the three active editor tabs
 and the invariants the trace-overlay series (#76 → #82 → #83 →
-#84 → #86) and the master-anchor refactor (#119, #124) established.
-Update this section when those invariants change.
+#84 → #86), the working_copy re-anchor (#257, from the original
+master-anchor #119/#124), and the non-destructive trace-overlay
+refactor (#260 non-destructive pixelate, #262 SVG-only overlay)
+established. Update this section when those invariants change.
 
 ### Tabs
 
-The canvas source depends on the tab. Image and Filter render the
-trace-free filter chain tip (`filterDisplayImageWithoutTrace`).
-Trace swaps the canvas source to `trace_base` (the cropped +
-pixelated source bitmap) when a trace exists, with the inline-SVG
-overlay sitting on top. All three tabs render at the same
-`project_image_state` rect anchored at master.id — pixelate apply
-*destructively crops* this rect to the floor-grid dimensions (e.g.
-200×200 mm → 198×198 mm at 6mm cells), so the user sees identical
-size + position on every tab. The pre-apply rect is preserved on
-the trace row (`master_pre_*_px_u`) so clear-trace can restore it.
-The master image itself is never the canvas source — it's an
-immutable restore source surfaced through the layer tree, and it
-serves as the **persistence anchor** for `project_image_state`
-(PR #124).
+The canvas always renders the working_copy (or its filter chain
+tip) via `filterDisplayImageWithoutTrace`; all three tabs use the
+same source and render at the same `project_image_state` rect. On
+the Trace tab the trace SVG overlays on top via `TraceInlineSvg`,
+positioned at that rect. Pixelate apply is **non-destructive**: it
+does NOT mutate `project_image_state` — the SVG's viewBox is the
+source crop, and clear-trace simply removes the overlay (the
+`master_pre_*_px_u` restore columns were dropped, migration
+`20260521205316_drop_trace_master_pre_state.sql`). The `trace_base`
+bitmap is Python-service data for cell-colour sampling and is
+**not** rendered on the canvas (PR #262 — preferring it routed the
+canvas through trace_base's source-crop intrinsic and rendered the
+trace at the original image proportions; that bug class is closed).
+The master image is never the canvas source — it's an immutable
+restore source surfaced through the layer tree; the **persistence
+anchor** for `project_image_state` is the working_copy (PR #257).
 
 | Tab | Sidebar | State read | State written | Stage display |
 |---|---|---|---|---|
-| **Image** | layers (`editor-nav-tree`) | `project_image_state` at master.id | `project_image_state` at master.id | filter-base-copy raster |
-| **Filter** | filter stack (`FilterSidebarSection`) | `project_image_filters` + `filter_working_copy` rows; `project_image_state` at master.id | `project_image_filters`, `project_images(kind='filter_working_copy')`, `project_image_state` at master.id | filter chain tip raster |
-| **Trace** | trace section (`TraceSidebarSection`) | `project_image_trace` (incl. `master_pre_*_px_u` for restore-on-clear), `project_image_state` at master.id | `project_image_trace` (single row), `project_images(kind='trace_output'/'trace_base')`, **`project_image_state` cropped to floor-grid at master.id** | `trace_base` bitmap + inline-SVG overlay, rendered at `project_image_state` for master.id |
+| **Image** | layers (`editor-nav-tree`) | `project_image_state` at working_copy.id | `project_image_state` at working_copy.id | working_copy / filter-tip raster |
+| **Filter** | filter stack (`FilterSidebarSection`) | `project_image_filters` + `filter_working_copy` rows; `project_image_state` at working_copy.id | `project_image_filters`, `project_images(kind='filter_working_copy')`, `project_image_state` at working_copy.id | filter chain tip raster |
+| **Trace** | trace section (`TraceSidebarSection`) | `project_image_trace`, `project_image_state` at working_copy.id | `project_image_trace` (single row), `project_images(kind='trace_output'/'trace_base')` — `project_image_state` is **not** mutated (non-destructive) | working_copy / filter-tip raster + inline-SVG overlay, positioned at `project_image_state` for working_copy.id |
 | Colors / Output | — | — | — | removed 2026-05-11 (PR #89) |
 
 ### Invariants (do not regress)
 
-- **State is anchored at `master.id`.** The API route resolves to
-  master.id on every GET/POST regardless of which editor surface
-  the client was rendering. Saves survive every filter-base-copy
-  recreation, chain reset, or trace tombstone. Body `image_id` is
-  informational (lock guard only); the server never persists at it.
+- **State is anchored at `working_copy.id`.** The API route resolves
+  to working_copy.id on every GET/POST regardless of which editor
+  surface the client was rendering. Saves survive every filter-base-
+  copy recreation, chain reset, or trace tombstone. Body `image_id`
+  is informational (lock guard only); the server never persists at it.
   See [docs/domains/image-state.md](image-state.md) for the
-  resolver helper and the backfill that established this invariant.
-- **Canvas source picker is `traceBaseImage` → `filterDisplayImage` → stage.**
+  resolver helper (`resolveStateAnchorImage`) and the PR #257
+  re-anchor migration that established this invariant.
+- **Canvas source picker is `filterDisplayImageWithoutTrace` → stage.**
   The master image (`kind='master'`) is immutable
   (`guard_master_immutable` trigger) and is never the Konva render
   source. `pickCanvasImage` ([lib/editor/canvas-image-invariant.ts](../../lib/editor/canvas-image-invariant.ts))
-  prefers `trace_base` when a trace exists (Trace tab); otherwise
-  the canvas falls back to the trace-free filter chain tip
-  (`filterDisplayImageWithoutTrace`). All sources render at the
-  same `project_image_state` rect anchored at master.id, so
-  Image / Filter / Trace tabs show identical size + position. The
-  persistence decoupling above means a drift between canvas-source
-  id and save-target id no longer silently breaks the user — saves
-  still land at master.id.
+  always renders the trace-free working copy / filter chain tip
+  (`filterDisplayImageWithoutTrace`), falling back to `stageImage`
+  while it loads. The trace SVG overlays on top; `trace_base` is
+  **never** the canvas source (PR #262 — it had routed the canvas
+  through trace_base's source-crop intrinsic and rendered the trace
+  at the original image proportions). All sources render at the same
+  `project_image_state` rect anchored at working_copy.id, so
+  Image / Filter / Trace tabs show identical size + position.
 - **Filter operates on raster, never on SVG.** PR #82 fixed a class
   where Filter would be applied to a trace SVG. Filter always reads
   `filterDisplayImageWithoutTrace`.
@@ -172,17 +178,19 @@ serves as the **persistence anchor** for `project_image_state`
   the trace SVG render as a DOM-overlay on top of the Konva.Image,
   not as a replacement. PR #86 dropped the opaque white `<rect>`
   from the Python source so the underlying bitmap shows through.
-  The bitmap below the SVG is `trace_base` (cropped + pixelated
-  source) on the Trace tab; the overlay architecture is unchanged
-  from #84/#86.
-- **Pixelate apply is a destructive crop on the master state.**
-  PR #246/#247's per-trace display rect and UI/persistence gates
-  were reverted in favour of writing the cropped dims directly to
-  `project_image_state` for master.id at apply time. The pre-apply
-  rect lives on `project_image_trace.master_pre_*_px_u` so clear-
-  trace can restore it. This keeps Image / Filter / Trace tabs
-  visually consistent and removes the entire "per-tab display rect
-  override" complexity.
+  The bitmap below the SVG is the working_copy / filter chain tip
+  (PR #262 — `trace_base` is no longer the canvas source); the
+  overlay architecture is unchanged from #84/#86.
+- **Pixelate apply is non-destructive (PR #260).** It does NOT
+  mutate `project_image_state` — the cropped grid lives only in the
+  trace SVG's viewBox (= the source crop) plus the `trace_base`
+  bitmap, overlaid on the unchanged working_copy rect. The earlier
+  destructive-crop model (writing cropped dims to
+  `project_image_state`, with a `project_image_trace.master_pre_*_px_u`
+  restore rect) was removed; those restore columns were dropped
+  (migration `20260521205316_drop_trace_master_pre_state.sql`).
+  Clear-trace just removes the overlay. Image / Filter / Trace stay
+  visually consistent because they share one working_copy rect.
 - **`traceOverlaySvgUrl` is gated on Trace-tab AND trace-aware ≠
   trace-free display IDs.** Otherwise the overlay either shows the
   wrong thing (on Filter/Image tab) or shows nothing useful (when
@@ -213,18 +221,17 @@ runs three parallel sub-machines:
 - `ProjectEditorShell.client.tsx` derives `canvasMode`,
   `canvasImage`, and `traceOverlaySvgUrl` inline; many imports.
 - Crop output no longer scales canvas-displayed size proportionally
-  to the crop ratio (PR #124 side-effect — `copyImageTransform`
-  was removed because state lives at master.id, which is unaware
-  of per-step dimension changes). If proportional scale-down is
-  needed, reintroduce as a targeted master.id state update inside
-  `cropImageVariant`.
+  to the crop ratio (`copyImageTransform` was removed because the
+  state row is unaware of per-step dimension changes). If
+  proportional scale-down is needed, reintroduce as a targeted
+  working_copy.id state update inside `cropImageVariant`.
 - A follow-up cleanup migration is pending (PR #124 left legacy
   `project_image_state` rows whose `image_id` is not the master
   in place, for deploy-window compatibility — drop them after bake).
 - `activateProjectImage` writes a state row at the activated image
   id (filter_working_copy / trace_output) via
-  `set_active_master_with_state` RPC. These rows are never read
-  (the route always loads at master.id) but accumulate as DB
+  `set_active_image_with_state` RPC. These rows are never read
+  (the route always loads at working_copy.id) but accumulate as DB
   cruft. The pending cleanup migration above sweeps them.
 
 ## Diagrams
