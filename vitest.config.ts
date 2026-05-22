@@ -61,10 +61,10 @@ export default defineConfig({
         // Ratchet only upward. Current actual ~35% lines/statements; the
         // floor sits just below to lock in gains without flaking on small
         // run-to-run deltas. Each test wave bumps this toward the new actual.
-        lines: 38,
+        lines: 39,
         functions: 73,
         branches: 72,
-        statements: 38,
+        statements: 39,
       },
     },
   },
