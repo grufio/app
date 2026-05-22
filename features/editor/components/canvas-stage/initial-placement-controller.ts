@@ -8,8 +8,8 @@
  * 1. **Bail-outs** — no `src`, no `img`, user has edited, no artboard
  *    → return immediately.
  * 2. **Persisted path** — `shouldApplyPersistedTransform()` says yes
- *    (we have a server-side transform anchored at master.id). Apply
- *    those exact µpx values; ignore the default-placement branch.
+ *    (we have a server-side transform anchored at working_copy.id).
+ *    Apply those exact µpx values; ignore the default-placement branch.
  * 3. **Default-placement path** — otherwise compute placement from
  *    the image's intrinsic DPI (Illustrator-style; the artboard has
  *    no DPI). Keyed on `src + artW + artH + imageDpi` so source/EXIF

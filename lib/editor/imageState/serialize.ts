@@ -5,9 +5,9 @@
  * - Convert in-memory µpx/rotation values into API payload shapes.
  * - Avoid additional rounding; only clamp to safety bounds.
  *
- * Post PR #124 + master-anchor client cleanup: no `image_id` / `role`
- * fields — the server resolves the persistence key from `project_id`
- * alone (master.id anchor).
+ * Post PR #124 + working-copy-anchor client cleanup: no `image_id` /
+ * `role` fields — the server resolves the persistence key from
+ * `project_id` alone (working_copy.id anchor since PR #257).
  */
 import type { SaveImageStateBody } from "@/lib/editor/imageState/contracts"
 import type { MicroPx } from "@/lib/editor/imageState/types"

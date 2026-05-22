@@ -136,7 +136,7 @@ export async function getOrCreateFilterWorkingCopy(args: {
 
     // Return existing copy with fresh signed URL. State doesn't need
     // to be copied to the reused copy's id — project_image_state is
-    // anchored at master.id and the editor resolves there regardless
+    // anchored at working_copy.id and the editor resolves there regardless
     // of which filter surface is rendered.
     const { data: signedData } = await supabase.storage
       .from(String(reusableCopy.storage_bucket ?? PROJECT_IMAGES_BUCKET))
@@ -243,7 +243,7 @@ export async function getOrCreateFilterWorkingCopy(args: {
     }
   }
 
-  // State doesn't need to be copied — anchored at master.id; see
+  // State doesn't need to be copied — anchored at working_copy.id; see
   // route handler `app/api/projects/[projectId]/image-state/route.ts`.
 
   // Get signed URL for the new copy

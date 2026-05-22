@@ -6,9 +6,10 @@
  * Responsibilities:
  * - Fetch and save the editor image transform state via `/api/projects/:id/image-state`.
  *
- * Post PR #124: state is anchored at the project's master.id server-side.
- * The client only passes `projectId`; the server resolves the persistence
- * key (and the lock-guard target) internally. No `?imageId=` query.
+ * Post PR #257: state is anchored at the project's working_copy.id
+ * server-side. The client only passes `projectId`; the server resolves
+ * the persistence key (and the lock-guard target) internally. No
+ * `?imageId=` query.
  */
 import { fetchJson } from "@/lib/api/http"
 import { ApiError } from "@/lib/api/api-error"

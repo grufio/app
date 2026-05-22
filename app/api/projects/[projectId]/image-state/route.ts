@@ -28,7 +28,7 @@ export const dynamic = "force-dynamic"
  * - `{ exists: false, state: null }` when the project has no anchor
  *   image yet (= no master/working_copy uploaded).
  * - `{ exists: true, state: ImageStateRow }` when a row exists for
- *   the resolved anchor (= working_copy.id, master.id legacy fallback).
+ *   the resolved anchor (= working_copy.id).
  *
  * The persistence key is the project's working_copy.id, resolved
  * server-side via `resolveStateAnchorImage`.
@@ -104,8 +104,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ project
   }
 
   // Persistence + lock-guard both anchor at the working_copy row (post
-  // the working-copy refactor). Legacy projects without a working_copy
-  // fall back to master.id via resolveStateAnchorImage.
+  // the working-copy refactor). Projects without a working_copy are
+  // rejected by resolveStateAnchorImage (no master.id fallback).
   const anchor = await resolveStateAnchorImage(supabase, projectId)
   if ("error" in anchor) return jsonError(anchor.error, 400, { stage: "anchor_lookup" })
   if ("notFound" in anchor) {

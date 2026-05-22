@@ -148,9 +148,10 @@ export async function POST(
     heightPxU = placementU.heightPxU
   }
 
-  // Resolve the state anchor (working_copy.id post-refactor; master.id
-  // fallback for legacy projects). Restore writes state to this image
-  // — the master row itself stays immutable.
+  // Resolve the state anchor (working_copy.id post-refactor; projects
+  // without a working_copy are rejected as notFound — no master.id
+  // fallback). Restore writes state to this image — the master row
+  // itself stays immutable.
   const anchor = await resolveStateAnchorImage(supabase, projectId)
   if ("error" in anchor) return jsonError(anchor.error, 400, { stage: "anchor_lookup" })
   if ("notFound" in anchor) {

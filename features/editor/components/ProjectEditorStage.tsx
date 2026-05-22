@@ -19,7 +19,7 @@
  *
  * `mutationsEnabled` is **independent** of tab — Filter, Trace, Image
  * all allow transform mutations because state is project-wide
- * (anchored at master.id post PR #124). Crop and rotate are per-tab.
+ * (anchored at working_copy.id post PR #257). Crop and rotate are per-tab.
  * Recoupling these (pre-PR #128) caused resize/position to silently
  * no-op on Filter and Trace tabs.
  */
@@ -188,7 +188,7 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
             // flags (`cropEnabled` above, `rotateEnabled`). Coupling
             // them into a master switch (pre-PR #128) blocked
             // resize/position on Filter and Trace tabs, even though
-            // `project_image_state` is now project-wide (master.id anchor)
+            // `project_image_state` is now project-wide (working_copy.id anchor)
             // and the user should be able to adjust transform on any tab.
             mutationsEnabled={!Boolean(toolbar.selectDisabled)}
             artboardWidthPx={artboardWidthPx ?? undefined}

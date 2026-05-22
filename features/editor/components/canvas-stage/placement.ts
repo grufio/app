@@ -41,8 +41,9 @@ export function shouldApplyPersistedTransform(args: {
   // from this check and applies only to the default-branch.
   //
   // Notably absent: the `stateImageId === activeImageId` check that
-  // existed before PR #124. After the master.id anchor, the state
-  // row's image_id and the canvas activeImageId always differ, so
+  // existed before PR #124. The state row is anchored at
+  // working_copy.id, while the canvas activeImageId is the active
+  // display variant (filter/trace output) — they always differ, so
   // the equality check rejected every legitimate apply.
   const { src, userChanged, activeImageId, initialImageTransform } = args
   if (!src) return false
