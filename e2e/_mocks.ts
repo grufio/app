@@ -105,6 +105,16 @@ export async function setupMockRoutes(page: Page, opts: SetupMockRoutesOpts) {
   let hasImage = Boolean(opts.withImage)
   const deletableActive = Boolean(opts.deletableActive)
   const activeImageId = "11111111-1111-4111-8111-111111111111"
+  // Stable per-project identity = the immutable `kind='master'` row id.
+  // The real master GET route (app/api/.../images/master/route.ts) always
+  // returns `masterRowId` (PR #267/#268 contract); the client uses it — NOT
+  // the active image id (which flips on filter/crop/trace apply) — as the
+  // reset key for `useImageState` / `useCanvasTxMirror`. It MUST be distinct
+  // from `activeImageId` and stable across the session, otherwise the mock
+  // diverges from prod: a missing/changing value silently flips the mirror
+  // reset and drops the persisted display transform (the exact regression
+  // that the pixelate-aspect e2e gate guards against).
+  const masterRowId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
   let currentImageId = activeImageId
   let imageCounter = 0
   const imageVersions = new Map<
@@ -160,8 +170,24 @@ export async function setupMockRoutes(page: Page, opts: SetupMockRoutesOpts) {
       name: img.name,
     }
   }
-  const masterImagePayload = () =>
-    currentImagePayload()
+  // Master GET payload mirrors the real route: same fields as the active
+  // image PLUS the stable `masterRowId` (and `restore_base`). Keeping these
+  // present is what makes the canvas-tx mirror behave like prod across an
+  // apply/resize.
+  const masterImagePayload = () => {
+    const base = currentImagePayload()
+    if (!base.exists) return base
+    return {
+      ...base,
+      masterRowId,
+      restore_base: {
+        id: masterRowId,
+        width_px: base.width_px,
+        height_px: base.height_px,
+        dpi: 300,
+      },
+    }
+  }
 
   let imageState: ImageStateRow | null = opts.imageState && opts.imageState.exists ? opts.imageState.state : null
 
