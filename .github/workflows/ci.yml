@@ -73,6 +73,33 @@ jobs:
       - name: Run CI lane
         run: npm run gate:ci
 
+  # filter_service_tests runs the Python pytest suite for the Cloud Run
+  # filter-service. Gated on `has_filter_service` so PRs that don't touch
+  # filter-service/** skip it. The same pytest command gates the prod
+  # deploy (deploy-filter-service.yml) so a red suite can't ship.
+  filter_service_tests:
+    needs: detect
+    if: needs.detect.outputs.has_filter_service == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: filter-service
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          # Match the runtime in filter-service/Dockerfile.
+          python-version: "3.12"
+
+      - name: Install deps
+        run: pip install -r requirements-dev.txt
+
+      - name: Run pytest
+        run: pytest --cov=app --cov-fail-under=70
+
   # remote_verify holds the optional checks that need a linked Supabase
   # project (Supabase CLI on PATH, `supabase link`, the four verify:* npm
   # scripts that hit the management API + DB). It runs in parallel to
