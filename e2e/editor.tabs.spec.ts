@@ -8,7 +8,7 @@
  *     sidebar section accordingly
  *   - The Trace tab's "Add trace" button is gated on an active image
  *     source (same gate as Filter, per `useEditorWorkflowAdapter`)
- *   - Opening the Trace dialog reveals the numerate + lineart options
+ *   - Opening the Trace dialog reveals the Pixelate + Line Art options
  *
  * Canvas drag / resize / pan / zoom UX coverage lives in the skipped
  * tests at the bottom of `editor.boot.spec.ts` — those need a working
@@ -95,13 +95,34 @@ test("regression: Trace add button is enabled with active image, opens selector"
   await setupMockRoutes(page, { withImage: true })
 
   await gotoProject(page)
+
+  // The trace selection dialog only opens once `traceSourceImage` resolves,
+  // and that needs the Konva image node to have mounted and reported its
+  // transform into the mirror — `useTraceDialogSession.beginSelection()` is a
+  // no-op while the source image is null (see
+  // `lib/editor/hooks/use-trace-dialog-session.ts:31-35` +
+  // `resolveTraceDisplayMm` returning null before a transform/artboard is
+  // available). Wait on the same e2e hook the pixelate-aspect gate uses
+  // (`e2e/pixelate-aspect.spec.ts:76-82`) so the click lands after the image
+  // is ready — clicking "Add trace" before that silently does nothing.
+  await expect
+    .poll(async () =>
+      page.evaluate(() =>
+        Boolean((globalThis as { __gruf_editor?: { image?: unknown } }).__gruf_editor?.image),
+      ),
+    )
+    .toBe(true)
+
   await selectLeftTab(page, "Trace")
 
   const addTrace = page.getByLabel("Add trace")
   await expect(addTrace).toBeEnabled()
   await addTrace.click()
 
-  // The trace selection dialog shows numerate + lineart cards.
-  await expect(page.getByRole("button", { name: /numerate/i })).toBeVisible()
-  await expect(page.getByRole("button", { name: /lineart|line.?art/i })).toBeVisible()
+  // The trace selection dialog shows the Pixelate + Line Art cards.
+  // Card labels come from the trace registry: `lib/editor/trace/pixelate.tsx`
+  // (label "Pixelate") and `lib/editor/trace/lineart.ts` (label "Line Art"),
+  // rendered as `<button aria-label={label}>` in `filter-type-cards.tsx`.
+  await expect(page.getByRole("button", { name: "Pixelate", exact: true })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Line Art", exact: true })).toBeVisible()
 })

@@ -115,19 +115,46 @@ test.describe("forms — visual regressions", () => {
   // S4 follow-up: filter dialogs + create-project + restore/delete modals.
   // Update baselines via `npm run test:e2e:visual:update`.
 
-  // Trace dialog (numerate, lineart): switch to Trace tab → "Add trace"
-  // → pick the kind → "Select".
-  async function openTraceDialog(page: import("@playwright/test").Page, name: "Line Art" | "Numerate") {
+  // Trace dialog (Pixelate, Line Art): switch to Trace tab → "Add trace"
+  // → pick the kind → "Select". Card labels come from the trace registry
+  // (`lib/editor/trace/pixelate.tsx` → "Pixelate", `lib/editor/trace/lineart.ts`
+  // → "Line Art").
+  //
+  // Asymmetry between the two trace dialogs: the Line Art controller renders a
+  // visible `<DialogTitle>{title}</DialogTitle>` heading via BaseFilterController
+  // (`features/editor/components/BaseFilterController.tsx:128`), whereas the
+  // Pixelate dialog renders `<DialogTitle className="sr-only">Pixelate</DialogTitle>`
+  // (`features/editor/components/trace-forms/pixelate-dialog.tsx:107`) — no
+  // visible heading element carrying the filter name. A `getByRole("heading", …)`
+  // wait therefore fails for Pixelate. Both DialogTitles still become the
+  // dialog's accessible name, so wait on `getByRole("dialog", { name })`, which
+  // is robust for both paths.
+  async function openTraceDialog(page: import("@playwright/test").Page, name: "Line Art" | "Pixelate") {
     await page.setExtraHTTPHeaders({ "x-e2e-test": "1", "x-e2e-user": "1" })
     await setupMockRoutes(page, { withImage: true })
     await page.goto(`/projects/${PROJECT_ID}`)
     await freezeAnimations(page)
 
+    // The trace selection dialog only opens once `traceSourceImage` resolves,
+    // which needs the Konva image node mounted + its transform reported into
+    // the mirror (`beginSelection()` is a no-op while the source is null —
+    // see `lib/editor/hooks/use-trace-dialog-session.ts:31-35`). Wait on the
+    // same e2e hook the pixelate-aspect gate uses
+    // (`e2e/pixelate-aspect.spec.ts:76-82`) before clicking "Add trace".
+    await expect(page.getByTestId("editor-canvas-root")).toBeVisible()
+    await expect
+      .poll(async () =>
+        page.evaluate(() =>
+          Boolean((globalThis as { __gruf_editor?: { image?: unknown } }).__gruf_editor?.image),
+        ),
+      )
+      .toBe(true)
+
     await page.getByRole("tab", { name: "Trace" }).click()
     await page.getByRole("button", { name: "Add trace" }).click()
     await page.getByRole("button", { name, exact: true }).click()
     await page.getByRole("button", { name: "Select", exact: true }).click()
-    await expect(page.getByRole("heading", { name, exact: true })).toBeVisible()
+    await expect(page.getByRole("dialog", { name })).toBeVisible()
   }
 
   test("trace dialog — lineart", async ({ page }) => {
@@ -137,9 +164,9 @@ test.describe("forms — visual regressions", () => {
     })
   })
 
-  test("trace dialog — numerate", async ({ page }) => {
-    await openTraceDialog(page, "Numerate")
-    await expect(page.getByRole("dialog", { name: "Numerate" })).toHaveScreenshot("trace-numerate-dialog.png", {
+  test("trace dialog — pixelate", async ({ page }) => {
+    await openTraceDialog(page, "Pixelate")
+    await expect(page.getByRole("dialog", { name: "Pixelate" })).toHaveScreenshot("trace-pixelate-dialog.png", {
       maxDiffPixels: 200,
     })
   })
