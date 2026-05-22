@@ -8,7 +8,7 @@
  *     sidebar section accordingly
  *   - The Trace tab's "Add trace" button is gated on an active image
  *     source (same gate as Filter, per `useEditorWorkflowAdapter`)
- *   - Opening the Trace dialog reveals the numerate + lineart options
+ *   - Opening the Trace dialog reveals the Pixelate + Line Art options
  *
  * Canvas drag / resize / pan / zoom UX coverage lives in the skipped
  * tests at the bottom of `editor.boot.spec.ts` — those need a working
@@ -101,7 +101,10 @@ test("regression: Trace add button is enabled with active image, opens selector"
   await expect(addTrace).toBeEnabled()
   await addTrace.click()
 
-  // The trace selection dialog shows numerate + lineart cards.
-  await expect(page.getByRole("button", { name: /numerate/i })).toBeVisible()
-  await expect(page.getByRole("button", { name: /lineart|line.?art/i })).toBeVisible()
+  // The trace selection dialog shows the Pixelate + Line Art cards.
+  // Card labels come from the trace registry: `lib/editor/trace/pixelate.tsx`
+  // (label "Pixelate") and `lib/editor/trace/lineart.ts` (label "Line Art"),
+  // rendered as `<button aria-label={label}>` in `filter-type-cards.tsx`.
+  await expect(page.getByRole("button", { name: "Pixelate", exact: true })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Line Art", exact: true })).toBeVisible()
 })
