@@ -41,7 +41,7 @@ export function deriveEditorSourceSnapshot(args: {
   filterDisplayImageWithoutTrace: { id: string; signedUrl: string; width_px: number; height_px: number; name: string } | null
   filterImageError: string
   masterImageError: string
-  masterImage: { id?: string; signedUrl?: string; name?: string; width_px?: number; height_px?: number } | null
+  masterImage: { id?: string; masterRowId?: string | null; signedUrl?: string; name?: string; width_px?: number; height_px?: number } | null
   filterImageEmptyReason: "no_active_image" | null
 }): EditorImageSourceState {
   const {
@@ -89,7 +89,7 @@ export function deriveEditorSourceSnapshot(args: {
 export function useEditorWorkflowAdapter(args: {
   projectId: string
   initialImageState: ImageState | null
-  masterImage: { id?: string; signedUrl?: string; name?: string; width_px?: number; height_px?: number } | null
+  masterImage: { id?: string; masterRowId?: string | null; signedUrl?: string; name?: string; width_px?: number; height_px?: number } | null
   masterImageLoading: boolean
   masterImageError: string
   /** Trace-free filter chain tip. Used as the source for
@@ -108,7 +108,7 @@ export function useEditorWorkflowAdapter(args: {
   refreshMasterImage: () => Promise<void>
   refreshProjectImages: () => Promise<void>
   refreshFilterImage: () => Promise<void>
-  seedMasterImage: (next: { id: string; signedUrl: string; width_px: number; height_px: number; dpi: number | null; name: string } | null) => void
+  seedMasterImage: (next: { id: string; masterRowId: string | null; signedUrl: string; width_px: number; height_px: number; dpi: number | null; name: string } | null) => void
 }) {
   const {
     projectId,
@@ -172,13 +172,17 @@ export function useEditorWorkflowAdapter(args: {
     filterApplySourceIdRef.current = filterDisplayImageWithoutTrace?.id ?? (sourceSnapshot.status === "ready" ? sourceSnapshot.image.id : null)
   }, [filterDisplayImageWithoutTrace, sourceSnapshot])
 
-  // State is anchored at master.id (PR #124). The hook only owns the
-  // save path; the SSR seed (`initialImageState`) is passed through
-  // verbatim. There is no client-side mount-load because SSR already
-  // delivered the persisted row.
+  // State persistence reset key = the STABLE master identity
+  // (`masterRowId` = immutable kind='master' row id), NOT the active
+  // image (`masterImage.id`), which flips on every filter/crop/trace
+  // apply. Keying the reset on the active image discarded the user's
+  // persisted display transform on apply (the long-standing bug). The
+  // reset now fires only on a real master delete/replace. The hook owns
+  // the save path; the SSR seed (`initialImageState`) is the first-mount
+  // value (no client-side mount-load — SSR already delivered the row).
   const { initialImageTransform, saveImageState } = useImageState(
     projectId,
-    masterImage?.id ?? null,
+    masterImage?.masterRowId ?? null,
     initialImageState,
   )
 
@@ -312,7 +316,9 @@ export function useEditorWorkflowAdapter(args: {
       // them via uploadSyncError.
       workflow.dismissError()
       if (uploadedMaster?.id) {
-        seedMasterImage(uploadedMaster)
+        // The freshly uploaded image IS the master row, so the stable
+        // identity (masterRowId) is its own id at seed time.
+        seedMasterImage({ ...uploadedMaster, masterRowId: uploadedMaster.id })
         seededMasterIdRef.current = uploadedMaster.id
       }
       setUploadSyncError(null)

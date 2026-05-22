@@ -45,6 +45,10 @@ export async function getMasterImageForEditor(
   return {
     masterImage: {
       id: String(img.id ?? ""),
+      // Stable identity = the immutable kind='master' row id (same query
+      // as restore_base). Present even when restore_base dims are
+      // degenerate, so the client reset key stays stable.
+      masterRowId: restoreBase?.id ? String(restoreBase.id) : null,
       signedUrl: signed.signedUrl,
       width_px: Number(img.width_px ?? 0),
       height_px: Number(img.height_px ?? 0),

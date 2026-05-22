@@ -107,6 +107,10 @@ export async function GET(
       height_px: img.height_px,
       dpi,
       file_size_bytes: img.file_size_bytes,
+      // Stable identity = immutable kind='master' row id (same query as
+      // restore_base). The client uses this — not `id` (the active image,
+      // which flips on filter/crop/trace apply) — as the reset key.
+      masterRowId: restoreBase?.id ? String(restoreBase.id) : null,
       restore_base: restoreBasePayload,
     })
   }
