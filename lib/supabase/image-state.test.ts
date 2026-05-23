@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { makeMockSupabase } from "@/lib/supabase/__mocks__/make-mock-supabase"
-import { loadBoundImageState, upsertBoundImageState } from "@/lib/supabase/image-state"
+import { loadBoundImageState, resolveStateAnchorImage, upsertBoundImageState } from "@/lib/supabase/image-state"
 
 type SelectResult = { data: unknown; error: { message: string } | null }
 type EqCall = { method: "eq"; key: string; value: unknown }
@@ -157,5 +157,115 @@ describe("upsertBoundImageState", () => {
       rotation_deg: 0,
     })
     expect(out).toEqual({ ok: false, error: "upsert failed" })
+  })
+})
+
+// --- resolveStateAnchorImage (P0-4) --------------------------------------
+//
+// The state anchor is the project's working_copy row — NOT the master.
+// `resolveStateAnchorImage` selects from `project_images` with
+// `kind='working_copy'`, `deleted_at IS NULL`, ordered `created_at DESC`,
+// `limit(1)`. These tests pin that contract: a wrong filter
+// (`kind='master'`), a missing `deleted_at IS NULL` clause, or a flipped
+// order direction would break one of the assertions below.
+//
+// The mock does not order/filter rows itself — it returns whatever the
+// production query *would* return for the given chain. So the "newest
+// working_copy" case is enforced structurally via `onCall`: we assert the
+// query actually orders `created_at` descending and limits to 1 (the only
+// way the DB returns the newest row), then return that single newest row.
+
+type ChainCall = { ops: string[]; args: unknown[][] }
+
+function makeAnchorSupabase(
+  result: { data: unknown; error: { message: string } | null },
+  captured: ChainCall[],
+) {
+  return makeMockSupabase({
+    tables: {
+      project_images: {
+        select: {
+          data: result.data,
+          error: result.error,
+          onCall: ({ ops, args }) => {
+            captured.push({ ops, args: args as unknown[][] })
+          },
+        },
+      },
+    },
+  })
+}
+
+/** Find the [col, val] arg-pair for a given chain method occurrence. */
+function findArgPair(captured: ChainCall[], col: string): unknown[] | undefined {
+  const calls = captured[0]?.args ?? []
+  return calls.find((a) => Array.isArray(a) && a[0] === col)
+}
+
+describe("resolveStateAnchorImage", () => {
+  it("returns the working_copy id + is_locked (boolean-coerced) for a single working_copy", async () => {
+    const captured: ChainCall[] = []
+    const supabase = makeAnchorSupabase(
+      { data: { id: "wc-1", is_locked: 1 }, error: null },
+      captured,
+    )
+
+    const out = await resolveStateAnchorImage(supabase, "proj-1")
+
+    expect(out).toEqual({ id: "wc-1", is_locked: true })
+
+    // The resolver MUST filter on kind='working_copy' (not 'master') and
+    // exclude tombstoned rows. Rot if the code ever selects master.
+    expect(findArgPair(captured, "kind")).toEqual(["kind", "working_copy"])
+    expect(findArgPair(captured, "kind")).not.toEqual(["kind", "master"])
+    expect(findArgPair(captured, "project_id")).toEqual(["project_id", "proj-1"])
+    expect(findArgPair(captured, "deleted_at")).toEqual(["deleted_at", null])
+    // Terminal must be maybeSingle (single-row contract).
+    expect(captured[0]?.ops).toContain("maybeSingle")
+  })
+
+  it("returns the NEWEST non-deleted working_copy (order created_at desc, limit 1)", async () => {
+    const captured: ChainCall[] = []
+    // The DB would return only the newest row for `order desc + limit 1`.
+    // We model that single returned row and assert the ordering contract
+    // structurally below.
+    const supabase = makeAnchorSupabase(
+      { data: { id: "wc-newest", is_locked: false }, error: null },
+      captured,
+    )
+
+    const out = await resolveStateAnchorImage(supabase, "proj-1")
+
+    expect(out).toEqual({ id: "wc-newest", is_locked: false })
+
+    // "Newest" is enforced by the query: created_at DESC + limit(1).
+    expect(findArgPair(captured, "created_at")).toEqual(["created_at", { ascending: false }])
+    const limitCall = (captured[0]?.args ?? []).find(
+      (a) => Array.isArray(a) && a.length === 1 && a[0] === 1,
+    )
+    expect(limitCall).toEqual([1])
+  })
+
+  it("returns notFound when no working_copy exists (master-only project)", async () => {
+    const captured: ChainCall[] = []
+    const supabase = makeAnchorSupabase({ data: null, error: null }, captured)
+
+    const out = await resolveStateAnchorImage(supabase, "proj-1")
+
+    expect(out).toEqual({ notFound: true })
+    // Even on the empty path the filter must be working_copy, never master.
+    expect(findArgPair(captured, "kind")).toEqual(["kind", "working_copy"])
+  })
+
+  it("returns the query error message when the select fails", async () => {
+    const captured: ChainCall[] = []
+    const supabase = makeAnchorSupabase(
+      { data: null, error: { message: "anchor query boom" } },
+      captured,
+    )
+
+    const out = await resolveStateAnchorImage(supabase, "proj-1")
+
+    expect(out).toEqual({ error: "anchor query boom" })
   })
 })
