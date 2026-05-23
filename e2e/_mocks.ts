@@ -102,6 +102,44 @@ export async function setupMockRoutes(page: Page, opts: SetupMockRoutesOpts) {
   const dataImage =
     "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%2220%22%20height%3D%2210%22%3E%3Crect%20width%3D%2220%22%20height%3D%2210%22%20fill%3D%22%23ff3b30%22/%3E%3C/svg%3E"
 
+  // Trace-overlay SVG: a NEAR-SQUARE viewBox (101×98) with a 2×2 grid of
+  // colored cells, mimicking the Python pixelate output (the real viewBox
+  // is the source-crop pixel box, never the display aspect). Because the
+  // SVG can't enforce its own aspect (`preserveAspectRatio="none"` in
+  // prepare-trace-svg.ts), the rendered aspect is whatever the overlay
+  // CONTAINER is sized to — which is the load-bearing signal Assert C
+  // measures. data:-URL with raw `<svg>` so `useSvgText`'s content sniff
+  // accepts it (use-svg-text.ts).
+  const traceOverlaySvg =
+    "data:image/svg+xml," +
+    encodeURIComponent(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="101" height="98" viewBox="0 0 101 98">' +
+        '<path d="M0 0H50V49H0Z" fill="#ff0000"/>' +
+        '<path d="M50 0H101V49H50Z" fill="#00ff00"/>' +
+        '<path d="M0 49H50V98H0Z" fill="#0000ff"/>' +
+        '<path d="M50 49H101V98H50Z" fill="#ffff00"/>' +
+        "</svg>",
+    )
+
+  // Applied-trace state. Null until a POST /trace lands. Once applied, GET
+  // /trace returns this row (with a FROZEN display rect at a 2:1 aspect),
+  // and the filter-working-copy response gains a `without_trace` block with
+  // a DIFFERENT id so `computeTraceOverlay`'s `id !== id` gate opens and the
+  // overlay renders (the Assert C path — review_plan_pixelate-aspect §C).
+  // The 2:1 display rect (400px × 200px in µpx) is deliberately the inverse
+  // of nothing in particular — the test asserts the OVERLAY aspect equals
+  // this frozen rect (2:1), NOT the near-square SVG viewBox and NOT a later
+  // imageTx change.
+  const TRACE_OUTPUT_ID = "44444444-4444-4444-8444-444444444444"
+  let appliedTrace:
+    | null
+    | {
+        display_x_px_u: string
+        display_y_px_u: string
+        display_width_px_u: string
+        display_height_px_u: string
+      } = null
+
   let hasImage = Boolean(opts.withImage)
   const deletableActive = Boolean(opts.deletableActive)
   const activeImageId = "11111111-1111-4111-8111-111111111111"
@@ -327,20 +365,42 @@ export async function setupMockRoutes(page: Page, opts: SetupMockRoutesOpts) {
       if (!img) {
         return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, exists: false }) })
       }
+      // The trace-free (working-copy / filter-tip) payload — always the
+      // raster the canvas Konva.Image draws.
+      const withoutTrace = {
+        id: img.id,
+        signed_url: img.signedUrl,
+        width_px: img.width_px,
+        height_px: img.height_px,
+        storage_path: `projects/${PROJECT_ID}/images/${img.id}`,
+        source_image_id: img.source_image_id,
+        name: img.name,
+        is_filter_result: img.isFilterResult,
+      }
+      // When a trace is applied, the trace-AWARE display payload points at
+      // the trace SVG output (different id → `computeTraceOverlay` opens),
+      // and `signed_url` serves the overlay SVG so `useSvgText` can fetch
+      // it. Without a trace, both are the same working-copy payload.
+      const displayPayload = appliedTrace
+        ? {
+            id: TRACE_OUTPUT_ID,
+            signed_url: traceOverlaySvg,
+            width_px: img.width_px,
+            height_px: img.height_px,
+            storage_path: `projects/${PROJECT_ID}/images/${TRACE_OUTPUT_ID}`,
+            source_image_id: img.id,
+            name: `${img.name} (pixelate)`,
+            is_filter_result: img.isFilterResult,
+          }
+        : withoutTrace
       return route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
           ok: true,
           exists: true,
-          id: img.id,
-          signed_url: img.signedUrl,
-          width_px: img.width_px,
-          height_px: img.height_px,
-          storage_path: `projects/${PROJECT_ID}/images/${img.id}`,
-          source_image_id: img.source_image_id,
-          name: img.name,
-          is_filter_result: img.isFilterResult,
+          ...displayPayload,
+          without_trace: withoutTrace,
           stack: filterStack.map((f) => ({
             id: f.id,
             name: f.filter_type,
@@ -457,23 +517,63 @@ export async function setupMockRoutes(page: Page, opts: SetupMockRoutesOpts) {
       })
     }
 
-    // Trace endpoint: GET returns empty (no trace), POST stores, DELETE clears.
-    // Single-row-per-project; the editor uses this to decide whether to
-    // render the trace overlay on the Trace tab.
+    // Trace endpoint: GET returns the applied row (or null), POST stores a
+    // row with a FROZEN 2:1 display rect, DELETE clears. Single-row-per-
+    // project; the editor uses this to decide whether to render the trace
+    // overlay AND (post stage 3) to size its frozen geometry.
     if (url.includes(`/api/projects/${PROJECT_ID}/trace`)) {
       const method = route.request().method()
+      const buildTraceRow = () =>
+        appliedTrace
+          ? {
+              project_id: PROJECT_ID,
+              kind: "pixelate",
+              params: {},
+              output_image_id: TRACE_OUTPUT_ID,
+              base_image_id: null,
+              ...appliedTrace,
+              created_at: "2026-01-01T00:00:00.000Z",
+              updated_at: "2026-01-01T00:00:00.000Z",
+            }
+          : null
       if (method === "GET") {
         return route.fulfill({
           status: 200,
           contentType: "application/json",
-          body: JSON.stringify(null),
+          // The client wrapper reads `{ trace, base_image }`.
+          body: JSON.stringify({ ok: true, trace: buildTraceRow(), base_image: null }),
         })
       }
-      if (method === "POST" || method === "DELETE") {
+      if (method === "POST") {
+        // Freeze a 2:1 landscape display rect (400px × 200px in µpx). This
+        // is the apply-time display size the overlay must render at,
+        // decoupled from the near-square SVG viewBox and from any later
+        // imageTx change.
+        appliedTrace = {
+          display_x_px_u: "0",
+          display_y_px_u: "0",
+          display_width_px_u: "400000000",
+          display_height_px_u: "200000000",
+        }
         return route.fulfill({
           status: 200,
           contentType: "application/json",
-          body: JSON.stringify({ ok: true }),
+          body: JSON.stringify({
+            ok: true,
+            trace: buildTraceRow(),
+            image_id: TRACE_OUTPUT_ID,
+            width_px: 101,
+            height_px: 98,
+            base_image: null,
+          }),
+        })
+      }
+      if (method === "DELETE") {
+        appliedTrace = null
+        return route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ ok: true, active_image_id: currentImageId }),
         })
       }
     }

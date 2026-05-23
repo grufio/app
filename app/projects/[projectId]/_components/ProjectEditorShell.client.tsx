@@ -441,6 +441,25 @@ export function ProjectDetailPageClient({
     filterDisplayImageWithoutTrace,
   })
 
+  // The trace's own frozen display rect (µpx, stage 2). The overlay
+  // renders its SIZE/ASPECT from this rect — decoupled from the live
+  // `imageTx` — so a 6×6 grid on a 200×100 resize stays square instead of
+  // stretching to the master-intrinsic aspect (Invariant 2/3, stage 3).
+  // "0" on all four is the legacy/lineart signal; the canvas then keeps
+  // the prior behaviour (size from the live image rect).
+  const traceDisplayRect = useMemo(
+    () =>
+      trace
+        ? {
+            display_x_px_u: trace.display_x_px_u,
+            display_y_px_u: trace.display_y_px_u,
+            display_width_px_u: trace.display_width_px_u,
+            display_height_px_u: trace.display_height_px_u,
+          }
+        : null,
+    [trace],
+  )
+
   const grid = useMemo(() => {
     if (!gridVisible) return null
     return computeRenderableGrid({ row: gridRow, spacingXPx, spacingYPx, lineWidthPx })
@@ -523,6 +542,7 @@ export function ProjectDetailPageClient({
               artboardHeightPx={artboardHeightPx ?? undefined}
               grid={grid}
               traceOverlaySvgUrl={traceOverlaySvgUrl}
+              traceDisplayRect={traceDisplayRect}
               traceInteractive={leftPanelTab === "trace" && stageToolbar.tool === "direct"}
               handleImageTransformChange={handleImageTransformChange}
               initialImageTransform={initialImageTransform}
