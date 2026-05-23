@@ -134,6 +134,99 @@ describe("project_image_trace round-trip", () => {
     expect(afterDelete).toEqual([])
   })
 
+  it("persists + reads back the per-trace display rect (display_*_px_u)", async () => {
+    // Stage 2 of the display-size + trace rebuild (Invariant 2): the
+    // trace carries its own frozen display rect in µpx (text-encoded).
+    // This proves the columns exist in the local schema and round-trip
+    // through insert / select / upsert, with DEFAULT '0' as the
+    // legacy/lineart signal.
+    const seeded = await seedProject({ supabase })
+    projectId = seeded.projectId
+    ownerId = seeded.ownerId
+
+    const master = await seedImage({ supabase, projectId, kind: "master" })
+    const pixelateOut = await seedImage({
+      supabase,
+      projectId,
+      kind: "trace_output",
+      sourceImageId: master.imageId,
+    })
+
+    // 1. A trace WITHOUT explicit display_* values inherits DEFAULT '0'
+    //    (the legacy / lineart signal). This is what lineart writes and
+    //    what a pre-rebuild row would carry.
+    const { error: defaultInsertErr } = await supabase
+      .from("project_image_trace")
+      .insert({
+        project_id: projectId,
+        kind: "lineart",
+        params: {},
+        output_image_id: pixelateOut.imageId,
+      })
+    expect(defaultInsertErr).toBeNull()
+
+    const { data: defaultRow } = await supabase
+      .from("project_image_trace")
+      .select("display_x_px_u,display_y_px_u,display_width_px_u,display_height_px_u")
+      .eq("project_id", projectId)
+      .maybeSingle()
+    expect(defaultRow).toMatchObject({
+      display_x_px_u: "0",
+      display_y_px_u: "0",
+      display_width_px_u: "0",
+      display_height_px_u: "0",
+    })
+
+    // 2. Upsert a pixelate trace WITH a concrete display rect — the
+    //    µpx values survive the round-trip exactly (text, no precision
+    //    loss). Values mirror a 200×100 mm master at the canonical
+    //    geometry PPI: width 566929134 µpx == 566.929134 canonical px.
+    const rect = {
+      display_x_px_u: "12345678",
+      display_y_px_u: "98765432",
+      display_width_px_u: "566929134",
+      display_height_px_u: "283464567",
+    }
+    const { error: upsertErr } = await supabase
+      .from("project_image_trace")
+      .upsert(
+        {
+          project_id: projectId,
+          kind: "pixelate",
+          params: { supercell_width_mm: 6, supercell_height_mm: 6, num_colors: 16 },
+          output_image_id: pixelateOut.imageId,
+          ...rect,
+        },
+        { onConflict: "project_id" },
+      )
+    expect(upsertErr).toBeNull()
+
+    const { data: rectRow } = await supabase
+      .from("project_image_trace")
+      .select("kind,display_x_px_u,display_y_px_u,display_width_px_u,display_height_px_u")
+      .eq("project_id", projectId)
+      .maybeSingle()
+    expect(rectRow).toMatchObject({ kind: "pixelate", ...rect })
+
+    // 3. NOT NULL is enforced — an explicit null is rejected (SQLSTATE
+    //    23502). Guards against a future writer passing null instead of
+    //    the "0" legacy signal.
+    const { error: nullErr } = await supabase
+      .from("project_image_trace")
+      .upsert(
+        {
+          project_id: projectId,
+          kind: "pixelate",
+          params: {},
+          output_image_id: pixelateOut.imageId,
+          display_width_px_u: null as unknown as string,
+        },
+        { onConflict: "project_id" },
+      )
+    expect(nullErr).not.toBeNull()
+    expect(String((nullErr as { code?: string } | null)?.code ?? "")).toBe("23502")
+  })
+
   it("ON DELETE CASCADE removes the trace row when its output image is deleted", async () => {
     const seeded = await seedProject({ supabase })
     projectId = seeded.projectId

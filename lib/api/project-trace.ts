@@ -19,6 +19,16 @@ export type ProjectTrace = {
    * the trace cell grid. Null for trace kinds that cover the full
    * source (lineart). */
   base_image_id: string | null
+  /** The trace's own frozen display rect (µpx, text-encoded). The
+   * master/working_copy display rect that was authoritative when the
+   * trace was applied; the overlay renders from this rect decoupled
+   * from the live canvas transform (Invariant 2, consumed in stage 3).
+   * "0" is the legacy/lineart signal — no fixed rect, render via the
+   * master-state path. Wrap with BigInt() on read. */
+  display_x_px_u: string
+  display_y_px_u: string
+  display_width_px_u: string
+  display_height_px_u: string
   created_at: string
   updated_at: string
 }

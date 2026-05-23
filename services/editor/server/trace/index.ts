@@ -53,6 +53,16 @@ export type ProjectTraceRow = {
    * cell grid) as a `trace_base` image row and links it here.
    * Null for trace kinds without a crop (lineart). */
   base_image_id: string | null
+  /** The trace's own frozen display rect (µpx, text-encoded): the
+   * master/working_copy display rect that was authoritative at apply
+   * time. The overlay renders from THIS rect, decoupled from the live
+   * canvas transform (Invariant 2). Legacy rows + lineart carry "0" —
+   * the editor falls back to the master-state render path when
+   * `display_width_px_u` is "0". */
+  display_x_px_u: string
+  display_y_px_u: string
+  display_width_px_u: string
+  display_height_px_u: string
   created_at: string
   updated_at: string
 }
@@ -96,6 +106,10 @@ function rowToTrace(row: {
   params: Record<string, unknown> | null
   output_image_id: string
   base_image_id: string | null
+  display_x_px_u: string | null
+  display_y_px_u: string | null
+  display_width_px_u: string | null
+  display_height_px_u: string | null
   created_at: string
   updated_at: string
 }): ProjectTraceRow | null {
@@ -107,6 +121,13 @@ function rowToTrace(row: {
     params: row.params ?? {},
     output_image_id: row.output_image_id,
     base_image_id: row.base_image_id,
+    // "0" is the legacy/lineart signal (see ProjectTraceRow); a null
+    // from the DB layer is coalesced to the same signal so the client
+    // contract is "always a string, '0' means no fixed rect".
+    display_x_px_u: row.display_x_px_u ?? "0",
+    display_y_px_u: row.display_y_px_u ?? "0",
+    display_width_px_u: row.display_width_px_u ?? "0",
+    display_height_px_u: row.display_height_px_u ?? "0",
     created_at: row.created_at,
     updated_at: row.updated_at,
   }
@@ -307,12 +328,32 @@ export async function applyProjectTrace(args: {
         widthPx: number
         heightPx: number
         baseId?: string
+        displayRectPxU?: {
+          xPxU: bigint | null
+          yPxU: bigint | null
+          widthPxU: bigint
+          heightPxU: bigint
+        }
       }
     | TraceOpFailure
   >
   const created = await handler({ supabase, projectId, sourceImageId, params })
   if (!created.ok) return created
   const newBaseId = created.baseId ?? null
+
+  // Freeze the trace's own display rect onto the row (Invariant 2).
+  // The handler resolved it from the authoritative project_image_state
+  // read at apply time. A null x/y means no persisted origin → "0"
+  // (centre at the canvas's default paint origin). Handlers that don't
+  // produce a rect (lineart) leave the columns at their DEFAULT '0'.
+  const displayRect = created.displayRectPxU
+    ? {
+        display_x_px_u: (created.displayRectPxU.xPxU ?? 0n).toString(),
+        display_y_px_u: (created.displayRectPxU.yPxU ?? 0n).toString(),
+        display_width_px_u: created.displayRectPxU.widthPxU.toString(),
+        display_height_px_u: created.displayRectPxU.heightPxU.toString(),
+      }
+    : null
 
   // Look up the prior trace row's output + base ids (if any) so we
   // can tombstone them after the new row commits — write-then-cut
@@ -336,10 +377,22 @@ export async function applyProjectTrace(args: {
         params: params as Json,
         output_image_id: created.id,
         base_image_id: newBaseId,
+        // Only spread when the handler produced a rect; otherwise the
+        // columns keep their DEFAULT '0' on insert (and their prior
+        // value is overwritten with '0' on a lineart replace, which is
+        // correct — lineart has no fixed crop rect).
+        ...(displayRect ?? {
+          display_x_px_u: "0",
+          display_y_px_u: "0",
+          display_width_px_u: "0",
+          display_height_px_u: "0",
+        }),
       },
       { onConflict: "project_id" },
     )
-    .select("project_id,kind,params,output_image_id,base_image_id,created_at,updated_at")
+    .select(
+      "project_id,kind,params,output_image_id,base_image_id,display_x_px_u,display_y_px_u,display_width_px_u,display_height_px_u,created_at,updated_at",
+    )
     .maybeSingle()
   if (upsertErr || !upserted) {
     // Roll back the freshly-created images so we don't strand bytes
@@ -414,6 +467,10 @@ export async function applyProjectTrace(args: {
     params: (upserted.params as Record<string, unknown> | null) ?? null,
     output_image_id: String(upserted.output_image_id),
     base_image_id: upserted.base_image_id ? String(upserted.base_image_id) : null,
+    display_x_px_u: upserted.display_x_px_u != null ? String(upserted.display_x_px_u) : null,
+    display_y_px_u: upserted.display_y_px_u != null ? String(upserted.display_y_px_u) : null,
+    display_width_px_u: upserted.display_width_px_u != null ? String(upserted.display_width_px_u) : null,
+    display_height_px_u: upserted.display_height_px_u != null ? String(upserted.display_height_px_u) : null,
     created_at: String(upserted.created_at),
     updated_at: String(upserted.updated_at),
   })
@@ -442,7 +499,9 @@ export async function getProjectTrace(args: {
   const { supabase, projectId } = args
   const { data, error } = await supabase
     .from("project_image_trace")
-    .select("project_id,kind,params,output_image_id,base_image_id,created_at,updated_at")
+    .select(
+      "project_id,kind,params,output_image_id,base_image_id,display_x_px_u,display_y_px_u,display_width_px_u,display_height_px_u,created_at,updated_at",
+    )
     .eq("project_id", projectId)
     .maybeSingle()
   if (error) {
@@ -455,6 +514,10 @@ export async function getProjectTrace(args: {
     params: (data.params as Record<string, unknown> | null) ?? null,
     output_image_id: String(data.output_image_id),
     base_image_id: data.base_image_id ? String(data.base_image_id) : null,
+    display_x_px_u: data.display_x_px_u != null ? String(data.display_x_px_u) : null,
+    display_y_px_u: data.display_y_px_u != null ? String(data.display_y_px_u) : null,
+    display_width_px_u: data.display_width_px_u != null ? String(data.display_width_px_u) : null,
+    display_height_px_u: data.display_height_px_u != null ? String(data.display_height_px_u) : null,
     created_at: String(data.created_at),
     updated_at: String(data.updated_at),
   })
