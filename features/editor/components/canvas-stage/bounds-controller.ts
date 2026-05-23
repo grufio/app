@@ -20,18 +20,13 @@ export type BoundsControllerDeps = {
   onBoundsRead?: () => void
   onClientRectRead?: () => void
   /**
-   * SPIKE (trace-overlay-drag-sync): Fires alongside `onBoundsChanged`
-   * with the same world-px frame delta. Lets the canvas mirror the
-   * drag into `imageTx` React state so DOM-positioned overlays
-   * (Trace) follow the Konva image during the drag instead of
-   * snapping at drag-end.
-   *
-   * The historical assumption was that updating `imageTx` mid-drag
-   * would create a prop-vs-imperative conflict with Konva's drag
-   * handler. This spike tests that hypothesis. If green, the
-   * structural plan in `~/.claude/plans/trace-overlay-drag-sync.md`
-   * (imperative handle + RAF flag for the Trace SVG) becomes
-   * obsolete.
+   * Fires alongside `onBoundsChanged` with the same world-px frame
+   * delta during an active image-drag. Lets the canvas track a
+   * DOM-positioned overlay (the Trace SVG) live, by shifting the
+   * overlay's render-only world-center — without mutating `imageTx`,
+   * so the drag never leaks into the authoritative display transform.
+   * The final position is committed once at drag-end via the normal
+   * transform commit.
    */
   onDragFlush?: (dxWorldPx: number, dyWorldPx: number) => void
 }

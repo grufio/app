@@ -112,6 +112,16 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
    * the canvas stage. Set by the shell when the Trace tab is
    * active and a `project_image_trace` row exists. */
   traceOverlaySvgUrl?: string | null
+  /** The trace's own frozen display rect (µpx, text-encoded). The
+   * overlay derives its SIZE/ASPECT from this rect, decoupled from
+   * the live canvas transform (Invariant 2/3). "0" on width/height is
+   * the legacy/lineart signal → canvas keeps the prior behaviour. */
+  traceDisplayRect?: {
+    display_x_px_u: string
+    display_y_px_u: string
+    display_width_px_u: string
+    display_height_px_u: string
+  } | null
   /** Whether trace-overlay regions catch hover/click. True only
    * when the direct-selection tool is active on the Trace tab. */
   traceInteractive?: boolean
@@ -133,6 +143,7 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
     saveImageState,
     onCropDblClick,
     traceOverlaySvgUrl,
+    traceDisplayRect,
     traceInteractive = false,
   } = props
 
@@ -217,6 +228,7 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
             }
             grid={grid ?? null}
             traceOverlaySvgUrl={traceOverlaySvgUrl ?? null}
+            traceDisplayRect={traceDisplayRect ?? null}
             traceInteractive={traceInteractive}
             onImageTransformChange={handleImageTransformChange}
             initialImageTransform={masterImage ? initialImageTransform : null}
