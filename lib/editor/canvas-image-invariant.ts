@@ -5,7 +5,7 @@
  * The editor's master image is immutable (`guard_master_immutable`
  * DB trigger); every editor mutation operates on a working-copy
  * (`kind = 'working_copy' | 'filter_working_copy'`). The
- * persistence layer (`useImageState`, `image-workflow.machine.ts`)
+ * persistence layer (`useDisplaySize`, `image-workflow.machine.ts`)
  * is keyed off the workflow's source image — which is the working-
  * copy chain tip. If the canvas-displayed image ID drifts away
  * from that — e.g. by routing the Image tab to the master directly

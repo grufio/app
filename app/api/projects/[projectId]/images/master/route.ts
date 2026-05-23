@@ -93,9 +93,10 @@ export async function GET(
   // cache-hit and cache-miss return paths cannot drift. PR #267 added
   // `masterRowId` to only the cache-hit branch; the cache-miss branch then
   // returned without it, the client coerced the missing field to `null`, and
-  // that null flipped the `masterRowId`-keyed reset of useImageState /
-  // useCanvasTxMirror — discarding the persisted display transform. Keeping a
-  // single shape here is the structural guard against repeating that.
+  // that null flipped the `masterRowId`-keyed master transition of the
+  // authoritative display source (`useDisplaySize`) — re-seeding/discarding
+  // the persisted display transform. Keeping a single shape here is the
+  // structural guard against repeating that.
   const responsePayload = {
     exists: true as const,
     id: img.id,

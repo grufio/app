@@ -8,11 +8,16 @@
  * 1. **Bail-outs** — no `src`, no `img`, user has edited, no artboard
  *    → return immediately.
  * 2. **Persisted path** — `shouldApplyPersistedTransform()` says yes
- *    (we have a server-side transform anchored at working_copy.id).
- *    Apply those exact µpx values; ignore the default-placement branch.
- * 3. **Default-placement path** — otherwise compute placement from
- *    the image's intrinsic DPI (Illustrator-style; the artboard has
- *    no DPI). Keyed on `src + artW + artH + imageDpi` so source/EXIF
+ *    (the authoritative display source has a transform). Apply those
+ *    exact µpx values; ignore the default-placement branch.
+ * 3. **Fresh-upload intrinsic path** — reached ONLY when there is no
+ *    persisted display size (`initialImageTransform` absent). Per
+ *    Invariant 1 the display source (`use-display-size`) re-seeds from
+ *    the DB on a master transition and never collapses to null while a
+ *    state row exists, so an absent transform here means a genuine
+ *    fresh upload (no working_copy state). Compute placement from the
+ *    image's intrinsic DPI (Illustrator-style; the artboard has no
+ *    DPI). Keyed on `src + artW + artH + imageDpi` so source/EXIF
  *    changes re-run the computation, but plain re-renders don't.
  *
  * Race-safety: every apply is funneled through

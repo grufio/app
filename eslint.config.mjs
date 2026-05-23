@@ -80,6 +80,10 @@ const eslintConfig = defineConfig([
     // coverage ships block-navigation.js) that lint shouldn't walk.
     "color-lab/**",
     "coverage/**",
+    // Gitignored parallel-agent git worktrees (see CLAUDE.md). Each is a
+    // full repo checkout incl. vendored JS and in-flight branch state;
+    // lint must not walk into a sibling worktree's tree.
+    ".claude/worktrees/**",
   ]),
 ]);
 

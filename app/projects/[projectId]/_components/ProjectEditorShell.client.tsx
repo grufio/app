@@ -24,8 +24,8 @@ import { FilterSidebarSection } from "@/features/editor/components/filter-sideba
 import { TraceSidebarSection } from "@/features/editor/components/trace-sidebar-section"
 import type { OperationError } from "@/lib/api/operation-error"
 import { deleteMasterImageWithCascade } from "@/lib/api/project-images"
-import { resolveTraceDisplayMm } from "@/lib/editor/trace/resolve-trace-display-mm"
-import { useCanvasTxMirror } from "@/lib/editor/hooks/use-canvas-tx-mirror"
+import { displayTxToMm } from "@/lib/editor/trace/display-tx-to-mm"
+import { useDisplaySize } from "@/lib/editor/hooks/use-display-size"
 import { useDedupingErrorToast } from "@/lib/editor/hooks/use-deduping-error-toast"
 import { useFilterStackActions } from "@/lib/editor/hooks/use-filter-stack-actions"
 import { useTraceHandlers } from "./editor-shell/use-trace-handlers"
@@ -41,7 +41,7 @@ import { usePageBackgroundState } from "@/lib/editor/hooks/use-page-background-s
 import { useProjectGrid } from "@/lib/editor/project-grid"
 import { useProjectWorkspace } from "@/lib/editor/project-workspace"
 import { reportError } from "@/lib/monitoring/error-reporting"
-import type { ImageState } from "@/lib/editor/hooks/use-image-state"
+import type { ImageState } from "@/lib/editor/imageState"
 import type { MasterImage } from "@/lib/editor/hooks/use-master-image"
 import { useMasterImage } from "@/lib/editor/hooks/use-master-image"
 import { useProjectImages } from "@/lib/editor/hooks/use-project-images"
@@ -126,10 +126,31 @@ export function ProjectDetailPageClient({
   }, [])
   const canvasRef = useRef<ProjectCanvasStageHandle | null>(null)
   const lastNoWorkingImageMetricRef = useRef("")
+  // Invariant 1: the single authoritative display-size source. Seeded
+  // from SSR, updated only by real user canvas commits, re-seeded from
+  // the DB on a master transition (never collapses to null while a state
+  // row exists). Keyed on the STABLE master identity (`masterRowId`), not
+  // the active image id (which flips on every filter/crop/trace apply).
+  // `displayTxU` is the one value the canvas-placement, trace dialog and
+  // right-panel readout all read.
+  const {
+    displayTxU,
+    handleImageTransformChange,
+    handleNudge,
+    getCurrentImageState,
+    saveImageState,
+  } = useDisplaySize({
+    projectId,
+    masterImageId: masterImage?.masterRowId ?? null,
+    initial: initialImageState,
+    canvasRef,
+  })
+  // The canvas-placement controller applies the persisted transform
+  // before the first user edit; it reads the one source in ImageState
+  // shape. Null = genuine fresh upload (no state) → intrinsic placement.
+  const initialImageTransform = useMemo(() => getCurrentImageState(), [getCurrentImageState])
   const {
     sourceSnapshot,
-    initialImageTransform,
-    saveImageState,
     workflow,
     editorImageSource,
     activeCanvasImageId,
@@ -142,7 +163,6 @@ export function ProjectDetailPageClient({
     workflowFilterPanelError,
   } = useEditorWorkflowAdapter({
     projectId,
-    initialImageState,
     masterImage,
     masterImageLoading,
     masterImageError,
@@ -155,50 +175,20 @@ export function ProjectDetailPageClient({
     refreshProjectImages,
     refreshFilterImage,
     seedMasterImage,
-  })
-  const {
-    imageTxU,
-    initialImageTxU,
-    handleImageTransformChange,
-    handleNudge,
-  } = useCanvasTxMirror({
-    canvasRef,
-    activeCanvasImageId,
-    initialImageTransform,
-    // Stable master identity (not the active image id) — see
-    // `useImageState` call in use-editor-workflow-adapter.ts. Keeps the
-    // canvas-tx mirror (and the image-size readout) alive across a
-    // filter/crop/trace apply; resets only on a real master change.
-    masterImageId: masterImage?.masterRowId ?? null,
+    saveImageState,
   })
   const filterDialog = useFilterDialogSession(filterSourceImage)
-  // Trace dialog needs the image's displayed size on the artboard in
-  // mm — pixelate-grid math runs on display-mm, not source-px. Live
-  // canvas tx (post drag/resize) preferred; SSR-seeded tx is the
-  // fresh-upload fallback before the canvas reports its first frame;
-  // final fallback re-runs the same placement the upload flow uses.
-  // Returns null until workspace + source are both ready.
+  // Trace dialog needs the image's displayed size on the artboard in mm —
+  // pixelate-grid math runs on display-mm, not source-px. The size comes
+  // from the one authoritative source (`displayTxU`): no preference chain,
+  // no silent intrinsic fallback. Null until workspace + source are both
+  // ready (or a genuine fresh upload before the canvas places the image).
   const traceSourceImage = useMemo(() => {
     if (!filterSourceImage) return null
-    const displayMm = resolveTraceDisplayMm({
-      imageTxU,
-      initialImageTxU,
-      artboardWidthPx,
-      artboardHeightPx,
-      intrinsicW: filterSourceImage.width_px,
-      intrinsicH: filterSourceImage.height_px,
-      imageDpi: masterImage?.dpi ?? null,
-    })
+    const displayMm = displayTxToMm({ displayTxU, artboardWidthPx, artboardHeightPx })
     if (!displayMm) return null
     return { ...filterSourceImage, displayMmW: displayMm.displayMmW, displayMmH: displayMm.displayMmH }
-  }, [
-    filterSourceImage,
-    artboardWidthPx,
-    artboardHeightPx,
-    imageTxU,
-    initialImageTxU,
-    masterImage?.dpi,
-  ])
+  }, [filterSourceImage, artboardWidthPx, artboardHeightPx, displayTxU])
   const traceDialog = useTraceDialogSession(traceSourceImage)
   // Snapshot from `traceDialog.session` carries the stable identity
   // (sourceImageUrl + intrinsic px), but `displayMmW`/`displayMmH`
@@ -227,16 +217,10 @@ export function ProjectDetailPageClient({
     refreshFilterImage,
     refreshMasterImage,
     saveImageState,
-    getCurrentImageTx: useCallback(() => {
-      if (!imageTxU) return null
-      return {
-        xPxU: imageTxU.x,
-        yPxU: imageTxU.y,
-        widthPxU: imageTxU.w,
-        heightPxU: imageTxU.h,
-        rotationDeg: initialImageTransform?.rotationDeg ?? 0,
-      }
-    }, [imageTxU, initialImageTransform]),
+    // The trace-apply pre-save reads the one authoritative transform
+    // (incl. persisted rotation) so the trace is computed against the
+    // user's current display size, closing the resize→apply race.
+    getCurrentImageTx: getCurrentImageState,
   })
 
   // PR-6b-3b: `workflowFilterPanelError` is OperationError | null;
@@ -348,11 +332,11 @@ export function ProjectDetailPageClient({
       // empty source via the existing SOURCE_SNAPSHOT useEffect, just
       // like the upload path does after PR #193.
       //
-      // The two state mirrors (`useImageState.persistedTransform` and
-      // `useCanvasTxMirror.imageTxU`) auto-reset because both hooks
-      // are keyed on `masterImage?.id`; `seedMasterImage(null)` below
-      // flips that id to null, the hooks' `useUpdateEffect`s fire,
-      // mirrors clear. No imperative cleanup needed.
+      // The authoritative display source (`useDisplaySize`) is keyed on
+      // the stable `masterRowId`; `seedMasterImage(null)` flips that to
+      // null, the hook's master-transition effect fires and clears
+      // `displayTxU` to null (master delete = no working copy, no state).
+      // No imperative cleanup needed.
       //
       // Background refresh is idempotent: empty is the stable fixed
       // point of the cascade, so an eventual refresh just confirms
@@ -427,8 +411,7 @@ export function ProjectDetailPageClient({
 
   const { panelImageTxU, workspaceReady, imagePanelReady, activeRightSection, panelImageMeta } = useRightPanelModel({
     selectedNavId,
-    imageTxU,
-    initialImageTxU,
+    displayTxU,
     workspaceLoading,
     workspaceUnit,
     masterImage,

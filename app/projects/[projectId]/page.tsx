@@ -13,7 +13,7 @@ import { ProjectGridProvider, type ProjectGridRow } from "@/lib/editor/project-g
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import type { MasterImage } from "@/lib/editor/hooks/use-master-image"
 import type { Project } from "@/lib/editor/hooks/use-project"
-import type { ImageState } from "@/lib/editor/hooks/use-image-state"
+import type { ImageState } from "@/lib/editor/imageState"
 import { isUuid } from "@/lib/api/route-guards"
 import { isE2ETestRequest } from "@/lib/e2e"
 import { getImageStateForEditor, getMasterImageForEditor, isSchemaMismatchMessage, normalizeProjectGridRow, schemaMismatchError, selectGrid, selectWorkspace } from "@/services/editor"
