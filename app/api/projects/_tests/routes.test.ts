@@ -36,13 +36,13 @@ describe("API routes", () => {
 
   it("master GET returns masterRowId on the cache-miss path and identically on the cache-hit path", async () => {
     // Regression guard for the incomplete PR #267 fix: `masterRowId` (the
-    // immutable kind='master' row id used as the client reset key for
-    // useImageState / useCanvasTxMirror) was only added to the cache-hit
-    // return. The cache-miss return (first request on a cold serverless
-    // instance, e.g. the first refreshMasterImage after editor boot) shipped
-    // without it → client coerced it to null → reset cascade discarded the
-    // persisted display transform. Both return paths must carry masterRowId
-    // and produce an identical shape.
+    // immutable kind='master' row id used as the client master-transition
+    // key for the authoritative display source `useDisplaySize`) was only
+    // added to the cache-hit return. The cache-miss return (first request on
+    // a cold serverless instance, e.g. the first refreshMasterImage after
+    // editor boot) shipped without it → client coerced it to null →
+    // transition cascade discarded the persisted display transform. Both
+    // return paths must carry masterRowId and produce an identical shape.
     vi.resetModules()
 
     // Distinct ids prove masterRowId comes from the kind='master' row, NOT the

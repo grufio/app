@@ -9,8 +9,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
 
-import type { ImageState } from "@/lib/editor/hooks/use-image-state"
-import { parseBigIntString } from "@/lib/editor/imageState"
+import { parseBigIntString, type ImageState } from "@/lib/editor/imageState"
 import { loadBoundImageState, resolveStateAnchorImage } from "@/lib/supabase/image-state"
 
 export async function getImageStateForEditor(

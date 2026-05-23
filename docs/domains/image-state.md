@@ -50,6 +50,39 @@ working_copy exists.
   the master-swap / restore flow only ([app/api/projects/[projectId]/images/master/restore/route.ts](../../app/api/projects/%5BprojectId%5D/images/master/restore/route.ts)).
   Day-to-day editor saves go through the image-state route.
 
+## Client source of truth (Invariant 1)
+
+The client holds **one** authoritative display transform in
+[lib/editor/hooks/use-display-size.ts](../../lib/editor/hooks/use-display-size.ts)
+(`useDisplaySize` → `displayTxU`). The canvas, the trace dialog and the
+right-panel px readout all read this one value — there is no divergent
+mirror chain.
+
+- **Seed:** SSR (`getImageStateForEditor` →
+  `ProjectDetailPageClient` `initialImageState`).
+- **Live update:** real user canvas commits only (drag/resize/align/fit
+  → commit). Render / system / apply-refresh / re-placement never write
+  the source; the value-equality short-circuit drops identical reports.
+- **Write rule:** the only path that writes `project_image_state` is the
+  hook's `saveImageState`, fed exclusively by user-edit commits (the
+  workflow machine's `saveTransform`) and the trace-apply pre-save. This
+  makes the historical post-apply corruption loop constructively
+  impossible.
+- **Master transition (in-session):** master delete/replace runs without
+  a page reload, so there is no fresh SSR seed. The hook keyed on the
+  stable `masterRowId` **re-seeds from the DB** (a targeted GET of the
+  new working_copy's state) on a replace, and **clears to null** on a
+  delete (no working copy → the canvas does a fresh-upload intrinsic
+  placement). It never silently collapses to the master intrinsic while
+  a state row exists.
+
+> History: this replaced two reset-prone client mirrors that diverged
+> for one logical size — `use-canvas-tx-mirror` (`imageTxU` /
+> `initialImageTxU`) and the `persistedTransform` mirror inside the old
+> `use-image-state`, both keyed to null on a master transition. The null
+> collapse was the root of the "always default size after a master
+> transition / on reopen" bug class.
+
 ## Key invariants
 
 - **`image_id` is the project's `working_copy.id`.** The route

@@ -21,7 +21,7 @@ import {
   getProjectTrace,
   type ProjectTrace,
 } from "@/lib/api/project-trace"
-import type { ImageState } from "@/lib/editor/hooks/use-image-state"
+import type { ImageState } from "@/lib/editor/imageState"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
 
 export function useTraceHandlers(opts: {

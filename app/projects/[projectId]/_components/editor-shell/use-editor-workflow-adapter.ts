@@ -6,8 +6,7 @@ import { applyProjectImageFilter, cropImageVariant, removeProjectImageFilter, re
 import { isOperationError, type OperationError } from "@/lib/api/operation-error"
 import type { RegisteredFilterId } from "@/lib/editor/filters/registry"
 import { useImageWorkflowMachine } from "@/lib/editor/machines/use-image-workflow-machine"
-import type { ImageState } from "@/lib/editor/hooks/use-image-state"
-import { useImageState } from "@/lib/editor/hooks/use-image-state"
+import type { ImageState } from "@/lib/editor/imageState"
 
 /**
  * Coerce a heterogeneous error slot to `OperationError | null`. Used
@@ -88,7 +87,6 @@ export function deriveEditorSourceSnapshot(args: {
 
 export function useEditorWorkflowAdapter(args: {
   projectId: string
-  initialImageState: ImageState | null
   masterImage: { id?: string; masterRowId?: string | null; signedUrl?: string; name?: string; width_px?: number; height_px?: number } | null
   masterImageLoading: boolean
   masterImageError: string
@@ -109,10 +107,15 @@ export function useEditorWorkflowAdapter(args: {
   refreshProjectImages: () => Promise<void>
   refreshFilterImage: () => Promise<void>
   seedMasterImage: (next: { id: string; masterRowId: string | null; signedUrl: string; width_px: number; height_px: number; dpi: number | null; name: string } | null) => void
+  /** Await-able persisted transform save, owned by `useDisplaySize` (the
+   * single authoritative display-size source). The workflow machine wraps
+   * it as the `saveTransform` service; the shell also awaits it directly
+   * on trace apply. The adapter no longer owns a transform mirror — the
+   * display source does. */
+  saveImageState: (t: ImageState) => Promise<void>
 }) {
   const {
     projectId,
-    initialImageState,
     masterImage,
     masterImageLoading,
     masterImageError,
@@ -125,6 +128,7 @@ export function useEditorWorkflowAdapter(args: {
     refreshProjectImages,
     refreshFilterImage,
     seedMasterImage,
+    saveImageState,
   } = args
   // `uploadSyncing` used to guard the source-snapshot loading state
   // while the upload handler waited on workflow.refreshAndWait(). The
@@ -171,20 +175,6 @@ export function useEditorWorkflowAdapter(args: {
     // user clicks Apply, by which point both have settled.
     filterApplySourceIdRef.current = filterDisplayImageWithoutTrace?.id ?? (sourceSnapshot.status === "ready" ? sourceSnapshot.image.id : null)
   }, [filterDisplayImageWithoutTrace, sourceSnapshot])
-
-  // State persistence reset key = the STABLE master identity
-  // (`masterRowId` = immutable kind='master' row id), NOT the active
-  // image (`masterImage.id`), which flips on every filter/crop/trace
-  // apply. Keying the reset on the active image discarded the user's
-  // persisted display transform on apply (the long-standing bug). The
-  // reset now fires only on a real master delete/replace. The hook owns
-  // the save path; the SSR seed (`initialImageState`) is the first-mount
-  // value (no client-side mount-load — SSR already delivered the row).
-  const { initialImageTransform, saveImageState } = useImageState(
-    projectId,
-    masterImage?.masterRowId ?? null,
-    initialImageState,
-  )
 
   const refreshEditorDataOnce = useCallback(async () => {
     // No `loadImageState()` here: state is project-wide and immutable
@@ -344,12 +334,6 @@ export function useEditorWorkflowAdapter(args: {
 
   return {
     sourceSnapshot,
-    initialImageTransform,
-    /** Raw await-able save from `useImageState`. The workflow
-     * machine's `saveTransform` event is fire-and-forget; trace's
-     * apply path needs to await persistence directly to close the
-     * resize→apply race (see use-trace-handlers). */
-    saveImageState,
     workflow,
     editorImageSource,
     activeCanvasImageId,

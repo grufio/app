@@ -109,11 +109,12 @@ export async function setupMockRoutes(page: Page, opts: SetupMockRoutesOpts) {
   // The real master GET route (app/api/.../images/master/route.ts) always
   // returns `masterRowId` (PR #267/#268 contract); the client uses it — NOT
   // the active image id (which flips on filter/crop/trace apply) — as the
-  // reset key for `useImageState` / `useCanvasTxMirror`. It MUST be distinct
-  // from `activeImageId` and stable across the session, otherwise the mock
-  // diverges from prod: a missing/changing value silently flips the mirror
-  // reset and drops the persisted display transform (the exact regression
-  // that the pixelate-aspect e2e gate guards against).
+  // master-transition key for the authoritative display source
+  // (`useDisplaySize`). It MUST be distinct from `activeImageId` and stable
+  // across the session, otherwise the mock diverges from prod: a
+  // missing/changing value silently triggers a re-seed/clear and drops the
+  // persisted display transform (the exact regression that the
+  // pixelate-aspect e2e gate guards against).
   const masterRowId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
   let currentImageId = activeImageId
   let imageCounter = 0

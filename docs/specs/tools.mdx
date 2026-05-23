@@ -43,7 +43,7 @@ Ziel: Die Projekt-Detailseite ist nur „Shell“, der Editor wächst als eigene
 - **`lib/editor/` (State, Commands, Model)**
   - **Types/Model**: `canvas-model.ts` (viewport/world math)
   - **Units/Conversion**: `units.ts` (mm/cm/pt/px ⇄ µpx, display formatting: up to 4dp, trim zeros)
-  - **Hooks**: `use-image-state.ts` (load/save µpx image working state; no save on unit change)
+  - **Hooks**: `use-display-size.ts` (the single authoritative display-size source — seed/save µpx image working state, re-seed on master transition; no save on unit change)
   - **Serialize/Persist** (später): Speichern/Laden von Scene/Settings (DB)
  - **`lib/api/` (Client helpers)**
   - **`http.ts`**: typed JSON fetching helper

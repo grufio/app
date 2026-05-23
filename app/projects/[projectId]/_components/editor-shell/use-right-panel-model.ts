@@ -8,8 +8,10 @@ import { mapSelectedNavIdToRightPanelSection } from "@/services/editor/panel-rou
 
 export function useRightPanelModel(args: {
   selectedNavId: string
-  imageTxU: { x: bigint; y: bigint; w: bigint; h: bigint } | null
-  initialImageTxU: { x: bigint; y: bigint; w: bigint; h: bigint } | null
+  /** The single authoritative display transform (Invariant 1). The panel
+   * px readout reads this one source — no `imageTxU ?? initialImageTxU`
+   * fallback chain (a second display surface of the old bug class). */
+  displayTxU: { x: bigint; y: bigint; w: bigint; h: bigint } | null
   workspaceLoading: boolean
   workspaceUnit: Unit | null
   masterImage: { signedUrl?: string | null; name?: string | null } | null
@@ -18,8 +20,7 @@ export function useRightPanelModel(args: {
 }) {
   const {
     selectedNavId,
-    imageTxU,
-    initialImageTxU,
+    displayTxU,
     workspaceLoading,
     workspaceUnit,
     masterImage,
@@ -32,9 +33,7 @@ export function useRightPanelModel(args: {
     return projectImages.find((img) => img.id === selectedImageId) ?? null
   }, [projectImages, selectedImageId])
 
-  const panelImageTxU = useMemo(() => {
-    return imageTxU ?? initialImageTxU ?? null
-  }, [imageTxU, initialImageTxU])
+  const panelImageTxU = displayTxU
 
   const workspaceReady = computeWorkspaceReady({
     workspaceLoading,
