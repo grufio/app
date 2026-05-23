@@ -165,6 +165,20 @@ export type PixelateFilterSuccess = {
   heightPx: number
   baseId: string
   baseStoragePath: string
+  /** The master/working_copy display rect that was authoritative at
+   * apply time (µpx). Captured ONCE here from `resolveMasterState`
+   * (the same DB read that sizes the grid) so the orchestrator can
+   * freeze it onto the project_image_trace row. The trace overlay
+   * later renders from this rect, decoupled from the live canvas
+   * transform. `xPxU`/`yPxU` are null when no persisted origin
+   * exists (fresh-upload fallback) — the trace then centres at 0n,
+   * the canvas's default paint origin. */
+  displayRectPxU: {
+    xPxU: bigint | null
+    yPxU: bigint | null
+    widthPxU: bigint
+    heightPxU: bigint
+  }
 }
 export type PixelateFilterResult = PixelateFilterSuccess | Extract<FilterResult<"pixelate_process">, { ok: false }>
 
@@ -426,6 +440,17 @@ export async function pixelateImageAndActivate(args: {
       heightPx: croppedHeight,
       baseId,
       baseStoragePath: baseObjectPath,
+      // Freeze the apply-time master/working_copy display rect onto the
+      // result. `masterState` is the same authoritative DB read that
+      // sized the grid above (`resolveMasterState`, :221) — reusing it
+      // keeps the persisted geometry byte-consistent with what the
+      // user saw on the artboard at apply time.
+      displayRectPxU: {
+        xPxU: masterState.xPxU,
+        yPxU: masterState.yPxU,
+        widthPxU: masterState.widthPxU,
+        heightPxU: masterState.heightPxU,
+      },
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Pixelate process failed"
