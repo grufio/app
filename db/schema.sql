@@ -270,6 +270,7 @@ begin
   -- Snapshot storage paths BEFORE any DML so the caller can clean
   -- up bucket objects. Materialise into parallel arrays so we can
   -- `unnest` them back into the return rowset after the deletes.
+  -- Not kind-filtered, so trace_base paths are captured too.
   select
     coalesce(array_agg(coalesce(pi.storage_bucket, 'project_images')), '{}'),
     coalesce(array_agg(pi.storage_path), '{}')
@@ -287,12 +288,21 @@ begin
   --    because project_images.source_image_id → project_images.id
   --    is ON DELETE RESTRICT — see header). The kind hierarchy is
   --    fixed by domain:
-  --       master → working_copy → filter_working_copy → trace_output
+  --       master → working_copy → {filter_working_copy, trace_base, trace_output}
   --    project_image_state and project_image_trace cascade via FK
   --    CASCADE on their *_image_id references — they need no
   --    explicit deletes here.
+  --
+  --    trace_output goes first so the project_image_trace row (whose
+  --    output_image_id FK is ON DELETE CASCADE) disappears, releasing
+  --    the project_image_trace.base_image_id RESTRICT FK that would
+  --    otherwise block the trace_base delete (23503). trace_base then
+  --    goes before working_copy because trace_base.source_image_id →
+  --    working_copy is ON DELETE RESTRICT.
   delete from public.project_images
    where project_id = p_project_id and kind = 'trace_output';
+  delete from public.project_images
+   where project_id = p_project_id and kind = 'trace_base';
   delete from public.project_images
    where project_id = p_project_id and kind = 'filter_working_copy';
   delete from public.project_images
