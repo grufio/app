@@ -19,32 +19,8 @@ vi.mock("sonner", () => ({
   toast: { error: vi.fn() },
 }))
 
+import { FakeImage, FakeResizeObserver } from "@/lib/test/jsdom-stubs"
 import { PixelateDialog } from "./pixelate-dialog"
-
-class FakeImage {
-  src = ""
-  crossOrigin: string | null = null
-  naturalWidth = 100
-  naturalHeight = 75
-  private _onload: (() => void) | null = null
-  set onload(fn: (() => void) | null) {
-    this._onload = fn
-    if (fn) queueMicrotask(() => this._onload?.())
-  }
-  get onload(): (() => void) | null {
-    return this._onload
-  }
-  onerror: (() => void) | null = null
-}
-
-// jsdom ships no ResizeObserver; the preview pane uses one to measure
-// itself. A no-op stub keeps mount from throwing (the smoke test doesn't
-// assert on the measured size).
-class FakeResizeObserver {
-  observe() {}
-  unobserve() {}
-  disconnect() {}
-}
 
 describe("PixelateDialog (smoke)", () => {
   beforeEach(() => {

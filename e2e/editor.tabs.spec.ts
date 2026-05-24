@@ -102,7 +102,7 @@ test("regression: Trace add button is enabled with active image, opens selector"
   await addTrace.click()
 
   // The trace selection dialog shows the Pixelate + Line Art cards.
-  // Card labels come from the trace registry: `lib/editor/trace/pixelate.tsx`
+  // Card labels come from the trace registry: `lib/editor/trace/pixelate.ts`
   // (label "Pixelate") and `lib/editor/trace/lineart.ts` (label "Line Art"),
   // rendered as `<button aria-label={label}>` in `filter-type-cards.tsx`.
   await expect(page.getByRole("button", { name: "Pixelate", exact: true })).toBeVisible()

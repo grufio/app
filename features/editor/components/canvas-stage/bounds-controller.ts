@@ -22,11 +22,12 @@ export type BoundsControllerDeps = {
   /**
    * Fires alongside `onBoundsChanged` with the same world-px frame
    * delta during an active image-drag. Lets the canvas track a
-   * DOM-positioned overlay (the Trace SVG) live, by shifting the
-   * overlay's render-only world-center — without mutating `imageTx`,
-   * so the drag never leaks into the authoritative display transform.
-   * The final position is committed once at drag-end via the normal
-   * transform commit.
+   * DOM-positioned overlay (the Trace SVG) live, by accumulating the
+   * delta into a render-only world-px offset (`traceDragOffset` in
+   * `project-canvas-stage.tsx`) added on top of `imageRender` — without
+   * mutating `imageTx`, so the drag never leaks into the authoritative
+   * display transform. The offset resets to 0 once `imageRender` catches
+   * up at the drag-end commit.
    */
   onDragFlush?: (dxWorldPx: number, dyWorldPx: number) => void
 }

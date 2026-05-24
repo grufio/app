@@ -27,9 +27,10 @@
  *      cropped-grid aspect derived from the resize (`usedMmW / usedMmH`
  *      = 78/144 ≈ 0.54, portrait) — NOT the 2:1 landscape master (≈ 2.0).
  *
- * Why the rendered box now: the canvas is sized in EXPLICIT px (fit the
- * display geometry into the measured square pane, `pixelate-preview-pane
- * .tsx`), so its bounding rect IS the display aspect — there is no CSS
+ * Why the rendered box now: the canvas is sized in EXPLICIT px (contain-fit
+ * the display geometry into the measured pane, `pixelate-preview-pane.tsx`;
+ * the pane fills the dialog body since #286, no longer a square), so its
+ * bounding rect IS the display aspect — there is no CSS
  * `aspect-ratio` indirection anymore. The rendered box is exactly what
  * the user sees, so it's the strongest signal: a leaked master size would
  * make the rect land near `2 / 1` (landscape) instead of portrait.

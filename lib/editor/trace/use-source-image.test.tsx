@@ -9,23 +9,8 @@
 import { act, renderHook } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { FakeImage } from "@/lib/test/jsdom-stubs"
 import { useSourceImage } from "./use-source-image"
-
-class FakeImage {
-  src = ""
-  crossOrigin: string | null = null
-  naturalWidth = 100
-  naturalHeight = 75
-  private _onload: (() => void) | null = null
-  set onload(fn: (() => void) | null) {
-    this._onload = fn
-    if (fn) queueMicrotask(() => this._onload?.())
-  }
-  get onload(): (() => void) | null {
-    return this._onload
-  }
-  onerror: (() => void) | null = null
-}
 
 const flushMicrotasks = () => new Promise<void>((resolve) => queueMicrotask(resolve))
 
