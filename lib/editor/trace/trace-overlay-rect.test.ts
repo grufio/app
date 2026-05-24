@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { resolveTraceWorldSize } from "./trace-overlay-rect"
+import { resolveTraceOverlayRect, resolveTraceWorldSize } from "./trace-overlay-rect"
 
 describe("resolveTraceWorldSize", () => {
   it("converts the frozen display rect (µpx) to world px (÷1e6)", () => {
@@ -60,5 +60,71 @@ describe("resolveTraceWorldSize", () => {
         display_height_px_u: "283464567",
       }),
     ).toBeNull()
+  })
+})
+
+describe("resolveTraceOverlayRect — POSITION follows the image, SIZE stays frozen", () => {
+  // Prod fixture (project 2d15eeeb): trace display_* = 283.46×566.93 px (2:1),
+  // frozen centre 297.5/421.0. The frozen ORIGIN is only used when there is no
+  // live image to anchor to.
+  const displayRect = {
+    display_x_px_u: "297500000", // 297.5 px
+    display_y_px_u: "421000000", // 421.0 px
+    display_width_px_u: "283464567", // 283.46 px
+    display_height_px_u: "566929134", // 566.93 px
+  }
+
+  it("POSITION = the live base-image centre; SIZE = the frozen display rect", () => {
+    // User moved + enlarged the base image after applying the trace.
+    const imageRender = { x: 600, y: 200, width: 800, height: 800 }
+    const rect = resolveTraceOverlayRect(displayRect, imageRender)!
+    expect(rect).not.toBeNull()
+    // Position HANGS ON the image (600/200), not the frozen origin (297.5/421).
+    expect(rect.x).toBe(600)
+    expect(rect.y).toBe(200)
+    // Size stays the frozen 283×567 (2:1) — NOT the 800×800 image size.
+    expect(rect.width).toBeCloseTo(283.464567, 4)
+    expect(rect.height).toBeCloseTo(566.929134, 4)
+    expect(rect.width / rect.height).toBeCloseTo(0.5, 4)
+  })
+
+  it("SIZE stays frozen even when the image is later resized to a square (Assert C-2 at unit level)", () => {
+    // The ~30-PR aspect bug: a later square resize must NOT drag the overlay
+    // size/aspect toward 1:1. Position follows the (unchanged) centre.
+    const square = { x: 297.5, y: 421, width: 800, height: 800 }
+    const rect = resolveTraceOverlayRect(displayRect, square)!
+    expect(rect.width).toBeCloseTo(283.464567, 4)
+    expect(rect.height).toBeCloseTo(566.929134, 4)
+    // Aspect is the frozen 1:2, never the square image's 1:1.
+    expect(rect.width / rect.height).not.toBeCloseTo(1, 1)
+  })
+
+  it("falls back to the frozen display_x/y when there is no live image", () => {
+    const rect = resolveTraceOverlayRect(displayRect, null)!
+    expect(rect.x).toBeCloseTo(297.5, 4)
+    expect(rect.y).toBeCloseTo(421, 4)
+    expect(rect.width).toBeCloseTo(283.464567, 4)
+    expect(rect.height).toBeCloseTo(566.929134, 4)
+  })
+
+  it("legacy/lineart '0' rect → returns the live image rect unchanged (size AND position)", () => {
+    const imageRender = { x: 600, y: 200, width: 800, height: 800 }
+    const legacy = {
+      display_x_px_u: "0",
+      display_y_px_u: "0",
+      display_width_px_u: "0",
+      display_height_px_u: "0",
+    }
+    expect(resolveTraceOverlayRect(legacy, imageRender)).toEqual(imageRender)
+  })
+
+  it("returns null when neither a frozen size nor a live image is available", () => {
+    const legacy = {
+      display_x_px_u: "0",
+      display_y_px_u: "0",
+      display_width_px_u: "0",
+      display_height_px_u: "0",
+    }
+    expect(resolveTraceOverlayRect(legacy, null)).toBeNull()
   })
 })
