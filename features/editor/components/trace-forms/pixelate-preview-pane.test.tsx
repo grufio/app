@@ -18,36 +18,14 @@ vi.mock("@/lib/editor/trace/pixelate-preview", () => ({
 }))
 
 import { pixelateSchema, type PixelateParams } from "@/lib/editor/trace/pixelate"
+import { FakeImage, FakeResizeObserver } from "@/lib/test/jsdom-stubs"
 import { PixelatePreviewPane } from "./pixelate-preview-pane"
-
-class FakeImage {
-  src = ""
-  crossOrigin: string | null = null
-  naturalWidth = 100
-  naturalHeight = 75
-  private _onload: (() => void) | null = null
-  set onload(fn: (() => void) | null) {
-    this._onload = fn
-    if (fn) queueMicrotask(() => this._onload?.())
-  }
-  get onload(): (() => void) | null {
-    return this._onload
-  }
-  onerror: (() => void) | null = null
-}
 
 const defaults = pixelateSchema.parse({}) as PixelateParams
 
-// jsdom ships no ResizeObserver; the pane uses one to measure itself.
-// A no-op stub is enough here — these tests assert bitmap attrs + zoom
-// state, neither of which depends on the measured pane size (which stays
-// 0 in jsdom, so the canvas display box is 0 — irrelevant to the asserts).
-class FakeResizeObserver {
-  observe() {}
-  unobserve() {}
-  disconnect() {}
-}
-
+// The pane uses a ResizeObserver to measure itself; a no-op stub is enough
+// here — these tests assert bitmap attrs + zoom state, neither of which
+// depends on the measured pane size (it stays 0 in jsdom).
 describe("PixelatePreviewPane", () => {
   beforeEach(() => {
     vi.stubGlobal("Image", FakeImage)

@@ -117,7 +117,7 @@ test.describe("forms — visual regressions", () => {
 
   // Trace dialog (Pixelate, Line Art): switch to Trace tab → "Add trace"
   // → pick the kind → "Select". Card labels come from the trace registry
-  // (`lib/editor/trace/pixelate.tsx` → "Pixelate", `lib/editor/trace/lineart.ts`
+  // (`lib/editor/trace/pixelate.ts` → "Pixelate", `lib/editor/trace/lineart.ts`
   // → "Line Art").
   //
   // Asymmetry between the two trace dialogs: the Line Art controller renders a

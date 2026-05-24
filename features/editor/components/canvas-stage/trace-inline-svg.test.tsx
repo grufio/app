@@ -3,21 +3,18 @@
  *
  * Pixel-measurement test for the trace overlay layer.
  *
- * This is the objective Schritt-1 measurement: it renders the real
- * `TraceInlineSvg` and reads back the absolute inline `style.left/top/
- * width/height` the browser would use to position it. Those four numbers
- * ARE the rendered trace layer — there is no other positioning input.
+ * It renders the real `TraceInlineSvg` and reads back the absolute inline
+ * `style.left/top/width/height` the browser would use to position it. Those
+ * four numbers ARE the rendered trace layer — there is no other positioning
+ * input. Contract under test: the component renders at EXACTLY the rect it is
+ * handed (no clamping, no aspect snapping), with `imageRect.x/y` treated as a
+ * centre. WHICH rect that is — position following the live image, size frozen
+ * on `display_*` — is decided upstream in `resolveTraceOverlayRect`
+ * (see its tests + `trace-overlay-aspect.spec.ts`), not here.
  *
- * The fixture mirrors the prod project 2d15eeeb (read-only psql):
- *   - master/source bitmap intrinsic: 1254×1254
- *   - project_image_state (base image render): 283.464567 × 566.929134 px
- *     at world-center (297.5, 421.0)
- *   - project_image_trace.display_*: same 283.46×566.93 at (297.5, 421.0)
- *
- * The bug only becomes VISIBLE once the base image is moved/resized after
- * the trace was applied: the trace must keep its OWN display geometry and
- * NOT snap to the live base-image rect. So the "moved base image" fixture
- * is the discriminating case.
+ * The rect fixture mirrors the prod project 2d15eeeb (read-only psql):
+ * `project_image_state` 283.464567 × 566.929134 px at world-centre
+ * (297.5, 421.0).
  */
 import { render } from "@testing-library/react"
 import { describe, expect, it } from "vitest"

@@ -24,8 +24,10 @@
  *      viewBox). Pre-fix the container came from `imageRender` → this is
  *      where it failed (it would read ≈ 0.53).
  *   4. Assert C-2: after a SECOND resize of the base image (to a square),
- *      the overlay aspect STAYS ≈ 2.0 — the trace is a standalone object
- *      and does not follow later imageTx changes.
+ *      the overlay aspect STAYS ≈ 2.0 — only the SIZE/ASPECT is frozen on
+ *      `display_*`; it does not follow later imageTx SIZE changes. (Since
+ *      #285 the overlay POSITION does follow the image; this spec measures
+ *      the aspect ratio, which the position can't affect.)
  *
  * Why the CONTAINER aspect (not the SVG viewBox) is the load-bearing
  * signal: the SVG fills its wrapper with `width/height: 100%` +
@@ -121,10 +123,11 @@ test("regression: applied pixelate overlay renders at its frozen apply-time aspe
   expect(aspect1).toBeLessThan(FROZEN_ASPECT + 0.15)
 
   // 4. Assert C-2: resize the base image AGAIN (to a square) — the overlay
-  //    is a standalone object and must keep its frozen 2:1 aspect. The
+  //    must keep its frozen 2:1 aspect (only the SIZE is frozen on display_*;
+  //    the position follows the image, but that can't change the aspect). The
   //    resize happens on the Image tab; switch back to Trace to re-measure.
-  //    This is the part `imageTx`-coupling can't pass: a square imageTx
-  //    would drag the overlay toward 1.0.
+  //    This is the part SIZE-coupling to `imageTx` can't pass: a square
+  //    imageTx would drag the overlay aspect toward 1.0.
   await resizeImage(page, "10", "10")
   await page.getByRole("tab", { name: "Trace" }).click()
   const aspect2 = await overlayAspect(page)
