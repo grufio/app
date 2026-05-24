@@ -69,6 +69,28 @@ export type SetupMockRoutesOpts = {
     page_bg_opacity: number
   }>
   imageState?: { exists: false } | { exists: true; state: ImageStateRow }
+  /**
+   * Override the master/working-copy INTRINSIC pixel dimensions (the
+   * source bitmap size — `project_images.width_px/height_px`). Defaults
+   * to 20×10. Set this to reproduce the prod shape where the source
+   * bitmap (e.g. 1254×1254) is far larger than the persisted display
+   * size, so the canvas-layer render can be checked against the
+   * persisted display rect rather than the intrinsic.
+   */
+  masterDims?: { width_px: number; height_px: number }
+  /**
+   * Override the FROZEN display rect that POST /trace stamps onto the
+   * trace row (µpx strings). Defaults to a 2:1 landscape (400×200 px).
+   * Set this to mirror a persisted display size (e.g. 283×567 px) so a
+   * spec can assert the overlay renders at the persisted display PIXELS,
+   * decoupled from the source bitmap.
+   */
+  traceDisplayRectPxU?: {
+    display_x_px_u: string
+    display_y_px_u: string
+    display_width_px_u: string
+    display_height_px_u: string
+  }
 }
 
 type ImageStateRow = {
@@ -142,6 +164,10 @@ export async function setupMockRoutes(page: Page, opts: SetupMockRoutesOpts) {
 
   let hasImage = Boolean(opts.withImage)
   const deletableActive = Boolean(opts.deletableActive)
+  // Source-bitmap (master/working-copy) intrinsic px. Default 20×10 keeps
+  // every existing spec unchanged; prod-shape specs pass the real size.
+  const masterWidthPx = opts.masterDims?.width_px ?? 20
+  const masterHeightPx = opts.masterDims?.height_px ?? 10
   const activeImageId = "11111111-1111-4111-8111-111111111111"
   // Stable per-project identity = the immutable `kind='master'` row id.
   // The real master GET route (app/api/.../images/master/route.ts) always
@@ -173,8 +199,8 @@ export async function setupMockRoutes(page: Page, opts: SetupMockRoutesOpts) {
       {
         id: activeImageId,
         signedUrl: dataImage,
-        width_px: 20,
-        height_px: 10,
+        width_px: masterWidthPx,
+        height_px: masterHeightPx,
         name: "test.svg",
         source_image_id: null,
         isFilterResult: false,
@@ -260,8 +286,8 @@ export async function setupMockRoutes(page: Page, opts: SetupMockRoutesOpts) {
                 id: activeImageId,
                 name: "test.svg",
                 format: "svg",
-                width_px: 20,
-                height_px: 10,
+                width_px: masterWidthPx,
+                height_px: masterHeightPx,
                 dpi: 300,
                 storage_path: `projects/${PROJECT_ID}/master/mock-upload.svg`,
                 storage_bucket: "project-images",
@@ -545,11 +571,12 @@ export async function setupMockRoutes(page: Page, opts: SetupMockRoutesOpts) {
         })
       }
       if (method === "POST") {
-        // Freeze a 2:1 landscape display rect (400px × 200px in µpx). This
-        // is the apply-time display size the overlay must render at,
-        // decoupled from the near-square SVG viewBox and from any later
-        // imageTx change.
-        appliedTrace = {
+        // Freeze the apply-time display rect onto the trace row. Default is
+        // a 2:1 landscape (400px × 200px in µpx); prod-shape specs override
+        // with the persisted display size. This is the size the overlay
+        // must render at, decoupled from the near-square SVG viewBox AND
+        // from the source-bitmap intrinsic.
+        appliedTrace = opts.traceDisplayRectPxU ?? {
           display_x_px_u: "0",
           display_y_px_u: "0",
           display_width_px_u: "400000000",

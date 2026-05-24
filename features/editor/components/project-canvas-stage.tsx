@@ -23,6 +23,7 @@ import { useSelectionCropController } from "./canvas-stage/selection-crop-contro
 import { useStageEventsController } from "./canvas-stage/stage-events-controller"
 import { pickIntrinsicSize } from "./canvas-stage/placement"
 import { createStateSyncGuard } from "./canvas-stage/state-sync-guard"
+import { useReportTransformOnUserEdit } from "./canvas-stage/report-transform-controller"
 import { useRestoreImageController, type RestoreBaseSpec, type RestoreImageResult } from "./canvas-stage/restore-controller"
 import type { CropRectWorld } from "./canvas-stage/crop-controller"
 import type { ResizeHandle } from "./canvas-stage/select-controller"
@@ -403,11 +404,17 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     onImageTransformChangeRef.current?.(tx)
   }, [])
 
-  // Report transform to the parent *after* state commits.
-  // Do NOT call inside state updaters — triggers "Cannot update a component while rendering a different component".
-  useEffect(() => {
-    reportImageTransform(imageTx)
-  }, [imageTx, reportImageTransform])
+  // Report the committed transform to the authoritative display source
+  // (`use-display-size`), gated so ONLY real user edits feed it. System
+  // placements (`useInitialImagePlacement`, restore, the active-image
+  // reset) set `imageTx` WITHOUT `markUserChanged()`; reporting those
+  // leaked the source-bitmap intrinsic into `displayTxU`, so the image
+  // (and every `displayTxU` consumer — trace dialog, legacy trace overlay,
+  // right-panel readout) rendered at the intrinsic instead of the set
+  // display size (arch_trace_layer_root). The gate + the per-active-image
+  // `resetForNewImage()` keep the "system never feeds the source"
+  // invariant true at the boundary. See report-transform-controller.ts.
+  useReportTransformOnUserEdit({ imageTx, guardRef: stateSyncGuardRef, report: reportImageTransform })
 
   const boundsControllerRef = useRef<ReturnType<typeof createBoundsController> | null>(null)
   if (!boundsControllerRef.current) {
