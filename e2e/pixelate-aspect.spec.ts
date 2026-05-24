@@ -23,17 +23,16 @@
  *   4. Assert A: dialog header reads `Image: 80.0 × 150.0 mm`
  *      (NOT a landscape master readout).
  *   5. Assert B: the live preview canvas (`pixelate-preview-mini`)
- *      CSS `aspect-ratio` is the cropped-grid aspect derived from the
- *      resize (`usedMmW / usedMmH` = 78/144 ≈ 0.54, portrait) — NOT the
- *      2:1 landscape master (≈ 2.0).
+ *      RENDERED box (`getBoundingClientRect` width/height) has the
+ *      cropped-grid aspect derived from the resize (`usedMmW / usedMmH`
+ *      = 78/144 ≈ 0.54, portrait) — NOT the 2:1 landscape master (≈ 2.0).
  *
- * Why `aspect-ratio` and not `getBoundingClientRect`: the preview pane
- * is a FIXED SQUARE (`aspectRatio: 1/1`) and the canvas fills it with
- * `width: 100%` + `maxHeight: 100%`, so the box rect is always ~1:1
- * regardless of the image. The load-bearing display signal — the value
- * `resolvePixelateGrid(displayMm…)` actually computes from the resize —
- * is the canvas's CSS `aspect-ratio` (`pixelate-preview-pane.tsx:97-99,
- * 130`). A leaked master size would make it land near `2 / 1`.
+ * Why the rendered box now: the canvas is sized in EXPLICIT px (fit the
+ * display geometry into the measured square pane, `pixelate-preview-pane
+ * .tsx`), so its bounding rect IS the display aspect — there is no CSS
+ * `aspect-ratio` indirection anymore. The rendered box is exactly what
+ * the user sees, so it's the strongest signal: a leaked master size would
+ * make the rect land near `2 / 1` (landscape) instead of portrait.
  *
  * Honest scope (also stated in the PR): the mock cannot reproduce the
  * underlying cache-miss `masterRowId`-flip — the real route always
@@ -131,15 +130,23 @@ test("regression: pixelate dialog shows the resized image size + aspect, not the
   const preview = page.getByTestId("pixelate-preview-mini")
   await expect(preview).toBeVisible()
 
-  // Read the CSS `aspect-ratio` the component sets from the resolved grid
-  // (`usedMmW / usedMmH`). The computed value is normalised to `"W / H"`.
+  // Read the RENDERED box: the canvas is sized in explicit px from the
+  // resolved grid (`usedMmW / usedMmH`), so its bounding rect aspect IS the
+  // display aspect. Poll until the ResizeObserver-driven px size has landed
+  // (a frame after the dialog opens), then read once for the asserts.
+  await expect
+    .poll(async () =>
+      preview.evaluate((el) => {
+        const r = el.getBoundingClientRect()
+        return r.width > 0 && r.height > 0
+      }),
+    )
+    .toBe(true)
   const aspect = await preview.evaluate((el) => {
-    const raw = getComputedStyle(el).aspectRatio // e.g. "78 / 144"
-    const m = raw.match(/([\d.]+)\s*\/\s*([\d.]+)/)
-    if (!m) return Number.NaN
-    return Number(m[1]) / Number(m[2])
+    const r = el.getBoundingClientRect()
+    return r.width / r.height
   })
-  expect(Number.isFinite(aspect), `expected a numeric aspect-ratio, got NaN`).toBe(true)
+  expect(Number.isFinite(aspect), `expected a numeric aspect, got NaN`).toBe(true)
 
   // The 2:1 landscape master would yield aspect ≈ 2.0. The resize is a
   // portrait, so the aspect must be clearly < 1 — a leaked master fails here.

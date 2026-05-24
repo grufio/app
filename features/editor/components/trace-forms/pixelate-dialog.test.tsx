@@ -37,9 +37,19 @@ class FakeImage {
   onerror: (() => void) | null = null
 }
 
+// jsdom ships no ResizeObserver; the preview pane uses one to measure
+// itself. A no-op stub keeps mount from throwing (the smoke test doesn't
+// assert on the measured size).
+class FakeResizeObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
 describe("PixelateDialog (smoke)", () => {
   beforeEach(() => {
     vi.stubGlobal("Image", FakeImage)
+    vi.stubGlobal("ResizeObserver", FakeResizeObserver)
     if (!window.matchMedia) {
       window.matchMedia = (query: string) =>
         ({
