@@ -38,9 +38,20 @@ class FakeImage {
 
 const defaults = pixelateSchema.parse({}) as PixelateParams
 
+// jsdom ships no ResizeObserver; the pane uses one to measure itself.
+// A no-op stub is enough here — these tests assert bitmap attrs + zoom
+// state, neither of which depends on the measured pane size (which stays
+// 0 in jsdom, so the canvas display box is 0 — irrelevant to the asserts).
+class FakeResizeObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
 describe("PixelatePreviewPane", () => {
   beforeEach(() => {
     vi.stubGlobal("Image", FakeImage)
+    vi.stubGlobal("ResizeObserver", FakeResizeObserver)
   })
 
   afterEach(() => {

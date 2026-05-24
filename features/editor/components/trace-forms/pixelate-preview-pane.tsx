@@ -5,17 +5,29 @@
  * quantised pixelate grid. The pane is a **fixed square** so the
  * dialog layout doesn't shift between images.
  *
- * Aspect: the canvas's CSS box uses `aspect-ratio: usedMmW / usedMmH`,
- * NOT the bitmap's cellsX × cellsY aspect — otherwise non-square
- * supercells (e.g. 6 mm × 10 mm) distort the displayed image because
- * each cell is drawn into ONE bitmap pixel regardless of its real-
- * world shape. `image-rendering: pixelated` keeps the per-cell upscale
- * sharp; `bg-muted` shows wherever the canvas doesn't reach in the
- * square pane.
+ * Sizing — explicit pixels, no CSS `aspect-ratio`. The pane is measured
+ * with a ResizeObserver (`paneSize`, square). The displayed canvas size
+ * is computed directly: fit the display geometry (`usedMmW × usedMmH`)
+ * into the square pane by its larger side, then multiply by `zoom`, and
+ * set `width`/`height` in px on the canvas. We size by display-mm, NOT by
+ * the bitmap's cellsX × cellsY aspect — otherwise non-square supercells
+ * (e.g. 6 mm × 10 mm) would distort, because each cell is drawn into ONE
+ * bitmap pixel regardless of its real-world shape. The near-square bitmap
+ * is deliberately stretched to that px box. `image-rendering: pixelated`
+ * keeps the per-cell upscale sharp; `bg-muted` shows wherever the canvas
+ * doesn't reach in the square pane.
  *
- * Zoom: the pane has an outer scrolling container; an inner box
- * scales with `zoom` (1.0 = square pane size). Pan is the browser's
- * built-in scroll, so we don't need any JS-side measurement.
+ * Why explicit px and not `aspect-ratio`: a derived `aspect-ratio` value
+ * combined with `width:100%`/`maxHeight:100%` over-constrains the box and
+ * a portrait shape overflows the square pane (percentage height can't cap
+ * because the parent has no definite height). Computing the px size from
+ * the measured pane removes that indirection — the same explicit-px model
+ * the trace overlay uses (`trace-inline-svg.tsx`).
+ *
+ * Zoom: the pane scrolls (`overflow-auto`); `zoom` scales the computed px
+ * size. An inner wrapper is `fit-content` but at least pane-size
+ * (`min-w/h: 100%`) and flex-centers the canvas, so the canvas is centered
+ * when smaller than the pane and scrolls from the top-left when larger.
  *
  * Source: loaded `HTMLImageElement` is fed directly to
  * `buildMiniCanvas` via `drawImage`. No scratch-canvas intermediate —
@@ -60,7 +72,23 @@ export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
   const valid = isPixelateGridValid(grid)
 
   const miniCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const paneRef = useRef<HTMLDivElement | null>(null)
+  const [paneSize, setPaneSize] = useState(0)
   const [zoom, setZoom] = useState(1)
+
+  // Measure the (square) pane in CSS px. The pane is `w-full`, so its
+  // width is driven by the dialog layout; we mirror it onto the height
+  // below to keep the frame square. Observing width and setting height
+  // can't loop — height never feeds back into width.
+  useEffect(() => {
+    const el = paneRef.current
+    if (!el) return
+    const ro = new ResizeObserver((entries) => {
+      setPaneSize(entries[0]?.contentRect.width ?? 0)
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   const crop = useMemo(() => {
     if (!source || !valid || displayMmW <= 0 || displayMmH <= 0) return null
@@ -94,21 +122,32 @@ export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
   const handleFit = () => setZoom(1)
   const zoomLabel = `${Math.round(zoom * 100)}%`
 
-  const cropAspect =
-    grid.usedMmW > 0 && grid.usedMmH > 0
-      ? `${grid.usedMmW} / ${grid.usedMmH}`
-      : undefined
+  // Displayed canvas size in CSS px: fit the display geometry into the
+  // square pane by its larger side, then apply zoom. zoom === 1 fits;
+  // zoom > 1 grows past the pane and the pane scrolls. Null until the
+  // pane is measured or the grid is invalid → canvas collapses to 0.
+  const display = useMemo(() => {
+    if (!valid || paneSize <= 0 || grid.usedMmW <= 0 || grid.usedMmH <= 0) return null
+    const fitScale = paneSize / Math.max(grid.usedMmW, grid.usedMmH)
+    return {
+      w: grid.usedMmW * fitScale * zoom,
+      h: grid.usedMmH * fitScale * zoom,
+    }
+  }, [valid, paneSize, grid.usedMmW, grid.usedMmH, zoom])
 
   return (
     <div
+      ref={paneRef}
       className="relative w-full overflow-auto bg-muted"
-      style={{ aspectRatio: "1 / 1" }}
+      style={{ height: paneSize || undefined }}
     >
       <div
-        className="relative flex items-center justify-center"
+        className="flex items-center justify-center"
         style={{
-          width: `${zoom * 100}%`,
-          aspectRatio: "1 / 1",
+          width: "fit-content",
+          minWidth: "100%",
+          height: "fit-content",
+          minHeight: "100%",
         }}
       >
         <canvas
@@ -120,14 +159,10 @@ export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
           height={crop ? Math.max(1, Math.round(crop.h)) : 1}
           className="block"
           style={{
-            // Without explicit `width: 100%` the canvas falls back to
-            // its intrinsic bitmap size in CSS px. The aspect-ratio +
-            // max-height combo lets portrait images letterbox left/right
-            // inside the square pane instead of overflowing vertically.
-            width: "100%",
-            maxWidth: "100%",
-            maxHeight: "100%",
-            aspectRatio: cropAspect,
+            // Explicit px box from the measured pane (no aspect-ratio).
+            // The near-square bitmap stretches to fill it.
+            width: display?.w ?? 0,
+            height: display?.h ?? 0,
             imageRendering: "pixelated",
           }}
           data-testid="pixelate-preview-mini"
