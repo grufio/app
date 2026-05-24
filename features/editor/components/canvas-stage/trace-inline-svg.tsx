@@ -215,7 +215,16 @@ export function TraceInlineSvg({ svgText, imageRect, view, rotation = 0, forward
           filter: drop-shadow(0 0 1px rgba(0,0,0,0.9));
         }
       `}</style>
-      <div dangerouslySetInnerHTML={{ __html: prepared.html }} />
+      {/* The wrapper MUST fill the sized container so the inner SVG's
+          `height="100%"` resolves to the container height. Without an
+          explicit height here, the SVG's `height: 100%` has no definite
+          parent height to resolve against and falls back to its viewBox
+          aspect ratio — so `preserveAspectRatio="none"` never takes effect
+          and the trace renders at the source-crop shape instead of the
+          display rect (the "trace always sticks to the source image"
+          symptom). With width+height 100% the SVG fills the container and
+          stretches to the display shape. */}
+      <div style={{ width: "100%", height: "100%" }} dangerouslySetInnerHTML={{ __html: prepared.html }} />
     </div>
   )
 }
