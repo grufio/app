@@ -1,41 +1,42 @@
 /**
- * Trace-overlay geometry — the trace is a fully standalone layer.
+ * Trace-overlay geometry — the trace HANGS ON the base image for POSITION,
+ * but keeps its own FROZEN SIZE.
  *
- * Once applied, the trace owns its complete world rect — SIZE *and*
- * POSITION — frozen from the display rect that was authoritative at apply
- * time (`project_image_trace.display_*_px_u`). That rect is the
- * `project_image_state` row read by the trace server when it sized the
- * pixelate grid (see `services/editor/server/trace/index.ts` +
- * `.../trace/pixelate.ts`). It is NOT derived from the live base-image
- * transform at render time.
+ * Once applied, the trace's SIZE is frozen from the display rect that was
+ * authoritative at apply time (`project_image_trace.display_*_px_u`). That
+ * rect is the `project_image_state` row read by the trace server when it
+ * sized the pixelate grid (see `services/editor/server/trace/index.ts` +
+ * `.../trace/pixelate.ts`). Its POSITION, however, follows the live base
+ * image at render time.
  *
- * Why size is decoupled: `TraceInlineSvg` sizes its DOM container purely
- * from the rect it is given (`width * view.scale`), and the Python SVG
- * fills that container with `preserveAspectRatio="none"` (near-square
- * viewBox, so it cannot enforce its own aspect). Feeding the container the
- * live `imageTx`-derived rect (the original behaviour) coupled the
- * rendered aspect to a reset-prone transform; a 6×6 grid on a 200×100
- * resize then stretched. Feeding it the trace's OWN frozen size makes the
- * rendered aspect equal the apply-time resize, regardless of how `imageTx`
- * later changes.
+ * Why size is frozen (decoupled from the live transform): `TraceInlineSvg`
+ * sizes its DOM container purely from the rect it is given
+ * (`width * view.scale`), and the Python SVG fills that container with
+ * `preserveAspectRatio="none"` (near-square viewBox, so it cannot enforce
+ * its own aspect). Feeding the container the live `imageTx`-derived SIZE
+ * (the original behaviour) coupled the rendered aspect to the base image; a
+ * later non-uniform resize (e.g. back to square) then stretched the trace —
+ * the ~30-PR aspect bug, now guarded by `e2e/trace-overlay-aspect.spec.ts`
+ * Assert C-2. Feeding it the trace's OWN frozen size makes the rendered
+ * aspect equal the apply-time resize, regardless of how `imageTx` later
+ * changes.
  *
- * Why position is decoupled (the "trace sticks in the source image" bug):
- * the original code positioned the overlay at the LIVE base-image centre
- * (`imageRender.x/y`, tracked via `traceOverlayCenter`). So moving/resizing
- * the base image dragged the trace with it, and the trace never showed at
- * its own apply-time origin — it was glued to the source image. The trace
- * is a standalone layer: its world position is its own frozen
- * `display_x/y`, full stop. Pan/zoom is applied on top by the caller via
- * the stage `view` transform (in `TraceInlineSvg`), which is independent of
- * the base image — so the overlay still pans/zooms with the canvas without
- * being anchored to the base-image rect.
+ * Why position follows the image (the user-facing "trace must hang on the
+ * image" requirement): the trace is conceptually locked to the base image —
+ * moving/panning/zooming the image moves the trace with it. So POSITION =
+ * the live base-image centre (`imageRender.x/y`), NOT a frozen origin.
+ * (An earlier iteration froze the position too; that was wrong — only the
+ * SIZE must stay frozen.) Pan/zoom is applied on top by the caller via the
+ * stage `view` transform (in `TraceInlineSvg`). During an active image drag,
+ * `imageRender` lags until drag-commit, so the caller patches the position
+ * with a render-only world-px offset (fed from the bounds-controller's
+ * `onDragFlush`) — never by mutating `imageTx`.
  *
  * Coordinate space: `display_*_px_u` is µpx (1px = 1e6 µpx), the SAME
  * space as the canvas `imageTx`. `pxUToPxNumber` (= Number/1e6) converts to
- * world px identically, so the trace rect lands byte-consistent with what
- * `imageRender` would have produced from the equivalent state. `display_x/y`
- * is a world-space CENTRE (matching `imageTx.x/y` / Konva's centred image
- * node), so the returned rect's `x/y` is a centre too.
+ * world px identically. `display_x/y` (the at-rest fallback when there is no
+ * live image) is a world-space CENTRE matching `imageTx.x/y` / Konva's
+ * centred image node, so the returned rect's `x/y` is a centre too.
  *
  * Legacy/lineart signal: `display_width_px_u === "0"` (the column DEFAULT,
  * and what every pre-stage-2 pixelate row + every lineart row carries)
@@ -99,21 +100,30 @@ export function resolveTraceWorldSize(
 }
 
 /**
- * Resolve the trace overlay's full world rect (centre x/y + size) as a
- * STANDALONE layer, decoupled from the live base image.
+ * Resolve the trace overlay's full world rect (centre x/y + size): the trace
+ * **hangs on the base image** for POSITION but keeps its **frozen SIZE**.
  *
- * - Valid display rect (positive width+height): the rect is the trace's
- *   OWN frozen geometry — `display_x/y` for the centre, `display_w/h` for
- *   the size. The base-image rect is ignored entirely.
+ * - Valid display rect (positive width+height):
+ *   - POSITION = the live base image centre (`imageRender.x/y`). The trace
+ *     moves/pans/zooms with the image — it is glued to it, not pinned to a
+ *     stale apply-time origin.
+ *   - SIZE = the trace's OWN frozen `display_w/h`. A later non-uniform image
+ *     resize must NOT stretch the trace (that was the ~30-PR aspect bug;
+ *     `e2e/trace-overlay-aspect.spec.ts` Assert C-2 guards it). So size is
+ *     decoupled from the live image even though position follows it.
+ *   When `imageRender` is absent (no live image to anchor to) we fall back to
+ *   the frozen `display_x/y` so the trace still renders somewhere sensible.
  * - Legacy/lineart "0" signal (or garbage): returns the live `imageRender`
- *   rect unchanged, preserving prior behaviour for traces that never froze
- *   a rect.
+ *   rect unchanged (size AND position), preserving prior behaviour for traces
+ *   that never froze a rect.
  *
  * Returns null only when there is no image rect to fall back to and the
  * display rect is also unusable (nothing to render).
  *
- * NOTE: this is world-space only. Pan/zoom (`view`) is applied downstream
- * by `TraceInlineSvg`; do not fold the stage transform in here.
+ * NOTE: this is world-space only, and it is the AT-REST answer. Pan/zoom
+ * (`view`) is applied downstream by `TraceInlineSvg`; the live-drag follow
+ * (where `imageRender` lags until drag-commit) is patched by the caller via a
+ * render-only world-px offset — never by mutating `imageTx`.
  */
 export function resolveTraceOverlayRect(
   displayRect: TraceDisplayRectPxU | null | undefined,
@@ -125,14 +135,16 @@ export function resolveTraceOverlayRect(
     // (size AND position), exactly as before this layer existed.
     return imageRender ?? null
   }
-  // Standalone layer: own position from display_x/y (a world centre,
-  // same space as imageTx.x/y), own size from display_w/h. Independent of
-  // the base image's live transform.
+  // Position follows the live base image; size stays frozen on display_w/h.
+  if (imageRender) {
+    return { x: imageRender.x, y: imageRender.y, width: size.width, height: size.height }
+  }
+  // No live image to anchor to → render at the frozen origin.
   const xPxU = parsePxU(displayRect!.display_x_px_u)
   const yPxU = parsePxU(displayRect!.display_y_px_u)
   return {
-    x: xPxU != null ? pxUToPxNumber(xPxU) : (imageRender?.x ?? 0),
-    y: yPxU != null ? pxUToPxNumber(yPxU) : (imageRender?.y ?? 0),
+    x: xPxU != null ? pxUToPxNumber(xPxU) : 0,
+    y: yPxU != null ? pxUToPxNumber(yPxU) : 0,
     width: size.width,
     height: size.height,
   }

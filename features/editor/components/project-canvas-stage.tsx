@@ -7,7 +7,7 @@
  * - Render the artboard, grid, selection overlay, and image node.
  * - Delegate RAF/bounds/transform persistence to controller modules.
  */
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react"
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { Group, Image as KonvaImage, Layer, Rect, Stage } from "react-konva"
 import type Konva from "konva"
 
@@ -279,6 +279,13 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     heightPxU: bigint
   } | null>(null)
   const [imageBounds, setImageBounds] = useState<BoundsRect | null>(null)
+  // Render-only world-px offset that lets the trace overlay follow the base
+  // image DURING a drag. `imageTx`/`imageRender` only commit at drag-end, so
+  // mid-drag the overlay would lag; the bounds-controller's `onDragFlush`
+  // accumulates the live world delta here. Reset to 0 once `imageRender`
+  // catches up at commit (the useLayoutEffect below). This never touches
+  // `imageTx` — the drag does not leak into the authoritative transform.
+  const [traceDragOffset, setTraceDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
   const rotationRef = useRef(0)
   useEffect(() => {
     rotationRef.current = rotation
@@ -416,6 +423,10 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
       getLayer: () => layerRef.current,
       getImageNode: () => imageNodeRef.current,
       onBoundsChanged: (next) => setImageBounds(next as BoundsRect | null),
+      // Live-drag follow for the trace overlay POSITION only (render-only;
+      // never mutates `imageTx`). Accumulates the world-px frame delta; the
+      // overlay rect adds it on top of `imageRender` until drag-commit.
+      onDragFlush: (dx, dy) => setTraceDragOffset((o) => ({ x: o.x + dx, y: o.y + dy })),
       onBoundsRead: () => {
         const g = globalThis as unknown as { __gruf_editor?: { boundsReads?: number } }
         if (g.__gruf_editor) g.__gruf_editor.boundsReads = (g.__gruf_editor.boundsReads ?? 0) + 1
@@ -562,16 +573,26 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     return { width, height, x, y }
   }, [img, imageTx])
 
-  // The trace overlay's world rect is the trace's OWN frozen geometry —
-  // POSITION (display_x/y) and SIZE (display_w/h) — fully decoupled from the
-  // live base image. The trace is a standalone layer: it renders at its own
-  // apply-time origin, not glued to the source image's centre. Legacy/
-  // lineart "0" rect → falls back to the live `imageRender` so existing/
-  // lineart traces don't break.
-  const traceRect = useMemo(
-    () => resolveTraceOverlayRect(traceDisplayRect, imageRender),
-    [traceDisplayRect, imageRender],
-  )
+  // Reset the live-drag offset once `imageRender` catches up at drag-commit
+  // (and on any other transform change). useLayoutEffect runs before paint,
+  // so the one render where the new committed `imageRender` and the stale
+  // offset would briefly both apply is never painted (no end-of-drag jump).
+  // Returns the same object when already zero so React bails (no extra render).
+  useLayoutEffect(() => {
+    setTraceDragOffset((o) => (o.x === 0 && o.y === 0 ? o : { x: 0, y: 0 }))
+  }, [imageRender?.x, imageRender?.y])
+
+  // The trace overlay HANGS ON the base image for POSITION (follows
+  // `imageRender.x/y`) but keeps its FROZEN SIZE (`display_w/h`); legacy/
+  // lineart "0" rects fall back fully to `imageRender`. The render-only
+  // `traceDragOffset` patches the position mid-drag, where `imageRender`
+  // lags until commit — see the offset's declaration + `onDragFlush`.
+  const traceRect = useMemo(() => {
+    const rect = resolveTraceOverlayRect(traceDisplayRect, imageRender)
+    if (!rect) return null
+    if (traceDragOffset.x === 0 && traceDragOffset.y === 0) return rect
+    return { ...rect, x: rect.x + traceDragOffset.x, y: rect.y + traceDragOffset.y }
+  }, [traceDisplayRect, imageRender, traceDragOffset])
 
   const imageFrame = useMemo<CropRectWorld | null>(() => {
     if (!imageRender) return null
