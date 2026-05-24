@@ -2,41 +2,38 @@
 
 /**
  * Pixelate preview pane: a single canvas displaying the cropped,
- * quantised pixelate grid. The pane is a **fixed square** so the
- * dialog layout doesn't shift between images.
+ * quantised pixelate grid.
  *
- * Sizing — explicit pixels, no CSS `aspect-ratio`. The pane is measured
- * with a ResizeObserver (`paneSize`, square). The displayed canvas size
- * is computed directly: fit the display geometry (`usedMmW × usedMmH`)
- * into the square pane by its larger side, then multiply by `zoom`, and
- * set `width`/`height` in px on the canvas. We size by display-mm, NOT by
- * the bitmap's cellsX × cellsY aspect — otherwise non-square supercells
- * (e.g. 6 mm × 10 mm) would distort, because each cell is drawn into ONE
- * bitmap pixel regardless of its real-world shape. The near-square bitmap
- * is deliberately stretched to that px box. `image-rendering: pixelated`
- * keeps the per-cell upscale sharp; `bg-muted` shows wherever the canvas
- * doesn't reach in the square pane.
+ * Sizing — explicit pixels, no CSS `aspect-ratio`. The pane fills the
+ * dialog's available body area (definite height = `85vh − header h-16`,
+ * matching the dialog's `max-h-[85vh]`), so a PORTRAIT preview uses the full
+ * vertical space instead of being squeezed into a width-based square (the
+ * old "fixed square" wasted height and rendered portraits as a thin strip).
+ * The pane is measured with a ResizeObserver (`pane.w`/`pane.h`); the canvas
+ * display size is `min(paneW/usedMmW, paneH/usedMmH) × zoom` per axis — a
+ * plain contain-fit. We size by display-mm, NOT the bitmap's cellsX × cellsY
+ * aspect, so non-square supercells (e.g. 6 mm × 10 mm) don't distort; the
+ * near-square bitmap is deliberately stretched to that px box.
+ * `image-rendering: pixelated` keeps the per-cell upscale sharp; `bg-muted`
+ * shows wherever the canvas doesn't reach.
  *
- * Why explicit px and not `aspect-ratio`: a derived `aspect-ratio` value
- * combined with `width:100%`/`maxHeight:100%` over-constrains the box and
- * a portrait shape overflows the square pane (percentage height can't cap
- * because the parent has no definite height). Computing the px size from
- * the measured pane removes that indirection — the same explicit-px model
- * the trace overlay uses (`trace-inline-svg.tsx`).
+ * Why the pane carries the definite height (not the dialog flex chain): the
+ * `SidebarProvider` row is `items-start` with no definite height, so a
+ * `flex-1` pane would collapse. The pane defines its own height from the
+ * dialog body envelope — exactly how the previous version defined its size
+ * from its measured width, just height-based now. No RO loop: the height is
+ * definite (not derived from canvas content) and the canvas lives in an
+ * absolutely-positioned scroller, so it never drives the measured box.
  *
- * Zoom: the pane scrolls (`overflow-auto`); `zoom` scales the computed px
- * size. An inner wrapper is `fit-content` but at least pane-size
- * (`min-w/h: 100%`) and flex-centers the canvas, so the canvas is centered
- * when smaller than the pane and scrolls from the top-left when larger.
+ * Layout — the zoom controls sit OUTSIDE the scrolling area (siblings of the
+ * `overflow-auto` scroller, on the relative pane), so they stay pinned to the
+ * pane viewport and never scroll away with the zoomed image — like the
+ * editor's floating toolbar at the canvas viewport.
  *
- * Source: loaded `HTMLImageElement` is fed directly to
- * `buildMiniCanvas` via `drawImage`. No scratch-canvas intermediate —
- * the previous 2000px-edge downsample threw away source detail at
- * small supercell sizes.
- *
- * Inputs are reactive: when `params` changes, the mini canvas is
- * redrawn in-place (React owns its `width`/`height` attributes via
- * JSX props, so the bitmap clears + redraws cleanly).
+ * Source: loaded `HTMLImageElement` is fed directly to `buildMiniCanvas` via
+ * `drawImage`. Inputs are reactive: when `params` changes, the mini canvas is
+ * redrawn in-place (React owns its `width`/`height` attributes via JSX props,
+ * so the bitmap clears + redraws cleanly).
  */
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Loader2, Maximize2, ZoomIn, ZoomOut } from "lucide-react"
@@ -51,7 +48,7 @@ import { type PixelateParams } from "@/lib/editor/trace/pixelate"
 import { buildMiniCanvas } from "@/lib/editor/trace/pixelate-preview"
 import { useSourceImage } from "@/lib/editor/trace/use-source-image"
 
-// Zoom: 1.0 == fit-to-square-pane. 8.0 == 8× that.
+// Zoom: 1.0 == fit-to-pane. 8.0 == 8× that.
 const ZOOM_STEP = 1.5
 const ZOOM_MIN = 1
 const ZOOM_MAX = 8
@@ -73,18 +70,19 @@ export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
 
   const miniCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const paneRef = useRef<HTMLDivElement | null>(null)
-  const [paneSize, setPaneSize] = useState(0)
+  const [pane, setPane] = useState<{ w: number; h: number }>({ w: 0, h: 0 })
   const [zoom, setZoom] = useState(1)
 
-  // Measure the (square) pane in CSS px. The pane is `w-full`, so its
-  // width is driven by the dialog layout; we mirror it onto the height
-  // below to keep the frame square. Observing width and setting height
-  // can't loop — height never feeds back into width.
+  // Measure the pane's available box (CSS px), both axes. The pane has a
+  // definite height (see wrapper) and a layout-driven width; the canvas lives
+  // in an absolutely-positioned scroller, so it never feeds back into this
+  // measurement — no ResizeObserver loop.
   useEffect(() => {
     const el = paneRef.current
     if (!el) return
     const ro = new ResizeObserver((entries) => {
-      setPaneSize(entries[0]?.contentRect.width ?? 0)
+      const r = entries[0]?.contentRect
+      if (r) setPane({ w: r.width, h: r.height })
     })
     ro.observe(el)
     return () => ro.disconnect()
@@ -122,52 +120,60 @@ export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
   const handleFit = () => setZoom(1)
   const zoomLabel = `${Math.round(zoom * 100)}%`
 
-  // Displayed canvas size in CSS px: fit the display geometry into the
-  // square pane by its larger side, then apply zoom. zoom === 1 fits;
-  // zoom > 1 grows past the pane and the pane scrolls. Null until the
-  // pane is measured or the grid is invalid → canvas collapses to 0.
+  // Displayed canvas size in CSS px: contain-fit the display geometry into
+  // the measured pane (the smaller per-axis ratio wins), then apply zoom.
+  // zoom === 1 fits; zoom > 1 grows past the pane and the scroller scrolls.
+  // Null until the pane is measured or the grid is invalid → canvas → 0.
   const display = useMemo(() => {
-    if (!valid || paneSize <= 0 || grid.usedMmW <= 0 || grid.usedMmH <= 0) return null
-    const fitScale = paneSize / Math.max(grid.usedMmW, grid.usedMmH)
+    if (!valid || pane.w <= 0 || pane.h <= 0 || grid.usedMmW <= 0 || grid.usedMmH <= 0) return null
+    const fitScale = Math.min(pane.w / grid.usedMmW, pane.h / grid.usedMmH)
     return {
       w: grid.usedMmW * fitScale * zoom,
       h: grid.usedMmH * fitScale * zoom,
     }
-  }, [valid, paneSize, grid.usedMmW, grid.usedMmH, zoom])
+  }, [valid, pane.w, pane.h, grid.usedMmW, grid.usedMmH, zoom])
 
   return (
     <div
       ref={paneRef}
-      className="relative w-full overflow-auto bg-muted"
-      style={{ height: paneSize || undefined }}
+      className="relative w-full bg-muted"
+      // Definite height = the dialog body envelope (max-h-[85vh] minus the
+      // h-16 header). The pane fills it so portraits aren't squeezed; the
+      // dialog's own max-h caps it. Kept in sync with pixelate-dialog.tsx.
+      style={{ height: "calc(85vh - 4rem)" }}
     >
-      <div
-        className="flex items-center justify-center"
-        style={{
-          width: "fit-content",
-          minWidth: "100%",
-          height: "fit-content",
-          minHeight: "100%",
-        }}
-      >
-        <canvas
-          ref={miniCanvasRef}
-          // Canvas bitmap = full source-crop resolution. buildMiniCanvas
-          // paints solid cell blocks at that size — no source→cells
-          // downsample touches the visible bitmap.
-          width={crop ? Math.max(1, Math.round(crop.w)) : 1}
-          height={crop ? Math.max(1, Math.round(crop.h)) : 1}
-          className="block"
+      {/* The ONLY scrolling area. Zoom > 1 overflows here; the controls and
+          status overlays below are siblings, so they stay pinned. */}
+      <div className="absolute inset-0 overflow-auto">
+        <div
+          className="flex items-center justify-center"
           style={{
-            // Explicit px box from the measured pane (no aspect-ratio).
-            // The near-square bitmap stretches to fill it.
-            width: display?.w ?? 0,
-            height: display?.h ?? 0,
-            imageRendering: "pixelated",
+            width: "fit-content",
+            minWidth: "100%",
+            height: "fit-content",
+            minHeight: "100%",
           }}
-          data-testid="pixelate-preview-mini"
-        />
+        >
+          <canvas
+            ref={miniCanvasRef}
+            // Canvas bitmap = full source-crop resolution. buildMiniCanvas
+            // paints solid cell blocks at that size — no source→cells
+            // downsample touches the visible bitmap.
+            width={crop ? Math.max(1, Math.round(crop.w)) : 1}
+            height={crop ? Math.max(1, Math.round(crop.h)) : 1}
+            className="block"
+            style={{
+              // Explicit px box from the measured pane (no aspect-ratio).
+              // The near-square bitmap stretches to fill it.
+              width: display?.w ?? 0,
+              height: display?.h ?? 0,
+              imageRendering: "pixelated",
+            }}
+            data-testid="pixelate-preview-mini"
+          />
+        </div>
       </div>
+
       {showSpinner ? (
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2">
           <Loader2 className="size-6 animate-spin text-muted-foreground" />
