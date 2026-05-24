@@ -36,7 +36,7 @@ import type { BoundsRect, ViewState } from "./canvas-stage/types"
 import { useHtmlImage } from "./canvas-stage/use-html-image"
 import { useSvgText } from "./canvas-stage/use-svg-text"
 import { TraceInlineSvg } from "./canvas-stage/trace-inline-svg"
-import { resolveTraceWorldSize } from "@/lib/editor/trace/trace-overlay-rect"
+import { resolveTraceOverlayRect } from "@/lib/editor/trace/trace-overlay-rect"
 import { computeWorldSize } from "@/services/editor"
 
 type Props = {
@@ -279,15 +279,6 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     heightPxU: bigint
   } | null>(null)
   const [imageBounds, setImageBounds] = useState<BoundsRect | null>(null)
-  // Live world-center of the trace overlay. The overlay's SIZE is frozen
-  // from the trace's own display rect, but its POSITION must follow the
-  // base image so it stays glued during a Konva image-drag (preserves
-  // #153). Default/reset = the committed `imageRender` center; during an
-  // active drag the same world-px delta the bounds controller already
-  // emits (`onDragFlush`) is added HERE — never into `imageTx` (the old
-  // SPIKE), so dragging no longer churns the authoritative display
-  // transform. Null until the first imageRender lands.
-  const [traceOverlayCenter, setTraceOverlayCenter] = useState<{ x: number; y: number } | null>(null)
   const rotationRef = useRef(0)
   useEffect(() => {
     rotationRef.current = rotation
@@ -433,18 +424,6 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
         const g = globalThis as unknown as { __gruf_editor?: { clientRectReads?: number } }
         if (g.__gruf_editor) g.__gruf_editor.clientRectReads = (g.__gruf_editor.clientRectReads ?? 0) + 1
       },
-      // Trace overlay follows the image live during a Konva image-drag.
-      // The overlay's SIZE is frozen from the trace's own display rect,
-      // so only its POSITION needs to track the drag — we shift the
-      // render-only `traceOverlayCenter` by the same world-px delta the
-      // bounds frame moved. This replaces the old SPIKE that mutated
-      // `imageTx` (which leaked the drag into the authoritative display
-      // transform via the report effect). `imageTx` is committed once at
-      // drag-end (`commitFromNode`), which re-syncs the center below.
-      onDragFlush: (dxWorldPx, dyWorldPx) => {
-        if (dxWorldPx === 0 && dyWorldPx === 0) return
-        setTraceOverlayCenter((prev) => (prev ? { x: prev.x + dxWorldPx, y: prev.y + dyWorldPx } : prev))
-      },
     })
   }
 
@@ -583,38 +562,16 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     return { width, height, x, y }
   }, [img, imageTx])
 
-  // Keep the overlay's world-center synced to the committed image center.
-  // This fires on every real transform change (resize/align/fit/restore/
-  // position commit, incl. the single commit at drag-end) but NOT during
-  // an active drag — `imageTx` (and thus `imageRender`) is frozen mid-drag
-  // now that the SPIKE is gone, so the live `onDragFlush` delta added to
-  // `traceOverlayCenter` is preserved until the drag commits and re-syncs.
-  const imageRenderX = imageRender?.x ?? null
-  const imageRenderY = imageRender?.y ?? null
-  useEffect(() => {
-    if (imageRenderX == null || imageRenderY == null) {
-      setTraceOverlayCenter(null)
-      return
-    }
-    setTraceOverlayCenter({ x: imageRenderX, y: imageRenderY })
-  }, [imageRenderX, imageRenderY])
-
-  // The trace overlay's world rect: SIZE frozen from the trace's own
-  // display rect (decoupled from imageTx → no stretch), POSITION from the
-  // live overlay center (follows the image during drag/pan/zoom). Legacy/
-  // lineart "0" rect → fall back to the live `imageRender` (prior
-  // behaviour) so existing/lineart traces don't break.
-  const traceWorldSize = useMemo(() => resolveTraceWorldSize(traceDisplayRect), [traceDisplayRect])
-  const traceRect = useMemo(() => {
-    if (!imageRender) return null
-    const center = traceOverlayCenter ?? { x: imageRender.x, y: imageRender.y }
-    if (!traceWorldSize) {
-      // Legacy/lineart: keep the prior coupling to the live image rect,
-      // but still honour the followed position.
-      return { x: center.x, y: center.y, width: imageRender.width, height: imageRender.height }
-    }
-    return { x: center.x, y: center.y, width: traceWorldSize.width, height: traceWorldSize.height }
-  }, [imageRender, traceOverlayCenter, traceWorldSize])
+  // The trace overlay's world rect is the trace's OWN frozen geometry —
+  // POSITION (display_x/y) and SIZE (display_w/h) — fully decoupled from the
+  // live base image. The trace is a standalone layer: it renders at its own
+  // apply-time origin, not glued to the source image's centre. Legacy/
+  // lineart "0" rect → falls back to the live `imageRender` so existing/
+  // lineart traces don't break.
+  const traceRect = useMemo(
+    () => resolveTraceOverlayRect(traceDisplayRect, imageRender),
+    [traceDisplayRect, imageRender],
+  )
 
   const imageFrame = useMemo<CropRectWorld | null>(() => {
     if (!imageRender) return null
