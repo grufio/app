@@ -3,31 +3,30 @@ import crypto from "node:crypto"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/lib/supabase/database.types"
-import { pixelateSchema, type PixelateParams } from "@/lib/editor/trace/pixelate"
+import { circulateSchema, type CirculateParams } from "@/lib/editor/trace/circulate"
 import {
-  centeredCropPixels,
-  isPixelateGridValid,
-  resolvePixelateGrid,
-} from "@/lib/editor/trace/pixelate-grid-math"
+  circulateEllipseFractions,
+  isCirculateGridValid,
+  resolveCirculateGrid,
+} from "@/lib/editor/trace/circulate-grid-math"
+import { centeredCropPixels } from "@/lib/editor/trace/pixelate-grid-math"
 import { callFilterService, startFilterProfiler, toInt, type FilterResult } from "@/services/editor/server/filters/_helpers"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 import { readTracePalette } from "@/lib/supabase/palette"
 import { resolveMasterState } from "@/services/editor/server/trace/master-state"
 
 /**
- * Pixelate writes two paired image rows: the SVG (`trace_output`)
- * and the source-bitmap cropped to the grid (`trace_base`). The
- * caller links them via `project_image_trace.base_image_id` so
- * tombstoning and editor display stay in sync.
+ * Circulate writes two paired image rows like Pixelate: the SVG
+ * (`trace_output`) and the source cropped to the grid (`trace_base`). The
+ * caller links them via `project_image_trace.base_image_id`. Circulate is
+ * non-destructive — it does NOT mutate `project_image_state`; the trace is a
+ * pure overlay on the working_copy at its current display rect.
  *
- * Pixelate is non-destructive (post the working-copy refactor): it
- * does NOT mutate `project_image_state` on apply. The trace is a
- * pure overlay — bitmap + SVG cells sit on top of the working_copy
- * at the working_copy's current display rect. The floor-grid
- * remainder (e.g. 2mm at 200mm working_copy + 6mm cells) is the
- * uncovered border where the working_copy is visible underneath.
+ * Geometry is resolved here (mm → cells, crop, ellipse fractions, contour px)
+ * and the Python service (`/filters/circulate`) renders the ellipses in
+ * crop-pixel space — the service stays mm-agnostic, mirroring Pixelate.
  */
-export type PixelateFilterSuccess = {
+export type CirculateFilterSuccess = {
   ok: true
   id: string
   storagePath: string
@@ -35,14 +34,9 @@ export type PixelateFilterSuccess = {
   heightPx: number
   baseId: string
   baseStoragePath: string
-  /** The master/working_copy display rect that was authoritative at
-   * apply time (µpx). Captured ONCE here from `resolveMasterState`
-   * (the same DB read that sizes the grid) so the orchestrator can
-   * freeze it onto the project_image_trace row. The trace overlay
-   * later renders from this rect, decoupled from the live canvas
-   * transform. `xPxU`/`yPxU` are null when no persisted origin
-   * exists (fresh-upload fallback) — the trace then centres at 0n,
-   * the canvas's default paint origin. */
+  /** Apply-time master/working_copy display rect (µpx), frozen onto the
+   * project_image_trace row by the orchestrator. `xPxU`/`yPxU` null when no
+   * persisted origin (fresh-upload fallback → centre at 0n). */
   displayRectPxU: {
     xPxU: bigint | null
     yPxU: bigint | null
@@ -50,17 +44,17 @@ export type PixelateFilterSuccess = {
     heightPxU: bigint
   }
 }
-export type PixelateFilterResult = PixelateFilterSuccess | Extract<FilterResult<"pixelate_process">, { ok: false }>
+export type CirculateFilterResult = CirculateFilterSuccess | Extract<FilterResult<"circulate_process">, { ok: false }>
 
-export async function pixelateImageAndActivate(args: {
+export async function circulateImageAndActivate(args: {
   supabase: SupabaseClient<Database>
   projectId: string
   sourceImageId: string
-  params: PixelateParams
-}): Promise<PixelateFilterResult> {
+  params: CirculateParams
+}): Promise<CirculateFilterResult> {
   const { supabase, projectId, sourceImageId, params } = args
   const profiler = startFilterProfiler()
-  const parsed = pixelateSchema.safeParse(params)
+  const parsed = circulateSchema.safeParse(params)
   if (!parsed.success) {
     const issues = parsed.error.issues
       .map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
@@ -69,10 +63,11 @@ export async function pixelateImageAndActivate(args: {
       ok: false,
       status: 400,
       stage: "validation",
-      reason: `Invalid pixelate params: ${issues || "unknown"}`,
+      reason: `Invalid circulate params: ${issues || "unknown"}`,
     }
   }
-  const { color_mode: colorMode } = parsed.data
+  const p = parsed.data
+  const colorMode = p.color_mode
 
   const { data: src, error: srcErr } = await supabase
     .from("project_images")
@@ -97,33 +92,26 @@ export async function pixelateImageAndActivate(args: {
     return { ok: false, status: 400, stage: "validation", reason: "Invalid source dimensions" }
   }
 
-  // Resolve the image's displayed size + origin on the artboard.
-  // `project_image_state` is authoritative (anchored at working_copy.id,
-  // PR #257); the trace apply path in `handleApplyTrace` awaits any
-  // pending state save before calling /trace, so the DB row is
-  // guaranteed to be current when this handler runs.
+  // Resolve the image's displayed size + origin on the artboard (shared with
+  // pixelate); the grid is sized in display-mm.
   const masterState = await resolveMasterState({ supabase, projectId })
   if (!masterState.ok) {
     return { ok: false, status: 400, stage: "validation", reason: masterState.reason }
   }
   profiler.mark("display_mm_resolve")
 
-  const grid = resolvePixelateGrid(masterState.displayMmW, masterState.displayMmH, parsed.data)
-  if (!isPixelateGridValid(grid)) {
+  const grid = resolveCirculateGrid(masterState.displayMmW, masterState.displayMmH, p)
+  if (!isCirculateGridValid(grid)) {
     return {
       ok: false,
       status: 400,
       stage: "validation",
-      reason: "Superpixel too large for the image on the artboard — no whole cell fits",
+      reason: "Cell pitch too large for the image on the artboard — no whole cell fits",
     }
   }
 
-  // Translate the mm-space crop back into source-pixel coordinates for
-  // the Python service. The source bitmap may have arbitrary dimensions;
-  // we only need the cropped-out area to render the cells from. Border
-  // pixels (the parts that don't make a whole superpixel) are dropped
-  // symmetrically on both axes. Shared helper keeps the math byte-
-  // identical to the client-side preview.
+  // Same centred-crop math as pixelate (shared helper). Border pixels that
+  // don't make a whole cell are dropped symmetrically on both axes.
   const crop = centeredCropPixels({
     pixelW: origWidth,
     pixelH: origHeight,
@@ -131,6 +119,14 @@ export async function pixelateImageAndActivate(args: {
     displayMmH: masterState.displayMmH,
     grid,
   })
+
+  // Ellipse axes → fractions of the cell pitch (the renderer draws in
+  // crop-pixel space). Contour mm → px using the crop's px-per-mm (averaged
+  // over both axes so a non-square cell doesn't bias the stroke).
+  const fracs = circulateEllipseFractions(grid, p)
+  const pxPerMmX = crop.w / grid.usedMmW
+  const pxPerMmY = crop.h / grid.usedMmH
+  const contourWidthPx = p.contour_width_mm * ((pxPerMmX + pxPerMmY) / 2)
 
   const { data: srcBlob, error: downloadErr } = await supabase.storage
     .from(String(src.storage_bucket ?? PROJECT_IMAGES_BUCKET))
@@ -148,13 +144,12 @@ export async function pixelateImageAndActivate(args: {
     profiler.mark("base64_encode")
 
     // Snap cells to the active Munsell palette server-side: colour →
-    // lab_munsell (128), b/w → lab_grays (48). Read from the DB and passed
-    // to the filter-service, which does the OKLab nearest-match.
+    // lab_munsell (128), b/w → lab_grays (48). Same contract as pixelate.
     const palette = await readTracePalette(supabase, colorMode)
     profiler.mark("palette_read")
 
     const callResult = await callFilterService({
-      path: "/filters/pixelate",
+      path: "/filters/circulate",
       responseKind: "json",
       body: {
         image_base64: imageBase64,
@@ -164,11 +159,13 @@ export async function pixelateImageAndActivate(args: {
         crop_y: crop.y,
         crop_w: crop.w,
         crop_h: crop.h,
-        // stroke_width is fixed at 1px — it's not a user-facing knob.
-        stroke_width: 1,
-        // `num_colors` is gone: colour comes from the palette map below, not
-        // a quantise step. The filter-service still defaults the field for
-        // back-compat, so omitting it is safe across independent deploys.
+        outer_w_frac: fracs.outerWFrac,
+        outer_h_frac: fracs.outerHFrac,
+        inner_enabled: p.inner_enabled,
+        inner_w_frac: fracs.innerWFrac,
+        inner_h_frac: fracs.innerHFrac,
+        contour_width_px: contourWidthPx,
+        hue_shift_deg: p.hue_shift_deg,
         palette_oklab: palette.map((c) => c.oklab),
         palette_rgb: palette.map((c) => c.rgb),
       },
@@ -179,7 +176,12 @@ export async function pixelateImageAndActivate(args: {
       return {
         ok: false,
         status: callResult.status,
-        stage: callResult.stage === "service_unavailable" ? "service_unavailable" : callResult.stage === "auth" ? "auth" : "pixelate_process",
+        stage:
+          callResult.stage === "service_unavailable"
+            ? "service_unavailable"
+            : callResult.stage === "auth"
+              ? "auth"
+              : "circulate_process",
         reason: callResult.reason,
       }
     }
@@ -194,33 +196,26 @@ export async function pixelateImageAndActivate(args: {
       return {
         ok: false,
         status: 502,
-        stage: "pixelate_process",
+        stage: "circulate_process",
         reason: "Filter service returned an unexpected payload (missing svg or cropped bitmap)",
       }
     }
 
-    // Both bitmap + SVG are stored at their actual crop dimensions.
-    // The canvas renders them inside the per-trace display rect
-    // (see `displayRectPxU` above) so they sit in the centred crop
-    // region of the master without any stretch.
     const svgBuffer = Buffer.from(svgString, "utf-8")
     const baseBuffer = Buffer.from(croppedB64, "base64")
-    // Crop bounds (clamped to the source image) — matches the math
-    // in filter-service/app/pixelate.py:104-107 so the stored bitmap
-    // dimensions describe the actual cropped region.
+    // Crop bounds clamped to the source, matching filter-service/app/circulate.py
+    // so the stored bitmap dimensions describe the actual cropped region.
     const cropLeft = Math.max(0, Math.round(crop.x))
     const cropTop = Math.max(0, Math.round(crop.y))
     const croppedWidth = Math.max(1, Math.min(origWidth, Math.round(crop.x + crop.w)) - cropLeft)
     const croppedHeight = Math.max(1, Math.min(origHeight, Math.round(crop.y + crop.h)) - cropTop)
 
     const cleanName = src.name.replace(
-      / \((?:filter working|pixelate|line art|numerate|B&W hard|B&W soft|B&W warm)\)/g,
+      / \((?:filter working|pixelate|circulate|line art|numerate|B&W hard|B&W soft|B&W warm)\)/g,
       "",
     )
 
-    // Order matters: write trace_base first so the trace_output row's
-    // source_image_id can reference it. If trace_output fails we
-    // tombstone trace_base in the catch path below.
+    // Write trace_base first so trace_output.source_image_id can reference it.
     const baseId = crypto.randomUUID()
     const baseObjectPath = `projects/${projectId}/images/${baseId}`
     const { error: baseUploadErr } = await supabase.storage
@@ -230,14 +225,14 @@ export async function pixelateImageAndActivate(args: {
         upsert: false,
       })
     if (baseUploadErr) {
-      return { ok: false, status: 500, stage: "storage_upload", reason: "Failed to upload pixelate base image" }
+      return { ok: false, status: 500, stage: "storage_upload", reason: "Failed to upload circulate base image" }
     }
 
     const { error: baseInsertErr } = await supabase.from("project_images").insert({
       id: baseId,
       project_id: projectId,
       kind: "trace_base",
-      name: `${cleanName} (pixelate base)`,
+      name: `${cleanName} (circulate base)`,
       format: "png",
       width_px: croppedWidth,
       height_px: croppedHeight,
@@ -263,16 +258,12 @@ export async function pixelateImageAndActivate(args: {
       })
 
     if (uploadErr) {
-      // Roll back the freshly-written base bitmap so storage doesn't
-      // accumulate orphans. Soft-delete the DB row too — the
-      // ON DELETE RESTRICT on project_image_trace.base_image_id only
-      // bites once a trace row exists, which hasn't happened yet.
       await supabase.storage.from(PROJECT_IMAGES_BUCKET).remove([baseObjectPath])
       await supabase
         .from("project_images")
         .update({ deleted_at: new Date().toISOString() })
         .eq("id", baseId)
-      return { ok: false, status: 500, stage: "storage_upload", reason: "Failed to upload pixelate image" }
+      return { ok: false, status: 500, stage: "storage_upload", reason: "Failed to upload circulate image" }
     }
     profiler.mark("storage_upload")
 
@@ -280,7 +271,7 @@ export async function pixelateImageAndActivate(args: {
       id: imageId,
       project_id: projectId,
       kind: "trace_output",
-      name: `${cleanName} (pixelate)`,
+      name: `${cleanName} (circulate)`,
       format: "svg",
       width_px: croppedWidth,
       height_px: croppedHeight,
@@ -300,11 +291,8 @@ export async function pixelateImageAndActivate(args: {
       return { ok: false, status: 400, stage: "db_insert", reason: insertErr.message, code: insertErr.code }
     }
     profiler.mark("db_insert")
-    // State is anchored at working_copy.id (PR #257); the trace's own
-    // display rect travels with the project_image_trace row (handled by
-    // the orchestrator) so no per-output transform copy is needed.
 
-    profiler.report("pixelate", {
+    profiler.report("circulate", {
       python_phases: callResult.phases,
       output_bytes: svgBuffer.byteLength,
       base_bytes: baseBuffer.byteLength,
@@ -320,11 +308,8 @@ export async function pixelateImageAndActivate(args: {
       heightPx: croppedHeight,
       baseId,
       baseStoragePath: baseObjectPath,
-      // Freeze the apply-time master/working_copy display rect onto the
-      // result. `masterState` is the same authoritative DB read that
-      // sized the grid above (`resolveMasterState`, :221) — reusing it
-      // keeps the persisted geometry byte-consistent with what the
-      // user saw on the artboard at apply time.
+      // Freeze the apply-time master/working_copy display rect — same
+      // authoritative read that sized the grid above.
       displayRectPxU: {
         xPxU: masterState.xPxU,
         yPxU: masterState.yPxU,
@@ -333,7 +318,7 @@ export async function pixelateImageAndActivate(args: {
       },
     }
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Pixelate process failed"
-    return { ok: false, status: 500, stage: "pixelate_process", reason: msg }
+    const msg = e instanceof Error ? e.message : "Circulate process failed"
+    return { ok: false, status: 500, stage: "circulate_process", reason: msg }
   }
 }
