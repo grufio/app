@@ -5,25 +5,23 @@
  * quantised pixelate grid.
  *
  * Sizing — explicit pixels, no CSS `aspect-ratio`. The pane fills the
- * dialog's available body area (definite height = `85vh − header h-16`,
- * matching the dialog's `max-h-[85vh]`), so a PORTRAIT preview uses the full
- * vertical space instead of being squeezed into a width-based square (the
- * old "fixed square" wasted height and rendered portraits as a thin strip).
- * The pane is measured with a ResizeObserver (`pane.w`/`pane.h`); the canvas
- * display size is `min(paneW/usedMmW, paneH/usedMmH) × zoom` per axis — a
- * plain contain-fit. We size by display-mm, NOT the bitmap's cellsX × cellsY
- * aspect, so non-square supercells (e.g. 6 mm × 10 mm) don't distort; the
- * near-square bitmap is deliberately stretched to that px box.
- * `image-rendering: pixelated` keeps the per-cell upscale sharp; `bg-muted`
- * shows wherever the canvas doesn't reach.
+ * dialog's body area via flex (`flex-1 min-h-0` inside `main`), so a PORTRAIT
+ * preview uses the full vertical space instead of being squeezed into a
+ * width-based square (the old "fixed square" wasted height and rendered
+ * portraits as a thin strip). The dialog carries the definite height
+ * (`h-[85vh]` → SidebarProvider `flex-1` → main `self-stretch`), so the
+ * pane no longer duplicates the `85vh`/`4rem` math. The pane is measured with
+ * a ResizeObserver (`pane.w`/`pane.h`); the canvas display size is
+ * `min(paneW/usedMmW, paneH/usedMmH) × zoom` per axis — a plain contain-fit.
+ * We size by display-mm, NOT the bitmap's cellsX × cellsY aspect, so
+ * non-square supercells (e.g. 6 mm × 10 mm) don't distort; the near-square
+ * bitmap is deliberately stretched to that px box. `image-rendering:
+ * pixelated` keeps the per-cell upscale sharp; `bg-muted` shows wherever the
+ * canvas doesn't reach.
  *
- * Why the pane carries the definite height (not the dialog flex chain): the
- * `SidebarProvider` row is `items-start` with no definite height, so a
- * `flex-1` pane would collapse. The pane defines its own height from the
- * dialog body envelope — exactly how the previous version defined its size
- * from its measured width, just height-based now. No RO loop: the height is
- * definite (not derived from canvas content) and the canvas lives in an
- * absolutely-positioned scroller, so it never drives the measured box.
+ * No ResizeObserver loop: the pane's height is layout-driven (flex, from the
+ * dialog's definite height) and the canvas lives in an absolutely-positioned
+ * scroller, so the canvas never feeds back into the measured box.
  *
  * Layout — the zoom controls sit OUTSIDE the scrolling area (siblings of the
  * `overflow-auto` scroller, on the relative pane), so they stay pinned to the
@@ -136,11 +134,12 @@ export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
   return (
     <div
       ref={paneRef}
-      className="relative w-full bg-muted"
-      // Definite height = the dialog body envelope (max-h-[85vh] minus the
-      // h-16 header). The pane fills it so portraits aren't squeezed; the
-      // dialog's own max-h caps it. Kept in sync with pixelate-dialog.tsx.
-      style={{ height: "calc(85vh - 4rem)" }}
+      // Fills `main` (the dialog body below the h-16 header) via flex. The
+      // dialog carries the definite height (`md:h-[85vh]` → SidebarProvider
+      // `flex-1` → main `self-stretch`), so the pane no longer hardcodes the
+      // 85vh/4rem math. `min-h-0` lets it shrink within main's
+      // overflow-hidden column.
+      className="relative w-full flex-1 min-h-0 bg-muted"
     >
       {/* The ONLY scrolling area. Zoom > 1 overflows here; the controls and
           status overlays below are siblings, so they stay pinned. */}
