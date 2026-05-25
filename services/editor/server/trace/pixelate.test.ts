@@ -10,6 +10,7 @@ const validParams: PixelateParams = {
   supercell_width_mm: 6,
   supercell_height_mm: 6,
   num_colors: 16,
+  color_mode: "color",
 }
 
 describe("pixelateImageAndActivate validation contract", () => {

@@ -18,6 +18,8 @@ from __future__ import annotations
 import numpy as np
 from PIL import Image
 
+from .oklab import nearest_palette_indices, rgb255_to_oklab
+
 
 def compute_cell_colors(cropped: Image.Image, cells_x: int, cells_y: int) -> np.ndarray:
     """Downsample the cropped image straight to a `cells_x × cells_y` grid
@@ -26,3 +28,25 @@ def compute_cell_colors(cropped: Image.Image, cells_x: int, cells_y: int) -> np.
     """
     cell_grid = cropped.resize((cells_x, cells_y), Image.BOX)
     return np.asarray(cell_grid, dtype=np.uint8)
+
+
+def map_cells_to_palette(
+    cell_means: np.ndarray,
+    palette_oklab: np.ndarray,
+    palette_rgb: np.ndarray,
+) -> np.ndarray:
+    """Snap each per-cell mean colour to the nearest palette chip.
+
+    `cell_means` is the `(cells_y, cells_x, 3)` uint8 array from
+    `compute_cell_colors`. `palette_oklab` (M, 3) and `palette_rgb` (M, 3
+    uint8) are the chips of the active palette (`lab_munsell` for colour,
+    `lab_grays` for b/w) — the OKLab columns straight from the DB, so the
+    chip space matches color-lab. Each cell mean is converted to OKLab and
+    replaced by the RGB of its nearest chip. Returns `(cells_y, cells_x, 3)`
+    uint8.
+    """
+    shape = np.asarray(cell_means).shape
+    cells_oklab = rgb255_to_oklab(np.asarray(cell_means).reshape(-1, 3))
+    idx = nearest_palette_indices(cells_oklab, palette_oklab)
+    mapped = np.asarray(palette_rgb, dtype=np.uint8)[idx]
+    return mapped.reshape(shape)
