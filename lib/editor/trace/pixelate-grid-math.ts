@@ -85,13 +85,17 @@ export function isPixelateGridValid(grid: PixelateGrid): boolean {
  *
  * Returns the top-left corner + size of the cropped region, in the
  * same pixel-space as `pixelW/pixelH`.
+ *
+ * `grid` is the structural subset both the pixelate and circulate grids
+ * share (centred-border + used-coverage in mm), so the same crop math serves
+ * every trace; `PixelateGrid`/`CirculateGrid` both satisfy it.
  */
 export function centeredCropPixels(args: {
   pixelW: number
   pixelH: number
   displayMmW: number
   displayMmH: number
-  grid: PixelateGrid
+  grid: { borderMmX: number; borderMmY: number; usedMmW: number; usedMmH: number }
 }): { x: number; y: number; w: number; h: number } {
   const { pixelW, pixelH, displayMmW, displayMmH, grid } = args
   const pxPerMmX = pixelW / displayMmW
