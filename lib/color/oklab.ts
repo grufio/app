@@ -50,18 +50,21 @@ export function rgb255ToOklab(r: number, g: number, b: number): Oklab {
 }
 
 /**
- * Rotate the hue of an OKLab colour by `degrees` (OKLCh hue rotation),
- * keeping lightness L and chroma constant. Mirror of `oklab.py`'s
- * `rotate_hue`; used by Circulate's inner ellipse (the cell mean's hue is
- * shifted, then snapped back to the nearest palette chip so it never leaves
- * the palette). `degrees === 0` is the identity.
+ * Apply an OKLCh adjustment to an OKLab colour: rotate hue by `hueDeg`, scale
+ * chroma by `chromaScale`, shift lightness by `lightnessDelta` (L clamped to
+ * [0,1]). Mirror of `oklab.py`'s `adjust_oklab`; used by Circulate's inner
+ * ellipse (the cell colour is adjusted by the chosen sub colour filter, then
+ * snapped to the nearest palette chip so it never leaves the palette). The
+ * identity adjustment `{0, 0, 1}` returns the input.
  */
-export function rotateHueOklab(lab: Oklab, degrees: number): Oklab {
-  const a = lab[1]
-  const b = lab[2]
-  const chroma = Math.hypot(a, b)
-  const hue = Math.atan2(b, a) + (degrees * Math.PI) / 180
-  return [lab[0], chroma * Math.cos(hue), chroma * Math.sin(hue)]
+export function adjustOklab(
+  lab: Oklab,
+  adj: { hueDeg: number; lightnessDelta: number; chromaScale: number },
+): Oklab {
+  const chroma = Math.hypot(lab[1], lab[2]) * adj.chromaScale
+  const hue = Math.atan2(lab[2], lab[1]) + (adj.hueDeg * Math.PI) / 180
+  const l = Math.min(1, Math.max(0, lab[0] + adj.lightnessDelta))
+  return [l, chroma * Math.cos(hue), chroma * Math.sin(hue)]
 }
 
 /**

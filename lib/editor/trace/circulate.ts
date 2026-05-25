@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 import type { TraceDefinition } from "./types"
+import { DEFAULT_INNER_FILTER, INNER_FILTER_IDS } from "./inner-color-filters"
 
 /**
  * Circulate trace — a Chuck-Close-style dot grid: one ellipse per cell
@@ -52,10 +53,11 @@ export const circulateSchema = z.object({
   // Ellipse contour (stroke) width in mm — Circulate draws contours instead of
   // grid lines (0 = no contour). Converted to px at render time (crop space).
   contour_width_mm: z.coerce.number().min(0).default(DEFAULT_CONTOUR_MM),
-  // Inner-ellipse colour = palette-constrained hue shift of the cell colour
-  // (degrees on the colour wheel). The shifted colour is snapped back to the
-  // mode palette so it never leaves it. 0 = inner shares the outer chip.
-  hue_shift_deg: z.coerce.number().min(-180).max(180).default(0),
+  // Inner-ellipse colour = a pre-configured sub colour filter applied to the
+  // cell colour, then snapped back to the palette so it never leaves it.
+  // Presets live in `inner-color-filters.ts` (single source). "darker" is the
+  // default so an enabled inner ellipse is visibly distinct (incl. greys).
+  inner_filter: z.enum(INNER_FILTER_IDS).default(DEFAULT_INNER_FILTER),
   // Colors segment (shared contract with Pixelate): `color` → lab_munsell
   // (128), `bw` → lab_grays (48), strictly separate. `color_space` is PDF-only
   // and has no effect on colour detection (the match is always OKLab).

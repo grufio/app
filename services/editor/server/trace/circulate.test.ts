@@ -17,7 +17,7 @@ const validParams: CirculateParams = {
   spacing_top_mm: 0,
   spacing_bottom_mm: 0,
   contour_width_mm: 0.2,
-  hue_shift_deg: 0,
+  inner_filter: "darker",
   color_mode: "color",
   color_space: "rgb",
 }
@@ -71,12 +71,12 @@ describe("circulateImageAndActivate validation contract", () => {
     if (!result.ok) expect(result.stage).toBe("validation")
   })
 
-  it("rejects a hue shift out of [-180, 180]", async () => {
+  it("rejects an unknown inner colour filter", async () => {
     const result = await circulateImageAndActivate({
       supabase: mockSupabase,
       projectId,
       sourceImageId,
-      params: { ...validParams, hue_shift_deg: 999 },
+      params: { ...validParams, inner_filter: "sepia" as unknown as CirculateParams["inner_filter"] },
     })
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.stage).toBe("validation")

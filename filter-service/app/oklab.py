@@ -50,22 +50,30 @@ def rgb255_to_oklab(rgb255: np.ndarray) -> np.ndarray:
     return rgb_to_oklab(np.asarray(rgb255, dtype=np.float64) / 255.0)
 
 
-def rotate_hue(oklab: np.ndarray, degrees: float) -> np.ndarray:
-    """Rotate the hue of OKLab colours by `degrees` (OKLCh hue rotation),
-    keeping lightness L and chroma constant. Shape (..., 3) → (..., 3).
+def adjust_oklab(
+    oklab: np.ndarray,
+    hue_deg: float = 0.0,
+    lightness_delta: float = 0.0,
+    chroma_scale: float = 1.0,
+) -> np.ndarray:
+    """Apply an OKLCh adjustment to OKLab colours: rotate hue by `hue_deg`,
+    scale chroma by `chroma_scale`, shift lightness by `lightness_delta`
+    (L clamped to [0, 1]). Shape (..., 3) → (..., 3). Mirror of
+    `lib/color/oklab.ts::adjustOklab`.
 
-    Used by Circulate's inner ellipse: the cell mean's hue is shifted, then
-    snapped back to the nearest palette chip (`nearest_palette_indices`) so the
-    shifted colour never leaves the palette. `degrees == 0` is the identity, so
-    the inner colour collapses to the same chip as the (unshifted) outer cell.
+    Used by Circulate's inner ellipse: the cell mean is adjusted by the chosen
+    sub colour filter, then snapped back to the nearest palette chip
+    (`nearest_palette_indices`) so the result never leaves the palette. The
+    identity adjustment `(0, 0, 1)` collapses the inner colour to the same chip
+    as the outer cell.
     """
     lab = np.asarray(oklab, dtype=np.float64)
     a = lab[..., 1]
     b = lab[..., 2]
-    chroma = np.hypot(a, b)
-    hue = np.arctan2(b, a) + np.radians(degrees)
+    chroma = np.hypot(a, b) * chroma_scale
+    hue = np.arctan2(b, a) + np.radians(hue_deg)
     out = np.empty_like(lab)
-    out[..., 0] = lab[..., 0]
+    out[..., 0] = np.clip(lab[..., 0] + lightness_delta, 0.0, 1.0)
     out[..., 1] = chroma * np.cos(hue)
     out[..., 2] = chroma * np.sin(hue)
     return out

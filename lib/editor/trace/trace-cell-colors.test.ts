@@ -4,7 +4,7 @@ import { rgb255ToOklab, type Oklab } from "@/lib/color/oklab"
 import {
   cellAreaAverages,
   mapCellsToPalette,
-  mapCellsToPaletteHueShifted,
+  mapCellsToPaletteAdjusted,
   type PaletteChip,
 } from "./trace-cell-colors"
 
@@ -141,22 +141,22 @@ describe("mapCellsToPalette", () => {
   })
 })
 
-describe("mapCellsToPaletteHueShifted", () => {
-  const palette = [chip(200, 0, 0), chip(0, 200, 0), chip(0, 0, 200)]
+describe("mapCellsToPaletteAdjusted", () => {
+  const palette = [chip(200, 0, 0), chip(0, 200, 0), chip(0, 0, 200), chip(80, 0, 0), chip(255, 120, 120)]
+  const IDENTITY = { hueDeg: 0, lightnessDelta: 0, chromaScale: 1 }
 
-  it("0° reduces to a plain palette snap", () => {
+  it("the identity adjustment reduces to a plain palette snap", () => {
     const cells = cellsFrom([[200, 30, 40]])
-    const shifted = mapCellsToPaletteHueShifted(cells, palette, 0)
+    const adjusted = mapCellsToPaletteAdjusted(cells, palette, IDENTITY)
     const plain = mapCellsToPalette(cells, palette)
-    expect([shifted.r[0], shifted.g[0], shifted.b[0]]).toEqual([plain.r[0], plain.g[0], plain.b[0]])
-    // A reddish cell snaps to the red chip.
-    expect([shifted.r[0], shifted.g[0], shifted.b[0]]).toEqual([200, 0, 0])
+    expect([adjusted.r[0], adjusted.g[0], adjusted.b[0]]).toEqual([plain.r[0], plain.g[0], plain.b[0]])
+    expect([adjusted.r[0], adjusted.g[0], adjusted.b[0]]).toEqual([200, 0, 0]) // reddish → red chip
   })
 
   it("a ~120° hue rotation of red lands on a different chip", () => {
     const cells = cellsFrom([[200, 30, 40]])
-    const shifted = mapCellsToPaletteHueShifted(cells, palette, 120)
-    const picked: [number, number, number] = [shifted.r[0], shifted.g[0], shifted.b[0]]
+    const out = mapCellsToPaletteAdjusted(cells, palette, { hueDeg: 120, lightnessDelta: 0, chromaScale: 1 })
+    const picked: [number, number, number] = [out.r[0], out.g[0], out.b[0]]
     expect(picked).not.toEqual([200, 0, 0]) // moved off red
     expect([
       [0, 200, 0],
@@ -164,8 +164,18 @@ describe("mapCellsToPaletteHueShifted", () => {
     ]).toContainEqual(picked)
   })
 
+  it("a negative lightness delta ('darker') lands on a darker chip", () => {
+    // Bright-ish red cell → without adjustment snaps to red (200,0,0); darken
+    // → the darker red chip (80,0,0).
+    const cells = cellsFrom([[210, 20, 20]])
+    const plain = mapCellsToPalette(cells, palette)
+    expect([plain.r[0], plain.g[0], plain.b[0]]).toEqual([200, 0, 0])
+    const darker = mapCellsToPaletteAdjusted(cells, palette, { hueDeg: 0, lightnessDelta: -0.2, chromaScale: 1 })
+    expect([darker.r[0], darker.g[0], darker.b[0]]).toEqual([80, 0, 0])
+  })
+
   it("returns the input unchanged for an empty palette (loading fallback)", () => {
     const cells = cellsFrom([[10, 20, 30]])
-    expect(mapCellsToPaletteHueShifted(cells, [], 90)).toBe(cells)
+    expect(mapCellsToPaletteAdjusted(cells, [], { hueDeg: 90, lightnessDelta: -0.2, chromaScale: 1 })).toBe(cells)
   })
 })

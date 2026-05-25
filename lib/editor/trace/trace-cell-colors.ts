@@ -12,7 +12,8 @@
  * snaps each cell to the nearest Munsell chip via OKLab — mirroring the
  * server (`filter-service/app/cell_colors.py`).
  */
-import { nearestPaletteIndex, rgb255ToOklab, rotateHueOklab, type Oklab } from "@/lib/color/oklab"
+import { adjustOklab, nearestPaletteIndex, rgb255ToOklab, type Oklab } from "@/lib/color/oklab"
+import type { OklabAdjustment } from "./inner-color-filters"
 
 /**
  * Pure per-cell area-average. Given a flat RGBA buffer (`width × height`,
@@ -97,17 +98,17 @@ export function mapCellsToPalette(cells: CellColors, palette: ReadonlyArray<Pale
 }
 
 /**
- * Like {@link mapCellsToPalette} but rotates each cell mean's hue by
- * `hueShiftDeg` (OKLCh) before snapping to the nearest chip — Circulate's
- * inner-ellipse colour. Mirror of the server's `_inner_colors`
- * (`filter-service/app/circulate.py`); the shifted colour stays in the
- * palette. `hueShiftDeg === 0` reduces to {@link mapCellsToPalette}. An empty
- * palette returns the input unchanged (raw means).
+ * Like {@link mapCellsToPalette} but applies an OKLab `adjustment` (the chosen
+ * inner-colour sub filter) to each cell mean before snapping to the nearest
+ * chip — Circulate's inner-ellipse colour. Mirror of the server's
+ * `_inner_colors` (`filter-service/app/circulate.py`); the adjusted colour
+ * stays in the palette. The identity adjustment reduces to
+ * {@link mapCellsToPalette}. An empty palette returns the input unchanged.
  */
-export function mapCellsToPaletteHueShifted(
+export function mapCellsToPaletteAdjusted(
   cells: CellColors,
   palette: ReadonlyArray<PaletteChip>,
-  hueShiftDeg: number,
+  adjustment: OklabAdjustment,
 ): CellColors {
   if (palette.length === 0) return cells
   const paletteOklab = palette.map((c) => c.oklab)
@@ -116,8 +117,8 @@ export function mapCellsToPaletteHueShifted(
   const g = new Uint8ClampedArray(n)
   const b = new Uint8ClampedArray(n)
   for (let i = 0; i < n; i += 1) {
-    const shifted = rotateHueOklab(rgb255ToOklab(cells.r[i], cells.g[i], cells.b[i]), hueShiftDeg)
-    const chip = palette[nearestPaletteIndex(shifted, paletteOklab)].rgb
+    const adjusted = adjustOklab(rgb255ToOklab(cells.r[i], cells.g[i], cells.b[i]), adjustment)
+    const chip = palette[nearestPaletteIndex(adjusted, paletteOklab)].rgb
     r[i] = chip[0]
     g[i] = chip[1]
     b[i] = chip[2]

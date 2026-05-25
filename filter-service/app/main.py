@@ -353,9 +353,13 @@ class CirculateRequest(BaseModel):
     # Contour stroke width in crop-pixel space (0 = no contour). Drawn uniform
     # because the ellipses live in pixel space (no non-uniform scale group).
     contour_width_px: float = 0.0
-    # Inner-ellipse hue rotation (degrees); the shifted colour is snapped back
-    # to the palette so it never leaves it. Ignored when no inner ellipse.
-    hue_shift_deg: float = 0.0
+    # Inner-ellipse sub colour filter, resolved by the Node server to OKLab
+    # deltas (hue rotation °, lightness shift, chroma scale). Applied to the
+    # cell colour then snapped back to the palette. Ignored when no inner
+    # ellipse; the identity (0, 0, 1) makes the inner colour equal the outer.
+    inner_hue_deg: float = 0.0
+    inner_lightness_delta: float = 0.0
+    inner_chroma_scale: float = 1.0
     # Active palette (Munsell colour `lab_munsell` or b/w `lab_grays`), passed
     # by the Node server from the DB — same contract as PixelateRequest.
     palette_oklab: list[list[float]] | None = None
@@ -407,7 +411,9 @@ async def circulate_filter(request: CirculateRequest):
             inner_w_frac=request.inner_w_frac,
             inner_h_frac=request.inner_h_frac,
             contour_width_px=request.contour_width_px,
-            hue_shift_deg=request.hue_shift_deg,
+            inner_hue_deg=request.inner_hue_deg,
+            inner_lightness_delta=request.inner_lightness_delta,
+            inner_chroma_scale=request.inner_chroma_scale,
             palette_oklab=request.palette_oklab,
             palette_rgb=request.palette_rgb,
             on_phase=timer.mark,

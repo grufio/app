@@ -127,7 +127,7 @@ def test_palette_snaps_outer_fill_to_chip_colours():
     assert fills <= {"#000000", "#ffffff"}
 
 
-def test_inner_hue_shift_zero_matches_outer_chip():
+def test_inner_identity_filter_matches_outer_chip():
     chips_rgb = [[200, 0, 0], [0, 200, 0], [0, 0, 200]]
     chips_oklab = rgb255_to_oklab(np.array(chips_rgb)).tolist()
     svg, _png, _n = circulate_to_svg(
@@ -135,15 +135,15 @@ def test_inner_hue_shift_zero_matches_outer_chip():
         crop_x=0, crop_y=0, crop_w=4, crop_h=4,
         outer_w_frac=1.0, outer_h_frac=1.0,
         inner_enabled=True, inner_w_frac=0.5, inner_h_frac=0.5,
-        hue_shift_deg=0.0,
+        inner_hue_deg=0.0, inner_lightness_delta=0.0, inner_chroma_scale=1.0,
         palette_oklab=chips_oklab, palette_rgb=chips_rgb,
     )
-    # No hue shift → inner snaps to the same chip as outer → a single fill.
+    # Identity filter → inner snaps to the same chip as outer → a single fill.
     fills = set(re.findall(r'fill="(#[0-9a-f]{6})"', svg))
     assert fills == {"#c80000"}
 
 
-def test_inner_hue_shift_lands_on_a_different_chip():
+def test_inner_hue_filter_lands_on_a_different_chip():
     chips_rgb = [[200, 0, 0], [0, 200, 0], [0, 0, 200]]
     chips_oklab = rgb255_to_oklab(np.array(chips_rgb)).tolist()
     svg, _png, _n = circulate_to_svg(
@@ -151,7 +151,7 @@ def test_inner_hue_shift_lands_on_a_different_chip():
         crop_x=0, crop_y=0, crop_w=4, crop_h=4,
         outer_w_frac=1.0, outer_h_frac=1.0,
         inner_enabled=True, inner_w_frac=0.5, inner_h_frac=0.5,
-        hue_shift_deg=120.0,
+        inner_hue_deg=120.0, inner_lightness_delta=0.0, inner_chroma_scale=1.0,
         palette_oklab=chips_oklab, palette_rgb=chips_rgb,
     )
     # Rotating red's hue ~+120° lands near green → inner uses a different chip.
@@ -161,15 +161,35 @@ def test_inner_hue_shift_lands_on_a_different_chip():
     assert fills <= {"#c80000", "#00c800", "#0000c8"}
 
 
+def test_inner_darker_filter_lands_on_a_darker_chip_incl_grey():
+    # Lightness shift works even on greys (the case hue rotation can't touch):
+    # a mid-grey cell + a grey palette → "darker" picks a darker grey chip.
+    chips_rgb = [[i, i, i] for i in range(0, 256, 16)]
+    chips_oklab = rgb255_to_oklab(np.array(chips_rgb)).tolist()
+    svg, _png, _n = circulate_to_svg(
+        _solid_image(4, 4, rgb=(128, 128, 128)), cells_x=2, cells_y=2,
+        crop_x=0, crop_y=0, crop_w=4, crop_h=4,
+        outer_w_frac=1.0, outer_h_frac=1.0,
+        inner_enabled=True, inner_w_frac=0.5, inner_h_frac=0.5,
+        inner_hue_deg=0.0, inner_lightness_delta=-0.2, inner_chroma_scale=1.0,
+        palette_oklab=chips_oklab, palette_rgb=chips_rgb,
+    )
+    fills = list(re.findall(r'fill="#([0-9a-f]{2})\1\1"', svg))
+    values = sorted({int(v, 16) for v in fills})
+    # Two distinct grey values: the outer chip + a strictly darker inner chip.
+    assert len(values) == 2
+    assert values[0] < values[1]
+
+
 def test_inner_without_palette_uses_raw_means():
     # No palette → both outer and inner fall back to the raw cell mean (no
-    # snap, no hue shift). A solid source yields a single fill.
+    # snap, no adjustment). A solid source yields a single fill.
     svg, _png, _n = circulate_to_svg(
         _solid_image(4, 4, rgb=(10, 120, 240)), cells_x=2, cells_y=2,
         crop_x=0, crop_y=0, crop_w=4, crop_h=4,
         outer_w_frac=1.0, outer_h_frac=1.0,
         inner_enabled=True, inner_w_frac=0.5, inner_h_frac=0.5,
-        hue_shift_deg=90.0,  # ignored without a palette
+        inner_hue_deg=90.0, inner_lightness_delta=-0.2, inner_chroma_scale=1.0,
     )
     fills = set(re.findall(r'fill="(#[0-9a-f]{6})"', svg))
     assert fills == {"#0a78f0"}
