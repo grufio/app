@@ -9,7 +9,7 @@
  * preview uses the full vertical space instead of being squeezed into a
  * width-based square (the old "fixed square" wasted height and rendered
  * portraits as a thin strip). The dialog carries the definite height
- * (`md:h-[85vh]` → SidebarProvider `flex-1` → main `self-stretch`), so the
+ * (`h-[85vh]` → SidebarProvider `flex-1` → main `self-stretch`), so the
  * pane no longer duplicates the `85vh`/`4rem` math. The pane is measured with
  * a ResizeObserver (`pane.w`/`pane.h`); the canvas display size is
  * `min(paneW/usedMmW, paneH/usedMmH) × zoom` per axis — a plain contain-fit.

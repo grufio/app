@@ -103,7 +103,7 @@ export function PixelateDialog({
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && handleCancel()}>
-      <DialogContent className="overflow-hidden p-0 md:h-[85vh] md:max-w-[700px] lg:max-w-[800px]">
+      <DialogContent className="overflow-hidden p-0 h-[85vh] md:max-w-[700px] lg:max-w-[800px]">
         <DialogTitle className="sr-only">Pixelate</DialogTitle>
         <DialogDescription className="sr-only">
           Bild: {fmt1(displayMmW)} × {fmt1(displayMmH)} mm
@@ -116,11 +116,17 @@ export function PixelateDialog({
           single flex-col wrapper keeps them flush.
 
           `h-full` makes this wrapper fill DialogContent's now-definite
-          height (`md:h-[85vh]`): the grid's single in-flow row stretches
-          to 85vh and the wrapper fills it, so the header + SidebarProvider
-          have a definite height to distribute. That definite chain is what
-          lets the preview pane fill via flex instead of duplicating the
+          height (`h-[85vh]`): the grid's single in-flow row stretches to
+          85vh and the wrapper fills it, so the header + SidebarProvider have
+          a definite height to distribute. That definite chain is what lets
+          the preview pane fill via flex instead of duplicating the
           `85vh`/`4rem` math (see pixelate-preview-pane.tsx).
+
+          The height is intentionally NOT `md:`-gated: below the md
+          breakpoint the right Sidebar hides but the preview still needs the
+          definite chain, otherwise the pane collapses to 0 (the dialog would
+          shrink to just the header). The previous `calc(85vh-4rem)` on the
+          pane forced ~85vh at every breakpoint too, so this is height-neutral.
 
           The DialogContent's auto close button sits at `absolute
           top-2 right-2` and lands inside this header bar.

@@ -161,3 +161,35 @@ test("regression: pixelate dialog shows the resized image size + aspect, not the
   expect(aspect).toBeGreaterThan(EXPECTED_ASPECT - 0.05)
   expect(aspect).toBeLessThan(EXPECTED_ASPECT + 0.05)
 })
+
+// Height gate — the regression class that had NO test (the preview pane is
+// sized by the dialog's definite-height flex chain). The chain's height must
+// hold at EVERY breakpoint: the right Sidebar is `hidden md:flex`, but the
+// preview is shown below `md:` too, so a `md:`-only height gate collapses the
+// pane to 0 there (dialog shrinks to just the header). Measure the RENDERED
+// pane box at both a desktop and a sub-md viewport.
+test("regression: preview pane keeps a non-zero rendered height above AND below the md breakpoint", async ({
+  page,
+}) => {
+  await bootEditorWithMaster(page)
+  await openPixelateDialog(page)
+  await expect(page.getByRole("dialog", { name: "Pixelate" })).toBeVisible()
+
+  const preview = page.getByTestId("pixelate-preview-mini")
+  await expect(preview).toBeVisible()
+  const previewHeight = () => preview.evaluate((el) => el.getBoundingClientRect().height)
+
+  // Desktop (default e2e viewport ≥ md): pane fills the dialog body.
+  await expect.poll(previewHeight).toBeGreaterThan(50)
+
+  // Shrink below the md breakpoint (768px). The dialog re-layouts (Sidebar
+  // hides, width drops). Pre-fix the definite height hung only on
+  // `md:h-[85vh]` → the whole flex chain collapsed and the pane went to 0.
+  await page.setViewportSize({ width: 375, height: 667 })
+  await expect
+    .poll(previewHeight, {
+      timeout: 5000,
+      intervals: [100, 200, 300, 500],
+    })
+    .toBeGreaterThan(50)
+})
