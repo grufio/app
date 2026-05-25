@@ -257,6 +257,13 @@ class PixelateRequest(BaseModel):
     # cells into one polygon — without quantisation, every cell's mean
     # is unique and no merging happens.
     num_colors: int = 16
+    # Active palette (Munsell colour `lab_munsell` or b/w `lab_grays`),
+    # passed by the Node server from the DB. `palette_oklab[i]` = [L, a, b]
+    # (the DB oklab columns), `palette_rgb[i]` = [r, g, b] (0..255), same
+    # order. When both are present each cell is snapped to its nearest chip;
+    # when omitted, raw area-average means are emitted.
+    palette_oklab: list[list[float]] | None = None
+    palette_rgb: list[list[int]] | None = None
 
 
 @app.post("/filters/pixelate")
@@ -301,6 +308,8 @@ async def pixelate_filter(request: PixelateRequest):
             crop_h=request.crop_h,
             stroke_width=request.stroke_width,
             num_colors=request.num_colors,
+            palette_oklab=request.palette_oklab,
+            palette_rgb=request.palette_rgb,
             on_phase=timer.mark,
         )
 

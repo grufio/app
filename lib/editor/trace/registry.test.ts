@@ -92,11 +92,12 @@ describe("TRACE_REGISTRY", () => {
 })
 
 describe("pixelateSchema", () => {
-  it("has three user-facing fields with defaults", () => {
+  it("applies defaults for all fields", () => {
     expect(pixelateSchema.parse({})).toEqual({
       supercell_width_mm: 6,
       supercell_height_mm: 6,
       num_colors: 16,
+      color_mode: "color",
     })
   })
 
@@ -113,7 +114,7 @@ describe("pixelateSchema", () => {
   it("accepts independent width and height", () => {
     expect(
       pixelateSchema.parse({ supercell_width_mm: 6, supercell_height_mm: 4 }),
-    ).toEqual({ supercell_width_mm: 6, supercell_height_mm: 4, num_colors: 16 })
+    ).toEqual({ supercell_width_mm: 6, supercell_height_mm: 4, num_colors: 16, color_mode: "color" })
   })
 
   it("clamps num_colors to its valid range", () => {
@@ -138,7 +139,7 @@ describe("pixelateSchema", () => {
         stroke_width: 2,
         show_colors: false,
       }),
-    ).toEqual({ supercell_width_mm: 5, supercell_height_mm: 5, num_colors: 24 })
+    ).toEqual({ supercell_width_mm: 5, supercell_height_mm: 5, num_colors: 24, color_mode: "color" })
   })
 })
 

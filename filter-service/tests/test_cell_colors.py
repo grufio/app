@@ -1,7 +1,10 @@
-"""Tests for the shared per-cell color detection (`compute_cell_colors`)."""
+"""Tests for the shared per-cell color detection (`compute_cell_colors`)
+and palette snapping (`map_cells_to_palette`)."""
+import numpy as np
 from PIL import Image
 
-from app.cell_colors import compute_cell_colors
+from app.cell_colors import compute_cell_colors, map_cells_to_palette
+from app.oklab import rgb255_to_oklab
 
 
 def test_box_area_average_to_cell_grid():
@@ -23,3 +26,14 @@ def test_uniform_image_yields_that_colour_per_cell():
     arr = compute_cell_colors(img, 3, 2)
     assert arr.shape == (2, 3, 3)
     assert (arr == [12, 34, 56]).all()
+
+
+def test_map_cells_to_palette_snaps_to_nearest_chip():
+    # Two cells (near-black, near-red) → palette {black, white, red}.
+    cells = np.array([[[5, 5, 5], [250, 10, 10]]], dtype=np.uint8)  # (1, 2, 3)
+    chips_rgb = np.array([[0, 0, 0], [255, 255, 255], [255, 0, 0]], dtype=np.uint8)
+    chips_oklab = rgb255_to_oklab(chips_rgb)
+    out = map_cells_to_palette(cells, chips_oklab, chips_rgb)
+    assert out.shape == (1, 2, 3)
+    assert tuple(out[0, 0]) == (0, 0, 0)  # near-black → black chip
+    assert tuple(out[0, 1]) == (255, 0, 0)  # near-red → red chip

@@ -78,3 +78,21 @@ def test_crop_clamps_to_image_bounds():
     # Returned bitmap is the clamped crop == the whole 8x8 image.
     from io import BytesIO
     assert Image.open(BytesIO(png)).size == (8, 8)
+
+
+def test_palette_snaps_cell_fills_to_chip_colours():
+    from app.oklab import rgb255_to_oklab
+
+    # Mid-grey source + a black/white palette → every cell fill must be a
+    # chip colour (#000000 or #ffffff), never the raw mean #828282.
+    chips_rgb = [[0, 0, 0], [255, 255, 255]]
+    chips_oklab = rgb255_to_oklab(np.array(chips_rgb)).tolist()
+    svg, _png, _n = pixelate_to_svg(
+        _solid_image(4, 4, rgb=(130, 130, 130)), cells_x=2, cells_y=2,
+        crop_x=0, crop_y=0, crop_w=4, crop_h=4, stroke_width=1.0,
+        palette_oklab=chips_oklab, palette_rgb=chips_rgb,
+    )
+    assert 'fill="#828282"' not in svg
+    fills = set(re.findall(r'fill="(#[0-9a-f]{6})"', svg))
+    assert fills <= {"#000000", "#ffffff"}
+    assert len(fills) >= 1

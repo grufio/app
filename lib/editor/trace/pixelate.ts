@@ -14,6 +14,11 @@ export const pixelateSchema = z.object({
   // Palette quantisation — server uses this to flatten cell mean
   // colours into a fixed palette before SVG render.
   num_colors: z.coerce.number().int().min(2).max(256).default(16),
+  // Palette mode: `color` → the 128-chip Munsell palette (`lab_munsell`);
+  // `bw` → the 48 greys (`lab_grays`). Strictly separate, no mixing. The
+  // form control lands with the Colors segment; the param drives which
+  // palette the server snaps cells to.
+  color_mode: z.enum(["color", "bw"]).default("color"),
 })
 
 export type PixelateParams = z.infer<typeof pixelateSchema>

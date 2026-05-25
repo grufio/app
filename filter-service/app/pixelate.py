@@ -30,7 +30,7 @@ import io
 
 from PIL import Image
 
-from .cell_colors import compute_cell_colors
+from .cell_colors import compute_cell_colors, map_cells_to_palette
 
 
 def _grid_lines(
@@ -73,6 +73,8 @@ def pixelate_to_svg(
     crop_h: float,
     stroke_width: float,
     num_colors: int = 16,  # accepted for wizard backward-compat; ignored
+    palette_oklab: list | None = None,
+    palette_rgb: list | None = None,
     on_phase: callable | None = None,
 ) -> tuple[str, bytes, int]:
     """
@@ -80,14 +82,17 @@ def pixelate_to_svg(
 
     The cell grid + crop rect come pre-resolved by `resolvePixelateGrid`
     on the server. This function crops, downsamples to a
-    `cells_x × cells_y` bitmap (1 cell = 1 px, area-averaged), then
-    emits one `<rect>` per cell at its mean colour. Grid lines
-    overlay the cell boundaries. The SVG's viewBox matches the crop
-    size exactly; cell coordinates are scaled (no translate) so the
-    overlay aligns 1:1 with the returned cropped bitmap.
+    `cells_x × cells_y` bitmap (1 cell = 1 px, area-averaged), optionally
+    snaps each cell to the nearest palette chip, then emits one `<rect>`
+    per cell at that colour. Grid lines overlay the cell boundaries. The
+    SVG's viewBox matches the crop size exactly; cell coordinates are
+    scaled (no translate) so the overlay aligns 1:1 with the returned
+    cropped bitmap.
 
-    `num_colors` is part of the signature for wizard backward-compat
-    but ignored — see module docstring on the future palette map.
+    `palette_oklab` (M, 3) + `palette_rgb` (M, 3) are the active palette
+    chips (`lab_munsell` for colour, `lab_grays` for b/w). When both are
+    given, each cell mean is snapped to its nearest chip; when omitted, raw
+    area-average means are emitted (back-compat). `num_colors` is ignored.
 
     `on_phase(name)` is the optional phase-timer hook. Returns
     (svg_string, cropped_png_bytes, region_count).
@@ -114,10 +119,16 @@ def pixelate_to_svg(
     cropped_w_px, cropped_h_px = cropped.size
 
     # Per-cell area-average (shared color contract, see cell_colors.py):
-    # 1 cell = 1 px, area-averaged via Image.BOX. The palette-map (nearest
-    # Munsell chip) hooks in inside compute_cell_colors in a later stage.
+    # 1 cell = 1 px, area-averaged via Image.BOX.
     arr = compute_cell_colors(cropped, cells_x, cells_y)  # (cells_y, cells_x, 3)
     phase("downsample")
+
+    # Snap each cell to the nearest palette chip (colour: lab_munsell /
+    # b/w: lab_grays) when a palette is supplied. The chip OKLab comes
+    # straight from the DB so the match space equals color-lab's.
+    if palette_oklab is not None and palette_rgb is not None:
+        arr = map_cells_to_palette(arr, palette_oklab, palette_rgb)
+        phase("palette")
     color_rects: list[str] = []
     for y in range(cells_y):
         for x in range(cells_x):

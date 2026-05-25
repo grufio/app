@@ -13,6 +13,7 @@ import {
 import { GEOMETRY_PPI, pxUToPxNumber } from "@/lib/editor/units"
 import { callFilterService, startFilterProfiler, toInt, type FilterResult } from "@/services/editor/server/filters/_helpers"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
+import { readTracePalette } from "@/lib/supabase/palette"
 
 const MM_PER_INCH = 25.4
 
@@ -202,7 +203,7 @@ export async function pixelateImageAndActivate(args: {
       reason: `Invalid pixelate params: ${issues || "unknown"}`,
     }
   }
-  const { num_colors: numColors } = parsed.data
+  const { num_colors: numColors, color_mode: colorMode } = parsed.data
 
   const { data: src, error: srcErr } = await supabase
     .from("project_images")
@@ -277,6 +278,12 @@ export async function pixelateImageAndActivate(args: {
     const imageBase64 = srcBuffer.toString("base64")
     profiler.mark("base64_encode")
 
+    // Snap cells to the active Munsell palette server-side: colour →
+    // lab_munsell (128), b/w → lab_grays (48). Read from the DB and passed
+    // to the filter-service, which does the OKLab nearest-match.
+    const palette = await readTracePalette(supabase, colorMode)
+    profiler.mark("palette_read")
+
     const callResult = await callFilterService({
       path: "/filters/pixelate",
       responseKind: "json",
@@ -291,6 +298,8 @@ export async function pixelateImageAndActivate(args: {
         // stroke_width is fixed at 1px — it's not a user-facing knob.
         stroke_width: 1,
         num_colors: numColors,
+        palette_oklab: palette.map((c) => c.oklab),
+        palette_rgb: palette.map((c) => c.rgb),
       },
     })
     profiler.mark("filter_service")
