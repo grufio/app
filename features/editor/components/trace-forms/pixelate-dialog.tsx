@@ -103,7 +103,7 @@ export function PixelateDialog({
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && handleCancel()}>
-      <DialogContent className="overflow-hidden p-0 md:max-h-[85vh] md:max-w-[700px] lg:max-w-[800px]">
+      <DialogContent className="overflow-hidden p-0 md:h-[85vh] md:max-w-[700px] lg:max-w-[800px]">
         <DialogTitle className="sr-only">Pixelate</DialogTitle>
         <DialogDescription className="sr-only">
           Bild: {fmt1(displayMmW)} × {fmt1(displayMmH)} mm
@@ -115,10 +115,17 @@ export function PixelateDialog({
           items there'd be a visible 16px strip between them. A
           single flex-col wrapper keeps them flush.
 
+          `h-full` makes this wrapper fill DialogContent's now-definite
+          height (`md:h-[85vh]`): the grid's single in-flow row stretches
+          to 85vh and the wrapper fills it, so the header + SidebarProvider
+          have a definite height to distribute. That definite chain is what
+          lets the preview pane fill via flex instead of duplicating the
+          `85vh`/`4rem` math (see pixelate-preview-pane.tsx).
+
           The DialogContent's auto close button sits at `absolute
           top-2 right-2` and lands inside this header bar.
         */}
-        <div className="flex min-h-0 flex-col">
+        <div className="flex h-full min-h-0 flex-col">
           <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
             <span className="text-sm font-medium">Pixelate</span>
             <span className="ml-auto pr-10 text-xs text-muted-foreground">
@@ -137,9 +144,15 @@ export function PixelateDialog({
             layouts. Inside a Dialog this pushes Sidebar's `h-full`
             to ≈viewport height, clipping `SidebarFooter` past the
             dialog's overflow. Override to `min-h-0`.
+
+            `flex-1` makes it fill the body below the h-16 header (the
+            definite 85vh − 4rem); the right Sidebar follows via its own
+            `h-full`. `main` keeps only content height under the row's
+            `items-start`, so `self-stretch` lets it fill the row height —
+            which the preview pane then fills via flex (no `calc` height).
           */}
-          <SidebarProvider className="items-start min-h-0">
-            <main className="flex flex-1 flex-col overflow-hidden">
+          <SidebarProvider className="items-start min-h-0 flex-1">
+            <main className="flex flex-1 flex-col self-stretch overflow-hidden">
               <PixelatePreviewPane
                 sourceImageUrl={sourceImageUrl}
                 displayMmW={displayMmW}
