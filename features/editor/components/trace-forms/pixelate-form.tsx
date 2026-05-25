@@ -6,13 +6,16 @@
  * `PanelTwoFieldRow`, `PanelIconSlot`) used by the editor's right
  * panel. Two sections:
  *   - "Pixel" — supercell width + height + (Schnitt-Rand / error)
- *   - "Farben" — num_colors
+ *   - "Colors" — palette mode (S/W vs Color) + PDF colour space (RGB/CMYK).
+ *     The mode picks which DB palette the server snaps cells to; the colour
+ *     space is PDF-only and does not affect detection. (`num_colors` is gone
+ *     — colour comes from the palette map.)
  *
  * Stateless: parent owns the draft and reacts to `onParamsChange`.
  */
-import { ArrowLeftRight, ArrowUpDown, Palette } from "lucide-react"
+import { ArrowLeftRight, ArrowUpDown, Palette, Printer } from "lucide-react"
 
-import { FormField } from "@/components/ui/form-controls"
+import { FormField, type SelectFieldOption } from "@/components/ui/form-controls"
 import { type PixelateParams } from "@/lib/editor/trace/pixelate"
 import {
   isPixelateGridValid,
@@ -22,6 +25,17 @@ import {
 
 import { PanelIconSlot, PanelTwoFieldRow } from "../panel-layout"
 import { EditorSidebarSection } from "../sidebar/editor-sidebar-section"
+
+// Module-level so the `options` reference stays stable across renders (the
+// select FormField memoises on `prev.options === next.options`).
+const COLOR_MODE_OPTIONS: SelectFieldOption[] = [
+  { value: "color", label: "Color" },
+  { value: "bw", label: "S/W" },
+]
+const COLOR_SPACE_OPTIONS: SelectFieldOption[] = [
+  { value: "rgb", label: "RGB" },
+  { value: "cmyk", label: "CMYK" },
+]
 
 type Props = {
   params: PixelateParams
@@ -94,26 +108,30 @@ export function PixelateForm({ params, onParamsChange, disabled, grid }: Props) 
         </div>
       </EditorSidebarSection>
 
-      <EditorSidebarSection title="Farben">
+      <EditorSidebarSection title="Colors">
         <PanelTwoFieldRow>
           <FormField
-            variant="numeric"
-            numericMode="int"
-            label="Anzahl Farben"
+            variant="select"
+            label="Farbmodus (S/W oder Color)"
             labelVisuallyHidden
             iconStart={<Palette aria-hidden="true" />}
-            id="num_colors"
-            value={String(params.num_colors)}
-            onCommit={(raw) => {
-              const n = Number(raw)
-              if (Number.isFinite(n)) onParamsChange("num_colors", Math.floor(n))
-            }}
+            id="color_mode"
+            value={params.color_mode}
+            options={COLOR_MODE_OPTIONS}
+            onCommit={(v) => onParamsChange("color_mode", v as PixelateParams["color_mode"])}
             disabled={disabled}
-            inputProps={{ min: 2, max: 256 }}
           />
-          {/* Empty 2nd column placeholder so the lone field stays in
-              the left slot of the 1fr_1fr_auto grid. */}
-          <div aria-hidden="true" />
+          <FormField
+            variant="select"
+            label="PDF-Farbraum (RGB oder CMYK)"
+            labelVisuallyHidden
+            iconStart={<Printer aria-hidden="true" />}
+            id="color_space"
+            value={params.color_space}
+            options={COLOR_SPACE_OPTIONS}
+            onCommit={(v) => onParamsChange("color_space", v as PixelateParams["color_space"])}
+            disabled={disabled}
+          />
           <PanelIconSlot />
         </PanelTwoFieldRow>
       </EditorSidebarSection>

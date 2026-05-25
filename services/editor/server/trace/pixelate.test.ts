@@ -9,8 +9,8 @@ import { pixelateImageAndActivate } from "./pixelate"
 const validParams: PixelateParams = {
   supercell_width_mm: 6,
   supercell_height_mm: 6,
-  num_colors: 16,
   color_mode: "color",
+  color_space: "rgb",
 }
 
 describe("pixelateImageAndActivate validation contract", () => {
@@ -62,29 +62,24 @@ describe("pixelateImageAndActivate validation contract", () => {
     if (!result.ok) expect(result.stage).toBe("validation")
   })
 
-  it("rejects num_colors out of range", async () => {
-    const low = await pixelateImageAndActivate({
+  it("rejects an unknown color_mode", async () => {
+    const result = await pixelateImageAndActivate({
       supabase: mockSupabase,
       projectId,
       sourceImageId,
-      params: { ...validParams, num_colors: 1 },
+      params: { ...validParams, color_mode: "grayscale" as unknown as PixelateParams["color_mode"] },
     })
-    expect(low.ok).toBe(false)
-    const high = await pixelateImageAndActivate({
-      supabase: mockSupabase,
-      projectId,
-      sourceImageId,
-      params: { ...validParams, num_colors: 999 },
-    })
-    expect(high.ok).toBe(false)
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.stage).toBe("validation")
   })
 
-  it("ignores legacy params from old wizard payloads", async () => {
-    // Old persisted trace rows may carry primary_count / stroke_width /
-    // show_colors / multiple_axis / multiple / supercell_mm (single-axis)
-    // — Zod strip mode drops them silently so the new validation doesn't
-    // reject historical requests. Validation passes; failure is at
-    // source_lookup.
+  it("ignores legacy params from old wizard payloads (incl. dropped num_colors)", async () => {
+    // Old persisted trace rows may carry dropped/renamed fields — notably
+    // num_colors (removed for the palette map), plus primary_count /
+    // stroke_width / show_colors / multiple_axis / multiple / supercell_mm
+    // (single-axis). Zod strip mode drops them silently so the new
+    // validation doesn't reject historical requests. Validation passes;
+    // failure is at source_lookup.
     const result = await pixelateImageAndActivate({
       supabase: mockSupabase,
       projectId,

@@ -96,8 +96,8 @@ describe("pixelateSchema", () => {
     expect(pixelateSchema.parse({})).toEqual({
       supercell_width_mm: 6,
       supercell_height_mm: 6,
-      num_colors: 16,
       color_mode: "color",
+      color_space: "rgb",
     })
   })
 
@@ -114,32 +114,40 @@ describe("pixelateSchema", () => {
   it("accepts independent width and height", () => {
     expect(
       pixelateSchema.parse({ supercell_width_mm: 6, supercell_height_mm: 4 }),
-    ).toEqual({ supercell_width_mm: 6, supercell_height_mm: 4, num_colors: 16, color_mode: "color" })
+    ).toEqual({ supercell_width_mm: 6, supercell_height_mm: 4, color_mode: "color", color_space: "rgb" })
   })
 
-  it("clamps num_colors to its valid range", () => {
-    expect(pixelateSchema.safeParse({ num_colors: 1 }).success).toBe(false)
-    expect(pixelateSchema.safeParse({ num_colors: 257 }).success).toBe(false)
-    expect(pixelateSchema.parse({ num_colors: 8 }).num_colors).toBe(8)
+  it("accepts the b/w palette mode and the cmyk colour space", () => {
+    expect(pixelateSchema.parse({ color_mode: "bw", color_space: "cmyk" })).toEqual({
+      supercell_width_mm: 6,
+      supercell_height_mm: 6,
+      color_mode: "bw",
+      color_space: "cmyk",
+    })
   })
 
-  it("ignores legacy params from old wizard payloads", () => {
-    // Old persisted trace rows may carry dropped/renamed fields.
-    // Zod's default `strip` mode passes them through silently —
-    // important so server-side validation doesn't reject historical
-    // requests.
+  it("rejects unknown color_mode / color_space values", () => {
+    expect(pixelateSchema.safeParse({ color_mode: "grayscale" }).success).toBe(false)
+    expect(pixelateSchema.safeParse({ color_space: "lab" }).success).toBe(false)
+  })
+
+  it("ignores legacy params from old wizard payloads (incl. dropped num_colors)", () => {
+    // Old persisted trace rows may carry dropped/renamed fields — notably
+    // `num_colors`, removed in favour of the palette map. Zod's default
+    // `strip` mode passes them through silently so server-side validation
+    // doesn't reject historical requests (no migration needed).
     expect(
       pixelateSchema.parse({
         supercell_width_mm: 5,
         supercell_height_mm: 5,
-        num_colors: 24,
+        num_colors: 24, // dropped — must be stripped, not rejected
         supercell_mm: 8, // legacy single-axis field
         primary_count: 99,
         multiple_axis: "horizontal",
         stroke_width: 2,
         show_colors: false,
       }),
-    ).toEqual({ supercell_width_mm: 5, supercell_height_mm: 5, num_colors: 24, color_mode: "color" })
+    ).toEqual({ supercell_width_mm: 5, supercell_height_mm: 5, color_mode: "color", color_space: "rgb" })
   })
 })
 

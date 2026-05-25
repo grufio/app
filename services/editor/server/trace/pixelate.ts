@@ -203,7 +203,7 @@ export async function pixelateImageAndActivate(args: {
       reason: `Invalid pixelate params: ${issues || "unknown"}`,
     }
   }
-  const { num_colors: numColors, color_mode: colorMode } = parsed.data
+  const { color_mode: colorMode } = parsed.data
 
   const { data: src, error: srcErr } = await supabase
     .from("project_images")
@@ -297,7 +297,9 @@ export async function pixelateImageAndActivate(args: {
         crop_h: crop.h,
         // stroke_width is fixed at 1px — it's not a user-facing knob.
         stroke_width: 1,
-        num_colors: numColors,
+        // `num_colors` is gone: colour comes from the palette map below, not
+        // a quantise step. The filter-service still defaults the field for
+        // back-compat, so omitting it is safe across independent deploys.
         palette_oklab: palette.map((c) => c.oklab),
         palette_rgb: palette.map((c) => c.rgb),
       },

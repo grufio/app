@@ -54,15 +54,20 @@ describe("Python parity: TS trace schema defaults vs Pydantic", () => {
     }
   })
 
-  it("PixelateRequest — num_colors default agrees", () => {
-    // Pixelate's TS schema is intentionally narrower than the Pydantic
-    // request: TS holds only user-facing inputs (supercell_width_mm,
-    // supercell_height_mm, num_colors), while Python additionally takes
-    // server-computed params (cells_x/_y, crop_*, stroke_width-hardcoded).
-    // The only user-facing field that both sides agree on is num_colors.
-    const py = extractPydanticDefaults("PixelateRequest")
+  it("PixelateRequest — TS schema shares no default field with Python", () => {
+    // Pixelate's TS schema and the Pydantic request are intentionally
+    // disjoint: TS holds the user-facing inputs (supercell_width_mm,
+    // supercell_height_mm, color_mode, color_space) while Python takes only
+    // server-computed params (cells_x/_y, crop_*, stroke_width-hardcoded,
+    // palette_*) plus `num_colors` — kept solely as an ignored back-compat
+    // field. So there is no shared user-facing default to drift; the guard
+    // is that TS no longer carries num_colors while Python still tolerates
+    // it (see the regression guard below).
     const ts = pixelateSchema.parse({})
-    expect(ts.num_colors).toEqual(py.num_colors)
+    expect(ts).not.toHaveProperty("num_colors")
+    expect(Object.keys(ts).sort()).toEqual(
+      ["color_mode", "color_space", "supercell_height_mm", "supercell_width_mm"],
+    )
   })
 
   it("extracts the expected fields (regression guard for parser)", () => {
@@ -70,6 +75,8 @@ describe("Python parity: TS trace schema defaults vs Pydantic", () => {
       expect.arrayContaining(["line_thickness", "blur_amount", "smoothness", "num_colors"]),
     )
     expect(Object.keys(extractPydanticDefaults("PixelateRequest"))).toContain("stroke_width")
+    // Python keeps num_colors as an ignored back-compat field even though the
+    // TS schema dropped it — old in-flight requests must not break.
     expect(Object.keys(extractPydanticDefaults("PixelateRequest"))).toContain("num_colors")
   })
 })
