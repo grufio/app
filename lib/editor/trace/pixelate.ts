@@ -11,14 +11,16 @@ export const pixelateSchema = z.object({
   // cropped at trace time.
   supercell_width_mm: z.coerce.number().min(MIN_SUPERCELL_MM).default(DEFAULT_SUPERCELL_MM),
   supercell_height_mm: z.coerce.number().min(MIN_SUPERCELL_MM).default(DEFAULT_SUPERCELL_MM),
-  // Palette quantisation — server uses this to flatten cell mean
-  // colours into a fixed palette before SVG render.
-  num_colors: z.coerce.number().int().min(2).max(256).default(16),
   // Palette mode: `color` → the 128-chip Munsell palette (`lab_munsell`);
-  // `bw` → the 48 greys (`lab_grays`). Strictly separate, no mixing. The
-  // form control lands with the Colors segment; the param drives which
-  // palette the server snaps cells to.
+  // `bw` → the 48 greys (`lab_grays`). Strictly separate, no mixing. Drives
+  // which DB palette the server snaps cells to (the OKLab nearest-match).
   color_mode: z.enum(["color", "bw"]).default("color"),
+  // PDF colour space — stored only, NO effect on colour detection (the
+  // match is always OKLab against the mode palette). Consumed later by PDF
+  // generation. `num_colors` was removed (the colour now comes from the
+  // palette map, not a median-cut quantise step); old persisted trace rows
+  // that still carry it are tolerated via Zod's default strip mode.
+  color_space: z.enum(["rgb", "cmyk"]).default("rgb"),
 })
 
 export type PixelateParams = z.infer<typeof pixelateSchema>

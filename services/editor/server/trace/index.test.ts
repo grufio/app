@@ -77,7 +77,7 @@ describe("applyProjectTrace — active surface invariant", () => {
             data: {
               project_id: PROJECT_ID,
               kind: "pixelate",
-              params: { supercell_width_mm: 6, supercell_height_mm: 6, num_colors: 16 },
+              params: { supercell_width_mm: 6, supercell_height_mm: 6, color_mode: "color" },
               output_image_id: "trace-output-id",
               base_image_id: "trace-base-id",
               display_x_px_u: "12345678",
@@ -110,7 +110,6 @@ describe("applyProjectTrace — active surface invariant", () => {
       params: {
         supercell_width_mm: 6,
         supercell_height_mm: 6,
-        num_colors: 16,
         source_image_id: WORKING_COPY_ID,
       },
     })
@@ -193,7 +192,6 @@ describe("applyProjectTrace — per-trace display rect persistence (Invariant 2)
       params: {
         supercell_width_mm: 6,
         supercell_height_mm: 6,
-        num_colors: 16,
         source_image_id: WORKING_COPY_ID,
       },
     })
@@ -258,7 +256,6 @@ describe("applyProjectTrace — per-trace display rect persistence (Invariant 2)
       params: {
         supercell_width_mm: 6,
         supercell_height_mm: 6,
-        num_colors: 16,
         source_image_id: WORKING_COPY_ID,
       },
     })

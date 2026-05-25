@@ -63,7 +63,7 @@ describe("PixelateDialog (smoke)", () => {
       expect(document.body.querySelector('[data-testid="pixelate-preview-mini"]')).not.toBeNull()
     })
     expect(document.body.querySelector("#supercell_width_mm")).not.toBeNull()
-    expect(document.body.querySelector("#num_colors")).not.toBeNull()
+    expect(document.body.querySelector("#color_mode")).not.toBeNull()
 
     const buttons = Array.from(document.body.querySelectorAll("button"))
     const cancel = buttons.find((b) => b.textContent?.trim() === "Cancel")

@@ -1,8 +1,9 @@
 /**
  * @vitest-environment jsdom
  *
- * Component test for PixelateForm. Asserts the three FormFields are
- * present and the Schnitt-Rand display flips between valid (border
+ * Component test for PixelateForm. Asserts the FormFields are present
+ * (two supercell numeric inputs + the Colors segment's mode/space
+ * selects) and the Schnitt-Rand display flips between valid (border
  * info) and invalid (error message) based on the passed-in grid.
  */
 import { cleanup, render } from "@testing-library/react"
@@ -17,7 +18,7 @@ const defaults = pixelateSchema.parse({}) as PixelateParams
 describe("PixelateForm", () => {
   afterEach(() => cleanup())
 
-  it("renders all three FormFields by their input ids", () => {
+  it("renders the supercell inputs + the Colors segment selects by their ids", () => {
     const grid = resolvePixelateGrid(100, 75, defaults)
     const { container } = render(
       <PixelateForm
@@ -29,7 +30,10 @@ describe("PixelateForm", () => {
     )
     expect(container.querySelector("#supercell_width_mm")).not.toBeNull()
     expect(container.querySelector("#supercell_height_mm")).not.toBeNull()
-    expect(container.querySelector("#num_colors")).not.toBeNull()
+    expect(container.querySelector("#color_mode")).not.toBeNull()
+    expect(container.querySelector("#color_space")).not.toBeNull()
+    // num_colors is gone — colour comes from the palette map.
+    expect(container.querySelector("#num_colors")).toBeNull()
   })
 
   it("shows the Schnitt-Rand info when the grid is valid", () => {
