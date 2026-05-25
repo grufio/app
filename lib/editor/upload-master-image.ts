@@ -6,9 +6,7 @@
  * - Build and submit upload form-data payload.
  * - Normalize API error responses for UI display.
  */
-import { getImageDimensions } from "@/lib/images/dimensions"
 import { guessImageFormat } from "@/lib/images/format-detection"
-import { extractImageDPI } from "@/lib/images/dpi-extraction"
 
 export type UploadedMasterSnapshot = {
   id: string
@@ -57,20 +55,13 @@ export async function uploadMasterImageClient(args: {
   fetchImpl?: typeof fetch
 }): Promise<UploadMasterImageResult> {
   const { projectId, file, fetchImpl = fetch } = args
-  // Dimensions and DPI extraction are independent file-parsing tasks;
-  // run them in parallel so the UI thread doesn't wait twice.
-  const [{ width, height }, { dpiX, dpiY }] = await Promise.all([
-    getImageDimensions(file),
-    extractImageDPI(file),
-  ])
-  const dpi = Number.isFinite(dpiX) && dpiX > 0 ? Math.round(dpiX) : Number.isFinite(dpiY) && dpiY > 0 ? Math.round(dpiY) : null
+  // Pixel dimensions + DPI are read server-side from the file bytes (sharp)
+  // in the upload route — authoritative and not trusted from the client. The
+  // client only sends the file + a cheap format hint.
   const format = guessImageFormat(file)
 
   const form = new FormData()
   form.set("file", file)
-  form.set("width_px", String(width))
-  form.set("height_px", String(height))
-  if (dpi != null) form.set("dpi", String(dpi))
   form.set("format", format)
 
   const res = await fetchImpl(`/api/projects/${projectId}/images/master/upload`, {

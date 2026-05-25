@@ -14,12 +14,14 @@ describe("api contract: master route supports cascade delete", () => {
     expect(code).toMatch(/fallback_target/)
   })
 
-  it("master upload route uses only single dpi field", () => {
+  it("master upload route reads no client dimensions/DPI (server derives them via sharp)", () => {
     const routePath = path.join(process.cwd(), "app/api/projects/[projectId]/images/master/upload/route.ts")
     const code = fs.readFileSync(routePath, "utf8")
-    expect(code).toMatch(/form\.get\("dpi"\)/)
-    expect(code).not.toMatch(/form\.get\("dpi_x"\)/)
-    expect(code).not.toMatch(/form\.get\("dpi_y"\)/)
+    // Width/height/DPI are read server-side from the file bytes (sharp) in
+    // the upload service — the route must NOT parse them from the form.
+    expect(code).not.toMatch(/form\.get\("dpi"\)/)
+    expect(code).not.toMatch(/form\.get\("width_px"\)/)
+    expect(code).not.toMatch(/form\.get\("height_px"\)/)
   })
 
   it("active master delete endpoint documents transitive cleanup", () => {

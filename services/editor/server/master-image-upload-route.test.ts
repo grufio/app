@@ -91,14 +91,14 @@ describe("master upload route delegation", () => {
     expect(body.stage).toBe("upload_limits")
   })
 
-  it("forwards dpi when provided", async () => {
+  it("delegates only the file + format to the service (dimensions/DPI are read server-side)", async () => {
     vi.resetModules()
     uploadMasterImageMock.mockReset()
     uploadMasterImageMock.mockResolvedValueOnce({
       ok: false as const,
       status: 400,
       stage: "validation" as const,
-      reason: "Missing/invalid width_px/height_px",
+      reason: "Unreadable image file",
     })
 
     vi.mock("@/services/editor/server/master-image-upload", () => ({
@@ -112,21 +112,26 @@ describe("master upload route delegation", () => {
     const mod = await import("@/app/api/projects/[projectId]/images/master/upload/route")
     const form = new FormData()
     form.set("file", new File([new Uint8Array([1, 2, 3])], "x.png", { type: "image/png" }))
+    // Even if the client sends these (legacy), the route must IGNORE them —
+    // the service reads width/height/DPI from the file bytes via sharp.
     form.set("width_px", "100")
     form.set("height_px", "100")
     form.set("dpi", "300")
-    form.set("bit_depth", "16")
     form.set("format", "png")
     await mod.POST(new Request("http://test.local", { method: "POST", body: form }), {
       params: Promise.resolve({ projectId: VALID_UUID }),
     })
 
     expect(uploadMasterImageMock).toHaveBeenCalledTimes(1)
-    expect(uploadMasterImageMock.mock.calls[0]?.[0]).toEqual(
-      expect.objectContaining({
-        dpi: 300,
-      })
-    )
+    const arg = uploadMasterImageMock.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(arg).toMatchObject({ projectId: VALID_UUID, format: "png" })
+    expect(arg.file).toBeInstanceOf(File)
+    // Client-sent dimensions/DPI are NOT forwarded anymore.
+    expect(arg).not.toHaveProperty("dpi")
+    expect(arg).not.toHaveProperty("width_px")
+    expect(arg).not.toHaveProperty("widthPx")
+    expect(arg).not.toHaveProperty("height_px")
+    expect(arg).not.toHaveProperty("heightPx")
   })
 
   it("maps service details into error payload", async () => {
@@ -198,37 +203,6 @@ describe("master upload route delegation", () => {
     const body = await res.json()
     expect(body.stage).toBe("transform_sync")
     expect(body.error).toBe("Source image transform is missing")
-  })
-
-  it("delegates without workspace dpi", async () => {
-    vi.resetModules()
-    uploadMasterImageMock.mockReset()
-    uploadMasterImageMock.mockResolvedValueOnce({
-      ok: false as const,
-      status: 400,
-      stage: "validation" as const,
-      reason: "Missing/invalid width_px/height_px",
-    })
-
-    vi.mock("@/services/editor/server/master-image-upload", () => ({
-      uploadMasterImage: uploadMasterImageMock,
-    }))
-
-    vi.mock("@/lib/supabase/server", () => ({
-      createSupabaseServerClient: async () => makeSupabaseMock(),
-    }))
-
-    const mod = await import("@/app/api/projects/[projectId]/images/master/upload/route")
-    const form = new FormData()
-    form.set("file", new File([new Uint8Array([1, 2, 3])], "x.png", { type: "image/png" }))
-    form.set("width_px", "100")
-    form.set("height_px", "100")
-    form.set("format", "png")
-    await mod.POST(new Request("http://test.local", { method: "POST", body: form }), {
-      params: Promise.resolve({ projectId: VALID_UUID }),
-    })
-    expect(uploadMasterImageMock).toHaveBeenCalledTimes(1)
-    expect(uploadMasterImageMock.mock.calls[0]?.[0]).toMatchObject({ dpi: null })
   })
 
   it("keeps single upload write route by removing master POST export", async () => {

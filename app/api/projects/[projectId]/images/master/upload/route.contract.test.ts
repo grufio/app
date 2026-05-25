@@ -56,15 +56,10 @@ describe("POST /api/projects/[projectId]/images/master/upload contract", () => {
     expect((await res.json()).stage).toBe("validation")
   })
 
-  it("rejects non-finite dimensions with 400 validation", async () => {
-    setupRouteMocks({ supabase: makeMockSupabase(accessibleProject) })
-    mockUpload({ ok: true })
-    const mod = await import("./route")
-
-    const res = await mod.POST(formRequest({ file: pngFile(), width_px: "abc", height_px: "50" }), routeParams(params))
-    expect(res.status).toBe(400)
-    expect((await res.json()).stage).toBe("validation")
-  })
+  // Dimension/DPI validation moved into the service (server-side sharp on
+  // the file bytes); the route no longer parses or validates them, so there
+  // is no route-level "non-finite dimensions" rejection. The unreadable-file
+  // path is covered in master-image-upload.test.ts.
 
   it("maps a service failure to its status + stage", async () => {
     setupRouteMocks({ supabase: makeMockSupabase(accessibleProject) })

@@ -7,6 +7,7 @@
  * - Coordinate storage write, DB insert, and activation.
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
+import sharp from "sharp"
 
 import type { Database } from "@/lib/supabase/database.types"
 import { activateProjectMasterAndWorkingCopy } from "@/services/editor/server/activate-project-image"
@@ -60,17 +61,34 @@ export async function uploadMasterImage(args: {
   supabase: SupabaseClient<Database>
   projectId: string
   file: File
-  widthPx: number
-  heightPx: number
-  dpi?: number | null
   format: string
 }): Promise<UploadMasterImageResult> {
   const { supabase, projectId, file, format } = args
 
+  // Read pixel dimensions + DPI from the file bytes server-side. sharp/
+  // libvips reads EXIF XResolution, JPEG JFIF density, and PNG pHYs
+  // uniformly — authoritative, client-sent values are not trusted.
+  // `file.arrayBuffer()` is non-consuming; the storage upload below still
+  // uses `file`. Order: metadata → validate → limits → upload, so an
+  // oversized/unreadable image is rejected before it hits storage.
+  let meta: sharp.Metadata
+  try {
+    meta = await sharp(Buffer.from(await file.arrayBuffer())).metadata()
+  } catch {
+    return { ok: false, status: 400, stage: "validation", reason: "Unreadable image file" }
+  }
+
+  // Plausibility-clamp the density: a PNG `pHYs` chunk with unit 0 (pixel
+  // aspect ratio, no real DPI) makes libvips report a garbage value
+  // (~299999). Only 1..6000 counts as a real DPI; otherwise fall back to 72
+  // (web default — same as a file with no density metadata at all).
+  const density = typeof meta.density === "number" ? meta.density : Number.NaN
+  const resolvedDpi = Number.isFinite(density) && density >= 1 && density <= 6000 ? Math.round(density) : 72
+
   const validated = validateUploadInputs({
-    widthPx: normalizePositiveInt(args.widthPx),
-    heightPx: normalizePositiveInt(args.heightPx),
-    dpi: normalizePositiveInt(args.dpi ?? Number.NaN),
+    widthPx: normalizePositiveInt(meta.width ?? Number.NaN),
+    heightPx: normalizePositiveInt(meta.height ?? Number.NaN),
+    dpi: resolvedDpi,
   })
   if (!validated.ok) return validated
   const { widthPx, heightPx, dpi } = validated

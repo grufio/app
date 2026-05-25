@@ -2,16 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { uploadMasterImageClient } from "./upload-master-image"
 
-vi.mock("@/lib/images/dimensions", () => ({
-  getImageDimensions: async () => ({ width: 640, height: 480 }),
-}))
-
 describe("upload-master-image", () => {
   beforeEach(() => {
     vi.restoreAllMocks()
   })
 
-  it("submits form-data with normalized client dpi when available", async () => {
+  it("submits form-data with only the file + format (dimensions/DPI are read server-side)", async () => {
     const file = new File([new Uint8Array([1, 2, 3])], "test.png", { type: "image/png" })
     let capturedBody: FormData | null = null
 
@@ -23,9 +19,13 @@ describe("upload-master-image", () => {
     const out = await uploadMasterImageClient({ projectId: "p1", file, fetchImpl })
     expect(out).toEqual({ ok: true, master: null })
     const body = capturedBody as FormData | null
-    expect(body?.get("width_px")).toBe("640")
-    expect(body?.get("height_px")).toBe("480")
-    expect(body?.get("dpi")).toBe("72")
+    expect(body?.get("file")).toBeInstanceOf(File)
+    expect(body?.get("format")).toBeTruthy()
+    // Dimensions + DPI are derived server-side (sharp) — the client no
+    // longer sends them.
+    expect(body?.get("width_px")).toBeNull()
+    expect(body?.get("height_px")).toBeNull()
+    expect(body?.get("dpi")).toBeNull()
   })
 
   it("normalizes API error payload into a stable message", async () => {

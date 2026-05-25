@@ -48,24 +48,14 @@ export async function POST(
     return jsonError("Missing file", 400, { stage: "validation", where: "validate" })
   }
 
-  const width_px = Number(form.get("width_px"))
-  const height_px = Number(form.get("height_px"))
-  const dpiRaw = form.get("dpi")
   const format = String(form.get("format") ?? "unknown")
 
-  if (!Number.isFinite(width_px) || !Number.isFinite(height_px)) {
-    return jsonError("Missing/invalid dimensions", 400, { stage: "validation", where: "validate" })
-  }
-  const parsedDpi = Number(dpiRaw)
-  const dpi = Number.isFinite(parsedDpi) && parsedDpi > 0 ? parsedDpi : null
-
+  // Pixel dimensions + DPI are read server-side from the file bytes (sharp)
+  // inside `uploadMasterImage` — authoritative, not trusted from the client.
   const result = await uploadMasterImage({
     supabase,
     projectId,
     file,
-    widthPx: width_px,
-    heightPx: height_px,
-    dpi,
     format,
   })
   if (!result.ok) {
