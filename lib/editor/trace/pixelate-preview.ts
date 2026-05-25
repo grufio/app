@@ -18,18 +18,15 @@
  * instead of averaging the whole block; that produced the noisy, "too low
  * resolution" cell colours and diverged from the actual trace output.
  *
- * Colour model unchanged: the optional median-cut quantise to
- * `num_colors` still runs on top of the cell means. Colour parity with
- * the server (which currently emits raw means, ignoring `num_colors`)
- * is a separate, deferred concern.
+ * Each cell mean is then snapped to the nearest Munsell palette chip via
+ * OKLab (`mapCellsToPalette`), mirroring the server's `map_cells_to_palette`.
+ * The palette comes from the DB (single source) over `/api/palette`; while it
+ * loads the preview falls back to the raw area-average means.
  *
  * Caller (React) owns `target.width` / `target.height` via JSX props
  * set to `crop.w` / `crop.h`.
  */
-import quantize from "quantize"
-import type { RgbPixel } from "quantize"
-
-import { cellAreaAverages } from "./trace-cell-colors"
+import { cellAreaAverages, mapCellsToPalette, type PaletteChip } from "./trace-cell-colors"
 
 export function buildMiniCanvas(args: {
   target: HTMLCanvasElement
@@ -37,9 +34,11 @@ export function buildMiniCanvas(args: {
   crop: { x: number; y: number; w: number; h: number }
   cellsX: number
   cellsY: number
-  numColors: number
+  /** Munsell palette to snap cells to (mirrors the server). Empty while it
+   * loads → raw area-average means as a graceful fallback. */
+  palette: ReadonlyArray<PaletteChip>
 }): void {
-  const { target, source, crop, cellsX, cellsY, numColors } = args
+  const { target, source, crop, cellsX, cellsY, palette } = args
   const ctx = target.getContext("2d", { willReadFrequently: true })
   if (!ctx) throw new Error("buildMiniCanvas: 2D context unavailable")
 
@@ -58,31 +57,14 @@ export function buildMiniCanvas(args: {
   wctx.drawImage(source, crop.x, crop.y, crop.w, crop.h, 0, 0, cropW, cropH)
   const cropData = wctx.getImageData(0, 0, cropW, cropH).data
 
-  // (2) True area-average per cell (mirrors server Image.BOX).
-  const { r, g, b } = cellAreaAverages({
-    rgba: cropData,
-    width: cropW,
-    height: cropH,
-    cellsX,
-    cellsY,
-  })
-
-  // (3) Optional median-cut quantise to num_colors — UNCHANGED colour
-  // model. (Server parity is a separate, deferred concern.)
-  const cellCount = cellsX * cellsY
-  if (numColors >= 2 && cellCount >= 2) {
-    const pixels: RgbPixel[] = new Array(cellCount)
-    for (let i = 0; i < cellCount; i += 1) pixels[i] = [r[i], g[i], b[i]]
-    const cmap = quantize(pixels, numColors)
-    if (cmap) {
-      for (let i = 0; i < cellCount; i += 1) {
-        const mapped = cmap.map([r[i], g[i], b[i]])
-        r[i] = mapped[0]
-        g[i] = mapped[1]
-        b[i] = mapped[2]
-      }
-    }
-  }
+  // (2) True area-average per cell (mirrors server Image.BOX), then snap each
+  // cell to the nearest Munsell palette chip via OKLab — `mapCellsToPalette`
+  // mirrors the server's `map_cells_to_palette`. An empty palette (still
+  // loading) returns the raw means unchanged as a graceful fallback.
+  const { r, g, b } = mapCellsToPalette(
+    cellAreaAverages({ rgba: cropData, width: cropW, height: cropH, cellsX, cellsY }),
+    palette,
+  )
 
   // (4) Paint the cell palette onto the visible target at source-crop
   // resolution. Each cell is one solid rectangle; no source downsample

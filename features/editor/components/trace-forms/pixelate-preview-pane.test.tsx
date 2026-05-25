@@ -17,6 +17,13 @@ vi.mock("@/lib/editor/trace/pixelate-preview", () => ({
   },
 }))
 
+// The pane snaps cells to the DB palette via `/api/palette`; jsdom has no
+// server, so stub the hook to its loading state (null → raw-means fallback).
+// These tests assert bitmap attrs + zoom, neither of which needs the palette.
+vi.mock("@/lib/editor/trace/use-trace-palette", () => ({
+  useTracePalette: () => null,
+}))
+
 import { pixelateSchema, type PixelateParams } from "@/lib/editor/trace/pixelate"
 import { FakeImage, FakeResizeObserver } from "@/lib/test/jsdom-stubs"
 import { PixelatePreviewPane } from "./pixelate-preview-pane"

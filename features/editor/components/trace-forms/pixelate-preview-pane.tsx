@@ -1,8 +1,8 @@
 "use client"
 
 /**
- * Pixelate preview pane: a single canvas displaying the cropped,
- * quantised pixelate grid.
+ * Pixelate preview pane: a single canvas displaying the cropped pixelate
+ * grid with each cell snapped to the nearest Munsell palette chip.
  *
  * Sizing — explicit pixels, no CSS `aspect-ratio`. The pane fills the
  * dialog's body area via flex (`flex-1 min-h-0` inside `main`), so a PORTRAIT
@@ -45,6 +45,7 @@ import {
 import { type PixelateParams } from "@/lib/editor/trace/pixelate"
 import { buildMiniCanvas } from "@/lib/editor/trace/pixelate-preview"
 import { useSourceImage } from "@/lib/editor/trace/use-source-image"
+import { useTracePalette } from "@/lib/editor/trace/use-trace-palette"
 
 // Zoom: 1.0 == fit-to-pane. 8.0 == 8× that.
 const ZOOM_STEP = 1.5
@@ -60,6 +61,9 @@ type Props = {
 
 export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, params }: Props) {
   const source = useSourceImage(sourceImageUrl)
+  // Snap cells to the same Munsell palette the server uses. Null until the
+  // `/api/palette` fetch resolves; buildMiniCanvas falls back to raw means.
+  const palette = useTracePalette(params.color_mode)
   const grid = useMemo(
     () => resolvePixelateGrid(displayMmW, displayMmH, params),
     [displayMmW, displayMmH, params],
@@ -106,9 +110,9 @@ export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
       crop,
       cellsX: grid.cellsX,
       cellsY: grid.cellsY,
-      numColors: params.num_colors,
+      palette: palette ?? [],
     })
-  }, [source, crop, valid, grid.cellsX, grid.cellsY, params.num_colors])
+  }, [source, crop, valid, grid.cellsX, grid.cellsY, palette])
 
   const showSpinner = !source
   const showInvalid = source !== null && !valid
