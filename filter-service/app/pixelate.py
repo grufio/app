@@ -18,18 +18,19 @@ the crop exactly, so overlay and bitmap line up by construction
 without any border strip leaking through.
 
 No quantise, no vtracer — every cell boundary stays pixel-perfect
-axis-aligned by construction. The future palette map (gruf.io's
-fixed 140 colours + 48 greys) will hook in between steps 2 and 3,
-so cell mean colours map straight to the closest palette entry
-without an intermediate median-cut step (which would double-loss
-information).
+axis-aligned by construction. The per-cell colour step lives in the
+shared `cell_colors.py` (`compute_cell_colors`); the future palette map
+(gruf.io's fixed 128 colours + 48 greys) hooks in there, so cell mean
+colours map straight to the closest palette entry without an
+intermediate median-cut step (which would double-loss information).
 """
 from __future__ import annotations
 
 import io
 
-import numpy as np
 from PIL import Image
+
+from .cell_colors import compute_cell_colors
 
 
 def _grid_lines(
@@ -112,22 +113,11 @@ def pixelate_to_svg(
     # both the SVG viewBox and the trace_base image rows in the DB.
     cropped_w_px, cropped_h_px = cropped.size
 
-    # Downsample straight to the cell grid: 1 cell = 1 px, each
-    # cell the area-average of its source block.
-    cell_grid = cropped.resize((cells_x, cells_y), Image.BOX)
+    # Per-cell area-average (shared color contract, see cell_colors.py):
+    # 1 cell = 1 px, area-averaged via Image.BOX. The palette-map (nearest
+    # Munsell chip) hooks in inside compute_cell_colors in a later stage.
+    arr = compute_cell_colors(cropped, cells_x, cells_y)  # (cells_y, cells_x, 3)
     phase("downsample")
-
-    # FUTURE (separate PR): map each cell colour to its nearest
-    # neighbour in the gruf.io fixed palette (140 colours + 48
-    # greys). Insertion point:
-    #
-    #     cell_grid = map_to_grufio_palette(cell_grid)
-    #
-    # No median-cut quantise here — that would first pick random
-    # palette colours and then re-map to the fixed one (double
-    # loss). Direct mean → palette is single-step.
-
-    arr = np.asarray(cell_grid, dtype=np.uint8)  # (cells_y, cells_x, 3)
     color_rects: list[str] = []
     for y in range(cells_y):
         for x in range(cells_x):

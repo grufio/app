@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { cellAreaAverages } from "./pixelate-preview"
+import { cellAreaAverages } from "./trace-cell-colors"
 
 /**
  * Helper: build a flat RGBA buffer (row-major, alpha=255) from an
