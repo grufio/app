@@ -50,6 +50,27 @@ def rgb255_to_oklab(rgb255: np.ndarray) -> np.ndarray:
     return rgb_to_oklab(np.asarray(rgb255, dtype=np.float64) / 255.0)
 
 
+def rotate_hue(oklab: np.ndarray, degrees: float) -> np.ndarray:
+    """Rotate the hue of OKLab colours by `degrees` (OKLCh hue rotation),
+    keeping lightness L and chroma constant. Shape (..., 3) → (..., 3).
+
+    Used by Circulate's inner ellipse: the cell mean's hue is shifted, then
+    snapped back to the nearest palette chip (`nearest_palette_indices`) so the
+    shifted colour never leaves the palette. `degrees == 0` is the identity, so
+    the inner colour collapses to the same chip as the (unshifted) outer cell.
+    """
+    lab = np.asarray(oklab, dtype=np.float64)
+    a = lab[..., 1]
+    b = lab[..., 2]
+    chroma = np.hypot(a, b)
+    hue = np.arctan2(b, a) + np.radians(degrees)
+    out = np.empty_like(lab)
+    out[..., 0] = lab[..., 0]
+    out[..., 1] = chroma * np.cos(hue)
+    out[..., 2] = chroma * np.sin(hue)
+    return out
+
+
 def nearest_palette_indices(cell_oklab: np.ndarray, palette_oklab: np.ndarray) -> np.ndarray:
     """For each cell OKLab (N, 3), the index of the nearest palette chip
     (M, 3) by squared euclidean OKLab distance. Returns (N,) int indices.

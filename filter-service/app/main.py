@@ -14,6 +14,7 @@ import numpy as np
 import io
 import base64
 
+from app.circulate import circulate_to_svg
 from app.lineart import lineart_to_svg
 from app.pixelate import pixelate_to_svg
 
@@ -308,6 +309,105 @@ async def pixelate_filter(request: PixelateRequest):
             crop_h=request.crop_h,
             stroke_width=request.stroke_width,
             num_colors=request.num_colors,
+            palette_oklab=request.palette_oklab,
+            palette_rgb=request.palette_rgb,
+            on_phase=timer.mark,
+        )
+
+        return JSONResponse(
+            content={
+                "svg": svg_content,
+                "cropped_png_b64": base64.b64encode(cropped_png).decode("ascii"),
+                "region_count": region_count,
+            },
+            headers={
+                "X-Profile-Phases": timer.header(),
+                "X-Region-Count": str(region_count),
+            },
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Image processing failed: {str(e)}")
+
+
+class CirculateRequest(BaseModel):
+    image_base64: str
+    # Resolved grid from the server's `resolveCirculateGrid` — single source
+    # of truth (same shape as PixelateRequest). `cells_x/_y` is the cell count;
+    # `crop_*` is the source-image region (px) the grid covers.
+    cells_x: int
+    cells_y: int
+    crop_x: float
+    crop_y: float
+    crop_w: float
+    crop_h: float
+    # Ellipse axes as a FRACTION of the cell pitch (0..1). The server converts
+    # the mm sizes (outer/inner ellipse vs. pitch = spacing + outer + spacing)
+    # into fractions so this service stays mm-agnostic, like Pixelate.
+    outer_w_frac: float
+    outer_h_frac: float
+    inner_enabled: bool = False
+    inner_w_frac: float = 0.5
+    inner_h_frac: float = 0.5
+    # Contour stroke width in crop-pixel space (0 = no contour). Drawn uniform
+    # because the ellipses live in pixel space (no non-uniform scale group).
+    contour_width_px: float = 0.0
+    # Inner-ellipse hue rotation (degrees); the shifted colour is snapped back
+    # to the palette so it never leaves it. Ignored when no inner ellipse.
+    hue_shift_deg: float = 0.0
+    # Active palette (Munsell colour `lab_munsell` or b/w `lab_grays`), passed
+    # by the Node server from the DB — same contract as PixelateRequest.
+    palette_oklab: list[list[float]] | None = None
+    palette_rgb: list[list[int]] | None = None
+
+
+@app.post("/filters/circulate")
+async def circulate_filter(request: CirculateRequest):
+    """
+    Circulate: crop the source to the resolved grid, downsample to a
+    `cells_x × cells_y` grid (shared colour contract), snap each cell to the
+    nearest palette chip, then emit one ellipse (optionally two) per cell at
+    its cell centre with a contour stroke. No grid lines — the contour is the
+    grid. Returns JSON with the SVG + the cropped source bitmap (base64 PNG),
+    like Pixelate, so the editor can stack them 1:1.
+    """
+    if request.cells_x < 1 or request.cells_y < 1:
+        raise HTTPException(status_code=400, detail="cells_x and cells_y must be >= 1")
+    if request.crop_w <= 0 or request.crop_h <= 0:
+        raise HTTPException(status_code=400, detail="crop_w and crop_h must be > 0")
+    if not (0 < request.outer_w_frac <= 1) or not (0 < request.outer_h_frac <= 1):
+        raise HTTPException(status_code=400, detail="outer ellipse fractions must be in (0, 1]")
+    if request.inner_enabled and (
+        not (0 < request.inner_w_frac <= 1) or not (0 < request.inner_h_frac <= 1)
+    ):
+        raise HTTPException(status_code=400, detail="inner ellipse fractions must be in (0, 1]")
+    if request.contour_width_px < 0:
+        raise HTTPException(status_code=400, detail="contour_width_px must be >= 0")
+
+    timer = PhaseTimer()
+    try:
+        img_bytes = base64.b64decode(request.image_base64)
+        img = Image.open(io.BytesIO(img_bytes))
+        if img.mode not in ("RGB", "L"):
+            img = img.convert("RGB")
+        timer.mark("decode")
+
+        svg_content, cropped_png, region_count = circulate_to_svg(
+            img,
+            cells_x=request.cells_x,
+            cells_y=request.cells_y,
+            crop_x=request.crop_x,
+            crop_y=request.crop_y,
+            crop_w=request.crop_w,
+            crop_h=request.crop_h,
+            outer_w_frac=request.outer_w_frac,
+            outer_h_frac=request.outer_h_frac,
+            inner_enabled=request.inner_enabled,
+            inner_w_frac=request.inner_w_frac,
+            inner_h_frac=request.inner_h_frac,
+            contour_width_px=request.contour_width_px,
+            hue_shift_deg=request.hue_shift_deg,
             palette_oklab=request.palette_oklab,
             palette_rgb=request.palette_rgb,
             on_phase=timer.mark,
