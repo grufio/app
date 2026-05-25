@@ -10,12 +10,12 @@
  * despite `image-rendering: pixelated`).
  *
  * Per-cell colours are computed as a **true area-average** over every
- * source pixel that falls into the cell — `cellAreaAverages` below —
- * mirroring the server's `Image.BOX` downsample
- * (`filter-service/app/pixelate.py`). The previous implementation did
- * a single `drawImage(source → cellsX×cellsY)`, which for large
- * reduction ratios samples only a tiny neighbourhood per cell instead
- * of averaging the whole block; that produced the noisy, "too low
+ * source pixel that falls into the cell — `cellAreaAverages` (now in the
+ * shared `trace-cell-colors.ts`) — mirroring the server's `Image.BOX`
+ * downsample (`filter-service/app/cell_colors.py`). The previous
+ * implementation did a single `drawImage(source → cellsX×cellsY)`, which
+ * for large reduction ratios samples only a tiny neighbourhood per cell
+ * instead of averaging the whole block; that produced the noisy, "too low
  * resolution" cell colours and diverged from the actual trace output.
  *
  * Colour model unchanged: the optional median-cut quantise to
@@ -29,59 +29,7 @@
 import quantize from "quantize"
 import type { RgbPixel } from "quantize"
 
-/**
- * Pure per-cell area-average. Given a flat RGBA buffer (`width × height`,
- * row-major, 4 bytes/pixel) it partitions the buffer into a
- * `cellsX × cellsY` grid and returns the mean R/G/B of every source
- * pixel in each cell, row-major (`cy * cellsX + cx`).
- *
- * Each source pixel is assigned to exactly one cell via
- * `floor(p * cells / size)`, so every pixel contributes to precisely
- * one cell and all pixels in a cell are averaged — a genuine
- * area-average aligned to the cell grid (geometrically equivalent to
- * the server's `Image.BOX`). Canvas-free, so it is unit-testable
- * without a DOM.
- */
-export function cellAreaAverages(args: {
-  rgba: Uint8ClampedArray
-  width: number
-  height: number
-  cellsX: number
-  cellsY: number
-}): { r: Uint8ClampedArray; g: Uint8ClampedArray; b: Uint8ClampedArray } {
-  const { rgba, width, height, cellsX, cellsY } = args
-  const cellCount = cellsX * cellsY
-  const sumR = new Float64Array(cellCount)
-  const sumG = new Float64Array(cellCount)
-  const sumB = new Float64Array(cellCount)
-  const count = new Uint32Array(cellCount)
-
-  for (let py = 0; py < height; py += 1) {
-    const cy = Math.min(cellsY - 1, Math.floor((py * cellsY) / height))
-    const cellRow = cy * cellsX
-    const rowBase = py * width * 4
-    for (let px = 0; px < width; px += 1) {
-      const cx = Math.min(cellsX - 1, Math.floor((px * cellsX) / width))
-      const ci = cellRow + cx
-      const o = rowBase + px * 4
-      sumR[ci] += rgba[o]
-      sumG[ci] += rgba[o + 1]
-      sumB[ci] += rgba[o + 2]
-      count[ci] += 1
-    }
-  }
-
-  const r = new Uint8ClampedArray(cellCount)
-  const g = new Uint8ClampedArray(cellCount)
-  const b = new Uint8ClampedArray(cellCount)
-  for (let i = 0; i < cellCount; i += 1) {
-    const n = count[i] || 1
-    r[i] = Math.round(sumR[i] / n)
-    g[i] = Math.round(sumG[i] / n)
-    b[i] = Math.round(sumB[i] / n)
-  }
-  return { r, g, b }
-}
+import { cellAreaAverages } from "./trace-cell-colors"
 
 export function buildMiniCanvas(args: {
   target: HTMLCanvasElement
