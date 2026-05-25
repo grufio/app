@@ -12,12 +12,14 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database, Json } from "@/lib/supabase/database.types"
 import { TRACE_REGISTRY, type RegisteredTraceId } from "@/lib/editor/trace/registry"
+import { circulateSchema } from "@/lib/editor/trace/circulate"
 import { lineartSchema } from "@/lib/editor/trace/lineart"
 import { pixelateSchema } from "@/lib/editor/trace/pixelate"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 import { getEditorTargetImageRow, resolveEditorTargetImageRows } from "@/lib/supabase/project-images"
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role"
 import { activateProjectImageOnly } from "@/services/editor/server/activate-project-image"
+import { circulateImageAndActivate } from "@/services/editor/server/trace/circulate"
 import { lineArtImageAndActivate } from "@/services/editor/server/trace/lineart"
 import { pixelateImageAndActivate } from "@/services/editor/server/trace/pixelate"
 
@@ -31,6 +33,7 @@ export type TraceOpFailure = {
     | "lock_conflict"
     | "source_download"
     | "pixelate_process"
+    | "circulate_process"
     | "lineart_process"
     | "service_unavailable"
     | "auth"
@@ -92,11 +95,13 @@ function parseTraceKind(value: unknown): RegisteredTraceId | null {
 
 const TRACE_SCHEMAS = {
   pixelate: pixelateSchema,
+  circulate: circulateSchema,
   lineart: lineartSchema,
 } as const satisfies Record<RegisteredTraceId, unknown>
 
 const TRACE_HANDLERS = {
   pixelate: pixelateImageAndActivate,
+  circulate: circulateImageAndActivate,
   lineart: lineArtImageAndActivate,
 } as const satisfies Record<RegisteredTraceId, unknown>
 

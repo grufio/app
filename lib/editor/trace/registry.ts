@@ -6,11 +6,13 @@
  * separate surfaces (filter is stackable, trace is mutually
  * exclusive — one active per project).
  */
+import { circulateTrace } from "./circulate"
 import { lineartTrace } from "./lineart"
 import { pixelateTrace } from "./pixelate"
 
 export const TRACE_REGISTRY = {
   pixelate: pixelateTrace,
+  circulate: circulateTrace,
   lineart: lineartTrace,
 } as const
 

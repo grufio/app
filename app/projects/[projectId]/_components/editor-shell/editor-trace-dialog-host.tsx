@@ -2,12 +2,14 @@
 
 /**
  * Trace dialog host. Sister to `EditorDialogHost`. Mounts the
- * `TraceSelectionController` (pixelate vs lineart picker) and,
- * once a kind is chosen, the appropriate configure surface:
- *   - pixelate → `PixelateDialog`
- *   - lineart  → single-form `GenericTraceController`
+ * `TraceSelectionController` (trace picker) and, once a kind is chosen, the
+ * appropriate configure surface:
+ *   - pixelate  → `PixelateDialog`
+ *   - circulate → `CirculateDialog`
+ *   - lineart   → single-form `GenericTraceController`
  */
 import { TraceSelectionController } from "@/features/editor/components/TraceSelectionController"
+import { CirculateDialog } from "@/features/editor/components/trace-forms/circulate-dialog"
 import { GenericTraceController } from "@/features/editor/components/trace-forms/generic-trace-controller"
 import { PixelateDialog } from "@/features/editor/components/trace-forms/pixelate-dialog"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
@@ -70,7 +72,18 @@ export function EditorTraceDialogHost(props: {
           onApplyTrace={onApplyTrace}
         />
       ) : null}
-      {configureOpen && traceDialogSource && activeKind && activeKind !== "pixelate" ? (
+      {configureOpen && traceDialogSource && activeKind === "circulate" ? (
+        <CirculateDialog
+          open
+          sourceImageUrl={traceDialogSource.sourceImageUrl}
+          displayMmW={traceDialogSource.displayMmW}
+          displayMmH={traceDialogSource.displayMmH}
+          onClose={onCloseConfigure}
+          onSuccess={onApplied}
+          onApplyTrace={onApplyTrace}
+        />
+      ) : null}
+      {configureOpen && traceDialogSource && activeKind && activeKind !== "pixelate" && activeKind !== "circulate" ? (
         <GenericTraceController
           kind={activeKind}
           ctx={{
