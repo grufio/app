@@ -8,9 +8,11 @@
  * authoritative SVG comes from the server, this only drives the live preview).
  *
  * Today: a true per-cell area-average (`cellAreaAverages`), geometrically
- * equivalent to the server's `Image.BOX` downsample. The palette-map step
- * (nearest Munsell chip via OKLab) hooks in on top of this in a later stage.
+ * equivalent to the server's `Image.BOX` downsample, then `mapCellsToPalette`
+ * snaps each cell to the nearest Munsell chip via OKLab — mirroring the
+ * server (`filter-service/app/cell_colors.py`).
  */
+import { nearestPaletteIndex, rgb255ToOklab, type Oklab } from "@/lib/color/oklab"
 
 /**
  * Pure per-cell area-average. Given a flat RGBA buffer (`width × height`,
@@ -62,6 +64,34 @@ export function cellAreaAverages(args: {
     r[i] = Math.round(sumR[i] / n)
     g[i] = Math.round(sumG[i] / n)
     b[i] = Math.round(sumB[i] / n)
+  }
+  return { r, g, b }
+}
+
+/** One palette chip: OKLab (for matching) + RGB (the emitted colour). Mirrors
+ * the `/api/palette` response and the server `lib/supabase/palette.ts` shape. */
+export type PaletteChip = { oklab: Oklab; rgb: readonly [number, number, number] }
+
+type CellColors = { r: Uint8ClampedArray; g: Uint8ClampedArray; b: Uint8ClampedArray }
+
+/**
+ * Snap each per-cell mean to the nearest palette chip (OKLab nearest),
+ * mirroring the server's `map_cells_to_palette`. Returns new channel arrays;
+ * an empty palette returns the input unchanged (raw means).
+ */
+export function mapCellsToPalette(cells: CellColors, palette: ReadonlyArray<PaletteChip>): CellColors {
+  if (palette.length === 0) return cells
+  const paletteOklab = palette.map((c) => c.oklab)
+  const n = cells.r.length
+  const r = new Uint8ClampedArray(n)
+  const g = new Uint8ClampedArray(n)
+  const b = new Uint8ClampedArray(n)
+  for (let i = 0; i < n; i += 1) {
+    const idx = nearestPaletteIndex(rgb255ToOklab(cells.r[i], cells.g[i], cells.b[i]), paletteOklab)
+    const chip = palette[idx].rgb
+    r[i] = chip[0]
+    g[i] = chip[1]
+    b[i] = chip[2]
   }
   return { r, g, b }
 }
