@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import sharp from "sharp"
 
 import { makeMockSupabase } from "@/lib/supabase/__mocks__/make-mock-supabase"
 import { uploadMasterImage } from "./master-image-upload"
@@ -38,6 +39,28 @@ vi.mock("@/services/editor/server/activate-project-image", () => ({
   activateProjectMasterAndWorkingCopy: (...args: unknown[]) => activateSpy(...args),
 }))
 
+/**
+ * Build a REAL, sharp-readable image File so the service's server-side
+ * sharp extraction has genuine bytes to read width/height/density from.
+ * `density` is embedded (PNG pHYs / JPEG JFIF) and must round-trip through
+ * `sharp.metadata().density`.
+ */
+async function makeImageFile(opts: {
+  width: number
+  height: number
+  density?: number
+  format?: "png" | "jpeg"
+}): Promise<File> {
+  const { width, height, density, format = "png" } = opts
+  let pipeline = sharp({
+    create: { width, height, channels: 3, background: { r: 10, g: 20, b: 30 } },
+  })
+  pipeline = format === "jpeg" ? pipeline.jpeg() : pipeline.png()
+  if (density) pipeline = pipeline.withMetadata({ density })
+  const buf = await pipeline.toBuffer()
+  return new File([new Uint8Array(buf)], `x.${format}`, { type: `image/${format}` })
+}
+
 function makeSupabase(opts: MakeSupabaseOpts) {
   const {
     capture,
@@ -58,12 +81,6 @@ function makeSupabase(opts: MakeSupabaseOpts) {
   } = opts
   let insertCall = 0
 
-  // Master cleanup now goes through `delete_master_with_cascade`
-  // (server-side cascade with `app.deleting_project` GUC), so the
-  // mock spies on the RPC call and returns the configured rowset.
-  // `selectData` is retained for any code path that still does a
-  // direct `select` (none in the current flow), but the cleanup
-  // count moves to `cleanupRpcCalls`.
   const supabase = makeMockSupabase({
     tables: {
       project_images: {
@@ -79,9 +96,6 @@ function makeSupabase(opts: MakeSupabaseOpts) {
           const nextError = insertCall < insertErrors.length ? insertErrors[insertCall] : insertError
           insertCall += 1
           if (nextError) return { data: null, error: nextError }
-          // Mimic `.select("*").single()` chained after insert: return
-          // the just-inserted row so master-image-upload can build the
-          // snapshot from in-memory state without a re-select.
           return { data: payload, error: null }
         },
         delete: () => {
@@ -108,8 +122,6 @@ function makeSupabase(opts: MakeSupabaseOpts) {
     },
   })
 
-  // Override the factory-provided storage handlers with the external
-  // spies so each test can configure them via `mockResolvedValue` etc.
   supabase.storage = {
     from: () => ({
       upload: uploadSpy,
@@ -129,47 +141,34 @@ describe("master-image-upload service", () => {
     delete process.env.USER_UPLOAD_MAX_PIXELS
   })
 
-  it("rejects invalid dimensions with validation stage", async () => {
+  it("rejects an unreadable image file with validation/400 (sharp cannot parse)", async () => {
     const supabase = makeSupabase({ capture: { inserts: [], deletes: 0, stateUpserts: 0, cleanupRpcCalls: 0 } })
-    const file = new File([new Uint8Array([1])], "x.png", { type: "image/png" })
-    const out = await uploadMasterImage({
-      supabase: supabase as never,
-      projectId: "p1",
-      file,
-      widthPx: 0,
-      heightPx: 10,
-      format: "png",
-      dpi: 72,
-    })
+    const file = new File([new Uint8Array([1, 2, 3])], "x.png", { type: "image/png" })
+    const out = await uploadMasterImage({ supabase: supabase as never, projectId: "p1", file, format: "png" })
     expect(out.ok).toBe(false)
     if (!out.ok) {
       expect(out.stage).toBe("validation")
       expect(out.status).toBe(400)
     }
+    // Never touched storage — rejected before upload.
+    expect(uploadSpy).not.toHaveBeenCalled()
   })
 
-  it("applies upload limits from env", async () => {
+  it("applies upload limits from env (before storage upload)", async () => {
     process.env.USER_MAX_UPLOAD_BYTES = "1"
     const supabase = makeSupabase({ capture: { inserts: [], deletes: 0, stateUpserts: 0, cleanupRpcCalls: 0 } })
-    const file = new File([new Uint8Array([1, 2])], "x.png", { type: "image/png" })
+    const file = await makeImageFile({ width: 10, height: 10 })
 
-    const out = await uploadMasterImage({
-      supabase: supabase as never,
-      projectId: "p1",
-      file,
-      widthPx: 10,
-      heightPx: 10,
-      dpi: 72,
-      format: "png",
-    })
+    const out = await uploadMasterImage({ supabase: supabase as never, projectId: "p1", file, format: "png" })
     expect(out.ok).toBe(false)
     if (!out.ok) {
       expect(out.stage).toBe("upload_limits")
       expect(out.status).toBe(413)
     }
+    expect(uploadSpy).not.toHaveBeenCalled()
   })
 
-  it("replaces existing master rows, inserts, and activates", async () => {
+  it("derives width/height/DPI from the file via sharp, then inserts + activates", async () => {
     const capture = { inserts: [] as InsertPayload[], deletes: 0, stateUpserts: 0, cleanupRpcCalls: 0 }
     const supabase = makeSupabase({
       capture,
@@ -179,17 +178,11 @@ describe("master-image-upload service", () => {
     removeSpy.mockResolvedValue({ error: null })
     createSignedUrlSpy.mockResolvedValue({ data: { signedUrl: "https://signed/master" }, error: null })
     activateSpy.mockResolvedValueOnce({ ok: true })
-    const file = new File([new Uint8Array([1])], "x.png", { type: "image/png" })
+    // Real 400×200 PNG carrying a 300-DPI pHYs chunk — the server reads
+    // these, NOT any client-sent values.
+    const file = await makeImageFile({ width: 400, height: 200, density: 300 })
 
-    const out = await uploadMasterImage({
-      supabase: supabase as never,
-      projectId: "p1",
-      file,
-      widthPx: 400.9,
-      heightPx: 200.1,
-      dpi: 300,
-      format: "png",
-    })
+    const out = await uploadMasterImage({ supabase: supabase as never, projectId: "p1", file, format: "png" })
 
     expect(out.ok).toBe(true)
     if (out.ok) {
@@ -198,10 +191,6 @@ describe("master-image-upload service", () => {
       expect(out.master.height_px).toBe(200)
       expect(out.master.dpi).toBe(300)
     }
-    // Eager working-copy: master upload writes the master file once
-    // (working_copy shares storage_path) and inserts BOTH the master
-    // row and the working_copy row. The working_copy is the editable
-    // anchor; the master row is immutable.
     expect(uploadSpy).toHaveBeenCalledTimes(1)
     expect(capture.inserts).toHaveLength(2)
     const masterInsert = capture.inserts.find((row) => row.kind === "master")
@@ -226,6 +215,36 @@ describe("master-image-upload service", () => {
     expect(activateSpy).toHaveBeenCalledTimes(1)
   })
 
+  it("reads JFIF density from a JPEG (240 → dpi 240)", async () => {
+    const capture = { inserts: [] as InsertPayload[], deletes: 0, stateUpserts: 0, cleanupRpcCalls: 0 }
+    const supabase = makeSupabase({ capture, selectData: [] })
+    uploadSpy.mockResolvedValue({ error: null })
+    createSignedUrlSpy.mockResolvedValue({ data: { signedUrl: "https://signed/master" }, error: null })
+    activateSpy.mockResolvedValueOnce({ ok: true })
+    const file = await makeImageFile({ width: 120, height: 90, density: 240, format: "jpeg" })
+
+    const out = await uploadMasterImage({ supabase: supabase as never, projectId: "p1", file, format: "jpeg" })
+    expect(out.ok).toBe(true)
+    const masterInsert = capture.inserts.find((row) => row.kind === "master")
+    expect(masterInsert?.width_px).toBe(120)
+    expect(masterInsert?.height_px).toBe(90)
+    expect(masterInsert?.dpi).toBe(240)
+  })
+
+  it("falls back to dpi=72 when the image carries no density", async () => {
+    const capture = { inserts: [] as InsertPayload[], deletes: 0, stateUpserts: 0, cleanupRpcCalls: 0 }
+    const supabase = makeSupabase({ capture, selectData: [] })
+    uploadSpy.mockResolvedValue({ error: null })
+    createSignedUrlSpy.mockResolvedValue({ data: { signedUrl: "https://signed/master" }, error: null })
+    activateSpy.mockResolvedValueOnce({ ok: true })
+    const file = await makeImageFile({ width: 50, height: 40 }) // no density
+
+    const out = await uploadMasterImage({ supabase: supabase as never, projectId: "p1", file, format: "png" })
+    expect(out.ok).toBe(true)
+    const masterInsert = capture.inserts.find((row) => row.kind === "master")
+    expect(masterInsert?.dpi).toBe(72)
+  })
+
   it("rolls back inserted row and storage object when activation fails", async () => {
     const capture = { inserts: [] as InsertPayload[], deletes: 0, stateUpserts: 0, cleanupRpcCalls: 0 }
     const supabase = makeSupabase({ capture, selectData: [] })
@@ -238,17 +257,9 @@ describe("master-image-upload service", () => {
       reason: "Active image is locked",
       code: "image_locked",
     })
-    const file = new File([new Uint8Array([1])], "x.png", { type: "image/png" })
+    const file = await makeImageFile({ width: 200, height: 100 })
 
-    const out = await uploadMasterImage({
-      supabase: supabase as never,
-      projectId: "p1",
-      file,
-      widthPx: 200,
-      heightPx: 100,
-      dpi: 72,
-      format: "png",
-    })
+    const out = await uploadMasterImage({ supabase: supabase as never, projectId: "p1", file, format: "png" })
 
     expect(out).toEqual({
       ok: false,
@@ -257,24 +268,8 @@ describe("master-image-upload service", () => {
       reason: "Active image is locked",
       code: "image_locked",
     })
-    // First-upload (selectData=[]): cleanup cascade is skipped — no
-    // prior master to delete. Test focus is the rollback path, not the
-    // cleanup path; cleanup behaviour is exercised by the "replaces"
-    // test above.
     expect(capture.cleanupRpcCalls).toBe(0)
     expect(capture.stateUpserts).toBe(0)
     expect(removeSpy).toHaveBeenCalled()
   })
-
-  // Pre-refactor: master upload seeded a project_image_state row for
-  // the working copy. After anchoring state at master.id, no pre-seed
-  // is needed — the editor's first placement creates the row on
-  // demand. Tests for the old "transform_sync" failure path were
-  // removed because copyImageTransform no longer runs in this flow.
-  //
-  // Post-lazy-working-copy: the working-copy insert no longer runs in
-  // the upload flow at all (it's lazy on first filter-apply via
-  // `working-copy/ensure.ts`). The "working_copy insert fails" rollback
-  // test was deleted — that failure mode now lives in the ensure helper
-  // and is exercised by `working-copy/ensure.test.ts`.
 })
