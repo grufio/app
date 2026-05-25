@@ -105,6 +105,43 @@ describe("computeImagePlacementPx", () => {
     })
   })
 
+  it("clamps an oversized image down to fit the artboard (contain, aspect + centre preserved)", () => {
+    // The real symptom: a 2730×4096 px photo at 72 dpi (physical = intrinsic)
+    // on an A4 artboard (595×842 px). Pre-clamp it placed at 2730×4096
+    // (≈963×1445 mm); now it contain-fits to the artboard.
+    const out = computeImagePlacementPx({
+      artW: 595,
+      artH: 842,
+      intrinsicW: 2730,
+      intrinsicH: 4096,
+      imageDpi: 72,
+    })!
+    expect(out).not.toBeNull()
+    // Height is the limiting axis (portrait) → fills 842; width scales with it.
+    expect(out.heightPx).toBeCloseTo(842, 5)
+    expect(out.widthPx).toBeCloseTo(2730 * (842 / 4096), 5)
+    // Never larger than the artboard on either axis.
+    expect(out.widthPx).toBeLessThanOrEqual(595 + 1e-9)
+    expect(out.heightPx).toBeLessThanOrEqual(842 + 1e-9)
+    // Aspect preserved, still centred on the artboard.
+    expect(out.widthPx / out.heightPx).toBeCloseTo(2730 / 4096, 6)
+    expect(out.xPx).toBe(595 / 2)
+    expect(out.yPx).toBe(842 / 2)
+  })
+
+  it("does not upscale an image smaller than the artboard (clamp is scale-down only)", () => {
+    const out = computeImagePlacementPx({
+      artW: 2000,
+      artH: 2000,
+      intrinsicW: 100,
+      intrinsicH: 80,
+      imageDpi: 72,
+    })!
+    // physical 100×80 ≤ artboard → unchanged (fit capped at 1, no upscale).
+    expect(out.widthPx).toBe(100)
+    expect(out.heightPx).toBe(80)
+  })
+
   it("returns null for invalid dimensions", () => {
     const out = computeImagePlacementPx({
       artW: 0,

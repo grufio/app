@@ -81,11 +81,15 @@ describe("useInitialImagePlacement — late persisted transform (prod reload rac
     })
     await flushMicrotasks()
 
-    // Intrinsic placement applied: at dpi 72 the 1254 source maps 1:1.
+    // Intrinsic placement applied — now contain-clamped to the artboard:
+    // the 1254² source at dpi 72 (physical = intrinsic) exceeds the 595×842
+    // artboard, so it scales DOWN by fit = 595/1254 → 595×595 (square,
+    // width-limited). The exact size is covered in placement.test.ts; here we
+    // only need that the intrinsic placement fired before the persisted one.
     expect(setImageTx).toHaveBeenCalled()
     const intrinsicCall = setImageTx.mock.calls.at(-1)?.[0]
-    expect(intrinsicCall?.widthPxU).toBe(PX_U(MASTER))
-    expect(intrinsicCall?.heightPxU).toBe(PX_U(MASTER))
+    expect(intrinsicCall?.widthPxU).toBe(PX_U(ARTW))
+    expect(intrinsicCall?.heightPxU).toBe(PX_U(ARTW))
 
     // 2. The persisted display transform now arrives (the re-seed
     //    resolved → displayTxU = 283×567 → initialImageTransform updates).

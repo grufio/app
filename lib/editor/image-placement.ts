@@ -9,8 +9,13 @@
  *   widthPx_internal = intrinsicW_px / imageDpi * 72
  *
  * Images without DPI metadata fall back to 72 PPI (web default), so a
- * 3000-px image renders at ~1058 mm — matches Illustrator behavior for
- * a placed raster without EXIF DPI.
+ * 3000-px image would render at ~1058 mm.
+ *
+ * Clamp: that physical size is then contain-fit DOWN to the artboard, so a
+ * placement never exceeds the artboard. Scale-down only — an image that fits
+ * keeps its physical size and a small image is never upscaled (no auto-fit).
+ * A 72-PPI photo that is larger than the artboard is therefore placed at the
+ * artboard size instead of metres-wide.
  */
 export const FALLBACK_IMAGE_DPI = 72
 const MICRO_PX_SCALE = 1_000_000
@@ -42,11 +47,21 @@ export function computeImagePlacementPx(args: {
   const scale = GEOMETRY_PPI / sourceDpi
   if (!Number.isFinite(scale) || scale <= 0) return null
 
+  const physicalW = intrinsicW * scale
+  const physicalH = intrinsicH * scale
+
+  // Clamp: an image is never placed larger than its artboard. Contain-fit,
+  // scale-DOWN only — `fit` is capped at 1, so an image that already fits is
+  // unchanged and a small image is NEVER upscaled (no auto-fit). The bound is
+  // the real artboard, not a magic constant. `physicalW/H > 0` here
+  // (intrinsic > 0, scale > 0), so the divisions are safe.
+  const fit = Math.min(1, artW / physicalW, artH / physicalH)
+
   return {
     xPx: artW / 2,
     yPx: artH / 2,
-    widthPx: intrinsicW * scale,
-    heightPx: intrinsicH * scale,
+    widthPx: physicalW * fit,
+    heightPx: physicalH * fit,
   }
 }
 

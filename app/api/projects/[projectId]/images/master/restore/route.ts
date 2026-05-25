@@ -94,12 +94,13 @@ export async function POST(
   // `20260521120114_project_images_initial_display.sql`). The columns
   // are NOT NULL DEFAULT '0'; treat '0' as "uninitialised".
   //
-  // `computeImagePlacementPx` returns width/height purely from
-  // intrinsic × (72/dpi), independent of the current artboard, so the
-  // backfilled dimensions match what would have been written at upload
-  // time. x/y land at the current artboard centre — fine because the
-  // master row's "initial placement" anchor is the artboard centre by
-  // contract, even if the artboard has since been resized.
+  // `computeImagePlacementPx` returns width/height from intrinsic ×
+  // (72/dpi), then contain-clamps DOWN to the artboard (never larger than
+  // the artboard). The backfilled dimensions therefore match what current
+  // upload-time placement writes (same function, same clamp) — consistent,
+  // just no longer artboard-independent. x/y land at the current artboard
+  // centre — fine because the master row's "initial placement" anchor is the
+  // artboard centre by contract, even if the artboard has since been resized.
   //
   // After the first restore on a legacy row, the master row is
   // persisted and future restores read directly (= the deterministic
