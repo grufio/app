@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { nearestPaletteIndex, rgb255ToOklab, type Oklab } from "./oklab"
+import { nearestPaletteIndex, rgb255ToOklab, rotateHueOklab, type Oklab } from "./oklab"
 
 // Shared parity vectors — these SAME numbers are asserted in the Python
 // mirror `filter-service/tests/test_oklab.py`. If client and server ever
@@ -54,5 +54,37 @@ describe("nearestPaletteIndex — deterministic argmin (server parity)", () => {
       nearestPaletteIndex(rgb255ToOklab(rgb[0], rgb[1], rgb[2]), palette),
     )
     expect(got).toEqual(EXPECTED_NEAREST)
+  })
+})
+
+describe("rotateHueOklab — OKLCh hue rotation (server parity)", () => {
+  it("0° is the identity", () => {
+    const lab = rgb255ToOklab(200, 30, 40)
+    const out = rotateHueOklab(lab, 0)
+    expect(out[0]).toBeCloseTo(lab[0], 12)
+    expect(out[1]).toBeCloseTo(lab[1], 12)
+    expect(out[2]).toBeCloseTo(lab[2], 12)
+  })
+
+  it("360° is the identity (full turn)", () => {
+    const lab = rgb255ToOklab(130, 90, 200)
+    const out = rotateHueOklab(lab, 360)
+    expect(out[0]).toBeCloseTo(lab[0], 9)
+    expect(out[1]).toBeCloseTo(lab[1], 9)
+    expect(out[2]).toBeCloseTo(lab[2], 9)
+  })
+
+  it("preserves lightness + chroma and advances the hue by the given degrees", () => {
+    const lab = rgb255ToOklab(200, 30, 40)
+    const rotated = rotateHueOklab(lab, 73)
+    expect(rotated[0]).toBeCloseTo(lab[0], 12) // L unchanged
+    const chromaIn = Math.hypot(lab[1], lab[2])
+    const chromaOut = Math.hypot(rotated[1], rotated[2])
+    expect(chromaOut).toBeCloseTo(chromaIn, 12) // chroma preserved
+    const hueIn = (Math.atan2(lab[2], lab[1]) * 180) / Math.PI
+    const hueOut = (Math.atan2(rotated[2], rotated[1]) * 180) / Math.PI
+    // Wrap the delta into (-180, 180] before comparing to the +73° shift.
+    const delta = ((hueOut - hueIn + 180) % 360) - 180
+    expect(delta).toBeCloseTo(73, 6)
   })
 })

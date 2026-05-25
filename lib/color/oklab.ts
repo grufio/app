@@ -50,6 +50,21 @@ export function rgb255ToOklab(r: number, g: number, b: number): Oklab {
 }
 
 /**
+ * Rotate the hue of an OKLab colour by `degrees` (OKLCh hue rotation),
+ * keeping lightness L and chroma constant. Mirror of `oklab.py`'s
+ * `rotate_hue`; used by Circulate's inner ellipse (the cell mean's hue is
+ * shifted, then snapped back to the nearest palette chip so it never leaves
+ * the palette). `degrees === 0` is the identity.
+ */
+export function rotateHueOklab(lab: Oklab, degrees: number): Oklab {
+  const a = lab[1]
+  const b = lab[2]
+  const chroma = Math.hypot(a, b)
+  const hue = Math.atan2(b, a) + (degrees * Math.PI) / 180
+  return [lab[0], chroma * Math.cos(hue), chroma * Math.sin(hue)]
+}
+
+/**
  * Index of the nearest palette chip to `lab` by squared euclidean OKLab
  * distance. `palette` must be non-empty; returns 0 for an empty palette.
  */

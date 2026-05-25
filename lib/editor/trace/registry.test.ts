@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 
+import { circulateSchema } from "./circulate"
 import { lineartSchema } from "./lineart"
 import { pixelateSchema } from "./pixelate"
 import { TRACE_REGISTRY } from "./registry"
@@ -82,6 +83,12 @@ describe("TRACE_REGISTRY", () => {
     expect(TRACE_REGISTRY.pixelate.id).toBe("pixelate")
     expect(TRACE_REGISTRY.pixelate.label).toBe("Pixelate")
     expect(TRACE_REGISTRY.pixelate.schema).toBe(pixelateSchema)
+  })
+
+  it("exposes circulate", () => {
+    expect(TRACE_REGISTRY.circulate.id).toBe("circulate")
+    expect(TRACE_REGISTRY.circulate.label).toBe("Circulate")
+    expect(TRACE_REGISTRY.circulate.schema).toBe(circulateSchema)
   })
 
   it("exposes lineart", () => {

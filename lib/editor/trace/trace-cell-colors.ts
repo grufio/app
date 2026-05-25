@@ -12,7 +12,7 @@
  * snaps each cell to the nearest Munsell chip via OKLab — mirroring the
  * server (`filter-service/app/cell_colors.py`).
  */
-import { nearestPaletteIndex, rgb255ToOklab, type Oklab } from "@/lib/color/oklab"
+import { nearestPaletteIndex, rgb255ToOklab, rotateHueOklab, type Oklab } from "@/lib/color/oklab"
 
 /**
  * Pure per-cell area-average. Given a flat RGBA buffer (`width × height`,
@@ -89,6 +89,35 @@ export function mapCellsToPalette(cells: CellColors, palette: ReadonlyArray<Pale
   for (let i = 0; i < n; i += 1) {
     const idx = nearestPaletteIndex(rgb255ToOklab(cells.r[i], cells.g[i], cells.b[i]), paletteOklab)
     const chip = palette[idx].rgb
+    r[i] = chip[0]
+    g[i] = chip[1]
+    b[i] = chip[2]
+  }
+  return { r, g, b }
+}
+
+/**
+ * Like {@link mapCellsToPalette} but rotates each cell mean's hue by
+ * `hueShiftDeg` (OKLCh) before snapping to the nearest chip — Circulate's
+ * inner-ellipse colour. Mirror of the server's `_inner_colors`
+ * (`filter-service/app/circulate.py`); the shifted colour stays in the
+ * palette. `hueShiftDeg === 0` reduces to {@link mapCellsToPalette}. An empty
+ * palette returns the input unchanged (raw means).
+ */
+export function mapCellsToPaletteHueShifted(
+  cells: CellColors,
+  palette: ReadonlyArray<PaletteChip>,
+  hueShiftDeg: number,
+): CellColors {
+  if (palette.length === 0) return cells
+  const paletteOklab = palette.map((c) => c.oklab)
+  const n = cells.r.length
+  const r = new Uint8ClampedArray(n)
+  const g = new Uint8ClampedArray(n)
+  const b = new Uint8ClampedArray(n)
+  for (let i = 0; i < n; i += 1) {
+    const shifted = rotateHueOklab(rgb255ToOklab(cells.r[i], cells.g[i], cells.b[i]), hueShiftDeg)
+    const chip = palette[nearestPaletteIndex(shifted, paletteOklab)].rgb
     r[i] = chip[0]
     g[i] = chip[1]
     b[i] = chip[2]

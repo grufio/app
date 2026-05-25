@@ -13,9 +13,9 @@
  *
  * Stateless: parent owns the draft and reacts to `onParamsChange`.
  */
-import { ArrowLeftRight, ArrowUpDown, Palette, Printer } from "lucide-react"
+import { ArrowLeftRight, ArrowUpDown } from "lucide-react"
 
-import { FormField, type SelectFieldOption } from "@/components/ui/form-controls"
+import { FormField } from "@/components/ui/form-controls"
 import { type PixelateParams } from "@/lib/editor/trace/pixelate"
 import {
   isPixelateGridValid,
@@ -25,17 +25,7 @@ import {
 
 import { PanelIconSlot, PanelTwoFieldRow } from "../panel-layout"
 import { EditorSidebarSection } from "../sidebar/editor-sidebar-section"
-
-// Module-level so the `options` reference stays stable across renders (the
-// select FormField memoises on `prev.options === next.options`).
-const COLOR_MODE_OPTIONS: SelectFieldOption[] = [
-  { value: "color", label: "Color" },
-  { value: "bw", label: "S/W" },
-]
-const COLOR_SPACE_OPTIONS: SelectFieldOption[] = [
-  { value: "rgb", label: "RGB" },
-  { value: "cmyk", label: "CMYK" },
-]
+import { TraceColorsFields } from "./trace-colors-fields"
 
 type Props = {
   params: PixelateParams
@@ -109,31 +99,13 @@ export function PixelateForm({ params, onParamsChange, disabled, grid }: Props) 
       </EditorSidebarSection>
 
       <EditorSidebarSection title="Colors">
-        <PanelTwoFieldRow>
-          <FormField
-            variant="select"
-            label="Farbmodus (S/W oder Color)"
-            labelVisuallyHidden
-            iconStart={<Palette aria-hidden="true" />}
-            id="color_mode"
-            value={params.color_mode}
-            options={COLOR_MODE_OPTIONS}
-            onCommit={(v) => onParamsChange("color_mode", v as PixelateParams["color_mode"])}
-            disabled={disabled}
-          />
-          <FormField
-            variant="select"
-            label="PDF-Farbraum (RGB oder CMYK)"
-            labelVisuallyHidden
-            iconStart={<Printer aria-hidden="true" />}
-            id="color_space"
-            value={params.color_space}
-            options={COLOR_SPACE_OPTIONS}
-            onCommit={(v) => onParamsChange("color_space", v as PixelateParams["color_space"])}
-            disabled={disabled}
-          />
-          <PanelIconSlot />
-        </PanelTwoFieldRow>
+        <TraceColorsFields
+          colorMode={params.color_mode}
+          colorSpace={params.color_space}
+          onColorModeChange={(v) => onParamsChange("color_mode", v)}
+          onColorSpaceChange={(v) => onParamsChange("color_space", v)}
+          disabled={disabled}
+        />
       </EditorSidebarSection>
     </>
   )
