@@ -16,7 +16,9 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
+  DialogStickyFooter,
   DialogTitle,
+  FullscreenDialogContent,
 } from "@/components/ui/dialog"
 import { TRACE_REGISTRY, type RegisteredTraceId } from "@/lib/editor/trace/registry"
 import { useIsMobile } from "@/lib/ui/use-mobile"
@@ -58,37 +60,30 @@ export function TraceSelectionController({ workingImageUrl, open, onClose, onSel
       {isMobile ? (
         // Fullscreen on mobile (matches the Pixelate/Circulate dialogs): a
         // scrollable tile grid between a sticky header and a sticky
-        // Cancel/Select footer. `items-stretch` on the wrapper makes the
-        // height definite; `p-0` drops the inset for edge-to-edge.
-        <DialogContent
-          containerClassName="p-0 items-stretch"
-          className="h-full w-full max-w-none sm:max-w-none overflow-hidden rounded-none p-0"
-        >
-          <div className="flex h-full min-h-0 flex-col">
-            <DialogHeader className="shrink-0 border-b p-4 pr-12">
-              <DialogTitle>Trace</DialogTitle>
-              <DialogDescription>Pick how to vectorise the image.</DialogDescription>
-            </DialogHeader>
-            <div className="min-h-0 flex-1 overflow-y-auto p-4">
-              <FilterTypeCards
-                items={items}
-                selectedId={selectedCardId}
-                onSelect={setSelectedCardId}
-                className="grid-cols-2 gap-2"
-              />
-            </div>
-            <div className="shrink-0 border-t p-3">
-              <div className="flex justify-between gap-2">
-                <Button variant="outline" size="lg" onClick={handleClose}>
-                  Cancel
-                </Button>
-                <Button size="lg" onClick={handleSelect} disabled={!selectedCardId}>
-                  Select
-                </Button>
-              </div>
-            </div>
+        // Cancel/Select footer. Tiles forced to 2 columns + tighter gap so
+        // they stay small on narrow screens.
+        <FullscreenDialogContent>
+          <DialogHeader className="shrink-0 border-b p-4 pr-12">
+            <DialogTitle>Trace</DialogTitle>
+            <DialogDescription>Pick how to vectorise the image.</DialogDescription>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto p-4">
+            <FilterTypeCards
+              items={items}
+              selectedId={selectedCardId}
+              onSelect={setSelectedCardId}
+              className="grid-cols-2 gap-2"
+            />
           </div>
-        </DialogContent>
+          <DialogStickyFooter>
+            <Button variant="outline" size="lg" onClick={handleClose}>
+              Cancel
+            </Button>
+            <Button size="lg" onClick={handleSelect} disabled={!selectedCardId}>
+              Select
+            </Button>
+          </DialogStickyFooter>
+        </FullscreenDialogContent>
       ) : (
         <DialogContent>
           <DialogHeader>

@@ -20,7 +20,10 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogHeader,
+  DialogStickyFooter,
   DialogTitle,
+  FullscreenDialogContent,
 } from "@/components/ui/dialog"
 import {
   Sidebar,
@@ -64,71 +67,63 @@ export function TraceDialogShell({
   if (isMobile) {
     return (
       <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onCancel()}>
-        {/* `items-stretch` on the wrapper (overriding its `items-center`) makes
-            the content height definite without relying on percentage-height
-            resolution through a centred flexbox; `p-0` drops the inset for a
-            true edge-to-edge fullscreen. */}
-        <DialogContent
-          containerClassName="p-0 items-stretch"
-          className="h-full w-full max-w-none sm:max-w-none overflow-hidden rounded-none p-0"
-        >
+        <FullscreenDialogContent>
           <DialogTitle className="sr-only">{title}</DialogTitle>
           <DialogDescription className="sr-only">{description}</DialogDescription>
 
-          <div className="flex h-full min-h-0 flex-col">
-            <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
-              <span className="text-sm font-medium">{title}</span>
-              {/* mr-10 keeps clear of the absolute close (X) button. */}
+          <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
+            <span className="text-sm font-medium">{title}</span>
+            {/* mr-10 keeps clear of the absolute close (X) button. */}
+            <Button
+              type="button"
+              variant="outline"
+              className="ml-auto mr-10"
+              onClick={() => setEditOpen(true)}
+              disabled={busy}
+            >
+              Bearbeiten
+            </Button>
+          </header>
+          <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            {preview}
+          </main>
+        </FullscreenDialogContent>
+
+        {/* Nested Radix dialog: portals to body (escapes the parent's
+            overflow-hidden) and stacks focus correctly over the fullscreen
+            preview. Fullscreen too, so the params share the same chrome as
+            every other mobile dialog. */}
+        <Dialog open={editOpen} onOpenChange={setEditOpen}>
+          <FullscreenDialogContent>
+            <DialogHeader className="shrink-0 border-b p-4 pr-12">
+              <DialogTitle>{title}</DialogTitle>
+              <DialogDescription className="sr-only">{description}</DialogDescription>
+            </DialogHeader>
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
+              <div className="text-xs text-muted-foreground">{metadata}</div>
+              {form}
+            </div>
+            <DialogStickyFooter>
               <Button
                 type="button"
                 variant="outline"
-                className="ml-auto mr-10"
-                onClick={() => setEditOpen(true)}
+                size="lg"
+                onClick={() => setEditOpen(false)}
                 disabled={busy}
               >
-                Bearbeiten
+                Abbrechen
               </Button>
-            </header>
-            <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
-              {preview}
-            </main>
-          </div>
-
-          {/* Nested Radix dialog: portals to body (escapes the parent's
-              overflow-hidden) and stacks focus correctly over the fullscreen
-              preview. */}
-          <Dialog open={editOpen} onOpenChange={setEditOpen}>
-            <DialogContent className="flex max-h-[85dvh] flex-col gap-0 overflow-hidden p-0">
-              <DialogTitle className="shrink-0 px-4 pt-4">{title}</DialogTitle>
-              <DialogDescription className="sr-only">{description}</DialogDescription>
-              <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
-                <div className="text-xs text-muted-foreground">{metadata}</div>
-                {form}
-              </div>
-              <div className="shrink-0 border-t p-3">
-                <div className="flex justify-between gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="lg"
-                    onClick={() => setEditOpen(false)}
-                    disabled={busy}
-                  >
-                    Abbrechen
-                  </Button>
-                  <Button
-                    type="button"
-                    size="lg"
-                    onClick={onApply}
-                    disabled={!valid || busy}
-                  >
-                    {busy ? "Wird angewendet…" : "Anwenden"}
-                  </Button>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
-        </DialogContent>
+              <Button
+                type="button"
+                size="lg"
+                onClick={onApply}
+                disabled={!valid || busy}
+              >
+                {busy ? "Wird angewendet…" : "Anwenden"}
+              </Button>
+            </DialogStickyFooter>
+          </FullscreenDialogContent>
+        </Dialog>
       </Dialog>
     )
   }

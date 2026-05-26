@@ -98,6 +98,34 @@ function DialogContent({
   )
 }
 
+/**
+ * Edge-to-edge fullscreen dialog content — the standard "mobile sheet" chrome.
+ * Centralizes the fiddly class preset (drop the inset via `items-stretch`/`p-0`,
+ * lift the width caps, fill the viewport) and the `flex h-full min-h-0 flex-col`
+ * column so callers only compose a `shrink-0` header, a `flex-1` body, and an
+ * optional `DialogStickyFooter`. Callers decide WHEN to use it (typically only
+ * the mobile branch); it carries no responsive logic itself.
+ */
+function FullscreenDialogContent({
+  className,
+  containerClassName,
+  children,
+  ...props
+}: React.ComponentProps<typeof DialogContent>) {
+  return (
+    <DialogContent
+      containerClassName={cn("p-0 items-stretch", containerClassName)}
+      className={cn(
+        "h-full w-full max-w-none sm:max-w-none overflow-hidden rounded-none p-0",
+        className
+      )}
+      {...props}
+    >
+      <div className="flex h-full min-h-0 flex-col">{children}</div>
+    </DialogContent>
+  )
+}
+
 function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -131,6 +159,23 @@ function DialogFooter({
           <Button variant="outline">Close</Button>
         </DialogPrimitive.Close>
       )}
+    </div>
+  )
+}
+
+/**
+ * Sticky action bar for the bottom of a fullscreen/scrollable dialog: a
+ * `shrink-0` bar with a top border that pins below the scroll region. Children
+ * are laid out as a `justify-between` row (e.g. Cancel left, primary right).
+ */
+function DialogStickyFooter({ className, children, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="dialog-sticky-footer"
+      className={cn("flex shrink-0 justify-between gap-2 border-t p-3", className)}
+      {...props}
+    >
+      {children}
     </div>
   )
 }
@@ -170,6 +215,8 @@ export {
   DialogHeader,
   DialogOverlay,
   DialogPortal,
+  DialogStickyFooter,
   DialogTitle,
   DialogTrigger,
+  FullscreenDialogContent,
 }
