@@ -18,7 +18,6 @@ import {
   DialogHeader,
   DialogStickyFooter,
   DialogTitle,
-  FullscreenDialogContent,
 } from "@/components/ui/dialog"
 import { TRACE_REGISTRY, type RegisteredTraceId } from "@/lib/editor/trace/registry"
 import { useIsMobile } from "@/lib/ui/use-mobile"
@@ -62,7 +61,7 @@ export function TraceSelectionController({ workingImageUrl, open, onClose, onSel
         // scrollable tile grid between a sticky header and a sticky
         // Cancel/Select footer. Tiles forced to 2 columns + tighter gap so
         // they stay small on narrow screens.
-        <FullscreenDialogContent>
+        <DialogContent variant="fullscreen">
           <DialogHeader className="shrink-0 border-b p-4 pr-12">
             <DialogTitle>Trace</DialogTitle>
             <DialogDescription>Pick how to vectorise the image.</DialogDescription>
@@ -83,7 +82,7 @@ export function TraceSelectionController({ workingImageUrl, open, onClose, onSel
               Select
             </Button>
           </DialogStickyFooter>
-        </FullscreenDialogContent>
+        </DialogContent>
       ) : (
         <DialogContent>
           <DialogHeader>

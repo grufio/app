@@ -146,6 +146,19 @@
   .text-panel-tight {
     @apply text-[12px] leading-[24px] py-0.5;
   }
+
+  /* iOS safe-area insets (needs `viewport-fit=cover`, set in app/layout.tsx).
+     Used by the fullscreen Dialog variant so the header/close (top) and the
+     action footer (bottom) stay clear of the notch and home indicator. */
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .top-safe-2 {
+    top: calc(env(safe-area-inset-top) + 0.5rem);
+  }
 }
 /*
  ---break---
