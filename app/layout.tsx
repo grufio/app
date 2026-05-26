@@ -5,7 +5,7 @@
  * - Load global styles and fonts.
  * - Define top-level HTML/body structure and metadata.
  */
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import { Inter } from "next/font/google"
 import { Toaster } from "@/components/ui/sonner"
 import "./globals.css"
@@ -22,6 +22,14 @@ export const metadata: Metadata = {
     template: "%s | Grufio",
   },
   description: "Turn your photos into oil paintings — premium paint-by-numbers kits.",
+}
+
+// `viewport-fit=cover` is required for `env(safe-area-inset-*)` to report the
+// real notch / home-indicator insets — fullscreen dialogs rely on it.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 }
 
 export default function RootLayout({

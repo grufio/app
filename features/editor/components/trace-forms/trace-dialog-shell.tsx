@@ -23,7 +23,6 @@ import {
   DialogHeader,
   DialogStickyFooter,
   DialogTitle,
-  FullscreenDialogContent,
 } from "@/components/ui/dialog"
 import {
   Sidebar,
@@ -67,7 +66,7 @@ export function TraceDialogShell({
   if (isMobile) {
     return (
       <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onCancel()}>
-        <FullscreenDialogContent>
+        <DialogContent variant="fullscreen">
           <DialogTitle className="sr-only">{title}</DialogTitle>
           <DialogDescription className="sr-only">{description}</DialogDescription>
 
@@ -87,20 +86,24 @@ export function TraceDialogShell({
           <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
             {preview}
           </main>
-        </FullscreenDialogContent>
+        </DialogContent>
 
         {/* Nested Radix dialog: portals to body (escapes the parent's
             overflow-hidden) and stacks focus correctly over the fullscreen
             preview. Fullscreen too, so the params share the same chrome as
             every other mobile dialog. */}
         <Dialog open={editOpen} onOpenChange={setEditOpen}>
-          <FullscreenDialogContent>
+          <DialogContent variant="fullscreen">
             <DialogHeader className="shrink-0 border-b p-4 pr-12">
               <DialogTitle>{title}</DialogTitle>
               <DialogDescription className="sr-only">{description}</DialogDescription>
             </DialogHeader>
-            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
-              <div className="text-xs text-muted-foreground">{metadata}</div>
+            {/* Borderless, full-width scroll column: the form's
+                `EditorSidebarSection`s own their `px-4 py-3` + full-width
+                `border-b`, so their dividers span 100% with no container
+                padding. The metadata row follows the same section rhythm. */}
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <div className="border-b px-4 py-3 text-xs text-muted-foreground">{metadata}</div>
               {form}
             </div>
             <DialogStickyFooter>
@@ -122,7 +125,7 @@ export function TraceDialogShell({
                 {busy ? "Wird angewendet…" : "Anwenden"}
               </Button>
             </DialogStickyFooter>
-          </FullscreenDialogContent>
+          </DialogContent>
         </Dialog>
       </Dialog>
     )

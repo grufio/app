@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { cva, type VariantProps } from "class-variance-authority"
 import { XIcon } from "lucide-react"
 import { Dialog as DialogPrimitive } from "radix-ui"
 
@@ -47,37 +48,57 @@ function DialogOverlay({
   )
 }
 
+/**
+ * Dialog content variants.
+ *
+ * - `default`: the centred card (unchanged shadcn behaviour).
+ * - `fullscreen`: edge-to-edge sheet for mobile. Owns the viewport math so
+ *   callers never hand-roll it: `100dvh` (dynamic viewport, survives the iOS
+ *   toolbar), no width cap, no rounding, and `pt-safe`/`pb-safe` so the header
+ *   and a sticky footer stay clear of the notch / home indicator. The body is
+ *   a `flex flex-col`; callers compose a `shrink-0` header, a `flex-1 min-h-0
+ *   overflow-y-auto` body, and an optional `DialogStickyFooter`.
+ */
+const dialogContentVariants = cva(
+  "bg-background data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 relative text-sm duration-100 outline-none",
+  {
+    variants: {
+      variant: {
+        default: "ring-foreground/10 grid w-full gap-4 rounded-xl p-4 ring-1 sm:max-w-sm",
+        fullscreen: "flex h-[100dvh] w-full max-w-none flex-col overflow-hidden pt-safe pb-safe",
+      },
+    },
+    defaultVariants: { variant: "default" },
+  }
+)
+
 function DialogContent({
   className,
-  containerClassName,
+  variant = "default",
   children,
   showCloseButton = true,
   ...props
-}: React.ComponentProps<typeof DialogPrimitive.Content> & {
-  showCloseButton?: boolean
-  /** Override the centring wrapper's classes (e.g. drop the `p-4` inset
-      for an edge-to-edge fullscreen dialog on mobile). */
-  containerClassName?: string
-}) {
+}: React.ComponentProps<typeof DialogPrimitive.Content> &
+  VariantProps<typeof dialogContentVariants> & {
+    showCloseButton?: boolean
+  }) {
+  const isFullscreen = variant === "fullscreen"
   return (
     <DialogPortal data-slot="dialog-portal">
       <DialogOverlay />
-      {/* Flex-centre the content instead of `-translate-1/2`: a
-          percentage translate lands on a half-pixel whenever the
-          dialog has an odd width/height, which blurs the whole
-          subtree. A flex box keeps it on integer pixels. */}
+      {/* Default: flex-centre the content instead of `-translate-1/2` (a
+          percentage translate lands on a half-pixel for odd sizes and blurs
+          the subtree). Fullscreen: the content fills the viewport itself, so
+          no centring wrapper. */}
       <div
         className={cn(
-          "fixed inset-0 z-50 flex items-center justify-center p-4",
-          containerClassName
+          "fixed inset-0 z-50",
+          !isFullscreen && "flex items-center justify-center p-4"
         )}
       >
         <DialogPrimitive.Content
           data-slot="dialog-content"
-          className={cn(
-            "bg-background data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 ring-foreground/10 relative grid w-full gap-4 rounded-xl p-4 text-sm ring-1 duration-100 outline-none sm:max-w-sm",
-            className
-          )}
+          className={cn(dialogContentVariants({ variant }), className)}
           {...props}
         >
           {children}
@@ -86,7 +107,11 @@ function DialogContent({
               data-slot="dialog-close"
               data-variant="ghost"
               data-size="icon-sm"
-              className="focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 aria-invalid:border-destructive border border-transparent bg-clip-padding text-sm font-medium focus-visible:ring-3 aria-invalid:ring-3 [&_svg:not([class*='size-'])]:size-4 inline-flex items-center justify-center whitespace-nowrap transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none shrink-0 [&_svg]:shrink-0 outline-none group/button select-none hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground size-7 rounded-[min(var(--radius-md),12px)] in-data-[slot=button-group]:rounded-lg absolute top-2 right-2"
+              className={cn(
+                "focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 aria-invalid:border-destructive border border-transparent bg-clip-padding text-sm font-medium focus-visible:ring-3 aria-invalid:ring-3 [&_svg:not([class*='size-'])]:size-4 inline-flex items-center justify-center whitespace-nowrap transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none shrink-0 [&_svg]:shrink-0 outline-none group/button select-none hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground size-7 rounded-[min(var(--radius-md),12px)] in-data-[slot=button-group]:rounded-lg absolute right-2",
+                // Keep the close button below the notch in fullscreen.
+                isFullscreen ? "top-safe-2" : "top-2"
+              )}
             >
               <XIcon />
               <span className="sr-only">Close</span>
@@ -95,34 +120,6 @@ function DialogContent({
         </DialogPrimitive.Content>
       </div>
     </DialogPortal>
-  )
-}
-
-/**
- * Edge-to-edge fullscreen dialog content — the standard "mobile sheet" chrome.
- * Centralizes the fiddly class preset (drop the inset via `items-stretch`/`p-0`,
- * lift the width caps, fill the viewport) and the `flex h-full min-h-0 flex-col`
- * column so callers only compose a `shrink-0` header, a `flex-1` body, and an
- * optional `DialogStickyFooter`. Callers decide WHEN to use it (typically only
- * the mobile branch); it carries no responsive logic itself.
- */
-function FullscreenDialogContent({
-  className,
-  containerClassName,
-  children,
-  ...props
-}: React.ComponentProps<typeof DialogContent>) {
-  return (
-    <DialogContent
-      containerClassName={cn("p-0 items-stretch", containerClassName)}
-      className={cn(
-        "h-full w-full max-w-none sm:max-w-none overflow-hidden rounded-none p-0",
-        className
-      )}
-      {...props}
-    >
-      <div className="flex h-full min-h-0 flex-col">{children}</div>
-    </DialogContent>
   )
 }
 
@@ -218,5 +215,4 @@ export {
   DialogStickyFooter,
   DialogTitle,
   DialogTrigger,
-  FullscreenDialogContent,
 }
