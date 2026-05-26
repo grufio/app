@@ -20,6 +20,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogHeader,
   DialogStickyFooter,
   DialogTitle,
   FullscreenDialogContent,
@@ -90,12 +91,15 @@ export function TraceDialogShell({
 
         {/* Nested Radix dialog: portals to body (escapes the parent's
             overflow-hidden) and stacks focus correctly over the fullscreen
-            preview. */}
+            preview. Fullscreen too, so the params share the same chrome as
+            every other mobile dialog. */}
         <Dialog open={editOpen} onOpenChange={setEditOpen}>
-          <DialogContent className="flex max-h-[85dvh] flex-col gap-0 overflow-hidden p-0">
-            <DialogTitle className="shrink-0 px-4 pt-4">{title}</DialogTitle>
-            <DialogDescription className="sr-only">{description}</DialogDescription>
-            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
+          <FullscreenDialogContent>
+            <DialogHeader className="shrink-0 border-b p-4 pr-12">
+              <DialogTitle>{title}</DialogTitle>
+              <DialogDescription className="sr-only">{description}</DialogDescription>
+            </DialogHeader>
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
               <div className="text-xs text-muted-foreground">{metadata}</div>
               {form}
             </div>
@@ -118,7 +122,7 @@ export function TraceDialogShell({
                 {busy ? "Wird angewendet…" : "Anwenden"}
               </Button>
             </DialogStickyFooter>
-          </DialogContent>
+          </FullscreenDialogContent>
         </Dialog>
       </Dialog>
     )
