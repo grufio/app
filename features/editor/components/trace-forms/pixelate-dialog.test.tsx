@@ -6,7 +6,7 @@
  * test only verifies that the Dialog composes the three sub-pieces
  * (preview canvas + form + Apply/Cancel buttons) when open.
  */
-import { cleanup, render, waitFor } from "@testing-library/react"
+import { cleanup, fireEvent, render, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("@/lib/editor/trace/pixelate-preview", () => ({
@@ -70,5 +70,57 @@ describe("PixelateDialog (smoke)", () => {
     const apply = buttons.find((b) => b.textContent?.trim().startsWith("Apply"))
     expect(cancel).toBeTruthy()
     expect(apply).toBeTruthy()
+  })
+
+  it("mobile: shows preview + Bearbeiten; the params open in a separate dialog", async () => {
+    window.matchMedia = ((query: string) =>
+      ({
+        matches: true,
+        media: query,
+        onchange: null,
+        addListener: () => {},
+        removeListener: () => {},
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }) as unknown as MediaQueryList) as typeof window.matchMedia
+
+    const onApplyTrace = vi.fn(async () => {})
+    render(
+      <PixelateDialog
+        open
+        sourceImageUrl="https://example.test/img.png"
+        displayMmW={100}
+        displayMmH={75}
+        onClose={() => {}}
+        onSuccess={() => {}}
+        onApplyTrace={onApplyTrace}
+      />,
+    )
+
+    // Fullscreen view: preview + Bearbeiten, but the form is NOT mounted yet.
+    await waitFor(() => {
+      expect(document.body.querySelector('[data-testid="pixelate-preview-mini"]')).not.toBeNull()
+    })
+    const edit = Array.from(document.body.querySelectorAll("button")).find(
+      (b) => b.textContent?.trim() === "Bearbeiten",
+    )
+    expect(edit).toBeTruthy()
+    expect(document.body.querySelector("#supercell_width_mm")).toBeNull()
+
+    // Bearbeiten opens the params dialog with the form + Anwenden action.
+    fireEvent.click(edit as HTMLButtonElement)
+    await waitFor(() => {
+      expect(document.body.querySelector("#supercell_width_mm")).not.toBeNull()
+    })
+    const apply = Array.from(document.body.querySelectorAll("button")).find((b) =>
+      b.textContent?.trim().startsWith("Anwenden"),
+    )
+    expect(apply).toBeTruthy()
+
+    fireEvent.click(apply as HTMLButtonElement)
+    await waitFor(() => {
+      expect(onApplyTrace).toHaveBeenCalledWith(expect.objectContaining({ kind: "pixelate" }))
+    })
   })
 })
