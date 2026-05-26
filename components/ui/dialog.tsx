@@ -49,11 +49,15 @@ function DialogOverlay({
 
 function DialogContent({
   className,
+  containerClassName,
   children,
   showCloseButton = true,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
+  /** Override the centring wrapper's classes (e.g. drop the `p-4` inset
+      for an edge-to-edge fullscreen dialog on mobile). */
+  containerClassName?: string
 }) {
   return (
     <DialogPortal data-slot="dialog-portal">
@@ -62,7 +66,12 @@ function DialogContent({
           percentage translate lands on a half-pixel whenever the
           dialog has an odd width/height, which blurs the whole
           subtree. A flex box keeps it on integer pixels. */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div
+        className={cn(
+          "fixed inset-0 z-50 flex items-center justify-center p-4",
+          containerClassName
+        )}
+      >
         <DialogPrimitive.Content
           data-slot="dialog-content"
           className={cn(

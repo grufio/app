@@ -164,10 +164,12 @@ test("regression: pixelate dialog shows the resized image size + aspect, not the
 
 // Height gate — the regression class that had NO test (the preview pane is
 // sized by the dialog's definite-height flex chain). The chain's height must
-// hold at EVERY breakpoint: the right Sidebar is `hidden md:flex`, but the
-// preview is shown below `md:` too, so a `md:`-only height gate collapses the
-// pane to 0 there (dialog shrinks to just the header). Measure the RENDERED
-// pane box at both a desktop and a sub-md viewport.
+// hold at EVERY breakpoint. Desktop (≥ md) shows the preview beside the
+// right-sidebar form; below md the dialog switches to a fullscreen layout that
+// shows ONLY the preview plus a "Bearbeiten" button (the form moves into a
+// separate params dialog), so the preview must still get a definite height.
+// Measure the RENDERED pane box at both a desktop and a sub-md viewport, and
+// assert the mobile edit affordance works.
 test("regression: preview pane keeps a non-zero rendered height above AND below the md breakpoint", async ({
   page,
 }) => {
@@ -182,9 +184,9 @@ test("regression: preview pane keeps a non-zero rendered height above AND below 
   // Desktop (default e2e viewport ≥ md): pane fills the dialog body.
   await expect.poll(previewHeight).toBeGreaterThan(50)
 
-  // Shrink below the md breakpoint (768px). The dialog re-layouts (Sidebar
-  // hides, width drops). Pre-fix the definite height hung only on
-  // `md:h-[85vh]` → the whole flex chain collapsed and the pane went to 0.
+  // Shrink below the md breakpoint (768px). The dialog re-layouts to the
+  // fullscreen mobile shell. The preview must keep a definite height (pre-fix
+  // the chain hung on `md:`-gated sizing → the pane collapsed to 0).
   await page.setViewportSize({ width: 375, height: 667 })
   await expect
     .poll(previewHeight, {
@@ -192,4 +194,11 @@ test("regression: preview pane keeps a non-zero rendered height above AND below 
       intervals: [100, 200, 300, 500],
     })
     .toBeGreaterThan(50)
+
+  // Mobile affordance: the form + actions live behind "Bearbeiten", which
+  // opens the params as a standalone dialog with the "Anwenden" action.
+  const edit = page.getByRole("button", { name: "Bearbeiten" })
+  await expect(edit).toBeVisible()
+  await edit.click()
+  await expect(page.getByRole("button", { name: "Anwenden" })).toBeVisible()
 })
