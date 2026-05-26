@@ -5,6 +5,7 @@
  * - Validate `projectId` and enforce authentication.
  * - Fetch initial workspace/grid/image/image-state data server-side and hydrate client editor.
  */
+import type { Viewport } from "next"
 import { notFound, redirect } from "next/navigation"
 import { headers } from "next/headers"
 
@@ -21,6 +22,18 @@ import { getImageStateForEditor, getMasterImageForEditor, isSchemaMismatchMessag
 import { ProjectDetailPageClient } from "./page.client"
 
 export const dynamic = "force-dynamic"
+
+// Temporary: lock zoom on the editor route so iOS doesn't auto-zoom when a
+// 12px panel input gets focus (iOS zooms any field with font-size < 16px).
+// Keeps `viewport-fit=cover` for the fullscreen dialogs' safe-area. Scoped to
+// this route, so the rest of the app keeps pinch-zoom.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
+}
 
 async function getInitialProjectData(projectId: string): Promise<{
   project: Project | null
