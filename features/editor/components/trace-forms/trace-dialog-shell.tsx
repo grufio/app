@@ -99,8 +99,13 @@ export function TraceDialogShell({
               <DialogTitle>{title}</DialogTitle>
               <DialogDescription className="sr-only">{description}</DialogDescription>
             </DialogHeader>
-            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
-              <div className="text-xs text-muted-foreground">{metadata}</div>
+            {/* No horizontal padding: the form's `EditorSidebarSection`s carry
+                their own `px-4` and a full-width `border-b`, so letting them
+                span the body edge-to-edge keeps those section dividers 100%
+                wide (matching the desktop sidebar). Only the metadata row gets
+                its own padding. */}
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <div className="px-4 py-3 text-xs text-muted-foreground">{metadata}</div>
               {form}
             </div>
             <DialogStickyFooter>
