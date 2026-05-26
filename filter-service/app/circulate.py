@@ -33,7 +33,7 @@ import numpy as np
 from PIL import Image
 
 from .cell_colors import compute_cell_colors, map_cells_to_palette
-from .oklab import nearest_palette_indices, rgb255_to_oklab, rotate_hue
+from .oklab import adjust_oklab, nearest_palette_indices, rgb255_to_oklab
 
 
 def _hex(rgb) -> str:
@@ -45,19 +45,22 @@ def _inner_colors(
     cell_means: np.ndarray,
     palette_oklab,
     palette_rgb,
-    hue_shift_deg: float,
+    inner_hue_deg: float,
+    inner_lightness_delta: float,
+    inner_chroma_scale: float,
 ) -> np.ndarray:
-    """Inner-ellipse colour per cell: the cell mean's hue is rotated by
-    `hue_shift_deg`, then snapped to the nearest palette chip. Returns
+    """Inner-ellipse colour per cell: the cell mean is adjusted by the chosen
+    sub colour filter (OKLab hue/lightness/chroma deltas, resolved by the Node
+    server), then snapped to the nearest palette chip. Returns
     `(cells_y, cells_x, 3)` uint8. Without a palette the raw means are used
-    (no shift possible — nothing to snap back to).
+    (no adjustment possible — nothing to snap back to).
     """
     if palette_oklab is None or palette_rgb is None:
         return np.asarray(cell_means, dtype=np.uint8)
     shape = np.asarray(cell_means).shape
     means_oklab = rgb255_to_oklab(np.asarray(cell_means).reshape(-1, 3))
-    shifted = rotate_hue(means_oklab, hue_shift_deg)
-    idx = nearest_palette_indices(shifted, palette_oklab)
+    adjusted = adjust_oklab(means_oklab, inner_hue_deg, inner_lightness_delta, inner_chroma_scale)
+    idx = nearest_palette_indices(adjusted, palette_oklab)
     return np.asarray(palette_rgb, dtype=np.uint8)[idx].reshape(shape)
 
 
@@ -75,7 +78,9 @@ def circulate_to_svg(
     inner_w_frac: float = 0.5,
     inner_h_frac: float = 0.5,
     contour_width_px: float = 0.0,
-    hue_shift_deg: float = 0.0,
+    inner_hue_deg: float = 0.0,
+    inner_lightness_delta: float = 0.0,
+    inner_chroma_scale: float = 1.0,
     palette_oklab: list | None = None,
     palette_rgb: list | None = None,
     on_phase: callable | None = None,
@@ -119,7 +124,10 @@ def circulate_to_svg(
     else:
         outer = np.asarray(means, dtype=np.uint8)
     inner = (
-        _inner_colors(means, palette_oklab, palette_rgb, hue_shift_deg)
+        _inner_colors(
+            means, palette_oklab, palette_rgb,
+            inner_hue_deg, inner_lightness_delta, inner_chroma_scale,
+        )
         if inner_enabled
         else None
     )

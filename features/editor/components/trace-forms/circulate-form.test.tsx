@@ -36,20 +36,21 @@ describe("CirculateForm", () => {
       "spacing_bottom_mm",
       "color_mode",
       "color_space",
-      "hue_shift_deg",
+      "inner_filter",
     ]) {
       expect(container.querySelector(`#${id}`), `#${id}`).not.toBeNull()
     }
   })
 
-  it("disables the inner ellipse fields + hue shift while the inner checkbox is off", () => {
+  it("disables the inner ellipse fields + inner colour filter while the inner checkbox is off", () => {
     const grid = resolveCirculateGrid(100, 75, defaults)
     const { container } = render(
       <CirculateForm params={defaults} onParamsChange={() => {}} disabled={false} grid={grid} />,
     )
     expect((container.querySelector("#inner_width_mm") as HTMLInputElement).disabled).toBe(true)
     expect((container.querySelector("#inner_height_mm") as HTMLInputElement).disabled).toBe(true)
-    expect((container.querySelector("#hue_shift_deg") as HTMLInputElement).disabled).toBe(true)
+    // inner_filter is a select → its trigger is a <button disabled>.
+    expect((container.querySelector("#inner_filter") as HTMLButtonElement).disabled).toBe(true)
   })
 
   it("enables the inner ellipse fields once the inner checkbox is on", () => {
@@ -63,7 +64,7 @@ describe("CirculateForm", () => {
       />,
     )
     expect((container.querySelector("#inner_width_mm") as HTMLInputElement).disabled).toBe(false)
-    expect((container.querySelector("#hue_shift_deg") as HTMLInputElement).disabled).toBe(false)
+    expect((container.querySelector("#inner_filter") as HTMLButtonElement).disabled).toBe(false)
   })
 
   it("shows the Schnitt-Rand info when the grid is valid", () => {

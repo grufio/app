@@ -6,7 +6,7 @@ inherited from color-lab's `colour`-validated transform.
 """
 import numpy as np
 
-from app.oklab import nearest_palette_indices, rgb255_to_oklab, rotate_hue
+from app.oklab import adjust_oklab, nearest_palette_indices, rgb255_to_oklab
 
 # (rgb255, expected OKLab) — identical to lib/color/oklab.test.ts PROBES.
 PROBES = [
@@ -41,14 +41,14 @@ def test_nearest_palette_indices_match_client():
     assert list(map(int, got)) == EXPECTED_NEAREST
 
 
-def test_rotate_hue_zero_is_identity():
+def test_adjust_identity_returns_input():
     lab = rgb255_to_oklab(np.array([[200, 30, 40], [10, 180, 90], [50, 60, 220]]))
-    np.testing.assert_allclose(rotate_hue(lab, 0.0), lab, atol=1e-12)
+    np.testing.assert_allclose(adjust_oklab(lab, 0.0, 0.0, 1.0), lab, atol=1e-12)
 
 
-def test_rotate_hue_preserves_lightness_and_chroma():
+def test_adjust_hue_rotation_preserves_lightness_and_chroma():
     lab = rgb255_to_oklab(np.array([200, 30, 40], dtype=float))
-    rotated = rotate_hue(lab, 73.0)
+    rotated = adjust_oklab(lab, 73.0, 0.0, 1.0)
     # L unchanged; chroma = hypot(a, b) preserved; hue advanced.
     assert abs(rotated[0] - lab[0]) < 1e-12
     chroma_in = np.hypot(lab[1], lab[2])
@@ -59,6 +59,19 @@ def test_rotate_hue_preserves_lightness_and_chroma():
     assert abs(((hue_out - hue_in + 180) % 360) - 180 - 73.0) < 1e-6
 
 
-def test_rotate_hue_360_is_identity():
-    lab = rgb255_to_oklab(np.array([130, 90, 200], dtype=float))
-    np.testing.assert_allclose(rotate_hue(lab, 360.0), lab, atol=1e-9)
+def test_adjust_lightness_delta_shifts_and_clamps_L():
+    lab = rgb255_to_oklab(np.array([128, 128, 128], dtype=float))
+    np.testing.assert_allclose(adjust_oklab(lab, 0.0, -0.2, 1.0)[0], lab[0] - 0.2, atol=1e-12)
+    assert adjust_oklab(lab, 0.0, 5.0, 1.0)[0] == 1.0  # clamp high
+    assert adjust_oklab(lab, 0.0, -5.0, 1.0)[0] == 0.0  # clamp low
+
+
+def test_adjust_chroma_scale_multiplies_chroma_keeping_hue():
+    lab = rgb255_to_oklab(np.array([200, 30, 40], dtype=float))
+    out = adjust_oklab(lab, 0.0, 0.0, 1.5)
+    chroma_in = np.hypot(lab[1], lab[2])
+    chroma_out = np.hypot(out[1], out[2])
+    np.testing.assert_allclose(chroma_out, chroma_in * 1.5, atol=1e-9)
+    np.testing.assert_allclose(
+        np.arctan2(out[2], out[1]), np.arctan2(lab[2], lab[1]), atol=1e-9
+    )

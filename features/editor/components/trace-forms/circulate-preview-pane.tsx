@@ -21,6 +21,7 @@ import {
   resolveCirculateGrid,
 } from "@/lib/editor/trace/circulate-grid-math"
 import { centeredCropPixels } from "@/lib/editor/trace/pixelate-grid-math"
+import { resolveInnerFilter } from "@/lib/editor/trace/inner-color-filters"
 import { buildCirculateMiniCanvas } from "@/lib/editor/trace/circulate-preview"
 import { useSourceImage } from "@/lib/editor/trace/use-source-image"
 import { useTracePalette } from "@/lib/editor/trace/use-trace-palette"
@@ -94,7 +95,7 @@ export function CirculatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, p
       innerWFrac: fracs.innerWFrac,
       innerHFrac: fracs.innerHFrac,
       contourPx,
-      hueShiftDeg: params.hue_shift_deg,
+      innerAdjustment: resolveInnerFilter(params.inner_filter),
       palette: palette ?? [],
     })
   }, [source, crop, valid, grid, params, palette])

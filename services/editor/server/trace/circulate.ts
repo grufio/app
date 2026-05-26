@@ -10,6 +10,7 @@ import {
   resolveCirculateGrid,
 } from "@/lib/editor/trace/circulate-grid-math"
 import { centeredCropPixels } from "@/lib/editor/trace/pixelate-grid-math"
+import { resolveInnerFilter } from "@/lib/editor/trace/inner-color-filters"
 import { callFilterService, startFilterProfiler, toInt, type FilterResult } from "@/services/editor/server/filters/_helpers"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 import { readTracePalette } from "@/lib/supabase/palette"
@@ -127,6 +128,9 @@ export async function circulateImageAndActivate(args: {
   const pxPerMmX = crop.w / grid.usedMmW
   const pxPerMmY = crop.h / grid.usedMmH
   const contourWidthPx = p.contour_width_mm * ((pxPerMmX + pxPerMmY) / 2)
+  // Resolve the chosen inner sub colour filter to OKLab deltas here (the
+  // preset table is the single TS source); Python applies them generically.
+  const innerAdj = resolveInnerFilter(p.inner_filter)
 
   const { data: srcBlob, error: downloadErr } = await supabase.storage
     .from(String(src.storage_bucket ?? PROJECT_IMAGES_BUCKET))
@@ -165,7 +169,9 @@ export async function circulateImageAndActivate(args: {
         inner_w_frac: fracs.innerWFrac,
         inner_h_frac: fracs.innerHFrac,
         contour_width_px: contourWidthPx,
-        hue_shift_deg: p.hue_shift_deg,
+        inner_hue_deg: innerAdj.hueDeg,
+        inner_lightness_delta: innerAdj.lightnessDelta,
+        inner_chroma_scale: innerAdj.chromaScale,
         palette_oklab: palette.map((c) => c.oklab),
         palette_rgb: palette.map((c) => c.rgb),
       },

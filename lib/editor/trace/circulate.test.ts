@@ -13,7 +13,7 @@ const DEFAULTS = {
   spacing_top_mm: 0,
   spacing_bottom_mm: 0,
   contour_width_mm: 0.2,
-  hue_shift_deg: 0,
+  inner_filter: "darker",
   color_mode: "color",
   color_space: "rgb",
 } as const
@@ -59,11 +59,11 @@ describe("circulateSchema", () => {
     expect(circulateSchema.parse({ contour_width_mm: 0 }).contour_width_mm).toBe(0)
   })
 
-  it("rejects a hue shift outside [-180, 180]", () => {
-    expect(circulateSchema.safeParse({ hue_shift_deg: 181 }).success).toBe(false)
-    expect(circulateSchema.safeParse({ hue_shift_deg: -181 }).success).toBe(false)
-    expect(circulateSchema.parse({ hue_shift_deg: -180 }).hue_shift_deg).toBe(-180)
-    expect(circulateSchema.parse({ hue_shift_deg: 180 }).hue_shift_deg).toBe(180)
+  it("accepts the known inner colour filters and rejects unknown ones", () => {
+    expect(circulateSchema.parse({ inner_filter: "complement" }).inner_filter).toBe("complement")
+    expect(circulateSchema.parse({ inner_filter: "lighter" }).inner_filter).toBe("lighter")
+    expect(circulateSchema.parse({ inner_filter: "none" }).inner_filter).toBe("none")
+    expect(circulateSchema.safeParse({ inner_filter: "sepia" }).success).toBe(false)
   })
 
   it("accepts the b/w palette mode and the cmyk colour space", () => {
@@ -84,12 +84,10 @@ describe("circulateSchema", () => {
       outer_width_mm: "8",
       outer_height_mm: "5.5",
       spacing_top_mm: "1.5",
-      hue_shift_deg: "30",
     })
     expect(out.outer_width_mm).toBe(8)
     expect(out.outer_height_mm).toBeCloseTo(5.5)
     expect(out.spacing_top_mm).toBeCloseTo(1.5)
-    expect(out.hue_shift_deg).toBe(30)
   })
 
   it("strips unknown params (forward/backward tolerance)", () => {

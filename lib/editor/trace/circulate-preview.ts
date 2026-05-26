@@ -4,16 +4,17 @@
  * Mirrors the server renderer (`filter-service/app/circulate.py`): the cropped
  * source is downsampled to a `cellsX × cellsY` grid (area-average, shared
  * `cellAreaAverages`), each cell snapped to the nearest Munsell chip
- * (`mapCellsToPalette`); the optional inner ellipse uses the hue-shifted snap
- * (`mapCellsToPaletteHueShifted`). One ellipse (or two) is painted per cell at
- * the cell centre, in the target's pixel space.
+ * (`mapCellsToPalette`); the optional inner ellipse uses the adjusted snap
+ * (`mapCellsToPaletteAdjusted`, the chosen sub colour filter). One ellipse
+ * (or two) is painted per cell at the cell centre, in the target's pixel space.
  *
  * The cropped source is drawn first as the background (matching the editor's
  * real composite: the bitmap layer under the SVG overlay; the user can hide
  * that layer later), then the ellipses on top. Caller (React) owns
  * `target.width`/`target.height` (= crop pixels), like the pixelate preview.
  */
-import { cellAreaAverages, mapCellsToPalette, mapCellsToPaletteHueShifted, type PaletteChip } from "./trace-cell-colors"
+import type { OklabAdjustment } from "./inner-color-filters"
+import { cellAreaAverages, mapCellsToPalette, mapCellsToPaletteAdjusted, type PaletteChip } from "./trace-cell-colors"
 
 export function buildCirculateMiniCanvas(args: {
   target: HTMLCanvasElement
@@ -29,8 +30,8 @@ export function buildCirculateMiniCanvas(args: {
   innerHFrac: number
   /** Contour stroke width in target pixels (0 = no contour). */
   contourPx: number
-  /** Inner-ellipse hue rotation in degrees. */
-  hueShiftDeg: number
+  /** OKLab adjustment for the inner ellipse (the resolved sub colour filter). */
+  innerAdjustment: OklabAdjustment
   /** Munsell palette to snap cells to; empty while it loads → raw means. */
   palette: ReadonlyArray<PaletteChip>
 }): void {
@@ -46,7 +47,7 @@ export function buildCirculateMiniCanvas(args: {
     innerWFrac,
     innerHFrac,
     contourPx,
-    hueShiftDeg,
+    innerAdjustment,
     palette,
   } = args
   const ctx = target.getContext("2d", { willReadFrequently: true })
@@ -69,7 +70,7 @@ export function buildCirculateMiniCanvas(args: {
   // (inner) — mirrors the server.
   const means = cellAreaAverages({ rgba: cropData, width: cropW, height: cropH, cellsX, cellsY })
   const outer = mapCellsToPalette(means, palette)
-  const inner = innerEnabled ? mapCellsToPaletteHueShifted(means, palette, hueShiftDeg) : null
+  const inner = innerEnabled ? mapCellsToPaletteAdjusted(means, palette, innerAdjustment) : null
 
   // (3) Background = the cropped source, scaled into the target (the bitmap
   // layer the ellipses overlay). Then paint the ellipses on top.

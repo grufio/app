@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { nearestPaletteIndex, rgb255ToOklab, rotateHueOklab, type Oklab } from "./oklab"
+import { adjustOklab, nearestPaletteIndex, rgb255ToOklab, type Oklab } from "./oklab"
 
 // Shared parity vectors — these SAME numbers are asserted in the Python
 // mirror `filter-service/tests/test_oklab.py`. If client and server ever
@@ -57,34 +57,47 @@ describe("nearestPaletteIndex — deterministic argmin (server parity)", () => {
   })
 })
 
-describe("rotateHueOklab — OKLCh hue rotation (server parity)", () => {
-  it("0° is the identity", () => {
+describe("adjustOklab — OKLCh adjustment (server parity)", () => {
+  it("the identity adjustment {0,0,1} returns the input", () => {
     const lab = rgb255ToOklab(200, 30, 40)
-    const out = rotateHueOklab(lab, 0)
+    const out = adjustOklab(lab, { hueDeg: 0, lightnessDelta: 0, chromaScale: 1 })
     expect(out[0]).toBeCloseTo(lab[0], 12)
     expect(out[1]).toBeCloseTo(lab[1], 12)
     expect(out[2]).toBeCloseTo(lab[2], 12)
   })
 
-  it("360° is the identity (full turn)", () => {
-    const lab = rgb255ToOklab(130, 90, 200)
-    const out = rotateHueOklab(lab, 360)
-    expect(out[0]).toBeCloseTo(lab[0], 9)
-    expect(out[1]).toBeCloseTo(lab[1], 9)
-    expect(out[2]).toBeCloseTo(lab[2], 9)
-  })
-
-  it("preserves lightness + chroma and advances the hue by the given degrees", () => {
+  it("hue rotation advances the hue, keeping L + chroma", () => {
     const lab = rgb255ToOklab(200, 30, 40)
-    const rotated = rotateHueOklab(lab, 73)
-    expect(rotated[0]).toBeCloseTo(lab[0], 12) // L unchanged
+    const out = adjustOklab(lab, { hueDeg: 73, lightnessDelta: 0, chromaScale: 1 })
+    expect(out[0]).toBeCloseTo(lab[0], 12) // L unchanged
     const chromaIn = Math.hypot(lab[1], lab[2])
-    const chromaOut = Math.hypot(rotated[1], rotated[2])
+    const chromaOut = Math.hypot(out[1], out[2])
     expect(chromaOut).toBeCloseTo(chromaIn, 12) // chroma preserved
     const hueIn = (Math.atan2(lab[2], lab[1]) * 180) / Math.PI
-    const hueOut = (Math.atan2(rotated[2], rotated[1]) * 180) / Math.PI
-    // Wrap the delta into (-180, 180] before comparing to the +73° shift.
+    const hueOut = (Math.atan2(out[2], out[1]) * 180) / Math.PI
     const delta = ((hueOut - hueIn + 180) % 360) - 180
     expect(delta).toBeCloseTo(73, 6)
+  })
+
+  it("lightness delta shifts L and clamps to [0,1]", () => {
+    const lab = rgb255ToOklab(128, 128, 128)
+    expect(adjustOklab(lab, { hueDeg: 0, lightnessDelta: -0.2, chromaScale: 1 })[0]).toBeCloseTo(
+      lab[0] - 0.2,
+      12,
+    )
+    // Clamp: a huge positive delta can't push L past 1.
+    expect(adjustOklab(lab, { hueDeg: 0, lightnessDelta: 5, chromaScale: 1 })[0]).toBe(1)
+    expect(adjustOklab(lab, { hueDeg: 0, lightnessDelta: -5, chromaScale: 1 })[0]).toBe(0)
+  })
+
+  it("chroma scale multiplies the chroma, keeping L + hue", () => {
+    const lab = rgb255ToOklab(200, 30, 40)
+    const out = adjustOklab(lab, { hueDeg: 0, lightnessDelta: 0, chromaScale: 1.5 })
+    expect(out[0]).toBeCloseTo(lab[0], 12)
+    const chromaIn = Math.hypot(lab[1], lab[2])
+    const chromaOut = Math.hypot(out[1], out[2])
+    expect(chromaOut).toBeCloseTo(chromaIn * 1.5, 9)
+    // Hue unchanged.
+    expect(Math.atan2(out[2], out[1])).toBeCloseTo(Math.atan2(lab[2], lab[1]), 9)
   })
 })

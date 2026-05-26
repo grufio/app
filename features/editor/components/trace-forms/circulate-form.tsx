@@ -22,13 +22,20 @@ import { ArrowLeftRight, ArrowUpDown, Circle, Droplet } from "lucide-react"
 
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
-import { FormField } from "@/components/ui/form-controls"
+import { FormField, type SelectFieldOption } from "@/components/ui/form-controls"
 import { MIN_ELLIPSE_MM, type CirculateParams } from "@/lib/editor/trace/circulate"
 import { isCirculateGridValid, type CirculateGrid } from "@/lib/editor/trace/circulate-grid-math"
+import { INNER_FILTERS } from "@/lib/editor/trace/inner-color-filters"
 
 import { PanelIconSlot, PanelTwoFieldRow } from "../panel-layout"
 import { EditorSidebarSection } from "../sidebar/editor-sidebar-section"
 import { TraceColorsFields } from "./trace-colors-fields"
+
+// Module-level so the select's `options` reference stays stable across renders.
+const INNER_FILTER_OPTIONS: SelectFieldOption[] = INNER_FILTERS.map((f) => ({
+  value: f.id,
+  label: f.label,
+}))
 
 type Props = {
   params: CirculateParams
@@ -156,20 +163,15 @@ export function CirculateForm({ params, onParamsChange, disabled, grid }: Props)
           />
           {loneRow(
             <FormField
-              variant="numeric"
-              numericMode="decimal"
-              label="Farbverschiebung der inneren Ellipse"
+              variant="select"
+              label="Innenfarbe (Sub-Farbfilter)"
               labelVisuallyHidden
               iconStart={<Droplet aria-hidden="true" />}
-              unit="°"
-              id="hue_shift_deg"
-              value={String(params.hue_shift_deg)}
-              onCommit={(raw) => {
-                const n = Number(raw)
-                if (Number.isFinite(n)) onParamsChange("hue_shift_deg", n)
-              }}
+              id="inner_filter"
+              value={params.inner_filter}
+              options={INNER_FILTER_OPTIONS}
+              onCommit={(v) => onParamsChange("inner_filter", v as CirculateParams["inner_filter"])}
               disabled={innerDisabled}
-              inputProps={{ min: -180, max: 180, step: 1 }}
             />,
           )}
         </div>
