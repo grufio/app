@@ -86,17 +86,12 @@ export function PixelateDialog({
       open={open}
       title="Pixelate"
       description={`Bild: ${fmt1(displayMmW)} × ${fmt1(displayMmH)} mm`}
-      metadata={
-        <>
-          <span>Image: {fmt1(displayMmW)} × {fmt1(displayMmH)} mm</span>
-          <span className="mx-2">·</span>
-          <span>Grid: {grid.cellsX} × {grid.cellsY} cells</span>
-          <span className="mx-2">·</span>
-          <span>Used: {fmt1(grid.usedMmW)} × {fmt1(grid.usedMmH)} mm</span>
-          <span className="mx-2">·</span>
-          <span>Cut: {fmt1(grid.borderMmX)} × {fmt1(grid.borderMmY)} mm</span>
-        </>
-      }
+      metadata={[
+        `Image: ${fmt1(displayMmW)} × ${fmt1(displayMmH)} mm`,
+        `Grid: ${grid.cellsX} × ${grid.cellsY} cells`,
+        `Used: ${fmt1(grid.usedMmW)} × ${fmt1(grid.usedMmH)} mm`,
+        `Cut: ${fmt1(grid.borderMmX)} × ${fmt1(grid.borderMmY)} mm`,
+      ]}
       preview={
         <PixelatePreviewPane
           sourceImageUrl={sourceImageUrl}

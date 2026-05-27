@@ -13,7 +13,7 @@
  * opening/closing the params dialog preserves all field values and the
  * fullscreen preview updates live.
  */
-import { useState, type ReactNode } from "react"
+import { Fragment, useState, type ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -33,13 +33,16 @@ import {
 import { AppButton } from "@/components/ui/form-controls"
 import { useIsMobile } from "@/lib/ui/use-mobile"
 
+import { EditorSidebarSection } from "../sidebar/editor-sidebar-section"
+
 type Props = {
   open: boolean
   title: string
   /** Screen-reader description for the dialog (sr-only). */
   description: string
-  /** Header readout spans (image/grid/used/cut). */
-  metadata: ReactNode
+  /** Readout entries (image/grid/used/cut): inline on desktop, one per line in
+      the mobile "Trace image" section. */
+  metadata: readonly string[]
   preview: ReactNode
   form: ReactNode
   valid: boolean
@@ -101,9 +104,16 @@ export function TraceDialogShell({
             {/* Borderless, full-width scroll column: the form's
                 `EditorSidebarSection`s own their `px-4 py-3` + full-width
                 `border-b`, so their dividers span 100% with no container
-                padding. The metadata row follows the same section rhythm. */}
+                padding. The metadata is its own leading section, one entry
+                per line, sharing that same rhythm. */}
             <div className="min-h-0 flex-1 overflow-y-auto">
-              <div className="border-b px-4 py-3 text-xs text-muted-foreground">{metadata}</div>
+              <EditorSidebarSection title="Trace image">
+                <div className="space-y-1 text-xs text-muted-foreground">
+                  {metadata.map((item) => (
+                    <div key={item}>{item}</div>
+                  ))}
+                </div>
+              </EditorSidebarSection>
               {form}
             </div>
             <DialogStickyFooter>
@@ -148,7 +158,12 @@ export function TraceDialogShell({
           <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
             <span className="text-sm font-medium">{title}</span>
             <span className="ml-auto pr-10 text-xs text-muted-foreground">
-              {metadata}
+              {metadata.map((item, i) => (
+                <Fragment key={item}>
+                  {i > 0 && <span className="mx-2">·</span>}
+                  <span>{item}</span>
+                </Fragment>
+              ))}
             </span>
           </header>
 
