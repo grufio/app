@@ -24,6 +24,9 @@ function sqlQuote(s) {
 function buildSql(entries) {
   const lines = []
   lines.push("-- @intent-data-migration")
+  // Recognised by scripts/check-types-with-migrations.mjs: pure DML into an
+  // existing table has no generated-types surface, so no types regen is due.
+  lines.push("-- @intent-no-type-impact")
   lines.push("--")
   lines.push("-- Seed lab_grays with the 48-step N-axis ramp derived from the color-lab")
   lines.push("-- palette (color-lab/output/palette-grey.json). Each row is a valid")
