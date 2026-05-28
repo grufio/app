@@ -77,7 +77,7 @@ describe("CirculateDialog (smoke)", () => {
     expect(apply).toBeTruthy()
   })
 
-  it("mobile: edit icon opens params; Done returns to preview; apply icon fires the trace", async () => {
+  it("mobile: edit icon opens params; Preview returns to preview; apply icon fires the trace", async () => {
     window.matchMedia = ((query: string) =>
       ({
         matches: true,
@@ -120,12 +120,12 @@ describe("CirculateDialog (smoke)", () => {
     await waitFor(() => {
       expect(document.body.querySelector("#outer_width_mm")).not.toBeNull()
     })
-    const done = Array.from(document.body.querySelectorAll("button")).find(
-      (b) => b.textContent?.trim() === "Done",
+    const preview = Array.from(document.body.querySelectorAll("button")).find(
+      (b) => b.textContent?.trim() === "Preview",
     )
-    expect(done).toBeTruthy()
+    expect(preview).toBeTruthy()
 
-    fireEvent.click(done as HTMLButtonElement)
+    fireEvent.click(preview as HTMLButtonElement)
     await waitFor(() => {
       expect(document.body.querySelector("#outer_width_mm")).toBeNull()
     })

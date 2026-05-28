@@ -281,6 +281,12 @@ export function ProjectDetailPageClient({
   const isAddTraceDisabled = !hasFilterSourceImage || isNewFilterActionBusy || isApplyingTrace || isClearingTrace
   const openTraceSelection = useCallback(() => {
     if (isAddTraceDisabled) return
+    // Mobile-only effect: user reached this action via the left-panel Sheet
+    // (Trace has no desktop top-bar entry), so the Sheet is still open
+    // behind the dialog. Closing it here means every exit (apply, X, escape,
+    // cancel) lands in a clean editor. Desktop is a no-op — the aside is
+    // `md:block` and ignores `leftPanelOpen`.
+    setLeftPanelOpen(false)
     traceDialog.beginSelection()
   }, [isAddTraceDisabled, traceDialog])
 
