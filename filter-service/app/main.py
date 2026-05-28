@@ -1,6 +1,11 @@
 """
 FastAPI service for image processing filters.
 """
+# Deploy marker: re-trigger Cloud Run deploy after a bw-mode pixelate 500
+# (`stage=pixelate_process`) was observed in prod against an already-seeded
+# `lab_grays` (48 rows). The Node code path is symmetric for color/bw, so the
+# remaining plausible cause is a stale filter-service revision on Cloud Run.
+# Touching this file fires `deploy-filter-service.yml` on merge to main.
 import os
 import time
 
