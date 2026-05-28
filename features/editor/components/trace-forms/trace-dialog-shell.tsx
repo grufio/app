@@ -9,10 +9,10 @@
  * Mobile (< md): the right sidebar has no room, so the dialog goes
  * edge-to-edge fullscreen showing only the preview plus a header with the
  * close (X), an edit (pencil) icon, and an apply (check) icon. The pencil
- * opens the params in a separate dialog (form + Cancel/Done). Done only
- * dismisses the edit dialog — apply is committed exclusively from the outer
- * preview's check icon, so the user always sees the final preview state
- * before the filter is fired. Draft state lives in the parent, so
+ * opens the params in a separate dialog (form + Cancel/Preview). Preview
+ * only dismisses the edit dialog — apply is committed exclusively from the
+ * outer preview's check icon, so the user always sees the final preview
+ * state before the filter is fired. Draft state lives in the parent, so
  * opening/closing the edit dialog preserves all field values and the
  * fullscreen preview updates live.
  */
@@ -146,9 +146,9 @@ export function TraceDialogShell({
               >
                 Cancel
               </Button>
-              {/* Done only dismisses the edit dialog — the actual apply lives
-                  on the outer preview's check icon, so the user reviews the
-                  final preview before firing the filter. `!valid` is
+              {/* Preview only dismisses the edit dialog — the actual apply
+                  lives on the outer preview's check icon, so the user reviews
+                  the final preview before firing the filter. `!valid` is
                   intentionally NOT a gate here: even with an invalid grid the
                   user can return to the preview. */}
               <Button
@@ -157,7 +157,7 @@ export function TraceDialogShell({
                 onClick={() => setEditOpen(false)}
                 disabled={busy}
               >
-                Done
+                Preview
               </Button>
             </DialogStickyFooter>
           </DialogContent>
