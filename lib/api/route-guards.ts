@@ -51,6 +51,19 @@ export function jsonError(message: string, status: number, extra?: Record<string
     if (status === 401 || status === 403 || status === 404) return message
     if (stage === "auth" || stage === "auth_session" || stage === "rls_denied") return message
     if (stage.startsWith("validation")) return message
+    // Filter-service-backed trace stages: the `reason` is the Python service's
+    // own error text (e.g. "Image processing failed: <exception>") or our own
+    // upstream-failure description. It's operational/debug info, not a
+    // DB/storage internal leak, so let it through unscrubbed — otherwise the
+    // toast shows a useless "Request failed" and prod debugging needs Cloud
+    // Run logs access just to read the upstream message.
+    if (
+      stage === "pixelate_process" ||
+      stage === "circulate_process" ||
+      stage === "lineart_process"
+    ) {
+      return message
+    }
     return "Request failed"
   })()
   const rest = { ...(extra ?? {}) } as Record<string, unknown>
