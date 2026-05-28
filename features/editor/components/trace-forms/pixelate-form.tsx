@@ -5,7 +5,7 @@
  * detail-panel-right primitives (`EditorSidebarSection`,
  * `PanelTwoFieldRow`, `PanelIconSlot`) used by the editor's right
  * panel. Two sections:
- *   - "Pixel" — supercell width + height + (Schnitt-Rand / error)
+ *   - "Pixel" — supercell width + height + (cut-margin / error)
  *   - "Colors" — palette mode (S/W vs Color) + PDF colour space (RGB/CMYK).
  *     The mode picks which DB palette the server snaps cells to; the colour
  *     space is PDF-only and does not affect detection. (`num_colors` is gone
@@ -51,7 +51,7 @@ export function PixelateForm({ params, onParamsChange, disabled, grid }: Props) 
             <FormField
               variant="numeric"
               numericMode="decimal"
-              label="Superpixel-Breite"
+              label="Superpixel width"
               labelVisuallyHidden
               iconStart={<ArrowLeftRight aria-hidden="true" />}
               unit="mm"
@@ -68,7 +68,7 @@ export function PixelateForm({ params, onParamsChange, disabled, grid }: Props) 
             <FormField
               variant="numeric"
               numericMode="decimal"
-              label="Superpixel-Höhe"
+              label="Superpixel height"
               labelVisuallyHidden
               iconStart={<ArrowUpDown aria-hidden="true" />}
               unit="mm"
@@ -87,12 +87,12 @@ export function PixelateForm({ params, onParamsChange, disabled, grid }: Props) 
 
           {!valid ? (
             <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-destructive">
-              Superpixel zu groß — kein ganzer Superpixel passt in das Bild.
-              Wähle eine kleinere Superpixel-Breite oder -Höhe.
+              Superpixel too large — no full superpixel fits the image.
+              Pick a smaller superpixel width or height.
             </div>
           ) : (
             <div className="text-xs text-muted-foreground">
-              Schnitt-Rand: ↔ {fmt1(borderSideMmX)} mm · ↕ {fmt1(borderSideMmY)} mm
+              Cut margin: ↔ {fmt1(borderSideMmX)} mm · ↕ {fmt1(borderSideMmY)} mm
             </div>
           )}
         </div>

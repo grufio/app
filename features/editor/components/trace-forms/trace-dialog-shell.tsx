@@ -7,13 +7,17 @@
  * column + a right `Sidebar` holding the form and the Apply/Cancel footer.
  *
  * Mobile (< md): the right sidebar has no room, so the dialog goes
- * edge-to-edge fullscreen showing only the preview plus a header with a close
- * (X) and an "Bearbeiten" button. "Bearbeiten" opens the params in a separate
- * dialog (form + Abbrechen/Anwenden). The draft lives in the parent, so
- * opening/closing the params dialog preserves all field values and the
+ * edge-to-edge fullscreen showing only the preview plus a header with the
+ * close (X), an edit (pencil) icon, and an apply (check) icon. The pencil
+ * opens the params in a separate dialog (form + Cancel/Done). Done only
+ * dismisses the edit dialog — apply is committed exclusively from the outer
+ * preview's check icon, so the user always sees the final preview state
+ * before the filter is fired. Draft state lives in the parent, so
+ * opening/closing the edit dialog preserves all field values and the
  * fullscreen preview updates live.
  */
 import { Fragment, useState, type ReactNode } from "react"
+import { Check, Loader2, Pencil } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -76,15 +80,31 @@ export function TraceDialogShell({
           <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
             <span className="text-sm font-medium">{title}</span>
             {/* mr-10 keeps clear of the absolute close (X) button. */}
-            <Button
-              type="button"
-              variant="outline"
-              className="ml-auto mr-10"
-              onClick={() => setEditOpen(true)}
-              disabled={busy}
-            >
-              Bearbeiten
-            </Button>
+            <div className="ml-auto mr-10 flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => setEditOpen(true)}
+                disabled={busy}
+                aria-label="Edit parameters"
+              >
+                <Pencil className="size-4" />
+              </Button>
+              <Button
+                type="button"
+                size="icon"
+                onClick={onApply}
+                disabled={!valid || busy}
+                aria-label="Apply filter"
+              >
+                {busy ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Check className="size-4" />
+                )}
+              </Button>
+            </div>
           </header>
           <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
             {preview}
@@ -124,15 +144,20 @@ export function TraceDialogShell({
                 onClick={() => setEditOpen(false)}
                 disabled={busy}
               >
-                Abbrechen
+                Cancel
               </Button>
+              {/* Done only dismisses the edit dialog — the actual apply lives
+                  on the outer preview's check icon, so the user reviews the
+                  final preview before firing the filter. `!valid` is
+                  intentionally NOT a gate here: even with an invalid grid the
+                  user can return to the preview. */}
               <Button
                 type="button"
                 size="lg"
-                onClick={onApply}
-                disabled={!valid || busy}
+                onClick={() => setEditOpen(false)}
+                disabled={busy}
               >
-                {busy ? "Wird angewendet…" : "Anwenden"}
+                Done
               </Button>
             </DialogStickyFooter>
           </DialogContent>

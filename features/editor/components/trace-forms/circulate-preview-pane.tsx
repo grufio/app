@@ -142,12 +142,12 @@ export function CirculatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, p
       {showSpinner ? (
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2">
           <Loader2 className="size-6 animate-spin text-muted-foreground" />
-          <span className="text-xs text-muted-foreground">Vorschau wird geladen…</span>
+          <span className="text-xs text-muted-foreground">Loading preview…</span>
         </div>
       ) : null}
       {showInvalid ? (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <span className="text-xs text-muted-foreground">Keine gültige Aufteilung</span>
+          <span className="text-xs text-muted-foreground">No valid grid</span>
         </div>
       ) : null}
 
@@ -163,7 +163,7 @@ export function CirculatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, p
               className="size-7"
               onClick={handleZoomOut}
               disabled={zoom <= ZOOM_MIN + 1e-6}
-              aria-label="Verkleinern"
+              aria-label="Zoom out"
             >
               <ZoomOut className="size-4" />
             </Button>
@@ -173,7 +173,7 @@ export function CirculatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, p
               className="size-7"
               onClick={handleFit}
               disabled={Math.abs(zoom - 1) < 1e-6}
-              aria-label="Einpassen"
+              aria-label="Fit"
             >
               <Maximize2 className="size-4" />
             </Button>
@@ -183,7 +183,7 @@ export function CirculatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, p
               className="size-7"
               onClick={handleZoomIn}
               disabled={zoom >= ZOOM_MAX - 1e-6}
-              aria-label="Vergrößern"
+              aria-label="Zoom in"
             >
               <ZoomIn className="size-4" />
             </Button>

@@ -67,12 +67,12 @@ describe("CirculateForm", () => {
     expect((container.querySelector("#inner_filter") as HTMLButtonElement).disabled).toBe(false)
   })
 
-  it("shows the Schnitt-Rand info when the grid is valid", () => {
+  it("shows the cut-margin info when the grid is valid", () => {
     const grid = resolveCirculateGrid(100, 75, defaults)
     const { getByText } = render(
       <CirculateForm params={defaults} onParamsChange={() => {}} disabled={false} grid={grid} />,
     )
-    expect(getByText(/Schnitt-Rand/)).toBeTruthy()
+    expect(getByText(/Cut margin/)).toBeTruthy()
   })
 
   it("shows the error message when the grid is invalid", () => {
@@ -81,6 +81,6 @@ describe("CirculateForm", () => {
     const { getByText } = render(
       <CirculateForm params={defaults} onParamsChange={() => {}} disabled={false} grid={grid} />,
     )
-    expect(getByText(/Zell-Raster zu groß/)).toBeTruthy()
+    expect(getByText(/Cell grid too large/)).toBeTruthy()
   })
 })

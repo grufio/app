@@ -3,7 +3,7 @@
  *
  * Component test for PixelateForm. Asserts the FormFields are present
  * (two supercell numeric inputs + the Colors segment's mode/space
- * selects) and the Schnitt-Rand display flips between valid (border
+ * selects) and the cut-margin display flips between valid (border
  * info) and invalid (error message) based on the passed-in grid.
  */
 import { cleanup, render } from "@testing-library/react"
@@ -36,7 +36,7 @@ describe("PixelateForm", () => {
     expect(container.querySelector("#num_colors")).toBeNull()
   })
 
-  it("shows the Schnitt-Rand info when the grid is valid", () => {
+  it("shows the cut-margin info when the grid is valid", () => {
     const grid = resolvePixelateGrid(100, 75, defaults)
     const { getByText } = render(
       <PixelateForm
@@ -46,7 +46,7 @@ describe("PixelateForm", () => {
         grid={grid}
       />,
     )
-    expect(getByText(/Schnitt-Rand/)).toBeTruthy()
+    expect(getByText(/Cut margin/)).toBeTruthy()
   })
 
   it("shows the error message when the grid is invalid", () => {
@@ -60,6 +60,6 @@ describe("PixelateForm", () => {
         grid={grid}
       />,
     )
-    expect(getByText(/Superpixel zu groß/)).toBeTruthy()
+    expect(getByText(/Superpixel too large/)).toBeTruthy()
   })
 })
