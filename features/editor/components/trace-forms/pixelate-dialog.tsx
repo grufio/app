@@ -85,7 +85,7 @@ export function PixelateDialog({
     <TraceDialogShell
       open={open}
       title="Pixelate"
-      description={`Bild: ${fmt1(displayMmW)} × ${fmt1(displayMmH)} mm`}
+      description={`Image: ${fmt1(displayMmW)} × ${fmt1(displayMmH)} mm`}
       metadata={[
         `Image: ${fmt1(displayMmW)} × ${fmt1(displayMmH)} mm`,
         `Grid: ${grid.cellsX} × ${grid.cellsY} cells`,

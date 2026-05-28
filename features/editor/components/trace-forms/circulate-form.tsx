@@ -93,8 +93,8 @@ export function CirculateForm({ params, onParamsChange, disabled, grid }: Props)
       <EditorSidebarSection title="Circle">
         <div className="space-y-3">
           <PanelTwoFieldRow>
-            {mmField("outer_width_mm", "Äußere Breite", <ArrowLeftRight aria-hidden="true" />, { min: MIN_ELLIPSE_MM })}
-            {mmField("outer_height_mm", "Äußere Höhe", <ArrowUpDown aria-hidden="true" />, { min: MIN_ELLIPSE_MM })}
+            {mmField("outer_width_mm", "Outer width", <ArrowLeftRight aria-hidden="true" />, { min: MIN_ELLIPSE_MM })}
+            {mmField("outer_height_mm", "Outer height", <ArrowUpDown aria-hidden="true" />, { min: MIN_ELLIPSE_MM })}
             <PanelIconSlot />
           </PanelTwoFieldRow>
 
@@ -106,32 +106,32 @@ export function CirculateForm({ params, onParamsChange, disabled, grid }: Props)
               disabled={disabled}
             />
             <Label htmlFor="inner_enabled" className="cursor-pointer text-sm font-normal">
-              Innere Ellipse
+              Inner ellipse
             </Label>
           </div>
 
           <PanelTwoFieldRow>
-            {mmField("inner_width_mm", "Innere Breite", <ArrowLeftRight aria-hidden="true" />, {
+            {mmField("inner_width_mm", "Inner width", <ArrowLeftRight aria-hidden="true" />, {
               disabled: innerDisabled,
               min: MIN_ELLIPSE_MM,
             })}
-            {mmField("inner_height_mm", "Innere Höhe", <ArrowUpDown aria-hidden="true" />, {
+            {mmField("inner_height_mm", "Inner height", <ArrowUpDown aria-hidden="true" />, {
               disabled: innerDisabled,
               min: MIN_ELLIPSE_MM,
             })}
             <PanelIconSlot />
           </PanelTwoFieldRow>
 
-          {loneRow(mmField("contour_width_mm", "Konturbreite", <Circle aria-hidden="true" />, { min: 0, step: 0.1 }))}
+          {loneRow(mmField("contour_width_mm", "Stroke width", <Circle aria-hidden="true" />, { min: 0, step: 0.1 }))}
 
           {!valid ? (
             <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-destructive">
-              Zell-Raster zu groß — kein ganzer Kreis passt in das Bild. Wähle eine
-              kleinere Ellipse oder weniger Abstand.
+              Cell grid too large — no full circle fits the image. Pick a
+              smaller ellipse or less spacing.
             </div>
           ) : (
             <div className="text-xs text-muted-foreground">
-              Schnitt-Rand: ↔ {fmt1(grid.borderMmX / 2)} mm · ↕ {fmt1(grid.borderMmY / 2)} mm
+              Cut margin: ↔ {fmt1(grid.borderMmX / 2)} mm · ↕ {fmt1(grid.borderMmY / 2)} mm
             </div>
           )}
         </div>
@@ -140,13 +140,13 @@ export function CirculateForm({ params, onParamsChange, disabled, grid }: Props)
       <EditorSidebarSection title="Spacing">
         <div className="space-y-3">
           <PanelTwoFieldRow>
-            {mmField("spacing_left_mm", "Abstand links", <ArrowLeftRight aria-hidden="true" />, { min: 0 })}
-            {mmField("spacing_right_mm", "Abstand rechts", <ArrowLeftRight aria-hidden="true" />, { min: 0 })}
+            {mmField("spacing_left_mm", "Spacing left", <ArrowLeftRight aria-hidden="true" />, { min: 0 })}
+            {mmField("spacing_right_mm", "Spacing right", <ArrowLeftRight aria-hidden="true" />, { min: 0 })}
             <PanelIconSlot />
           </PanelTwoFieldRow>
           <PanelTwoFieldRow>
-            {mmField("spacing_top_mm", "Abstand oben", <ArrowUpDown aria-hidden="true" />, { min: 0 })}
-            {mmField("spacing_bottom_mm", "Abstand unten", <ArrowUpDown aria-hidden="true" />, { min: 0 })}
+            {mmField("spacing_top_mm", "Spacing top", <ArrowUpDown aria-hidden="true" />, { min: 0 })}
+            {mmField("spacing_bottom_mm", "Spacing bottom", <ArrowUpDown aria-hidden="true" />, { min: 0 })}
             <PanelIconSlot />
           </PanelTwoFieldRow>
         </div>
@@ -164,7 +164,7 @@ export function CirculateForm({ params, onParamsChange, disabled, grid }: Props)
           {loneRow(
             <FormField
               variant="select"
-              label="Innenfarbe (Sub-Farbfilter)"
+              label="Inner color (sub-color filter)"
               labelVisuallyHidden
               iconStart={<Droplet aria-hidden="true" />}
               id="inner_filter"

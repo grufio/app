@@ -3,7 +3,7 @@
 /**
  * Shared "Colors" segment fields for trace dialogs (Pixelate + Circulate).
  *
- * Two selects laid out in the panel grid: the palette mode (S/W vs Color →
+ * Two selects laid out in the panel grid: the palette mode (B/W vs Color →
  * `color_mode`, which DB palette the server snaps cells to) and the PDF colour
  * space (RGB/CMYK → `color_space`, stored-only, no effect on detection). The
  * shared contract lives here so the two traces can't drift on labels, options,
@@ -22,7 +22,7 @@ export type TraceColorSpace = "rgb" | "cmyk"
 // select FormField memoises on `prev.options === next.options`).
 const COLOR_MODE_OPTIONS: SelectFieldOption[] = [
   { value: "color", label: "Color" },
-  { value: "bw", label: "S/W" },
+  { value: "bw", label: "B/W" },
 ]
 const COLOR_SPACE_OPTIONS: SelectFieldOption[] = [
   { value: "rgb", label: "RGB" },
@@ -41,7 +41,7 @@ export function TraceColorsFields(props: {
     <PanelTwoFieldRow>
       <FormField
         variant="select"
-        label="Farbmodus (S/W oder Color)"
+        label="Color mode (B/W or color)"
         labelVisuallyHidden
         iconStart={<Palette aria-hidden="true" />}
         id="color_mode"
@@ -52,7 +52,7 @@ export function TraceColorsFields(props: {
       />
       <FormField
         variant="select"
-        label="PDF-Farbraum (RGB oder CMYK)"
+        label="PDF color space (RGB or CMYK)"
         labelVisuallyHidden
         iconStart={<Printer aria-hidden="true" />}
         id="color_space"

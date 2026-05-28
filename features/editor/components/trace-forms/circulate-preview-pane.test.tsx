@@ -83,11 +83,11 @@ describe("CirculatePreviewPane", () => {
     const label = () => getByTestId("circulate-preview-zoom-label").textContent
     expect(label()).toBe("100%")
     await act(async () => {
-      fireEvent.click(getByLabelText("Vergrößern"))
+      fireEvent.click(getByLabelText("Zoom in"))
     })
     expect(label()).toBe("150%")
     await act(async () => {
-      fireEvent.click(getByLabelText("Einpassen"))
+      fireEvent.click(getByLabelText("Fit"))
     })
     expect(label()).toBe("100%")
   })

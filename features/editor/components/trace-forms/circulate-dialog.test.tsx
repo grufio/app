@@ -77,7 +77,7 @@ describe("CirculateDialog (smoke)", () => {
     expect(apply).toBeTruthy()
   })
 
-  it("mobile: shows preview + Bearbeiten; the params open in a separate dialog", async () => {
+  it("mobile: edit icon opens params; Done returns to preview; apply icon fires the trace", async () => {
     window.matchMedia = ((query: string) =>
       ({
         matches: true,
@@ -106,22 +106,32 @@ describe("CirculateDialog (smoke)", () => {
     await waitFor(() => {
       expect(document.body.querySelector('[data-testid="circulate-preview-mini"]')).not.toBeNull()
     })
-    const edit = Array.from(document.body.querySelectorAll("button")).find(
-      (b) => b.textContent?.trim() === "Bearbeiten",
-    )
-    expect(edit).toBeTruthy()
+    const editIcon = document.body.querySelector(
+      'button[aria-label="Edit parameters"]',
+    ) as HTMLButtonElement | null
+    const applyIcon = document.body.querySelector(
+      'button[aria-label="Apply filter"]',
+    ) as HTMLButtonElement | null
+    expect(editIcon).toBeTruthy()
+    expect(applyIcon).toBeTruthy()
     expect(document.body.querySelector("#outer_width_mm")).toBeNull()
 
-    fireEvent.click(edit as HTMLButtonElement)
+    fireEvent.click(editIcon!)
     await waitFor(() => {
       expect(document.body.querySelector("#outer_width_mm")).not.toBeNull()
     })
-    const apply = Array.from(document.body.querySelectorAll("button")).find((b) =>
-      b.textContent?.trim().startsWith("Anwenden"),
+    const done = Array.from(document.body.querySelectorAll("button")).find(
+      (b) => b.textContent?.trim() === "Done",
     )
-    expect(apply).toBeTruthy()
+    expect(done).toBeTruthy()
 
-    fireEvent.click(apply as HTMLButtonElement)
+    fireEvent.click(done as HTMLButtonElement)
+    await waitFor(() => {
+      expect(document.body.querySelector("#outer_width_mm")).toBeNull()
+    })
+    expect(onApplyTrace).not.toHaveBeenCalled()
+
+    fireEvent.click(applyIcon!)
     await waitFor(() => {
       expect(onApplyTrace).toHaveBeenCalledWith(expect.objectContaining({ kind: "circulate" }))
     })

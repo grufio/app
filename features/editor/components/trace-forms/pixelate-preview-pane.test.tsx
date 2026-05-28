@@ -96,19 +96,19 @@ describe("PixelatePreviewPane", () => {
 
     const label = () => getByTestId("pixelate-preview-zoom-label").textContent
 
-    // Default: 100% (= fit-to-pane). Verkleinern is disabled at floor.
+    // Default: 100% (= fit-to-pane). Zoom out is disabled at floor.
     expect(label()).toBe("100%")
-    expect((getByLabelText("Verkleinern") as HTMLButtonElement).disabled).toBe(true)
+    expect((getByLabelText("Zoom out") as HTMLButtonElement).disabled).toBe(true)
 
-    // Step up via Vergrößern (×1.5 → 150%).
+    // Step up via Zoom in (×1.5 → 150%).
     await act(async () => {
-      fireEvent.click(getByLabelText("Vergrößern"))
+      fireEvent.click(getByLabelText("Zoom in"))
     })
     expect(label()).toBe("150%")
 
-    // Einpassen returns to 100%.
+    // Fit returns to 100%.
     await act(async () => {
-      fireEvent.click(getByLabelText("Einpassen"))
+      fireEvent.click(getByLabelText("Fit"))
     })
     expect(label()).toBe("100%")
   })
