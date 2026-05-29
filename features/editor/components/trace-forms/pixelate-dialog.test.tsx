@@ -137,4 +137,76 @@ describe("PixelateDialog (smoke)", () => {
       expect(onApplyTrace).toHaveBeenCalledWith(expect.objectContaining({ kind: "pixelate" }))
     })
   })
+
+  // Regression: tapping Preview to close the edit dialog must flush any
+  // pending field commit first, otherwise the user's typed value never
+  // reaches the parent's draft and the outer fullscreen preview keeps
+  // rendering the pre-edit params (looks like "no adjustment took effect").
+  it("mobile: a typed numeric value is committed before Preview closes the edit dialog", async () => {
+    window.matchMedia = ((query: string) =>
+      ({
+        matches: true,
+        media: query,
+        onchange: null,
+        addListener: () => {},
+        removeListener: () => {},
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }) as unknown as MediaQueryList) as typeof window.matchMedia
+
+    const onApplyTrace = vi.fn(async () => {})
+    render(
+      <PixelateDialog
+        open
+        sourceImageUrl="https://example.test/img.png"
+        displayMmW={100}
+        displayMmH={75}
+        onClose={() => {}}
+        onSuccess={() => {}}
+        onApplyTrace={onApplyTrace}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(document.body.querySelector('[data-testid="pixelate-preview-mini"]')).not.toBeNull()
+    })
+    const editIcon = document.body.querySelector(
+      'button[aria-label="Edit parameters"]',
+    ) as HTMLButtonElement
+    fireEvent.click(editIcon)
+    const input = await waitFor(() => {
+      const el = document.body.querySelector("#supercell_width_mm") as HTMLInputElement | null
+      if (!el) throw new Error("input not mounted")
+      return el
+    })
+
+    // Type a value the user definitely didn't have before. No explicit
+    // blur — the user just taps Preview, which is what fires the bug.
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: "7.5" } })
+    const preview = Array.from(document.body.querySelectorAll("button")).find(
+      (b) => b.textContent?.trim() === "Preview",
+    ) as HTMLButtonElement
+    fireEvent.click(preview)
+    await waitFor(() => {
+      expect(document.body.querySelector("#supercell_width_mm")).toBeNull()
+    })
+
+    // The typed 7.5 must reach the parent draft. Verified via the apply
+    // payload — the outer preview reads the same draft, so this also
+    // proves the fullscreen preview reflects the edit.
+    const applyIcon = document.body.querySelector(
+      'button[aria-label="Apply filter"]',
+    ) as HTMLButtonElement
+    fireEvent.click(applyIcon)
+    await waitFor(() => {
+      expect(onApplyTrace).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: "pixelate",
+          params: expect.objectContaining({ supercell_width_mm: 7.5 }),
+        }),
+      )
+    })
+  })
 })
