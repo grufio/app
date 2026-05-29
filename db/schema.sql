@@ -1800,7 +1800,7 @@ CREATE TABLE IF NOT EXISTS "public"."project_image_trace" (
     "display_y_px_u" "text" DEFAULT '0'::"text" NOT NULL,
     "display_width_px_u" "text" DEFAULT '0'::"text" NOT NULL,
     "display_height_px_u" "text" DEFAULT '0'::"text" NOT NULL,
-    CONSTRAINT "project_image_trace_kind_ck" CHECK (("kind" = ANY (ARRAY['pixelate'::"text", 'circulate'::"text", 'lineart'::"text"])))
+    CONSTRAINT "project_image_trace_kind_ck" CHECK (("kind" = ANY (ARRAY['pixelate'::"text", 'lineart'::"text"])))
 );
 
 
