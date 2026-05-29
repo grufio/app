@@ -150,11 +150,20 @@ export function TraceDialogShell({
                   lives on the outer preview's check icon, so the user reviews
                   the final preview before firing the filter. `!valid` is
                   intentionally NOT a gate here: even with an invalid grid the
-                  user can return to the preview. */}
+                  user can return to the preview.
+                  Blur the focused input first so its draft commits to the
+                  parent BEFORE the form unmounts. Natural focus-loss-on-tap
+                  is unreliable on mobile keyboards, and without an explicit
+                  commit the outer preview would render the pre-edit params. */}
               <Button
                 type="button"
                 size="lg"
-                onClick={() => setEditOpen(false)}
+                onClick={() => {
+                  if (document.activeElement instanceof HTMLElement) {
+                    document.activeElement.blur()
+                  }
+                  setEditOpen(false)
+                }}
                 disabled={busy}
               >
                 Preview
