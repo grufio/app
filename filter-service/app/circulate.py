@@ -1,29 +1,28 @@
 """
 Circulate filter pipeline — direct SVG renderer.
 
-Produces a Chuck-Close-style dot-grid SVG from a source image:
+Two entry points (mirrors Pixelate post-#323):
 
-  1. Crop the source to the resolved grid region.
-  2. Downsample straight to a cells_x × cells_y bitmap (one pixel per
-     cell, area-averaged via Image.BOX) — the SHARED colour contract
-     (`cell_colors.py`), identical to Pixelate.
-  3. Snap each cell mean to the nearest palette chip (outer fill); when
-     an inner ellipse is enabled, snap the *hue-shifted* cell mean to a
-     chip too (inner fill — palette-constrained, never leaves the palette).
-  4. Emit one `<g data-cell="x,y">` per cell containing an outer
-     `<ellipse>` (+ optional inner `<ellipse>`), drawn in CROP-PIXEL space
-     at the cell centre. Contours are the ellipse stroke — there are NO
-     grid lines (contour replaces the grid).
+- `circulate_cells_to_svg` (current): the caller (Vercel server) has already
+  cropped + area-averaged the source to a `cells_y × cells_x × 3` uint8 grid
+  via `sharp().raw()` + `cellAreaAverages`. This function just snaps each
+  cell to a palette chip, optionally applies the texture step on the OUTER
+  cells, then emits one ellipse-group per cell. Small-array numpy + string
+  concatenation — milliseconds.
+
+- `circulate_to_svg` (legacy): full pipeline, kept for the deploy lap while
+  old Vercel revisions are still in rotation. Crops with PIL, downsamples
+  via `Image.BOX` (geometrically equivalent to the TS `cellAreaAverages`
+  mirror in `lib/editor/trace/trace-cell-colors.ts`), then delegates to
+  `circulate_cells_to_svg`. Also re-encodes the cropped bitmap as PNG and
+  hands it back — the legacy Vercel code stores that as the `trace_base`
+  row. Delete this once the cells path has soaked.
 
 Geometry is mm-agnostic here: the server (`resolveCirculateGrid`) does all
 the mm math and passes the ellipse sizes as FRACTIONS of the cell pitch
 (0..1) plus the contour stroke as a pixel width. Drawing in crop-pixel space
 (not a non-uniform `scale()` group like Pixelate) keeps the ellipse stroke
 uniform — a scaled group would distort the contour into an ellipse.
-
-Like Pixelate, the cropped bitmap is returned alongside the SVG so the
-viewBox lines up 1:1 with it. The SVG background between circles is
-transparent (no background rect); the editor decides what sits underneath.
 """
 from __future__ import annotations
 
@@ -65,14 +64,10 @@ def _inner_colors(
     return np.asarray(palette_rgb, dtype=np.uint8)[idx].reshape(shape)
 
 
-def circulate_to_svg(
-    img: Image.Image,
-    cells_x: int,
-    cells_y: int,
-    crop_x: float,
-    crop_y: float,
-    crop_w: float,
-    crop_h: float,
+def circulate_cells_to_svg(
+    cell_means: np.ndarray,
+    cropped_w_px: int,
+    cropped_h_px: int,
     outer_w_frac: float,
     outer_h_frac: float,
     inner_enabled: bool = False,
@@ -87,48 +82,33 @@ def circulate_to_svg(
     texture_enabled: bool = False,
     texture_strength: float = 0.0,
     on_phase: callable | None = None,
-) -> tuple[str, bytes, int]:
+) -> tuple[str, int]:
     """
-    Build the circulate SVG + cropped bitmap from the server-resolved grid.
+    Render the circulate SVG from a pre-computed per-cell colour grid.
 
-    `cells_x/_y` + `crop_*` come pre-resolved by `resolveCirculateGrid`. The
-    ellipse `*_frac` are the axis sizes as a fraction of the cell pitch (0..1);
-    `contour_width_px` is the stroke width in crop-pixel space (0 = no contour).
-    `palette_oklab` (M, 3) + `palette_rgb` (M, 3) are the active palette chips;
-    when present each cell snaps to its nearest chip. Returns
-    (svg_string, cropped_png_bytes, region_count) where region_count is the
-    cell count (one paint-by-numbers group per cell).
+    `cell_means` is the `(cells_y, cells_x, 3)` uint8 RGB array — the
+    area-averaged per-cell colours computed by the Vercel server. The inner
+    ellipse colours are derived from the (pre-snap) means, so the texture
+    step on the outer cells doesn't propagate into the inner sub-colour
+    adjustment.
+
+    Returns `(svg_string, region_count)`. The cropped PNG is the caller's
+    responsibility (the Vercel server already has it from sharp).
     """
 
     def phase(name: str) -> None:
         if on_phase is not None:
             on_phase(name)
 
-    img_w, img_h = img.size
-
-    # Crop to the grid region (integer pixel bounds), identical to Pixelate so
-    # the returned bitmap and the SVG viewBox share the same crop.
-    cx0 = max(0, round(crop_x))
-    cy0 = max(0, round(crop_y))
-    cx1 = min(img_w, round(crop_x + crop_w))
-    cy1 = min(img_h, round(crop_y + crop_h))
-    cropped = img.convert("RGB").crop((cx0, cy0, cx1, cy1))
-    phase("crop")
-
-    cropped_w_px, cropped_h_px = cropped.size
-
-    # Per-cell area-average (shared colour contract): 1 cell = 1 px.
-    means = compute_cell_colors(cropped, cells_x, cells_y)  # (cells_y, cells_x, 3)
-    phase("downsample")
+    cells_y, cells_x, _ = cell_means.shape
+    means = cell_means
 
     # Outer fill = nearest palette chip (raw means when no palette).
     if palette_oklab is not None and palette_rgb is not None:
         outer = map_cells_to_palette(means, palette_oklab, palette_rgb)
-        # Optional blue-noise texture step on the OUTER cells — breaks up
-        # large monochromatic islands. Inner ellipses keep their derived
-        # colour (the sub colour filter snap is independent of the outer
-        # invasion). Only runs when a palette is present (the algorithm
-        # picks invading chips from `palette_rgb`).
+        # Optional blue-noise texture step on the OUTER cells. Inner ellipses
+        # keep their derived sub-colour (the adjustment is computed from the
+        # original means below, untouched by the invasion).
         if texture_enabled and texture_strength > 0:
             outer = apply_neighbor_invasion(
                 outer, np.asarray(palette_rgb, dtype=np.uint8), texture_strength
@@ -195,9 +175,85 @@ def circulate_to_svg(
     )
     phase("serialize")
 
+    return svg_content, region_count
+
+
+def circulate_to_svg(
+    img: Image.Image,
+    cells_x: int,
+    cells_y: int,
+    crop_x: float,
+    crop_y: float,
+    crop_w: float,
+    crop_h: float,
+    outer_w_frac: float,
+    outer_h_frac: float,
+    inner_enabled: bool = False,
+    inner_w_frac: float = 0.5,
+    inner_h_frac: float = 0.5,
+    contour_width_px: float = 0.0,
+    inner_hue_deg: float = 0.0,
+    inner_lightness_delta: float = 0.0,
+    inner_chroma_scale: float = 1.0,
+    palette_oklab: list | None = None,
+    palette_rgb: list | None = None,
+    texture_enabled: bool = False,
+    texture_strength: float = 0.0,
+    on_phase: callable | None = None,
+) -> tuple[str, bytes, int]:
+    """
+    Legacy entry point: full source → cropped → downsampled → SVG + PNG.
+
+    Kept on the back-compat code path while old Vercel revisions are still
+    sending `image_base64` + `crop_*`. Delete with the corresponding
+    `_circulate_filter_legacy` branch once the cells path has soaked.
+    """
+
+    def phase(name: str) -> None:
+        if on_phase is not None:
+            on_phase(name)
+
+    img_w, img_h = img.size
+
+    # Crop to the grid region (integer pixel bounds), identical to Pixelate so
+    # the returned bitmap and the SVG viewBox share the same crop.
+    cx0 = max(0, round(crop_x))
+    cy0 = max(0, round(crop_y))
+    cx1 = min(img_w, round(crop_x + crop_w))
+    cy1 = min(img_h, round(crop_y + crop_h))
+    cropped = img.convert("RGB").crop((cx0, cy0, cx1, cy1))
+    phase("crop")
+
+    cropped_w_px, cropped_h_px = cropped.size
+
+    # Per-cell area-average (shared colour contract): 1 cell = 1 px.
+    cell_means = compute_cell_colors(cropped, cells_x, cells_y)
+    phase("downsample")
+
+    svg_content, region_count = circulate_cells_to_svg(
+        cell_means=cell_means,
+        cropped_w_px=cropped_w_px,
+        cropped_h_px=cropped_h_px,
+        outer_w_frac=outer_w_frac,
+        outer_h_frac=outer_h_frac,
+        inner_enabled=inner_enabled,
+        inner_w_frac=inner_w_frac,
+        inner_h_frac=inner_h_frac,
+        contour_width_px=contour_width_px,
+        inner_hue_deg=inner_hue_deg,
+        inner_lightness_delta=inner_lightness_delta,
+        inner_chroma_scale=inner_chroma_scale,
+        palette_oklab=palette_oklab,
+        palette_rgb=palette_rgb,
+        texture_enabled=texture_enabled,
+        texture_strength=texture_strength,
+        on_phase=on_phase,
+    )
+
     buf = io.BytesIO()
     cropped.save(buf, format="PNG")
     cropped_png = buf.getvalue()
     phase("encode_cropped")
 
     return svg_content, cropped_png, region_count
+

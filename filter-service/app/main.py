@@ -14,7 +14,7 @@ import numpy as np
 import io
 import base64
 
-from app.circulate import circulate_to_svg
+from app.circulate import circulate_cells_to_svg, circulate_to_svg
 from app.lineart import lineart_to_svg
 from app.pixelate import pixelate_cells_to_svg, pixelate_to_svg
 
@@ -411,16 +411,26 @@ def _pixelate_filter_legacy(request: PixelateRequest) -> JSONResponse:
 
 
 class CirculateRequest(BaseModel):
-    image_base64: str
-    # Resolved grid from the server's `resolveCirculateGrid` — single source
-    # of truth (same shape as PixelateRequest). `cells_x/_y` is the cell count;
-    # `crop_*` is the source-image region (px) the grid covers.
+    # Cells path (current, mirrors Pixelate post-#323): the Vercel server has
+    # already cropped + area-averaged the source to a `cells_y × cells_x × 3`
+    # uint8 grid via `sharp().raw()` + `cellAreaAverages`. The wire shape
+    # ships the raw bytes as base64 (~22 KB for a 100×75 grid vs ~16 MB for
+    # a 12-MP base64 source), plus the cropped pixel dimensions for the SVG
+    # viewBox.
+    cells_b64: str | None = None
+    cropped_w_px: int | None = None
+    cropped_h_px: int | None = None
+    # Legacy path (kept for the deploy lap while old Vercel revisions are
+    # still serving traffic; remove once gruf.app has run on the new path
+    # for a day without regressions).
+    image_base64: str | None = None
+    crop_x: float | None = None
+    crop_y: float | None = None
+    crop_w: float | None = None
+    crop_h: float | None = None
+    # Always required: the cell grid dimensions, used by both paths.
     cells_x: int
     cells_y: int
-    crop_x: float
-    crop_y: float
-    crop_w: float
-    crop_h: float
     # Ellipse axes as a FRACTION of the cell pitch (0..1). The server converts
     # the mm sizes (outer/inner ellipse vs. pitch = spacing + outer + spacing)
     # into fractions so this service stays mm-agnostic, like Pixelate.
@@ -453,17 +463,21 @@ class CirculateRequest(BaseModel):
 @app.post("/filters/circulate")
 async def circulate_filter(request: CirculateRequest):
     """
-    Circulate: crop the source to the resolved grid, downsample to a
-    `cells_x × cells_y` grid (shared colour contract), snap each cell to the
-    nearest palette chip, then emit one ellipse (optionally two) per cell at
-    its cell centre with a contour stroke. No grid lines — the contour is the
-    grid. Returns JSON with the SVG + the cropped source bitmap (base64 PNG),
-    like Pixelate, so the editor can stack them 1:1.
+    Circulate: emit one ellipse (optionally two) per cell at its cell centre
+    with a contour stroke. Two request shapes:
+
+    - **Cells path (preferred):** `cells_b64` carries the pre-computed
+      `cells_y × cells_x × 3` uint8 RGB grid from the Vercel server. The
+      service decodes, palette-snaps, optionally texturizes, emits SVG.
+      Returns `{svg, region_count}`. No image decode, no crop, no downsample.
+
+    - **Legacy path:** `image_base64` + `crop_*` carries the full source
+      bitmap, the service runs the entire pipeline. Returns `{svg,
+      cropped_png_b64, region_count}` so the Vercel server can store the
+      cropped bitmap as a `trace_base` row. Kept for the deploy lap.
     """
     if request.cells_x < 1 or request.cells_y < 1:
         raise HTTPException(status_code=400, detail="cells_x and cells_y must be >= 1")
-    if request.crop_w <= 0 or request.crop_h <= 0:
-        raise HTTPException(status_code=400, detail="crop_w and crop_h must be > 0")
     if not (0 < request.outer_w_frac <= 1) or not (0 < request.outer_h_frac <= 1):
         raise HTTPException(status_code=400, detail="outer ellipse fractions must be in (0, 1]")
     if request.inner_enabled and (
@@ -472,6 +486,80 @@ async def circulate_filter(request: CirculateRequest):
         raise HTTPException(status_code=400, detail="inner ellipse fractions must be in (0, 1]")
     if request.contour_width_px < 0:
         raise HTTPException(status_code=400, detail="contour_width_px must be >= 0")
+
+    if request.cells_b64 is not None:
+        return _circulate_filter_cells(request)
+    return _circulate_filter_legacy(request)
+
+
+def _circulate_filter_cells(request: CirculateRequest) -> JSONResponse:
+    """New path: cells_b64 already holds the per-cell area-average grid."""
+    if request.cropped_w_px is None or request.cropped_h_px is None:
+        raise HTTPException(
+            status_code=400,
+            detail="cells_b64 path requires cropped_w_px and cropped_h_px",
+        )
+    if request.cropped_w_px < 1 or request.cropped_h_px < 1:
+        raise HTTPException(status_code=400, detail="cropped_w_px and cropped_h_px must be >= 1")
+
+    timer = PhaseTimer()
+    try:
+        raw = base64.b64decode(request.cells_b64)
+        expected = request.cells_y * request.cells_x * 3
+        if len(raw) != expected:
+            raise HTTPException(
+                status_code=400,
+                detail=f"cells_b64 length mismatch: got {len(raw)} bytes, expected {expected} for {request.cells_y}×{request.cells_x}×3",
+            )
+        cell_means = np.frombuffer(raw, dtype=np.uint8).reshape(
+            request.cells_y, request.cells_x, 3
+        )
+        timer.mark("decode")
+
+        svg_content, region_count = circulate_cells_to_svg(
+            cell_means=cell_means,
+            cropped_w_px=request.cropped_w_px,
+            cropped_h_px=request.cropped_h_px,
+            outer_w_frac=request.outer_w_frac,
+            outer_h_frac=request.outer_h_frac,
+            inner_enabled=request.inner_enabled,
+            inner_w_frac=request.inner_w_frac,
+            inner_h_frac=request.inner_h_frac,
+            contour_width_px=request.contour_width_px,
+            inner_hue_deg=request.inner_hue_deg,
+            inner_lightness_delta=request.inner_lightness_delta,
+            inner_chroma_scale=request.inner_chroma_scale,
+            palette_oklab=request.palette_oklab,
+            palette_rgb=request.palette_rgb,
+            texture_enabled=request.texture_enabled,
+            texture_strength=request.texture_strength,
+            on_phase=timer.mark,
+        )
+
+        return JSONResponse(
+            content={"svg": svg_content, "region_count": region_count},
+            headers={
+                "X-Profile-Phases": timer.header(),
+                "X-Region-Count": str(region_count),
+            },
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Image processing failed: {str(e)}")
+
+
+def _circulate_filter_legacy(request: CirculateRequest) -> JSONResponse:
+    """Legacy path: image_base64 + crop_*, server does crop + downsample."""
+    if request.image_base64 is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Either cells_b64 (new) or image_base64 + crop_* (legacy) must be provided",
+        )
+    if request.crop_w is None or request.crop_h is None or request.crop_x is None or request.crop_y is None:
+        raise HTTPException(status_code=400, detail="legacy path requires crop_x, crop_y, crop_w, crop_h")
+    if request.crop_w <= 0 or request.crop_h <= 0:
+        raise HTTPException(status_code=400, detail="crop_w and crop_h must be > 0")
 
     timer = PhaseTimer()
     try:

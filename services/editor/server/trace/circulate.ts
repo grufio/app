@@ -1,5 +1,6 @@
 import crypto from "node:crypto"
 
+import sharp from "sharp"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/lib/supabase/database.types"
@@ -11,6 +12,7 @@ import {
 } from "@/lib/editor/trace/circulate-grid-math"
 import { centeredCropPixels } from "@/lib/editor/trace/pixelate-grid-math"
 import { resolveInnerFilter } from "@/lib/editor/trace/inner-color-filters"
+import { cellAreaAverages } from "@/lib/editor/trace/trace-cell-colors"
 import { callFilterService, startFilterProfiler, toInt, type FilterResult } from "@/services/editor/server/filters/_helpers"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 import { readTracePalette } from "@/lib/supabase/palette"
@@ -144,8 +146,51 @@ export async function circulateImageAndActivate(args: {
   profiler.mark("source_download")
 
   try {
-    const imageBase64 = srcBuffer.toString("base64")
-    profiler.mark("base64_encode")
+    // Crop bounds (clamped to the source image) — mirror of the Python
+    // legacy path's math in `filter-service/app/circulate.py` so the stored
+    // bitmap dimensions describe the actual cropped region either way.
+    const cropLeft = Math.max(0, Math.round(crop.x))
+    const cropTop = Math.max(0, Math.round(crop.y))
+    const croppedWidth = Math.max(1, Math.min(origWidth, Math.round(crop.x + crop.w)) - cropLeft)
+    const croppedHeight = Math.max(1, Math.min(origHeight, Math.round(crop.y + crop.h)) - cropTop)
+
+    // Single sharp pipeline, two outputs from the cropped region (mirrors
+    // pixelate post-#323):
+    //   - baseBuffer: PNG bytes for the `trace_base` Supabase row
+    //   - rawRgb: alpha-stripped raw RGB for the per-cell area-average
+    // Sending only the per-cell grid to Cloud Run (~22 KB for a 100×75 grid
+    // vs. multi-MB for a base64'd source) avoids the Cloud Run decode +
+    // crop + downsample that was causing /filters/circulate 500s on real
+    // photos.
+    const extracted = sharp(srcBuffer).extract({
+      left: cropLeft,
+      top: cropTop,
+      width: croppedWidth,
+      height: croppedHeight,
+    })
+    const [baseBuffer, rawRgb] = await Promise.all([
+      extracted.clone().png().toBuffer(),
+      extracted.clone().removeAlpha().raw().toBuffer(),
+    ])
+    profiler.mark("sharp_crop")
+
+    const { r, g, b } = cellAreaAverages({
+      rgba: rawRgb,
+      width: croppedWidth,
+      height: croppedHeight,
+      cellsX: grid.cellsX,
+      cellsY: grid.cellsY,
+      bytesPerPixel: 3,
+    })
+    profiler.mark("cell_averages")
+
+    const cellBytes = new Uint8Array(grid.cellsX * grid.cellsY * 3)
+    for (let i = 0; i < r.length; i += 1) {
+      cellBytes[i * 3] = r[i]
+      cellBytes[i * 3 + 1] = g[i]
+      cellBytes[i * 3 + 2] = b[i]
+    }
+    const cellsB64 = Buffer.from(cellBytes).toString("base64")
 
     // Snap cells to the active Munsell palette server-side: colour →
     // lab_munsell (128), b/w → lab_grays (48). Same contract as pixelate.
@@ -156,13 +201,11 @@ export async function circulateImageAndActivate(args: {
       path: "/filters/circulate",
       responseKind: "json",
       body: {
-        image_base64: imageBase64,
+        cells_b64: cellsB64,
         cells_x: grid.cellsX,
         cells_y: grid.cellsY,
-        crop_x: crop.x,
-        crop_y: crop.y,
-        crop_w: crop.w,
-        crop_h: crop.h,
+        cropped_w_px: croppedWidth,
+        cropped_h_px: croppedHeight,
         outer_w_frac: fracs.outerWFrac,
         outer_h_frac: fracs.outerHFrac,
         inner_enabled: p.inner_enabled,
@@ -197,28 +240,19 @@ export async function circulateImageAndActivate(args: {
     }
 
     const payload = callResult.json as
-      | { svg?: unknown; cropped_png_b64?: unknown; region_count?: unknown }
+      | { svg?: unknown; region_count?: unknown }
       | null
     const svgString = typeof payload?.svg === "string" ? payload.svg : null
-    const croppedB64 =
-      typeof payload?.cropped_png_b64 === "string" ? payload.cropped_png_b64 : null
-    if (!svgString || !croppedB64) {
+    if (!svgString) {
       return {
         ok: false,
         status: 502,
         stage: "circulate_process",
-        reason: "Filter service returned an unexpected payload (missing svg or cropped bitmap)",
+        reason: "Filter service returned an unexpected payload (missing svg)",
       }
     }
 
     const svgBuffer = Buffer.from(svgString, "utf-8")
-    const baseBuffer = Buffer.from(croppedB64, "base64")
-    // Crop bounds clamped to the source, matching filter-service/app/circulate.py
-    // so the stored bitmap dimensions describe the actual cropped region.
-    const cropLeft = Math.max(0, Math.round(crop.x))
-    const cropTop = Math.max(0, Math.round(crop.y))
-    const croppedWidth = Math.max(1, Math.min(origWidth, Math.round(crop.x + crop.w)) - cropLeft)
-    const croppedHeight = Math.max(1, Math.min(origHeight, Math.round(crop.y + crop.h)) - cropTop)
 
     const cleanName = src.name.replace(
       / \((?:filter working|pixelate|circulate|line art|numerate|B&W hard|B&W soft|B&W warm)\)/g,
