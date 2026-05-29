@@ -93,6 +93,43 @@ describe("cellAreaAverages", () => {
     const { r, g, b } = cellAreaAverages({ rgba, width: 2, height: 1, cellsX: 1, cellsY: 1 })
     expect([r[0], g[0], b[0]]).toEqual([1, 1, 1])
   })
+
+  // The Vercel-side trace handler will feed `sharp(...).raw()` output here —
+  // alpha-stripped RGB, 3 bytes/pixel. The math must match the canvas RGBA
+  // case exactly (same area-average, just a different stride).
+  it("bytesPerPixel: 3 matches the RGBA result on the same pixels", () => {
+    const pixels: Array<[number, number, number]> = [
+      [0, 0, 0],
+      [100, 100, 100],
+      [10, 20, 30],
+      [30, 40, 50],
+      [200, 200, 200],
+      [0, 0, 0],
+      [50, 60, 70],
+      [70, 80, 90],
+    ]
+    const rgba = rgbaFrom(pixels)
+    const rgb = new Uint8Array(pixels.length * 3)
+    pixels.forEach(([r, g, b], i) => {
+      rgb[i * 3] = r
+      rgb[i * 3 + 1] = g
+      rgb[i * 3 + 2] = b
+    })
+
+    const refOut = cellAreaAverages({ rgba, width: 4, height: 2, cellsX: 2, cellsY: 1 })
+    const rgbOut = cellAreaAverages({
+      rgba: rgb,
+      width: 4,
+      height: 2,
+      cellsX: 2,
+      cellsY: 1,
+      bytesPerPixel: 3,
+    })
+
+    expect(Array.from(rgbOut.r)).toEqual(Array.from(refOut.r))
+    expect(Array.from(rgbOut.g)).toEqual(Array.from(refOut.g))
+    expect(Array.from(rgbOut.b)).toEqual(Array.from(refOut.b))
+  })
 })
 
 describe("mapCellsToPalette", () => {

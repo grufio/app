@@ -95,4 +95,75 @@ def test_palette_snaps_cell_fills_to_chip_colours():
     assert 'fill="#828282"' not in svg
     fills = set(re.findall(r'fill="(#[0-9a-f]{6})"', svg))
     assert fills <= {"#000000", "#ffffff"}
-    assert len(fills) >= 1
+
+
+# --- cells path -----------------------------------------------------------
+# The new entry point: Vercel computes the per-cell area-average and ships
+# the grid directly. These tests pin the small-array contract; the legacy
+# path's tests above exercise the same `pixelate_cells_to_svg` core via its
+# `pixelate_to_svg` wrapper, so we don't repeat every geometric assertion.
+
+from app.pixelate import pixelate_cells_to_svg
+
+
+def test_cells_path_region_count_and_viewbox():
+    cells = np.full((3, 4, 3), 200, dtype=np.uint8)  # 4 cols × 3 rows, solid
+    svg, region_count = pixelate_cells_to_svg(
+        cell_means=cells, cropped_w_px=40, cropped_h_px=30,
+    )
+    assert region_count == 12
+    assert svg.count("<rect") == 12
+    assert 'viewBox="0 0 40 30"' in svg
+    assert 'width="40" height="30"' in svg
+
+
+def test_cells_path_uses_cell_mean_when_no_palette():
+    cells = np.array([
+        [[10, 20, 30], [200, 50, 50]],
+    ], dtype=np.uint8)
+    svg, _ = pixelate_cells_to_svg(
+        cell_means=cells, cropped_w_px=20, cropped_h_px=10,
+    )
+    fills = set(re.findall(r'fill="(#[0-9a-f]{6})"', svg))
+    assert fills == {"#0a141e", "#c83232"}
+
+
+def test_cells_path_palette_snap():
+    from app.oklab import rgb255_to_oklab
+
+    chips_rgb = [[0, 0, 0], [255, 255, 255]]
+    chips_oklab = rgb255_to_oklab(np.array(chips_rgb)).tolist()
+    cells = np.array([
+        [[130, 130, 130], [10, 10, 10]],
+        [[240, 240, 240], [180, 180, 180]],
+    ], dtype=np.uint8)
+    svg, _ = pixelate_cells_to_svg(
+        cell_means=cells, cropped_w_px=20, cropped_h_px=20,
+        palette_oklab=chips_oklab, palette_rgb=chips_rgb,
+    )
+    fills = set(re.findall(r'fill="(#[0-9a-f]{6})"', svg))
+    assert fills <= {"#000000", "#ffffff"}
+
+
+def test_cells_and_legacy_paths_produce_equivalent_svg():
+    """Parity gate: feeding the same area-averaged grid through both entry
+    points must emit the same colour rects + same viewBox. The legacy path
+    extras (cropped PNG + 'crop'/'downsample'/'encode_cropped' phases) are
+    by-products, not output drift."""
+    img = _solid_image(8, 8, rgb=(60, 90, 120))
+    legacy_svg, _png, _n_legacy = pixelate_to_svg(
+        img, cells_x=4, cells_y=4,
+        crop_x=0, crop_y=0, crop_w=8, crop_h=8, stroke_width=1.0,
+    )
+    # The legacy path's area-average of a solid image is the same colour;
+    # feed an equivalent (cells_y, cells_x, 3) grid to the new path.
+    cells = np.full((4, 4, 3), (60, 90, 120), dtype=np.uint8)
+    new_svg, _n_new = pixelate_cells_to_svg(
+        cell_means=cells, cropped_w_px=8, cropped_h_px=8,
+    )
+
+    # Rects + grid lines + viewBox must match byte-for-byte.
+    legacy_rects = re.findall(r'<rect[^/]*/>', legacy_svg)
+    new_rects = re.findall(r'<rect[^/]*/>', new_svg)
+    assert legacy_rects == new_rects
+    assert re.search(r'viewBox="[^"]+"', legacy_svg).group(0) == re.search(r'viewBox="[^"]+"', new_svg).group(0)

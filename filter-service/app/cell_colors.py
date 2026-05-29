@@ -25,6 +25,11 @@ def compute_cell_colors(cropped: Image.Image, cells_x: int, cells_y: int) -> np.
     """Downsample the cropped image straight to a `cells_x × cells_y` grid
     (1 cell = 1 px, area-averaged via `Image.BOX`) and return the
     `(cells_y, cells_x, 3)` uint8 RGB array of per-cell mean colours.
+
+    No longer called by pixelate's main path — the Vercel server now does
+    crop + area-average and ships the cell grid directly (see
+    `pixelate_cells_to_svg`). Still used by `circulate.py` and by the
+    legacy `pixelate_to_svg` back-compat path.
     """
     cell_grid = cropped.resize((cells_x, cells_y), Image.BOX)
     return np.asarray(cell_grid, dtype=np.uint8)
