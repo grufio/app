@@ -16,7 +16,7 @@ import base64
 
 from app.circulate import circulate_to_svg
 from app.lineart import lineart_to_svg
-from app.pixelate import pixelate_to_svg
+from app.pixelate import pixelate_cells_to_svg, pixelate_to_svg
 
 
 class PhaseTimer:
@@ -238,25 +238,30 @@ class LineArtRequest(BaseModel):
 
 
 class PixelateRequest(BaseModel):
-    image_base64: str
-    # Resolved grid from the server's `resolvePixelateGrid` — the
-    # single source of truth. `cells_x/_y` is the cell count (1 cell =
-    # 1 px in the downsampled grid); `crop_*` is the source-image
-    # region (px) the grid covers. Whatever lies outside the crop is
-    # the centred border. The service just downsamples along this.
+    # Cells path (current): the Vercel server has already cropped + area-
+    # averaged the source to a `cells_y × cells_x × 3` uint8 grid. We get the
+    # raw bytes as base64 (~700× smaller than shipping the source image), plus
+    # the cropped pixel dimensions for the SVG viewBox.
+    cells_b64: str | None = None
+    cropped_w_px: int | None = None
+    cropped_h_px: int | None = None
+    # Legacy path (kept for the deploy lap while old Vercel revisions are
+    # still serving traffic; remove once gruf.app has run on the new path
+    # for a day without regressions). The handler decides which path to
+    # take based on whether `cells_b64` is present.
+    image_base64: str | None = None
+    crop_x: float | None = None
+    crop_y: float | None = None
+    crop_w: float | None = None
+    crop_h: float | None = None
+    # Always required: the cell grid dimensions (1 cell = 1 px in the
+    # downsampled grid), used by both paths.
     cells_x: int
     cells_y: int
-    crop_x: float
-    crop_y: float
-    crop_w: float
-    crop_h: float
-    # Stroke width is hardcoded to 1px server-side; the field stays
-    # in the request schema for forward compatibility but the editor
-    # always sends 1.
+    # Legacy-path knobs. Stroke width is hardcoded to 1px server-side and the
+    # editor never overrode it; `num_colors` is ignored entirely (kept for
+    # request-shape back-compat with very old clients).
     stroke_width: float = 1.0
-    # F20: palette quantisation. vtracer collapses adjacent same-color
-    # cells into one polygon — without quantisation, every cell's mean
-    # is unique and no merging happens.
     num_colors: int = 16
     # Active palette (Munsell colour `lab_munsell` or b/w `lab_grays`),
     # passed by the Node server from the DB. `palette_oklab[i]` = [L, a, b]
@@ -270,26 +275,88 @@ class PixelateRequest(BaseModel):
 @app.post("/filters/pixelate")
 async def pixelate_filter(request: PixelateRequest):
     """
-    Pixelate: crop the source to the resolved grid region, downsample
-    straight to a `cells_x × cells_y` image (1 cell = 1 px), emit
-    one rect per cell at its mean colour, overlay grid lines. The
-    whole pipeline runs on the tiny cell grid, never the full-res
-    image.
+    Pixelate: emit a `<rect>` per cell at its area-averaged colour, with
+    grid lines overlaid. Two request shapes:
 
-    Returns JSON with both the rendered SVG and the cropped source
-    bitmap (base64 PNG). The editor stores the bitmap as a
-    `trace_base` row and renders it under the SVG so the cropped-out
-    border doesn't leak through.
+    - **Cells path (preferred):** `cells_b64` carries the pre-computed
+      `cells_y × cells_x × 3` uint8 RGB grid produced by the Vercel server.
+      The service decodes, palette-snaps, renders SVG. Returns `{svg,
+      region_count}`. No image decode, no crop, no downsample on this side.
+
+    - **Legacy path:** `image_base64` + `crop_*` carries the full source
+      bitmap, the service does the entire pipeline (decode → crop →
+      downsample → palette → render). Returns `{svg, cropped_png_b64,
+      region_count}` so the Vercel server can store the cropped bitmap as
+      a `trace_base` row. Kept for the deploy lap; drop once the new
+      path has soaked.
     """
     if request.cells_x < 1 or request.cells_y < 1:
         raise HTTPException(status_code=400, detail="cells_x and cells_y must be >= 1")
+
+    if request.cells_b64 is not None:
+        return _pixelate_filter_cells(request)
+    return _pixelate_filter_legacy(request)
+
+
+def _pixelate_filter_cells(request: PixelateRequest) -> JSONResponse:
+    """New path: cells_b64 already holds the per-cell area-average grid."""
+    if request.cropped_w_px is None or request.cropped_h_px is None:
+        raise HTTPException(
+            status_code=400,
+            detail="cells_b64 path requires cropped_w_px and cropped_h_px",
+        )
+    if request.cropped_w_px < 1 or request.cropped_h_px < 1:
+        raise HTTPException(status_code=400, detail="cropped_w_px and cropped_h_px must be >= 1")
+
+    timer = PhaseTimer()
+    try:
+        raw = base64.b64decode(request.cells_b64)
+        expected = request.cells_y * request.cells_x * 3
+        if len(raw) != expected:
+            raise HTTPException(
+                status_code=400,
+                detail=f"cells_b64 length mismatch: got {len(raw)} bytes, expected {expected} for {request.cells_y}×{request.cells_x}×3",
+            )
+        cell_means = np.frombuffer(raw, dtype=np.uint8).reshape(
+            request.cells_y, request.cells_x, 3
+        )
+        timer.mark("decode")
+
+        svg_content, region_count = pixelate_cells_to_svg(
+            cell_means=cell_means,
+            cropped_w_px=request.cropped_w_px,
+            cropped_h_px=request.cropped_h_px,
+            palette_oklab=request.palette_oklab,
+            palette_rgb=request.palette_rgb,
+            on_phase=timer.mark,
+        )
+
+        return JSONResponse(
+            content={"svg": svg_content, "region_count": region_count},
+            headers={
+                "X-Profile-Phases": timer.header(),
+                "X-Region-Count": str(region_count),
+            },
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Image processing failed: {str(e)}")
+
+
+def _pixelate_filter_legacy(request: PixelateRequest) -> JSONResponse:
+    """Legacy path: full image_base64 + crop_*, server does crop+downsample."""
+    if request.image_base64 is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Either cells_b64 (new) or image_base64 + crop_* (legacy) must be provided",
+        )
+    if request.crop_w is None or request.crop_h is None or request.crop_x is None or request.crop_y is None:
+        raise HTTPException(status_code=400, detail="legacy path requires crop_x, crop_y, crop_w, crop_h")
     if request.crop_w <= 0 or request.crop_h <= 0:
         raise HTTPException(status_code=400, detail="crop_w and crop_h must be > 0")
     if request.stroke_width < 0.1 or request.stroke_width > 20:
         raise HTTPException(status_code=400, detail="Stroke width must be between 0.1 and 20")
-    # num_colors validation removed: the new pixelate pipeline ignores
-    # the param (cell colours come direct from the area-averaged
-    # downsample, future palette map handles colour reduction).
 
     timer = PhaseTimer()
     try:

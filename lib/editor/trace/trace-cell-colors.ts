@@ -16,10 +16,10 @@ import { adjustOklab, nearestPaletteIndex, rgb255ToOklab, type Oklab } from "@/l
 import type { OklabAdjustment } from "./inner-color-filters"
 
 /**
- * Pure per-cell area-average. Given a flat RGBA buffer (`width × height`,
- * row-major, 4 bytes/pixel) it partitions the buffer into a
- * `cellsX × cellsY` grid and returns the mean R/G/B of every source
- * pixel in each cell, row-major (`cy * cellsX + cx`).
+ * Pure per-cell area-average. Given a flat pixel buffer (`width × height`,
+ * row-major, `bytesPerPixel` bytes per pixel — 4 for RGBA, 3 for RGB), it
+ * partitions the buffer into a `cellsX × cellsY` grid and returns the mean
+ * R/G/B of every source pixel in each cell, row-major (`cy * cellsX + cx`).
  *
  * Each source pixel is assigned to exactly one cell via
  * `floor(p * cells / size)`, so every pixel contributes to precisely
@@ -27,15 +27,21 @@ import type { OklabAdjustment } from "./inner-color-filters"
  * area-average aligned to the cell grid (geometrically equivalent to
  * the server's `Image.BOX`). Canvas-free, so it is unit-testable
  * without a DOM.
+ *
+ * Default `bytesPerPixel: 4` matches the canvas `getImageData()` shape that
+ * client previews pass in; a Vercel server caller using `sharp(...).raw()` on
+ * an alpha-stripped image passes `bytesPerPixel: 3`.
  */
 export function cellAreaAverages(args: {
-  rgba: Uint8ClampedArray
+  rgba: Uint8ClampedArray | Uint8Array
   width: number
   height: number
   cellsX: number
   cellsY: number
+  bytesPerPixel?: 3 | 4
 }): { r: Uint8ClampedArray; g: Uint8ClampedArray; b: Uint8ClampedArray } {
   const { rgba, width, height, cellsX, cellsY } = args
+  const bpp = args.bytesPerPixel ?? 4
   const cellCount = cellsX * cellsY
   const sumR = new Float64Array(cellCount)
   const sumG = new Float64Array(cellCount)
@@ -45,11 +51,11 @@ export function cellAreaAverages(args: {
   for (let py = 0; py < height; py += 1) {
     const cy = Math.min(cellsY - 1, Math.floor((py * cellsY) / height))
     const cellRow = cy * cellsX
-    const rowBase = py * width * 4
+    const rowBase = py * width * bpp
     for (let px = 0; px < width; px += 1) {
       const cx = Math.min(cellsX - 1, Math.floor((px * cellsX) / width))
       const ci = cellRow + cx
-      const o = rowBase + px * 4
+      const o = rowBase + px * bpp
       sumR[ci] += rgba[o]
       sumG[ci] += rgba[o + 1]
       sumB[ci] += rgba[o + 2]
