@@ -28,6 +28,7 @@ import numpy as np
 from PIL import Image
 
 from .cell_colors import compute_cell_colors, map_cells_to_palette
+from .cell_texture import apply_neighbor_invasion
 
 
 def _grid_lines(
@@ -66,6 +67,8 @@ def pixelate_cells_to_svg(
     cropped_h_px: int,
     palette_oklab: list | None = None,
     palette_rgb: list | None = None,
+    texture_enabled: bool = False,
+    texture_strength: float = 0.0,
     on_phase: callable | None = None,
 ) -> tuple[str, int]:
     """
@@ -95,7 +98,15 @@ def pixelate_cells_to_svg(
     if palette_oklab is not None and palette_rgb is not None:
         arr = map_cells_to_palette(arr, palette_oklab, palette_rgb)
         phase("palette")
-
+        # Optional blue-noise texture step — sporadic neighbour-cluster
+        # invasions to break up large monochromatic islands. No-op when
+        # the user has the checkbox off; the chip set never expands (the
+        # invading colour is always a palette chip).
+        if texture_enabled and texture_strength > 0:
+            arr = apply_neighbor_invasion(
+                arr, np.asarray(palette_rgb, dtype=np.uint8), texture_strength
+            )
+            phase("texture")
     color_rects: list[str] = []
     for y in range(cells_y):
         for x in range(cells_x):
@@ -148,6 +159,8 @@ def pixelate_to_svg(
     num_colors: int = 16,  # accepted for wizard backward-compat; ignored
     palette_oklab: list | None = None,
     palette_rgb: list | None = None,
+    texture_enabled: bool = False,
+    texture_strength: float = 0.0,
     on_phase: callable | None = None,
 ) -> tuple[str, bytes, int]:
     """
@@ -182,6 +195,8 @@ def pixelate_to_svg(
         cropped_h_px=cropped_h_px,
         palette_oklab=palette_oklab,
         palette_rgb=palette_rgb,
+        texture_enabled=texture_enabled,
+        texture_strength=texture_strength,
         on_phase=on_phase,
     )
 

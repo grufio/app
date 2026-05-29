@@ -207,6 +207,12 @@ export async function pixelateImageAndActivate(args: {
         cropped_h_px: croppedHeight,
         palette_oklab: palette.map((c) => c.oklab),
         palette_rgb: palette.map((c) => c.rgb),
+        // Texture: forwarded as-is. The filter-service no-ops when
+        // `texture_enabled` is false (or `texture_strength` is 0), and older
+        // Cloud Run deploys silently drop both fields (Pydantic extras
+        // default-ignored) so cross-version pairings stay safe.
+        texture_enabled: parsed.data.texture_enabled,
+        texture_strength: parsed.data.texture_strength,
       },
     })
     profiler.mark("filter_service")

@@ -36,6 +36,24 @@ describe("PixelateForm", () => {
     expect(container.querySelector("#num_colors")).toBeNull()
   })
 
+  it("renders the Texture segment (enable checkbox + strength select)", () => {
+    const grid = resolvePixelateGrid(100, 75, defaults)
+    const { container } = render(
+      <PixelateForm
+        params={defaults}
+        onParamsChange={() => {}}
+        disabled={false}
+        grid={grid}
+      />,
+    )
+    const checkbox = container.querySelector("#texture_enabled")
+    const select = container.querySelector("#texture_strength")
+    expect(checkbox).not.toBeNull()
+    expect(select).not.toBeNull()
+    // The select sits in the disabled state until the checkbox flips.
+    expect(select?.getAttribute("aria-disabled") ?? select?.hasAttribute("disabled")).toBeTruthy()
+  })
+
   it("shows the cut-margin info when the grid is valid", () => {
     const grid = resolvePixelateGrid(100, 75, defaults)
     const { getByText } = render(

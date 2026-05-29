@@ -16,6 +16,11 @@ const DEFAULTS = {
   inner_filter: "darker",
   color_mode: "color",
   color_space: "rgb",
+  // Texture defaults: off + mid-strength preserved. Server treats this as a
+  // no-op (the `texture_enabled` gate is false), so old persisted rows that
+  // never carried these fields parse identically to a fresh form.
+  texture_enabled: false,
+  texture_strength: 0.5,
 } as const
 
 describe("circulateSchema", () => {

@@ -99,13 +99,19 @@ describe("TRACE_REGISTRY", () => {
 })
 
 describe("pixelateSchema", () => {
+  // Default-shape baseline — every parse-with-empty-input test mirrors this.
+  // texture_* defaults are the off-by-default texture filter, see pixelate.ts.
+  const PIXELATE_DEFAULTS = {
+    supercell_width_mm: 6,
+    supercell_height_mm: 6,
+    color_mode: "color",
+    color_space: "rgb",
+    texture_enabled: false,
+    texture_strength: 0.5,
+  } as const
+
   it("applies defaults for all fields", () => {
-    expect(pixelateSchema.parse({})).toEqual({
-      supercell_width_mm: 6,
-      supercell_height_mm: 6,
-      color_mode: "color",
-      color_space: "rgb",
-    })
+    expect(pixelateSchema.parse({})).toEqual(PIXELATE_DEFAULTS)
   })
 
   it("rejects supercell_width_mm below the minimum", () => {
@@ -121,13 +127,12 @@ describe("pixelateSchema", () => {
   it("accepts independent width and height", () => {
     expect(
       pixelateSchema.parse({ supercell_width_mm: 6, supercell_height_mm: 4 }),
-    ).toEqual({ supercell_width_mm: 6, supercell_height_mm: 4, color_mode: "color", color_space: "rgb" })
+    ).toEqual({ ...PIXELATE_DEFAULTS, supercell_height_mm: 4 })
   })
 
   it("accepts the b/w palette mode and the cmyk colour space", () => {
     expect(pixelateSchema.parse({ color_mode: "bw", color_space: "cmyk" })).toEqual({
-      supercell_width_mm: 6,
-      supercell_height_mm: 6,
+      ...PIXELATE_DEFAULTS,
       color_mode: "bw",
       color_space: "cmyk",
     })
@@ -136,6 +141,19 @@ describe("pixelateSchema", () => {
   it("rejects unknown color_mode / color_space values", () => {
     expect(pixelateSchema.safeParse({ color_mode: "grayscale" }).success).toBe(false)
     expect(pixelateSchema.safeParse({ color_space: "lab" }).success).toBe(false)
+  })
+
+  it("accepts the texture toggle + each discrete strength level", () => {
+    for (const s of [0.25, 0.5, 0.75, 1]) {
+      expect(
+        pixelateSchema.parse({ texture_enabled: true, texture_strength: s }),
+      ).toMatchObject({ texture_enabled: true, texture_strength: s })
+    }
+  })
+
+  it("rejects texture strengths outside the [0.25, 1] dropdown range", () => {
+    expect(pixelateSchema.safeParse({ texture_strength: 0 }).success).toBe(false)
+    expect(pixelateSchema.safeParse({ texture_strength: 1.25 }).success).toBe(false)
   })
 
   it("ignores legacy params from old wizard payloads (incl. dropped num_colors)", () => {
@@ -154,7 +172,7 @@ describe("pixelateSchema", () => {
         stroke_width: 2,
         show_colors: false,
       }),
-    ).toEqual({ supercell_width_mm: 5, supercell_height_mm: 5, color_mode: "color", color_space: "rgb" })
+    ).toEqual({ ...PIXELATE_DEFAULTS, supercell_width_mm: 5, supercell_height_mm: 5 })
   })
 })
 

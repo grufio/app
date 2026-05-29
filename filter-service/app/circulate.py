@@ -33,6 +33,7 @@ import numpy as np
 from PIL import Image
 
 from .cell_colors import compute_cell_colors, map_cells_to_palette
+from .cell_texture import apply_neighbor_invasion
 from .oklab import adjust_oklab, nearest_palette_indices, rgb255_to_oklab
 
 
@@ -83,6 +84,8 @@ def circulate_to_svg(
     inner_chroma_scale: float = 1.0,
     palette_oklab: list | None = None,
     palette_rgb: list | None = None,
+    texture_enabled: bool = False,
+    texture_strength: float = 0.0,
     on_phase: callable | None = None,
 ) -> tuple[str, bytes, int]:
     """
@@ -121,6 +124,15 @@ def circulate_to_svg(
     # Outer fill = nearest palette chip (raw means when no palette).
     if palette_oklab is not None and palette_rgb is not None:
         outer = map_cells_to_palette(means, palette_oklab, palette_rgb)
+        # Optional blue-noise texture step on the OUTER cells — breaks up
+        # large monochromatic islands. Inner ellipses keep their derived
+        # colour (the sub colour filter snap is independent of the outer
+        # invasion). Only runs when a palette is present (the algorithm
+        # picks invading chips from `palette_rgb`).
+        if texture_enabled and texture_strength > 0:
+            outer = apply_neighbor_invasion(
+                outer, np.asarray(palette_rgb, dtype=np.uint8), texture_strength
+            )
     else:
         outer = np.asarray(means, dtype=np.uint8)
     inner = (

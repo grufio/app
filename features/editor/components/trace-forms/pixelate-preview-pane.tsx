@@ -44,6 +44,7 @@ import {
 } from "@/lib/editor/trace/pixelate-grid-math"
 import { type PixelateParams } from "@/lib/editor/trace/pixelate"
 import { buildMiniCanvas } from "@/lib/editor/trace/pixelate-preview"
+import { useBlueNoiseLut } from "@/lib/editor/trace/use-blue-noise-lut"
 import { useSourceImage } from "@/lib/editor/trace/use-source-image"
 import { useTracePalette } from "@/lib/editor/trace/use-trace-palette"
 
@@ -64,6 +65,9 @@ export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
   // Snap cells to the same Munsell palette the server uses. Null until the
   // `/api/palette` fetch resolves; buildMiniCanvas falls back to raw means.
   const palette = useTracePalette(params.color_mode)
+  // Blue-noise LUT for the texture step. Null while loading → preview just
+  // skips the texture, snapped cells ship as-is until the LUT lands.
+  const blueNoiseLut = useBlueNoiseLut()
   const grid = useMemo(
     () => resolvePixelateGrid(displayMmW, displayMmH, params),
     [displayMmW, displayMmH, params],
@@ -111,8 +115,21 @@ export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
       cellsX: grid.cellsX,
       cellsY: grid.cellsY,
       palette: palette ?? [],
+      textureEnabled: params.texture_enabled,
+      textureStrength: params.texture_strength,
+      textureLut: blueNoiseLut,
     })
-  }, [source, crop, valid, grid.cellsX, grid.cellsY, palette])
+  }, [
+    source,
+    crop,
+    valid,
+    grid.cellsX,
+    grid.cellsY,
+    palette,
+    params.texture_enabled,
+    params.texture_strength,
+    blueNoiseLut,
+  ])
 
   const showSpinner = !source
   const showInvalid = source !== null && !valid

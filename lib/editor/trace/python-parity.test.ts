@@ -54,20 +54,34 @@ describe("Python parity: TS trace schema defaults vs Pydantic", () => {
     }
   })
 
-  it("PixelateRequest — TS schema shares no default field with Python", () => {
-    // Pixelate's TS schema and the Pydantic request are intentionally
-    // disjoint: TS holds the user-facing inputs (supercell_width_mm,
-    // supercell_height_mm, color_mode, color_space) while Python takes only
-    // server-computed params (cells_x/_y, crop_*, stroke_width-hardcoded,
-    // palette_*) plus `num_colors` — kept solely as an ignored back-compat
-    // field. So there is no shared user-facing default to drift; the guard
-    // is that TS no longer carries num_colors while Python still tolerates
-    // it (see the regression guard below).
+  it("PixelateRequest — TS user-facing fields are the expected set", () => {
+    // Pixelate's TS schema and the Pydantic request are mostly disjoint: TS
+    // holds the user-facing inputs while Python takes the server-computed
+    // ones (cells_x/_y, crop_*, stroke_width-hardcoded, palette_*). The two
+    // exceptions are the texture fields, which the user picks in TS and the
+    // server forwards verbatim — they appear on both sides intentionally.
+    // Drop-back-compat: TS no longer carries num_colors while Python still
+    // tolerates it (regression guard below).
     const ts = pixelateSchema.parse({})
     expect(ts).not.toHaveProperty("num_colors")
-    expect(Object.keys(ts).sort()).toEqual(
-      ["color_mode", "color_space", "supercell_height_mm", "supercell_width_mm"],
-    )
+    expect(Object.keys(ts).sort()).toEqual([
+      "color_mode",
+      "color_space",
+      "supercell_height_mm",
+      "supercell_width_mm",
+      "texture_enabled",
+      "texture_strength",
+    ])
+  })
+
+  it("PixelateRequest — texture_enabled default agrees TS ⇄ Python", () => {
+    // The `texture_enabled` gate must default to the same falsy value on
+    // both sides so a missing field on the wire results in a no-op texture
+    // step on either deploy half during a rolling release.
+    const py = extractPydanticDefaults("PixelateRequest")
+    const ts = pixelateSchema.parse({})
+    expect(py.texture_enabled).toBe(false)
+    expect(ts.texture_enabled).toBe(false)
   })
 
   it("extracts the expected fields (regression guard for parser)", () => {
