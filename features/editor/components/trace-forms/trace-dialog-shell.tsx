@@ -73,7 +73,19 @@ export function TraceDialogShell({
   if (isMobile) {
     return (
       <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onCancel()}>
-        <DialogContent variant="fullscreen">
+        {/* The nested edit Dialog is Portal'd as a sibling to this one, so a
+            tap on its content (e.g. the Preview/Cancel footer buttons) is
+            seen as "outside" by this outer's DismissableLayer and would
+            cascade-close the whole trace flow — dumping the user back into
+            the editor instead of returning to the preview. Suppress those
+            outside-interaction signals: the fullscreen variant has no real
+            "outside" anyway (content fills the viewport), and the outer
+            still closes cleanly via its own X / Apply / outer onCancel. */}
+        <DialogContent
+          variant="fullscreen"
+          onPointerDownOutside={(e) => e.preventDefault()}
+          onInteractOutside={(e) => e.preventDefault()}
+        >
           <DialogTitle className="sr-only">{title}</DialogTitle>
           <DialogDescription className="sr-only">{description}</DialogDescription>
 

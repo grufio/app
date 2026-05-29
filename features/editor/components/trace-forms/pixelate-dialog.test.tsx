@@ -209,4 +209,62 @@ describe("PixelateDialog (smoke)", () => {
       )
     })
   })
+
+  // Regression: tapping Preview to close the inner edit dialog must NOT
+  // cascade-close the outer fullscreen preview. Nested Radix Dialogs (inner
+  // Portal sibling to outer Portal) can confuse the outer's DismissableLayer
+  // into treating clicks inside the inner as "outside" the outer — dismissing
+  // the whole trace flow and dumping the user back into the editor.
+  it("mobile: tapping Preview keeps the outer fullscreen preview open (does not call onClose)", async () => {
+    window.matchMedia = ((query: string) =>
+      ({
+        matches: true,
+        media: query,
+        onchange: null,
+        addListener: () => {},
+        removeListener: () => {},
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }) as unknown as MediaQueryList) as typeof window.matchMedia
+
+    const onClose = vi.fn()
+    render(
+      <PixelateDialog
+        open
+        sourceImageUrl="https://example.test/img.png"
+        displayMmW={100}
+        displayMmH={75}
+        onClose={onClose}
+        onSuccess={() => {}}
+        onApplyTrace={async () => {}}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(document.body.querySelector('[data-testid="pixelate-preview-mini"]')).not.toBeNull()
+    })
+    const editIcon = document.body.querySelector(
+      'button[aria-label="Edit parameters"]',
+    ) as HTMLButtonElement
+    fireEvent.click(editIcon)
+    await waitFor(() => {
+      expect(document.body.querySelector("#supercell_width_mm")).not.toBeNull()
+    })
+
+    const preview = Array.from(document.body.querySelectorAll("button")).find(
+      (b) => b.textContent?.trim() === "Preview",
+    ) as HTMLButtonElement
+    fireEvent.click(preview)
+
+    // Inner closes (form gone) but outer must remain — onClose is the outer's
+    // cancel hook; firing it would mean the whole trace flow ended.
+    await waitFor(() => {
+      expect(document.body.querySelector("#supercell_width_mm")).toBeNull()
+    })
+    expect(onClose).not.toHaveBeenCalled()
+    expect(
+      document.body.querySelector('[data-testid="pixelate-preview-mini"]'),
+    ).not.toBeNull()
+  })
 })
