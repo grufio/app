@@ -85,6 +85,11 @@ Anything below overrides "common practice" for this repo:
    same PR. Reviewers ask for it.
 7. **File naming:** kebab-case for new files (see
    [docs/conventions.md](docs/conventions.md)).
+8. **No multiple-choice question UIs.** Don't use `AskUserQuestion`
+   with prepared options. If a clarification is genuinely needed,
+   ask it in plain prose — one focused question, room for a free-form
+   answer. Multiple-choice batches push synthesis back onto the user
+   when the work of the agent is to propose, not to enumerate.
 
 ## Quickstart
 
