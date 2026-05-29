@@ -270,6 +270,14 @@ class PixelateRequest(BaseModel):
     # when omitted, raw area-average means are emitted.
     palette_oklab: list[list[float]] | None = None
     palette_rgb: list[list[int]] | None = None
+    # Blue-noise neighbour-invasion texture — sporadic cluster replacements in
+    # deep-interior cells (see `app/cell_texture.py`). `texture_enabled = false`
+    # (default) or `texture_strength <= 0` makes the step a no-op, byte-
+    # identical to the pre-feature pipeline. Independent deploys: when this
+    # service is older than the Vercel-side caller, Pydantic's default-extra-
+    # ignore drops the fields and we silently render without texture.
+    texture_enabled: bool = False
+    texture_strength: float = 0.0
 
 
 @app.post("/filters/pixelate")
@@ -328,6 +336,8 @@ def _pixelate_filter_cells(request: PixelateRequest) -> JSONResponse:
             cropped_h_px=request.cropped_h_px,
             palette_oklab=request.palette_oklab,
             palette_rgb=request.palette_rgb,
+            texture_enabled=request.texture_enabled,
+            texture_strength=request.texture_strength,
             on_phase=timer.mark,
         )
 
@@ -378,6 +388,8 @@ def _pixelate_filter_legacy(request: PixelateRequest) -> JSONResponse:
             num_colors=request.num_colors,
             palette_oklab=request.palette_oklab,
             palette_rgb=request.palette_rgb,
+            texture_enabled=request.texture_enabled,
+            texture_strength=request.texture_strength,
             on_phase=timer.mark,
         )
 
@@ -431,6 +443,11 @@ class CirculateRequest(BaseModel):
     # by the Node server from the DB — same contract as PixelateRequest.
     palette_oklab: list[list[float]] | None = None
     palette_rgb: list[list[int]] | None = None
+    # Blue-noise neighbour-invasion texture — same contract as PixelateRequest.
+    # Applied to the OUTER ellipses only; the inner ellipse keeps its derived
+    # sub-colour. No-op when disabled or strength is zero.
+    texture_enabled: bool = False
+    texture_strength: float = 0.0
 
 
 @app.post("/filters/circulate")
@@ -483,6 +500,8 @@ async def circulate_filter(request: CirculateRequest):
             inner_chroma_scale=request.inner_chroma_scale,
             palette_oklab=request.palette_oklab,
             palette_rgb=request.palette_rgb,
+            texture_enabled=request.texture_enabled,
+            texture_strength=request.texture_strength,
             on_phase=timer.mark,
         )
 

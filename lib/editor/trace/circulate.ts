@@ -63,6 +63,12 @@ export const circulateSchema = z.object({
   // and has no effect on colour detection (the match is always OKLab).
   color_mode: z.enum(["color", "bw"]).default("color"),
   color_space: z.enum(["rgb", "cmyk"]).default("rgb"),
+  // Blue-noise neighbour-invasion texture on the outer ellipses (shared
+  // contract with Pixelate). Same default + persistence semantics: the
+  // checkbox toggles `texture_enabled`, the dropdown commits
+  // `texture_strength` and the chosen level survives a re-toggle.
+  texture_enabled: z.boolean().default(false),
+  texture_strength: z.coerce.number().min(0.25).max(1).default(0.5),
 })
 
 export type CirculateParams = z.infer<typeof circulateSchema>

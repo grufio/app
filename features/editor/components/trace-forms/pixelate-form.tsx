@@ -26,6 +26,7 @@ import {
 import { PanelIconSlot, PanelTwoFieldRow } from "../panel-layout"
 import { EditorSidebarSection } from "../sidebar/editor-sidebar-section"
 import { TraceColorsFields } from "./trace-colors-fields"
+import { TraceTextureFields } from "./trace-texture-fields"
 
 type Props = {
   params: PixelateParams
@@ -104,6 +105,16 @@ export function PixelateForm({ params, onParamsChange, disabled, grid }: Props) 
           colorSpace={params.color_space}
           onColorModeChange={(v) => onParamsChange("color_mode", v)}
           onColorSpaceChange={(v) => onParamsChange("color_space", v)}
+          disabled={disabled}
+        />
+      </EditorSidebarSection>
+
+      <EditorSidebarSection title="Texture">
+        <TraceTextureFields
+          enabled={params.texture_enabled}
+          strength={params.texture_strength}
+          onEnabledChange={(v) => onParamsChange("texture_enabled", v)}
+          onStrengthChange={(v) => onParamsChange("texture_strength", v)}
           disabled={disabled}
         />
       </EditorSidebarSection>

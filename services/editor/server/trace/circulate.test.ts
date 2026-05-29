@@ -20,6 +20,8 @@ const validParams: CirculateParams = {
   inner_filter: "darker",
   color_mode: "color",
   color_space: "rgb",
+  texture_enabled: false,
+  texture_strength: 0.5,
 }
 
 describe("circulateImageAndActivate validation contract", () => {

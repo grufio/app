@@ -26,6 +26,7 @@
  * Caller (React) owns `target.width` / `target.height` via JSX props
  * set to `crop.w` / `crop.h`.
  */
+import { applyNeighborInvasion } from "./cell-texture"
 import { cellAreaAverages, mapCellsToPalette, type PaletteChip } from "./trace-cell-colors"
 
 export function buildMiniCanvas(args: {
@@ -37,8 +38,25 @@ export function buildMiniCanvas(args: {
   /** Munsell palette to snap cells to (mirrors the server). Empty while it
    * loads → raw area-average means as a graceful fallback. */
   palette: ReadonlyArray<PaletteChip>
+  /** Blue-noise neighbour-invasion texture (mirrors the server's
+   * `cell_texture.py`). Skipped when `textureEnabled` is false, `strength`
+   * is 0, the LUT is still loading (`textureLut === null`), or no palette
+   * is available — any of those degenerate to the snapped output. */
+  textureEnabled?: boolean
+  textureStrength?: number
+  textureLut?: Uint8Array | null
 }): void {
-  const { target, source, crop, cellsX, cellsY, palette } = args
+  const {
+    target,
+    source,
+    crop,
+    cellsX,
+    cellsY,
+    palette,
+    textureEnabled,
+    textureStrength,
+    textureLut,
+  } = args
   const ctx = target.getContext("2d", { willReadFrequently: true })
   if (!ctx) throw new Error("buildMiniCanvas: 2D context unavailable")
 
@@ -61,10 +79,26 @@ export function buildMiniCanvas(args: {
   // cell to the nearest Munsell palette chip via OKLab — `mapCellsToPalette`
   // mirrors the server's `map_cells_to_palette`. An empty palette (still
   // loading) returns the raw means unchanged as a graceful fallback.
-  const { r, g, b } = mapCellsToPalette(
+  let cells = mapCellsToPalette(
     cellAreaAverages({ rgba: cropData, width: cropW, height: cropH, cellsX, cellsY }),
     palette,
   )
+
+  // (2b) Optional blue-noise texture step. Requires the LUT (lazy-fetched by
+  // the preview pane) and a palette — without either, the snapped output
+  // ships unchanged. Mirrors the server-side branch in `pixelate.py` so the
+  // preview and the applied SVG agree byte-for-byte when both inputs match.
+  if (textureEnabled && textureStrength && textureStrength > 0 && textureLut && palette.length > 0) {
+    cells = applyNeighborInvasion({
+      cells,
+      palette: palette.map((c) => c.rgb),
+      cellsY,
+      cellsX,
+      strength: textureStrength,
+      blueNoiseLut: textureLut,
+    })
+  }
+  const { r, g, b } = cells
 
   // (4) Paint the cell palette onto the visible target at source-crop
   // resolution. Each cell is one solid rectangle; no source downsample

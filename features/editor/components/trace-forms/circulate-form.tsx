@@ -30,6 +30,7 @@ import { INNER_FILTERS } from "@/lib/editor/trace/inner-color-filters"
 import { PanelIconSlot, PanelTwoFieldRow } from "../panel-layout"
 import { EditorSidebarSection } from "../sidebar/editor-sidebar-section"
 import { TraceColorsFields } from "./trace-colors-fields"
+import { TraceTextureFields } from "./trace-texture-fields"
 
 // Module-level so the select's `options` reference stays stable across renders.
 const INNER_FILTER_OPTIONS: SelectFieldOption[] = INNER_FILTERS.map((f) => ({
@@ -175,6 +176,16 @@ export function CirculateForm({ params, onParamsChange, disabled, grid }: Props)
             />,
           )}
         </div>
+      </EditorSidebarSection>
+
+      <EditorSidebarSection title="Texture">
+        <TraceTextureFields
+          enabled={params.texture_enabled}
+          strength={params.texture_strength}
+          onEnabledChange={(v) => onParamsChange("texture_enabled", v)}
+          onStrengthChange={(v) => onParamsChange("texture_strength", v)}
+          disabled={disabled}
+        />
       </EditorSidebarSection>
     </>
   )

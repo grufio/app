@@ -21,6 +21,14 @@ export const pixelateSchema = z.object({
   // palette map, not a median-cut quantise step); old persisted trace rows
   // that still carry it are tolerated via Zod's default strip mode.
   color_space: z.enum(["rgb", "cmyk"]).default("rgb"),
+  // Blue-noise neighbour-invasion texture. `texture_enabled` is the form's
+  // checkbox state; `texture_strength` is the chosen Select level (25/50/75/
+  // 100% expressed as a 0..1 fraction) and is preserved when the checkbox
+  // toggles off — like circulate's `inner_*` fields. Defaults make the
+  // pipeline output byte-identical to the pre-feature behaviour, so old
+  // persisted trace rows without these fields keep applying unchanged.
+  texture_enabled: z.boolean().default(false),
+  texture_strength: z.coerce.number().min(0.25).max(1).default(0.5),
 })
 
 export type PixelateParams = z.infer<typeof pixelateSchema>

@@ -174,6 +174,10 @@ export async function circulateImageAndActivate(args: {
         inner_chroma_scale: innerAdj.chromaScale,
         palette_oklab: palette.map((c) => c.oklab),
         palette_rgb: palette.map((c) => c.rgb),
+        // Texture forwarding — same contract as pixelate. Applies to the
+        // outer ellipses only on the server side.
+        texture_enabled: p.texture_enabled,
+        texture_strength: p.texture_strength,
       },
     })
     profiler.mark("filter_service")

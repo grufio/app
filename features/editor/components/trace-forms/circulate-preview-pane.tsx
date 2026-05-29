@@ -23,6 +23,7 @@ import {
 import { centeredCropPixels } from "@/lib/editor/trace/pixelate-grid-math"
 import { resolveInnerFilter } from "@/lib/editor/trace/inner-color-filters"
 import { buildCirculateMiniCanvas } from "@/lib/editor/trace/circulate-preview"
+import { useBlueNoiseLut } from "@/lib/editor/trace/use-blue-noise-lut"
 import { useSourceImage } from "@/lib/editor/trace/use-source-image"
 import { useTracePalette } from "@/lib/editor/trace/use-trace-palette"
 
@@ -41,6 +42,7 @@ type Props = {
 export function CirculatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, params }: Props) {
   const source = useSourceImage(sourceImageUrl)
   const palette = useTracePalette(params.color_mode)
+  const blueNoiseLut = useBlueNoiseLut()
   const grid = useMemo(
     () => resolveCirculateGrid(displayMmW, displayMmH, params),
     [displayMmW, displayMmH, params],
@@ -97,8 +99,11 @@ export function CirculatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, p
       contourPx,
       innerAdjustment: resolveInnerFilter(params.inner_filter),
       palette: palette ?? [],
+      textureEnabled: params.texture_enabled,
+      textureStrength: params.texture_strength,
+      textureLut: blueNoiseLut,
     })
-  }, [source, crop, valid, grid, params, palette])
+  }, [source, crop, valid, grid, params, palette, blueNoiseLut])
 
   const showSpinner = !source
   const showInvalid = source !== null && !valid

@@ -13,6 +13,7 @@
  * that layer later), then the ellipses on top. Caller (React) owns
  * `target.width`/`target.height` (= crop pixels), like the pixelate preview.
  */
+import { applyNeighborInvasion } from "./cell-texture"
 import type { OklabAdjustment } from "./inner-color-filters"
 import { cellAreaAverages, mapCellsToPalette, mapCellsToPaletteAdjusted, type PaletteChip } from "./trace-cell-colors"
 
@@ -34,6 +35,12 @@ export function buildCirculateMiniCanvas(args: {
   innerAdjustment: OklabAdjustment
   /** Munsell palette to snap cells to; empty while it loads → raw means. */
   palette: ReadonlyArray<PaletteChip>
+  /** Blue-noise texture on the outer ellipses (mirror of `circulate.py`).
+   * Inner ellipses keep their derived sub-colour either way. Skipped when
+   * disabled, strength 0, LUT still loading, or no palette. */
+  textureEnabled?: boolean
+  textureStrength?: number
+  textureLut?: Uint8Array | null
 }): void {
   const {
     target,
@@ -49,6 +56,9 @@ export function buildCirculateMiniCanvas(args: {
     contourPx,
     innerAdjustment,
     palette,
+    textureEnabled,
+    textureStrength,
+    textureLut,
   } = args
   const ctx = target.getContext("2d", { willReadFrequently: true })
   if (!ctx) throw new Error("buildCirculateMiniCanvas: 2D context unavailable")
@@ -69,7 +79,20 @@ export function buildCirculateMiniCanvas(args: {
   // (2) Per-cell area-average, then palette snap (outer) + hue-shifted snap
   // (inner) — mirrors the server.
   const means = cellAreaAverages({ rgba: cropData, width: cropW, height: cropH, cellsX, cellsY })
-  const outer = mapCellsToPalette(means, palette)
+  let outer = mapCellsToPalette(means, palette)
+  // (2b) Blue-noise texture on the OUTER cells only (matches `circulate.py`).
+  // Inner ellipses are computed from the original means below, so they keep
+  // the sub-colour-filter relationship to the underlying cell.
+  if (textureEnabled && textureStrength && textureStrength > 0 && textureLut && palette.length > 0) {
+    outer = applyNeighborInvasion({
+      cells: outer,
+      palette: palette.map((c) => c.rgb),
+      cellsY,
+      cellsX,
+      strength: textureStrength,
+      blueNoiseLut: textureLut,
+    })
+  }
   const inner = innerEnabled ? mapCellsToPaletteAdjusted(means, palette, innerAdjustment) : null
 
   // (3) Background = the cropped source, scaled into the target (the bitmap
