@@ -169,7 +169,7 @@ export async function circulateImageAndActivate(args: {
       height: croppedHeight,
     })
     const [baseBuffer, rawRgb] = await Promise.all([
-      extracted.clone().webp({ lossless: true }).toBuffer(),
+      extracted.clone().webp({ quality: 90 }).toBuffer(),
       extracted.clone().removeAlpha().raw().toBuffer(),
     ])
     profiler.mark("sharp_crop")
