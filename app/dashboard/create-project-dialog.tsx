@@ -61,19 +61,25 @@ export function CreateProjectDialog() {
 
   return (
     <Dialog open={open} onOpenChange={(o) => (busy ? null : setOpen(o))}>
+      {/* Mobile = pures schwarzes Plus-Icon, kein Button-Background, kein
+       * Shadow. Desktop = klassischer gefüllter Text-Button. Beide
+       * Trigger gleichzeitig im DOM, Tailwind blendet via `md:` den
+       * jeweils anderen aus — kein JS-Branch, beide hängen am selben
+       * Dialog-State. */}
       <DialogTrigger asChild>
-        {/* Mobile = quadratischer Plus-Icon-Button (auf `< md` ist der
-         * Header schmal, ein voller Label-Button drängelt die Breadcrumb
-         * weg); Desktop = normaler Text-Button. Beide Renderings sitzen
-         * im selben DOM-Element, CSS schaltet via `md:` zwischen Icon
-         * und Label. */}
         <Button
           type="button"
+          variant="ghost"
+          size="icon"
           aria-label="New project"
-          className="ml-auto size-9 p-0 md:h-9 md:w-auto md:px-4 md:py-2"
+          className="ml-auto md:hidden"
         >
-          <Plus aria-hidden="true" className="md:hidden" />
-          <span className="hidden md:inline">New project</span>
+          <Plus aria-hidden="true" className="size-5" />
+        </Button>
+      </DialogTrigger>
+      <DialogTrigger asChild>
+        <Button type="button" className="ml-auto hidden md:inline-flex">
+          New project
         </Button>
       </DialogTrigger>
 
