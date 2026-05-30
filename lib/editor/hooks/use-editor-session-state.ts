@@ -9,6 +9,13 @@ export type SessionState = {
   deleteOpen: boolean
   leftPanelTab: EditorSidepanelTab
   hiddenFilterIds: Record<string, true>
+  /** Trace tab layer visibility — both default to true (everything
+   * shown). Independent toggles because the SVG cells overlay and
+   * the underlying canvas bitmap live in separate DOM layers; users
+   * judge the trace by flipping one off at a time (only-cells view
+   * vs. only-source view). Session-ephemeral, no persistence. */
+  traceOverlayVisible: boolean
+  previewBitmapVisible: boolean
 }
 
 export type SessionAction =
@@ -19,6 +26,8 @@ export type SessionAction =
   | { type: "showFilter"; filterId: string }
   | { type: "hideFilter"; filterId: string }
   | { type: "pruneHiddenFilters"; validIds: Set<string> }
+  | { type: "setTraceOverlayVisible"; visible: boolean }
+  | { type: "setPreviewBitmapVisible"; visible: boolean }
 
 export function editorSessionReducer(state: SessionState, action: SessionAction): SessionState {
   switch (action.type) {
@@ -57,6 +66,12 @@ export function editorSessionReducer(state: SessionState, action: SessionAction)
       if (!changed) return state
       return { ...state, hiddenFilterIds: next }
     }
+    case "setTraceOverlayVisible":
+      if (state.traceOverlayVisible === action.visible) return state
+      return { ...state, traceOverlayVisible: action.visible }
+    case "setPreviewBitmapVisible":
+      if (state.previewBitmapVisible === action.visible) return state
+      return { ...state, previewBitmapVisible: action.visible }
     default:
       return state
   }
@@ -68,6 +83,8 @@ export function useEditorSessionState() {
     deleteOpen: false,
     leftPanelTab: "image",
     hiddenFilterIds: {},
+    traceOverlayVisible: true,
+    previewBitmapVisible: true,
   })
 
   return useMemo(
@@ -81,6 +98,8 @@ export function useEditorSessionState() {
         showFilter: (filterId: string) => dispatch({ type: "showFilter", filterId }),
         hideFilter: (filterId: string) => dispatch({ type: "hideFilter", filterId }),
         pruneHiddenFilters: (validIds: Set<string>) => dispatch({ type: "pruneHiddenFilters", validIds }),
+        setTraceOverlayVisible: (visible: boolean) => dispatch({ type: "setTraceOverlayVisible", visible }),
+        setPreviewBitmapVisible: (visible: boolean) => dispatch({ type: "setPreviewBitmapVisible", visible }),
       },
     }),
     [state]

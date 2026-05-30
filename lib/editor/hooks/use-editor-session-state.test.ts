@@ -8,6 +8,8 @@ function makeState(overrides?: Partial<SessionState>): SessionState {
     deleteOpen: false,
     leftPanelTab: "image",
     hiddenFilterIds: {},
+    traceOverlayVisible: true,
+    previewBitmapVisible: true,
     ...overrides,
   }
 }
@@ -70,6 +72,24 @@ describe("editorSessionReducer — hiddenFilterIds", () => {
     expect(after1.hiddenFilterIds).toEqual({ f1: true })
     const after2 = editorSessionReducer(after1, { type: "toggleHiddenFilter", filterId: "f1" })
     expect(after2.hiddenFilterIds).toEqual({})
+  })
+})
+
+describe("editorSessionReducer — trace tab visibility flags", () => {
+  it("toggles traceOverlayVisible and is identity-stable on no-op", () => {
+    const state = makeState()
+    expect(state.traceOverlayVisible).toBe(true)
+    const off = editorSessionReducer(state, { type: "setTraceOverlayVisible", visible: false })
+    expect(off.traceOverlayVisible).toBe(false)
+    // back to the same value → same object reference, like setLeftPanelTab
+    expect(editorSessionReducer(off, { type: "setTraceOverlayVisible", visible: false })).toBe(off)
+  })
+
+  it("toggles previewBitmapVisible independently of the overlay flag", () => {
+    const state = makeState({ traceOverlayVisible: false })
+    const out = editorSessionReducer(state, { type: "setPreviewBitmapVisible", visible: false })
+    expect(out.previewBitmapVisible).toBe(false)
+    expect(out.traceOverlayVisible).toBe(false) // unrelated flag untouched
   })
 })
 

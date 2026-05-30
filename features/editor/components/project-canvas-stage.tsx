@@ -132,6 +132,12 @@ type Props = {
    * overlay purely visual; clicks fall through to the Konva
    * image-node for whole-image drag/resize (object-tool mode). */
   traceInteractive?: boolean
+  /** Trace tab layer-visibility toggles. Each defaults to true;
+   * setting `traceOverlayVisible=false` hides the SVG overlay,
+   * `previewBitmapVisible=false` hides the Konva bitmap. Independent
+   * — the two layers live in separate DOM scopes. */
+  traceOverlayVisible?: boolean
+  previewBitmapVisible?: boolean
 }
 
 export type ProjectCanvasStageHandle = {
@@ -233,6 +239,8 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     traceOverlaySvgUrl = null,
     traceDisplayRect = null,
     traceInteractive = true,
+    traceOverlayVisible = true,
+    previewBitmapVisible = true,
   },
   ref
 ) {
@@ -736,7 +744,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
             clipWidth={shouldClipToArtboard ? artW : undefined}
             clipHeight={shouldClipToArtboard ? artH : undefined}
           >
-            {img && imageTx && imageRender ? (
+            {img && imageTx && imageRender && previewBitmapVisible ? (
               <KonvaImage
                 ref={(n) => {
                   imageNodeRef.current = n
@@ -891,7 +899,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
           ) : null}
         </Layer>
       </Stage>
-      {svgText && traceRect ? (
+      {svgText && traceRect && traceOverlayVisible ? (
         <TraceInlineSvg
           svgText={svgText}
           imageRect={traceRect}
