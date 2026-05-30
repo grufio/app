@@ -58,4 +58,30 @@ describe("TraceInlineSvg — rendered geometry (pixels)", () => {
     expect(box.left).toBeCloseTo(297.5 - 283.464567 / 2, 4)
     expect(box.top).toBeCloseTo(421 - 566.929134 / 2, 4)
   })
+
+  it("reflects the trace-cells + numbers visibility flags as data-attributes", () => {
+    // The CSS gates that hide `<g id="colors">/<g id="cells">/<g id="numbers">`
+    // when these flags are false key off these attributes. jsdom doesn't
+    // execute CSS, so we assert the contract at the attribute level — the
+    // CSS rule itself is co-located in the component's `<style>` block.
+    const props = {
+      svgText: SVG,
+      imageRect: { x: 0, y: 0, width: 100, height: 100 },
+      view,
+    }
+    const both = render(<TraceInlineSvg {...props} />).container
+    const node = both.querySelector('[data-testid="trace-inline-svg"]')!
+    expect(node.getAttribute("data-trace-cells-visible")).toBe("true")
+    expect(node.getAttribute("data-numbers-visible")).toBe("true")
+
+    const cellsOff = render(<TraceInlineSvg {...props} traceCellsVisible={false} />).container
+    expect(
+      cellsOff.querySelector('[data-testid="trace-inline-svg"]')!.getAttribute("data-trace-cells-visible"),
+    ).toBe("false")
+
+    const numbersOff = render(<TraceInlineSvg {...props} numbersLayerVisible={false} />).container
+    expect(
+      numbersOff.querySelector('[data-testid="trace-inline-svg"]')!.getAttribute("data-numbers-visible"),
+    ).toBe("false")
+  })
 })

@@ -132,12 +132,16 @@ type Props = {
    * overlay purely visual; clicks fall through to the Konva
    * image-node for whole-image drag/resize (object-tool mode). */
   traceInteractive?: boolean
-  /** Trace tab layer-visibility toggles. Each defaults to true;
-   * setting `traceOverlayVisible=false` hides the SVG overlay,
-   * `previewBitmapVisible=false` hides the Konva bitmap,
-   * `numbersLayerVisible=false` hides the `<g id="numbers">` group
-   * inside the inline trace SVG (CSS-gated). Independent — the
-   * layers live in separate DOM scopes. */
+  /** Trace tab layer-visibility toggles. Each defaults to true and
+   * controls exactly one DOM layer via CSS gates on the always-mounted
+   * inline SVG (or, for the bitmap, the Konva node):
+   * - `traceOverlayVisible=false` hides the coloured cells groups
+   *   (`<g id="colors">` for pixelate, `<g id="cells">` for circulate);
+   *   the frames/grid + numbers stay visible.
+   * - `numbersLayerVisible=false` hides the `<g id="numbers">` group.
+   * - `previewBitmapVisible=false` hides the Konva bitmap underneath.
+   * Independent — each toggle affects exactly one layer, no
+   * cross-dependence. */
   traceOverlayVisible?: boolean
   previewBitmapVisible?: boolean
   numbersLayerVisible?: boolean
@@ -903,7 +907,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
           ) : null}
         </Layer>
       </Stage>
-      {svgText && traceRect && traceOverlayVisible ? (
+      {svgText && traceRect ? (
         <TraceInlineSvg
           svgText={svgText}
           imageRect={traceRect}
@@ -912,6 +916,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
           forwardWheelTo={stageRef.current?.container() ?? null}
           interactive={traceInteractive}
           numbersLayerVisible={numbersLayerVisible}
+          traceCellsVisible={traceOverlayVisible}
         />
       ) : null}
     </div>

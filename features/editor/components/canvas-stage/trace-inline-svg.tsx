@@ -79,6 +79,12 @@ type Props = {
    * doesn't re-parse or regenerate the SVG, so toggling is O(1).
    * Old trace SVGs without the group silently no-op. */
   numbersLayerVisible?: boolean
+  /** Hide the colored-cells groups (`<g id="colors">` for pixelate,
+   * `<g id="cells">` for circulate). Pure CSS gate via
+   * `data-trace-cells-visible`; the frames/grid + numbers layers
+   * stay visible so the toggle's "Trace" semantics now means "the
+   * coloured fills only", not "the whole vector overlay". */
+  traceCellsVisible?: boolean
 }
 
 export function TraceInlineSvg({
@@ -89,6 +95,7 @@ export function TraceInlineSvg({
   forwardWheelTo,
   interactive = true,
   numbersLayerVisible = true,
+  traceCellsVisible = true,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const prepared = useMemo(() => prepareTraceSvg(svgText), [svgText])
@@ -200,6 +207,7 @@ export function TraceInlineSvg({
       data-testid="trace-inline-svg"
       data-interactive={interactive ? "true" : "false"}
       data-numbers-visible={numbersLayerVisible ? "true" : "false"}
+      data-trace-cells-visible={traceCellsVisible ? "true" : "false"}
       style={{
         position: "absolute",
         left,
@@ -229,6 +237,10 @@ export function TraceInlineSvg({
           filter: drop-shadow(0 0 1px rgba(0,0,0,0.9));
         }
         [data-testid="trace-inline-svg"][data-numbers-visible="false"] svg #numbers {
+          display: none;
+        }
+        [data-testid="trace-inline-svg"][data-trace-cells-visible="false"] svg #colors,
+        [data-testid="trace-inline-svg"][data-trace-cells-visible="false"] svg #cells {
           display: none;
         }
       `}</style>
