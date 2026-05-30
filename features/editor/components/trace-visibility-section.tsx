@@ -1,12 +1,13 @@
 "use client"
 
 /**
- * Two-checkbox layer-visibility control for the Trace tab — sits
+ * Three-checkbox layer-visibility control for the Trace tab — sits
  * beside the `TraceSidebarSection` in the left sidebar's trace
- * panel. The bitmap and SVG-overlay layers are independent in the
- * DOM (Konva.Image inside the stage vs. inline `<svg>` mounted
- * above it), so each checkbox flips one off without affecting the
- * other. Both default to true; the underlying state lives in
+ * panel. The bitmap, SVG-overlay and numbers layers are independent
+ * in the DOM (Konva.Image inside the stage vs. inline `<svg>`
+ * mounted above it; numbers is a CSS-gated `<g>` inside that same
+ * inline SVG), so each checkbox flips one off without affecting the
+ * others. All default to true; the underlying state lives in
  * `useEditorSessionState` as session-ephemeral booleans.
  *
  * Layout: stateless and presentational. The checkbox + label row
@@ -23,10 +24,19 @@ import { EditorSidebarSection } from "@/features/editor/components/sidebar/edito
 export function TraceVisibilitySection(props: {
   traceOverlayVisible: boolean
   previewBitmapVisible: boolean
+  numbersLayerVisible: boolean
   onTraceOverlayChange: (visible: boolean) => void
   onPreviewBitmapChange: (visible: boolean) => void
+  onNumbersLayerChange: (visible: boolean) => void
 }) {
-  const { traceOverlayVisible, previewBitmapVisible, onTraceOverlayChange, onPreviewBitmapChange } = props
+  const {
+    traceOverlayVisible,
+    previewBitmapVisible,
+    numbersLayerVisible,
+    onTraceOverlayChange,
+    onPreviewBitmapChange,
+    onNumbersLayerChange,
+  } = props
   return (
     <EditorSidebarSection title="Visibility">
       <div className="space-y-2">
@@ -48,6 +58,16 @@ export function TraceVisibilitySection(props: {
           />
           <Label htmlFor="visibility_preview" className="cursor-pointer text-sm font-normal">
             Preview
+          </Label>
+        </div>
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="visibility_numbers"
+            checked={numbersLayerVisible}
+            onCheckedChange={(c) => onNumbersLayerChange(c === true)}
+          />
+          <Label htmlFor="visibility_numbers" className="cursor-pointer text-sm font-normal">
+            Numbers
           </Label>
         </div>
       </div>

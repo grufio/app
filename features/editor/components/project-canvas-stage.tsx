@@ -134,10 +134,13 @@ type Props = {
   traceInteractive?: boolean
   /** Trace tab layer-visibility toggles. Each defaults to true;
    * setting `traceOverlayVisible=false` hides the SVG overlay,
-   * `previewBitmapVisible=false` hides the Konva bitmap. Independent
-   * — the two layers live in separate DOM scopes. */
+   * `previewBitmapVisible=false` hides the Konva bitmap,
+   * `numbersLayerVisible=false` hides the `<g id="numbers">` group
+   * inside the inline trace SVG (CSS-gated). Independent — the
+   * layers live in separate DOM scopes. */
   traceOverlayVisible?: boolean
   previewBitmapVisible?: boolean
+  numbersLayerVisible?: boolean
 }
 
 export type ProjectCanvasStageHandle = {
@@ -241,6 +244,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     traceInteractive = true,
     traceOverlayVisible = true,
     previewBitmapVisible = true,
+    numbersLayerVisible = true,
   },
   ref
 ) {
@@ -907,6 +911,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
           rotation={rotation}
           forwardWheelTo={stageRef.current?.container() ?? null}
           interactive={traceInteractive}
+          numbersLayerVisible={numbersLayerVisible}
         />
       ) : null}
     </div>
