@@ -80,6 +80,27 @@ def test_pixelate_svg_emits_numbers_group_with_expected_labels():
     assert _labels_in_order(svg) == [1, 2, 4, 4, 4, 4, 4, 3, 4]
 
 
+def test_pixelate_text_has_no_halo_attributes():
+    """Halo regression — text must be pure black fill, no stroke/halo. The
+    earlier white-halo treatment surfaced as visual noise; legibility now
+    rides on the per-cell frame layer (grid for pixelate, frames for
+    circulate)."""
+    cells = np.array([[PALETTE_RGB[0], PALETTE_RGB[3]]], dtype=np.uint8)
+    svg, _ = pixelate_cells_to_svg(
+        cell_means=cells,
+        cropped_w_px=200,
+        cropped_h_px=100,
+        palette_oklab=PALETTE_OKLAB,
+        palette_rgb=PALETTE_RGB,
+    )
+    text_tags = re.findall(r"<text[^>]*>", svg)
+    assert text_tags, "expected at least one <text> element"
+    for tag in text_tags:
+        assert "stroke=" not in tag, f"unexpected stroke on text: {tag}"
+        assert "paint-order=" not in tag, f"unexpected paint-order on text: {tag}"
+        assert 'fill="black"' in tag, f"text missing black fill: {tag}"
+
+
 def test_pixelate_svg_omits_numbers_when_no_palette():
     cells = np.array([[[200, 200, 200]]], dtype=np.uint8)
     svg, _ = pixelate_cells_to_svg(

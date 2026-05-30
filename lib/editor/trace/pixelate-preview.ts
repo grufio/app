@@ -121,7 +121,19 @@ export function buildMiniCanvas(args: {
     }
   }
 
-  // (5) Paint-by-numbers labels. `computeCellLabels` mirrors the
+  // (5) Per-cell frame outline. Mirrors the server's `<g id="grid">` —
+  // always on, never toggled. Without this the preview shows raw colour
+  // blocks; the applied trace would surprise users with grid lines
+  // they didn't see in the dialog.
+  ctx.strokeStyle = "black"
+  ctx.lineWidth = 1
+  for (let cy = 0; cy < cellsY; cy += 1) {
+    for (let cx = 0; cx < cellsX; cx += 1) {
+      ctx.strokeRect(cx * cellW, cy * cellH, cellW, cellH)
+    }
+  }
+
+  // (6) Paint-by-numbers labels. `computeCellLabels` mirrors the
   // server's per-image sorted-unique mapping; it returns null when
   // no palette is loaded yet, which silently skips the labels (same
   // contract as the server emitting no `<g id="numbers">`).

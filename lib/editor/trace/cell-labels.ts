@@ -69,9 +69,11 @@ export function computeCellLabels(args: {
 
 /**
  * Paint labels at cell centres onto a canvas. Mirrors the SVG emission:
- * sans-serif, white halo via `strokeText` then `fillText` black, centred,
- * font sized to ~40% of the smaller cell dimension. `pxPerCellX/Y` are in
- * canvas pixels — caller computes `target.width / cellsX` etc.
+ * sans-serif, pure black `fillText`, centred, font sized to ~40% of the
+ * smaller cell dimension. No halo — legibility relies on the always-on
+ * per-cell frame (drawn separately by the caller), not on a text
+ * outline. `pxPerCellX/Y` are in canvas pixels — caller computes
+ * `target.width / cellsX` etc.
  */
 export function paintCellLabels(args: {
   ctx: CanvasRenderingContext2D
@@ -88,15 +90,12 @@ export function paintCellLabels(args: {
   ctx.font = `${fontSize.toFixed(2)}px sans-serif`
   ctx.textAlign = "center"
   ctx.textBaseline = "middle"
-  ctx.lineWidth = fontSize * 0.24 // matches SVG stroke ratio (2 × 0.12)
-  ctx.strokeStyle = "white"
   ctx.fillStyle = "black"
   for (let cy = 0; cy < cellsY; cy += 1) {
     const yp = (cy + 0.5) * pxPerCellY
     for (let cx = 0; cx < cellsX; cx += 1) {
       const text = String(labels[cy * cellsX + cx])
       const xp = (cx + 0.5) * pxPerCellX
-      ctx.strokeText(text, xp, yp)
       ctx.fillText(text, xp, yp)
     }
   }
