@@ -22,6 +22,7 @@ import {
 import { buildNavId } from "@/features/editor/navigation/nav-id"
 import { FilterSidebarSection } from "@/features/editor/components/filter-sidebar-section"
 import { TraceSidebarSection } from "@/features/editor/components/trace-sidebar-section"
+import { TraceVisibilitySection } from "@/features/editor/components/trace-visibility-section"
 import type { OperationError } from "@/lib/api/operation-error"
 import { deleteMasterImageWithCascade } from "@/lib/api/project-images"
 import { displayTxToMm } from "@/lib/editor/trace/display-tx-to-mm"
@@ -108,8 +109,8 @@ export function ProjectDetailPageClient({
     state: sessionState,
     actions: sessionActions,
   } = useEditorSessionState()
-  const { restoreOpen, deleteOpen, leftPanelTab, hiddenFilterIds } = sessionState
-  const { setRestoreOpen, setDeleteOpen, setLeftPanelTab, showFilter, hideFilter, toggleHiddenFilter, pruneHiddenFilters } = sessionActions
+  const { restoreOpen, deleteOpen, leftPanelTab, hiddenFilterIds, traceOverlayVisible, previewBitmapVisible } = sessionState
+  const { setRestoreOpen, setDeleteOpen, setLeftPanelTab, showFilter, hideFilter, toggleHiddenFilter, pruneHiddenFilters, setTraceOverlayVisible, setPreviewBitmapVisible } = sessionActions
   const [gridVisible, setGridVisible] = useState(true)
   const [selectedNavId, setSelectedNavId] = useState<string>(buildNavId({ kind: "artboard" }))
   // Mobile-only drawer state for the side panels. On `md+` both panels
@@ -525,14 +526,22 @@ export function ProjectDetailPageClient({
                 />
               }
               tracePanelContent={
-                <TraceSidebarSection
-                  trace={trace ? { kind: trace.kind } : null}
-                  isAddTraceDisabled={isAddTraceDisabled}
-                  isClearingTrace={isClearingTrace}
-                  isLoadingInitial={traceLoading}
-                  onClearTrace={handleClearTrace}
-                  onOpenSelection={openTraceSelection}
-                />
+                <>
+                  <TraceSidebarSection
+                    trace={trace ? { kind: trace.kind } : null}
+                    isAddTraceDisabled={isAddTraceDisabled}
+                    isClearingTrace={isClearingTrace}
+                    isLoadingInitial={traceLoading}
+                    onClearTrace={handleClearTrace}
+                    onOpenSelection={openTraceSelection}
+                  />
+                  <TraceVisibilitySection
+                    traceOverlayVisible={traceOverlayVisible}
+                    previewBitmapVisible={previewBitmapVisible}
+                    onTraceOverlayChange={setTraceOverlayVisible}
+                    onPreviewBitmapChange={setPreviewBitmapVisible}
+                  />
+                </>
               }
               open={leftPanelOpen}
               onOpenChange={setLeftPanelOpen}
@@ -550,6 +559,8 @@ export function ProjectDetailPageClient({
               traceOverlaySvgUrl={traceOverlaySvgUrl}
               traceDisplayRect={traceDisplayRect}
               traceInteractive={leftPanelTab === "trace" && stageToolbar.tool === "direct"}
+              traceOverlayVisible={traceOverlayVisible}
+              previewBitmapVisible={previewBitmapVisible}
               handleImageTransformChange={handleImageTransformChange}
               initialImageTransform={initialImageTransform}
               saveImageState={workflow.saveTransform}

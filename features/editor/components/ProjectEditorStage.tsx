@@ -125,6 +125,11 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
   /** Whether trace-overlay regions catch hover/click. True only
    * when the direct-selection tool is active on the Trace tab. */
   traceInteractive?: boolean
+  /** Visibility toggles owned by the trace tab's Visibility section.
+   * Both default to true; setting either to false hides that DOM
+   * layer (bitmap inside Konva-Stage, SVG overlay above it). */
+  traceOverlayVisible?: boolean
+  previewBitmapVisible?: boolean
 }) {
   const {
     masterImage,
@@ -145,6 +150,8 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
     traceOverlaySvgUrl,
     traceDisplayRect,
     traceInteractive = false,
+    traceOverlayVisible = true,
+    previewBitmapVisible = true,
   } = props
 
   void _masterImageLoading
@@ -230,6 +237,8 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
             traceOverlaySvgUrl={traceOverlaySvgUrl ?? null}
             traceDisplayRect={traceDisplayRect ?? null}
             traceInteractive={traceInteractive}
+            traceOverlayVisible={traceOverlayVisible}
+            previewBitmapVisible={previewBitmapVisible}
             onImageTransformChange={handleImageTransformChange}
             initialImageTransform={masterImage ? initialImageTransform : null}
             onImageTransformCommit={masterImage ? saveImageState : undefined}
