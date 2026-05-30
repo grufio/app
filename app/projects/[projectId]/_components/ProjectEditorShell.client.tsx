@@ -641,6 +641,7 @@ export function ProjectDetailPageClient({
         </EditorErrorBoundary>
         {mobileSheet === "artboard" ? (
           <MobileArtboardSheet
+            projectId={projectId}
             onClose={closeMobileSheet}
             pageBgEnabled={pageBgEnabled}
             pageBgColor={pageBgColor}
@@ -650,13 +651,18 @@ export function ProjectDetailPageClient({
             onPageBgOpacityChange={handlePageBgOpacityChange}
             canFit={Boolean(masterImage) && !masterImageLoading && !deleteBusy}
             onFitToArtboard={() => canvasRef.current?.fitImageToArtboard()}
+            hasGrid={hasGrid}
             gridVisible={gridVisible}
             onGridVisibleChange={setGridVisible}
+            onGridCreateRequested={async () => {
+              await createGrid()
+            }}
+            hasMasterImage={Boolean(masterImage)}
+            onImageUploaded={handleImageUploaded}
             panelImageTxU={panelImageTxU}
             workspaceUnit={workspaceUnit ?? "cm"}
             imagePanelReady={imagePanelReady}
             imagePanelEnabled={Boolean(masterImage) && workspaceReady}
-            hasMasterImage={Boolean(masterImage)}
             masterImageLoading={masterImageLoading}
             deleteBusy={deleteBusy}
             restoreBusy={workflow.isRestoring}
