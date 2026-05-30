@@ -35,7 +35,7 @@
  * draft state lives in the parent and survives either path. The actual
  * filter apply lives exclusively on the outer Apply (check) icon.
  */
-import { Fragment, useState, type ReactNode } from "react"
+import { useState, type ReactNode } from "react"
 import { Check, Loader2, Pencil, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -62,8 +62,8 @@ type Props = {
   title: string
   /** Screen-reader description for the dialog (sr-only). */
   description: string
-  /** Readout entries (image/grid/used/cut): inline on desktop, one per line in
-      the mobile "Trace image" section. */
+  /** Readout entries (image/grid/used/cut): shown as a leading "Trace image"
+      section in both the desktop sidebar and the mobile edit overlay. */
   metadata: readonly string[]
   preview: ReactNode
   form: ReactNode
@@ -246,14 +246,6 @@ export function TraceDialogShell({
         <div className="flex h-full min-h-0 flex-col">
           <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
             <span className="text-sm font-medium">{title}</span>
-            <span className="ml-auto pr-10 text-xs text-muted-foreground">
-              {metadata.map((item, i) => (
-                <Fragment key={item}>
-                  {i > 0 && <span className="mx-2">·</span>}
-                  <span>{item}</span>
-                </Fragment>
-              ))}
-            </span>
           </header>
 
           {/* SidebarProvider defaults to `min-h-svh`; override to `min-h-0` so
@@ -263,7 +255,21 @@ export function TraceDialogShell({
               {preview}
             </main>
             <Sidebar side="right" collapsible="none" className="hidden md:flex">
-              <SidebarContent className="gap-0">{form}</SidebarContent>
+              {/* The leading "Trace image" section mirrors the mobile edit
+                  overlay (`EditorSidebarSection` with the same readout) so
+                  the desktop sidebar and the mobile form share an identical
+                  vertical rhythm: image/grid/used/cut on top, form sections
+                  below. */}
+              <SidebarContent className="gap-0">
+                <EditorSidebarSection title="Trace image">
+                  <div className="space-y-1 text-xs text-muted-foreground">
+                    {metadata.map((item) => (
+                      <div key={item}>{item}</div>
+                    ))}
+                  </div>
+                </EditorSidebarSection>
+                {form}
+              </SidebarContent>
               <SidebarFooter className="border-t p-3">
                 <div className="flex justify-between gap-2">
                   <AppButton
