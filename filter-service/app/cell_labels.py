@@ -70,14 +70,14 @@ def render_numbers_group(
     at its centre in CROP-PIXEL space.
 
     Font size scales with the smaller cell dimension so labels stay
-    readable for rectangular supercells. White stroke + black fill
-    (`paint-order="stroke"`) gives a halo so digits read on any chip
-    colour. `pointer-events="none"` keeps the labels from intercepting
-    canvas clicks meant for the cells underneath.
+    readable for rectangular supercells. Pure `fill="black"` — no halo,
+    no stroke. Legibility on light/dark chips relies on the per-cell
+    frame layer (grid for pixelate, frames for circulate), not on a
+    text outline. `pointer-events="none"` keeps the labels from
+    intercepting canvas clicks meant for the cells underneath.
     """
     cells_y, cells_x = palette_indices.shape
     font_size = min(cell_px_w, cell_px_h) * 0.4
-    stroke_w = font_size * 0.12
     items: list[str] = []
     for y in range(cells_y):
         cy_px = (y + 0.5) * cell_px_h
@@ -89,7 +89,6 @@ def render_numbers_group(
                 f'<text x="{cx_px:.4f}" y="{cy_px:.4f}" '
                 f'font-size="{font_size:.4f}" font-family="sans-serif" '
                 f'text-anchor="middle" dominant-baseline="central" '
-                f'stroke="white" stroke-width="{stroke_w:.4f}" fill="black" '
-                f'paint-order="stroke" pointer-events="none">{label}</text>'
+                f'fill="black" pointer-events="none">{label}</text>'
             )
     return f'<g id="numbers">\n    {chr(10).join(items)}\n  </g>'

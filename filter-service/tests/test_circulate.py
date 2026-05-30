@@ -33,8 +33,9 @@ def test_region_count_and_group_count_are_cells_product():
     )
     assert region_count == 16
     assert svg.count("<g data-cell=") == 16
-    # One outer ellipse per cell when no inner ellipse.
-    assert svg.count("<ellipse") == 16
+    # One outer ellipse per cell in the cells group + one outline ellipse
+    # per cell in the always-on frames group = 32 total.
+    assert svg.count("<ellipse") == 32
     # The phase hook fires for each pipeline stage.
     assert phases == ["crop", "downsample", "palette", "render", "serialize", "encode_cropped"]
 
@@ -46,8 +47,9 @@ def test_inner_ellipse_doubles_the_ellipse_count():
         outer_w_frac=1.0, outer_h_frac=1.0,
         inner_enabled=True, inner_w_frac=0.5, inner_h_frac=0.5,
     )
-    # outer + inner per cell.
-    assert svg.count("<ellipse") == 32
+    # outer + inner per cell in the cells group + one outline ellipse per
+    # cell in the always-on frames group = 3 × 16 = 48.
+    assert svg.count("<ellipse") == 48
     assert svg.count("<g data-cell=") == 16
 
 
@@ -73,6 +75,30 @@ def test_no_grid_lines_and_no_scale_group():
     assert "scale(" not in svg
 
 
+def test_frames_group_emits_one_outline_ellipse_per_cell():
+    """The frames layer is the circulate equivalent of pixelate's grid:
+    one thin outline ellipse per cell, always present, untouched by
+    layer toggles. Lets users read the cell-to-number mapping even when
+    the colour layer is hidden."""
+    import re
+
+    cells_x, cells_y = 5, 3
+    svg, _png, _n = circulate_to_svg(
+        _solid_image(10, 6), cells_x=cells_x, cells_y=cells_y,
+        crop_x=0, crop_y=0, crop_w=10, crop_h=6,
+        outer_w_frac=0.8, outer_h_frac=0.8,
+    )
+    assert '<g id="frames">' in svg
+    # Extract just the frames block and count its ellipses — guards against
+    # a regression where the cells group's filled ellipses get mis-counted.
+    frames_block = re.search(r'<g id="frames">(.*?)</g>', svg, re.DOTALL)
+    assert frames_block is not None
+    body = frames_block.group(1)
+    assert body.count('<ellipse') == cells_x * cells_y
+    assert 'fill="none"' in body
+    assert 'stroke="black"' in body
+
+
 def test_ellipses_centred_in_their_cell_in_pixel_space():
     svg, _png, _n = circulate_to_svg(
         _solid_image(8, 8), cells_x=4, cells_y=4,
@@ -96,19 +122,24 @@ def test_data_cell_attributes_cover_the_grid():
 
 
 def test_contour_stroke_present_only_when_width_positive():
+    """Scoped to the cells group only — the always-on frames group adds its
+    own thin `stroke="black"` regardless of contour width, so the absence
+    check has to look at the cells-group content, not the full SVG."""
+    cells_block = lambda svg: re.search(r'<g id="cells">(.*?)</g>', svg, re.DOTALL).group(1)
+
     svg_with, _p, _n = circulate_to_svg(
         _solid_image(8, 8), cells_x=2, cells_y=2,
         crop_x=0, crop_y=0, crop_w=8, crop_h=8,
         outer_w_frac=1.0, outer_h_frac=1.0, contour_width_px=2.0,
     )
-    assert 'stroke="black" stroke-width="2.0000"' in svg_with
+    assert 'stroke="black" stroke-width="2.0000"' in cells_block(svg_with)
 
     svg_without, _p, _n = circulate_to_svg(
         _solid_image(8, 8), cells_x=2, cells_y=2,
         crop_x=0, crop_y=0, crop_w=8, crop_h=8,
         outer_w_frac=1.0, outer_h_frac=1.0, contour_width_px=0.0,
     )
-    assert "stroke=" not in svg_without
+    assert "stroke=" not in cells_block(svg_without)
 
 
 def test_palette_snaps_outer_fill_to_chip_colours():

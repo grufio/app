@@ -134,7 +134,24 @@ export function buildCirculateMiniCanvas(args: {
     }
   }
 
-  // Paint-by-numbers labels on top of the outer ellipses. Same per-image
+  // Per-cell frame outline — mirrors the server's `<g id="frames">`.
+  // Always on, independent of the user-configured contour width. Sits
+  // on top of the colour ellipses so it remains visible regardless of
+  // chip darkness. Without this the preview drifts visually from the
+  // applied trace once cells are toggled off.
+  ctx.strokeStyle = "black"
+  ctx.lineWidth = 1
+  for (let cy = 0; cy < cellsY; cy += 1) {
+    const centerY = (cy + 0.5) * cellH
+    for (let cx = 0; cx < cellsX; cx += 1) {
+      const centerX = (cx + 0.5) * cellW
+      ctx.beginPath()
+      ctx.ellipse(centerX, centerY, outerRx, outerRy, 0, 0, Math.PI * 2)
+      ctx.stroke()
+    }
+  }
+
+  // Paint-by-numbers labels on top of the frames. Same per-image
   // sorted-unique mapping as the server's `<g id="numbers">`; skipped
   // silently if the palette hasn't loaded.
   const labelled = computeCellLabels({ cells: outer, cellsX, cellsY, palette })

@@ -161,11 +161,27 @@ def circulate_cells_to_svg(
 
     region_count = cells_x * cells_y
 
-    # Paint-by-numbers labels on the OUTER cells (same layer as the outer
-    # ellipses). Labels recover palette indices from `outer` (post-snap,
-    # post-texture) so a texture-replaced cell gets the invading chip's
-    # label. Skipped when no palette was supplied — the layer is silently
-    # absent and the client toggle is a no-op.
+    # Per-cell frame layer: one thin black ellipse outline per cell,
+    # always present, never toggled. Pixelate's `<g id="grid">` plays
+    # the same role on the rect side; circulate has no grid concept, so
+    # this is the equivalent. Frames stay even when other layers are
+    # hidden so the number-to-cell association is never lost.
+    frames: list[str] = []
+    for y in range(cells_y):
+        cyp = (y + 0.5) * cell_px_h
+        for x in range(cells_x):
+            cxp = (x + 0.5) * cell_px_w
+            frames.append(
+                f'<ellipse cx="{cxp:.4f}" cy="{cyp:.4f}" '
+                f'rx="{outer_rx:.4f}" ry="{outer_ry:.4f}" '
+                f'fill="none" stroke="black" stroke-width="1"/>'
+            )
+
+    # Paint-by-numbers labels on the OUTER cells. Labels recover palette
+    # indices from `outer` (post-snap, post-texture) so a texture-replaced
+    # cell gets the invading chip's label. Skipped when no palette was
+    # supplied — the layer is silently absent and the client toggle is a
+    # no-op.
     numbers_group = ""
     if palette_rgb is not None:
         indices = reconstruct_palette_indices(outer, np.asarray(palette_rgb, dtype=np.uint8))
@@ -173,9 +189,8 @@ def circulate_cells_to_svg(
         numbers_group = render_numbers_group(indices, labels, cell_px_w, cell_px_h)
         phase("numbers")
 
-    # No `scale()` group, no grid lines — ellipses are already in crop-pixel
-    # space and contours replace the grid. Transparent background between
-    # circles.
+    # Stacking order: cells (filled) → frames (outline) → numbers (digits).
+    # Numbers sit on top so digits remain legible above the frame stroke.
     svg_content = (
         f'<?xml version="1.0" encoding="UTF-8"?>\n'
         f'<svg xmlns="http://www.w3.org/2000/svg" '
@@ -183,6 +198,9 @@ def circulate_cells_to_svg(
         f'viewBox="0 0 {cropped_w_px} {cropped_h_px}">\n'
         f'  <g id="cells">\n'
         f'    {chr(10).join(groups)}\n'
+        f'  </g>\n'
+        f'  <g id="frames">\n'
+        f'    {chr(10).join(frames)}\n'
         f'  </g>\n'
         f'  {numbers_group}\n'
         f'</svg>'
