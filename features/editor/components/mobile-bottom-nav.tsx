@@ -8,7 +8,8 @@
  * `pb-*` hacks on the canvas).
  *
  * Visual-only for now — every button is a click-stub with `aria-label`
- * + a tiny text label below the icon, no handlers attached. The
+ * for screen readers. **Icons only, no text labels** — the bar mirrors
+ * Insta's tab-bar style where the icon alone carries the meaning. The
  * routing / section-state wiring lands in a follow-up.
  *
  * Mobile gate sits on the `<nav>` itself (`md:hidden`); on desktop the
@@ -48,7 +49,7 @@ export function MobileBottomNav() {
       aria-label="Editor sections"
       className="shrink-0 border-t bg-background pb-safe md:hidden"
     >
-      <ul className="flex items-center justify-around">
+      <ul className="flex items-center justify-around py-2">
         {ITEMS.map(({ key, label, Icon }) => (
           <li key={key}>
             <Button
@@ -56,10 +57,8 @@ export function MobileBottomNav() {
               variant="ghost"
               size="icon"
               aria-label={label}
-              className="flex h-auto w-auto flex-col items-center gap-1 px-3 py-2"
             >
-              <Icon aria-hidden="true" className="size-5" />
-              <span className="text-[10px] leading-none">{label}</span>
+              <Icon aria-hidden="true" className="size-6" />
             </Button>
           </li>
         ))}
