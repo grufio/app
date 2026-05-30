@@ -21,7 +21,8 @@ import {
 } from "@/features/editor"
 import { buildNavId } from "@/features/editor/navigation/nav-id"
 import { FilterSidebarSection } from "@/features/editor/components/filter-sidebar-section"
-import { MobileBottomNav } from "@/features/editor/components/mobile-bottom-nav"
+import { MobileArtboardSheet } from "@/features/editor/components/mobile-artboard-sheet"
+import { MobileBottomNav, type MobileNavSection } from "@/features/editor/components/mobile-bottom-nav"
 import { TraceSidebarSection } from "@/features/editor/components/trace-sidebar-section"
 import type { OperationError } from "@/lib/api/operation-error"
 import { deleteMasterImageWithCascade } from "@/lib/api/project-images"
@@ -113,6 +114,15 @@ export function ProjectDetailPageClient({
   const { setRestoreOpen, setDeleteOpen, setLeftPanelTab, showFilter, hideFilter, toggleHiddenFilter, pruneHiddenFilters, setTraceOverlayVisible, setPreviewBitmapVisible, setNumbersLayerVisible } = sessionActions
   const [gridVisible, setGridVisible] = useState(true)
   const [selectedNavId, setSelectedNavId] = useState<string>(buildNavId({ kind: "artboard" }))
+  // Mobile-only: which bottom-nav section overlays the canvas. `null`
+  // = nothing on top, canvas + side panels visible. Only the Artboard
+  // sheet is wired today; other section taps no-op until their own
+  // PRs land.
+  const [mobileSheet, setMobileSheet] = useState<"artboard" | null>(null)
+  const handleMobileNavTap = useCallback((section: MobileNavSection) => {
+    if (section === "artboard") setMobileSheet("artboard")
+  }, [])
+  const closeMobileSheet = useCallback(() => setMobileSheet(null), [])
   // Mobile-only drawer state for the side panels. On `md+` both panels
   // are always-on; this state is ignored there. The Sheet primitive on
   // mobile handles Escape, overlay-click and focus-trap natively — no
@@ -629,8 +639,34 @@ export function ProjectDetailPageClient({
             onApplyTrace={handleApplyTrace}
           />
         </EditorErrorBoundary>
+        {mobileSheet === "artboard" ? (
+          <MobileArtboardSheet
+            onClose={closeMobileSheet}
+            pageBgEnabled={pageBgEnabled}
+            pageBgColor={pageBgColor}
+            pageBgOpacity={pageBgOpacity}
+            onPageBgEnabledChange={handlePageBgEnabledChange}
+            onPageBgColorChange={handlePageBgColorChange}
+            onPageBgOpacityChange={handlePageBgOpacityChange}
+            canFit={Boolean(masterImage) && !masterImageLoading && !deleteBusy}
+            onFitToArtboard={() => canvasRef.current?.fitImageToArtboard()}
+            gridVisible={gridVisible}
+            onGridVisibleChange={setGridVisible}
+            panelImageTxU={panelImageTxU}
+            workspaceUnit={workspaceUnit ?? "cm"}
+            imagePanelReady={imagePanelReady}
+            imagePanelEnabled={Boolean(masterImage) && workspaceReady}
+            hasMasterImage={Boolean(masterImage)}
+            masterImageLoading={masterImageLoading}
+            deleteBusy={deleteBusy}
+            restoreBusy={workflow.isRestoring}
+            canvasRef={canvasRef}
+            onRequestRestore={() => setRestoreOpen(true)}
+            onRequestDelete={requestDeleteSelectedImage}
+          />
+        ) : null}
       </ProjectEditorLayout>
-      <MobileBottomNav />
+      <MobileBottomNav onSectionTap={handleMobileNavTap} />
     </div>
   )
 }

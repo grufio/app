@@ -9,11 +9,10 @@
  */
 import * as React from "react"
 import dynamic from "next/dynamic"
-import { Eye, EyeOff, Percent } from "lucide-react"
 
 import { SidebarFrame } from "@/components/navigation/SidebarFrame"
 import type { OperationError } from "@/lib/api/operation-error"
-import { AppButton, FormField } from "@/components/ui/form-controls"
+import { AppButton } from "@/components/ui/form-controls"
 import {
   Dialog,
   DialogContent,
@@ -40,9 +39,7 @@ const ImagePanel = dynamic(() => import("./image-panel").then((m) => m.ImagePane
 })
 import { buildDeleteMessage } from "./delete-message"
 import type { ProjectCanvasStageHandle } from "./project-canvas-stage"
-import { PanelIconSlot, PanelTwoFieldRow } from "./panel-layout"
-import { RightPanelToggleIconButton } from "./right-panel-controls"
-import { EditorSidebarSection } from "./sidebar/editor-sidebar-section"
+import { PageBackgroundSection } from "./page-background-section"
 import { TraceVisibilitySection } from "./trace-visibility-section"
 import { useResizableSidebar } from "./use-resizable-sidebar"
 import { clampPx, pxUToPxNumber, pxUToUnitDisplayFixed, type Unit } from "@/lib/editor/units"
@@ -226,47 +223,14 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
             ) : null}
             {activeSection === "artboard" ? (
               <>
-                <EditorSidebarSection title="Page">
-                  <PanelTwoFieldRow>
-                    <FormField
-                      variant="color"
-                      label="Page background color"
-                      labelVisuallyHidden
-                      value={pageBgColor}
-                      onCommit={onPageBgColorChange}
-                      inputClassName="cursor-pointer"
-                    />
-
-                    <FormField
-                      variant="numeric"
-                      numericMode="int"
-                      label="Page background opacity percent"
-                      labelVisuallyHidden
-                      iconStart={<Percent aria-hidden="true" />}
-                      value={String(pageBgOpacity)}
-                      onCommit={(next) => {
-                        const n = Number(next)
-                        const clamped = Math.max(0, Math.min(100, Number.isFinite(n) ? n : 0))
-                        onPageBgOpacityChange(clamped)
-                      }}
-                    />
-
-                    <PanelIconSlot>
-                      <RightPanelToggleIconButton
-                        type="button"
-                        active={!pageBgEnabled}
-                        aria-label={pageBgEnabled ? "Hide page background" : "Show page background"}
-                        onClick={() => onPageBgEnabledChange(!pageBgEnabled)}
-                      >
-                        {pageBgEnabled ? (
-                          <Eye className="size-4" />
-                        ) : (
-                          <EyeOff className="size-4" />
-                        )}
-                      </RightPanelToggleIconButton>
-                    </PanelIconSlot>
-                  </PanelTwoFieldRow>
-                </EditorSidebarSection>
+                <PageBackgroundSection
+                  pageBgEnabled={pageBgEnabled}
+                  pageBgColor={pageBgColor}
+                  pageBgOpacity={pageBgOpacity}
+                  onPageBgEnabledChange={onPageBgEnabledChange}
+                  onPageBgColorChange={onPageBgColorChange}
+                  onPageBgOpacityChange={onPageBgOpacityChange}
+                />
                 <ArtboardPanel canFitToImage={canFit} onFitToImage={handleFitArtboardToImage} />
               </>
             ) : null}
