@@ -167,7 +167,7 @@ export async function pixelateImageAndActivate(args: {
       height: croppedHeight,
     })
     const [baseBuffer, rawRgb] = await Promise.all([
-      extracted.clone().png().toBuffer(),
+      extracted.clone().webp({ lossless: true }).toBuffer(),
       extracted.clone().removeAlpha().raw().toBuffer(),
     ])
     profiler.mark("sharp_crop")
@@ -258,7 +258,7 @@ export async function pixelateImageAndActivate(args: {
     const { error: baseUploadErr } = await supabase.storage
       .from("project_images")
       .upload(baseObjectPath, baseBuffer, {
-        contentType: "image/png",
+        contentType: "image/webp",
         upsert: false,
       })
     if (baseUploadErr) {
@@ -270,7 +270,7 @@ export async function pixelateImageAndActivate(args: {
       project_id: projectId,
       kind: "trace_base",
       name: `${cleanName} (pixelate base)`,
-      format: "png",
+      format: "webp",
       width_px: croppedWidth,
       height_px: croppedHeight,
       storage_bucket: PROJECT_IMAGES_BUCKET,
