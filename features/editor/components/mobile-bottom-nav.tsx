@@ -3,19 +3,21 @@
 /**
  * Insta-style bottom navigation bar for the canvas editor on mobile
  * (`< md`). Sits in the normal flex flow as the last child of the
- * editor shell, so the canvas above shrinks to fit and the bar
- * occupies real layout space (no `position: fixed`, no overlap, no
- * `pb-*` hacks on the canvas).
+ * editor shell, so the canvas (or active mobile sheet) above shrinks
+ * to fit and the bar occupies real layout space (no `position: fixed`,
+ * no overlap, no `pb-*` hacks on the canvas).
  *
- * Visual-only for now — every button is a click-stub with `aria-label`
- * for screen readers. **Icons only, no text labels** — the bar mirrors
- * Insta's tab-bar style where the icon alone carries the meaning. The
- * routing / section-state wiring lands in a follow-up.
+ * Six icons (Home / Artboard / Filter / Trace / Colors / Output) —
+ * **Home** navigates to `/dashboard` via Next.js `<Link>`, **Artboard**
+ * calls `onSectionTap("artboard")` so the shell opens the mobile
+ * artboard sheet. Filter / Trace / Colors / Output remain stubs until
+ * their own follow-ups land.
  *
  * Mobile gate sits on the `<nav>` itself (`md:hidden`); on desktop the
  * bar is `display: none` — Browser allocates no layout, click targets
  * are unreachable, nothing leaks above the breakpoint.
  */
+import Link from "next/link"
 import {
   FileOutput,
   Frame,
@@ -28,8 +30,15 @@ import {
 
 import { Button } from "@/components/ui/button"
 
+export type MobileNavSection =
+  | "artboard"
+  | "filter"
+  | "trace"
+  | "colors"
+  | "output"
+
 type NavItem = {
-  key: string
+  key: "home" | MobileNavSection
   label: string
   Icon: LucideIcon
 }
@@ -43,7 +52,10 @@ const ITEMS: NavItem[] = [
   { key: "output", label: "Output", Icon: FileOutput },
 ]
 
-export function MobileBottomNav() {
+export function MobileBottomNav(props: {
+  onSectionTap?: (section: MobileNavSection) => void
+}) {
+  const { onSectionTap } = props
   return (
     <nav
       aria-label="Editor sections"
@@ -52,14 +64,23 @@ export function MobileBottomNav() {
       <ul className="flex items-center justify-around py-2">
         {ITEMS.map(({ key, label, Icon }) => (
           <li key={key}>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              aria-label={label}
-            >
-              <Icon aria-hidden="true" className="size-6" />
-            </Button>
+            {key === "home" ? (
+              <Button asChild variant="ghost" size="icon" aria-label={label}>
+                <Link href="/dashboard">
+                  <Icon aria-hidden="true" className="size-6" />
+                </Link>
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label={label}
+                onClick={() => onSectionTap?.(key)}
+              >
+                <Icon aria-hidden="true" className="size-6" />
+              </Button>
+            )}
           </li>
         ))}
       </ul>
