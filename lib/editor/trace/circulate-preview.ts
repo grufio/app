@@ -13,6 +13,7 @@
  * that layer later), then the ellipses on top. Caller (React) owns
  * `target.width`/`target.height` (= crop pixels), like the pixelate preview.
  */
+import { computeCellLabels, paintCellLabels } from "./cell-labels"
 import { applyNeighborInvasion } from "./cell-texture"
 import type { OklabAdjustment } from "./inner-color-filters"
 import { cellAreaAverages, mapCellsToPalette, mapCellsToPaletteAdjusted, type PaletteChip } from "./trace-cell-colors"
@@ -131,5 +132,20 @@ export function buildCirculateMiniCanvas(args: {
         paintEllipse(centerX, centerY, innerRx, innerRy, `rgb(${inner.r[i]}, ${inner.g[i]}, ${inner.b[i]})`)
       }
     }
+  }
+
+  // Paint-by-numbers labels on top of the outer ellipses. Same per-image
+  // sorted-unique mapping as the server's `<g id="numbers">`; skipped
+  // silently if the palette hasn't loaded.
+  const labelled = computeCellLabels({ cells: outer, cellsX, cellsY, palette })
+  if (labelled) {
+    paintCellLabels({
+      ctx,
+      labels: labelled.labels,
+      cellsX,
+      cellsY,
+      pxPerCellX: cellW,
+      pxPerCellY: cellH,
+    })
   }
 }

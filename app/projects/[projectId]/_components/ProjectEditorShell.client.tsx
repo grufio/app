@@ -109,8 +109,8 @@ export function ProjectDetailPageClient({
     state: sessionState,
     actions: sessionActions,
   } = useEditorSessionState()
-  const { restoreOpen, deleteOpen, leftPanelTab, hiddenFilterIds, traceOverlayVisible, previewBitmapVisible } = sessionState
-  const { setRestoreOpen, setDeleteOpen, setLeftPanelTab, showFilter, hideFilter, toggleHiddenFilter, pruneHiddenFilters, setTraceOverlayVisible, setPreviewBitmapVisible } = sessionActions
+  const { restoreOpen, deleteOpen, leftPanelTab, hiddenFilterIds, traceOverlayVisible, previewBitmapVisible, numbersLayerVisible } = sessionState
+  const { setRestoreOpen, setDeleteOpen, setLeftPanelTab, showFilter, hideFilter, toggleHiddenFilter, pruneHiddenFilters, setTraceOverlayVisible, setPreviewBitmapVisible, setNumbersLayerVisible } = sessionActions
   const [gridVisible, setGridVisible] = useState(true)
   const [selectedNavId, setSelectedNavId] = useState<string>(buildNavId({ kind: "artboard" }))
   // Mobile-only drawer state for the side panels. On `md+` both panels
@@ -538,8 +538,10 @@ export function ProjectDetailPageClient({
                   <TraceVisibilitySection
                     traceOverlayVisible={traceOverlayVisible}
                     previewBitmapVisible={previewBitmapVisible}
+                    numbersLayerVisible={numbersLayerVisible}
                     onTraceOverlayChange={setTraceOverlayVisible}
                     onPreviewBitmapChange={setPreviewBitmapVisible}
+                    onNumbersLayerChange={setNumbersLayerVisible}
                   />
                 </>
               }
@@ -561,6 +563,7 @@ export function ProjectDetailPageClient({
               traceInteractive={leftPanelTab === "trace" && stageToolbar.tool === "direct"}
               traceOverlayVisible={traceOverlayVisible}
               previewBitmapVisible={previewBitmapVisible}
+              numbersLayerVisible={numbersLayerVisible}
               handleImageTransformChange={handleImageTransformChange}
               initialImageTransform={initialImageTransform}
               saveImageState={workflow.saveTransform}

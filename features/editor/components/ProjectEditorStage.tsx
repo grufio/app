@@ -126,10 +126,12 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
    * when the direct-selection tool is active on the Trace tab. */
   traceInteractive?: boolean
   /** Visibility toggles owned by the trace tab's Visibility section.
-   * Both default to true; setting either to false hides that DOM
-   * layer (bitmap inside Konva-Stage, SVG overlay above it). */
+   * All default to true; setting any to false hides that layer
+   * (bitmap inside Konva-Stage, SVG overlay above it, or the
+   * numbers `<g>` inside the SVG overlay via CSS gate). */
   traceOverlayVisible?: boolean
   previewBitmapVisible?: boolean
+  numbersLayerVisible?: boolean
 }) {
   const {
     masterImage,
@@ -152,6 +154,7 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
     traceInteractive = false,
     traceOverlayVisible = true,
     previewBitmapVisible = true,
+    numbersLayerVisible = true,
   } = props
 
   void _masterImageLoading
@@ -239,6 +242,7 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
             traceInteractive={traceInteractive}
             traceOverlayVisible={traceOverlayVisible}
             previewBitmapVisible={previewBitmapVisible}
+            numbersLayerVisible={numbersLayerVisible}
             onImageTransformChange={handleImageTransformChange}
             initialImageTransform={masterImage ? initialImageTransform : null}
             onImageTransformCommit={masterImage ? saveImageState : undefined}

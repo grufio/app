@@ -26,6 +26,7 @@
  * Caller (React) owns `target.width` / `target.height` via JSX props
  * set to `crop.w` / `crop.h`.
  */
+import { computeCellLabels, paintCellLabels } from "./cell-labels"
 import { applyNeighborInvasion } from "./cell-texture"
 import { cellAreaAverages, mapCellsToPalette, type PaletteChip } from "./trace-cell-colors"
 
@@ -118,5 +119,21 @@ export function buildMiniCanvas(args: {
         Math.ceil(cellH) + 1,
       )
     }
+  }
+
+  // (5) Paint-by-numbers labels. `computeCellLabels` mirrors the
+  // server's per-image sorted-unique mapping; it returns null when
+  // no palette is loaded yet, which silently skips the labels (same
+  // contract as the server emitting no `<g id="numbers">`).
+  const labelled = computeCellLabels({ cells, cellsX, cellsY, palette })
+  if (labelled) {
+    paintCellLabels({
+      ctx,
+      labels: labelled.labels,
+      cellsX,
+      cellsY,
+      pxPerCellX: cellW,
+      pxPerCellY: cellH,
+    })
   }
 }

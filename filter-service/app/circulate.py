@@ -32,6 +32,7 @@ import numpy as np
 from PIL import Image
 
 from .cell_colors import compute_cell_colors, map_cells_to_palette
+from .cell_labels import build_label_map, reconstruct_palette_indices, render_numbers_group
 from .cell_texture import apply_neighbor_invasion
 from .oklab import adjust_oklab, nearest_palette_indices, rgb255_to_oklab
 
@@ -160,6 +161,18 @@ def circulate_cells_to_svg(
 
     region_count = cells_x * cells_y
 
+    # Paint-by-numbers labels on the OUTER cells (same layer as the outer
+    # ellipses). Labels recover palette indices from `outer` (post-snap,
+    # post-texture) so a texture-replaced cell gets the invading chip's
+    # label. Skipped when no palette was supplied — the layer is silently
+    # absent and the client toggle is a no-op.
+    numbers_group = ""
+    if palette_rgb is not None:
+        indices = reconstruct_palette_indices(outer, np.asarray(palette_rgb, dtype=np.uint8))
+        labels = build_label_map(indices)
+        numbers_group = render_numbers_group(indices, labels, cell_px_w, cell_px_h)
+        phase("numbers")
+
     # No `scale()` group, no grid lines — ellipses are already in crop-pixel
     # space and contours replace the grid. Transparent background between
     # circles.
@@ -171,6 +184,7 @@ def circulate_cells_to_svg(
         f'  <g id="cells">\n'
         f'    {chr(10).join(groups)}\n'
         f'  </g>\n'
+        f'  {numbers_group}\n'
         f'</svg>'
     )
     phase("serialize")

@@ -74,9 +74,22 @@ type Props = {
    * trace regions catch hover + click for selection (direct-tool
    * on the Trace tab). */
   interactive?: boolean
+  /** Hide the `<g id="numbers">` group inside the SVG (paint-by-
+   * numbers labels). Pure CSS gate via `data-numbers-visible` —
+   * doesn't re-parse or regenerate the SVG, so toggling is O(1).
+   * Old trace SVGs without the group silently no-op. */
+  numbersLayerVisible?: boolean
 }
 
-export function TraceInlineSvg({ svgText, imageRect, view, rotation = 0, forwardWheelTo, interactive = true }: Props) {
+export function TraceInlineSvg({
+  svgText,
+  imageRect,
+  view,
+  rotation = 0,
+  forwardWheelTo,
+  interactive = true,
+  numbersLayerVisible = true,
+}: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const prepared = useMemo(() => prepareTraceSvg(svgText), [svgText])
   const [selectedFill, setSelectedFill] = useState<string | null>(null)
@@ -186,6 +199,7 @@ export function TraceInlineSvg({ svgText, imageRect, view, rotation = 0, forward
       ref={containerRef}
       data-testid="trace-inline-svg"
       data-interactive={interactive ? "true" : "false"}
+      data-numbers-visible={numbersLayerVisible ? "true" : "false"}
       style={{
         position: "absolute",
         left,
@@ -213,6 +227,9 @@ export function TraceInlineSvg({ svgText, imageRect, view, rotation = 0, forward
           stroke-width: 4px;
           vector-effect: non-scaling-stroke;
           filter: drop-shadow(0 0 1px rgba(0,0,0,0.9));
+        }
+        [data-testid="trace-inline-svg"][data-numbers-visible="false"] svg #numbers {
+          display: none;
         }
       `}</style>
       {/* The wrapper MUST fill the sized container so the inner SVG's

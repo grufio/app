@@ -28,6 +28,7 @@ import numpy as np
 from PIL import Image
 
 from .cell_colors import compute_cell_colors, map_cells_to_palette
+from .cell_labels import build_label_map, reconstruct_palette_indices, render_numbers_group
 from .cell_texture import apply_neighbor_invasion
 
 
@@ -129,6 +130,21 @@ def pixelate_cells_to_svg(
     # the caller is the crop, the editor stacks them 1:1.
     scale_x = cropped_w_px / cells_x
     scale_y = cropped_h_px / cells_y
+
+    # Paint-by-numbers labels: one `<text>` per cell in CROP-PIXEL space
+    # (outside the colors scale group → non-square supercells don't squish
+    # the digits). Labels recover palette indices from the *final* cells
+    # (post-snap, post-texture) so a texture-replaced cell gets the
+    # invading chip's label, not the original. Only emitted when a palette
+    # was supplied; otherwise the layer's silently absent and the client
+    # toggle is a no-op.
+    numbers_group = ""
+    if palette_rgb is not None:
+        indices = reconstruct_palette_indices(arr, np.asarray(palette_rgb, dtype=np.uint8))
+        labels = build_label_map(indices)
+        numbers_group = render_numbers_group(indices, labels, scale_x, scale_y)
+        phase("numbers")
+
     svg_content = (
         f'<?xml version="1.0" encoding="UTF-8"?>\n'
         f'<svg xmlns="http://www.w3.org/2000/svg" '
@@ -140,6 +156,7 @@ def pixelate_cells_to_svg(
         f'  <g id="grid">\n'
         f'    {chr(10).join(grid)}\n'
         f'  </g>\n'
+        f'  {numbers_group}\n'
         f'</svg>'
     )
     phase("serialize")

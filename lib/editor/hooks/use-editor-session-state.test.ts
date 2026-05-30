@@ -10,6 +10,7 @@ function makeState(overrides?: Partial<SessionState>): SessionState {
     hiddenFilterIds: {},
     traceOverlayVisible: true,
     previewBitmapVisible: true,
+    numbersLayerVisible: true,
     ...overrides,
   }
 }
@@ -90,6 +91,16 @@ describe("editorSessionReducer — trace tab visibility flags", () => {
     const out = editorSessionReducer(state, { type: "setPreviewBitmapVisible", visible: false })
     expect(out.previewBitmapVisible).toBe(false)
     expect(out.traceOverlayVisible).toBe(false) // unrelated flag untouched
+  })
+
+  it("toggles numbersLayerVisible independently and is identity-stable on no-op", () => {
+    const state = makeState()
+    expect(state.numbersLayerVisible).toBe(true)
+    const off = editorSessionReducer(state, { type: "setNumbersLayerVisible", visible: false })
+    expect(off.numbersLayerVisible).toBe(false)
+    expect(off.traceOverlayVisible).toBe(true) // unrelated
+    expect(off.previewBitmapVisible).toBe(true) // unrelated
+    expect(editorSessionReducer(off, { type: "setNumbersLayerVisible", visible: false })).toBe(off)
   })
 })
 
