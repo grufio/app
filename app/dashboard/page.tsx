@@ -74,15 +74,25 @@ function renderDashboard({
 
   return (
     <SidebarFrame>
-      <AppSidebarMain user={sidebarUser} />
+      {/* Sidebar + ihr Mobile-Drawer hängen am `<Sheet>` der Sidebar-
+       * Primitive — beide sollen auf `< md` gar nicht erst gemounted
+       * sein. `md:contents` lässt das Kind auf Desktop transparent in
+       * den Layout-Flow eingehen wie ohne Wrapper. */}
+      <div className="hidden md:contents">
+        <AppSidebarMain user={sidebarUser} />
+      </div>
       <SidebarInset>
         <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
           <div className="flex w-full items-center gap-2 px-4">
-            <SidebarTrigger className="-ml-1" />
-            <Separator
-              orientation="vertical"
-              className="mr-2 data-[orientation=vertical]:h-4"
-            />
+            {/* Burger + Trenner gehören zur Sidebar — ohne sie kein
+             * Trigger nötig. Auf Mobile komplett unsichtbar. */}
+            <div className="hidden items-center gap-2 md:flex">
+              <SidebarTrigger className="-ml-1" />
+              <Separator
+                orientation="vertical"
+                className="mr-2 data-[orientation=vertical]:h-4"
+              />
+            </div>
             <Breadcrumb>
               <BreadcrumbList>
                 <BreadcrumbItem className="hidden md:block">
