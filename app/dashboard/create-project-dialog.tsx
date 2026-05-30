@@ -9,6 +9,7 @@
  */
 import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
+import { Plus } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogTrigger } from "@/components/ui/dialog"
@@ -61,8 +62,18 @@ export function CreateProjectDialog() {
   return (
     <Dialog open={open} onOpenChange={(o) => (busy ? null : setOpen(o))}>
       <DialogTrigger asChild>
-        <Button type="button" className="ml-auto">
-          New project
+        {/* Mobile = quadratischer Plus-Icon-Button (auf `< md` ist der
+         * Header schmal, ein voller Label-Button drängelt die Breadcrumb
+         * weg); Desktop = normaler Text-Button. Beide Renderings sitzen
+         * im selben DOM-Element, CSS schaltet via `md:` zwischen Icon
+         * und Label. */}
+        <Button
+          type="button"
+          aria-label="New project"
+          className="ml-auto size-9 p-0 md:h-9 md:w-auto md:px-4 md:py-2"
+        >
+          <Plus aria-hidden="true" className="md:hidden" />
+          <span className="hidden md:inline">New project</span>
         </Button>
       </DialogTrigger>
 
