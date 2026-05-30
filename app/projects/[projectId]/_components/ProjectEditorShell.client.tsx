@@ -21,6 +21,7 @@ import {
 } from "@/features/editor"
 import { buildNavId } from "@/features/editor/navigation/nav-id"
 import { FilterSidebarSection } from "@/features/editor/components/filter-sidebar-section"
+import { MobileBottomNav } from "@/features/editor/components/mobile-bottom-nav"
 import { TraceSidebarSection } from "@/features/editor/components/trace-sidebar-section"
 import type { OperationError } from "@/lib/api/operation-error"
 import { deleteMasterImageWithCascade } from "@/lib/api/project-images"
@@ -629,6 +630,7 @@ export function ProjectDetailPageClient({
           />
         </EditorErrorBoundary>
       </ProjectEditorLayout>
+      <MobileBottomNav />
     </div>
   )
 }
