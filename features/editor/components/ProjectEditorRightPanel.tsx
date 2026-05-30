@@ -43,6 +43,7 @@ import type { ProjectCanvasStageHandle } from "./project-canvas-stage"
 import { PanelIconSlot, PanelTwoFieldRow } from "./panel-layout"
 import { RightPanelToggleIconButton } from "./right-panel-controls"
 import { EditorSidebarSection } from "./sidebar/editor-sidebar-section"
+import { TraceVisibilitySection } from "./trace-visibility-section"
 import { useResizableSidebar } from "./use-resizable-sidebar"
 import { clampPx, pxUToPxNumber, pxUToUnitDisplayFixed, type Unit } from "@/lib/editor/units"
 import { useImagePanelEnabled } from "@/lib/editor/hooks/use-image-panel-enabled"
@@ -88,6 +89,17 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
   gridVisible: boolean
   onGridVisibleChange: (v: boolean) => void
   canvasRef: React.RefObject<ProjectCanvasStageHandle | null>
+  /** True when the left sidebar's Trace tab is active. The right
+   * panel surfaces the trace-tab "Visibility" controls only in this
+   * mode so the artboard/grid/image right-panel contexts stay clean
+   * on the other tabs. */
+  traceTabActive: boolean
+  traceOverlayVisible: boolean
+  previewBitmapVisible: boolean
+  numbersLayerVisible: boolean
+  onTraceOverlayVisibleChange: (v: boolean) => void
+  onPreviewBitmapVisibleChange: (v: boolean) => void
+  onNumbersLayerVisibleChange: (v: boolean) => void
   /** Mobile drawer state. Ignored on `md+` where the panel is
    * always rendered as a static sidebar. */
   open?: boolean
@@ -129,6 +141,13 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
     gridVisible,
     onGridVisibleChange,
     canvasRef,
+    traceTabActive,
+    traceOverlayVisible,
+    previewBitmapVisible,
+    numbersLayerVisible,
+    onTraceOverlayVisibleChange,
+    onPreviewBitmapVisibleChange,
+    onNumbersLayerVisibleChange,
     open = true,
     onOpenChange,
   } = props
@@ -191,6 +210,20 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
   const panelBody = (
     <SidebarFrame className="block h-full min-h-0 w-full">
       <SidebarContent className="gap-0">
+            {/* Trace tab contextual section: SVG-overlay + canvas-bitmap
+                visibility toggles. Renders above the nav-driven sections so
+                judging the paint-by-numbers result is always within reach
+                regardless of what's selected in the left nav tree. */}
+            {traceTabActive ? (
+              <TraceVisibilitySection
+                traceOverlayVisible={traceOverlayVisible}
+                previewBitmapVisible={previewBitmapVisible}
+                numbersLayerVisible={numbersLayerVisible}
+                onTraceOverlayChange={onTraceOverlayVisibleChange}
+                onPreviewBitmapChange={onPreviewBitmapVisibleChange}
+                onNumbersLayerChange={onNumbersLayerVisibleChange}
+              />
+            ) : null}
             {activeSection === "artboard" ? (
               <>
                 <EditorSidebarSection title="Page">

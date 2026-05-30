@@ -22,7 +22,6 @@ import {
 import { buildNavId } from "@/features/editor/navigation/nav-id"
 import { FilterSidebarSection } from "@/features/editor/components/filter-sidebar-section"
 import { TraceSidebarSection } from "@/features/editor/components/trace-sidebar-section"
-import { TraceVisibilitySection } from "@/features/editor/components/trace-visibility-section"
 import type { OperationError } from "@/lib/api/operation-error"
 import { deleteMasterImageWithCascade } from "@/lib/api/project-images"
 import { displayTxToMm } from "@/lib/editor/trace/display-tx-to-mm"
@@ -526,24 +525,14 @@ export function ProjectDetailPageClient({
                 />
               }
               tracePanelContent={
-                <>
-                  <TraceSidebarSection
-                    trace={trace ? { kind: trace.kind } : null}
-                    isAddTraceDisabled={isAddTraceDisabled}
-                    isClearingTrace={isClearingTrace}
-                    isLoadingInitial={traceLoading}
-                    onClearTrace={handleClearTrace}
-                    onOpenSelection={openTraceSelection}
-                  />
-                  <TraceVisibilitySection
-                    traceOverlayVisible={traceOverlayVisible}
-                    previewBitmapVisible={previewBitmapVisible}
-                    numbersLayerVisible={numbersLayerVisible}
-                    onTraceOverlayChange={setTraceOverlayVisible}
-                    onPreviewBitmapChange={setPreviewBitmapVisible}
-                    onNumbersLayerChange={setNumbersLayerVisible}
-                  />
-                </>
+                <TraceSidebarSection
+                  trace={trace ? { kind: trace.kind } : null}
+                  isAddTraceDisabled={isAddTraceDisabled}
+                  isClearingTrace={isClearingTrace}
+                  isLoadingInitial={traceLoading}
+                  onClearTrace={handleClearTrace}
+                  onOpenSelection={openTraceSelection}
+                />
               }
               open={leftPanelOpen}
               onOpenChange={setLeftPanelOpen}
@@ -612,6 +601,13 @@ export function ProjectDetailPageClient({
             gridVisible={gridVisible}
             onGridVisibleChange={setGridVisible}
             canvasRef={canvasRef}
+            traceTabActive={leftPanelTab === "trace"}
+            traceOverlayVisible={traceOverlayVisible}
+            previewBitmapVisible={previewBitmapVisible}
+            numbersLayerVisible={numbersLayerVisible}
+            onTraceOverlayVisibleChange={setTraceOverlayVisible}
+            onPreviewBitmapVisibleChange={setPreviewBitmapVisible}
+            onNumbersLayerVisibleChange={setNumbersLayerVisible}
             open={rightPanelOpen}
             onOpenChange={setRightPanelOpen}
           />
