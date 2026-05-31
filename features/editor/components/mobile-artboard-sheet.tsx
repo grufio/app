@@ -11,11 +11,15 @@
  * Progressive disclosure (mirroring desktop):
  * - Page-Background + ArtboardPanel: always visible (artboard
  *   properties, never absent).
- * - Image-Section: an Upload-Image button when no master image
- *   exists, swaps to `ImagePanel` once uploaded. Delete in the
- *   ImagePanel reverts to the upload button.
- * - Grid-Section: an Add-Grid button when no grid exists, swaps to
+ * - Image-Section: a desktop-style nav-row (icon + label + `+`
+ *   action) when no master image exists, swaps to `ImagePanel` once
+ *   uploaded. Delete in the ImagePanel reverts to the row.
+ * - Grid-Section: the same nav-row pattern for Add-Grid; swaps to
  *   `GridPanel` once created. Delete-grid reverts back.
+ *
+ * The Add-rows reuse `AddImageMenuAction` + `SidebarMenuAction` from
+ * the desktop EditorNavTree — same visual primitives, same upload
+ * pipeline, no mobile-specific button variant.
  *
  * Render shape: an `absolute inset-0` overlay inside the editor
  * layout container. The layout's parent has `position: relative` so
@@ -25,17 +29,14 @@
  * mounted (portaled) underneath, so actions from inside the sheet
  * still open the existing dialogs cleanly.
  */
-import { useCallback, useState } from "react"
 import dynamic from "next/dynamic"
-import { Loader2, Plus, X } from "lucide-react"
-import { useDropzone } from "react-dropzone"
-import { toast } from "sonner"
+import { Grid3x3, ImageIcon, Plus, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { formatOperationErrorForToast, normalizeApiError } from "@/lib/api/error-normalizer"
-import { uploadMasterImageClient, type UploadedMasterSnapshot } from "@/lib/editor/upload-master-image"
+import { SidebarMenuAction } from "@/components/ui/sidebar"
+import type { UploadedMasterSnapshot } from "@/lib/editor/upload-master-image"
 
-import { EditorSidebarSection } from "./sidebar/editor-sidebar-section"
+import { AddImageMenuAction } from "./add-image-menu-button"
 import { PageBackgroundSection } from "./page-background-section"
 import type { ProjectCanvasStageHandle } from "./project-canvas-stage"
 import type { Unit } from "@/lib/editor/units"
@@ -55,74 +56,6 @@ const ImagePanel = dynamic(() => import("./image-panel").then((m) => m.ImagePane
   ssr: false,
   loading: () => null,
 })
-
-/**
- * Mobile-shaped upload control. Same upload pipeline as
- * `AddImageMenuAction` (dropzone + `uploadMasterImageClient` + toast),
- * but rendered as a full-width shadcn `<Button>` instead of a
- * sidebar-anchored icon action.
- */
-function MobileAddImageButton(props: {
-  projectId: string
-  onUploaded: (master: UploadedMasterSnapshot | null) => void | Promise<void>
-}) {
-  const { projectId, onUploaded } = props
-  const [isUploading, setIsUploading] = useState(false)
-  const uploadFile = useCallback(
-    async (file: File) => {
-      if (isUploading) return
-      setIsUploading(true)
-      try {
-        const out = await uploadMasterImageClient({ projectId, file })
-        if (!out.ok) {
-          const formatted = formatOperationErrorForToast(normalizeApiError(out.error))
-          toast.error(formatted.title, formatted.detail ? { description: formatted.detail } : undefined)
-          return
-        }
-        await onUploaded(out.master)
-      } catch (error) {
-        const formatted = formatOperationErrorForToast(normalizeApiError(error))
-        toast.error(formatted.title, formatted.detail ? { description: formatted.detail } : undefined)
-      } finally {
-        setIsUploading(false)
-      }
-    },
-    [isUploading, onUploaded, projectId],
-  )
-  const onDrop = useCallback(
-    (accepted: File[]) => {
-      const f = accepted[0]
-      if (!f) return
-      void uploadFile(f)
-    },
-    [uploadFile],
-  )
-  const { getInputProps, open } = useDropzone({
-    onDrop,
-    accept: { "image/*": [] },
-    multiple: false,
-    maxFiles: 1,
-    disabled: isUploading,
-    noClick: true,
-    noKeyboard: true,
-  })
-  return (
-    <>
-      <input data-testid="mobile-add-image-input" {...getInputProps()} />
-      <Button
-        type="button"
-        variant="outline"
-        className="w-full justify-start gap-2"
-        onClick={open}
-        disabled={isUploading}
-        aria-busy={isUploading}
-      >
-        {isUploading ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
-        {isUploading ? "Uploading…" : "Upload image"}
-      </Button>
-    </>
-  )
-}
 
 export function MobileArtboardSheet(props: {
   projectId: string
@@ -218,17 +151,17 @@ export function MobileArtboardSheet(props: {
         {hasGrid ? (
           <GridPanel gridVisible={gridVisible} onGridVisibleChange={onGridVisibleChange} />
         ) : (
-          <EditorSidebarSection title="Grid">
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full justify-start gap-2"
-              onClick={() => void onGridCreateRequested()}
-            >
-              <Plus className="size-4" />
-              Add grid
-            </Button>
-          </EditorSidebarSection>
+          /* Mirrors the desktop EditorNavTree row: text-xs label with
+           * an icon on the left, `+` action absolute-positioned top-right
+           * by SidebarMenuAction's default variant. No section header —
+           * desktop's nav-tree rows don't carry one either. */
+          <div className="relative flex items-center gap-2 border-b px-3 py-2 text-xs">
+            <Grid3x3 className="size-4 shrink-0" />
+            <span>Grid</span>
+            <SidebarMenuAction aria-label="Add Grid" onClick={() => void onGridCreateRequested()}>
+              <Plus />
+            </SidebarMenuAction>
+          </div>
         )}
         {hasMasterImage ? (
           <ImagePanel
@@ -250,9 +183,11 @@ export function MobileArtboardSheet(props: {
             onDelete={onRequestDelete}
           />
         ) : (
-          <EditorSidebarSection title="Image">
-            <MobileAddImageButton projectId={projectId} onUploaded={onImageUploaded} />
-          </EditorSidebarSection>
+          <div className="relative flex items-center gap-2 border-b px-3 py-2 text-xs">
+            <ImageIcon className="size-4 shrink-0" />
+            <span>Image</span>
+            <AddImageMenuAction projectId={projectId} onUploaded={onImageUploaded} />
+          </div>
         )}
       </div>
     </section>
