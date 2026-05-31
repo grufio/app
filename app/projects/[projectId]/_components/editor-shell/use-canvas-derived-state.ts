@@ -35,7 +35,7 @@ import {
   pickCanvasImage,
   type CanvasImage,
 } from "@/lib/editor/canvas-image-invariant"
-import { deriveDisplayLayers } from "@/lib/editor/display-layers"
+import { deriveDisplayLayers, type MobileSection } from "@/lib/editor/display-layers"
 import type { WorkflowSourceSnapshot } from "@/lib/editor/machines/image-workflow.types"
 
 export type { CanvasImage }
@@ -53,10 +53,12 @@ export function useCanvasDerivedState(input: {
   editorImageSource: WorkflowSourceSnapshot
   filterDisplayImage: DisplayImage | null
   filterDisplayImageWithoutTrace: DisplayImage | null
-  filterStackLength: number
-  /** True on `< md` viewports. On mobile both the trace overlay and
-   * the filter-chain canvas mode surface based on data presence
-   * instead of `leftPanelTab` — see `lib/editor/display-layers.ts`. */
+  /** Active mobile section driven by the bottom-nav. Ignored when
+   * `isMobile=false`. */
+  mobileSection: MobileSection
+  /** True on `< md` viewports. Switches the display-layer gating
+   * from `leftPanelTab` (desktop) to `mobileSection` (mobile) — see
+   * `lib/editor/display-layers.ts`. */
   isMobile: boolean
 }) {
   const {
@@ -64,7 +66,7 @@ export function useCanvasDerivedState(input: {
     editorImageSource,
     filterDisplayImage,
     filterDisplayImageWithoutTrace,
-    filterStackLength,
+    mobileSection,
     isMobile,
   } = input
 
@@ -87,7 +89,7 @@ export function useCanvasDerivedState(input: {
       deriveDisplayLayers({
         leftPanelTab,
         isMobile,
-        filterStackLength,
+        mobileSection,
         editorImageSourceReady: editorImageSource.status === "ready",
         filterDisplayImage,
         filterDisplayImageWithoutTrace,
@@ -95,7 +97,7 @@ export function useCanvasDerivedState(input: {
     [
       leftPanelTab,
       isMobile,
-      filterStackLength,
+      mobileSection,
       editorImageSource.status,
       filterDisplayImage,
       filterDisplayImageWithoutTrace,

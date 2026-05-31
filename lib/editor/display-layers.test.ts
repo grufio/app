@@ -5,18 +5,19 @@ import { deriveDisplayLayers } from "./display-layers"
 const rasterTip = { id: "raster-tip", signedUrl: "https://example.test/raster.png" }
 const traceArtefact = { id: "trace-svg", signedUrl: "https://example.test/trace.svg" }
 
-// Default input — desktop, image not ready, no filters, no real trace.
-// Each test overrides only what it cares about.
+// Default input — desktop, image ready, no real trace (IDs match).
+// Mobile section default `"artboard"`. Each test overrides only the
+// fields that matter for the assertion.
 const base = {
   leftPanelTab: "image",
   isMobile: false,
-  filterStackLength: 0,
+  mobileSection: "artboard" as const,
   editorImageSourceReady: true,
   filterDisplayImage: rasterTip,
   filterDisplayImageWithoutTrace: rasterTip,
 }
 
-describe("deriveDisplayLayers — trace overlay (invariant from #76 → #86 + #350)", () => {
+describe("deriveDisplayLayers — trace overlay (invariant from #76 → #86)", () => {
   it("returns null on the Image tab even when a trace exists", () => {
     const result = deriveDisplayLayers({
       ...base,
@@ -77,22 +78,57 @@ describe("deriveDisplayLayers — trace overlay (invariant from #76 → #86 + #3
     expect(result.traceOverlaySvgUrl).toBeNull()
   })
 
-  it("on mobile returns the trace url regardless of leftPanelTab", () => {
-    // Mobile has no tab UI; once a trace exists, the overlay surfaces.
+  it("returns null when both images are undefined", () => {
+    const result = deriveDisplayLayers({
+      ...base,
+      leftPanelTab: "trace",
+      filterDisplayImage: undefined,
+      filterDisplayImageWithoutTrace: undefined,
+    })
+    expect(result.traceOverlaySvgUrl).toBeNull()
+  })
+})
+
+describe("deriveDisplayLayers — mobile section gating mirrors desktop tab gating", () => {
+  it("mobile + section=trace + trace artefact → overlay URL surfaces (regardless of leftPanelTab)", () => {
     const result = deriveDisplayLayers({
       ...base,
       leftPanelTab: "image",
       isMobile: true,
+      mobileSection: "trace",
       filterDisplayImage: traceArtefact,
       filterDisplayImageWithoutTrace: rasterTip,
     })
     expect(result.traceOverlaySvgUrl).toBe(traceArtefact.signedUrl)
   })
 
-  it("on mobile still respects the data invariants (IDs must differ)", () => {
+  it("mobile + section=filter + trace artefact → overlay null (filter section never shows trace)", () => {
     const result = deriveDisplayLayers({
       ...base,
       isMobile: true,
+      mobileSection: "filter",
+      filterDisplayImage: traceArtefact,
+      filterDisplayImageWithoutTrace: rasterTip,
+    })
+    expect(result.traceOverlaySvgUrl).toBeNull()
+  })
+
+  it("mobile + section=artboard + trace artefact → overlay null (artboard section never shows trace)", () => {
+    const result = deriveDisplayLayers({
+      ...base,
+      isMobile: true,
+      mobileSection: "artboard",
+      filterDisplayImage: traceArtefact,
+      filterDisplayImageWithoutTrace: rasterTip,
+    })
+    expect(result.traceOverlaySvgUrl).toBeNull()
+  })
+
+  it("mobile + section=trace still respects data invariants (IDs must differ)", () => {
+    const result = deriveDisplayLayers({
+      ...base,
+      isMobile: true,
+      mobileSection: "trace",
       filterDisplayImage: rasterTip,
       filterDisplayImageWithoutTrace: rasterTip,
     })
@@ -100,7 +136,7 @@ describe("deriveDisplayLayers — trace overlay (invariant from #76 → #86 + #3
   })
 })
 
-describe("deriveDisplayLayers — showFilterChain (from #350)", () => {
+describe("deriveDisplayLayers — showFilterChain", () => {
   it("desktop Filter tab + image ready → showFilterChain is true", () => {
     const result = deriveDisplayLayers({
       ...base,
@@ -110,20 +146,18 @@ describe("deriveDisplayLayers — showFilterChain (from #350)", () => {
     expect(result.showFilterChain).toBe(true)
   })
 
-  it("desktop Image tab + image ready → showFilterChain is false", () => {
+  it("desktop Image tab → showFilterChain is false", () => {
     const result = deriveDisplayLayers({
       ...base,
       leftPanelTab: "image",
-      editorImageSourceReady: true,
     })
     expect(result.showFilterChain).toBe(false)
   })
 
-  it("desktop Trace tab + image ready → showFilterChain is false (trace overlays the master, doesn't replace it)", () => {
+  it("desktop Trace tab → showFilterChain is false (trace overlays, doesn't switch chain mode)", () => {
     const result = deriveDisplayLayers({
       ...base,
       leftPanelTab: "trace",
-      editorImageSourceReady: true,
     })
     expect(result.showFilterChain).toBe(false)
   })
@@ -137,31 +171,38 @@ describe("deriveDisplayLayers — showFilterChain (from #350)", () => {
     expect(result.showFilterChain).toBe(false)
   })
 
-  it("mobile + non-empty filter stack + image ready → showFilterChain is true", () => {
+  it("mobile + section=filter + image ready → showFilterChain is true", () => {
     const result = deriveDisplayLayers({
       ...base,
       isMobile: true,
-      filterStackLength: 1,
-      editorImageSourceReady: true,
+      mobileSection: "filter",
     })
     expect(result.showFilterChain).toBe(true)
   })
 
-  it("mobile + empty filter stack → showFilterChain is false (no filter to surface)", () => {
+  it("mobile + section=artboard → showFilterChain is false (artboard section never shows filter highlight)", () => {
     const result = deriveDisplayLayers({
       ...base,
       isMobile: true,
-      filterStackLength: 0,
-      editorImageSourceReady: true,
+      mobileSection: "artboard",
     })
     expect(result.showFilterChain).toBe(false)
   })
 
-  it("mobile + filters present but image not ready → showFilterChain is false", () => {
+  it("mobile + section=trace → showFilterChain is false (trace section doesn't switch chain mode)", () => {
     const result = deriveDisplayLayers({
       ...base,
       isMobile: true,
-      filterStackLength: 2,
+      mobileSection: "trace",
+    })
+    expect(result.showFilterChain).toBe(false)
+  })
+
+  it("mobile + section=filter + image not ready → showFilterChain is false", () => {
+    const result = deriveDisplayLayers({
+      ...base,
+      isMobile: true,
+      mobileSection: "filter",
       editorImageSourceReady: false,
     })
     expect(result.showFilterChain).toBe(false)

@@ -5,9 +5,9 @@
  * Subsumes the legacy `computeTraceOverlay` (load-bearing invariant
  * established by PR series #76 → #82 → #83 → #84 → #86) and the
  * `canvasMode` derivation that lived inline in
- * `ProjectEditorShell.client.tsx` (extended for mobile in #350).
+ * `ProjectEditorShell.client.tsx`.
  *
- * The load-bearing invariants (from #76 → #86 + #350):
+ * The load-bearing invariants:
  *
  *  1. Filter operates on raster. The raster filter chain tip
  *     (`filterDisplayImageWithoutTrace`) is the Konva.Image source.
@@ -17,18 +17,24 @@
  *     trace SVG mounts in inline DOM above Konva, not as a replacement
  *     Konva.Image. Underlying filter colors must show through.
  *
- *  3. Layer surfacing differs by surface:
- *      - **Desktop**: gated by the active left-panel tab. The user is
- *        on the Filter tab → show filter chain tip; on the Trace tab
- *        → show trace overlay on top. On the Image tab the canvas
- *        shows the raw master even when filters / traces exist.
- *      - **Mobile** (`isMobile=true`): no tab UI — gated by data
- *        presence. Once a filter exists, the canvas shows the chain
- *        tip; once a trace exists, the overlay surfaces. Applying
- *        the artefact IS the implicit request to see it.
+ *  3. Layer surfacing is **section-gated** — the same way on desktop
+ *     and on mobile, just different inputs name the active section:
+ *      - **Desktop**: `leftPanelTab` ("image" / "filter" / "trace").
+ *      - **Mobile** (`isMobile=true`): `mobileSection` ("artboard" /
+ *        "filter" / "trace"), driven by the bottom-nav. Mobile's
+ *        "artboard" section maps to desktop's "image" tab.
+ *
+ *     - Filter section → `showFilterChain` true (Filter sidebar
+ *       row-highlight switches on; canvas image source itself is
+ *       always the working copy, so the visible image is the same
+ *       in any section, but the filter UI accents differ).
+ *     - Trace section → `traceOverlaySvgUrl` returns the URL when a
+ *       real trace artefact exists.
+ *     - Image/Artboard section → no filter chain highlight, no trace
+ *       overlay. The user did not ask to see those there.
  *
  *  4. Data-presence invariants apply to both surfaces:
- *      - Filter chain tip needs `editorImageSourceReady`.
+ *      - Filter chain needs `editorImageSourceReady`.
  *      - Trace overlay needs both display images (with/without trace)
  *        AND their IDs must differ — otherwise no real trace artefact
  *        exists.
@@ -47,6 +53,8 @@ export type DisplayImage = {
   signedUrl: string
 }
 
+export type MobileSection = "artboard" | "filter" | "trace"
+
 export type DisplayLayers = {
   /** True when the canvas should source from the filter chain tip
    * (`canvasMode === "filter"` in shell terms) instead of the raw
@@ -59,7 +67,10 @@ export type DisplayLayers = {
 export function deriveDisplayLayers(input: {
   leftPanelTab: string
   isMobile: boolean
-  filterStackLength: number
+  /** The active section on mobile (driven by the bottom-nav). Ignored
+   * when `isMobile=false`. Mobile's "artboard" maps to desktop's
+   * "image" — no filter chain, no trace overlay. */
+  mobileSection: MobileSection
   editorImageSourceReady: boolean
   filterDisplayImage: DisplayImage | null | undefined
   filterDisplayImageWithoutTrace: DisplayImage | null | undefined
@@ -67,26 +78,30 @@ export function deriveDisplayLayers(input: {
   const {
     leftPanelTab,
     isMobile,
-    filterStackLength,
+    mobileSection,
     editorImageSourceReady,
     filterDisplayImage,
     filterDisplayImageWithoutTrace,
   } = input
 
-  // Filter chain — desktop signal: the Filter tab is active. Mobile
-  // signal: any filter exists. The image-ready gate stays universal.
-  const filterIntent =
-    leftPanelTab === "filter" || (isMobile && filterStackLength > 0)
-  const showFilterChain = filterIntent && editorImageSourceReady
+  // Section gating: desktop uses `leftPanelTab`, mobile uses
+  // `mobileSection`. Pick whichever drives the user-intent for this
+  // surface.
+  const filterSectionActive = isMobile
+    ? mobileSection === "filter"
+    : leftPanelTab === "filter"
+  const traceSectionActive = isMobile
+    ? mobileSection === "trace"
+    : leftPanelTab === "trace"
 
-  // Trace overlay — desktop signal: Trace tab is active. Mobile
-  // signal: a trace exists in the database (no tab UI to opt in).
-  // Data-presence gates (both images present + IDs differ) stay
-  // universal — without a real artefact there's nothing to overlay.
-  const traceIntent = isMobile || leftPanelTab === "trace"
+  // Filter chain — section + image-ready gate.
+  const showFilterChain = filterSectionActive && editorImageSourceReady
+
+  // Trace overlay — section + data-presence (both images present, IDs
+  // differ = real artefact exists).
   let traceOverlaySvgUrl: string | null = null
   if (
-    traceIntent &&
+    traceSectionActive &&
     filterDisplayImage &&
     filterDisplayImageWithoutTrace &&
     filterDisplayImage.id !== filterDisplayImageWithoutTrace.id
