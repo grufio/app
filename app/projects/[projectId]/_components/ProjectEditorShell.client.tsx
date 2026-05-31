@@ -24,6 +24,7 @@ import { FilterSidebarSection } from "@/features/editor/components/filter-sideba
 import { MobileArtboardSheet } from "@/features/editor/components/mobile-artboard-sheet"
 import { MobileBottomNav, type MobileNavSection } from "@/features/editor/components/mobile-bottom-nav"
 import { MobileFilterSheet } from "@/features/editor/components/mobile-filter-sheet"
+import { MobileTraceSheet } from "@/features/editor/components/mobile-trace-sheet"
 import { TraceSidebarSection } from "@/features/editor/components/trace-sidebar-section"
 import type { OperationError } from "@/lib/api/operation-error"
 import { deleteMasterImageWithCascade } from "@/lib/api/project-images"
@@ -116,12 +117,14 @@ export function ProjectDetailPageClient({
   const [gridVisible, setGridVisible] = useState(true)
   const [selectedNavId, setSelectedNavId] = useState<string>(buildNavId({ kind: "artboard" }))
   // Mobile-only: which bottom-nav section overlays the canvas. `null`
-  // = nothing on top, canvas + side panels visible. Artboard + Filter
-  // sheets are wired; Trace / Colors / Output remain stubs until their
-  // own PRs land.
-  const [mobileSheet, setMobileSheet] = useState<"artboard" | "filter" | null>(null)
+  // = nothing on top, canvas + side panels visible. Artboard, Filter
+  // and Trace sheets are wired; Colors / Output remain stubs until
+  // their own PRs land.
+  const [mobileSheet, setMobileSheet] = useState<"artboard" | "filter" | "trace" | null>(null)
   const handleMobileNavTap = useCallback((section: MobileNavSection) => {
-    if (section === "artboard" || section === "filter") setMobileSheet(section)
+    if (section === "artboard" || section === "filter" || section === "trace") {
+      setMobileSheet(section)
+    }
   }, [])
   const closeMobileSheet = useCallback(() => setMobileSheet(null), [])
   // Mobile-only drawer state for the side panels. On `md+` both panels
@@ -694,6 +697,23 @@ export function ProjectDetailPageClient({
             onToggleHidden={handleToggleHidden}
             onRemoveFilter={workflow.removeFilter}
             onOpenSelection={openFilterSelection}
+          />
+        ) : null}
+        {mobileSheet === "trace" ? (
+          <MobileTraceSheet
+            onClose={closeMobileSheet}
+            trace={trace ? { kind: trace.kind } : null}
+            isAddTraceDisabled={isAddTraceDisabled}
+            isClearingTrace={isClearingTrace}
+            isLoadingInitial={traceLoading}
+            onClearTrace={handleClearTrace}
+            onOpenSelection={openTraceSelection}
+            traceOverlayVisible={traceOverlayVisible}
+            previewBitmapVisible={previewBitmapVisible}
+            numbersLayerVisible={numbersLayerVisible}
+            onTraceOverlayChange={setTraceOverlayVisible}
+            onPreviewBitmapChange={setPreviewBitmapVisible}
+            onNumbersLayerChange={setNumbersLayerVisible}
           />
         ) : null}
       </ProjectEditorLayout>
