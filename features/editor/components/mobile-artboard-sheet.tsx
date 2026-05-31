@@ -76,6 +76,7 @@ export function MobileArtboardSheet(props: {
   gridVisible: boolean
   onGridVisibleChange: (v: boolean) => void
   onGridCreateRequested: () => void | Promise<void>
+  onGridDeleteRequested: () => void | Promise<void>
   // Image: hasMasterImage drives the swap between Upload-Button and ImagePanel
   hasMasterImage: boolean
   onImageUploaded: (master: UploadedMasterSnapshot | null) => void | Promise<void>
@@ -106,6 +107,7 @@ export function MobileArtboardSheet(props: {
     gridVisible,
     onGridVisibleChange,
     onGridCreateRequested,
+    onGridDeleteRequested,
     hasMasterImage,
     onImageUploaded,
     panelImageTxU,
@@ -149,7 +151,11 @@ export function MobileArtboardSheet(props: {
         />
         <ArtboardPanel canFitToImage={canFit} onFitToImage={onFitArtboardToImage} />
         {hasGrid ? (
-          <GridPanel gridVisible={gridVisible} onGridVisibleChange={onGridVisibleChange} />
+          <GridPanel
+            gridVisible={gridVisible}
+            onGridVisibleChange={onGridVisibleChange}
+            onDelete={onGridDeleteRequested}
+          />
         ) : (
           /* Mirrors the desktop EditorNavTree row: text-xs label with
            * an icon on the left, `+` action absolute-positioned top-right

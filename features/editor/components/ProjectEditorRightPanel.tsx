@@ -85,6 +85,10 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
   imagePanelReady: boolean
   gridVisible: boolean
   onGridVisibleChange: (v: boolean) => void
+  /** Optional — when provided, the GridPanel header surfaces a
+   * Trash icon button so the user can drop the grid without having
+   * to go back to the left nav-tree. */
+  onGridDeleteRequested?: () => void | Promise<void>
   canvasRef: React.RefObject<ProjectCanvasStageHandle | null>
   /** True when the left sidebar's Trace tab is active. The right
    * panel surfaces the trace-tab "Visibility" controls only in this
@@ -137,6 +141,7 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
     imagePanelReady,
     gridVisible,
     onGridVisibleChange,
+    onGridDeleteRequested,
     canvasRef,
     traceTabActive,
     traceOverlayVisible,
@@ -235,7 +240,11 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
               </>
             ) : null}
             {activeSection === "grid" ? (
-              <GridPanel gridVisible={gridVisible} onGridVisibleChange={onGridVisibleChange} />
+              <GridPanel
+                gridVisible={gridVisible}
+                onGridVisibleChange={onGridVisibleChange}
+                onDelete={onGridDeleteRequested}
+              />
             ) : null}
             {activeSection === "image" ? (
               <ImagePanel

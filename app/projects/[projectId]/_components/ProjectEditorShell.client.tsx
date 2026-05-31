@@ -611,6 +611,7 @@ export function ProjectDetailPageClient({
             imagePanelReady={imagePanelReady}
             gridVisible={gridVisible}
             onGridVisibleChange={setGridVisible}
+            onGridDeleteRequested={requestDeleteGrid}
             canvasRef={canvasRef}
             traceTabActive={leftPanelTab === "trace"}
             traceOverlayVisible={traceOverlayVisible}
@@ -657,6 +658,7 @@ export function ProjectDetailPageClient({
             onGridCreateRequested={async () => {
               await createGrid()
             }}
+            onGridDeleteRequested={requestDeleteGrid}
             hasMasterImage={Boolean(masterImage)}
             onImageUploaded={handleImageUploaded}
             panelImageTxU={panelImageTxU}
