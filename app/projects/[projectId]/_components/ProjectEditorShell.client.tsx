@@ -23,6 +23,7 @@ import { buildNavId } from "@/features/editor/navigation/nav-id"
 import { FilterSidebarSection } from "@/features/editor/components/filter-sidebar-section"
 import { MobileArtboardSheet } from "@/features/editor/components/mobile-artboard-sheet"
 import { MobileBottomNav, type MobileNavSection } from "@/features/editor/components/mobile-bottom-nav"
+import { MobileEditButton } from "@/features/editor/components/mobile-edit-button"
 import { MobileFilterSheet } from "@/features/editor/components/mobile-filter-sheet"
 import { MobileTraceSheet } from "@/features/editor/components/mobile-trace-sheet"
 import { TraceSidebarSection } from "@/features/editor/components/trace-sidebar-section"
@@ -121,17 +122,20 @@ export function ProjectDetailPageClient({
   const isMobile = useIsMobile()
   const [gridVisible, setGridVisible] = useState(true)
   const [selectedNavId, setSelectedNavId] = useState<string>(buildNavId({ kind: "artboard" }))
-  // Mobile-only: which bottom-nav section overlays the canvas. `null`
-  // = nothing on top, canvas + side panels visible. Artboard, Filter
-  // and Trace sheets are wired; Colors / Output remain stubs until
-  // their own PRs land.
-  const [mobileSheet, setMobileSheet] = useState<"artboard" | "filter" | "trace" | null>(null)
+  // Mobile-only: the bottom-nav picks the active section, the canvas
+  // surfaces section-specific layers (mirror desktop's `leftPanelTab`
+  // gating — see `deriveDisplayLayers`), and the floating Edit-icon
+  // opens that section's management sheet on demand. Artboard / Filter
+  // / Trace are wired; Colors / Output are stubs until their own PRs.
+  const [mobileSection, setMobileSection] = useState<"artboard" | "filter" | "trace">("artboard")
+  const [mobileEditOpen, setMobileEditOpen] = useState(false)
   const handleMobileNavTap = useCallback((section: MobileNavSection) => {
     if (section === "artboard" || section === "filter" || section === "trace") {
-      setMobileSheet(section)
+      setMobileSection(section)
     }
   }, [])
-  const closeMobileSheet = useCallback(() => setMobileSheet(null), [])
+  const openMobileEdit = useCallback(() => setMobileEditOpen(true), [])
+  const closeMobileEdit = useCallback(() => setMobileEditOpen(false), [])
   // Mobile-only drawer state for the side panels. On `md+` both panels
   // are always-on; this state is ignored there. The Sheet primitive on
   // mobile handles Escape, overlay-click and focus-trap natively — no
@@ -460,7 +464,7 @@ export function ProjectDetailPageClient({
     editorImageSource,
     filterDisplayImage,
     filterDisplayImageWithoutTrace,
-    filterStackLength: filterStack.length,
+    mobileSection,
     isMobile,
   })
   // canvasMode is now a pure projection of `showFilterChain` — the
@@ -651,10 +655,11 @@ export function ProjectDetailPageClient({
             onApplyTrace={handleApplyTrace}
           />
         </EditorErrorBoundary>
-        {mobileSheet === "artboard" ? (
+        <MobileEditButton onClick={openMobileEdit} ariaLabel={`Edit ${mobileSection}`} />
+        {mobileEditOpen && mobileSection === "artboard" ? (
           <MobileArtboardSheet
             projectId={projectId}
-            onClose={closeMobileSheet}
+            onClose={closeMobileEdit}
             pageBgEnabled={pageBgEnabled}
             pageBgColor={pageBgColor}
             pageBgOpacity={pageBgOpacity}
@@ -684,9 +689,9 @@ export function ProjectDetailPageClient({
             onRequestDelete={requestDeleteSelectedImage}
           />
         ) : null}
-        {mobileSheet === "filter" ? (
+        {mobileEditOpen && mobileSection === "filter" ? (
           <MobileFilterSheet
-            onClose={closeMobileSheet}
+            onClose={closeMobileEdit}
             filterStack={filterStack}
             canvasMode={canvasMode}
             hiddenFilterIds={hiddenFilterIds}
@@ -701,9 +706,9 @@ export function ProjectDetailPageClient({
             onOpenSelection={openFilterSelection}
           />
         ) : null}
-        {mobileSheet === "trace" ? (
+        {mobileEditOpen && mobileSection === "trace" ? (
           <MobileTraceSheet
-            onClose={closeMobileSheet}
+            onClose={closeMobileEdit}
             trace={trace ? { kind: trace.kind } : null}
             isAddTraceDisabled={isAddTraceDisabled}
             isClearingTrace={isClearingTrace}
@@ -719,7 +724,7 @@ export function ProjectDetailPageClient({
           />
         ) : null}
       </ProjectEditorLayout>
-      <MobileBottomNav onSectionTap={handleMobileNavTap} />
+      <MobileBottomNav activeSection={mobileSection} onSectionTap={handleMobileNavTap} />
     </div>
   )
 }
