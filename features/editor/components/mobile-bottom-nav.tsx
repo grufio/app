@@ -62,8 +62,18 @@ export function MobileBottomNav(props: {
    * = no section is active (e.g. user is on Home). */
   activeSection?: MobileNavSection | null
   onSectionTap?: (section: MobileNavSection) => void
+  /** Surfaces a red dot on the Artboard icon — the Artboard section
+   * owns the master image, so an image-lock surfaces there on mobile. */
+  imageLocked?: boolean
+  /** Surfaces a red dot on the Filter icon. */
+  filterLocked?: boolean
 }) {
-  const { activeSection = null, onSectionTap } = props
+  const { activeSection = null, onSectionTap, imageLocked = false, filterLocked = false } = props
+  const dotForKey = (key: NavItem["key"]): boolean => {
+    if (key === "artboard") return imageLocked
+    if (key === "filter") return filterLocked
+    return false
+  }
   return (
     <nav
       aria-label="Editor sections"
@@ -72,6 +82,7 @@ export function MobileBottomNav(props: {
       <ul className="flex items-center justify-around py-2">
         {ITEMS.map(({ key, label, Icon }) => {
           const isActive = key !== "home" && key === activeSection
+          const showDot = dotForKey(key)
           return (
             <li key={key}>
               {key === "home" ? (
@@ -85,12 +96,18 @@ export function MobileBottomNav(props: {
                   type="button"
                   variant="ghost"
                   size="icon"
-                  aria-label={label}
+                  aria-label={showDot ? `${label} (locked)` : label}
                   aria-pressed={isActive}
                   onClick={() => onSectionTap?.(key)}
-                  className={cn(isActive && "bg-accent text-accent-foreground")}
+                  className={cn("relative", isActive && "bg-accent text-accent-foreground")}
                 >
                   <Icon aria-hidden="true" className="size-6" />
+                  {showDot ? (
+                    <span
+                      aria-hidden="true"
+                      className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-destructive"
+                    />
+                  ) : null}
                 </Button>
               )}
             </li>

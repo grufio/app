@@ -146,6 +146,56 @@ anchor** for `project_image_state` is the working_copy (PR #257).
 | **Trace** | trace section (`TraceSidebarSection`) | `project_image_trace`, `project_image_state` at working_copy.id | `project_image_trace` (single row), `project_images(kind='trace_output'/'trace_base')` — `project_image_state` is **not** mutated (non-destructive) | working_copy / filter-tip raster + inline-SVG overlay, positioned at `project_image_state` for working_copy.id |
 | Colors / Output | — | — | — | removed 2026-05-11 (PR #89) |
 
+### Section locks
+
+Each layer derives from the previous one (Master → Filter → Trace).
+Editing a layer that has a downstream artefact silently invalidates
+the artefact — the filter's input or the trace's input changed
+underneath it. The editor protects this with a **derived** lock on
+the upstream section: data presence drives the state, no DB column
+is involved (the unused `project_images.is_locked` column predates
+this and is not touched).
+
+The derivation is a pure function in
+[lib/editor/section-locks.ts](../../lib/editor/section-locks.ts).
+The table the function implements:
+
+| State                        | imageLocked | imageToggleable | filterLocked | filterToggleable |
+|------------------------------|-------------|-----------------|--------------|------------------|
+| Only Master                  | false       | —               | false        | —                |
+| + Filter                     | true        | true            | false        | —                |
+| + Filter + Trace             | true        | true            | true         | true             |
+| Only Trace (no Filter)       | true        | true            | true         | **false**        |
+
+The "trace-only" row is the asymmetric one: there is no filter to
+keep editable, so the Filter section locks without an unlock
+affordance. The only path forward is dropping the trace from its
+own section (which has no upstream dependency and is always
+editable).
+
+**Surfaces:**
+
+- Desktop nav-tree (`LockNavTreeActions`): Lock-icon next to the
+  image row's Trash; clicking opens the unlock confirm dialog.
+- Filter section (`FilterSidebarSection`): amber banner above the
+  list plus disabled Add / Hide / Remove actions while locked.
+- Image panel (`ImagePanel`): banner above the size/position/
+  alignment inputs; `useImagePanelEnabled({ locked })` is the
+  single disable point.
+- Mobile bottom-nav: red dot on the Artboard (image-lock) and
+  Filter icons. Tap still opens the sheet so the banner is
+  reachable.
+
+**Unlock cascade order** (in `ProjectEditorShell.client.tsx`):
+trace first (single `clearProjectTrace` call), then filters
+top-down via repeated `removeProjectImageFilter`. Top-down is the
+cheap order — each removal leaves `after = []` in
+`filter-variants.ts` and skips the chain-rebuild that a
+from-the-middle remove would trigger.
+
+Tests: [lib/editor/section-locks.test.ts](../../lib/editor/section-locks.test.ts)
+covers the four rows. UI is verified manually.
+
 ### Invariants (do not regress)
 
 - **State is anchored at `working_copy.id`.** The API route resolves
@@ -195,6 +245,11 @@ anchor** for `project_image_state` is the working_copy (PR #257).
   trace-free display IDs.** Otherwise the overlay either shows the
   wrong thing (on Filter/Image tab) or shows nothing useful (when
   there is no real trace artefact).
+- **Layer-edit protection is derived, not stored.** A section is
+  locked iff downstream data exists; the lock disappears the moment
+  the downstream is gone (no DB write needed). Never reintroduce an
+  `is_locked` column or a server-side lock toggle — the derivation
+  is the source of truth. See "Section locks" above.
 
 ### State machine
 

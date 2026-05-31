@@ -18,17 +18,22 @@
 export type ImagePanelEnabledArgs = {
   hasMasterImage: boolean
   workspaceReady: boolean
+  /** Section-lock from `deriveSectionLocks`. Locked = filter/trace
+   * depend on the master; editing the master would silently
+   * invalidate them. */
+  locked?: boolean
 }
 
 export type ImagePanelEnabledResult = {
   enabled: boolean
   /** When disabled, a short human-readable reason. */
-  reason?: "no-image" | "workspace-not-ready"
+  reason?: "no-image" | "workspace-not-ready" | "locked"
 }
 
 export function computeImagePanelEnabled(args: ImagePanelEnabledArgs): ImagePanelEnabledResult {
   if (!args.hasMasterImage) return { enabled: false, reason: "no-image" }
   if (!args.workspaceReady) return { enabled: false, reason: "workspace-not-ready" }
+  if (args.locked) return { enabled: false, reason: "locked" }
   return { enabled: true }
 }
 

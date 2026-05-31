@@ -36,6 +36,14 @@ export function MobileFilterSheet(props: {
   isActiveDisplayFilterHidden: boolean
   isRemovingFilter: boolean
   isLoadingInitial?: boolean
+  /** Section-lock for the filter list — passed through to the inner
+   * `FilterSidebarSection`. */
+  lock?: {
+    message: string
+    toggleable: boolean
+    busy?: boolean
+    onUnlock?: () => void
+  } | null
   onSelectFilter: (filterId: string) => void
   onToggleHidden: (filterId: string) => void
   onRemoveFilter: (filterId: string) => void
@@ -51,6 +59,7 @@ export function MobileFilterSheet(props: {
     isActiveDisplayFilterHidden,
     isRemovingFilter,
     isLoadingInitial,
+    lock,
     onSelectFilter,
     onToggleHidden,
     onRemoveFilter,
@@ -86,6 +95,7 @@ export function MobileFilterSheet(props: {
             isActiveDisplayFilterHidden={isActiveDisplayFilterHidden}
             isRemovingFilter={isRemovingFilter}
             isLoadingInitial={isLoadingInitial}
+            lock={lock ?? null}
             onSelectFilter={onSelectFilter}
             onToggleHidden={onToggleHidden}
             onRemoveFilter={onRemoveFilter}
