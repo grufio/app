@@ -65,7 +65,7 @@ export function FilterSelectionController({
         <DialogContent variant="fullscreen">
           <DialogHeader className="shrink-0 border-b p-4 pr-12">
             <DialogTitle>Filter</DialogTitle>
-            <DialogDescription>Select a card.</DialogDescription>
+            <DialogDescription>Pick a black-and-white preset.</DialogDescription>
           </DialogHeader>
           <div className="min-h-0 flex-1 overflow-y-auto p-4">
             <FilterTypeCards
@@ -88,7 +88,7 @@ export function FilterSelectionController({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Filter</DialogTitle>
-            <DialogDescription>Select a card.</DialogDescription>
+            <DialogDescription>Pick a black-and-white preset.</DialogDescription>
           </DialogHeader>
           <FilterTypeCards items={items} selectedId={selectedCardId} onSelect={setSelectedCardId} />
           <DialogFooter>
