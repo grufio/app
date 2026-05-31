@@ -15,7 +15,7 @@
  * is enough dedup for this panel.
  */
 import { useCallback } from "react"
-import { ArrowLeftRight, ArrowUpDown, Eye, EyeOff, Percent } from "lucide-react"
+import { ArrowLeftRight, ArrowUpDown, Eye, EyeOff, Percent, Trash2 } from "lucide-react"
 
 import { PanelIconSlot, PanelTwoFieldRow } from "./panel-layout"
 import { EditorSidebarSection } from "./sidebar/editor-sidebar-section"
@@ -28,9 +28,15 @@ import { fmt2 } from "@/lib/editor/units"
 export function GridPanel({
   gridVisible,
   onGridVisibleChange,
+  onDelete,
 }: {
   gridVisible: boolean
   onGridVisibleChange: (v: boolean) => void
+  /** Optional — when provided, a Trash icon button shows in the
+   * section header alongside the visibility toggle. Mirrors the
+   * delete affordance the ImagePanel has and the left nav-tree's
+   * "Delete Grid" action. */
+  onDelete?: () => void | Promise<void>
 }) {
   const { row, loading, saving, error, upsertGrid } = useProjectGrid()
   const { unit: workspaceUnit } = useProjectWorkspace()
@@ -88,20 +94,34 @@ export function GridPanel({
     <EditorSidebarSection
       title="Grid"
       headerActions={
-        <AppButton
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-pressed={!gridVisible}
-          aria-label={gridVisible ? "Hide grid" : "Show grid"}
-          disabled={loading || !row}
-          className={cn(
-            !gridVisible && "bg-black text-white hover:bg-black/90 hover:text-white"
-          )}
-          onClick={() => onGridVisibleChange(!gridVisible)}
-        >
-          {gridVisible ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
-        </AppButton>
+        <>
+          <AppButton
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-pressed={!gridVisible}
+            aria-label={gridVisible ? "Hide grid" : "Show grid"}
+            disabled={loading || !row}
+            className={cn(
+              !gridVisible && "bg-black text-white hover:bg-black/90 hover:text-white"
+            )}
+            onClick={() => onGridVisibleChange(!gridVisible)}
+          >
+            {gridVisible ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
+          </AppButton>
+          {onDelete ? (
+            <AppButton
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label="Delete grid"
+              disabled={loading || !row}
+              onClick={() => void onDelete()}
+            >
+              <Trash2 className="size-4" />
+            </AppButton>
+          ) : null}
+        </>
       }
     >
       {!row && !loading && error ? (
