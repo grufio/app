@@ -327,19 +327,6 @@ export function ProjectDetailPageClient({
     deleteGrid,
   })
 
-  const canvasMode = useMemo<"image" | "filter">(() => {
-    // Filter mode shows the chain tip instead of the raw master.
-    // Desktop signal: the user is on the Filter tab. Mobile signal:
-    // any filter exists in the stack — mobile has no tab UI, so the
-    // act of applying a filter is the implicit request to see it.
-    // Once the user removes / hides all filters, the chain tip equals
-    // the master visually, so the canvasMode value is moot.
-    const filterActive =
-      leftPanelTab === "filter" || (isMobile && filterStack.length > 0)
-    if (filterActive && editorImageSource.status === "ready") return "filter"
-    return "image"
-  }, [editorImageSource.status, filterStack.length, isMobile, leftPanelTab])
-
   const { toolbar, stageToolbar, applyCropSelection } = useStageInteractionPolicy({
     canvasRef,
     leftPanelTab,
@@ -468,13 +455,19 @@ export function ProjectDetailPageClient({
   // Master is an immutable restore source (`guard_master_immutable`),
   // never the canvas-rendered image — see use-canvas-derived-state.ts
   // for the rationale. Tabs differ only in overlays.
-  const { canvasImage, traceOverlaySvgUrl } = useCanvasDerivedState({
+  const { canvasImage, traceOverlaySvgUrl, showFilterChain } = useCanvasDerivedState({
     leftPanelTab,
     editorImageSource,
     filterDisplayImage,
     filterDisplayImageWithoutTrace,
+    filterStackLength: filterStack.length,
     isMobile,
   })
+  // canvasMode is now a pure projection of `showFilterChain` — the
+  // tab-vs-mobile-vs-image-ready logic lives in `deriveDisplayLayers`.
+  // Kept as a string union because FilterSidebarSection + MobileFilterSheet
+  // already destructure `canvasMode === "filter"`.
+  const canvasMode: "image" | "filter" = showFilterChain ? "filter" : "image"
 
   // The trace's own frozen display rect (µpx, stage 2). The overlay
   // renders its SIZE/ASPECT from this rect — decoupled from the live
