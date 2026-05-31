@@ -89,3 +89,54 @@ describe("pickCanvasImage — invariant: canvas source is always the working-cop
     ).toBe(workingCopy.id)
   })
 })
+
+describe("pickCanvasImage — Image / Artboard section override (raw master)", () => {
+  const masterUrl = "https://example.test/master.png"
+
+  it("swaps the visible URL to the master while keeping the working-copy ID + dims", () => {
+    // Image / Artboard section shows the raw image visually but keeps
+    // canvas-source-ID aligned with the working-copy so load / save
+    // continue to target the right row — see invariant doc.
+    const result = pickCanvasImage({
+      filterDisplayImageWithoutTrace: workingCopy,
+      stageImage: null,
+      showRawMaster: true,
+      masterSignedUrl: masterUrl,
+    })
+    expect(result?.id).toBe(workingCopy.id)
+    expect(result?.signedUrl).toBe(masterUrl)
+    expect(result?.width_px).toBe(workingCopy.width_px)
+    expect(result?.height_px).toBe(workingCopy.height_px)
+  })
+
+  it("falls back to the working-copy URL when showRawMaster is true but master URL is missing", () => {
+    const result = pickCanvasImage({
+      filterDisplayImageWithoutTrace: workingCopy,
+      stageImage: null,
+      showRawMaster: true,
+      masterSignedUrl: null,
+    })
+    expect(result?.signedUrl).toBe(workingCopy.signedUrl)
+  })
+
+  it("keeps the working-copy URL when showRawMaster is false (Filter / Trace sections)", () => {
+    const result = pickCanvasImage({
+      filterDisplayImageWithoutTrace: workingCopy,
+      stageImage: null,
+      showRawMaster: false,
+      masterSignedUrl: masterUrl,
+    })
+    expect(result?.signedUrl).toBe(workingCopy.signedUrl)
+  })
+
+  it("returns null when no working-copy / stage source exists, even with showRawMaster set", () => {
+    expect(
+      pickCanvasImage({
+        filterDisplayImageWithoutTrace: null,
+        stageImage: null,
+        showRawMaster: true,
+        masterSignedUrl: masterUrl,
+      }),
+    ).toBeNull()
+  })
+})
