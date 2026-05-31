@@ -1,32 +1,30 @@
 "use client"
 
 /**
- * Canvas display state derived from the editor source + active tab.
+ * Canvas display state derived from the editor source + active section.
  *
  * Three values fall out of the same set of inputs and belong together:
  *
- *  - `canvasImage` — the Konva.Image source. **Always the working-
- *    copy** (`filterDisplayImageWithoutTrace`), with `stageImage`
- *    fallback while the working copy is still loading. The master
- *    image is never the canvas source; the master is an immutable
- *    restore source. The decision is delegated to `pickCanvasImage`
- *    in `lib/editor/canvas-image-invariant.ts` so the invariant
- *    lives in one place and stays testable without rendering React.
+ *  - `canvasImage` — the Konva.Image source. Working-copy base (with
+ *    `stageImage` fallback while it loads). On Image / Artboard section
+ *    the visible `signedUrl` is swapped to the master URL so the user
+ *    sees the raw image (filter / trace are not surfaced in that
+ *    section); ID + dims stay on the working copy to preserve the
+ *    canvas-source-ID-equals-workflow-source-ID invariant — see
+ *    `lib/editor/canvas-image-invariant.ts`.
  *
  *  - `traceOverlaySvgUrl` and `showFilterChain` — both derived via
- *    `deriveDisplayLayers` in `lib/editor/display-layers.ts`. That
- *    file owns the load-bearing invariant from PR series #76 → #86
- *    plus the mobile branch from #350, and its tests pin the
- *    behavior. Trace SVG overlays via `TraceInlineSvg` at the
- *    working_copy's display rect; `showFilterChain` flips canvasMode
- *    between "image" (raw master) and "filter" (chain tip).
+ *    `deriveDisplayLayers` in `lib/editor/display-layers.ts`. Trace
+ *    SVG overlays via `TraceInlineSvg` at the working_copy's display
+ *    rect; `showFilterChain` toggles `canvasMode` (filter-row
+ *    highlighting; canvasImage source itself is selected here).
  *
- * The three desktop tabs differ only in their overlays, not in the
- * canvas source. The trace_base bitmap is Python-service data for
- * cell-color sampling — it lives in `project_images` for completeness
- * but is NOT rendered on the canvas (would otherwise drag the canvas
- * to its source-crop pixel intrinsic, which doesn't match the
- * working_copy's display state).
+ * Section semantics (desktop `leftPanelTab` / mobile `mobileSection`):
+ *  - Image / Artboard → raw master visible, no filter row highlight,
+ *    no trace overlay
+ *  - Filter → working copy (chain tip) visible, filter row highlight
+ *    active, no trace overlay
+ *  - Trace → working copy visible, trace overlay on top
  */
 import { useMemo } from "react"
 
@@ -56,10 +54,14 @@ export function useCanvasDerivedState(input: {
   /** Active mobile section driven by the bottom-nav. Ignored when
    * `isMobile=false`. */
   mobileSection: MobileSection
-  /** True on `< md` viewports. Switches the display-layer gating
-   * from `leftPanelTab` (desktop) to `mobileSection` (mobile) — see
-   * `lib/editor/display-layers.ts`. */
+  /** True on `< md` viewports. Switches the display-layer gating and
+   * the canvas-image section override from `leftPanelTab` (desktop)
+   * to `mobileSection` (mobile). */
   isMobile: boolean
+  /** Master image signed URL — surfaced as the canvas image on the
+   * Image / Artboard section so the user sees the raw upload, not
+   * the filter chain tip. Null when no master is uploaded yet. */
+  masterSignedUrl: string | null
 }) {
   const {
     leftPanelTab,
@@ -68,6 +70,7 @@ export function useCanvasDerivedState(input: {
     filterDisplayImageWithoutTrace,
     mobileSection,
     isMobile,
+    masterSignedUrl,
   } = input
 
   const stageImage = useMemo<CanvasImage | null>(
@@ -104,13 +107,23 @@ export function useCanvasDerivedState(input: {
     ],
   )
 
+  // Image / Artboard section surfaces the raw master URL — desktop
+  // uses `leftPanelTab === "image"`, mobile uses
+  // `mobileSection === "artboard"`. ID + dimensions stay on the
+  // working copy regardless (persistence invariant).
+  const showRawMaster = isMobile
+    ? mobileSection === "artboard"
+    : leftPanelTab === "image"
+
   const canvasImage = useMemo<CanvasImage | null>(
     () =>
       pickCanvasImage({
         filterDisplayImageWithoutTrace,
         stageImage,
+        showRawMaster,
+        masterSignedUrl,
       }),
-    [filterDisplayImageWithoutTrace, stageImage],
+    [filterDisplayImageWithoutTrace, stageImage, showRawMaster, masterSignedUrl],
   )
 
   return {

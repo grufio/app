@@ -466,6 +466,7 @@ export function ProjectDetailPageClient({
     filterDisplayImageWithoutTrace,
     mobileSection,
     isMobile,
+    masterSignedUrl: masterImage?.signedUrl ?? null,
   })
   // canvasMode is now a pure projection of `showFilterChain` — the
   // tab-vs-mobile-vs-image-ready logic lives in `deriveDisplayLayers`.
