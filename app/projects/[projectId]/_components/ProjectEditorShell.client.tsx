@@ -44,6 +44,7 @@ import { useEditorSessionState } from "@/lib/editor/hooks/use-editor-session-sta
 import { usePageBackgroundState } from "@/lib/editor/hooks/use-page-background-state"
 import { useProjectGrid } from "@/lib/editor/project-grid"
 import { useProjectWorkspace } from "@/lib/editor/project-workspace"
+import { useIsMobile } from "@/lib/ui/use-mobile"
 import { reportError } from "@/lib/monitoring/error-reporting"
 import type { ImageState } from "@/lib/editor/imageState"
 import type { MasterImage } from "@/lib/editor/hooks/use-master-image"
@@ -114,6 +115,10 @@ export function ProjectDetailPageClient({
   } = useEditorSessionState()
   const { restoreOpen, deleteOpen, leftPanelTab, hiddenFilterIds, traceOverlayVisible, previewBitmapVisible, numbersLayerVisible } = sessionState
   const { setRestoreOpen, setDeleteOpen, setLeftPanelTab, showFilter, hideFilter, toggleHiddenFilter, pruneHiddenFilters, setTraceOverlayVisible, setPreviewBitmapVisible, setNumbersLayerVisible } = sessionActions
+  // Single mobile-viewport check. Drives the canvas-view gates: on
+  // `< md` there's no tab UI, so canvasMode + trace-overlay surface
+  // their results based on data presence rather than `leftPanelTab`.
+  const isMobile = useIsMobile()
   const [gridVisible, setGridVisible] = useState(true)
   const [selectedNavId, setSelectedNavId] = useState<string>(buildNavId({ kind: "artboard" }))
   // Mobile-only: which bottom-nav section overlays the canvas. `null`
@@ -323,14 +328,17 @@ export function ProjectDetailPageClient({
   })
 
   const canvasMode = useMemo<"image" | "filter">(() => {
-    // Filter mode kicks in whenever the user is interacting with the
-    // filter UI — desktop via the left-sidebar tab, mobile via the
-    // bottom-nav full-screen sheet. Either signal flips the canvas to
-    // show the filter chain tip instead of the raw master image.
-    const filterActive = leftPanelTab === "filter" || mobileSheet === "filter"
+    // Filter mode shows the chain tip instead of the raw master.
+    // Desktop signal: the user is on the Filter tab. Mobile signal:
+    // any filter exists in the stack — mobile has no tab UI, so the
+    // act of applying a filter is the implicit request to see it.
+    // Once the user removes / hides all filters, the chain tip equals
+    // the master visually, so the canvasMode value is moot.
+    const filterActive =
+      leftPanelTab === "filter" || (isMobile && filterStack.length > 0)
     if (filterActive && editorImageSource.status === "ready") return "filter"
     return "image"
-  }, [editorImageSource.status, leftPanelTab, mobileSheet])
+  }, [editorImageSource.status, filterStack.length, isMobile, leftPanelTab])
 
   const { toolbar, stageToolbar, applyCropSelection } = useStageInteractionPolicy({
     canvasRef,
@@ -465,6 +473,7 @@ export function ProjectDetailPageClient({
     editorImageSource,
     filterDisplayImage,
     filterDisplayImageWithoutTrace,
+    isMobile,
   })
 
   // The trace's own frozen display rect (µpx, stage 2). The overlay
