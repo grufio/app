@@ -23,6 +23,7 @@ import { buildNavId } from "@/features/editor/navigation/nav-id"
 import { FilterSidebarSection } from "@/features/editor/components/filter-sidebar-section"
 import { MobileArtboardSheet } from "@/features/editor/components/mobile-artboard-sheet"
 import { MobileBottomNav, type MobileNavSection } from "@/features/editor/components/mobile-bottom-nav"
+import { MobileFilterSheet } from "@/features/editor/components/mobile-filter-sheet"
 import { TraceSidebarSection } from "@/features/editor/components/trace-sidebar-section"
 import type { OperationError } from "@/lib/api/operation-error"
 import { deleteMasterImageWithCascade } from "@/lib/api/project-images"
@@ -115,12 +116,12 @@ export function ProjectDetailPageClient({
   const [gridVisible, setGridVisible] = useState(true)
   const [selectedNavId, setSelectedNavId] = useState<string>(buildNavId({ kind: "artboard" }))
   // Mobile-only: which bottom-nav section overlays the canvas. `null`
-  // = nothing on top, canvas + side panels visible. Only the Artboard
-  // sheet is wired today; other section taps no-op until their own
-  // PRs land.
-  const [mobileSheet, setMobileSheet] = useState<"artboard" | null>(null)
+  // = nothing on top, canvas + side panels visible. Artboard + Filter
+  // sheets are wired; Trace / Colors / Output remain stubs until their
+  // own PRs land.
+  const [mobileSheet, setMobileSheet] = useState<"artboard" | "filter" | null>(null)
   const handleMobileNavTap = useCallback((section: MobileNavSection) => {
-    if (section === "artboard") setMobileSheet("artboard")
+    if (section === "artboard" || section === "filter") setMobileSheet(section)
   }, [])
   const closeMobileSheet = useCallback(() => setMobileSheet(null), [])
   // Mobile-only drawer state for the side panels. On `md+` both panels
@@ -319,9 +320,14 @@ export function ProjectDetailPageClient({
   })
 
   const canvasMode = useMemo<"image" | "filter">(() => {
-    if (leftPanelTab === "filter" && editorImageSource.status === "ready") return "filter"
+    // Filter mode kicks in whenever the user is interacting with the
+    // filter UI — desktop via the left-sidebar tab, mobile via the
+    // bottom-nav full-screen sheet. Either signal flips the canvas to
+    // show the filter chain tip instead of the raw master image.
+    const filterActive = leftPanelTab === "filter" || mobileSheet === "filter"
+    if (filterActive && editorImageSource.status === "ready") return "filter"
     return "image"
-  }, [editorImageSource.status, leftPanelTab])
+  }, [editorImageSource.status, leftPanelTab, mobileSheet])
 
   const { toolbar, stageToolbar, applyCropSelection } = useStageInteractionPolicy({
     canvasRef,
@@ -671,6 +677,23 @@ export function ProjectDetailPageClient({
             canvasRef={canvasRef}
             onRequestRestore={() => setRestoreOpen(true)}
             onRequestDelete={requestDeleteSelectedImage}
+          />
+        ) : null}
+        {mobileSheet === "filter" ? (
+          <MobileFilterSheet
+            onClose={closeMobileSheet}
+            filterStack={filterStack}
+            canvasMode={canvasMode}
+            hiddenFilterIds={hiddenFilterIds}
+            isAddFilterDisabled={isAddFilterDisabled}
+            activeDisplayFilterId={activeDisplayFilterId}
+            isActiveDisplayFilterHidden={isActiveDisplayFilterHidden}
+            isRemovingFilter={workflow.isRemovingFilter}
+            isLoadingInitial={filterImageLoading && !filterImageLoadedOnce}
+            onSelectFilter={showFilter}
+            onToggleHidden={handleToggleHidden}
+            onRemoveFilter={workflow.removeFilter}
+            onOpenSelection={openFilterSelection}
           />
         ) : null}
       </ProjectEditorLayout>
