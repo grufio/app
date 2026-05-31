@@ -52,12 +52,17 @@ export function useCanvasDerivedState(input: {
   editorImageSource: WorkflowSourceSnapshot
   filterDisplayImage: DisplayImage | null
   filterDisplayImageWithoutTrace: DisplayImage | null
+  /** True on `< md` viewports. On mobile the trace overlay surfaces
+   * once a trace exists, regardless of leftPanelTab — see
+   * `lib/editor/trace-overlay-invariant.ts`. */
+  isMobile: boolean
 }) {
   const {
     leftPanelTab,
     editorImageSource,
     filterDisplayImage,
     filterDisplayImageWithoutTrace,
+    isMobile,
   } = input
 
   const stageImage = useMemo<CanvasImage | null>(
@@ -79,8 +84,9 @@ export function useCanvasDerivedState(input: {
         leftPanelTab,
         filterDisplayImage,
         filterDisplayImageWithoutTrace,
+        isMobile,
       }),
-    [leftPanelTab, filterDisplayImage, filterDisplayImageWithoutTrace],
+    [leftPanelTab, filterDisplayImage, filterDisplayImageWithoutTrace, isMobile],
   )
 
   const canvasImage = useMemo<CanvasImage | null>(

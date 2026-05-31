@@ -75,4 +75,29 @@ describe("computeTraceOverlay — invariant from PR series #76 → #86", () => {
       }),
     ).toBeNull()
   })
+
+  it("on mobile returns the trace url regardless of leftPanelTab", () => {
+    // Mobile has no tab UI; once a trace exists, the overlay surfaces.
+    expect(
+      computeTraceOverlay({
+        leftPanelTab: "image",
+        filterDisplayImage: traceArtefact,
+        filterDisplayImageWithoutTrace: rasterTip,
+        isMobile: true,
+      }),
+    ).toBe(traceArtefact.signedUrl)
+  })
+
+  it("on mobile still respects the data invariants (IDs must differ)", () => {
+    // The user-intent gate is dropped on mobile, but the data-presence
+    // gate stays — without a real trace artefact the overlay is off.
+    expect(
+      computeTraceOverlay({
+        leftPanelTab: "image",
+        filterDisplayImage: rasterTip,
+        filterDisplayImageWithoutTrace: rasterTip,
+        isMobile: true,
+      }),
+    ).toBeNull()
+  })
 })
