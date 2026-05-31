@@ -101,6 +101,14 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
   onTraceOverlayVisibleChange: (v: boolean) => void
   onPreviewBitmapVisibleChange: (v: boolean) => void
   onNumbersLayerVisibleChange: (v: boolean) => void
+  /** Section-lock for the Image panel — passed through to the inner
+   * `ImagePanel`. Banner + disabled inputs when set. */
+  imageLock?: {
+    message: string
+    toggleable: boolean
+    busy?: boolean
+    onUnlock?: () => void
+  } | null
   /** Mobile drawer state. Ignored on `md+` where the panel is
    * always rendered as a static sidebar. */
   open?: boolean
@@ -150,6 +158,7 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
     onTraceOverlayVisibleChange,
     onPreviewBitmapVisibleChange,
     onNumbersLayerVisibleChange,
+    imageLock,
     open = true,
     onOpenChange,
   } = props
@@ -160,6 +169,7 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
   const imagePanelEnabled = useImagePanelEnabled({
     hasMasterImage: Boolean(masterImage),
     workspaceReady,
+    locked: Boolean(imageLock),
   })
 
   const { updateWorkspaceGeometry, unit: workspaceUnitLive } = useProjectWorkspace()
@@ -255,6 +265,7 @@ export const ProjectEditorRightPanel = React.memo(function ProjectEditorRightPan
                 unit={workspaceUnit}
                 ready={imagePanelReady}
                 disabled={!imagePanelEnabled.enabled}
+                lock={imageLock ?? null}
                 onCommit={(w, h) => canvasRef.current?.setImageSize(w, h)}
                 onCommitPosition={(opts) => canvasRef.current?.setImagePosition(opts)}
                 onAlign={(opts) => canvasRef.current?.alignImage(opts)}

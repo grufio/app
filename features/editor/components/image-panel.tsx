@@ -28,6 +28,7 @@ import { ImageAlignmentControls } from "./image-panel/image-alignment-controls"
 import { ImagePositionInputs } from "./image-panel/image-position-inputs"
 import { ImageSizeInputs } from "./image-panel/image-size-inputs"
 import { RightPanelIconButton } from "./right-panel-controls"
+import { SectionLockBanner } from "./section-lock-banner"
 
 type Props = {
   widthPxU?: bigint
@@ -41,6 +42,15 @@ type Props = {
    */
   ready?: boolean
   disabled?: boolean
+  /** Section-lock derived from downstream-data presence. When set,
+   * the panel surfaces a banner explaining the lock and offering
+   * cascade-unlock; inputs are also held disabled via `disabled`. */
+  lock?: {
+    message: string
+    toggleable: boolean
+    busy?: boolean
+    onUnlock?: () => void
+  } | null
   onCommit: (widthPxU: bigint, heightPxU: bigint) => void
   onCommitPosition: (opts: { xPxU?: bigint; yPxU?: bigint }) => void
   onAlign: (opts: { x?: "left" | "center" | "right"; y?: "top" | "center" | "bottom" }) => void
@@ -67,6 +77,7 @@ export function ImagePanel({
   unit,
   ready = true,
   disabled,
+  lock,
   onCommit,
   onCommitPosition,
   onAlign,
@@ -112,6 +123,14 @@ export function ImagePanel({
       }
     >
       <div className="space-y-4">
+        {lock ? (
+          <SectionLockBanner
+            message={lock.message}
+            toggleable={lock.toggleable}
+            busy={lock.busy}
+            onUnlock={lock.onUnlock}
+          />
+        ) : null}
         <ImageSizeInputs
           widthPxU={widthPxU}
           heightPxU={heightPxU}

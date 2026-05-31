@@ -31,8 +31,11 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
    * this exactly — null when no master has been uploaded yet. */
   masterImage: EditorNavMasterImage | null
   hasGrid: boolean
+  imageLocked: boolean
+  imageLockToggleable: boolean
   onImageUploaded: (master: UploadedMasterSnapshot | null) => void | Promise<void>
   onImageDeleteRequested: (imageId: string) => void | Promise<void>
+  onImageUnlockRequested: () => void
   onGridCreateRequested: () => void | Promise<void>
   onGridDeleteRequested: () => void | Promise<void>
   activeTab: SidepanelTab
@@ -56,8 +59,11 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
     onSelect,
     masterImage,
     hasGrid,
+    imageLocked,
+    imageLockToggleable,
     onImageUploaded,
     onImageDeleteRequested,
+    onImageUnlockRequested,
     onGridCreateRequested,
     onGridDeleteRequested,
     activeTab,
@@ -100,8 +106,11 @@ export const ProjectEditorLeftPanel = React.memo(function ProjectEditorLeftPanel
               onSelect={onSelect}
               masterImage={masterImage}
               hasGrid={hasGrid}
+              imageLocked={imageLocked}
+              imageLockToggleable={imageLockToggleable}
               onImageUploaded={onImageUploaded}
               onImageDeleteRequested={onImageDeleteRequested}
+              onImageUnlockRequested={onImageUnlockRequested}
               onGridCreateRequested={onGridCreateRequested}
               onGridDeleteRequested={onGridDeleteRequested}
             />

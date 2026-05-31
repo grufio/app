@@ -29,8 +29,15 @@ export function EditorNavTree(props: {
    * trace outputs) are implementation details and never surface here. */
   masterImage: EditorNavMasterImage | null
   hasGrid: boolean
+  /** True when the Image section is locked because filters/trace
+   * depend on the master. Drives the lock-icon state. */
+  imageLocked: boolean
+  /** True when the lock can be released. False is the no-downstream
+   * case (irrelevant for Image, kept symmetric with the lock derivation). */
+  imageLockToggleable: boolean
   onImageUploaded: (master: UploadedMasterSnapshot | null) => void | Promise<void>
   onImageDeleteRequested: (imageId: string) => void | Promise<void>
+  onImageUnlockRequested: () => void
   onGridCreateRequested: () => void | Promise<void>
   onGridDeleteRequested: () => void | Promise<void>
 }) {
@@ -40,8 +47,11 @@ export function EditorNavTree(props: {
     onSelect,
     masterImage,
     hasGrid,
+    imageLocked,
+    imageLockToggleable,
     onImageUploaded,
     onImageDeleteRequested,
+    onImageUnlockRequested,
     onGridCreateRequested,
     onGridDeleteRequested,
   } = props
@@ -95,7 +105,10 @@ export function EditorNavTree(props: {
             <LockNavTreeActions
               imageId={masterImage.id}
               canDelete={true}
+              locked={imageLocked}
+              lockToggleable={imageLockToggleable}
               onDeleteRequest={handleDeleteImage}
+              onUnlockRequest={onImageUnlockRequested}
               onActionError={setActionError}
             />
           </SidebarMenuItem>

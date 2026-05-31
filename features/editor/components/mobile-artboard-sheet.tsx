@@ -84,6 +84,14 @@ export function MobileArtboardSheet(props: {
   workspaceUnit: Unit
   imagePanelReady: boolean
   imagePanelEnabled: boolean
+  /** Section-lock for the Image panel — passed straight through to
+   * the inner `ImagePanel`. Null on desktop or when not locked. */
+  imageLock?: {
+    message: string
+    toggleable: boolean
+    busy?: boolean
+    onUnlock?: () => void
+  } | null
   masterImageLoading: boolean
   deleteBusy: boolean
   restoreBusy: boolean
@@ -114,6 +122,7 @@ export function MobileArtboardSheet(props: {
     workspaceUnit,
     imagePanelReady,
     imagePanelEnabled,
+    imageLock,
     masterImageLoading,
     deleteBusy,
     restoreBusy,
@@ -178,6 +187,7 @@ export function MobileArtboardSheet(props: {
             unit={workspaceUnit}
             ready={imagePanelReady}
             disabled={!imagePanelEnabled}
+            lock={imageLock ?? null}
             onCommit={(w, h) => canvasRef.current?.setImageSize(w, h)}
             onCommitPosition={(opts) => canvasRef.current?.setImagePosition(opts)}
             onAlign={(opts) => canvasRef.current?.alignImage(opts)}

@@ -20,6 +20,7 @@ import {
   type ProjectCanvasStageHandle,
 } from "@/features/editor"
 import { buildNavId } from "@/features/editor/navigation/nav-id"
+import { deriveSectionLocks } from "@/lib/editor/section-locks"
 import { FilterSidebarSection } from "@/features/editor/components/filter-sidebar-section"
 import { MobileArtboardSheet } from "@/features/editor/components/mobile-artboard-sheet"
 import { MobileBottomNav, type MobileNavSection } from "@/features/editor/components/mobile-bottom-nav"
@@ -28,7 +29,16 @@ import { MobileFilterSheet } from "@/features/editor/components/mobile-filter-sh
 import { MobileTraceSheet } from "@/features/editor/components/mobile-trace-sheet"
 import { TraceSidebarSection } from "@/features/editor/components/trace-sidebar-section"
 import type { OperationError } from "@/lib/api/operation-error"
-import { deleteMasterImageWithCascade } from "@/lib/api/project-images"
+import { deleteMasterImageWithCascade, removeProjectImageFilter } from "@/lib/api/project-images"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { AppButton } from "@/components/ui/form-controls"
 import { displayTxToMm } from "@/lib/editor/trace/display-tx-to-mm"
 import { useDisplaySize } from "@/lib/editor/hooks/use-display-size"
 import { useDedupingErrorToast } from "@/lib/editor/hooks/use-deduping-error-toast"
@@ -500,6 +510,142 @@ export function ProjectDetailPageClient({
 
   const handleTitleUpdated = useCallback((nextTitle: string) => setProject({ id: projectId, name: nextTitle }), [projectId, setProject])
 
+  // Section locks. The Image section is locked while *any* downstream
+  // artefact (filter / trace) derives from the master; the Filter
+  // section is locked while a trace derives from the filter chain. The
+  // derivation is pure (see `lib/editor/section-locks.ts`); the actual
+  // cascade-delete behind an unlock is wired below.
+  const hasFilter = filterStack.length > 0
+  const hasTrace = Boolean(trace)
+  const sectionLocks = useMemo(
+    () => deriveSectionLocks({ hasFilter, hasTrace }),
+    [hasFilter, hasTrace],
+  )
+  const [unlockRequest, setUnlockRequest] = useState<
+    | null
+    | {
+        scope: "image" | "filter"
+        title: string
+        message: string
+      }
+  >(null)
+  const [unlockBusy, setUnlockBusy] = useState(false)
+  const [unlockError, setUnlockError] = useState<string | null>(null)
+
+  const imageUnlockMessage = useMemo(() => {
+    const parts: string[] = []
+    if (hasFilter) {
+      parts.push(`${filterStack.length} filter${filterStack.length === 1 ? "" : "s"}`)
+    }
+    if (hasTrace) parts.push("the trace overlay")
+    return `Unlocking will permanently delete ${parts.join(" and ")}.`
+  }, [hasFilter, hasTrace, filterStack.length])
+
+  const filterUnlockMessage = "Unlocking will permanently delete the trace overlay."
+
+  const imageLockBannerMessage = useMemo(() => {
+    if (hasFilter && hasTrace) {
+      return "Locked: filters and a trace depend on this image. Unlock removes them."
+    }
+    if (hasFilter) {
+      return "Locked: a filter depends on this image. Unlock removes the filter."
+    }
+    if (hasTrace) {
+      return "Locked: a trace depends on this image. Unlock removes the trace."
+    }
+    return ""
+  }, [hasFilter, hasTrace])
+
+  const filterLockBannerMessage = sectionLocks.filterToggleable
+    ? "Locked: a trace depends on the filter chain. Unlock removes the trace."
+    : "Locked: a trace exists. Remove it from the Trace section to edit filters."
+
+  const requestImageUnlock = useCallback(() => {
+    if (!sectionLocks.imageToggleable) return
+    setUnlockError(null)
+    setUnlockRequest({
+      scope: "image",
+      title: "Unlock image?",
+      message: imageUnlockMessage,
+    })
+  }, [sectionLocks.imageToggleable, imageUnlockMessage])
+
+  const requestFilterUnlock = useCallback(() => {
+    if (!sectionLocks.filterToggleable) return
+    setUnlockError(null)
+    setUnlockRequest({
+      scope: "filter",
+      title: "Unlock filters?",
+      message: filterUnlockMessage,
+    })
+  }, [sectionLocks.filterToggleable, filterUnlockMessage])
+
+  const cancelUnlock = useCallback(() => {
+    if (unlockBusy) return
+    setUnlockRequest(null)
+    setUnlockError(null)
+  }, [unlockBusy])
+
+  // Snapshot at confirm-time so a mid-flight refresh that mutates the
+  // arrays underneath us doesn't change what we delete.
+  const confirmUnlock = useCallback(async () => {
+    if (!unlockRequest || unlockBusy) return
+    setUnlockBusy(true)
+    setUnlockError(null)
+    const scope = unlockRequest.scope
+    const traceToDrop = hasTrace
+    const filterIdsTopDown = scope === "image" ? [...filterStack].map((f) => f.id).reverse() : []
+    try {
+      if (traceToDrop) {
+        await handleClearTrace()
+      }
+      // Top-down filter removal — each call leaves `after = []` and
+      // skips the chain rebuild that a from-the-middle remove would
+      // trigger.
+      for (const filterId of filterIdsTopDown) {
+        await removeProjectImageFilter({ projectId, filterId })
+      }
+      // Trace was already refreshed by handleClearTrace; filters were
+      // not — pull a fresh empty chain so derivations (lock state,
+      // filterStack, working image) settle in one render.
+      if (filterIdsTopDown.length > 0) {
+        await Promise.allSettled([refreshFilterImage(), refreshProjectImages()])
+      }
+      setUnlockRequest(null)
+    } catch (err) {
+      setUnlockError(err instanceof Error ? err.message : "Unlock failed")
+    } finally {
+      setUnlockBusy(false)
+    }
+  }, [
+    unlockRequest,
+    unlockBusy,
+    hasTrace,
+    filterStack,
+    handleClearTrace,
+    projectId,
+    refreshFilterImage,
+    refreshProjectImages,
+  ])
+
+  const imageLock = sectionLocks.imageLocked
+    ? {
+        message: imageLockBannerMessage,
+        toggleable: sectionLocks.imageToggleable,
+        busy: unlockBusy && unlockRequest?.scope === "image",
+        onUnlock: requestImageUnlock,
+      }
+    : null
+
+  const filterLock = sectionLocks.filterLocked
+    ? {
+        message: filterLockBannerMessage,
+        toggleable: sectionLocks.filterToggleable,
+        busy: unlockBusy && unlockRequest?.scope === "filter",
+        onUnlock: requestFilterUnlock,
+      }
+    : null
+
   return (
     <div className="flex min-h-svh w-full flex-col">
       <ProjectEditorHeader
@@ -531,8 +677,11 @@ export function ProjectDetailPageClient({
                   : null
               }
               hasGrid={hasGrid}
+              imageLocked={sectionLocks.imageLocked}
+              imageLockToggleable={sectionLocks.imageToggleable}
               onImageUploaded={handleImageUploaded}
               onImageDeleteRequested={requestDeleteImage}
+              onImageUnlockRequested={requestImageUnlock}
               onGridCreateRequested={requestCreateGrid}
               onGridDeleteRequested={requestDeleteGrid}
               filterPanelContent={
@@ -545,6 +694,7 @@ export function ProjectDetailPageClient({
                   isActiveDisplayFilterHidden={isActiveDisplayFilterHidden}
                   isRemovingFilter={workflow.isRemovingFilter}
                   isLoadingInitial={filterImageLoading && !filterImageLoadedOnce}
+                  lock={filterLock}
                   onSelectFilter={showFilter}
                   onToggleHidden={handleToggleHidden}
                   onRemoveFilter={workflow.removeFilter}
@@ -636,6 +786,7 @@ export function ProjectDetailPageClient({
             onTraceOverlayVisibleChange={setTraceOverlayVisible}
             onPreviewBitmapVisibleChange={setPreviewBitmapVisible}
             onNumbersLayerVisibleChange={setNumbersLayerVisible}
+            imageLock={imageLock}
             open={rightPanelOpen}
             onOpenChange={setRightPanelOpen}
           />
@@ -690,7 +841,8 @@ export function ProjectDetailPageClient({
             panelImageTxU={panelImageTxU}
             workspaceUnit={workspaceUnit ?? "cm"}
             imagePanelReady={imagePanelReady}
-            imagePanelEnabled={Boolean(masterImage) && workspaceReady}
+            imagePanelEnabled={Boolean(masterImage) && workspaceReady && !sectionLocks.imageLocked}
+            imageLock={imageLock}
             masterImageLoading={masterImageLoading}
             deleteBusy={deleteBusy}
             restoreBusy={workflow.isRestoring}
@@ -710,6 +862,7 @@ export function ProjectDetailPageClient({
             isActiveDisplayFilterHidden={isActiveDisplayFilterHidden}
             isRemovingFilter={workflow.isRemovingFilter}
             isLoadingInitial={filterImageLoading && !filterImageLoadedOnce}
+            lock={filterLock}
             onSelectFilter={showFilter}
             onToggleHidden={handleToggleHidden}
             onRemoveFilter={workflow.removeFilter}
@@ -734,7 +887,30 @@ export function ProjectDetailPageClient({
           />
         ) : null}
       </ProjectEditorLayout>
-      <MobileBottomNav activeSection={mobileSection} onSectionTap={handleMobileNavTap} />
+      <MobileBottomNav
+        activeSection={mobileSection}
+        onSectionTap={handleMobileNavTap}
+        imageLocked={sectionLocks.imageLocked}
+        filterLocked={sectionLocks.filterLocked}
+      />
+
+      <Dialog open={unlockRequest !== null} onOpenChange={(o) => (!o ? cancelUnlock() : null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{unlockRequest?.title ?? "Unlock?"}</DialogTitle>
+            <DialogDescription>{unlockRequest?.message ?? ""}</DialogDescription>
+          </DialogHeader>
+          {unlockError ? <div role="alert" className="text-sm text-destructive">{unlockError}</div> : null}
+          <DialogFooter>
+            <AppButton type="button" variant="outline" onClick={cancelUnlock} disabled={unlockBusy}>
+              Cancel
+            </AppButton>
+            <AppButton type="button" variant="destructive" onClick={confirmUnlock} disabled={unlockBusy}>
+              {unlockBusy ? "Unlocking…" : "Unlock"}
+            </AppButton>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
