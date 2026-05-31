@@ -3,7 +3,7 @@
 /**
  * Canvas display state derived from the editor source + active tab.
  *
- * Two values fall out of the same set of inputs and belong together:
+ * Three values fall out of the same set of inputs and belong together:
  *
  *  - `canvasImage` — the Konva.Image source. **Always the working-
  *    copy** (`filterDisplayImageWithoutTrace`), with `stageImage`
@@ -13,29 +13,30 @@
  *    in `lib/editor/canvas-image-invariant.ts` so the invariant
  *    lives in one place and stays testable without rendering React.
  *
- *  - `traceOverlaySvgUrl` — see
- *    `lib/editor/trace-overlay-invariant.ts` for the invariant
- *    locked down by PR series #76 → #86. The Trace tab adds this
- *    overlay on top of the working-copy raster; the Image and Filter
- *    tabs leave it off.
+ *  - `traceOverlaySvgUrl` and `showFilterChain` — both derived via
+ *    `deriveDisplayLayers` in `lib/editor/display-layers.ts`. That
+ *    file owns the load-bearing invariant from PR series #76 → #86
+ *    plus the mobile branch from #350, and its tests pin the
+ *    behavior. Trace SVG overlays via `TraceInlineSvg` at the
+ *    working_copy's display rect; `showFilterChain` flips canvasMode
+ *    between "image" (raw master) and "filter" (chain tip).
  *
- * The three tabs differ only in their overlays, not in the canvas
- * source. The trace_base bitmap is Python-service data for cell-color
- * sampling — it lives in `project_images` for completeness but is NOT
- * rendered on the canvas (would otherwise drag the canvas to its
- * source-crop pixel intrinsic, which doesn't match the working_copy's
- * display state). The trace SVG overlays via `TraceInlineSvg` at the
- * working_copy's display rect.
+ * The three desktop tabs differ only in their overlays, not in the
+ * canvas source. The trace_base bitmap is Python-service data for
+ * cell-color sampling — it lives in `project_images` for completeness
+ * but is NOT rendered on the canvas (would otherwise drag the canvas
+ * to its source-crop pixel intrinsic, which doesn't match the
+ * working_copy's display state).
  */
 import { useMemo } from "react"
 
-import type { WorkflowSourceSnapshot } from "@/lib/editor/machines/image-workflow.types"
 import {
   deriveStageImage,
   pickCanvasImage,
   type CanvasImage,
 } from "@/lib/editor/canvas-image-invariant"
-import { computeTraceOverlay } from "@/lib/editor/trace-overlay-invariant"
+import { deriveDisplayLayers } from "@/lib/editor/display-layers"
+import type { WorkflowSourceSnapshot } from "@/lib/editor/machines/image-workflow.types"
 
 export type { CanvasImage }
 
@@ -52,9 +53,10 @@ export function useCanvasDerivedState(input: {
   editorImageSource: WorkflowSourceSnapshot
   filterDisplayImage: DisplayImage | null
   filterDisplayImageWithoutTrace: DisplayImage | null
-  /** True on `< md` viewports. On mobile the trace overlay surfaces
-   * once a trace exists, regardless of leftPanelTab — see
-   * `lib/editor/trace-overlay-invariant.ts`. */
+  filterStackLength: number
+  /** True on `< md` viewports. On mobile both the trace overlay and
+   * the filter-chain canvas mode surface based on data presence
+   * instead of `leftPanelTab` — see `lib/editor/display-layers.ts`. */
   isMobile: boolean
 }) {
   const {
@@ -62,6 +64,7 @@ export function useCanvasDerivedState(input: {
     editorImageSource,
     filterDisplayImage,
     filterDisplayImageWithoutTrace,
+    filterStackLength,
     isMobile,
   } = input
 
@@ -74,19 +77,29 @@ export function useCanvasDerivedState(input: {
     [editorImageSource],
   )
 
-  // Trace overlay gating is the invariant established by PR series
-  // #76 → #82 → #83 → #84 → #86 — see `lib/editor/trace-overlay-invariant.ts`
-  // for the full rationale and the dedicated tests. The memo wraps a
-  // pure helper so the invariant lives in one place and stays testable.
-  const traceOverlaySvgUrl = useMemo(
+  // Both layer-visibility outputs share one memo — the inputs overlap
+  // heavily and the pure function returns both at once. The slight
+  // over-recompute (e.g. filterStackLength change re-runs the trace
+  // branch too) is acceptable for two output fields; revisit if we
+  // ever profile a hotspot here.
+  const displayLayers = useMemo(
     () =>
-      computeTraceOverlay({
+      deriveDisplayLayers({
         leftPanelTab,
+        isMobile,
+        filterStackLength,
+        editorImageSourceReady: editorImageSource.status === "ready",
         filterDisplayImage,
         filterDisplayImageWithoutTrace,
-        isMobile,
       }),
-    [leftPanelTab, filterDisplayImage, filterDisplayImageWithoutTrace, isMobile],
+    [
+      leftPanelTab,
+      isMobile,
+      filterStackLength,
+      editorImageSource.status,
+      filterDisplayImage,
+      filterDisplayImageWithoutTrace,
+    ],
   )
 
   const canvasImage = useMemo<CanvasImage | null>(
@@ -98,5 +111,10 @@ export function useCanvasDerivedState(input: {
     [filterDisplayImageWithoutTrace, stageImage],
   )
 
-  return { stageImage, canvasImage, traceOverlaySvgUrl }
+  return {
+    stageImage,
+    canvasImage,
+    traceOverlaySvgUrl: displayLayers.traceOverlaySvgUrl,
+    showFilterChain: displayLayers.showFilterChain,
+  }
 }
