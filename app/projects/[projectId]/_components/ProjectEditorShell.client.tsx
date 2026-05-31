@@ -642,7 +642,13 @@ export function ProjectDetailPageClient({
             selectionOpen={filterDialog.selectionOpen}
             filterDialogSource={filterDialogSource}
             onCloseSelection={filterDialog.closeSelection}
-            onApplyFilter={handleApplyFilter}
+            onApplyFilter={async (op) => {
+              await handleApplyFilter(op)
+              // Mobile: also close the management sheet so the user
+              // lands back on the canvas with the new filter visible.
+              // Desktop: no-op because mobileEditOpen is never set.
+              setMobileEditOpen(false)
+            }}
           />
           <EditorTraceDialogHost
             selectionOpen={traceDialog.selectionOpen}
@@ -651,7 +657,10 @@ export function ProjectDetailPageClient({
             onCloseSelection={traceDialog.closeSelection}
             onSelectKind={traceDialog.selectKind}
             onCloseConfigure={traceDialog.closeConfigure}
-            onApplied={traceDialog.reset}
+            onApplied={() => {
+              traceDialog.reset()
+              setMobileEditOpen(false)
+            }}
             onApplyTrace={handleApplyTrace}
           />
         </EditorErrorBoundary>
