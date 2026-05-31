@@ -8,13 +8,16 @@ import { ProjectTitleEditor } from "./project-title-editor"
  * Header for the project editor page.
  *
  * Features:
+ * - Desktop-only (`hidden md:flex`). On `< md` the header is gone
+ *   entirely — Home navigation lives in the mobile bottom-nav, and
+ *   the left/right panel toggles aren't needed because mobile uses
+ *   the bottom-nav + Artboard sheet instead of side drawers.
  * - Back link to the dashboard
  * - Header stays minimal; editor tabs live in the left sidebar
- * - Mobile-only toggles (PanelLeft / PanelRight icons) for the side
- *   panels. On `< md` both panels are hidden by default and slide in
- *   as Radix-Sheet drawers when their respective toggle fires.
- * - Left-panel toggle sits LEFT of the back arrow; right-panel toggle
- *   sits on the right edge.
+ * - Mobile-only toggles (PanelLeft / PanelRight icons) here are
+ *   functionally dead on mobile post-#337/#339 (no left panel, no
+ *   right-panel drawer trigger surface) but kept as the desktop API
+ *   surface for future desktop-collapsible behaviour.
  */
 export function ProjectEditorHeader(props: {
   projectId: string
@@ -26,7 +29,7 @@ export function ProjectEditorHeader(props: {
   onToggleRightPanel?: () => void
 }) {
   return (
-    <header className="flex shrink-0 items-center py-1 transition-[width,height] ease-linear">
+    <header className="hidden shrink-0 items-center py-1 transition-[width,height] ease-linear md:flex">
       <div className="flex flex-1 items-center gap-2 px-4">
         {props.onToggleLeftPanel ? (
           <button
