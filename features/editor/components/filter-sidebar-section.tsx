@@ -8,7 +8,7 @@ import { FILTER_REGISTRY } from "@/lib/editor/filters/registry"
 import { EditorSidebarSection } from "@/features/editor/components/sidebar/editor-sidebar-section"
 
 import { isFilterRowActive } from "./filter-sidebar-section/is-filter-row-active"
-import { SectionLockBanner } from "./section-lock-banner"
+import { SectionLockToggle } from "./section-lock-toggle"
 
 function getFilterLabel(filterType: string): string {
   return (FILTER_REGISTRY as Record<string, { label: string } | undefined>)[filterType]?.label ?? "Filter"
@@ -25,7 +25,8 @@ export function FilterSidebarSection(props: {
   /** True while the filter chain is being fetched for the first time. */
   isLoadingInitial?: boolean
   /** Section-lock derived from downstream (trace) presence. When set,
-   * Add / Hide / Remove are disabled and a banner offers unlock. */
+   * Add / Hide / Remove are disabled, the section renders the amber
+   * tone, and a header lock-toggle icon offers unlock. */
   lock?: {
     message: string
     toggleable: boolean
@@ -77,15 +78,11 @@ export function FilterSidebarSection(props: {
   }
 
   return (
-    <EditorSidebarSection title="Filter">
-      {lock ? (
-        <SectionLockBanner
-          message={lock.message}
-          toggleable={lock.toggleable}
-          busy={lock.busy}
-          onUnlock={lock.onUnlock}
-        />
-      ) : null}
+    <EditorSidebarSection
+      title="Filter"
+      locked={locked}
+      headerActions={lock ? <SectionLockToggle lock={lock} /> : null}
+    >
       <SidebarMenu>
         {filterStack.map((filter) => (
           <SidebarMenuItem key={filter.id}>

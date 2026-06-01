@@ -28,7 +28,7 @@ import { ImageAlignmentControls } from "./image-panel/image-alignment-controls"
 import { ImagePositionInputs } from "./image-panel/image-position-inputs"
 import { ImageSizeInputs } from "./image-panel/image-size-inputs"
 import { RightPanelIconButton } from "./right-panel-controls"
-import { SectionLockBanner } from "./section-lock-banner"
+import { SectionLockToggle } from "./section-lock-toggle"
 
 type Props = {
   widthPxU?: bigint
@@ -43,8 +43,10 @@ type Props = {
   ready?: boolean
   disabled?: boolean
   /** Section-lock derived from downstream-data presence. When set,
-   * the panel surfaces a banner explaining the lock and offering
-   * cascade-unlock; inputs are also held disabled via `disabled`. */
+   * the panel renders the amber section tone and surfaces a header
+   * lock-toggle icon; inputs are also held disabled via the
+   * `disabled` prop (the shell ORs the lock state into it via
+   * `useImagePanelEnabled`). */
   lock?: {
     message: string
     toggleable: boolean
@@ -93,6 +95,7 @@ export function ImagePanel({
   return (
     <EditorSidebarSection
       title="Image"
+      locked={lock != null}
       headerActions={
         <>
           <RightPanelIconButton
@@ -111,6 +114,7 @@ export function ImagePanel({
           >
             <Maximize2 className="size-4" />
           </RightPanelIconButton>
+          <SectionLockToggle lock={lock ?? null} />
           <RightPanelIconButton
             type="button"
             aria-label="Delete image"
@@ -123,14 +127,6 @@ export function ImagePanel({
       }
     >
       <div className="space-y-4">
-        {lock ? (
-          <SectionLockBanner
-            message={lock.message}
-            toggleable={lock.toggleable}
-            busy={lock.busy}
-            onUnlock={lock.onUnlock}
-          />
-        ) : null}
         <ImageSizeInputs
           widthPxU={widthPxU}
           heightPxU={heightPxU}
