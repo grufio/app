@@ -8,7 +8,7 @@
  *
  * NOTE: In this first step, it preserves existing Image tab behavior.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 
 import {
   EditorErrorBoundary,
@@ -147,6 +147,22 @@ export function ProjectDetailPageClient({
   }, [])
   const openMobileEdit = useCallback(() => setMobileEditOpen(true), [])
   const closeMobileEdit = useCallback(() => setMobileEditOpen(false), [])
+  // Mobile management sheet (Artboard / Filter / Trace) is gated on
+  // `mobileEditOpen && mobileSection === "X"`. With a single shared
+  // boolean, switching sections while a sheet was open would render
+  // the new section's sheet immediately ("dialog stays open" from the
+  // user's POV — the content swapped, the openness inherited). Reset
+  // it whenever `mobileSection` changes, regardless of who flipped
+  // it (tap, programmatic apply handler, future deep-link). Same
+  // architectural rule as the dialog hooks: section-scoped state
+  // resets on section change, no shell-side wrapping of setters.
+  // useLayoutEffect (not useEffect) so the reset commits BEFORE the
+  // browser paints — otherwise the new section's sheet flashes for
+  // one frame between section-change and effect-fire.
+  useLayoutEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMobileEditOpen(false)
+  }, [mobileSection])
   // Mobile-only drawer state for the side panels. On `md+` both panels
   // are always-on; this state is ignored there. The Sheet primitive on
   // mobile handles Escape, overlay-click and focus-trap natively — no

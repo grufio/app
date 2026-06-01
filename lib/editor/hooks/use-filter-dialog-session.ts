@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useReducer, useState } from "react"
+import { useCallback, useLayoutEffect, useMemo, useReducer, useState } from "react"
 
 import {
   filterDialogReducer,
@@ -27,7 +27,10 @@ export function useFilterDialogSession(
   const [state, dispatch] = useReducer(filterDialogReducer, initialFilterDialogState)
   const [error, setError] = useState("")
 
-  useEffect(() => {
+  // useLayoutEffect (not useEffect) for the same reason as the trace
+  // twin — synchronous reset before paint, no one-frame flash of the
+  // configure modal on the new section.
+  useLayoutEffect(() => {
     if (surfaceActive) return
     // Mirror of `useTraceDialogSession`'s dismissal effect — see that
     // file for the rationale on the eslint suppression. Same lifecycle

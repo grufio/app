@@ -12,7 +12,7 @@
  * State transitions live in `lib/editor/dialogs/trace-dialog-state.ts`
  * so the rules can be tested without `renderHook`.
  */
-import { useCallback, useEffect, useMemo, useReducer, useState } from "react"
+import { useCallback, useLayoutEffect, useMemo, useReducer, useState } from "react"
 
 import {
   initialTraceDialogState,
@@ -40,7 +40,11 @@ export function useTraceDialogSession(
   const [state, dispatch] = useReducer(traceDialogReducer, initialTraceDialogState)
   const [error, setError] = useState("")
 
-  useEffect(() => {
+  // useLayoutEffect — not useEffect — so the reset commits BEFORE
+  // the browser paints. With useEffect, switching tabs while a
+  // configure dialog is open would leave the modal floating on the
+  // new section for one frame before the dismissal lands.
+  useLayoutEffect(() => {
     if (surfaceActive) return
     // Section-owned dialog dismissal: the owning surface (the Trace
     // section) is no longer active, so any open dialog must close and

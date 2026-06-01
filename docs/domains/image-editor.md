@@ -256,20 +256,33 @@ covers the four rows. UI is verified manually.
   The bitmap below the SVG is the working_copy / filter chain tip
   (PR #262 — `trace_base` is no longer the canvas source); the
   overlay architecture is unchanged from #84/#86.
-- **Section-owned dialogs auto-dismiss when their surface goes
-  inactive.** Trace dialogs (selection, Pixelate configure, Circulate
-  configure, generic-trace configure) and Filter dialogs (the twin
-  surface) are shell-owned modals. Their state hooks
-  ([use-trace-dialog-session](../../lib/editor/hooks/use-trace-dialog-session.ts),
-  [use-filter-dialog-session](../../lib/editor/hooks/use-filter-dialog-session.ts))
-  take a `surfaceActive: boolean` argument and self-reset to idle
-  whenever it flips false. The shell wires this via
+- **Section-owned UI auto-dismisses when its surface goes inactive.**
+  Three pieces of state are tied to the active editor surface and
+  reset whenever the surface (desktop `leftPanelTab` / mobile
+  `mobileSection`) changes:
+  - Trace configure dialogs (selection, Pixelate configure,
+    Circulate configure, generic-trace configure) — managed by
+    [useTraceDialogSession](../../lib/editor/hooks/use-trace-dialog-session.ts),
+    which takes a `surfaceActive: boolean` argument and self-resets
+    on flip-to-false.
+  - Filter configure dialogs (the twin surface) — same contract via
+    [useFilterDialogSession](../../lib/editor/hooks/use-filter-dialog-session.ts).
+  - Mobile management sheet (`mobileEditOpen` in the shell, hosting
+    `MobileArtboardSheet` / `MobileFilterSheet` / `MobileTraceSheet`)
+    — reset via a `useLayoutEffect` watching `mobileSection`. The
+    sheets are gated on `mobileEditOpen && mobileSection === "X"`;
+    a shared boolean means switching sections would inherit the
+    openness onto the new section's sheet without the reset.
+  All three reset via **useLayoutEffect**, not useEffect: the
+  dismissal must commit before the browser paints, otherwise the
+  modal/sheet flashes for one frame on the new section before the
+  effect fires. The wiring boolean for the dialog hooks comes from
   [isSurfaceActive](../../lib/editor/section-active.ts) — the same
   pure helper that ought to be reused anywhere "is the user on
   section X?" needs to be answered. Result: switching tabs/sections
   via any code path (UI, programmatic, future deep-link) dismisses
-  the owning dialog automatically; the shell does not have to
-  enumerate which dialogs to close. Symmetric with the canvas
+  the owning surface automatically; the shell does not have to
+  enumerate which pieces to close. Symmetric with the canvas
   view-flag gates in `deriveDisplayLayers` (PR #357) — section-
   scoped behaviour colocates with what it scopes, not with consumers.
 - **Trace view toggles are Trace-section-scoped on effect, not on
