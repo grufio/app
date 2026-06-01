@@ -17,7 +17,11 @@ import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 export const dynamic = "force-dynamic"
 
 // Best-effort in-memory cache to reduce Storage signed URL churn.
-const signedUrlCache = new Map<string, { url: string; expiresAtMs: number }>()
+// Stores both the active-row URL and the kind='master' row URL under
+// one entry: both URLs share the same TTL window so the response never
+// pairs a fresh URL with a stale one. `masterUrl` is "" when the master
+// row has no storage_path (defensive — never observed in practice).
+const signedUrlCache = new Map<string, { url: string; masterUrl: string; expiresAtMs: number }>()
 const SIGNED_URL_CACHE_MAX_ENTRIES = 500
 const SIGNED_URL_TTL_S = SIGNED_URL_TTL.thumbnail
 const SIGNED_URL_RENEW_BUFFER_MS = 60_000
@@ -66,7 +70,7 @@ export async function GET(
 
   const { data: restoreBase, error: restoreBaseErr } = await supabase
     .from("project_images")
-    .select("id,width_px,height_px,dpi")
+    .select("id,width_px,height_px,dpi,storage_path,storage_bucket")
     .eq("project_id", projectId)
     .eq("kind", "master")
     .is("deleted_at", null)
@@ -121,7 +125,7 @@ export async function GET(
   if (cached && cached.expiresAtMs - SIGNED_URL_RENEW_BUFFER_MS > now) {
     signedUrlCache.delete(cacheKey)
     signedUrlCache.set(cacheKey, cached)
-    return NextResponse.json({ ...responsePayload, signedUrl: cached.url })
+    return NextResponse.json({ ...responsePayload, signedUrl: cached.url, masterSignedUrl: cached.masterUrl })
   }
 
   const { data: signed, error: signedErr } = await supabase.storage.from(bucket).createSignedUrl(img.storage_path, SIGNED_URL_TTL_S)
@@ -130,13 +134,44 @@ export async function GET(
     return jsonError(signedErr?.message ?? "Failed to create signed URL", 400, { stage: "storage_policy", op: "createSignedUrl" })
   }
 
-  signedUrlCache.set(cacheKey, { url: signed.signedUrl, expiresAtMs: now + SIGNED_URL_TTL_S * 1000 })
+  // Sign the kind='master' row separately. Master and working_copy share
+  // storage_path until a filter is applied (migration step 2 backfill);
+  // after that, they diverge and the master URL is the only way to
+  // surface the raw upload on the Image / Artboard section.
+  //
+  // Partial-boot: if the master sign fails (e.g. missing storage_path,
+  // permission glitch) while the active sign succeeded, ship the
+  // response with `masterSignedUrl: ""` — the client's `pickCanvasImage`
+  // already treats falsy as "no override, render working copy", which
+  // is the pre-PR-#354 behaviour. Don't fail the whole request: the
+  // active URL is the more important payload.
+  let masterSignedUrlValue = ""
+  if (restoreBase?.storage_path) {
+    const masterBucket = (restoreBase.storage_bucket as string | null) ?? PROJECT_IMAGES_BUCKET
+    if (masterBucket === bucket && restoreBase.storage_path === img.storage_path) {
+      // Same file (no filter yet) — reuse the active signed URL rather
+      // than burning a second sign request.
+      masterSignedUrlValue = signed.signedUrl
+    } else {
+      const { data: masterSigned } = await supabase.storage.from(masterBucket).createSignedUrl(
+        restoreBase.storage_path as string,
+        SIGNED_URL_TTL_S,
+      )
+      if (masterSigned?.signedUrl) masterSignedUrlValue = masterSigned.signedUrl
+    }
+  }
+
+  signedUrlCache.set(cacheKey, {
+    url: signed.signedUrl,
+    masterUrl: masterSignedUrlValue,
+    expiresAtMs: now + SIGNED_URL_TTL_S * 1000,
+  })
   if (signedUrlCache.size > SIGNED_URL_CACHE_MAX_ENTRIES) {
     const firstKey = signedUrlCache.keys().next().value as string | undefined
     if (firstKey) signedUrlCache.delete(firstKey)
   }
 
-  return NextResponse.json({ ...responsePayload, signedUrl: signed.signedUrl })
+  return NextResponse.json({ ...responsePayload, signedUrl: signed.signedUrl, masterSignedUrl: masterSignedUrlValue })
 }
 
 export async function DELETE(

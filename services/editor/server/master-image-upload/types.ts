@@ -22,10 +22,17 @@ export type UploadMasterImageFailure = {
  * Shape matches `MasterImageResponse` (exists=true variant) in
  * `lib/api/project-images.ts` so the client can reuse the same
  * `toMasterImage` parser.
+ *
+ * At upload time the master row IS the active row (no filter yet,
+ * working_copy shares the same storage_path), so
+ * `masterSignedUrl === signedUrl`. The field is still emitted
+ * explicitly so the client snapshot type matches the GET payload
+ * shape one-to-one.
  */
 export type UploadMasterSnapshot = {
   id: string
   signedUrl: string
+  masterSignedUrl: string
   storage_path: string
   name: string
   format: string | null

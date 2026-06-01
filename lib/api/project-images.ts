@@ -27,7 +27,21 @@ export type MasterImageResponse =
   | {
       exists: true
       id: string
+      /** Signed URL of the **active** image row (`is_active=true`) —
+       * the working_copy / filter_working_copy / trace_output chain
+       * tip. Used by the canvas as the default base, by the error-
+       * boundary reset key, by the right-panel thumbnail. */
       signedUrl: string
+      /** Signed URL of the **kind='master'** row specifically — the
+       * raw initial upload. Used only by `pickCanvasImage`'s Image /
+       * Artboard section override so the canvas surfaces the raw
+       * master regardless of which row is active. Equals `signedUrl`
+       * before any filter is applied (master and working_copy share
+       * `storage_path` then); diverges once a filter creates its own
+       * derived file. Empty string when the master sign failed —
+       * `pickCanvasImage` treats falsy as "no override". Required so
+       * the shape never drifts cache-hit vs cache-miss. */
+      masterSignedUrl: string
       width_px: number
       height_px: number
       dpi?: number | null

@@ -20,7 +20,16 @@ export type MasterImage = {
    * display transform + canvas mirror so those survive an apply and
    * only reset on a real master delete/replace. Null when no master. */
   masterRowId: string | null
+  /** Signed URL of the **active** image row — the working_copy /
+   * filter_working_copy / trace_output chain tip. Default canvas
+   * base, error-boundary reset key, right-panel thumbnail source. */
   signedUrl: string
+  /** Signed URL of the **kind='master'** row specifically — the raw
+   * initial upload. Read by `pickCanvasImage` on the Image / Artboard
+   * section to surface the raw master regardless of which row is
+   * active. Empty string when master sign failed (graceful degrade
+   * to working-copy URL). See `lib/editor/canvas-image-invariant.ts`. */
+  masterSignedUrl: string
   width_px: number
   height_px: number
   dpi: number | null
@@ -37,6 +46,7 @@ function toMasterImage(payload: {
   id?: unknown
   masterRowId?: unknown
   signedUrl?: unknown
+  masterSignedUrl?: unknown
   width_px?: unknown
   height_px?: unknown
   dpi?: unknown
@@ -51,6 +61,7 @@ function toMasterImage(payload: {
     id: String(payload.id ?? ""),
     masterRowId: payload.masterRowId == null ? null : String(payload.masterRowId),
     signedUrl: String(payload.signedUrl ?? ""),
+    masterSignedUrl: String(payload.masterSignedUrl ?? ""),
     width_px: Number(payload.width_px ?? 0),
     height_px: Number(payload.height_px ?? 0),
     dpi: payload.dpi == null ? null : Number(payload.dpi),
@@ -69,7 +80,7 @@ function toMasterImage(payload: {
 
 function masterImageSignature(img: MasterImage | null): string {
   if (!img) return "__missing__"
-  return `${img.id}|${img.masterRowId ?? ""}|${img.signedUrl}|${img.width_px}|${img.height_px}|${img.dpi ?? ""}|${img.name}|${img.restore_base?.id ?? ""}|${img.restore_base?.width_px ?? ""}|${img.restore_base?.height_px ?? ""}|${img.restore_base?.dpi ?? ""}`
+  return `${img.id}|${img.masterRowId ?? ""}|${img.signedUrl}|${img.masterSignedUrl}|${img.width_px}|${img.height_px}|${img.dpi ?? ""}|${img.name}|${img.restore_base?.id ?? ""}|${img.restore_base?.width_px ?? ""}|${img.restore_base?.height_px ?? ""}|${img.restore_base?.dpi ?? ""}`
 }
 
 export function useMasterImage(projectId: string, initialMasterImage?: MasterImage | null) {

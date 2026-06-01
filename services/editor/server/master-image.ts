@@ -23,7 +23,7 @@ export async function getMasterImageForEditor(
 
   const { data: restoreBase, error: restoreBaseErr } = await supabase
     .from("project_images")
-    .select("id,width_px,height_px,dpi")
+    .select("id,width_px,height_px,dpi,storage_path,storage_bucket")
     .eq("project_id", projectId)
     .eq("kind", "master")
     .is("deleted_at", null)
@@ -39,6 +39,23 @@ export async function getMasterImageForEditor(
     return { masterImage: null, error: null }
   }
 
+  // Sign the kind='master' row separately so the Image / Artboard
+  // section can surface the raw upload regardless of which row is
+  // is_active. Partial-boot: empty string when master sign fails (the
+  // client falls back to working-copy on falsy masterSignedUrl).
+  let masterSignedUrl = ""
+  if (restoreBase?.storage_path) {
+    const masterBucket = (restoreBase.storage_bucket as string | null) ?? PROJECT_IMAGES_BUCKET
+    if (masterBucket === bucket && restoreBase.storage_path === img.storage_path) {
+      masterSignedUrl = signed.signedUrl
+    } else {
+      const { data: masterSigned } = await supabase.storage
+        .from(masterBucket)
+        .createSignedUrl(restoreBase.storage_path as string, SIGNED_URL_TTL.thumbnail)
+      if (masterSigned?.signedUrl) masterSignedUrl = masterSigned.signedUrl
+    }
+  }
+
   const dpiRaw = Number(img.dpi)
   const dpi = Number.isFinite(dpiRaw) && dpiRaw > 0 ? Math.round(dpiRaw) : null
 
@@ -50,6 +67,7 @@ export async function getMasterImageForEditor(
       // degenerate, so the client reset key stays stable.
       masterRowId: restoreBase?.id ? String(restoreBase.id) : null,
       signedUrl: signed.signedUrl,
+      masterSignedUrl,
       width_px: Number(img.width_px ?? 0),
       height_px: Number(img.height_px ?? 0),
       dpi,

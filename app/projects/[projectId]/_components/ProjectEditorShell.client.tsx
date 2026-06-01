@@ -476,7 +476,12 @@ export function ProjectDetailPageClient({
     filterDisplayImageWithoutTrace,
     mobileSection,
     isMobile,
-    masterSignedUrl: masterImage?.signedUrl ?? null,
+    // The Image / Artboard section override needs the kind='master'
+    // row's URL specifically, not the active image's URL. `signedUrl`
+    // is the active row (filter tip after a filter is applied) — see
+    // MasterImage type. Falsy empty string here turns the override
+    // off in `pickCanvasImage` (graceful degrade — pre-PR-#354).
+    masterSignedUrl: masterImage?.masterSignedUrl ? masterImage.masterSignedUrl : null,
   })
   // canvasMode is now a pure projection of `showFilterChain` — the
   // tab-vs-mobile-vs-image-ready logic lives in `deriveDisplayLayers`.

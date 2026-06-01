@@ -36,6 +36,10 @@ async function buildMasterSnapshot(args: {
   return {
     id: row.id,
     signedUrl: signed.signedUrl,
+    // The freshly-inserted row IS the master row; same URL for both
+    // (working_copy backfill shares storage_path until a filter creates
+    // its own derived file).
+    masterSignedUrl: signed.signedUrl,
     storage_path: row.storage_path,
     name: row.name ?? "master image",
     format: row.format ?? null,
