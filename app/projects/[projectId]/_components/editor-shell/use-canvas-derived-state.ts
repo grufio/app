@@ -62,6 +62,13 @@ export function useCanvasDerivedState(input: {
    * Image / Artboard section so the user sees the raw upload, not
    * the filter chain tip. Null when no master is uploaded yet. */
   masterSignedUrl: string | null
+  /** Raw Trace view-toggle session values. The hook returns the
+   * *effective* values via `deriveDisplayLayers` — gated on the
+   * Trace section being active. Pass the session values; let the
+   * derivation gate the canvas effect. */
+  traceOverlayVisible: boolean
+  previewBitmapVisible: boolean
+  numbersLayerVisible: boolean
 }) {
   const {
     leftPanelTab,
@@ -71,6 +78,9 @@ export function useCanvasDerivedState(input: {
     mobileSection,
     isMobile,
     masterSignedUrl,
+    traceOverlayVisible,
+    previewBitmapVisible,
+    numbersLayerVisible,
   } = input
 
   const stageImage = useMemo<CanvasImage | null>(
@@ -96,6 +106,9 @@ export function useCanvasDerivedState(input: {
         editorImageSourceReady: editorImageSource.status === "ready",
         filterDisplayImage,
         filterDisplayImageWithoutTrace,
+        traceOverlayVisible,
+        previewBitmapVisible,
+        numbersLayerVisible,
       }),
     [
       leftPanelTab,
@@ -104,6 +117,9 @@ export function useCanvasDerivedState(input: {
       editorImageSource.status,
       filterDisplayImage,
       filterDisplayImageWithoutTrace,
+      traceOverlayVisible,
+      previewBitmapVisible,
+      numbersLayerVisible,
     ],
   )
 
@@ -131,5 +147,11 @@ export function useCanvasDerivedState(input: {
     canvasImage,
     traceOverlaySvgUrl: displayLayers.traceOverlaySvgUrl,
     showFilterChain: displayLayers.showFilterChain,
+    /** Section-gated Trace view flags. Outside the Trace section
+     * these are always `true` regardless of session state — see
+     * `deriveDisplayLayers` doc-comment. */
+    traceOverlayVisible: displayLayers.traceOverlayVisible,
+    previewBitmapVisible: displayLayers.previewBitmapVisible,
+    numbersLayerVisible: displayLayers.numbersLayerVisible,
   }
 }
