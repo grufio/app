@@ -106,7 +106,7 @@ export function useEditorWorkflowAdapter(args: {
   refreshMasterImage: () => Promise<void>
   refreshProjectImages: () => Promise<void>
   refreshFilterImage: () => Promise<void>
-  seedMasterImage: (next: { id: string; masterRowId: string | null; signedUrl: string; width_px: number; height_px: number; dpi: number | null; name: string } | null) => void
+  seedMasterImage: (next: { id: string; masterRowId: string | null; signedUrl: string; masterSignedUrl: string; width_px: number; height_px: number; dpi: number | null; name: string } | null) => void
   /** Await-able persisted transform save, owned by `useDisplaySize` (the
    * single authoritative display-size source). The workflow machine wraps
    * it as the `saveTransform` service; the shell also awaits it directly
@@ -289,7 +289,7 @@ export function useEditorWorkflowAdapter(args: {
   )
   const seededMasterIdRef = useRef<string | null>(null)
   const handleImageUploaded = useCallback(
-    async (uploadedMaster: { id: string; signedUrl: string; width_px: number; height_px: number; dpi: number | null; name: string } | null) => {
+    async (uploadedMaster: { id: string; signedUrl: string; masterSignedUrl: string; width_px: number; height_px: number; dpi: number | null; name: string } | null) => {
       // Upload path is fully synchronous from the UI's standpoint once
       // the POST resolves: the master snapshot in the response is
       // authoritative. We seed it and let the source-snapshot useEffect

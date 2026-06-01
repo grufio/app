@@ -206,18 +206,43 @@ covers the four rows. UI is verified manually.
   See [docs/domains/image-state.md](image-state.md) for the
   resolver helper (`resolveStateAnchorImage`) and the PR #257
   re-anchor migration that established this invariant.
-- **Canvas source picker is `filterDisplayImageWithoutTrace` → stage.**
-  The master image (`kind='master'`) is immutable
-  (`guard_master_immutable` trigger) and is never the Konva render
-  source. `pickCanvasImage` ([lib/editor/canvas-image-invariant.ts](../../lib/editor/canvas-image-invariant.ts))
-  always renders the trace-free working copy / filter chain tip
-  (`filterDisplayImageWithoutTrace`), falling back to `stageImage`
-  while it loads. The trace SVG overlays on top; `trace_base` is
-  **never** the canvas source (PR #262 — it had routed the canvas
-  through trace_base's source-crop intrinsic and rendered the trace
-  at the original image proportions). All sources render at the same
-  `project_image_state` rect anchored at working_copy.id, so
-  Image / Filter / Trace tabs show identical size + position.
+- **Canvas source picker is `filterDisplayImageWithoutTrace` → stage,
+  with a section-override on `signedUrl` for Image/Artboard.**
+  `pickCanvasImage` ([lib/editor/canvas-image-invariant.ts](../../lib/editor/canvas-image-invariant.ts))
+  always anchors the canvas on the trace-free working copy / filter
+  chain tip (`filterDisplayImageWithoutTrace`), falling back to
+  `stageImage` while it loads — that's the **ID + dimensions** layer,
+  load-bearing for the persistence invariant (`useDisplaySize` /
+  image-workflow machine save to whichever row owns the canvas ID;
+  see [canvas-image-invariant.ts](../../lib/editor/canvas-image-invariant.ts)
+  doc-comment). On the Image / Artboard section the **visible
+  `signedUrl`** is overridden to the master URL via the picker's
+  `showRawMaster` + `masterSignedUrl` params — the section is "the
+  image as uploaded", filter/trace effects belong to their own
+  sections. ID + dims still stay on the working copy.
+  The trace SVG overlays on top; `trace_base` is **never** the canvas
+  source (PR #262 — it had routed the canvas through trace_base's
+  source-crop intrinsic and rendered the trace at the original image
+  proportions). All sources render at the same `project_image_state`
+  rect anchored at working_copy.id, so Image / Filter / Trace tabs
+  show identical size + position.
+- **`masterSignedUrl` is signed from the `kind='master'` row, not
+  the active row.** The master API payload
+  ([app/api/projects/[projectId]/images/master/route.ts](../../app/api/projects/%5BprojectId%5D/images/master/route.ts))
+  exposes two URLs: `signedUrl` (active row — working_copy /
+  filter_working_copy / trace_output chain tip; default canvas
+  base, error-boundary reset key, right-panel thumbnail) and
+  `masterSignedUrl` (kind='master' row's own `storage_path`;
+  consumed only by `pickCanvasImage`'s Image/Artboard override).
+  Master and working_copy share `storage_path` until a filter is
+  applied (migration step 2 of
+  `supabase/migrations/20260521201811_state_anchor_working_copy.sql`)
+  — pre-filter the two URLs coincide. The earlier "PR #354" attempt
+  to surface the raw master used `signedUrl` for the override and
+  silently became a no-op once a filter existed (the active URL
+  was the filter tip, swap of filter→filter); shipping the URLs as
+  separate fields closes that bug class, and both are cached in
+  one entry to prevent expiry drift.
 - **Filter operates on raster, never on SVG.** PR #82 fixed a class
   where Filter would be applied to a trace SVG. Filter always reads
   `filterDisplayImageWithoutTrace`.

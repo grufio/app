@@ -70,7 +70,10 @@ export type MockStorageOps = {
   upload?: MockResult
   download?: MockResult<Blob>
   remove?: MockResult
-  createSignedUrl?: MockResult<{ signedUrl: string }>
+  /** Static result, or a function form keyed on the path argument —
+   * lets tests return different URLs per storage_path (e.g. when one
+   * test signs both the active row and the kind='master' row). */
+  createSignedUrl?: MockResult<{ signedUrl: string }> | ((path: string) => MockResult<{ signedUrl: string }>)
   // Matches supabase-js storage shape — both fields can be null when
   // the underlying object lookup failed for a specific path.
   createSignedUrls?: MockResult<Array<{ signedUrl: string | null; path: string | null; error?: string | null }>>
@@ -169,11 +172,19 @@ function makeStorageBucket(bucketName: string, ops: MockStorageOps | undefined) 
       data: spec?.data ?? null,
       error: spec?.error ?? null,
     }))
+  const signedSpec = ops?.createSignedUrl
+  const createSignedUrl = vi.fn(async (path: string, _ttl?: number) => {
+    const spec = typeof signedSpec === "function" ? signedSpec(path) : signedSpec
+    return {
+      data: spec?.data ?? null,
+      error: spec?.error ?? null,
+    }
+  })
   return {
     upload: wrap(ops?.upload),
     download: wrap<Blob>(ops?.download),
     remove: wrap(ops?.remove),
-    createSignedUrl: wrap<{ signedUrl: string }>(ops?.createSignedUrl),
+    createSignedUrl,
     createSignedUrls: wrap<Array<{ signedUrl: string | null; path: string | null; error?: string | null }>>(ops?.createSignedUrls),
   }
 }

@@ -11,6 +11,13 @@ import { guessImageFormat } from "@/lib/images/format-detection"
 export type UploadedMasterSnapshot = {
   id: string
   signedUrl: string
+  /** Signed URL of the kind='master' row. At upload time the freshly
+   * inserted master row IS the active row (no filter yet, working_copy
+   * shares its storage_path), so `masterSignedUrl === signedUrl` from
+   * the upload route. The field exists on the snapshot so the spread
+   * into `seedMasterImage` at use-editor-workflow-adapter propagates
+   * it without a separate fixup. */
+  masterSignedUrl: string
   storage_path: string
   name: string
   format: string | null
@@ -39,6 +46,7 @@ function parseMasterSnapshot(payload: unknown): UploadedMasterSnapshot | null {
   return {
     id: m.id,
     signedUrl: m.signedUrl,
+    masterSignedUrl: typeof m.masterSignedUrl === "string" ? m.masterSignedUrl : m.signedUrl,
     storage_path: typeof m.storage_path === "string" ? m.storage_path : "",
     name: typeof m.name === "string" ? m.name : "master image",
     format: typeof m.format === "string" ? m.format : null,
