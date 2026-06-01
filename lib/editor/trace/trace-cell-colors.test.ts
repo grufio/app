@@ -11,7 +11,12 @@ import {
 /** Build a palette chip from an RGB triple (OKLab derived the same way the
  * DB columns + the cell matcher do, so the match is self-consistent). */
 function chip(r: number, g: number, b: number): PaletteChip {
-  return { oklab: rgb255ToOklab(r, g, b) as Oklab, rgb: [r, g, b] as const }
+  return {
+    oklab: rgb255ToOklab(r, g, b) as Oklab,
+    rgb: [r, g, b] as const,
+    notation: "",
+    iscc_nbs_name: null,
+  }
 }
 
 /** Build a CellColors triple from RGB cells in row order. */

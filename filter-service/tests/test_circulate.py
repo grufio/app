@@ -25,7 +25,7 @@ def _solid_image(w: int, h: int, rgb=(10, 120, 240)) -> Image.Image:
 
 def test_region_count_and_group_count_are_cells_product():
     phases: list[str] = []
-    svg, _png, region_count = circulate_to_svg(
+    svg, _png, region_count, _used = circulate_to_svg(
         _solid_image(8, 8), cells_x=4, cells_y=4,
         crop_x=0, crop_y=0, crop_w=8, crop_h=8,
         outer_w_frac=1.0, outer_h_frac=1.0,
@@ -41,7 +41,7 @@ def test_region_count_and_group_count_are_cells_product():
 
 
 def test_inner_ellipse_doubles_the_ellipse_count():
-    svg, _png, _n = circulate_to_svg(
+    svg, _png, _n, _used = circulate_to_svg(
         _solid_image(8, 8), cells_x=4, cells_y=4,
         crop_x=0, crop_y=0, crop_w=8, crop_h=8,
         outer_w_frac=1.0, outer_h_frac=1.0,
@@ -54,7 +54,7 @@ def test_inner_ellipse_doubles_the_ellipse_count():
 
 
 def test_viewbox_matches_integer_crop():
-    svg, _png, _n = circulate_to_svg(
+    svg, _png, _n, _used = circulate_to_svg(
         _solid_image(20, 12), cells_x=5, cells_y=3,
         crop_x=2, crop_y=1, crop_w=10, crop_h=6,
         outer_w_frac=1.0, outer_h_frac=1.0,
@@ -65,7 +65,7 @@ def test_viewbox_matches_integer_crop():
 
 
 def test_no_grid_lines_and_no_scale_group():
-    svg, _png, _n = circulate_to_svg(
+    svg, _png, _n, _used = circulate_to_svg(
         _solid_image(8, 8), cells_x=4, cells_y=4,
         crop_x=0, crop_y=0, crop_w=8, crop_h=8,
         outer_w_frac=1.0, outer_h_frac=1.0,
@@ -83,7 +83,7 @@ def test_frames_group_emits_one_outline_ellipse_per_cell():
     import re
 
     cells_x, cells_y = 5, 3
-    svg, _png, _n = circulate_to_svg(
+    svg, _png, _n, _used = circulate_to_svg(
         _solid_image(10, 6), cells_x=cells_x, cells_y=cells_y,
         crop_x=0, crop_y=0, crop_w=10, crop_h=6,
         outer_w_frac=0.8, outer_h_frac=0.8,
@@ -100,7 +100,7 @@ def test_frames_group_emits_one_outline_ellipse_per_cell():
 
 
 def test_ellipses_centred_in_their_cell_in_pixel_space():
-    svg, _png, _n = circulate_to_svg(
+    svg, _png, _n, _used = circulate_to_svg(
         _solid_image(8, 8), cells_x=4, cells_y=4,
         crop_x=0, crop_y=0, crop_w=8, crop_h=8,
         outer_w_frac=1.0, outer_h_frac=1.0,
@@ -112,7 +112,7 @@ def test_ellipses_centred_in_their_cell_in_pixel_space():
 
 
 def test_data_cell_attributes_cover_the_grid():
-    svg, _png, _n = circulate_to_svg(
+    svg, _png, _n, _used = circulate_to_svg(
         _solid_image(6, 4), cells_x=3, cells_y=2,
         crop_x=0, crop_y=0, crop_w=6, crop_h=4,
         outer_w_frac=1.0, outer_h_frac=1.0,
@@ -127,14 +127,14 @@ def test_contour_stroke_present_only_when_width_positive():
     check has to look at the cells-group content, not the full SVG."""
     cells_block = lambda svg: re.search(r'<g id="cells">(.*?)</g>', svg, re.DOTALL).group(1)
 
-    svg_with, _p, _n = circulate_to_svg(
+    svg_with, _p, _n, _used = circulate_to_svg(
         _solid_image(8, 8), cells_x=2, cells_y=2,
         crop_x=0, crop_y=0, crop_w=8, crop_h=8,
         outer_w_frac=1.0, outer_h_frac=1.0, contour_width_px=2.0,
     )
     assert 'stroke="black" stroke-width="2.0000"' in cells_block(svg_with)
 
-    svg_without, _p, _n = circulate_to_svg(
+    svg_without, _p, _n, _used = circulate_to_svg(
         _solid_image(8, 8), cells_x=2, cells_y=2,
         crop_x=0, crop_y=0, crop_w=8, crop_h=8,
         outer_w_frac=1.0, outer_h_frac=1.0, contour_width_px=0.0,
@@ -147,7 +147,7 @@ def test_palette_snaps_outer_fill_to_chip_colours():
     # colour (#000000 or #ffffff), never the raw mean #828282.
     chips_rgb = [[0, 0, 0], [255, 255, 255]]
     chips_oklab = rgb255_to_oklab(np.array(chips_rgb)).tolist()
-    svg, _png, _n = circulate_to_svg(
+    svg, _png, _n, _used = circulate_to_svg(
         _solid_image(4, 4, rgb=(130, 130, 130)), cells_x=2, cells_y=2,
         crop_x=0, crop_y=0, crop_w=4, crop_h=4,
         outer_w_frac=1.0, outer_h_frac=1.0,
@@ -161,7 +161,7 @@ def test_palette_snaps_outer_fill_to_chip_colours():
 def test_inner_identity_filter_matches_outer_chip():
     chips_rgb = [[200, 0, 0], [0, 200, 0], [0, 0, 200]]
     chips_oklab = rgb255_to_oklab(np.array(chips_rgb)).tolist()
-    svg, _png, _n = circulate_to_svg(
+    svg, _png, _n, _used = circulate_to_svg(
         _solid_image(4, 4, rgb=(200, 30, 40)), cells_x=2, cells_y=2,
         crop_x=0, crop_y=0, crop_w=4, crop_h=4,
         outer_w_frac=1.0, outer_h_frac=1.0,
@@ -177,7 +177,7 @@ def test_inner_identity_filter_matches_outer_chip():
 def test_inner_hue_filter_lands_on_a_different_chip():
     chips_rgb = [[200, 0, 0], [0, 200, 0], [0, 0, 200]]
     chips_oklab = rgb255_to_oklab(np.array(chips_rgb)).tolist()
-    svg, _png, _n = circulate_to_svg(
+    svg, _png, _n, _used = circulate_to_svg(
         _solid_image(4, 4, rgb=(200, 30, 40)), cells_x=2, cells_y=2,
         crop_x=0, crop_y=0, crop_w=4, crop_h=4,
         outer_w_frac=1.0, outer_h_frac=1.0,
@@ -197,7 +197,7 @@ def test_inner_darker_filter_lands_on_a_darker_chip_incl_grey():
     # a mid-grey cell + a grey palette → "darker" picks a darker grey chip.
     chips_rgb = [[i, i, i] for i in range(0, 256, 16)]
     chips_oklab = rgb255_to_oklab(np.array(chips_rgb)).tolist()
-    svg, _png, _n = circulate_to_svg(
+    svg, _png, _n, _used = circulate_to_svg(
         _solid_image(4, 4, rgb=(128, 128, 128)), cells_x=2, cells_y=2,
         crop_x=0, crop_y=0, crop_w=4, crop_h=4,
         outer_w_frac=1.0, outer_h_frac=1.0,
@@ -215,7 +215,7 @@ def test_inner_darker_filter_lands_on_a_darker_chip_incl_grey():
 def test_inner_without_palette_uses_raw_means():
     # No palette → both outer and inner fall back to the raw cell mean (no
     # snap, no adjustment). A solid source yields a single fill.
-    svg, _png, _n = circulate_to_svg(
+    svg, _png, _n, _used = circulate_to_svg(
         _solid_image(4, 4, rgb=(10, 120, 240)), cells_x=2, cells_y=2,
         crop_x=0, crop_y=0, crop_w=4, crop_h=4,
         outer_w_frac=1.0, outer_h_frac=1.0,
@@ -227,7 +227,7 @@ def test_inner_without_palette_uses_raw_means():
 
 
 def test_crop_clamps_to_image_bounds():
-    _svg, png, _n = circulate_to_svg(
+    _svg, png, _n, _used = circulate_to_svg(
         _solid_image(8, 8), cells_x=2, cells_y=2,
         crop_x=-4, crop_y=-4, crop_w=100, crop_h=100,
         outer_w_frac=1.0, outer_h_frac=1.0,

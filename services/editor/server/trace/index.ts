@@ -56,6 +56,10 @@ export type ProjectTraceRow = {
    * cell grid) as a `trace_base` image row and links it here.
    * Null for trace kinds without a crop (lineart). */
   base_image_id: string | null
+  /** Unique palette chip indices the snap step emitted in the
+   * output (sorted ascending). Null for legacy rows pre-migration
+   * and for lineart (no palette). */
+  palette_indices_used: number[] | null
   /** The trace's own frozen display rect (µpx, text-encoded): the
    * master/working_copy display rect that was authoritative at apply
    * time. The overlay renders from THIS rect, decoupled from the live
@@ -111,6 +115,7 @@ function rowToTrace(row: {
   params: Record<string, unknown> | null
   output_image_id: string
   base_image_id: string | null
+  palette_indices_used: number[] | null
   display_x_px_u: string | null
   display_y_px_u: string | null
   display_width_px_u: string | null
@@ -126,6 +131,7 @@ function rowToTrace(row: {
     params: row.params ?? {},
     output_image_id: row.output_image_id,
     base_image_id: row.base_image_id,
+    palette_indices_used: row.palette_indices_used,
     // "0" is the legacy/lineart signal (see ProjectTraceRow); a null
     // from the DB layer is coalesced to the same signal so the client
     // contract is "always a string, '0' means no fixed rect".
@@ -339,6 +345,11 @@ export async function applyProjectTrace(args: {
           widthPxU: bigint
           heightPxU: bigint
         }
+        /** Unique palette chip indices that the filter-service snap
+         * step actually emitted in the output (sorted ascending).
+         * Null/undefined for trace kinds that don't reference the
+         * palette (lineart). */
+        paletteIndicesUsed?: number[] | null
       }
     | TraceOpFailure
   >
@@ -382,6 +393,11 @@ export async function applyProjectTrace(args: {
         params: params as Json,
         output_image_id: created.id,
         base_image_id: newBaseId,
+        // Set of palette chips actually used in the snapped output.
+        // NULL for lineart (no palette); empty array stays as []. Lets
+        // the Colors sheet render only the chips that show up in the
+        // image, not the full 128-chip palette.
+        palette_indices_used: created.paletteIndicesUsed ?? null,
         // Only spread when the handler produced a rect; otherwise the
         // columns keep their DEFAULT '0' on insert (and their prior
         // value is overwritten with '0' on a lineart replace, which is
@@ -396,7 +412,7 @@ export async function applyProjectTrace(args: {
       { onConflict: "project_id" },
     )
     .select(
-      "project_id,kind,params,output_image_id,base_image_id,display_x_px_u,display_y_px_u,display_width_px_u,display_height_px_u,created_at,updated_at",
+      "project_id,kind,params,output_image_id,base_image_id,palette_indices_used,display_x_px_u,display_y_px_u,display_width_px_u,display_height_px_u,created_at,updated_at",
     )
     .maybeSingle()
   if (upsertErr || !upserted) {
@@ -472,6 +488,7 @@ export async function applyProjectTrace(args: {
     params: (upserted.params as Record<string, unknown> | null) ?? null,
     output_image_id: String(upserted.output_image_id),
     base_image_id: upserted.base_image_id ? String(upserted.base_image_id) : null,
+    palette_indices_used: upserted.palette_indices_used ?? null,
     display_x_px_u: upserted.display_x_px_u != null ? String(upserted.display_x_px_u) : null,
     display_y_px_u: upserted.display_y_px_u != null ? String(upserted.display_y_px_u) : null,
     display_width_px_u: upserted.display_width_px_u != null ? String(upserted.display_width_px_u) : null,
@@ -505,7 +522,7 @@ export async function getProjectTrace(args: {
   const { data, error } = await supabase
     .from("project_image_trace")
     .select(
-      "project_id,kind,params,output_image_id,base_image_id,display_x_px_u,display_y_px_u,display_width_px_u,display_height_px_u,created_at,updated_at",
+      "project_id,kind,params,output_image_id,base_image_id,palette_indices_used,display_x_px_u,display_y_px_u,display_width_px_u,display_height_px_u,created_at,updated_at",
     )
     .eq("project_id", projectId)
     .maybeSingle()
@@ -519,6 +536,7 @@ export async function getProjectTrace(args: {
     params: (data.params as Record<string, unknown> | null) ?? null,
     output_image_id: String(data.output_image_id),
     base_image_id: data.base_image_id ? String(data.base_image_id) : null,
+    palette_indices_used: data.palette_indices_used ?? null,
     display_x_px_u: data.display_x_px_u != null ? String(data.display_x_px_u) : null,
     display_y_px_u: data.display_y_px_u != null ? String(data.display_y_px_u) : null,
     display_width_px_u: data.display_width_px_u != null ? String(data.display_width_px_u) : null,

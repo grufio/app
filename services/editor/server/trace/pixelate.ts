@@ -51,6 +51,10 @@ export type PixelateFilterSuccess = {
     widthPxU: bigint
     heightPxU: bigint
   }
+  /** Unique palette chip indices the snap step emitted in the output
+   * (sorted ascending). Null when the filter-service didn't return
+   * the field (older revision) or the response shape was unexpected. */
+  paletteIndicesUsed: number[] | null
 }
 export type PixelateFilterResult = PixelateFilterSuccess | Extract<FilterResult<"pixelate_process">, { ok: false }>
 
@@ -227,9 +231,12 @@ export async function pixelateImageAndActivate(args: {
     }
 
     const payload = callResult.json as
-      | { svg?: unknown; region_count?: unknown }
+      | { svg?: unknown; region_count?: unknown; palette_indices_used?: unknown }
       | null
     const svgString = typeof payload?.svg === "string" ? payload.svg : null
+    const paletteIndicesUsed = Array.isArray(payload?.palette_indices_used)
+      ? payload.palette_indices_used.filter((n): n is number => typeof n === "number" && Number.isInteger(n) && n >= 0)
+      : null
     if (!svgString) {
       return {
         ok: false,
@@ -363,6 +370,7 @@ export async function pixelateImageAndActivate(args: {
         widthPxU: masterState.widthPxU,
         heightPxU: masterState.heightPxU,
       },
+      paletteIndicesUsed,
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Pixelate process failed"

@@ -172,6 +172,7 @@ export type Database = {
           display_y_px_u: string
           kind: string
           output_image_id: string
+          palette_indices_used: number[] | null
           params: Json
           project_id: string
           updated_at: string
@@ -185,6 +186,7 @@ export type Database = {
           display_y_px_u?: string
           kind: string
           output_image_id: string
+          palette_indices_used?: number[] | null
           params?: Json
           project_id: string
           updated_at?: string
@@ -198,6 +200,7 @@ export type Database = {
           display_y_px_u?: string
           kind?: string
           output_image_id?: string
+          palette_indices_used?: number[] | null
           params?: Json
           project_id?: string
           updated_at?: string

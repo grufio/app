@@ -71,7 +71,7 @@ def pixelate_cells_to_svg(
     texture_enabled: bool = False,
     texture_strength: float = 0.0,
     on_phase: callable | None = None,
-) -> tuple[str, int]:
+) -> tuple[str, int, list[int]]:
     """
     Render the pixelate SVG from a pre-computed per-cell colour grid.
 
@@ -139,10 +139,15 @@ def pixelate_cells_to_svg(
     # was supplied; otherwise the layer's silently absent and the client
     # toggle is a no-op.
     numbers_group = ""
+    palette_indices_used: list[int] = []
     if palette_rgb is not None:
         indices = reconstruct_palette_indices(arr, np.asarray(palette_rgb, dtype=np.uint8))
         labels = build_label_map(indices)
         numbers_group = render_numbers_group(indices, labels, scale_x, scale_y)
+        # Unique palette chips actually used in the final output (after
+        # snap + texture invasion). Sorted ascending by palette_index so
+        # the client renders them deterministically.
+        palette_indices_used = sorted(int(i) for i in np.unique(indices).tolist())
         phase("numbers")
 
     svg_content = (
@@ -161,7 +166,7 @@ def pixelate_cells_to_svg(
     )
     phase("serialize")
 
-    return svg_content, region_count
+    return svg_content, region_count, palette_indices_used
 
 
 def pixelate_to_svg(
@@ -179,7 +184,7 @@ def pixelate_to_svg(
     texture_enabled: bool = False,
     texture_strength: float = 0.0,
     on_phase: callable | None = None,
-) -> tuple[str, bytes, int]:
+) -> tuple[str, bytes, int, list[int]]:
     """
     Legacy entry point: full source → cropped → downsampled → SVG + PNG.
 
@@ -206,7 +211,7 @@ def pixelate_to_svg(
     cell_means = compute_cell_colors(cropped, cells_x, cells_y)
     phase("downsample")
 
-    svg_content, region_count = pixelate_cells_to_svg(
+    svg_content, region_count, palette_indices_used = pixelate_cells_to_svg(
         cell_means=cell_means,
         cropped_w_px=cropped_w_px,
         cropped_h_px=cropped_h_px,
@@ -222,4 +227,4 @@ def pixelate_to_svg(
     cropped_png = buf.getvalue()
     phase("encode_cropped")
 
-    return svg_content, cropped_png, region_count
+    return svg_content, cropped_png, region_count, palette_indices_used

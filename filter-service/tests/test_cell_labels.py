@@ -66,7 +66,7 @@ def test_pixelate_svg_emits_numbers_group_with_expected_labels():
         ],
         dtype=np.uint8,
     )
-    svg, _ = pixelate_cells_to_svg(
+    svg, _, _used = pixelate_cells_to_svg(
         cell_means=cells,
         cropped_w_px=300,
         cropped_h_px=300,
@@ -86,7 +86,7 @@ def test_pixelate_text_has_no_halo_attributes():
     rides on the per-cell frame layer (grid for pixelate, frames for
     circulate)."""
     cells = np.array([[PALETTE_RGB[0], PALETTE_RGB[3]]], dtype=np.uint8)
-    svg, _ = pixelate_cells_to_svg(
+    svg, _, _used = pixelate_cells_to_svg(
         cell_means=cells,
         cropped_w_px=200,
         cropped_h_px=100,
@@ -103,7 +103,7 @@ def test_pixelate_text_has_no_halo_attributes():
 
 def test_pixelate_svg_omits_numbers_when_no_palette():
     cells = np.array([[[200, 200, 200]]], dtype=np.uint8)
-    svg, _ = pixelate_cells_to_svg(
+    svg, _, _used = pixelate_cells_to_svg(
         cell_means=cells,
         cropped_w_px=10,
         cropped_h_px=10,
@@ -119,7 +119,7 @@ def test_circulate_svg_emits_numbers_group():
         ],
         dtype=np.uint8,
     )
-    svg, _ = circulate_cells_to_svg(
+    svg, _, _used = circulate_cells_to_svg(
         cell_means=cells,
         cropped_w_px=200,
         cropped_h_px=200,
@@ -144,7 +144,7 @@ def test_pixelate_labels_reflect_texture_replaced_cells():
     # middle so texture has a different-colour neighbour to invade with.
     grid = np.full((16, 16, 3), PALETTE_RGB[0], dtype=np.uint8)
     grid[8, 8] = PALETTE_RGB[2]
-    svg, _ = pixelate_cells_to_svg(
+    svg, _, _used = pixelate_cells_to_svg(
         cell_means=grid,
         cropped_w_px=160,
         cropped_h_px=160,

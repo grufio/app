@@ -330,7 +330,7 @@ def _pixelate_filter_cells(request: PixelateRequest) -> JSONResponse:
         )
         timer.mark("decode")
 
-        svg_content, region_count = pixelate_cells_to_svg(
+        svg_content, region_count, palette_indices_used = pixelate_cells_to_svg(
             cell_means=cell_means,
             cropped_w_px=request.cropped_w_px,
             cropped_h_px=request.cropped_h_px,
@@ -342,7 +342,11 @@ def _pixelate_filter_cells(request: PixelateRequest) -> JSONResponse:
         )
 
         return JSONResponse(
-            content={"svg": svg_content, "region_count": region_count},
+            content={
+                "svg": svg_content,
+                "region_count": region_count,
+                "palette_indices_used": palette_indices_used,
+            },
             headers={
                 "X-Profile-Phases": timer.header(),
                 "X-Region-Count": str(region_count),
@@ -376,7 +380,7 @@ def _pixelate_filter_legacy(request: PixelateRequest) -> JSONResponse:
             img = img.convert("RGB")
         timer.mark("decode")
 
-        svg_content, cropped_png, region_count = pixelate_to_svg(
+        svg_content, cropped_png, region_count, palette_indices_used = pixelate_to_svg(
             img,
             cells_x=request.cells_x,
             cells_y=request.cells_y,
@@ -398,6 +402,7 @@ def _pixelate_filter_legacy(request: PixelateRequest) -> JSONResponse:
                 "svg": svg_content,
                 "cropped_png_b64": base64.b64encode(cropped_png).decode("ascii"),
                 "region_count": region_count,
+                "palette_indices_used": palette_indices_used,
             },
             headers={
                 "X-Profile-Phases": timer.header(),
@@ -516,7 +521,7 @@ def _circulate_filter_cells(request: CirculateRequest) -> JSONResponse:
         )
         timer.mark("decode")
 
-        svg_content, region_count = circulate_cells_to_svg(
+        svg_content, region_count, palette_indices_used = circulate_cells_to_svg(
             cell_means=cell_means,
             cropped_w_px=request.cropped_w_px,
             cropped_h_px=request.cropped_h_px,
@@ -537,7 +542,11 @@ def _circulate_filter_cells(request: CirculateRequest) -> JSONResponse:
         )
 
         return JSONResponse(
-            content={"svg": svg_content, "region_count": region_count},
+            content={
+                "svg": svg_content,
+                "region_count": region_count,
+                "palette_indices_used": palette_indices_used,
+            },
             headers={
                 "X-Profile-Phases": timer.header(),
                 "X-Region-Count": str(region_count),
@@ -569,7 +578,7 @@ def _circulate_filter_legacy(request: CirculateRequest) -> JSONResponse:
             img = img.convert("RGB")
         timer.mark("decode")
 
-        svg_content, cropped_png, region_count = circulate_to_svg(
+        svg_content, cropped_png, region_count, palette_indices_used = circulate_to_svg(
             img,
             cells_x=request.cells_x,
             cells_y=request.cells_y,
@@ -598,6 +607,7 @@ def _circulate_filter_legacy(request: CirculateRequest) -> JSONResponse:
                 "svg": svg_content,
                 "cropped_png_b64": base64.b64encode(cropped_png).decode("ascii"),
                 "region_count": region_count,
+                "palette_indices_used": palette_indices_used,
             },
             headers={
                 "X-Profile-Phases": timer.header(),

@@ -25,6 +25,7 @@ const pixelateMock = vi.fn(
       widthPxU: 566_929_134n,
       heightPxU: 283_464_567n,
     },
+    paletteIndicesUsed: null,
   }),
 )
 
@@ -236,6 +237,7 @@ describe("applyProjectTrace — per-trace display rect persistence (Invariant 2)
         widthPxU: 566_929_134n,
         heightPxU: 283_464_567n,
       },
+      paletteIndicesUsed: null,
     })
 
     const captured: { row?: Record<string, unknown> } = {}
