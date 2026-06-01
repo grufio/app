@@ -21,14 +21,7 @@ import {
 } from "@/features/editor"
 import { buildNavId } from "@/features/editor/navigation/nav-id"
 import { deriveSectionLocks } from "@/lib/editor/section-locks"
-import { FilterSidebarSection } from "@/features/editor/components/filter-sidebar-section"
-import { MobileArtboardSheet } from "@/features/editor/components/mobile-artboard-sheet"
 import { MobileBottomNav, type MobileNavSection } from "@/features/editor/components/mobile-bottom-nav"
-import { MobileEditButton } from "@/features/editor/components/mobile-edit-button"
-import { MobileFilterSheet } from "@/features/editor/components/mobile-filter-sheet"
-import { MobileTraceSheet } from "@/features/editor/components/mobile-trace-sheet"
-import { TraceSidebarSection } from "@/features/editor/components/trace-sidebar-section"
-import type { OperationError } from "@/lib/api/operation-error"
 import { deleteMasterImageWithCascade, removeProjectImageFilter } from "@/lib/api/project-images"
 import {
   Dialog,
@@ -49,9 +42,6 @@ import { useFilterWorkingImage } from "@/lib/editor/hooks/use-filter-working-ima
 import { useEditorKeyboard } from "@/lib/editor/hooks/use-editor-keyboard"
 import { useMutationLeaveGuard } from "@/lib/editor/hooks/use-mutation-leave-guard"
 import { shouldWarnBeforeUnload } from "@/lib/editor/hooks/should-warn-before-unload"
-import { useFilterDialogSession } from "@/lib/editor/hooks/use-filter-dialog-session"
-import { useTraceDialogSession } from "@/lib/editor/hooks/use-trace-dialog-session"
-import { isSurfaceActive } from "@/lib/editor/section-active"
 import { useEditorSessionState } from "@/lib/editor/hooks/use-editor-session-state"
 import { usePageBackgroundState } from "@/lib/editor/hooks/use-page-background-state"
 import { useProjectGrid } from "@/lib/editor/project-grid"
@@ -68,8 +58,9 @@ import { computeRenderableGrid } from "@/services/editor/grid/validation"
 import { useRightPanelModel } from "./editor-shell/use-right-panel-model"
 import { useStageInteractionPolicy } from "./editor-shell/use-stage-interaction-policy"
 import { useEditorWorkflowAdapter } from "./editor-shell/use-editor-workflow-adapter"
-import { EditorDialogHost } from "./editor-shell/editor-dialog-host"
-import { EditorTraceDialogHost } from "./editor-shell/editor-trace-dialog-host"
+import { ArtboardSurfaceScope } from "./editor-shell/artboard-surface-scope"
+import { FilterSurfaceScope } from "./editor-shell/filter-surface-scope"
+import { TraceSurfaceScope } from "./editor-shell/trace-surface-scope"
 import { useLeftPanelModel } from "./editor-shell/use-left-panel-model"
 
 export function ProjectDetailPageClient({
@@ -135,18 +126,14 @@ export function ProjectDetailPageClient({
   const [selectedNavId, setSelectedNavId] = useState<string>(buildNavId({ kind: "artboard" }))
   // Mobile-only: the bottom-nav picks the active section, the canvas
   // surfaces section-specific layers (mirror desktop's `leftPanelTab`
-  // gating — see `deriveDisplayLayers`), and the floating Edit-icon
-  // opens that section's management sheet on demand. Artboard / Filter
-  // / Trace are wired; Colors / Output are stubs until their own PRs.
+  // gating — see `deriveDisplayLayers`), and each surface's scope
+  // component owns its own floating Edit-icon + sheet.
   const [mobileSection, setMobileSection] = useState<"artboard" | "filter" | "trace">("artboard")
-  const [mobileEditOpen, setMobileEditOpen] = useState(false)
   const handleMobileNavTap = useCallback((section: MobileNavSection) => {
     if (section === "artboard" || section === "filter" || section === "trace") {
       setMobileSection(section)
     }
   }, [])
-  const openMobileEdit = useCallback(() => setMobileEditOpen(true), [])
-  const closeMobileEdit = useCallback(() => setMobileEditOpen(false), [])
   // Mobile-only drawer state for the side panels. On `md+` both panels
   // are always-on; this state is ignored there. The Sheet primitive on
   // mobile handles Escape, overlay-click and focus-trap natively — no
@@ -212,23 +199,13 @@ export function ProjectDetailPageClient({
     seedMasterImage,
     saveImageState,
   })
-  // Surface-active booleans drive section-scoped behaviours: the
-  // canvas layer gates in `deriveDisplayLayers` (PR #357) and the
-  // dialog auto-dismiss in the two dialog hooks below. One named
-  // expression in `isSurfaceActive` so the rule never drifts.
-  const filterSurfaceActive = isSurfaceActive({
-    surface: "filter",
-    isMobile,
-    leftPanelTab,
-    mobileSection,
-  })
-  const traceSurfaceActive = isSurfaceActive({
-    surface: "trace",
-    isMobile,
-    leftPanelTab,
-    mobileSection,
-  })
-  const filterDialog = useFilterDialogSession(filterSourceImage, filterSurfaceActive)
+  // All three surfaces own their own state inside per-surface scope
+  // components mounted only while their surface is active — the
+  // shell composes them with conditional rendering based on
+  // `leftPanelTab` (desktop, via `ProjectEditorLeftPanel`'s
+  // `filterPanelContent` / `tracePanelContent` slot) and
+  // `mobileSection` (mobile). Lifecycle IS dismissal.
+
   // Trace dialog needs the image's displayed size on the artboard in mm —
   // pixelate-grid math runs on display-mm, not source-px. The size comes
   // from the one authoritative source (`displayTxU`): no preference chain,
@@ -240,22 +217,6 @@ export function ProjectDetailPageClient({
     if (!displayMm) return null
     return { ...filterSourceImage, displayMmW: displayMm.displayMmW, displayMmH: displayMm.displayMmH }
   }, [filterSourceImage, artboardWidthPx, artboardHeightPx, displayTxU])
-  const traceDialog = useTraceDialogSession(traceSourceImage, traceSurfaceActive)
-  // Snapshot from `traceDialog.session` carries the stable identity
-  // (sourceImageUrl + intrinsic px), but `displayMmW`/`displayMmH`
-  // must reflect the *live* canvas mirror so a mid-dialog resize is
-  // reflected in the dialog's "image: 178 × 178 mm" header and in
-  // the live grid-math (cell count + cut border). Override only the
-  // live fields here.
-  const liveTraceDialogSource = useMemo(() => {
-    if (!traceDialog.session) return null
-    if (!traceSourceImage) return traceDialog.session
-    return {
-      ...traceDialog.session,
-      displayMmW: traceSourceImage.displayMmW,
-      displayMmH: traceSourceImage.displayMmH,
-    }
-  }, [traceDialog.session, traceSourceImage])
   const {
     trace,
     traceLoading,
@@ -274,15 +235,13 @@ export function ProjectDetailPageClient({
     getCurrentImageTx: getCurrentImageState,
   })
 
-  // PR-6b-3b: `workflowFilterPanelError` is OperationError | null;
-  // `filterDialog.error` is still a string. Coerce + null-safe pick.
-  const filterPanelError: OperationError | null =
-    workflowFilterPanelError ?? (filterDialog.error ? { stage: "unknown", message: filterDialog.error } : null)
-  const filterDialogSource = filterDialog.session
+  // Workflow-level filter error toasts at shell scope. Dialog-level
+  // filter errors (`filterDialog.error`) are toasted from inside
+  // `FilterSurfaceScope` where the dialog state lives.
   const activeDisplayFilterId = filterStack[filterStack.length - 1]?.id ?? null
   const isActiveDisplayFilterHidden = activeDisplayFilterId ? Boolean(hiddenFilterIds[activeDisplayFilterId]) : false
 
-  useDedupingErrorToast(filterPanelError)
+  useDedupingErrorToast(workflowFilterPanelError)
   useDedupingErrorToast(uploadSyncError)
 
   useEffect(() => {
@@ -323,23 +282,15 @@ export function ProjectDetailPageClient({
   const hasFilterSourceImage = Boolean(filterSourceImage)
   const isNewFilterActionBusy = filterImageLoading || workflow.isMutating || workflow.isSyncing
   const isAddFilterDisabled = !hasFilterSourceImage || isNewFilterActionBusy
-  const openFilterSelection = useCallback(() => {
-    if (isAddFilterDisabled) return
-    workflow.dismissError()
-    filterDialog.beginSelection()
-  }, [filterDialog, isAddFilterDisabled, workflow])
 
   const isAddTraceDisabled = !hasFilterSourceImage || isNewFilterActionBusy || isApplyingTrace || isClearingTrace
-  const openTraceSelection = useCallback(() => {
-    if (isAddTraceDisabled) return
-    // Mobile-only effect: user reached this action via the left-panel Sheet
-    // (Trace has no desktop top-bar entry), so the Sheet is still open
-    // behind the dialog. Closing it here means every exit (apply, X, escape,
-    // cancel) lands in a clean editor. Desktop is a no-op — the aside is
-    // `md:block` and ignores `leftPanelOpen`.
+  // Mobile-only effect: user reached the trace selection via the left-panel
+  // Sheet (Trace has no desktop top-bar entry), so the Sheet is still open
+  // behind the dialog. Closing it here means every exit (apply, X, escape,
+  // cancel) lands in a clean editor. Desktop is a no-op.
+  const closeLeftPanelOnTraceSelection = useCallback(() => {
     setLeftPanelOpen(false)
-    traceDialog.beginSelection()
-  }, [isAddTraceDisabled, traceDialog])
+  }, [])
 
   const {
     selectedImageId,
@@ -435,12 +386,13 @@ export function ProjectDetailPageClient({
   // filter_working_copy row + storage object are left behind for the
   // eventual-consistent cleanup. Internal Next.js nav stays inside the
   // editor and isn't blocked.
+  // Filter + Trace configuring flags contributed by their respective
+  // scope components' own useMutationLeaveGuard calls — browser ORs
+  // the beforeunload listeners across instances.
   useMutationLeaveGuard({
     active: shouldWarnBeforeUnload({
       mutationInFlight:
         workflow.isApplyingFilter || workflow.isCropping || workflow.isRestoring,
-      filterDialogConfiguring: filterDialog.activeFilterType !== null,
-      traceDialogConfiguring: traceDialog.activeKind !== null,
     }),
   })
 
@@ -722,31 +674,47 @@ export function ProjectDetailPageClient({
               onGridCreateRequested={requestCreateGrid}
               onGridDeleteRequested={requestDeleteGrid}
               filterPanelContent={
-                <FilterSidebarSection
-                  filterStack={filterStack}
-                  canvasMode={canvasMode}
-                  hiddenFilterIds={hiddenFilterIds}
-                  isAddFilterDisabled={isAddFilterDisabled}
-                  activeDisplayFilterId={activeDisplayFilterId}
-                  isActiveDisplayFilterHidden={isActiveDisplayFilterHidden}
-                  isRemovingFilter={workflow.isRemovingFilter}
-                  isLoadingInitial={filterImageLoading && !filterImageLoadedOnce}
-                  lock={filterLock}
-                  onSelectFilter={showFilter}
-                  onToggleHidden={handleToggleHidden}
-                  onRemoveFilter={workflow.removeFilter}
-                  onOpenSelection={openFilterSelection}
-                />
+                !isMobile ? (
+                  <FilterSurfaceScope
+                    intent="desktop"
+                    filterSourceImage={filterSourceImage}
+                    onApplyFilter={handleApplyFilter}
+                    isAddFilterDisabled={isAddFilterDisabled}
+                    workflowDismissError={workflow.dismissError}
+                    filterStack={filterStack}
+                    canvasMode={canvasMode}
+                    hiddenFilterIds={hiddenFilterIds}
+                    activeDisplayFilterId={activeDisplayFilterId}
+                    isActiveDisplayFilterHidden={isActiveDisplayFilterHidden}
+                    isRemovingFilter={workflow.isRemovingFilter}
+                    isLoadingInitial={filterImageLoading && !filterImageLoadedOnce}
+                    lock={filterLock}
+                    onSelectFilter={showFilter}
+                    onToggleHidden={handleToggleHidden}
+                    onRemoveFilter={workflow.removeFilter}
+                  />
+                ) : null
               }
               tracePanelContent={
-                <TraceSidebarSection
-                  trace={trace ? { kind: trace.kind } : null}
-                  isAddTraceDisabled={isAddTraceDisabled}
-                  isClearingTrace={isClearingTrace}
-                  isLoadingInitial={traceLoading}
-                  onClearTrace={handleClearTrace}
-                  onOpenSelection={openTraceSelection}
-                />
+                !isMobile ? (
+                  <TraceSurfaceScope
+                    intent="desktop"
+                    traceSourceImage={traceSourceImage}
+                    onApplyTrace={handleApplyTrace}
+                    isAddTraceDisabled={isAddTraceDisabled}
+                    isClearingTrace={isClearingTrace}
+                    isLoadingInitial={traceLoading}
+                    trace={trace ? { kind: trace.kind } : null}
+                    onClearTrace={handleClearTrace}
+                    onBeforeOpenSelection={closeLeftPanelOnTraceSelection}
+                    traceOverlayVisible={traceOverlayVisible}
+                    previewBitmapVisible={previewBitmapVisible}
+                    numbersLayerVisible={numbersLayerVisible}
+                    onTraceOverlayChange={setTraceOverlayVisible}
+                    onPreviewBitmapChange={setPreviewBitmapVisible}
+                    onNumbersLayerChange={setNumbersLayerVisible}
+                  />
+                ) : null
               }
               open={leftPanelOpen}
               onOpenChange={setLeftPanelOpen}
@@ -827,37 +795,12 @@ export function ProjectDetailPageClient({
             open={rightPanelOpen}
             onOpenChange={setRightPanelOpen}
           />
-          <EditorDialogHost
-            selectionOpen={filterDialog.selectionOpen}
-            filterDialogSource={filterDialogSource}
-            onCloseSelection={filterDialog.closeSelection}
-            onApplyFilter={async (op) => {
-              await handleApplyFilter(op)
-              // Mobile: also close the management sheet so the user
-              // lands back on the canvas with the new filter visible.
-              // Desktop: no-op because mobileEditOpen is never set.
-              setMobileEditOpen(false)
-            }}
-          />
-          <EditorTraceDialogHost
-            selectionOpen={traceDialog.selectionOpen}
-            activeKind={traceDialog.activeKind}
-            traceDialogSource={liveTraceDialogSource}
-            onCloseSelection={traceDialog.closeSelection}
-            onSelectKind={traceDialog.selectKind}
-            onCloseConfigure={traceDialog.closeConfigure}
-            onApplied={() => {
-              traceDialog.reset()
-              setMobileEditOpen(false)
-            }}
-            onApplyTrace={handleApplyTrace}
-          />
+          {/* Filter + Trace dialog hosts moved into their respective
+              surface scope components (see panel slots + mobile gates). */}
         </EditorErrorBoundary>
-        <MobileEditButton onClick={openMobileEdit} ariaLabel={`Edit ${mobileSection}`} />
-        {mobileEditOpen && mobileSection === "artboard" ? (
-          <MobileArtboardSheet
+        {isMobile && mobileSection === "artboard" ? (
+          <ArtboardSurfaceScope
             projectId={projectId}
-            onClose={closeMobileEdit}
             pageBgEnabled={pageBgEnabled}
             pageBgColor={pageBgColor}
             pageBgOpacity={pageBgOpacity}
@@ -888,13 +831,16 @@ export function ProjectDetailPageClient({
             onRequestDelete={requestDeleteSelectedImage}
           />
         ) : null}
-        {mobileEditOpen && mobileSection === "filter" ? (
-          <MobileFilterSheet
-            onClose={closeMobileEdit}
+        {isMobile && mobileSection === "filter" ? (
+          <FilterSurfaceScope
+            intent="mobile"
+            filterSourceImage={filterSourceImage}
+            onApplyFilter={handleApplyFilter}
+            isAddFilterDisabled={isAddFilterDisabled}
+            workflowDismissError={workflow.dismissError}
             filterStack={filterStack}
             canvasMode={canvasMode}
             hiddenFilterIds={hiddenFilterIds}
-            isAddFilterDisabled={isAddFilterDisabled}
             activeDisplayFilterId={activeDisplayFilterId}
             isActiveDisplayFilterHidden={isActiveDisplayFilterHidden}
             isRemovingFilter={workflow.isRemovingFilter}
@@ -903,18 +849,18 @@ export function ProjectDetailPageClient({
             onSelectFilter={showFilter}
             onToggleHidden={handleToggleHidden}
             onRemoveFilter={workflow.removeFilter}
-            onOpenSelection={openFilterSelection}
           />
         ) : null}
-        {mobileEditOpen && mobileSection === "trace" ? (
-          <MobileTraceSheet
-            onClose={closeMobileEdit}
-            trace={trace ? { kind: trace.kind } : null}
+        {isMobile && mobileSection === "trace" ? (
+          <TraceSurfaceScope
+            intent="mobile"
+            traceSourceImage={traceSourceImage}
+            onApplyTrace={handleApplyTrace}
             isAddTraceDisabled={isAddTraceDisabled}
             isClearingTrace={isClearingTrace}
             isLoadingInitial={traceLoading}
+            trace={trace ? { kind: trace.kind } : null}
             onClearTrace={handleClearTrace}
-            onOpenSelection={openTraceSelection}
             traceOverlayVisible={traceOverlayVisible}
             previewBitmapVisible={previewBitmapVisible}
             numbersLayerVisible={numbersLayerVisible}

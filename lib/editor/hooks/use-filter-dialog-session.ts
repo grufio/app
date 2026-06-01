@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useReducer, useState } from "react"
+import { useCallback, useMemo, useReducer, useState } from "react"
 
 import {
   filterDialogReducer,
@@ -12,30 +12,9 @@ import {
 
 export type { FilterDialogSourceImage, FilterType }
 
-/**
- * @param surfaceActive True when the owning editor surface (the Filter
- *   section, desktop tab or mobile bottom-nav) is the active one.
- *   Flipping false auto-resets the dialog to idle — same contract as
- *   `useTraceDialogSession` (the twin hook). Reuses the existing
- *   `reset` action; reducer is idempotent on reset-from-idle so the
- *   effect is a no-op when no dialog is open.
- */
-export function useFilterDialogSession(
-  sourceImage: FilterDialogSourceImage | null,
-  surfaceActive: boolean,
-) {
+export function useFilterDialogSession(sourceImage: FilterDialogSourceImage | null) {
   const [state, dispatch] = useReducer(filterDialogReducer, initialFilterDialogState)
   const [error, setError] = useState("")
-
-  useEffect(() => {
-    if (surfaceActive) return
-    // Mirror of `useTraceDialogSession`'s dismissal effect — see that
-    // file for the rationale on the eslint suppression. Same lifecycle
-    // contract: surface inactive → dialog idle + error cleared.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setError("")
-    dispatch({ type: "reset" })
-  }, [surfaceActive])
 
   const beginSelection = useCallback(() => {
     if (!sourceImage) {
