@@ -21,7 +21,7 @@ def _solid_image(w: int, h: int, rgb=(10, 120, 240)) -> Image.Image:
 
 
 def test_region_count_is_cells_product():
-    svg, png, region_count = pixelate_to_svg(
+    svg, png, region_count, _used = pixelate_to_svg(
         _solid_image(8, 8), cells_x=4, cells_y=4,
         crop_x=0, crop_y=0, crop_w=8, crop_h=8, stroke_width=1.0,
     )
@@ -30,7 +30,7 @@ def test_region_count_is_cells_product():
 
 
 def test_viewbox_matches_integer_crop():
-    svg, _png, _n = pixelate_to_svg(
+    svg, _png, _n, _used = pixelate_to_svg(
         _solid_image(20, 12), cells_x=5, cells_y=3,
         crop_x=2, crop_y=1, crop_w=10, crop_h=6, stroke_width=1.0,
     )
@@ -40,7 +40,7 @@ def test_viewbox_matches_integer_crop():
 
 
 def test_scale_factor_maps_cells_to_crop_pixels():
-    svg, _png, _n = pixelate_to_svg(
+    svg, _png, _n, _used = pixelate_to_svg(
         _solid_image(8, 8), cells_x=4, cells_y=2,
         crop_x=0, crop_y=0, crop_w=8, crop_h=8, stroke_width=1.0,
     )
@@ -52,7 +52,7 @@ def test_scale_factor_maps_cells_to_crop_pixels():
 
 
 def test_grid_line_count():
-    svg, _png, _n = pixelate_to_svg(
+    svg, _png, _n, _used = pixelate_to_svg(
         _solid_image(8, 8), cells_x=4, cells_y=3,
         crop_x=0, crop_y=0, crop_w=8, crop_h=8, stroke_width=1.0,
     )
@@ -61,7 +61,7 @@ def test_grid_line_count():
 
 
 def test_solid_image_cells_take_source_colour():
-    svg, _png, _n = pixelate_to_svg(
+    svg, _png, _n, _used = pixelate_to_svg(
         _solid_image(8, 8, rgb=(10, 120, 240)), cells_x=4, cells_y=4,
         crop_x=0, crop_y=0, crop_w=8, crop_h=8, stroke_width=1.0,
     )
@@ -71,7 +71,7 @@ def test_solid_image_cells_take_source_colour():
 
 def test_crop_clamps_to_image_bounds():
     # crop_x negative and crop extends past the image -> clamped to [0, w].
-    _svg, png, _n = pixelate_to_svg(
+    _svg, png, _n, _used = pixelate_to_svg(
         _solid_image(8, 8), cells_x=2, cells_y=2,
         crop_x=-4, crop_y=-4, crop_w=100, crop_h=100, stroke_width=1.0,
     )
@@ -87,7 +87,7 @@ def test_palette_snaps_cell_fills_to_chip_colours():
     # chip colour (#000000 or #ffffff), never the raw mean #828282.
     chips_rgb = [[0, 0, 0], [255, 255, 255]]
     chips_oklab = rgb255_to_oklab(np.array(chips_rgb)).tolist()
-    svg, _png, _n = pixelate_to_svg(
+    svg, _png, _n, _used = pixelate_to_svg(
         _solid_image(4, 4, rgb=(130, 130, 130)), cells_x=2, cells_y=2,
         crop_x=0, crop_y=0, crop_w=4, crop_h=4, stroke_width=1.0,
         palette_oklab=chips_oklab, palette_rgb=chips_rgb,
@@ -108,7 +108,7 @@ from app.pixelate import pixelate_cells_to_svg
 
 def test_cells_path_region_count_and_viewbox():
     cells = np.full((3, 4, 3), 200, dtype=np.uint8)  # 4 cols × 3 rows, solid
-    svg, region_count = pixelate_cells_to_svg(
+    svg, region_count, _used = pixelate_cells_to_svg(
         cell_means=cells, cropped_w_px=40, cropped_h_px=30,
     )
     assert region_count == 12
@@ -121,7 +121,7 @@ def test_cells_path_uses_cell_mean_when_no_palette():
     cells = np.array([
         [[10, 20, 30], [200, 50, 50]],
     ], dtype=np.uint8)
-    svg, _ = pixelate_cells_to_svg(
+    svg, _, _used = pixelate_cells_to_svg(
         cell_means=cells, cropped_w_px=20, cropped_h_px=10,
     )
     fills = set(re.findall(r'fill="(#[0-9a-f]{6})"', svg))
@@ -137,7 +137,7 @@ def test_cells_path_palette_snap():
         [[130, 130, 130], [10, 10, 10]],
         [[240, 240, 240], [180, 180, 180]],
     ], dtype=np.uint8)
-    svg, _ = pixelate_cells_to_svg(
+    svg, _, _used = pixelate_cells_to_svg(
         cell_means=cells, cropped_w_px=20, cropped_h_px=20,
         palette_oklab=chips_oklab, palette_rgb=chips_rgb,
     )
@@ -151,14 +151,14 @@ def test_cells_and_legacy_paths_produce_equivalent_svg():
     extras (cropped PNG + 'crop'/'downsample'/'encode_cropped' phases) are
     by-products, not output drift."""
     img = _solid_image(8, 8, rgb=(60, 90, 120))
-    legacy_svg, _png, _n_legacy = pixelate_to_svg(
+    legacy_svg, _png, _n_legacy, _used_legacy = pixelate_to_svg(
         img, cells_x=4, cells_y=4,
         crop_x=0, crop_y=0, crop_w=8, crop_h=8, stroke_width=1.0,
     )
     # The legacy path's area-average of a solid image is the same colour;
     # feed an equivalent (cells_y, cells_x, 3) grid to the new path.
     cells = np.full((4, 4, 3), (60, 90, 120), dtype=np.uint8)
-    new_svg, _n_new = pixelate_cells_to_svg(
+    new_svg, _n_new, _used_new = pixelate_cells_to_svg(
         cell_means=cells, cropped_w_px=8, cropped_h_px=8,
     )
 

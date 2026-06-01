@@ -22,6 +22,7 @@ import {
 import { buildNavId } from "@/features/editor/navigation/nav-id"
 import { deriveSectionLocks } from "@/lib/editor/section-locks"
 import { MobileBottomNav, type MobileNavSection } from "@/features/editor/components/mobile-bottom-nav"
+import { MobileColorsSheet } from "@/features/editor/components/mobile-colors-sheet"
 import { deleteMasterImageWithCascade, removeProjectImageFilter } from "@/lib/api/project-images"
 import {
   Dialog,
@@ -129,9 +130,20 @@ export function ProjectDetailPageClient({
   // gating — see `deriveDisplayLayers`), and each surface's scope
   // component owns its own floating Edit-icon + sheet.
   const [mobileSection, setMobileSection] = useState<"artboard" | "filter" | "trace">("artboard")
+  // Colors is decoupled from `mobileSection` — the sheet is a view-only
+  // overlay over the current canvas (typically the active trace), so
+  // changing the section would force `deriveDisplayLayers` to grow a
+  // duplicate trace-on case. Keep it as its own boolean instead; the
+  // bottom-nav's "active" highlight reads `colorsSheetOpen` for the
+  // Colors button and `mobileSection` for the rest.
+  const [colorsSheetOpen, setColorsSheetOpen] = useState(false)
   const handleMobileNavTap = useCallback((section: MobileNavSection) => {
     if (section === "artboard" || section === "filter" || section === "trace") {
       setMobileSection(section)
+      return
+    }
+    if (section === "colors") {
+      setColorsSheetOpen(true)
     }
   }, [])
   // Mobile-only drawer state for the side panels. On `md+` both panels
@@ -871,11 +883,28 @@ export function ProjectDetailPageClient({
         ) : null}
       </ProjectEditorLayout>
       <MobileBottomNav
-        activeSection={mobileSection}
+        activeSection={colorsSheetOpen ? "colors" : mobileSection}
         onSectionTap={handleMobileNavTap}
         imageLocked={sectionLocks.imageLocked}
         filterLocked={sectionLocks.filterLocked}
       />
+
+      {isMobile && colorsSheetOpen ? (
+        <MobileColorsSheet
+          onClose={() => setColorsSheetOpen(false)}
+          paletteIndicesUsed={trace?.palette_indices_used ?? null}
+          traceMode={(() => {
+            // pixelate + circulate carry color_mode in params; lineart
+            // is always monochrome and has no palette. Null mode →
+            // sheet shows the "no palette colors" empty state.
+            if (!trace || trace.kind === "lineart") return null
+            const cm = (trace.params as { color_mode?: unknown }).color_mode
+            return cm === "bw" ? "bw" : "color"
+          })()}
+          isLineartTrace={trace?.kind === "lineart"}
+          hasTrace={trace != null}
+        />
+      ) : null}
 
       <Dialog open={unlockRequest !== null} onOpenChange={(o) => (!o ? cancelUnlock() : null)}>
         <DialogContent>

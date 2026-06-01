@@ -83,7 +83,7 @@ def circulate_cells_to_svg(
     texture_enabled: bool = False,
     texture_strength: float = 0.0,
     on_phase: callable | None = None,
-) -> tuple[str, int]:
+) -> tuple[str, int, list[int]]:
     """
     Render the circulate SVG from a pre-computed per-cell colour grid.
 
@@ -183,10 +183,15 @@ def circulate_cells_to_svg(
     # supplied — the layer is silently absent and the client toggle is a
     # no-op.
     numbers_group = ""
+    palette_indices_used: list[int] = []
     if palette_rgb is not None:
         indices = reconstruct_palette_indices(outer, np.asarray(palette_rgb, dtype=np.uint8))
         labels = build_label_map(indices)
         numbers_group = render_numbers_group(indices, labels, cell_px_w, cell_px_h)
+        # Unique palette chips actually used in the final output. Sorted
+        # ascending by palette_index so the client renders them
+        # deterministically. Mirrors the pixelate convention.
+        palette_indices_used = sorted(int(i) for i in np.unique(indices).tolist())
         phase("numbers")
 
     # Stacking order: cells (filled) → frames (outline) → numbers (digits).
@@ -207,7 +212,7 @@ def circulate_cells_to_svg(
     )
     phase("serialize")
 
-    return svg_content, region_count
+    return svg_content, region_count, palette_indices_used
 
 
 def circulate_to_svg(
@@ -232,7 +237,7 @@ def circulate_to_svg(
     texture_enabled: bool = False,
     texture_strength: float = 0.0,
     on_phase: callable | None = None,
-) -> tuple[str, bytes, int]:
+) -> tuple[str, bytes, int, list[int]]:
     """
     Legacy entry point: full source → cropped → downsampled → SVG + PNG.
 
@@ -262,7 +267,7 @@ def circulate_to_svg(
     cell_means = compute_cell_colors(cropped, cells_x, cells_y)
     phase("downsample")
 
-    svg_content, region_count = circulate_cells_to_svg(
+    svg_content, region_count, palette_indices_used = circulate_cells_to_svg(
         cell_means=cell_means,
         cropped_w_px=cropped_w_px,
         cropped_h_px=cropped_h_px,
@@ -287,5 +292,5 @@ def circulate_to_svg(
     cropped_png = buf.getvalue()
     phase("encode_cropped")
 
-    return svg_content, cropped_png, region_count
+    return svg_content, cropped_png, region_count, palette_indices_used
 
