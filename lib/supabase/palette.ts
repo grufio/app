@@ -18,10 +18,15 @@ import type { Database } from "./database.types"
 
 export type TraceColorMode = "color" | "bw"
 
-/** One palette chip: OKLab (for matching) + RGB (the emitted colour). */
+/** One palette chip: OKLab (for matching) + RGB (the emitted colour),
+ *  plus the chip's Munsell notation and ISCC-NBS Level-3 name for
+ *  display. `iscc_nbs_name` is nullable in case a chip falls outside
+ *  every named block; callers should fall back to `notation`. */
 export type PaletteChip = {
   oklab: [number, number, number]
   rgb: [number, number, number]
+  notation: string
+  iscc_nbs_name: string | null
 }
 
 type PaletteRow = {
@@ -31,6 +36,8 @@ type PaletteRow = {
   rgb_r: number
   rgb_g: number
   rgb_b: number
+  notation: string
+  iscc_nbs_name: string | null
 }
 
 /**
@@ -45,7 +52,7 @@ export async function readTracePalette(
   const { data, error } = await supabase
     // lab_* tables are untyped in the generated schema (see file header).
     .from(table as never)
-    .select("oklab_l,oklab_a,oklab_b,rgb_r,rgb_g,rgb_b")
+    .select("oklab_l,oklab_a,oklab_b,rgb_r,rgb_g,rgb_b,notation,iscc_nbs_name")
     .order("palette_index", { ascending: true })
   if (error) throw new Error(`Failed to read ${table} palette: ${error.message}`)
   const rows = (data ?? []) as unknown as PaletteRow[]
@@ -53,5 +60,7 @@ export async function readTracePalette(
   return rows.map((r) => ({
     oklab: [r.oklab_l, r.oklab_a, r.oklab_b],
     rgb: [r.rgb_r, r.rgb_g, r.rgb_b],
+    notation: r.notation,
+    iscc_nbs_name: r.iscc_nbs_name,
   }))
 }
