@@ -91,17 +91,18 @@ export function ImagePanel({
   onDelete,
 }: Props) {
   const controlsDisabled = Boolean(disabled) || !ready
+  const isLocked = lock != null
 
   return (
     <EditorSidebarSection
       title="Image"
-      locked={lock != null}
+      locked={isLocked}
       headerActions={
         <>
           <RightPanelIconButton
             type="button"
             aria-label="Restore image"
-            disabled={!canRestore}
+            disabled={!canRestore || isLocked}
             onClick={onRestore}
           >
             <RotateCcw className="size-4" />
@@ -109,7 +110,7 @@ export function ImagePanel({
           <RightPanelIconButton
             type="button"
             aria-label="Fit image to artboard"
-            disabled={!canFit}
+            disabled={!canFit || isLocked}
             onClick={onFitToArtboard}
           >
             <Maximize2 className="size-4" />
@@ -118,7 +119,7 @@ export function ImagePanel({
           <RightPanelIconButton
             type="button"
             aria-label="Delete image"
-            disabled={!canDelete}
+            disabled={!canDelete || isLocked}
             onClick={onDelete}
           >
             <Trash2 className="size-4" />

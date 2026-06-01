@@ -116,7 +116,21 @@ const fieldGroupStateInvalid =
   "has-[[data-slot=app-input][aria-invalid=true]]:border-destructive " +
   "has-[[data-slot=select-trigger][aria-invalid=true]]:border-destructive"
 
-const fieldGroupState = cn(fieldGroupStateFocus, fieldGroupStateFocusVisible, fieldGroupStateInvalid)
+// When any slotted control is disabled, tint the group's background so the
+// field reads as "off" rather than only the inner text fading. Matches the
+// shadcn disabled-input convention; complements the inner control's
+// `disabled:opacity-50`.
+const fieldGroupStateDisabled =
+  "has-[[data-slot=input-group-control]:disabled]:bg-muted/40 " +
+  "has-[[data-slot=app-input]:disabled]:bg-muted/40 " +
+  "has-[[data-slot=select-trigger]:disabled]:bg-muted/40"
+
+const fieldGroupState = cn(
+  fieldGroupStateFocus,
+  fieldGroupStateFocusVisible,
+  fieldGroupStateInvalid,
+  fieldGroupStateDisabled,
+)
 
 // Child slots must not create inner corner radii inside the shared group chrome.
 const fieldGroupSlotShape = cn(
