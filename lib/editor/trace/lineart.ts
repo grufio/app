@@ -14,11 +14,19 @@ export const lineartSchema = z.object({
   // to vtracer's corner_threshold + length_threshold +
   // filter_speckle inside the Python service.
   smoothness: z.coerce.number().min(0).max(1).default(0.6),
-  // Palette quantisation. Same field name + range as pixelate so
-  // both UI surfaces feel consistent. Lineart's organic regions
-  // tend to need fewer colors than pixelate's superpixel grid;
-  // default 8 mirrors the classic paint-by-numbers paint count.
+  // Median-cut pre-quantisation for vtracer's region detection. The
+  // post-vtracer step snaps each region's fill to the nearest
+  // Munsell chip (selected by `color_mode` below), so this value
+  // only controls how many distinct regions vtracer carves out,
+  // NOT how many palette chips the output uses.
   num_colors: z.coerce.number().int().min(2).max(256).default(8),
+  // Which Munsell palette to snap region fills against — same
+  // contract as pixelate / circulate. "color" → lab_munsell (128
+  // chips), "bw" → lab_grays (48). Default "color" keeps existing
+  // traces visually equivalent to their pre-snap median-cut output
+  // when the upstream median-cut bins happen to already land near
+  // palette chips.
+  color_mode: z.enum(["color", "bw"]).default("color"),
 })
 
 export type LineartParams = z.infer<typeof lineartSchema>
