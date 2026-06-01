@@ -386,15 +386,13 @@ export function ProjectDetailPageClient({
   // filter_working_copy row + storage object are left behind for the
   // eventual-consistent cleanup. Internal Next.js nav stays inside the
   // editor and isn't blocked.
+  // Filter + Trace configuring flags contributed by their respective
+  // scope components' own useMutationLeaveGuard calls — browser ORs
+  // the beforeunload listeners across instances.
   useMutationLeaveGuard({
     active: shouldWarnBeforeUnload({
       mutationInFlight:
         workflow.isApplyingFilter || workflow.isCropping || workflow.isRestoring,
-      // Filter + Trace configuring flags now contributed by their
-      // respective scope components' own useMutationLeaveGuard calls
-      // (browser ORs the listeners).
-      filterDialogConfiguring: false,
-      traceDialogConfiguring: false,
     }),
   })
 
