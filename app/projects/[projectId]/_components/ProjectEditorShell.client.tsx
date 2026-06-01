@@ -21,9 +21,7 @@ import {
 } from "@/features/editor"
 import { buildNavId } from "@/features/editor/navigation/nav-id"
 import { deriveSectionLocks } from "@/lib/editor/section-locks"
-import { MobileArtboardSheet } from "@/features/editor/components/mobile-artboard-sheet"
 import { MobileBottomNav, type MobileNavSection } from "@/features/editor/components/mobile-bottom-nav"
-import { MobileEditButton } from "@/features/editor/components/mobile-edit-button"
 import { deleteMasterImageWithCascade, removeProjectImageFilter } from "@/lib/api/project-images"
 import {
   Dialog,
@@ -60,6 +58,7 @@ import { computeRenderableGrid } from "@/services/editor/grid/validation"
 import { useRightPanelModel } from "./editor-shell/use-right-panel-model"
 import { useStageInteractionPolicy } from "./editor-shell/use-stage-interaction-policy"
 import { useEditorWorkflowAdapter } from "./editor-shell/use-editor-workflow-adapter"
+import { ArtboardSurfaceScope } from "./editor-shell/artboard-surface-scope"
 import { FilterSurfaceScope } from "./editor-shell/filter-surface-scope"
 import { TraceSurfaceScope } from "./editor-shell/trace-surface-scope"
 import { useLeftPanelModel } from "./editor-shell/use-left-panel-model"
@@ -127,18 +126,14 @@ export function ProjectDetailPageClient({
   const [selectedNavId, setSelectedNavId] = useState<string>(buildNavId({ kind: "artboard" }))
   // Mobile-only: the bottom-nav picks the active section, the canvas
   // surfaces section-specific layers (mirror desktop's `leftPanelTab`
-  // gating — see `deriveDisplayLayers`), and the floating Edit-icon
-  // opens that section's management sheet on demand. Artboard / Filter
-  // / Trace are wired; Colors / Output are stubs until their own PRs.
+  // gating — see `deriveDisplayLayers`), and each surface's scope
+  // component owns its own floating Edit-icon + sheet.
   const [mobileSection, setMobileSection] = useState<"artboard" | "filter" | "trace">("artboard")
-  const [mobileEditOpen, setMobileEditOpen] = useState(false)
   const handleMobileNavTap = useCallback((section: MobileNavSection) => {
     if (section === "artboard" || section === "filter" || section === "trace") {
       setMobileSection(section)
     }
   }, [])
-  const openMobileEdit = useCallback(() => setMobileEditOpen(true), [])
-  const closeMobileEdit = useCallback(() => setMobileEditOpen(false), [])
   // Mobile-only drawer state for the side panels. On `md+` both panels
   // are always-on; this state is ignored there. The Sheet primitive on
   // mobile handles Escape, overlay-click and focus-trap natively — no
@@ -204,10 +199,8 @@ export function ProjectDetailPageClient({
     seedMasterImage,
     saveImageState,
   })
-  // Filter + Trace dialog state lives inside the per-surface scope
-  // components (mounted only while their surface is active). Artboard
-  // still uses the in-shell mobileEditOpen pattern temporarily;
-  // commit 3 moves it.
+  // All three surfaces own their own state inside per-surface scope
+  // components mounted only while their surface is active.
   const filterSurfaceActive =
     isMobile ? mobileSection === "filter" : leftPanelTab === "filter"
   const traceSurfaceActive =
@@ -806,16 +799,9 @@ export function ProjectDetailPageClient({
           {/* Filter + Trace dialog hosts moved into their respective
               surface scope components (see panel slots + mobile gates). */}
         </EditorErrorBoundary>
-        {/* Shell-side edit button covers Artboard only now; Filter +
-            Trace render their own button inside their scope (mobile
-            intent). Artboard moves in commit 3. */}
-        {mobileSection === "artboard" ? (
-          <MobileEditButton onClick={openMobileEdit} ariaLabel="Edit artboard" />
-        ) : null}
-        {mobileEditOpen && mobileSection === "artboard" ? (
-          <MobileArtboardSheet
+        {isMobile && mobileSection === "artboard" ? (
+          <ArtboardSurfaceScope
             projectId={projectId}
-            onClose={closeMobileEdit}
             pageBgEnabled={pageBgEnabled}
             pageBgColor={pageBgColor}
             pageBgOpacity={pageBgOpacity}
