@@ -43,8 +43,18 @@ async function importRouteWithMocks(args: {
   return import("./route")
 }
 
-const colorChip: PaletteChip = { oklab: [0.5, 0.1, -0.1], rgb: [128, 64, 64] }
-const bwChip: PaletteChip = { oklab: [0.3, 0, 0], rgb: [77, 77, 77] }
+const colorChip: PaletteChip = {
+  oklab: [0.5, 0.1, -0.1],
+  rgb: [128, 64, 64],
+  notation: "5R 4/14",
+  iscc_nbs_name: "Vivid red",
+}
+const bwChip: PaletteChip = {
+  oklab: [0.3, 0, 0],
+  rgb: [77, 77, 77],
+  notation: "N 3.0/",
+  iscc_nbs_name: "Dark gray",
+}
 
 describe("palette route contract", () => {
   it("GET returns both palettes under ok:true for an authed user", async () => {
