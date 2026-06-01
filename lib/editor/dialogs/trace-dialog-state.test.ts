@@ -93,4 +93,15 @@ describe("traceDialogReducer", () => {
       ),
     ).toEqual({ phase: "idle" })
   })
+
+  it("reset / closeSelection / closeConfigure are idempotent on idle", () => {
+    // The dialog-dismiss hook (`useTraceDialogSession`'s surfaceActive
+    // effect) dispatches reset whenever the owning surface goes
+    // inactive — even when the dialog is already idle. The reducer
+    // must return the same reference so React skips the re-render.
+    const idle = initialTraceDialogState
+    expect(traceDialogReducer(idle, { type: "reset" })).toBe(idle)
+    expect(traceDialogReducer(idle, { type: "closeSelection" })).toBe(idle)
+    expect(traceDialogReducer(idle, { type: "closeConfigure" })).toBe(idle)
+  })
 })
