@@ -235,6 +235,13 @@ class LineArtRequest(BaseModel):
     blur_amount: int = 3
     smoothness: float = 0.6
     num_colors: int = 8
+    # Optional palette pair (lab_munsell for "color" mode, lab_grays
+    # for "bw"). When both are provided, every vtracer fill is
+    # snapped to the nearest chip — same single-step contract as
+    # pixelate / circulate. When omitted, fills stay at the
+    # median-cut quantised RGB (legacy back-compat).
+    palette_oklab: list | None = None
+    palette_rgb: list | None = None
 
 
 class PixelateRequest(BaseModel):
@@ -650,18 +657,23 @@ async def lineart_filter(request: LineArtRequest):
             img = img.convert("RGB")
         timer.mark("decode")
 
-        svg_content, region_count = lineart_to_svg(
+        svg_content, region_count, palette_indices_used = lineart_to_svg(
             img,
             line_thickness=request.line_thickness,
             blur_amount=request.blur_amount,
             smoothness=request.smoothness,
             num_colors=request.num_colors,
+            palette_oklab=request.palette_oklab,
+            palette_rgb=request.palette_rgb,
             on_phase=timer.mark,
         )
 
-        return Response(
-            content=svg_content,
-            media_type="image/svg+xml",
+        return JSONResponse(
+            content={
+                "svg": svg_content,
+                "region_count": region_count,
+                "palette_indices_used": palette_indices_used,
+            },
             headers={
                 "X-Profile-Phases": timer.header(),
                 "X-Region-Count": str(region_count),

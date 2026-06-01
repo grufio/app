@@ -14,8 +14,11 @@ from __future__ import annotations
 import io
 import re
 
+import numpy as np
 from PIL import Image, ImageFilter
 import vtracer
+
+from .oklab import nearest_palette_indices, rgb255_to_oklab
 
 
 # Lineart variant of the vtracer params: organic contours instead of
@@ -75,14 +78,60 @@ def add_stroke_to_path(path_str: str, color: str, width: float) -> str:
     return path_str.replace("/>", f' stroke="{color}" stroke-width="{width}"/>')
 
 
+def _hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
+    h = hex_color.lstrip("#")
+    return int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+
+
+def snap_path_fills_to_palette(
+    paths: list[str],
+    palette_oklab: np.ndarray,
+    palette_rgb: np.ndarray,
+) -> tuple[list[str], np.ndarray]:
+    """Snap every `<path>`'s vtracer-emitted fill to the nearest
+    palette chip. Same OKLab-nearest match as pixelate / circulate
+    (single-step: free RGB → palette chip, no double-loss
+    median-cut intermediate). Returns the rewritten path strings +
+    the per-path index array.
+
+    Paths without a parseable fill keep their original markup and
+    map to index 0 in the returned array — those are usually
+    vtracer's transparent / background regions and don't reach the
+    snap step in practice.
+    """
+    fills_rgb: list[tuple[int, int, int]] = []
+    fill_matches: list[re.Match[str] | None] = []
+    for path in paths:
+        m = _FILL_ATTR_RE.search(path)
+        fill_matches.append(m)
+        fills_rgb.append(_hex_to_rgb(m.group(1)) if m else (0, 0, 0))
+
+    rgb_arr = np.asarray(fills_rgb, dtype=np.uint8)
+    oklab = rgb255_to_oklab(rgb_arr)
+    indices = nearest_palette_indices(oklab, palette_oklab)
+    palette_rgb_arr = np.asarray(palette_rgb, dtype=np.uint8)
+
+    snapped_paths: list[str] = []
+    for path, match, idx in zip(paths, fill_matches, indices):
+        if match is None:
+            snapped_paths.append(path)
+            continue
+        r, g, b = palette_rgb_arr[int(idx)]
+        new_fill = f'fill="#{int(r):02x}{int(g):02x}{int(b):02x}"'
+        snapped_paths.append(path[: match.start()] + new_fill + path[match.end() :])
+    return snapped_paths, indices
+
+
 def lineart_to_svg(
     img: Image.Image,
     line_thickness: float,
     blur_amount: int,
     smoothness: float,
     num_colors: int = 8,
+    palette_oklab: list | None = None,
+    palette_rgb: list | None = None,
     on_phase: callable | None = None,
-) -> tuple[str, int]:
+) -> tuple[str, int, list[int]]:
     """
     Lineart pipeline: quantise palette → optional Gaussian blur →
     vtracer in spline / cutout mode → add black stroke to every
@@ -142,6 +191,24 @@ def lineart_to_svg(
     phase("vtracer")
 
     raw_paths = extract_path_elements(traced)
+
+    # When a palette is supplied, snap every vtracer fill to the
+    # nearest Munsell chip — same single-step rgb→palette pattern as
+    # pixelate / circulate. The geometry stays put (vtracer's
+    # region boundaries were derived from the median-cut quantised
+    # source); only the fills change. The set of indices used flows
+    # back to the editor so the Colors sheet renders them.
+    palette_indices_used: list[int] = []
+    if palette_oklab is not None and palette_rgb is not None and raw_paths:
+        snapped_paths, indices = snap_path_fills_to_palette(
+            raw_paths,
+            np.asarray(palette_oklab, dtype=np.float32),
+            np.asarray(palette_rgb, dtype=np.uint8),
+        )
+        raw_paths = snapped_paths
+        palette_indices_used = sorted(int(i) for i in np.unique(indices).tolist())
+        phase("palette")
+
     color_paths = [add_stroke_to_path(p, "black", line_thickness) for p in raw_paths]
     region_count = len(color_paths)
     phase("extract")
@@ -162,4 +229,4 @@ def lineart_to_svg(
     )
     phase("serialize")
 
-    return svg_content, region_count
+    return svg_content, region_count, palette_indices_used
