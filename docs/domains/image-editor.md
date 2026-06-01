@@ -256,6 +256,24 @@ covers the four rows. UI is verified manually.
   The bitmap below the SVG is the working_copy / filter chain tip
   (PR #262 — `trace_base` is no longer the canvas source); the
   overlay architecture is unchanged from #84/#86.
+- **Trace view toggles are Trace-section-scoped on effect, not on
+  storage.** Three flags — `traceOverlayVisible` (cells/colors),
+  `previewBitmapVisible` (Konva.Image underneath), `numbersLayerVisible`
+  (labels `<g id="numbers">`) — persist in `SessionState`
+  ([lib/editor/hooks/use-editor-session-state.ts](../../lib/editor/hooks/use-editor-session-state.ts))
+  so the user's last Trace view preference survives a tab trip. Their
+  *canvas effect* is gated on the Trace section being active via
+  `deriveDisplayLayers`
+  ([lib/editor/display-layers.ts](../../lib/editor/display-layers.ts)) —
+  outside Trace, the effective values collapse to `true` so the
+  toggles can't leak into the Image / Filter tabs (the
+  `previewBitmapVisible=false` case used to hide the bitmap on every
+  tab via the un-gated `<KonvaImage>` check at
+  `project-canvas-stage.tsx`). The checkbox UI reads the raw session
+  values (so a toggle left off stays off); only canvas-bound prop
+  chains read the effective values. The gate reuses the same
+  `traceSectionActive` check as `traceOverlaySvgUrl`, so the two
+  outputs can't drift on whether Trace is "active".
 - **Pixelate apply is non-destructive (PR #260).** It does NOT
   mutate `project_image_state` — the cropped grid lives only in the
   trace SVG's viewBox (= the source crop) plus the `trace_base`

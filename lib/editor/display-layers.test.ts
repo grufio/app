@@ -208,3 +208,127 @@ describe("deriveDisplayLayers — showFilterChain", () => {
     expect(result.showFilterChain).toBe(false)
   })
 })
+
+describe("deriveDisplayLayers — Trace view flags are section-scoped", () => {
+  // The three Trace visibility toggles (Trace cells, Preview bitmap,
+  // Numbers labels) persist in session state so the user's last view
+  // preference survives a tab trip — but their *canvas effect* must
+  // not leak into other tabs. Off-Trace the effective value collapses
+  // to `true` (= show everything as if no toggle existed). Asserted
+  // for the full matrix: desktop × mobile × each flag false.
+
+  it("desktop Image tab: all three effective flags are true regardless of session input", () => {
+    const result = deriveDisplayLayers({
+      ...base,
+      leftPanelTab: "image",
+      traceOverlayVisible: false,
+      previewBitmapVisible: false,
+      numbersLayerVisible: false,
+    })
+    expect(result.traceOverlayVisible).toBe(true)
+    expect(result.previewBitmapVisible).toBe(true)
+    expect(result.numbersLayerVisible).toBe(true)
+  })
+
+  it("desktop Filter tab: all three effective flags are true regardless of session input", () => {
+    const result = deriveDisplayLayers({
+      ...base,
+      leftPanelTab: "filter",
+      traceOverlayVisible: false,
+      previewBitmapVisible: false,
+      numbersLayerVisible: false,
+    })
+    expect(result.traceOverlayVisible).toBe(true)
+    expect(result.previewBitmapVisible).toBe(true)
+    expect(result.numbersLayerVisible).toBe(true)
+  })
+
+  it("desktop Trace tab: session values pass through unchanged", () => {
+    const result = deriveDisplayLayers({
+      ...base,
+      leftPanelTab: "trace",
+      traceOverlayVisible: false,
+      previewBitmapVisible: false,
+      numbersLayerVisible: false,
+    })
+    expect(result.traceOverlayVisible).toBe(false)
+    expect(result.previewBitmapVisible).toBe(false)
+    expect(result.numbersLayerVisible).toBe(false)
+  })
+
+  it("mobile artboard section: all three effective flags are true", () => {
+    const result = deriveDisplayLayers({
+      ...base,
+      isMobile: true,
+      mobileSection: "artboard",
+      traceOverlayVisible: false,
+      previewBitmapVisible: false,
+      numbersLayerVisible: false,
+    })
+    expect(result.traceOverlayVisible).toBe(true)
+    expect(result.previewBitmapVisible).toBe(true)
+    expect(result.numbersLayerVisible).toBe(true)
+  })
+
+  it("mobile filter section: all three effective flags are true", () => {
+    const result = deriveDisplayLayers({
+      ...base,
+      isMobile: true,
+      mobileSection: "filter",
+      traceOverlayVisible: false,
+      previewBitmapVisible: false,
+      numbersLayerVisible: false,
+    })
+    expect(result.traceOverlayVisible).toBe(true)
+    expect(result.previewBitmapVisible).toBe(true)
+    expect(result.numbersLayerVisible).toBe(true)
+  })
+
+  it("mobile trace section: session values pass through unchanged", () => {
+    const result = deriveDisplayLayers({
+      ...base,
+      isMobile: true,
+      mobileSection: "trace",
+      traceOverlayVisible: false,
+      previewBitmapVisible: false,
+      numbersLayerVisible: false,
+    })
+    expect(result.traceOverlayVisible).toBe(false)
+    expect(result.previewBitmapVisible).toBe(false)
+    expect(result.numbersLayerVisible).toBe(false)
+  })
+
+  it("defaults to true when session flags are omitted", () => {
+    // Older callers that pre-date the visibility-flag inputs keep
+    // compiling and behaving as if all three were `true`.
+    const result = deriveDisplayLayers({ ...base, leftPanelTab: "trace" })
+    expect(result.traceOverlayVisible).toBe(true)
+    expect(result.previewBitmapVisible).toBe(true)
+    expect(result.numbersLayerVisible).toBe(true)
+  })
+
+  it("section gate stays consistent between view flags and traceOverlaySvgUrl", () => {
+    // Both outputs use `traceSectionActive` internally — they must
+    // never disagree about whether Trace is active. Off-Trace the SVG
+    // URL is null AND the view flags collapse to true together.
+    const offTrace = deriveDisplayLayers({
+      ...base,
+      leftPanelTab: "filter",
+      filterDisplayImage: traceArtefact,
+      filterDisplayImageWithoutTrace: rasterTip,
+      previewBitmapVisible: false,
+    })
+    expect(offTrace.traceOverlaySvgUrl).toBeNull()
+    expect(offTrace.previewBitmapVisible).toBe(true)
+
+    const onTrace = deriveDisplayLayers({
+      ...base,
+      leftPanelTab: "trace",
+      filterDisplayImage: traceArtefact,
+      filterDisplayImageWithoutTrace: rasterTip,
+      previewBitmapVisible: false,
+    })
+    expect(onTrace.traceOverlaySvgUrl).toBe(traceArtefact.signedUrl)
+    expect(onTrace.previewBitmapVisible).toBe(false)
+  })
+})

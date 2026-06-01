@@ -33,6 +33,15 @@
  *     - Image/Artboard section → no filter chain highlight, no trace
  *       overlay. The user did not ask to see those there.
  *
+ *  5. **Trace view flags are Trace-section-scoped.** The three Trace
+ *     visibility toggles (`traceOverlayVisible`, `previewBitmapVisible`,
+ *     `numbersLayerVisible`) are persisted in session state so the
+ *     user's last Trace view preference survives a tab trip. Their
+ *     **canvas effect** is gated on the Trace section being active —
+ *     outside Trace the effective values collapse to `true`. The
+ *     checkbox UI keeps reading the raw session values so a toggle
+ *     left off stays off; only the canvas reads the effective value.
+ *
  *  4. Data-presence invariants apply to both surfaces:
  *      - Filter chain needs `editorImageSourceReady`.
  *      - Trace overlay needs both display images (with/without trace)
@@ -62,6 +71,18 @@ export type DisplayLayers = {
   showFilterChain: boolean
   /** The trace SVG URL when the overlay should surface, else null. */
   traceOverlaySvgUrl: string | null
+  /** Effective value of `SessionState.traceOverlayVisible`, gated on
+   * the Trace section being active. Outside Trace this is `true`
+   * regardless of the session value — the toggles are Trace-only
+   * effects. The canvas reads this; the checkbox UI reads the raw
+   * session value (so user intent persists across tab trips). */
+  traceOverlayVisible: boolean
+  /** Effective value of `SessionState.previewBitmapVisible`. Gated
+   * the same way — outside Trace the canvas bitmap always renders. */
+  previewBitmapVisible: boolean
+  /** Effective value of `SessionState.numbersLayerVisible`. Gated
+   * the same way. */
+  numbersLayerVisible: boolean
 }
 
 export function deriveDisplayLayers(input: {
@@ -74,6 +95,16 @@ export function deriveDisplayLayers(input: {
   editorImageSourceReady: boolean
   filterDisplayImage: DisplayImage | null | undefined
   filterDisplayImageWithoutTrace: DisplayImage | null | undefined
+  /** Raw session value for the Trace cells overlay toggle. Default
+   * `true`. Off-Trace, the effective value collapses to `true`
+   * regardless. */
+  traceOverlayVisible?: boolean
+  /** Raw session value for the preview bitmap toggle. Default `true`.
+   * This is the flag that actually leaked pre-fix: gating
+   * `<KonvaImage>` regardless of tab. */
+  previewBitmapVisible?: boolean
+  /** Raw session value for the labels layer toggle. Default `true`. */
+  numbersLayerVisible?: boolean
 }): DisplayLayers {
   const {
     leftPanelTab,
@@ -82,6 +113,9 @@ export function deriveDisplayLayers(input: {
     editorImageSourceReady,
     filterDisplayImage,
     filterDisplayImageWithoutTrace,
+    traceOverlayVisible = true,
+    previewBitmapVisible = true,
+    numbersLayerVisible = true,
   } = input
 
   // Section gating: desktop uses `leftPanelTab`, mobile uses
@@ -109,5 +143,15 @@ export function deriveDisplayLayers(input: {
     traceOverlaySvgUrl = filterDisplayImage.signedUrl
   }
 
-  return { showFilterChain, traceOverlaySvgUrl }
+  // Trace view flags — section-scoped effect. Reuse `traceSectionActive`
+  // so the three view gates can't drift from the `traceOverlaySvgUrl`
+  // gate above. Outside Trace, all three collapse to `true` — the
+  // toggles control the user's *view of Trace*, not other tabs.
+  return {
+    showFilterChain,
+    traceOverlaySvgUrl,
+    traceOverlayVisible: traceSectionActive ? traceOverlayVisible : true,
+    previewBitmapVisible: traceSectionActive ? previewBitmapVisible : true,
+    numbersLayerVisible: traceSectionActive ? numbersLayerVisible : true,
+  }
 }

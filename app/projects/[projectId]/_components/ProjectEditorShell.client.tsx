@@ -469,7 +469,19 @@ export function ProjectDetailPageClient({
   // Master is an immutable restore source (`guard_master_immutable`),
   // never the canvas-rendered image — see use-canvas-derived-state.ts
   // for the rationale. Tabs differ only in overlays.
-  const { canvasImage, traceOverlaySvgUrl, showFilterChain } = useCanvasDerivedState({
+  // Canvas-bound visibility flags are section-gated by
+  // `deriveDisplayLayers` — outside the Trace section the effective
+  // values collapse to `true`, so the Trace view toggles can't leak
+  // into the Image / Filter tabs (PR #356 follow-up). The raw session
+  // values below stay the source of truth for the checkbox UI.
+  const {
+    canvasImage,
+    traceOverlaySvgUrl,
+    showFilterChain,
+    traceOverlayVisible: effectiveTraceOverlayVisible,
+    previewBitmapVisible: effectivePreviewBitmapVisible,
+    numbersLayerVisible: effectiveNumbersLayerVisible,
+  } = useCanvasDerivedState({
     leftPanelTab,
     editorImageSource,
     filterDisplayImage,
@@ -482,6 +494,9 @@ export function ProjectDetailPageClient({
     // MasterImage type. Falsy empty string here turns the override
     // off in `pickCanvasImage` (graceful degrade — pre-PR-#354).
     masterSignedUrl: masterImage?.masterSignedUrl ? masterImage.masterSignedUrl : null,
+    traceOverlayVisible,
+    previewBitmapVisible,
+    numbersLayerVisible,
   })
   // canvasMode is now a pure projection of `showFilterChain` — the
   // tab-vs-mobile-vs-image-ready logic lives in `deriveDisplayLayers`.
@@ -732,9 +747,9 @@ export function ProjectDetailPageClient({
               traceOverlaySvgUrl={traceOverlaySvgUrl}
               traceDisplayRect={traceDisplayRect}
               traceInteractive={leftPanelTab === "trace" && stageToolbar.tool === "direct"}
-              traceOverlayVisible={traceOverlayVisible}
-              previewBitmapVisible={previewBitmapVisible}
-              numbersLayerVisible={numbersLayerVisible}
+              traceOverlayVisible={effectiveTraceOverlayVisible}
+              previewBitmapVisible={effectivePreviewBitmapVisible}
+              numbersLayerVisible={effectiveNumbersLayerVisible}
               handleImageTransformChange={handleImageTransformChange}
               initialImageTransform={initialImageTransform}
               saveImageState={workflow.saveTransform}
