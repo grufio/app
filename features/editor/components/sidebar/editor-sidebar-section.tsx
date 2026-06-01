@@ -13,10 +13,8 @@ import { cn } from "@/lib/utils"
  * - body: mt-3 wrapper
  *
  * `locked` is the section-lock visual signal — when true, the wrapper
- * renders with a subtle muted tint (`bg-muted/40`) and drops its
- * bottom border. A negative top margin overlaps the preceding
- * section's `border-b` so the locked block sits in a frameless
- * neutral pool, not boxed by stacked 1px lines.
+ * picks up a subtle muted tint (`bg-muted/40`). The 1px bottom divider
+ * stays put either way; the lock state only changes the fill.
  */
 export function EditorSidebarSection({
   title,
@@ -33,10 +31,7 @@ export function EditorSidebarSection({
 }) {
   return (
     <div
-      className={cn(
-        "border-b px-4 py-3",
-        locked && "border-b-0 -mt-px bg-muted/40",
-      )}
+      className={cn("border-b px-4 py-3", locked && "bg-muted/40")}
       data-testid={testId}
     >
       {headerActions ? (
