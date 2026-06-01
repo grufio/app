@@ -256,6 +256,22 @@ covers the four rows. UI is verified manually.
   The bitmap below the SVG is the working_copy / filter chain tip
   (PR #262 — `trace_base` is no longer the canvas source); the
   overlay architecture is unchanged from #84/#86.
+- **Section-owned dialogs auto-dismiss when their surface goes
+  inactive.** Trace dialogs (selection, Pixelate configure, Circulate
+  configure, generic-trace configure) and Filter dialogs (the twin
+  surface) are shell-owned modals. Their state hooks
+  ([use-trace-dialog-session](../../lib/editor/hooks/use-trace-dialog-session.ts),
+  [use-filter-dialog-session](../../lib/editor/hooks/use-filter-dialog-session.ts))
+  take a `surfaceActive: boolean` argument and self-reset to idle
+  whenever it flips false. The shell wires this via
+  [isSurfaceActive](../../lib/editor/section-active.ts) — the same
+  pure helper that ought to be reused anywhere "is the user on
+  section X?" needs to be answered. Result: switching tabs/sections
+  via any code path (UI, programmatic, future deep-link) dismisses
+  the owning dialog automatically; the shell does not have to
+  enumerate which dialogs to close. Symmetric with the canvas
+  view-flag gates in `deriveDisplayLayers` (PR #357) — section-
+  scoped behaviour colocates with what it scopes, not with consumers.
 - **Trace view toggles are Trace-section-scoped on effect, not on
   storage.** Three flags — `traceOverlayVisible` (cells/colors),
   `previewBitmapVisible` (Konva.Image underneath), `numbersLayerVisible`

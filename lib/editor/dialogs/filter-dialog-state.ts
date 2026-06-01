@@ -59,13 +59,16 @@ export function filterDialogReducer(
     case "beginSelection":
       return { phase: "selecting", session: action.session }
     case "closeSelection":
+      if (state.phase === "idle") return state
       return { phase: "idle" }
     case "selectFilterType":
       if (state.phase !== "selecting") return state
       return { phase: "configuring", session: state.session, filterType: action.filterType }
     case "closeConfigure":
+      if (state.phase === "idle") return state
       return { phase: "idle" }
     case "reset":
+      if (state.phase === "idle") return state
       return { phase: "idle" }
     default: {
       const _exhaustive: never = action

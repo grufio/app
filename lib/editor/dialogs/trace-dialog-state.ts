@@ -67,13 +67,16 @@ export function traceDialogReducer(
     case "beginSelection":
       return { phase: "selecting", session: action.session }
     case "closeSelection":
+      if (state.phase === "idle") return state
       return { phase: "idle" }
     case "selectKind":
       if (state.phase !== "selecting") return state
       return { phase: "configuring", session: state.session, kind: action.kind }
     case "closeConfigure":
+      if (state.phase === "idle") return state
       return { phase: "idle" }
     case "reset":
+      if (state.phase === "idle") return state
       return { phase: "idle" }
     default: {
       const _exhaustive: never = action

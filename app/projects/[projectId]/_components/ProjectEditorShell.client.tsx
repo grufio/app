@@ -51,6 +51,7 @@ import { useMutationLeaveGuard } from "@/lib/editor/hooks/use-mutation-leave-gua
 import { shouldWarnBeforeUnload } from "@/lib/editor/hooks/should-warn-before-unload"
 import { useFilterDialogSession } from "@/lib/editor/hooks/use-filter-dialog-session"
 import { useTraceDialogSession } from "@/lib/editor/hooks/use-trace-dialog-session"
+import { isSurfaceActive } from "@/lib/editor/section-active"
 import { useEditorSessionState } from "@/lib/editor/hooks/use-editor-session-state"
 import { usePageBackgroundState } from "@/lib/editor/hooks/use-page-background-state"
 import { useProjectGrid } from "@/lib/editor/project-grid"
@@ -211,7 +212,23 @@ export function ProjectDetailPageClient({
     seedMasterImage,
     saveImageState,
   })
-  const filterDialog = useFilterDialogSession(filterSourceImage)
+  // Surface-active booleans drive section-scoped behaviours: the
+  // canvas layer gates in `deriveDisplayLayers` (PR #357) and the
+  // dialog auto-dismiss in the two dialog hooks below. One named
+  // expression in `isSurfaceActive` so the rule never drifts.
+  const filterSurfaceActive = isSurfaceActive({
+    surface: "filter",
+    isMobile,
+    leftPanelTab,
+    mobileSection,
+  })
+  const traceSurfaceActive = isSurfaceActive({
+    surface: "trace",
+    isMobile,
+    leftPanelTab,
+    mobileSection,
+  })
+  const filterDialog = useFilterDialogSession(filterSourceImage, filterSurfaceActive)
   // Trace dialog needs the image's displayed size on the artboard in mm —
   // pixelate-grid math runs on display-mm, not source-px. The size comes
   // from the one authoritative source (`displayTxU`): no preference chain,
@@ -223,7 +240,7 @@ export function ProjectDetailPageClient({
     if (!displayMm) return null
     return { ...filterSourceImage, displayMmW: displayMm.displayMmW, displayMmH: displayMm.displayMmH }
   }, [filterSourceImage, artboardWidthPx, artboardHeightPx, displayTxU])
-  const traceDialog = useTraceDialogSession(traceSourceImage)
+  const traceDialog = useTraceDialogSession(traceSourceImage, traceSurfaceActive)
   // Snapshot from `traceDialog.session` carries the stable identity
   // (sourceImageUrl + intrinsic px), but `displayMmW`/`displayMmH`
   // must reflect the *live* canvas mirror so a mid-dialog resize is

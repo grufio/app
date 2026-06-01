@@ -82,4 +82,15 @@ describe("filterDialogReducer", () => {
       ),
     ).toEqual({ phase: "idle" })
   })
+
+  it("reset / closeSelection / closeConfigure are idempotent on idle", () => {
+    // Matches the trace reducer's contract — the surfaceActive
+    // effect in `useFilterDialogSession` dispatches reset whenever
+    // the surface goes inactive, including when the dialog is
+    // already idle. Same reference back so React skips the render.
+    const idle = initialFilterDialogState
+    expect(filterDialogReducer(idle, { type: "reset" })).toBe(idle)
+    expect(filterDialogReducer(idle, { type: "closeSelection" })).toBe(idle)
+    expect(filterDialogReducer(idle, { type: "closeConfigure" })).toBe(idle)
+  })
 })
