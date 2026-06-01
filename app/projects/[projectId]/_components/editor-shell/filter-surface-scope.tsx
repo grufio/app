@@ -64,10 +64,7 @@ export type FilterSurfaceScopeProps = {
 }
 
 export function FilterSurfaceScope(props: FilterSurfaceScopeProps) {
-  // surfaceActive=true: scope mounts only while filter surface is
-  // active, so the hook's internal dismissal effect is a no-op. The
-  // arg is dropped entirely in a later commit.
-  const filterDialog = useFilterDialogSession(props.filterSourceImage, true)
+  const filterDialog = useFilterDialogSession(props.filterSourceImage)
   const [editOpen, setEditOpen] = useState(false)
 
   useMutationLeaveGuard({ active: filterDialog.activeFilterType !== null })

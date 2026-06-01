@@ -200,11 +200,12 @@ export function ProjectDetailPageClient({
     saveImageState,
   })
   // All three surfaces own their own state inside per-surface scope
-  // components mounted only while their surface is active.
-  const filterSurfaceActive =
-    isMobile ? mobileSection === "filter" : leftPanelTab === "filter"
-  const traceSurfaceActive =
-    isMobile ? mobileSection === "trace" : leftPanelTab === "trace"
+  // components mounted only while their surface is active — the
+  // shell composes them with conditional rendering based on
+  // `leftPanelTab` (desktop, via `ProjectEditorLeftPanel`'s
+  // `filterPanelContent` / `tracePanelContent` slot) and
+  // `mobileSection` (mobile). Lifecycle IS dismissal.
+
   // Trace dialog needs the image's displayed size on the artboard in mm —
   // pixelate-grid math runs on display-mm, not source-px. The size comes
   // from the one authoritative source (`displayTxU`): no preference chain,

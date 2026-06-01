@@ -42,10 +42,7 @@ export type TraceSurfaceScopeProps = {
 }
 
 export function TraceSurfaceScope(props: TraceSurfaceScopeProps) {
-  // surfaceActive=true: scope mounts only while trace surface is
-  // active, so the hook's internal dismissal effect is a no-op. The
-  // arg is dropped in a later commit.
-  const traceDialog = useTraceDialogSession(props.traceSourceImage, true)
+  const traceDialog = useTraceDialogSession(props.traceSourceImage)
   const [editOpen, setEditOpen] = useState(false)
 
   useMutationLeaveGuard({ active: traceDialog.activeKind !== null })
