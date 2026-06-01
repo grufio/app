@@ -94,6 +94,7 @@ export function FilterSidebarSection(props: {
                 filterId: filter.id,
               })}
               className="text-xs font-medium"
+              disabled={locked}
               onClick={() => onSelectFilter(filter.id)}
             >
               <SlidersHorizontal />

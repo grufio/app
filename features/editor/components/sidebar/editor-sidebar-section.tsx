@@ -12,11 +12,11 @@ import { cn } from "@/lib/utils"
  * - title: either a fixed-height title row, or a justify-between row with actions
  * - body: mt-3 wrapper
  *
- * `locked` is the section-lock visual signal — when true, the
- * wrapper renders with the amber palette (`bg-amber-50` + inset
- * `ring-amber-300` + amber title text). Matches the palette of the
- * legacy `SectionLockBanner` so the visual identity carries over
- * onto the whole surface instead of a stripe of warning.
+ * `locked` is the section-lock visual signal — when true, the wrapper
+ * renders with a subtle muted tint (`bg-muted/40`) and drops its
+ * bottom border. A negative top margin overlaps the preceding
+ * section's `border-b` so the locked block sits in a frameless
+ * neutral pool, not boxed by stacked 1px lines.
  */
 export function EditorSidebarSection({
   title,
@@ -35,29 +35,19 @@ export function EditorSidebarSection({
     <div
       className={cn(
         "border-b px-4 py-3",
-        locked && "bg-amber-50 ring-1 ring-inset ring-amber-300",
+        locked && "border-b-0 -mt-px bg-muted/40",
       )}
       data-testid={testId}
     >
       {headerActions ? (
         <div className="flex items-center justify-between gap-2">
-          <div
-            className={cn(
-              "text-xs font-medium",
-              locked ? "text-amber-900" : "text-sidebar-foreground/70",
-            )}
-          >
+          <div className="text-xs font-medium text-sidebar-foreground/70">
             {title}
           </div>
           <div className="flex items-center gap-1">{headerActions}</div>
         </div>
       ) : (
-        <div
-          className={cn(
-            "flex h-6 items-center text-xs font-medium",
-            locked ? "text-amber-900" : "text-sidebar-foreground/70",
-          )}
-        >
+        <div className="flex h-6 items-center text-xs font-medium text-sidebar-foreground/70">
           {title}
         </div>
       )}
