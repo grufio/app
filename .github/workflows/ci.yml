@@ -73,6 +73,52 @@ jobs:
       - name: Run CI lane
         run: npm run gate:ci
 
+  # Block PRs that touch supabase/migrations/ without also updating
+  # db/schema.sql. Without this gate the post-deploy schema-drift check
+  # is the first thing to notice — too late, prod migration already ran.
+  # `db/schema.sql` is the canonical snapshot consumed by every other
+  # static check (verify:rls, lock-coverage, structural anchors), so
+  # letting it go stale silently breaks downstream guards.
+  schema_sync_check:
+    needs: detect
+    if: needs.detect.outputs.has_db == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Require db/schema.sql update alongside migration changes
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          set -euo pipefail
+          changed=$(git diff --name-only "origin/${BASE_REF}...HEAD")
+          echo "Changed files:"
+          echo "$changed" | sed 's/^/  /'
+          echo "---"
+
+          migration_changed=false
+          schema_changed=false
+          if echo "$changed" | grep -qE '^supabase/migrations/.+\.sql$'; then
+            migration_changed=true
+          fi
+          if echo "$changed" | grep -qE '^db/schema\.sql$'; then
+            schema_changed=true
+          fi
+
+          if [ "$migration_changed" = "true" ] && [ "$schema_changed" = "false" ]; then
+            echo "::error::Migration file(s) changed but db/schema.sql was not updated."
+            echo "After applying the migration locally, run \`npm run db:dump\` and commit"
+            echo "the resulting db/schema.sql changes in the same PR. Without this update"
+            echo "the post-deploy schema-drift check will fail and downstream verify:* gates"
+            echo "(RLS, types, lock coverage) walk over a stale snapshot."
+            exit 1
+          fi
+
+          echo "OK: migration / schema.sql in sync."
+
   # filter_service_tests runs the Python pytest suite for the Cloud Run
   # filter-service. Gated on `has_filter_service` so PRs that don't touch
   # filter-service/** skip it. The same pytest command gates the prod
@@ -157,12 +203,11 @@ jobs:
       # all deploy-time guards that compare the committed state against
       # *live* prod, and any PR that introduces a new table / column
       # makes them flag the PR's own changes as drift. The deploy
-      # workflow (deploy.yml → migrations job) runs them AROUND the
-      # actual `supabase db push` (pre-flight + post-push), which is
-      # where the comparison is meaningful — by then the migration is
-      # either about to be applied or has just landed. Running them
-      # here only catches "someone hand-edited prod via Studio", which
-      # is also caught by the deploy.yml pre-flight on the next push.
+      # workflow runs all three POST-push (deploy.yml → migrations
+      # job), once the new schema is live and the comparison is
+      # meaningful. The companion `schema_sync_check` job above blocks
+      # PRs that change migrations without regenerating db/schema.sql,
+      # so a drifted snapshot can't reach `main` in the first place.
 
   integration:
     # Integration tests exercise real code paths against a local Supabase.

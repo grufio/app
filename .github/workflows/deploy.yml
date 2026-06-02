@@ -181,14 +181,25 @@ jobs:
       - name: Audit — list pending migrations
         run: supabase migration list --linked --password "$SUPABASE_DB_PASSWORD"
 
-      - name: Pre-flight — verify committed schema matches current prod
-        run: npm run verify:schema-drift
-
+      # No pre-flight schema-drift check: any PR that adds a column to
+      # an existing table re-renders the CREATE TABLE block in
+      # db/schema.sql, which the pre-flight then flags as drift vs.
+      # the still-old prod dump — blocking `db push` and deadlocking
+      # the deploy (#363, #364, #365, #367 all hit this). Drift is
+      # verified post-push instead, when fresh prod state matches the
+      # committed schema if the PR was prepared correctly.
       - name: Apply pending migrations
         run: supabase db push --linked --password "$SUPABASE_DB_PASSWORD"
 
       - name: Post-push — verify all migrations applied
         run: npm run verify:remote-migrations
+
+      # Post-push schema-drift: after the migration ran, a fresh dump
+      # should equal the committed db/schema.sql. Catches stale schema
+      # snapshots that slipped through CI (M4 path-gate in ci.yml is
+      # the first line of defence; this is belt-and-suspenders).
+      - name: Post-push — verify committed schema matches new prod state
+        run: npm run verify:schema-drift
 
       - name: Post-push — verify generated types match new schema
         env:
