@@ -7,9 +7,8 @@ import {
   validateUploadLimits,
 } from "./policy"
 
-function makeFile(bytes: number, mime = "image/png"): File {
-  // Node 20+ + Vitest expose the global File constructor (via undici).
-  return new File([new Uint8Array(bytes)], "test.png", { type: mime })
+function makeUpload(sizeBytes: number, mimeType = "image/png"): { sizeBytes: number; mimeType: string } {
+  return { sizeBytes, mimeType }
 }
 
 describe("validateUploadInputs", () => {
@@ -53,14 +52,16 @@ describe("validateUploadLimits — defaults", () => {
   })
 
   it("passes when file size and pixels are under defaults", () => {
-    const file = makeFile(1024) // 1 KB
-    const result = validateUploadLimits({ file, widthPx: 100, heightPx: 100 })
+    const result = validateUploadLimits({ ...makeUpload(1024), widthPx: 100, heightPx: 100 })
     expect(result).toBeNull()
   })
 
-  it("rejects with 413 when file exceeds DEFAULT_USER_MAX_UPLOAD_BYTES", () => {
-    const file = makeFile(DEFAULT_USER_MAX_UPLOAD_BYTES + 1)
-    const result = validateUploadLimits({ file, widthPx: 100, heightPx: 100 })
+  it("rejects with 413 when size exceeds DEFAULT_USER_MAX_UPLOAD_BYTES", () => {
+    const result = validateUploadLimits({
+      ...makeUpload(DEFAULT_USER_MAX_UPLOAD_BYTES + 1),
+      widthPx: 100,
+      heightPx: 100,
+    })
     expect(result).not.toBeNull()
     if (result) {
       expect(result.status).toBe(413)
@@ -72,8 +73,7 @@ describe("validateUploadLimits — defaults", () => {
 
   it("rejects with 413 when pixels exceed DEFAULT_USER_UPLOAD_MAX_PIXELS", () => {
     // 100 MP cap → 12000 × 9000 = 108 MP
-    const file = makeFile(1024)
-    const result = validateUploadLimits({ file, widthPx: 12_000, heightPx: 9_000 })
+    const result = validateUploadLimits({ ...makeUpload(1024), widthPx: 12_000, heightPx: 9_000 })
     expect(result).not.toBeNull()
     if (result) {
       expect(result.status).toBe(413)
@@ -94,8 +94,7 @@ describe("validateUploadLimits — env overrides", () => {
 
   it("ENV USER_MAX_UPLOAD_BYTES overrides the default downward", () => {
     process.env.USER_MAX_UPLOAD_BYTES = "2048"
-    const file = makeFile(4096)
-    const result = validateUploadLimits({ file, widthPx: 10, heightPx: 10 })
+    const result = validateUploadLimits({ ...makeUpload(4096), widthPx: 10, heightPx: 10 })
     expect(result?.status).toBe(413)
     expect(result?.details?.max_bytes).toBe(2048)
   })
@@ -103,8 +102,11 @@ describe("validateUploadLimits — env overrides", () => {
   it("ENV USER_MAX_UPLOAD_BYTES overrides the default upward", () => {
     // Set ENV to 200 MB and try a 60 MB file (would fail under default 50 MB).
     process.env.USER_MAX_UPLOAD_BYTES = String(200 * 1024 * 1024)
-    const file = makeFile(60 * 1024 * 1024)
-    const result = validateUploadLimits({ file, widthPx: 100, heightPx: 100 })
+    const result = validateUploadLimits({
+      ...makeUpload(60 * 1024 * 1024),
+      widthPx: 100,
+      heightPx: 100,
+    })
     expect(result).toBeNull()
   })
 })

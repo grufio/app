@@ -231,6 +231,55 @@ describe("master-image-upload service", () => {
     expect(masterInsert?.dpi).toBe(240)
   })
 
+  it("normalises EXIF Orientation: post-rotate dims persisted, uploaded bytes have no Orientation tag", async () => {
+    // Build a JPEG that's 10 px wide × 20 px tall in raw bytes, with the
+    // EXIF Orientation=6 tag (camera held portrait → rotate 90° CW for
+    // display). The upload pipeline must call sharp().rotate() to bake
+    // the rotation into the pixel data, yielding a 20×10 image with no
+    // residual Orientation tag.
+    const rawWidth = 10
+    const rawHeight = 20
+    const inputBuf = await sharp({
+      create: { width: rawWidth, height: rawHeight, channels: 3, background: { r: 200, g: 100, b: 50 } },
+    })
+      .jpeg()
+      .withMetadata({ orientation: 6 })
+      .toBuffer()
+    const file = new File([new Uint8Array(inputBuf)], "portrait.jpg", { type: "image/jpeg" })
+
+    const capture = { inserts: [] as InsertPayload[], deletes: 0, stateUpserts: 0, cleanupRpcCalls: 0 }
+    const supabase = makeSupabase({ capture, selectData: [] })
+    uploadSpy.mockResolvedValue({ error: null })
+    createSignedUrlSpy.mockResolvedValue({ data: { signedUrl: "https://signed/master" }, error: null })
+    activateSpy.mockResolvedValueOnce({ ok: true })
+
+    const out = await uploadMasterImage({
+      supabase: supabase as never,
+      projectId: "p1",
+      file,
+      format: "jpeg",
+    })
+    expect(out.ok).toBe(true)
+
+    // DB row reflects display dimensions (rotated), not the raw byte dims.
+    const masterInsert = capture.inserts.find((row) => row.kind === "master")
+    expect(masterInsert?.width_px).toBe(rawHeight) // 20
+    expect(masterInsert?.height_px).toBe(rawWidth) // 10
+
+    // The buffer handed to Storage is the rotated buffer — re-decoding it
+    // confirms the Orientation tag is gone and the bytes ARE 20×10.
+    const storageCall = uploadSpy.mock.calls[0]
+    const uploadedBuf = storageCall?.[1] as Buffer | undefined
+    expect(uploadedBuf).toBeDefined()
+    const uploadedMeta = await sharp(uploadedBuf!).metadata()
+    expect(uploadedMeta.width).toBe(rawHeight) // 20
+    expect(uploadedMeta.height).toBe(rawWidth) // 10
+    expect(uploadedMeta.orientation == null || uploadedMeta.orientation === 1).toBe(true)
+
+    // file_size_bytes is the rotated buffer's length, not the original file.
+    expect(masterInsert?.file_size_bytes).toBe(uploadedBuf!.byteLength)
+  })
+
   it("falls back to dpi=72 when the image carries no density", async () => {
     const capture = { inserts: [] as InsertPayload[], deletes: 0, stateUpserts: 0, cleanupRpcCalls: 0 }
     const supabase = makeSupabase({ capture, selectData: [] })

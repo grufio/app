@@ -45,14 +45,21 @@ export function validateUploadInputs(args: {
 }
 
 export function validateUploadLimits(args: {
-  file: File
+  /** Size of the bytes that will actually land in Storage (post
+   * any server-side normalisation like EXIF transpose), not the
+   * raw client-uploaded `File.size`. */
+  sizeBytes: number
+  /** Original client-reported MIME type — used for the allow-list
+   * check. Server-side re-encoding preserves the input MIME, so
+   * the original value remains authoritative. */
+  mimeType: string
   widthPx: number
   heightPx: number
 }): UploadMasterImageFailure | null {
-  const { file, widthPx, heightPx } = args
+  const { sizeBytes, mimeType, widthPx, heightPx } = args
 
   const maxUploadBytes = parseOptionalPositiveInt(process.env.USER_MAX_UPLOAD_BYTES) ?? DEFAULT_USER_MAX_UPLOAD_BYTES
-  if (file.size > maxUploadBytes) {
+  if (sizeBytes > maxUploadBytes) {
     return {
       ok: false,
       status: 413,
@@ -60,14 +67,14 @@ export function validateUploadLimits(args: {
       reason: "Upload too large",
       details: {
         max_bytes: maxUploadBytes,
-        got_bytes: file.size,
+        got_bytes: sizeBytes,
       },
     }
   }
 
   const allowedMime = parseAllowedMimeList(process.env.USER_ALLOWED_UPLOAD_MIME)
   if (allowedMime != null) {
-    const mime = (file.type || "").trim()
+    const mime = (mimeType || "").trim()
     if (!mime || !allowedMime.has(mime)) {
       return {
         ok: false,
