@@ -129,22 +129,18 @@ export function ProjectDetailPageClient({
   // surfaces section-specific layers (mirror desktop's `leftPanelTab`
   // gating — see `deriveDisplayLayers`), and each surface's scope
   // component owns its own floating Edit-icon + sheet.
-  const [mobileSection, setMobileSection] = useState<"artboard" | "filter" | "trace">("artboard")
-  // Colors is decoupled from `mobileSection` — the sheet is a view-only
-  // overlay over the current canvas (typically the active trace), so
-  // changing the section would force `deriveDisplayLayers` to grow a
-  // duplicate trace-on case. Keep it as its own boolean instead; the
-  // bottom-nav's "active" highlight reads `colorsSheetOpen` for the
-  // Colors button and `mobileSection` for the rest.
-  const [colorsSheetOpen, setColorsSheetOpen] = useState(false)
+  const [mobileSection, setMobileSection] = useState<"artboard" | "filter" | "trace" | "colors">("artboard")
   const handleMobileNavTap = useCallback((section: MobileNavSection) => {
-    if (section === "artboard" || section === "filter" || section === "trace") {
+    if (
+      section === "artboard" ||
+      section === "filter" ||
+      section === "trace" ||
+      section === "colors"
+    ) {
       setMobileSection(section)
-      return
     }
-    if (section === "colors") {
-      setColorsSheetOpen(true)
-    }
+    // "home" and "output" remain stubs (output not wired yet; home is
+    // a `<Link>` not a callback).
   }, [])
   // Mobile-only drawer state for the side panels. On `md+` both panels
   // are always-on; this state is ignored there. The Sheet primitive on
@@ -881,9 +877,8 @@ export function ProjectDetailPageClient({
             onNumbersLayerChange={setNumbersLayerVisible}
           />
         ) : null}
-        {isMobile && colorsSheetOpen ? (
+        {isMobile && mobileSection === "colors" ? (
           <MobileColorsSheet
-            onClose={() => setColorsSheetOpen(false)}
             paletteIndicesUsed={trace?.palette_indices_used ?? null}
             traceMode={(() => {
               // All three trace kinds (pixelate, circulate, lineart)
@@ -900,7 +895,7 @@ export function ProjectDetailPageClient({
         ) : null}
       </ProjectEditorLayout>
       <MobileBottomNav
-        activeSection={colorsSheetOpen ? "colors" : mobileSection}
+        activeSection={mobileSection}
         onSectionTap={handleMobileNavTap}
         imageLocked={sectionLocks.imageLocked}
         filterLocked={sectionLocks.filterLocked}
