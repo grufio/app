@@ -7,12 +7,11 @@
  * occupies real layout space (no `position: fixed`, no overlap, no
  * `pb-*` hacks on the canvas).
  *
- * Six icons (Home / Artboard / Filter / Trace / Colors / Output) —
+ * Five icons (Home / Artboard / Filter / Trace / Colors) —
  * **Home** navigates to `/dashboard` via Next.js `<Link>`. The
  * remaining icons set the active mobile section via `onSectionTap`
  * — the shell renders the section context on the canvas and the
- * floating Edit-icon opens the section's management sheet. Colors /
- * Output remain stubs until their own follow-ups land.
+ * floating Edit-icon opens the section's management sheet.
  *
  * `activeSection` highlights the current section so the user knows
  * which context the Edit-icon will open.
@@ -23,7 +22,6 @@
  */
 import Link from "next/link"
 import {
-  FileOutput,
   Frame,
   Grid3x3,
   Home,
@@ -35,12 +33,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
-export type MobileNavSection =
-  | "artboard"
-  | "filter"
-  | "trace"
-  | "colors"
-  | "output"
+export type MobileNavSection = "artboard" | "filter" | "trace" | "colors"
 
 type NavItem = {
   key: "home" | MobileNavSection
@@ -54,7 +47,6 @@ const ITEMS: NavItem[] = [
   { key: "filter", label: "Filter", Icon: SlidersHorizontal },
   { key: "trace", label: "Trace", Icon: Grid3x3 },
   { key: "colors", label: "Colors", Icon: Palette },
-  { key: "output", label: "Output", Icon: FileOutput },
 ]
 
 export function MobileBottomNav(props: {
