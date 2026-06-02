@@ -10,7 +10,10 @@ export async function insertMasterWithCleanup(args: {
   supabase: SupabaseClient<Database>
   imageId: string
   projectId: string
-  file: File
+  /** Display name from the client upload (`File.name`). */
+  fileName: string
+  /** Bytes-on-disk size — matches what was uploaded to Storage. */
+  fileSizeBytes: number
   format: string
   widthPx: number
   heightPx: number

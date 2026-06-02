@@ -69,15 +69,30 @@ export async function uploadMasterImage(args: {
 }): Promise<UploadMasterImageResult> {
   const { supabase, projectId, file, format } = args
 
-  // Read pixel dimensions + DPI from the file bytes server-side. sharp/
-  // libvips reads EXIF XResolution, JPEG JFIF density, and PNG pHYs
-  // uniformly — authoritative, client-sent values are not trusted.
-  // `file.arrayBuffer()` is non-consuming; the storage upload below still
-  // uses `file`. Order: metadata → validate → limits → upload, so an
-  // oversized/unreadable image is rejected before it hits storage.
+  // Normalise EXIF Orientation at the upload boundary: `sharp(buf).rotate()`
+  // (no args) physically rotates the pixel data per the EXIF Orientation
+  // tag and strips the tag from the output. Storage holds bytes in display
+  // orientation; the post-rotate dimensions are authoritative for both
+  // `width_px`/`height_px` and `file_size_bytes`. Every downstream consumer
+  // (canvas placement, editor-server crop, filter-service decode) then
+  // works against a single source of truth — no per-consumer EXIF
+  // awareness, no parallel raw-vs-displayed dimensions.
+  //
+  // Trade-off: re-encodes once (single-generation JPEG quality loss is
+  // imperceptible; PNG round-trips losslessly). Strips ICC profile + XMP
+  // metadata — gruf.io's working space is sRGB, so the loss is acceptable.
+  //
+  // DPI is read from the ORIGINAL buffer's metadata (sharp's re-encode
+  // drops the JFIF density / pHYs chunk). Orientation cannot affect DPI
+  // semantics, so the pre-rotate value remains correct.
+  const inputBuf = Buffer.from(await file.arrayBuffer())
+  let normalised: Buffer
   let meta: sharp.Metadata
+  let originalDensity: number | undefined
   try {
-    meta = await sharp(Buffer.from(await file.arrayBuffer())).metadata()
+    originalDensity = (await sharp(inputBuf).metadata()).density
+    normalised = await sharp(inputBuf).rotate().toBuffer()
+    meta = await sharp(normalised).metadata()
   } catch {
     return { ok: false, status: 400, stage: "validation", reason: "Unreadable image file" }
   }
@@ -86,7 +101,7 @@ export async function uploadMasterImage(args: {
   // aspect ratio, no real DPI) makes libvips report a garbage value
   // (~299999). Only 1..6000 counts as a real DPI; otherwise fall back to 72
   // (web default — same as a file with no density metadata at all).
-  const density = typeof meta.density === "number" ? meta.density : Number.NaN
+  const density = typeof originalDensity === "number" ? originalDensity : Number.NaN
   const resolvedDpi = Number.isFinite(density) && density >= 1 && density <= 6000 ? Math.round(density) : 72
 
   const validated = validateUploadInputs({
@@ -97,13 +112,22 @@ export async function uploadMasterImage(args: {
   if (!validated.ok) return validated
   const { widthPx, heightPx, dpi } = validated
 
-  const limitError = validateUploadLimits({ file, widthPx, heightPx })
+  // Size check runs against the normalised buffer (= what actually lands
+  // in Storage), not the original `file.size` — those can differ when
+  // sharp re-encodes. MIME stays the original because the re-encode
+  // preserves the input format.
+  const limitError = validateUploadLimits({
+    sizeBytes: normalised.byteLength,
+    mimeType: file.type,
+    widthPx,
+    heightPx,
+  })
   if (limitError) return limitError
 
   const imageId = crypto.randomUUID()
   const objectPath = `projects/${projectId}/images/${imageId}`
 
-  const { error: uploadErr } = await supabase.storage.from(PROJECT_IMAGES_BUCKET).upload(objectPath, file, {
+  const { error: uploadErr } = await supabase.storage.from(PROJECT_IMAGES_BUCKET).upload(objectPath, normalised, {
     upsert: true,
     contentType: file.type || undefined,
   })
@@ -121,7 +145,8 @@ export async function uploadMasterImage(args: {
     supabase,
     imageId,
     projectId,
-    file,
+    fileName: file.name,
+    fileSizeBytes: normalised.byteLength,
     format,
     widthPx,
     heightPx,
