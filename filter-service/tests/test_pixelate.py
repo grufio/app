@@ -167,3 +167,48 @@ def test_cells_and_legacy_paths_produce_equivalent_svg():
     new_rects = re.findall(r'<rect[^/]*/>', new_svg)
     assert legacy_rects == new_rects
     assert re.search(r'viewBox="[^"]+"', legacy_svg).group(0) == re.search(r'viewBox="[^"]+"', new_svg).group(0)
+
+
+def test_num_colors_caps_output_chip_count():
+    """Top-N reduction: when the snap would emit more distinct chips than
+    `num_colors`, the renderer keeps the most-used chips and re-snaps the
+    rest. `palette_indices_used` and the SVG `fill="..."` set must both
+    respect the cap."""
+    from app.oklab import rgb255_to_oklab
+
+    # 5 chips, all distinct enough to win their own cells.
+    chips_rgb = [
+        [200, 0, 0],    # red
+        [0, 200, 0],    # green
+        [0, 0, 200],    # blue
+        [200, 200, 0],  # yellow
+        [200, 0, 200],  # magenta
+    ]
+    chips_oklab = rgb255_to_oklab(np.array(chips_rgb)).tolist()
+    # 5-cell grid, each cell painted near one chip → 5 distinct snap winners.
+    cells = np.array([[[200, 0, 0], [0, 200, 0], [0, 0, 200], [200, 200, 0], [200, 0, 200]]], dtype=np.uint8)
+    svg, _region, used = pixelate_cells_to_svg(
+        cell_means=cells, cropped_w_px=50, cropped_h_px=10,
+        palette_oklab=chips_oklab, palette_rgb=chips_rgb,
+        num_colors=3,  # cap at 3 — two chips must be re-snapped
+    )
+    assert len(used) <= 3, f"palette_indices_used should be ≤ 3, got {used}"
+    fills = set(re.findall(r'fill="(#[0-9a-f]{6})"', svg))
+    # Each fill must correspond to one of the 3 kept chips.
+    assert len(fills) <= 3, f"distinct fills in SVG should be ≤ 3, got {fills}"
+
+
+def test_num_colors_noop_when_snap_already_below_cap():
+    """If the snap produced fewer distinct chips than `num_colors`, the
+    reduction step is a no-op — every snap winner survives."""
+    from app.oklab import rgb255_to_oklab
+
+    chips_rgb = [[0, 0, 0], [255, 255, 255]]
+    chips_oklab = rgb255_to_oklab(np.array(chips_rgb)).tolist()
+    cells = np.full((2, 2, 3), 130, dtype=np.uint8)  # mid-grey → all snap to one chip
+    _svg, _region, used = pixelate_cells_to_svg(
+        cell_means=cells, cropped_w_px=20, cropped_h_px=20,
+        palette_oklab=chips_oklab, palette_rgb=chips_rgb,
+        num_colors=16,
+    )
+    assert len(used) == 1  # only one chip survived the snap

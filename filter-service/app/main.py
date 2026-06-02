@@ -265,9 +265,9 @@ class PixelateRequest(BaseModel):
     # downsampled grid), used by both paths.
     cells_x: int
     cells_y: int
-    # Legacy-path knobs. Stroke width is hardcoded to 1px server-side and the
-    # editor never overrode it; `num_colors` is ignored entirely (kept for
-    # request-shape back-compat with very old clients).
+    # Legacy-path knob. Stroke width is hardcoded to 1px server-side and
+    # the editor never overrode it. num_colors drives the post-snap
+    # top-N reduction (see `pixelate_cells_to_svg`).
     stroke_width: float = 1.0
     num_colors: int = 16
     # Active palette (Munsell colour `lab_munsell` or b/w `lab_grays`),
@@ -343,6 +343,7 @@ def _pixelate_filter_cells(request: PixelateRequest) -> JSONResponse:
             cropped_h_px=request.cropped_h_px,
             palette_oklab=request.palette_oklab,
             palette_rgb=request.palette_rgb,
+            num_colors=request.num_colors,
             texture_enabled=request.texture_enabled,
             texture_strength=request.texture_strength,
             on_phase=timer.mark,
@@ -465,6 +466,9 @@ class CirculateRequest(BaseModel):
     # by the Node server from the DB — same contract as PixelateRequest.
     palette_oklab: list[list[float]] | None = None
     palette_rgb: list[list[int]] | None = None
+    # Cap on distinct chip count in the rendered output — same contract as
+    # PixelateRequest. Drives the post-snap top-N reduction.
+    num_colors: int = 16
     # Blue-noise neighbour-invasion texture — same contract as PixelateRequest.
     # Applied to the OUTER ellipses only; the inner ellipse keeps its derived
     # sub-colour. No-op when disabled or strength is zero.
@@ -543,6 +547,7 @@ def _circulate_filter_cells(request: CirculateRequest) -> JSONResponse:
             inner_chroma_scale=request.inner_chroma_scale,
             palette_oklab=request.palette_oklab,
             palette_rgb=request.palette_rgb,
+            num_colors=request.num_colors,
             texture_enabled=request.texture_enabled,
             texture_strength=request.texture_strength,
             on_phase=timer.mark,
@@ -604,6 +609,7 @@ def _circulate_filter_legacy(request: CirculateRequest) -> JSONResponse:
             inner_chroma_scale=request.inner_chroma_scale,
             palette_oklab=request.palette_oklab,
             palette_rgb=request.palette_rgb,
+            num_colors=request.num_colors,
             texture_enabled=request.texture_enabled,
             texture_strength=request.texture_strength,
             on_phase=timer.mark,

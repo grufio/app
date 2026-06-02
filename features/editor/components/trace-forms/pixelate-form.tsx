@@ -102,9 +102,9 @@ export function PixelateForm({ params, onParamsChange, disabled, grid }: Props) 
       <EditorSidebarSection title="Colors">
         <TraceColorsFields
           colorMode={params.color_mode}
-          colorSpace={params.color_space}
+          numColors={params.num_colors}
           onColorModeChange={(v) => onParamsChange("color_mode", v)}
-          onColorSpaceChange={(v) => onParamsChange("color_space", v)}
+          onNumColorsChange={(v) => onParamsChange("num_colors", v)}
           disabled={disabled}
         />
       </EditorSidebarSection>

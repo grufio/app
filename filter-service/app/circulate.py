@@ -80,6 +80,7 @@ def circulate_cells_to_svg(
     inner_chroma_scale: float = 1.0,
     palette_oklab: list | None = None,
     palette_rgb: list | None = None,
+    num_colors: int | None = None,
     texture_enabled: bool = False,
     texture_strength: float = 0.0,
     on_phase: callable | None = None,
@@ -114,6 +115,27 @@ def circulate_cells_to_svg(
             outer = apply_neighbor_invasion(
                 outer, np.asarray(palette_rgb, dtype=np.uint8), texture_strength
             )
+        # Cap distinct chip count on the OUTER cells (the visually
+        # dominant fill; the inner sub-colour is decorative and
+        # tracks the original mean). Same top-N reduction as
+        # pixelate: pick the most-used chips, re-snap the rest.
+        if num_colors is not None and num_colors > 0:
+            palette_rgb_arr = np.asarray(palette_rgb, dtype=np.uint8)
+            pre_indices = reconstruct_palette_indices(outer, palette_rgb_arr)
+            unique, counts = np.unique(pre_indices, return_counts=True)
+            if len(unique) > num_colors:
+                top_n = unique[np.argsort(counts)[-num_colors:]]
+                top_n_rgb = palette_rgb_arr[top_n]
+                top_n_oklab = np.asarray(palette_oklab, dtype=np.float32)[top_n]
+                excluded_mask = ~np.isin(pre_indices, top_n)
+                if excluded_mask.any():
+                    flat = outer.reshape(-1, 3).copy()
+                    excluded_flat = excluded_mask.flatten()
+                    excluded_oklab = rgb255_to_oklab(flat[excluded_flat])
+                    local = nearest_palette_indices(excluded_oklab, top_n_oklab)
+                    flat[excluded_flat] = top_n_rgb[local]
+                    outer = flat.reshape(outer.shape)
+                phase("reduce_colors")
     else:
         outer = np.asarray(means, dtype=np.uint8)
     inner = (
@@ -234,6 +256,7 @@ def circulate_to_svg(
     inner_chroma_scale: float = 1.0,
     palette_oklab: list | None = None,
     palette_rgb: list | None = None,
+    num_colors: int | None = None,
     texture_enabled: bool = False,
     texture_strength: float = 0.0,
     on_phase: callable | None = None,
@@ -282,6 +305,7 @@ def circulate_to_svg(
         inner_chroma_scale=inner_chroma_scale,
         palette_oklab=palette_oklab,
         palette_rgb=palette_rgb,
+        num_colors=num_colors,
         texture_enabled=texture_enabled,
         texture_strength=texture_strength,
         on_phase=on_phase,

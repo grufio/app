@@ -31,9 +31,9 @@ describe("PixelateForm", () => {
     expect(container.querySelector("#supercell_width_mm")).not.toBeNull()
     expect(container.querySelector("#supercell_height_mm")).not.toBeNull()
     expect(container.querySelector("#color_mode")).not.toBeNull()
-    expect(container.querySelector("#color_space")).not.toBeNull()
-    // num_colors is gone — colour comes from the palette map.
-    expect(container.querySelector("#num_colors")).toBeNull()
+    expect(container.querySelector("#num_colors")).not.toBeNull()
+    // color_space was a PDF-only stub with no readers; replaced by num_colors.
+    expect(container.querySelector("#color_space")).toBeNull()
   })
 
   it("renders the Texture segment (enable checkbox + strength select)", () => {

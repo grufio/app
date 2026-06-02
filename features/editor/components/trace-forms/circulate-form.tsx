@@ -7,7 +7,7 @@
  *                 (disabled until checked); contour width.
  *   - "Spacing" — left/right; top/bottom (per-axis gaps around the outer
  *                 ellipse, folded into the cell pitch).
- *   - "Colors"  — shared palette mode + PDF colour space (`TraceColorsFields`)
+ *   - "Colors"  — shared palette mode + max chip count (`TraceColorsFields`)
  *                 plus the inner-ellipse hue shift (disabled until the inner
  *                 ellipse is on).
  *
@@ -157,9 +157,9 @@ export function CirculateForm({ params, onParamsChange, disabled, grid }: Props)
         <div className="space-y-3">
           <TraceColorsFields
             colorMode={params.color_mode}
-            colorSpace={params.color_space}
+            numColors={params.num_colors}
             onColorModeChange={(v) => onParamsChange("color_mode", v)}
-            onColorSpaceChange={(v) => onParamsChange("color_space", v)}
+            onNumColorsChange={(v) => onParamsChange("num_colors", v)}
             disabled={disabled}
           />
           {loneRow(

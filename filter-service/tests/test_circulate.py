@@ -233,3 +233,31 @@ def test_crop_clamps_to_image_bounds():
         outer_w_frac=1.0, outer_h_frac=1.0,
     )
     assert Image.open(BytesIO(png)).size == (8, 8)
+
+
+def test_num_colors_caps_circulate_output_chip_count():
+    """Same top-N reduction contract as pixelate: the outer ellipse chip
+    set is capped at `num_colors`; `palette_indices_used` honours the
+    cap. Inner ellipses are decorative and excluded from the metric."""
+    from app.circulate import circulate_cells_to_svg
+
+    chips_rgb = [
+        [200, 0, 0],    # red
+        [0, 200, 0],    # green
+        [0, 0, 200],    # blue
+        [200, 200, 0],  # yellow
+        [200, 0, 200],  # magenta
+    ]
+    chips_oklab = rgb255_to_oklab(np.array(chips_rgb)).tolist()
+    cells = np.array([[[200, 0, 0], [0, 200, 0], [0, 0, 200], [200, 200, 0], [200, 0, 200]]], dtype=np.uint8)
+    svg, _region, used = circulate_cells_to_svg(
+        cell_means=cells, cropped_w_px=50, cropped_h_px=10,
+        outer_w_frac=1.0, outer_h_frac=1.0,
+        palette_oklab=chips_oklab, palette_rgb=chips_rgb,
+        num_colors=3,
+    )
+    assert len(used) <= 3, f"palette_indices_used should be ≤ 3, got {used}"
+    # Outer ellipse fills sit on `<ellipse ... fill="#XXXXXX">` elements;
+    # there is no inner since `inner_enabled` defaults to False.
+    fills = set(re.findall(r'fill="(#[0-9a-f]{6})"', svg))
+    assert len(fills) <= 3, f"distinct fills in SVG should be ≤ 3, got {fills}"
