@@ -7,7 +7,8 @@ import { DEFAULT_INNER_FILTER, INNER_FILTER_IDS } from "./inner-color-filters"
  * Circulate trace — a Chuck-Close-style dot grid: one ellipse per cell
  * (optionally a second inner ellipse), with contours instead of grid lines.
  * Shares the palette colour contract with Pixelate (`color_mode` picks the DB
- * palette the cell colour is snapped to; `color_space` is PDF-only).
+ * palette the cell colour is snapped to; `num_colors` caps the distinct chip
+ * count in the rendered output, post-snap top-N reduction).
  *
  * Geometry (resolved by `resolveCirculateGrid`, plan stage 4): the cell pitch
  * per axis = spacing-before + outer-ellipse + spacing-after, so
@@ -59,10 +60,12 @@ export const circulateSchema = z.object({
   // default so an enabled inner ellipse is visibly distinct (incl. greys).
   inner_filter: z.enum(INNER_FILTER_IDS).default(DEFAULT_INNER_FILTER),
   // Colors segment (shared contract with Pixelate): `color` → lab_munsell
-  // (128), `bw` → lab_grays (48), strictly separate. `color_space` is PDF-only
-  // and has no effect on colour detection (the match is always OKLab).
+  // (128), `bw` → lab_grays (48), strictly separate.
   color_mode: z.enum(["color", "bw"]).default("color"),
-  color_space: z.enum(["rgb", "cmyk"]).default("rgb"),
+  // Cap on distinct palette chips in the rendered output. See
+  // `lib/editor/trace/pixelate.ts` for the full semantic — same
+  // top-N reduction is applied by the filter-service.
+  num_colors: z.coerce.number().int().min(2).max(32).default(16),
   // Blue-noise neighbour-invasion texture on the outer ellipses (shared
   // contract with Pixelate). Same default + persistence semantics: the
   // checkbox toggles `texture_enabled`, the dropdown commits

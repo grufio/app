@@ -105,7 +105,7 @@ describe("pixelateSchema", () => {
     supercell_width_mm: 6,
     supercell_height_mm: 6,
     color_mode: "color",
-    color_space: "rgb",
+    num_colors: 16,
     texture_enabled: false,
     texture_strength: 0.5,
   } as const
@@ -130,17 +130,18 @@ describe("pixelateSchema", () => {
     ).toEqual({ ...PIXELATE_DEFAULTS, supercell_height_mm: 4 })
   })
 
-  it("accepts the b/w palette mode and the cmyk colour space", () => {
-    expect(pixelateSchema.parse({ color_mode: "bw", color_space: "cmyk" })).toEqual({
+  it("accepts the b/w palette mode and a custom num_colors", () => {
+    expect(pixelateSchema.parse({ color_mode: "bw", num_colors: 4 })).toEqual({
       ...PIXELATE_DEFAULTS,
       color_mode: "bw",
-      color_space: "cmyk",
+      num_colors: 4,
     })
   })
 
-  it("rejects unknown color_mode / color_space values", () => {
+  it("rejects unknown color_mode / out-of-range num_colors values", () => {
     expect(pixelateSchema.safeParse({ color_mode: "grayscale" }).success).toBe(false)
-    expect(pixelateSchema.safeParse({ color_space: "lab" }).success).toBe(false)
+    expect(pixelateSchema.safeParse({ num_colors: 1 }).success).toBe(false)
+    expect(pixelateSchema.safeParse({ num_colors: 33 }).success).toBe(false)
   })
 
   it("accepts the texture toggle + each discrete strength level", () => {
@@ -156,16 +157,16 @@ describe("pixelateSchema", () => {
     expect(pixelateSchema.safeParse({ texture_strength: 1.25 }).success).toBe(false)
   })
 
-  it("ignores legacy params from old wizard payloads (incl. dropped num_colors)", () => {
+  it("ignores legacy params from old wizard payloads (incl. dropped color_space)", () => {
     // Old persisted trace rows may carry dropped/renamed fields — notably
-    // `num_colors`, removed in favour of the palette map. Zod's default
-    // `strip` mode passes them through silently so server-side validation
-    // doesn't reject historical requests (no migration needed).
+    // `color_space`, removed in favour of the `num_colors` cap. Zod's
+    // default `strip` mode passes them through silently so historical
+    // request payloads parse without explicit migration.
     expect(
       pixelateSchema.parse({
         supercell_width_mm: 5,
         supercell_height_mm: 5,
-        num_colors: 24, // dropped — must be stripped, not rejected
+        color_space: "rgb", // dropped — must be stripped, not rejected
         supercell_mm: 8, // legacy single-axis field
         primary_count: 99,
         multiple_axis: "horizontal",

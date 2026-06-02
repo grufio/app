@@ -35,7 +35,7 @@ describe("CirculateForm", () => {
       "spacing_top_mm",
       "spacing_bottom_mm",
       "color_mode",
-      "color_space",
+      "num_colors",
       "inner_filter",
     ]) {
       expect(container.querySelector(`#${id}`), `#${id}`).not.toBeNull()

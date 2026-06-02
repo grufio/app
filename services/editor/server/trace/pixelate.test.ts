@@ -10,7 +10,7 @@ const validParams: PixelateParams = {
   supercell_width_mm: 6,
   supercell_height_mm: 6,
   color_mode: "color",
-  color_space: "rgb",
+  num_colors: 16,
   texture_enabled: false,
   texture_strength: 0.5,
 }

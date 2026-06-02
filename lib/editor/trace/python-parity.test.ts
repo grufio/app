@@ -60,13 +60,12 @@ describe("Python parity: TS trace schema defaults vs Pydantic", () => {
     // ones (cells_x/_y, crop_*, stroke_width-hardcoded, palette_*). The two
     // exceptions are the texture fields, which the user picks in TS and the
     // server forwards verbatim — they appear on both sides intentionally.
-    // Drop-back-compat: TS no longer carries num_colors while Python still
-    // tolerates it (regression guard below).
+    // num_colors is now a real TS field (caps the post-snap chip count;
+    // forwarded to Python which honours it as a top-N reduction).
     const ts = pixelateSchema.parse({})
-    expect(ts).not.toHaveProperty("num_colors")
     expect(Object.keys(ts).sort()).toEqual([
       "color_mode",
-      "color_space",
+      "num_colors",
       "supercell_height_mm",
       "supercell_width_mm",
       "texture_enabled",
@@ -89,8 +88,6 @@ describe("Python parity: TS trace schema defaults vs Pydantic", () => {
       expect.arrayContaining(["line_thickness", "blur_amount", "smoothness", "num_colors"]),
     )
     expect(Object.keys(extractPydanticDefaults("PixelateRequest"))).toContain("stroke_width")
-    // Python keeps num_colors as an ignored back-compat field even though the
-    // TS schema dropped it — old in-flight requests must not break.
     expect(Object.keys(extractPydanticDefaults("PixelateRequest"))).toContain("num_colors")
   })
 })

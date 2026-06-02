@@ -15,7 +15,7 @@ const DEFAULTS = {
   contour_width_mm: 0.2,
   inner_filter: "darker",
   color_mode: "color",
-  color_space: "rgb",
+  num_colors: 16,
   // Texture defaults: off + mid-strength preserved. Server treats this as a
   // no-op (the `texture_enabled` gate is false), so old persisted rows that
   // never carried these fields parse identically to a fresh form.
@@ -71,17 +71,18 @@ describe("circulateSchema", () => {
     expect(circulateSchema.safeParse({ inner_filter: "sepia" }).success).toBe(false)
   })
 
-  it("accepts the b/w palette mode and the cmyk colour space", () => {
-    expect(circulateSchema.parse({ color_mode: "bw", color_space: "cmyk" })).toEqual({
+  it("accepts the b/w palette mode and a custom num_colors", () => {
+    expect(circulateSchema.parse({ color_mode: "bw", num_colors: 8 })).toEqual({
       ...DEFAULTS,
       color_mode: "bw",
-      color_space: "cmyk",
+      num_colors: 8,
     })
   })
 
-  it("rejects unknown color_mode / color_space values", () => {
+  it("rejects unknown color_mode / out-of-range num_colors values", () => {
     expect(circulateSchema.safeParse({ color_mode: "grayscale" }).success).toBe(false)
-    expect(circulateSchema.safeParse({ color_space: "lab" }).success).toBe(false)
+    expect(circulateSchema.safeParse({ num_colors: 1 }).success).toBe(false)
+    expect(circulateSchema.safeParse({ num_colors: 33 }).success).toBe(false)
   })
 
   it("coerces numeric strings (form inputs arrive as text)", () => {

@@ -19,7 +19,7 @@ const validParams: CirculateParams = {
   contour_width_mm: 0.2,
   inner_filter: "darker",
   color_mode: "color",
-  color_space: "rgb",
+  num_colors: 16,
   texture_enabled: false,
   texture_strength: 0.5,
 }

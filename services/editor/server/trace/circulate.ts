@@ -221,6 +221,9 @@ export async function circulateImageAndActivate(args: {
         inner_chroma_scale: innerAdj.chromaScale,
         palette_oklab: palette.map((c) => c.oklab),
         palette_rgb: palette.map((c) => c.rgb),
+        // Cap on distinct chip count in the rendered output. Drives the
+        // filter-service's post-snap top-N reduction.
+        num_colors: p.num_colors,
         // Texture forwarding — same contract as pixelate. Applies to the
         // outer ellipses only on the server side.
         texture_enabled: p.texture_enabled,

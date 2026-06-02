@@ -15,12 +15,14 @@ export const pixelateSchema = z.object({
   // `bw` → the 48 greys (`lab_grays`). Strictly separate, no mixing. Drives
   // which DB palette the server snaps cells to (the OKLab nearest-match).
   color_mode: z.enum(["color", "bw"]).default("color"),
-  // PDF colour space — stored only, NO effect on colour detection (the
-  // match is always OKLab against the mode palette). Consumed later by PDF
-  // generation. `num_colors` was removed (the colour now comes from the
-  // palette map, not a median-cut quantise step); old persisted trace rows
-  // that still carry it are tolerated via Zod's default strip mode.
-  color_space: z.enum(["rgb", "cmyk"]).default("rgb"),
+  // Maximum number of distinct palette chips in the rendered output. After
+  // the snap (and after any texture invasion), the filter-service counts
+  // distinct chips in the per-cell winners; if the count exceeds
+  // `num_colors`, the top-N most-used chips are kept and every excluded
+  // cell is re-snapped to the nearest chip in the kept set. Default 16
+  // matches typical paint-by-numbers tables; max 32 covers richer print
+  // outputs without runaway noise.
+  num_colors: z.coerce.number().int().min(2).max(32).default(16),
   // Blue-noise neighbour-invasion texture. `texture_enabled` is the form's
   // checkbox state; `texture_strength` is the chosen Select level (25/50/75/
   // 100% expressed as a 0..1 fraction) and is preserved when the checkbox
