@@ -35,6 +35,7 @@ from .cell_colors import compute_cell_colors, map_cells_to_palette
 from .cell_labels import build_label_map, reconstruct_palette_indices, render_numbers_group
 from .cell_texture import apply_neighbor_invasion
 from .oklab import adjust_oklab, nearest_palette_indices, rgb255_to_oklab
+from .palette_reduction import reduce_to_top_n
 
 
 def _hex(rgb) -> str:
@@ -115,27 +116,11 @@ def circulate_cells_to_svg(
             outer = apply_neighbor_invasion(
                 outer, np.asarray(palette_rgb, dtype=np.uint8), texture_strength
             )
-        # Cap distinct chip count on the OUTER cells (the visually
-        # dominant fill; the inner sub-colour is decorative and
-        # tracks the original mean). Same top-N reduction as
-        # pixelate: pick the most-used chips, re-snap the rest.
-        if num_colors is not None and num_colors > 0:
-            palette_rgb_arr = np.asarray(palette_rgb, dtype=np.uint8)
-            pre_indices = reconstruct_palette_indices(outer, palette_rgb_arr)
-            unique, counts = np.unique(pre_indices, return_counts=True)
-            if len(unique) > num_colors:
-                top_n = unique[np.argsort(counts)[-num_colors:]]
-                top_n_rgb = palette_rgb_arr[top_n]
-                top_n_oklab = np.asarray(palette_oklab, dtype=np.float32)[top_n]
-                excluded_mask = ~np.isin(pre_indices, top_n)
-                if excluded_mask.any():
-                    flat = outer.reshape(-1, 3).copy()
-                    excluded_flat = excluded_mask.flatten()
-                    excluded_oklab = rgb255_to_oklab(flat[excluded_flat])
-                    local = nearest_palette_indices(excluded_oklab, top_n_oklab)
-                    flat[excluded_flat] = top_n_rgb[local]
-                    outer = flat.reshape(outer.shape)
-                phase("reduce_colors")
+        # Reduce on the OUTER cells only — inner sub-colour is decorative
+        # and tracks the original mean.
+        outer, did_reduce = reduce_to_top_n(outer, palette_oklab, palette_rgb, num_colors)
+        if did_reduce:
+            phase("reduce_colors")
     else:
         outer = np.asarray(means, dtype=np.uint8)
     inner = (
