@@ -35,14 +35,11 @@ import { PaletteColorTile } from "./palette-color-tile"
 type MobileColorsSheetProps = {
   onClose: () => void
   /** The current trace's used-palette index list. `null` for legacy
-   * rows (column was added empty) and for lineart (no palette). */
+   * rows pre-migration (column was added empty). */
   paletteIndicesUsed: number[] | null
   /** Which palette to look up against. `null` when no trace is
    * active. */
   traceMode: "color" | "bw" | null
-  /** True for lineart traces — surfaces a "no palette colors" empty
-   * state regardless of indices. */
-  isLineartTrace: boolean
   /** True when no trace is active at all. */
   hasTrace: boolean
 }
@@ -51,7 +48,6 @@ export function MobileColorsSheet({
   onClose,
   paletteIndicesUsed,
   traceMode,
-  isLineartTrace,
   hasTrace,
 }: MobileColorsSheetProps) {
   const palette = useTracePalette(traceMode ?? "color")
@@ -77,7 +73,6 @@ export function MobileColorsSheet({
       <div className="min-h-0 flex-1 overflow-auto p-4">
         <ColorsBody
           paletteIndicesUsed={paletteIndicesUsed}
-          isLineartTrace={isLineartTrace}
           hasTrace={hasTrace}
           palette={palette}
         />
@@ -88,20 +83,15 @@ export function MobileColorsSheet({
 
 function ColorsBody({
   paletteIndicesUsed,
-  isLineartTrace,
   hasTrace,
   palette,
 }: {
   paletteIndicesUsed: number[] | null
-  isLineartTrace: boolean
   hasTrace: boolean
   palette: ReturnType<typeof useTracePalette>
 }) {
   if (!hasTrace) {
     return <EmptyState text="Run a trace to see its colors." />
-  }
-  if (isLineartTrace) {
-    return <EmptyState text="Lineart traces don't reference palette colors." />
   }
   if (paletteIndicesUsed == null) {
     // Legacy trace row from before the palette_indices_used migration.

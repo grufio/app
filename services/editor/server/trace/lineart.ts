@@ -4,10 +4,23 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/lib/supabase/database.types"
 import { lineartSchema, type LineartParams } from "@/lib/editor/trace/lineart"
+import { readTracePalette } from "@/lib/supabase/palette"
 import { callFilterService, toInt, type FilterResult } from "@/services/editor/server/filters/_helpers"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 
-export type LineArtFilterResult = FilterResult<"lineart_process">
+export type LineArtFilterSuccess = {
+  ok: true
+  id: string
+  storagePath: string
+  widthPx: number
+  heightPx: number
+  /** Unique palette chip indices the snap step emitted in the
+   * output (sorted ascending). Null when the filter-service didn't
+   * return the field (older revision) or the response shape was
+   * unexpected. */
+  paletteIndicesUsed: number[] | null
+}
+export type LineArtFilterResult = LineArtFilterSuccess | Extract<FilterResult<"lineart_process">, { ok: false }>
 
 export async function lineArtImageAndActivate(args: {
   supabase: SupabaseClient<Database>
@@ -33,6 +46,7 @@ export async function lineArtImageAndActivate(args: {
     blur_amount: blurAmount,
     smoothness,
     num_colors: numColors,
+    color_mode: colorMode,
   } = parsed.data
 
   const { data: src, error: srcErr } = await supabase
@@ -70,14 +84,24 @@ export async function lineArtImageAndActivate(args: {
   try {
     const imageBase64 = srcBuffer.toString("base64")
 
+    // Same Munsell-palette contract as pixelate / circulate: snap
+    // each vtracer region fill to the nearest chip so the resulting
+    // SVG references real palette colors instead of arbitrary
+    // median-cut bins. The set of indices used flows back so the
+    // mobile Colors sheet can list them.
+    const palette = await readTracePalette(supabase, colorMode)
+
     const callResult = await callFilterService({
       path: "/filters/lineart",
+      responseKind: "json",
       body: {
         image_base64: imageBase64,
         line_thickness: lineThickness,
         blur_amount: blurAmount,
         smoothness,
         num_colors: numColors,
+        palette_oklab: palette.map((c) => c.oklab),
+        palette_rgb: palette.map((c) => c.rgb),
       },
     })
 
@@ -101,7 +125,22 @@ export async function lineArtImageAndActivate(args: {
       }
     }
 
-    const outputBuffer = Buffer.from(callResult.bytes)
+    const payload = callResult.json as
+      | { svg?: unknown; region_count?: unknown; palette_indices_used?: unknown }
+      | null
+    const svgString = typeof payload?.svg === "string" ? payload.svg : null
+    if (!svgString) {
+      return {
+        ok: false,
+        status: 502,
+        stage: "lineart_process",
+        reason: "Filter service returned an unexpected payload (missing svg)",
+      }
+    }
+    const paletteIndicesUsed = Array.isArray(payload?.palette_indices_used)
+      ? payload.palette_indices_used.filter((n): n is number => typeof n === "number" && Number.isInteger(n) && n >= 0)
+      : null
+    const outputBuffer = Buffer.from(svgString, "utf-8")
 
     const imageId = crypto.randomUUID()
     const objectPath = `projects/${projectId}/images/${imageId}`
@@ -146,6 +185,7 @@ export async function lineArtImageAndActivate(args: {
       storagePath: objectPath,
       widthPx: origWidth,
       heightPx: origHeight,
+      paletteIndicesUsed,
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Line art process failed"

@@ -183,6 +183,7 @@ describe("lineartSchema", () => {
       blur_amount: 3,
       smoothness: 0.6,
       num_colors: 8,
+      color_mode: "color",
     })
   })
 

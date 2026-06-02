@@ -894,14 +894,15 @@ export function ProjectDetailPageClient({
           onClose={() => setColorsSheetOpen(false)}
           paletteIndicesUsed={trace?.palette_indices_used ?? null}
           traceMode={(() => {
-            // pixelate + circulate carry color_mode in params; lineart
-            // is always monochrome and has no palette. Null mode →
-            // sheet shows the "no palette colors" empty state.
-            if (!trace || trace.kind === "lineart") return null
+            // All three trace kinds (pixelate, circulate, lineart)
+            // carry color_mode in params and snap on Munsell. Default
+            // "color" when missing (pre-snap legacy rows would never
+            // reach this branch — they have palette_indices_used=null
+            // and short-circuit to the "re-run" empty state).
+            if (!trace) return null
             const cm = (trace.params as { color_mode?: unknown }).color_mode
             return cm === "bw" ? "bw" : "color"
           })()}
-          isLineartTrace={trace?.kind === "lineart"}
           hasTrace={trace != null}
         />
       ) : null}
