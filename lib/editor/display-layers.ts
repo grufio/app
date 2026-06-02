@@ -62,7 +62,7 @@ export type DisplayImage = {
   signedUrl: string
 }
 
-export type MobileSection = "artboard" | "filter" | "trace"
+export type MobileSection = "artboard" | "filter" | "trace" | "colors"
 
 export type DisplayLayers = {
   /** True when the canvas should source from the filter chain tip
