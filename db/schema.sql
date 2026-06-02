@@ -1661,6 +1661,7 @@ CREATE TABLE IF NOT EXISTS "public"."lab_grays" (
     "rgb_b" smallint NOT NULL,
     "hex" "text" NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "iscc_nbs_name" "text",
     CONSTRAINT "lab_grays_hex_check" CHECK (("hex" ~ '^#[0-9A-Fa-f]{6}$'::"text")),
     CONSTRAINT "lab_grays_palette_index_check" CHECK (("palette_index" >= 0)),
     CONSTRAINT "lab_grays_rgb_b_check" CHECK ((("rgb_b" >= 0) AND ("rgb_b" <= 255))),
@@ -1705,6 +1706,7 @@ CREATE TABLE IF NOT EXISTS "public"."lab_munsell" (
     "rgb_b" smallint NOT NULL,
     "hex" "text" NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "iscc_nbs_name" "text",
     CONSTRAINT "lab_munsell_hex_check" CHECK (("hex" ~ '^#[0-9A-Fa-f]{6}$'::"text")),
     CONSTRAINT "lab_munsell_palette_index_check" CHECK (("palette_index" >= 0)),
     CONSTRAINT "lab_munsell_rgb_b_check" CHECK ((("rgb_b" >= 0) AND ("rgb_b" <= 255))),
@@ -1800,6 +1802,7 @@ CREATE TABLE IF NOT EXISTS "public"."project_image_trace" (
     "display_y_px_u" "text" DEFAULT '0'::"text" NOT NULL,
     "display_width_px_u" "text" DEFAULT '0'::"text" NOT NULL,
     "display_height_px_u" "text" DEFAULT '0'::"text" NOT NULL,
+    "palette_indices_used" integer[],
     CONSTRAINT "project_image_trace_kind_ck" CHECK (("kind" = ANY (ARRAY['pixelate'::"text", 'circulate'::"text", 'lineart'::"text"])))
 );
 
