@@ -90,6 +90,11 @@ Anything below overrides "common practice" for this repo:
    ask it in plain prose — one focused question, room for a free-form
    answer. Multiple-choice batches push synthesis back onto the user
    when the work of the agent is to propose, not to enumerate.
+9. **No Vercel preview reports.** While babysitting a PR, skip
+   `vercel[bot]` PR comments silently — the building / deployed /
+   ready transitions are not user-facing signal. Treat them as
+   noise. Only surface a Vercel event if it's an explicit failure
+   or the user has asked about the preview.
 
 ## Quickstart
 
