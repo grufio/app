@@ -881,6 +881,23 @@ export function ProjectDetailPageClient({
             onNumbersLayerChange={setNumbersLayerVisible}
           />
         ) : null}
+        {isMobile && colorsSheetOpen ? (
+          <MobileColorsSheet
+            onClose={() => setColorsSheetOpen(false)}
+            paletteIndicesUsed={trace?.palette_indices_used ?? null}
+            traceMode={(() => {
+              // All three trace kinds (pixelate, circulate, lineart)
+              // carry color_mode in params and snap on Munsell. Default
+              // "color" when missing (pre-snap legacy rows would never
+              // reach this branch — they have palette_indices_used=null
+              // and short-circuit to the "re-run" empty state).
+              if (!trace) return null
+              const cm = (trace.params as { color_mode?: unknown }).color_mode
+              return cm === "bw" ? "bw" : "color"
+            })()}
+            hasTrace={trace != null}
+          />
+        ) : null}
       </ProjectEditorLayout>
       <MobileBottomNav
         activeSection={colorsSheetOpen ? "colors" : mobileSection}
@@ -888,24 +905,6 @@ export function ProjectDetailPageClient({
         imageLocked={sectionLocks.imageLocked}
         filterLocked={sectionLocks.filterLocked}
       />
-
-      {isMobile && colorsSheetOpen ? (
-        <MobileColorsSheet
-          onClose={() => setColorsSheetOpen(false)}
-          paletteIndicesUsed={trace?.palette_indices_used ?? null}
-          traceMode={(() => {
-            // All three trace kinds (pixelate, circulate, lineart)
-            // carry color_mode in params and snap on Munsell. Default
-            // "color" when missing (pre-snap legacy rows would never
-            // reach this branch — they have palette_indices_used=null
-            // and short-circuit to the "re-run" empty state).
-            if (!trace) return null
-            const cm = (trace.params as { color_mode?: unknown }).color_mode
-            return cm === "bw" ? "bw" : "color"
-          })()}
-          hasTrace={trace != null}
-        />
-      ) : null}
 
       <Dialog open={unlockRequest !== null} onOpenChange={(o) => (!o ? cancelUnlock() : null)}>
         <DialogContent>
