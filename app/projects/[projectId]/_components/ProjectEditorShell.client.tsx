@@ -138,12 +138,17 @@ export function ProjectDetailPageClient({
   // Colors button and `mobileSection` for the rest.
   const [colorsSheetOpen, setColorsSheetOpen] = useState(false)
   const handleMobileNavTap = useCallback((section: MobileNavSection) => {
-    if (section === "artboard" || section === "filter" || section === "trace") {
-      setMobileSection(section)
+    if (section === "colors") {
+      // Toggle: tap on Colors when already open dismisses the sheet.
+      setColorsSheetOpen((prev) => !prev)
       return
     }
-    if (section === "colors") {
-      setColorsSheetOpen(true)
+    if (section === "artboard" || section === "filter" || section === "trace") {
+      setMobileSection(section)
+      // Any other section tap dismisses Colors so the chosen section
+      // becomes visible — without this the sheet would stay on top
+      // and the tap would look like a dead key.
+      setColorsSheetOpen(false)
     }
   }, [])
   // Mobile-only drawer state for the side panels. On `md+` both panels
