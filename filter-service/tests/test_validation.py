@@ -1,25 +1,33 @@
 """Request-validation contract for the filter endpoints.
 
-These bounds live in `app/main.py` (pixelate: lines ~276-281, lineart:
-lines ~337-344) and run *before* any image processing, so they need no
-real decode path — but we send a valid image so the only thing under
-test is the bound check itself.
+These bounds live in `app/main.py` and run *before* any heavy work, so
+they exercise the validation path only. Pixelate's wire shape ships a
+raw cell grid (`cells_b64`) — the Vercel server has already cropped +
+area-averaged the source. Lineart still takes the full `image_base64`.
 """
 from __future__ import annotations
 
+import base64
+
+import numpy as np
 import pytest
 
 
-def _pixelate_body(png: str, **overrides) -> dict:
+def _make_cells_b64(cells_y: int = 4, cells_x: int = 4, rgb=(10, 120, 240)) -> str:
+    """Pack a solid-colour `(cells_y, cells_x, 3)` uint8 grid the way
+    the Vercel server's `sharp().raw()` + cellAreaAverages would."""
+    arr = np.empty((cells_y, cells_x, 3), dtype=np.uint8)
+    arr[:, :] = rgb
+    return base64.b64encode(arr.tobytes()).decode("ascii")
+
+
+def _pixelate_body(**overrides) -> dict:
     body = {
-        "image_base64": png,
+        "cells_b64": _make_cells_b64(),
+        "cropped_w_px": 8,
+        "cropped_h_px": 8,
         "cells_x": 4,
         "cells_y": 4,
-        "crop_x": 0.0,
-        "crop_y": 0.0,
-        "crop_w": 8.0,
-        "crop_h": 8.0,
-        "stroke_width": 1.0,
         "num_colors": 16,
     }
     body.update(overrides)
@@ -42,36 +50,111 @@ def _lineart_body(png: str, **overrides) -> dict:
 
 
 @pytest.mark.parametrize("field,value", [("cells_x", 0), ("cells_y", 0)])
-def test_pixelate_rejects_nonpositive_cells(client, make_png_b64, field, value):
-    res = client.post("/filters/pixelate", json=_pixelate_body(make_png_b64(), **{field: value}))
+def test_pixelate_rejects_nonpositive_cells(client, field, value):
+    res = client.post("/filters/pixelate", json=_pixelate_body(**{field: value}))
     assert res.status_code == 400
     assert "cells_x and cells_y must be >= 1" in res.json()["detail"]
 
 
-@pytest.mark.parametrize("field", ["crop_w", "crop_h"])
-def test_pixelate_rejects_nonpositive_crop(client, make_png_b64, field):
-    res = client.post("/filters/pixelate", json=_pixelate_body(make_png_b64(), **{field: 0.0}))
+@pytest.mark.parametrize("field", ["cropped_w_px", "cropped_h_px"])
+def test_pixelate_rejects_nonpositive_cropped_pixels(client, field):
+    res = client.post("/filters/pixelate", json=_pixelate_body(**{field: 0}))
     assert res.status_code == 400
-    assert "crop_w and crop_h must be > 0" in res.json()["detail"]
+    assert "cropped_w_px and cropped_h_px must be >= 1" in res.json()["detail"]
 
 
-@pytest.mark.parametrize("stroke", [0.0, 0.05, 20.1, 50])
-def test_pixelate_rejects_out_of_range_stroke(client, make_png_b64, stroke):
-    res = client.post("/filters/pixelate", json=_pixelate_body(make_png_b64(), stroke_width=stroke))
-    assert res.status_code == 400
-    assert "Stroke width must be between 0.1 and 20" in res.json()["detail"]
+def test_pixelate_rejects_missing_required_fields(client):
+    # Drop cells_b64 → Pydantic 422 (request schema, not handler bounds).
+    body = _pixelate_body()
+    del body["cells_b64"]
+    res = client.post("/filters/pixelate", json=body)
+    assert res.status_code == 422
 
 
-def test_pixelate_accepts_valid_bounds(client, make_png_b64):
-    res = client.post("/filters/pixelate", json=_pixelate_body(make_png_b64()))
+def test_pixelate_accepts_valid_bounds(client):
+    res = client.post("/filters/pixelate", json=_pixelate_body())
     assert res.status_code == 200
 
 
-def test_pixelate_malformed_image_is_500(client):
-    body = _pixelate_body("not a real base64 image")
+def test_pixelate_cells_b64_length_mismatch_is_400(client):
+    # cells_b64 packed for 4×4 but cells_x/y claim 5×5 → length mismatch.
+    body = _pixelate_body(cells_x=5, cells_y=5)
     res = client.post("/filters/pixelate", json=body)
-    assert res.status_code == 500
-    assert "Image processing failed" in res.json()["detail"]
+    assert res.status_code == 400
+    assert "cells_b64 length mismatch" in res.json()["detail"]
+
+
+# --- circulate bounds ----------------------------------------------------
+
+
+def _circulate_body(**overrides) -> dict:
+    body = {
+        "cells_b64": _make_cells_b64(),
+        "cropped_w_px": 8,
+        "cropped_h_px": 8,
+        "cells_x": 4,
+        "cells_y": 4,
+        "outer_w_frac": 1.0,
+        "outer_h_frac": 1.0,
+        "num_colors": 16,
+    }
+    body.update(overrides)
+    return body
+
+
+@pytest.mark.parametrize("field,value", [("cells_x", 0), ("cells_y", 0)])
+def test_circulate_rejects_nonpositive_cells(client, field, value):
+    res = client.post("/filters/circulate", json=_circulate_body(**{field: value}))
+    assert res.status_code == 400
+    assert "cells_x and cells_y must be >= 1" in res.json()["detail"]
+
+
+@pytest.mark.parametrize("field,value", [
+    ("outer_w_frac", 0.0), ("outer_w_frac", 1.1),
+    ("outer_h_frac", 0.0), ("outer_h_frac", 1.1),
+])
+def test_circulate_rejects_out_of_range_outer_fracs(client, field, value):
+    res = client.post("/filters/circulate", json=_circulate_body(**{field: value}))
+    assert res.status_code == 400
+    assert "outer ellipse fractions must be in (0, 1]" in res.json()["detail"]
+
+
+@pytest.mark.parametrize("field,value", [
+    ("inner_w_frac", 0.0), ("inner_w_frac", 1.1),
+    ("inner_h_frac", 0.0), ("inner_h_frac", 1.1),
+])
+def test_circulate_rejects_out_of_range_inner_fracs_when_enabled(client, field, value):
+    res = client.post(
+        "/filters/circulate",
+        json=_circulate_body(inner_enabled=True, **{field: value}),
+    )
+    assert res.status_code == 400
+    assert "inner ellipse fractions must be in (0, 1]" in res.json()["detail"]
+
+
+def test_circulate_rejects_negative_contour_width(client):
+    res = client.post("/filters/circulate", json=_circulate_body(contour_width_px=-1.0))
+    assert res.status_code == 400
+    assert "contour_width_px must be >= 0" in res.json()["detail"]
+
+
+@pytest.mark.parametrize("field", ["cropped_w_px", "cropped_h_px"])
+def test_circulate_rejects_nonpositive_cropped_pixels(client, field):
+    res = client.post("/filters/circulate", json=_circulate_body(**{field: 0}))
+    assert res.status_code == 400
+    assert "cropped_w_px and cropped_h_px must be >= 1" in res.json()["detail"]
+
+
+def test_circulate_accepts_valid_bounds(client):
+    res = client.post("/filters/circulate", json=_circulate_body())
+    assert res.status_code == 200
+
+
+def test_circulate_cells_b64_length_mismatch_is_400(client):
+    body = _circulate_body(cells_x=5, cells_y=5)
+    res = client.post("/filters/circulate", json=body)
+    assert res.status_code == 400
+    assert "cells_b64 length mismatch" in res.json()["detail"]
 
 
 # --- lineart bounds ------------------------------------------------------

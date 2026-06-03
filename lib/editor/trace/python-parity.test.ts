@@ -87,7 +87,6 @@ describe("Python parity: TS trace schema defaults vs Pydantic", () => {
     expect(Object.keys(extractPydanticDefaults("LineArtRequest"))).toEqual(
       expect.arrayContaining(["line_thickness", "blur_amount", "smoothness", "num_colors"]),
     )
-    expect(Object.keys(extractPydanticDefaults("PixelateRequest"))).toContain("stroke_width")
     expect(Object.keys(extractPydanticDefaults("PixelateRequest"))).toContain("num_colors")
   })
 })
