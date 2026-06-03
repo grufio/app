@@ -129,8 +129,9 @@ npm run verify:schema-drift
   Supabase access token live there. Never commit them.
 - **Squashed migration baseline:** one file in
   [supabase/migrations/](supabase/migrations/) (currently
-  `20260509132715_close_prod_drift.sql` — name is misleading, content
-  is the full baseline post-squash).
+  `20260519130800_seed_color_oil_schmincke_norma.sql` is the
+  earliest — the squashed baseline lives at the bottom of the
+  history, all later migrations stack on top).
 - **Plans by Claude:** `~/.claude/plans/` — drafts of larger work
   the user has approved or is reviewing.
 

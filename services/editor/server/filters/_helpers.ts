@@ -109,6 +109,11 @@ export type CallFilterServiceResult<R extends "bytes" | "json" = "bytes"> =
  * to stdout the profile script (`scripts/profile-filters.mjs`)
  * collects. When off, every method is a cheap no-op so production
  * paths stay free of monitoring overhead.
+ *
+ * Production never sets `PROFILE_FILTERS` (Vercel build env doesn't
+ * carry the var), so the prod code path is the NOOP_PROFILER constant
+ * — the live-timer branch only fires under local `PROFILE_FILTERS=1
+ * npm run dev` or the profile script. No runtime cost in prod.
  */
 type FilterProfiler = {
   mark: (phase: string) => void
