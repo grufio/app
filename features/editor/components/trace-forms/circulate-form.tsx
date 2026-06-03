@@ -28,7 +28,7 @@ import { FormField, type SelectFieldOption } from "@/components/ui/form-controls
 import { circulateSchema, type CirculateParams } from "@/lib/editor/trace/circulate"
 import { isCirculateGridValid, type CirculateGrid } from "@/lib/editor/trace/circulate-grid-math"
 import { INNER_FILTERS } from "@/lib/editor/trace/inner-color-filters"
-import { extractNumberInputProps } from "@/lib/forms/zod-input-props"
+import { extractNumberInputProps, parseFormNumber } from "@/lib/forms/zod-input-props"
 
 import { PanelIconSlot, PanelTwoFieldRow } from "../panel-layout"
 import { EditorSidebarSection } from "../sidebar/editor-sidebar-section"
@@ -88,8 +88,8 @@ export function CirculateForm({ params, onParamsChange, disabled, grid }: Props)
         id={key}
         value={String(params[key])}
         onCommit={(raw) => {
-          const n = Number(raw)
-          if (Number.isFinite(n)) onParamsChange(key, n as CirculateParams[typeof key])
+          const res = parseFormNumber(schemaSlice, raw)
+          if (res.ok) onParamsChange(key, res.value as CirculateParams[typeof key])
         }}
         disabled={opts.disabled ?? disabled}
         inputProps={{ ...extractNumberInputProps(schemaSlice), step: opts.step ?? 0.5 }}

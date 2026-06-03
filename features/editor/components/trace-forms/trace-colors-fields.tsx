@@ -13,21 +13,12 @@
 import { Layers, Palette } from "lucide-react"
 
 import { FormField, type SelectFieldOption } from "@/components/ui/form-controls"
-import {
-  numColorsSchema,
-  NUM_COLORS_DEFAULT,
-  NUM_COLORS_MAX,
-  NUM_COLORS_MIN,
-} from "@/lib/editor/trace/num-colors-schema"
-import { extractNumberInputProps } from "@/lib/forms/zod-input-props"
+import { numColorsSchema } from "@/lib/editor/trace/num-colors-schema"
+import { extractNumberInputProps, parseFormNumber } from "@/lib/forms/zod-input-props"
 
 import { PanelIconSlot, PanelTwoFieldRow } from "../panel-layout"
 
 export type TraceColorMode = "color" | "bw"
-
-// Re-export so existing consumers (e.g. legacy form code) don't need
-// to touch their imports; the source of truth is the schema module.
-export { NUM_COLORS_DEFAULT, NUM_COLORS_MAX, NUM_COLORS_MIN }
 
 // Module-level so the `options` reference stays stable across renders (the
 // select FormField memoises on `prev.options === next.options`).
@@ -67,18 +58,7 @@ export function TraceColorsFields(props: {
         iconStart={<Layers aria-hidden="true" />}
         id="num_colors"
         value={String(numColors)}
-        onCommit={(raw) => {
-          const parsed = Number.parseInt(raw, 10)
-          if (!Number.isFinite(parsed)) {
-            onNumColorsChange(NUM_COLORS_DEFAULT)
-            return
-          }
-          const clamped = Math.min(
-            NUM_COLORS_MAX,
-            Math.max(NUM_COLORS_MIN, parsed),
-          )
-          onNumColorsChange(clamped)
-        }}
+        onCommit={(raw) => onNumColorsChange(parseFormNumber(numColorsSchema, raw).value)}
         inputProps={NUM_COLORS_INPUT_PROPS}
         disabled={disabled}
       />
