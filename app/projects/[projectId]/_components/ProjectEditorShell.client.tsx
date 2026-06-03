@@ -8,7 +8,7 @@
  *
  * NOTE: In this first step, it preserves existing Image tab behavior.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef } from "react"
 
 import {
   EditorErrorBoundary,
@@ -19,11 +19,8 @@ import {
   ProjectEditorStage,
   type ProjectCanvasStageHandle,
 } from "@/features/editor"
-import { buildNavId } from "@/features/editor/navigation/nav-id"
 import { deriveSectionLocks } from "@/lib/editor/section-locks"
 import { MobileBottomNav } from "@/features/editor/components/mobile-bottom-nav"
-import type { MobileSection } from "@/lib/editor/mobile-sections"
-import { deleteMasterImageWithCascade, removeProjectImageFilter } from "@/lib/api/project-images"
 import {
   Dialog,
   DialogContent,
@@ -63,6 +60,10 @@ import { ArtboardSurfaceScope } from "./editor-shell/artboard-surface-scope"
 import { ColorsSurfaceScope } from "./editor-shell/colors-surface-scope"
 import { FilterSurfaceScope } from "./editor-shell/filter-surface-scope"
 import { TraceSurfaceScope } from "./editor-shell/trace-surface-scope"
+import { useDeleteMasterImageHandler } from "./editor-shell/use-delete-master-image-handler"
+import { usePanelSizing } from "./editor-shell/use-panel-sizing"
+import { usePanelUIState } from "./editor-shell/use-panel-ui-state"
+import { useUnlockDialog } from "./editor-shell/use-unlock-dialog"
 import { useLeftPanelModel } from "./editor-shell/use-left-panel-model"
 
 export function ProjectDetailPageClient({
@@ -124,28 +125,28 @@ export function ProjectDetailPageClient({
   // `< md` there's no tab UI, so canvasMode + trace-overlay surface
   // their results based on data presence rather than `leftPanelTab`.
   const isMobile = useIsMobile()
-  const [gridVisible, setGridVisible] = useState(true)
-  const [selectedNavId, setSelectedNavId] = useState<string>(buildNavId({ kind: "artboard" }))
   // Mobile-only: the bottom-nav picks the active section, the canvas
   // surfaces section-specific layers (mirror desktop's `leftPanelTab`
   // gating — see `deriveDisplayLayers`), and each surface's scope
-  // component owns its own floating Edit-icon + sheet.
-  const [mobileSection, setMobileSection] = useState<MobileSection>("artboard")
-  const handleMobileNavTap = useCallback((section: MobileSection) => {
-    setMobileSection(section)
-  }, [])
-  // Mobile-only drawer state for the side panels. On `md+` both panels
-  // are always-on; this state is ignored there. The Sheet primitive on
-  // mobile handles Escape, overlay-click and focus-trap natively — no
-  // custom keydown handler needed here.
-  const [leftPanelOpen, setLeftPanelOpen] = useState(false)
-  const [rightPanelOpen, setRightPanelOpen] = useState(false)
-  const handleToggleLeftPanel = useCallback(() => {
-    setLeftPanelOpen((open) => !open)
-  }, [])
-  const handleToggleRightPanel = useCallback(() => {
-    setRightPanelOpen((open) => !open)
-  }, [])
+  // component owns its own floating Edit-icon + sheet. The drawer
+  // state (`leftPanelOpen` / `rightPanelOpen`) is ignored on `md+`
+  // where both panels are always-on; the Sheet primitive handles
+  // Escape, overlay-click and focus-trap natively on mobile.
+  const {
+    gridVisible,
+    setGridVisible,
+    selectedNavId,
+    setSelectedNavId,
+    mobileSection,
+    handleMobileNavTap,
+    leftPanelOpen,
+    setLeftPanelOpen,
+    handleToggleLeftPanel,
+    rightPanelOpen,
+    setRightPanelOpen,
+    handleToggleRightPanel,
+    closeLeftPanelOnTraceSelection,
+  } = usePanelUIState()
   const canvasRef = useRef<ProjectCanvasStageHandle | null>(null)
   const lastNoWorkingImageMetricRef = useRef("")
   // Invariant 1: the single authoritative display-size source. Seeded
@@ -284,13 +285,6 @@ export function ProjectDetailPageClient({
   const isAddFilterDisabled = !hasFilterSourceImage || isNewFilterActionBusy
 
   const isAddTraceDisabled = !hasFilterSourceImage || isNewFilterActionBusy || isApplyingTrace || isClearingTrace
-  // Mobile-only effect: user reached the trace selection via the left-panel
-  // Sheet (Trace has no desktop top-bar entry), so the Sheet is still open
-  // behind the dialog. Closing it here means every exit (apply, X, escape,
-  // cancel) lands in a clean editor. Desktop is a no-op.
-  const closeLeftPanelOnTraceSelection = useCallback(() => {
-    setLeftPanelOpen(false)
-  }, [])
 
   const {
     selectedImageId,
@@ -320,39 +314,8 @@ export function ProjectDetailPageClient({
     onApplyCrop: workflow.applyCrop,
   })
 
-  const handleDeleteMasterImage = useCallback(async () => {
-    if (!masterImage?.id) {
-      setDeleteError("No master image to delete.")
-      return
-    }
-    try {
-      await deleteMasterImageWithCascade(projectId)
-      setDeleteOpen(false)
-      // delete_master_with_cascade is an atomic write: on success,
-      // every image row (master + derivatives) is gone in the DB. The
-      // resulting client state is trivial — null master, empty list.
-      // We seed it directly and let the workflow machine pick up the
-      // empty source via the existing SOURCE_SNAPSHOT useEffect, just
-      // like the upload path does after PR #193.
-      //
-      // The authoritative display source (`useDisplaySize`) is keyed on
-      // the stable `masterRowId`; `seedMasterImage(null)` flips that to
-      // null, the hook's master-transition effect fires and clears
-      // `displayTxU` to null (master delete = no working copy, no state).
-      // No imperative cleanup needed.
-      //
-      // Background refresh is idempotent: empty is the stable fixed
-      // point of the cascade, so an eventual refresh just confirms
-      // what we already seeded. No UI wait, no 20s workflow timeout.
-      workflow.dismissError()
-      seedMasterImage(null)
-      seedProjectImages([])
-      void Promise.allSettled([refreshProjectImages(), refreshFilterImage()])
-    } catch (e) {
-      setDeleteError(e instanceof Error ? e.message : "Failed to delete image")
-    }
-  }, [
-    masterImage?.id,
+  const handleDeleteMasterImage = useDeleteMasterImageHandler({
+    masterImageId: masterImage?.id,
     projectId,
     refreshFilterImage,
     refreshProjectImages,
@@ -361,7 +324,7 @@ export function ProjectDetailPageClient({
     setDeleteError,
     setDeleteOpen,
     workflow,
-  ])
+  })
 
   const handleRestoreInitialImage = useCallback(async () => {
     if (workflow.isRestoring) return
@@ -396,10 +359,14 @@ export function ProjectDetailPageClient({
     }),
   })
 
-  const [leftPanelWidthRem, setLeftPanelWidthRem] = useState(20)
-  const [rightPanelWidthRem, setRightPanelWidthRem] = useState(20)
-  const minPanelRem = 18
-  const maxPanelRem = 24
+  const {
+    leftPanelWidthRem,
+    setLeftPanelWidthRem,
+    rightPanelWidthRem,
+    setRightPanelWidthRem,
+    minPanelRem,
+    maxPanelRem,
+  } = usePanelSizing()
 
   const {
     pageBgEnabled,
@@ -510,112 +477,26 @@ export function ProjectDetailPageClient({
     () => deriveSectionLocks({ hasFilter, hasTrace }),
     [hasFilter, hasTrace],
   )
-  const [unlockRequest, setUnlockRequest] = useState<
-    | null
-    | {
-        scope: "image" | "filter"
-        title: string
-        message: string
-      }
-  >(null)
-  const [unlockBusy, setUnlockBusy] = useState(false)
-  const [unlockError, setUnlockError] = useState<string | null>(null)
-
-  const imageUnlockMessage = useMemo(() => {
-    const parts: string[] = []
-    if (hasFilter) {
-      parts.push(`${filterStack.length} filter${filterStack.length === 1 ? "" : "s"}`)
-    }
-    if (hasTrace) parts.push("the trace overlay")
-    return `Unlocking will permanently delete ${parts.join(" and ")}.`
-  }, [hasFilter, hasTrace, filterStack.length])
-
-  const filterUnlockMessage = "Unlocking will permanently delete the trace overlay."
-
-  const imageLockBannerMessage = useMemo(() => {
-    if (hasFilter && hasTrace) {
-      return "Locked: filters and a trace depend on this image. Unlock removes them."
-    }
-    if (hasFilter) {
-      return "Locked: a filter depends on this image. Unlock removes the filter."
-    }
-    if (hasTrace) {
-      return "Locked: a trace depends on this image. Unlock removes the trace."
-    }
-    return ""
-  }, [hasFilter, hasTrace])
-
-  const filterLockBannerMessage = sectionLocks.filterToggleable
-    ? "Locked: a trace depends on the filter chain. Unlock removes the trace."
-    : "Locked: a trace exists. Remove it from the Trace section to edit filters."
-
-  const requestImageUnlock = useCallback(() => {
-    if (!sectionLocks.imageToggleable) return
-    setUnlockError(null)
-    setUnlockRequest({
-      scope: "image",
-      title: "Unlock image?",
-      message: imageUnlockMessage,
-    })
-  }, [sectionLocks.imageToggleable, imageUnlockMessage])
-
-  const requestFilterUnlock = useCallback(() => {
-    if (!sectionLocks.filterToggleable) return
-    setUnlockError(null)
-    setUnlockRequest({
-      scope: "filter",
-      title: "Unlock filters?",
-      message: filterUnlockMessage,
-    })
-  }, [sectionLocks.filterToggleable, filterUnlockMessage])
-
-  const cancelUnlock = useCallback(() => {
-    if (unlockBusy) return
-    setUnlockRequest(null)
-    setUnlockError(null)
-  }, [unlockBusy])
-
-  // Snapshot at confirm-time so a mid-flight refresh that mutates the
-  // arrays underneath us doesn't change what we delete.
-  const confirmUnlock = useCallback(async () => {
-    if (!unlockRequest || unlockBusy) return
-    setUnlockBusy(true)
-    setUnlockError(null)
-    const scope = unlockRequest.scope
-    const traceToDrop = hasTrace
-    const filterIdsTopDown = scope === "image" ? [...filterStack].map((f) => f.id).reverse() : []
-    try {
-      if (traceToDrop) {
-        await handleClearTrace()
-      }
-      // Top-down filter removal — each call leaves `after = []` and
-      // skips the chain rebuild that a from-the-middle remove would
-      // trigger.
-      for (const filterId of filterIdsTopDown) {
-        await removeProjectImageFilter({ projectId, filterId })
-      }
-      // Trace was already refreshed by handleClearTrace; filters were
-      // not — pull a fresh empty chain so derivations (lock state,
-      // filterStack, working image) settle in one render.
-      if (filterIdsTopDown.length > 0) {
-        await Promise.allSettled([refreshFilterImage(), refreshProjectImages()])
-      }
-      setUnlockRequest(null)
-    } catch (err) {
-      setUnlockError(err instanceof Error ? err.message : "Unlock failed")
-    } finally {
-      setUnlockBusy(false)
-    }
-  }, [
+  const {
     unlockRequest,
     unlockBusy,
+    unlockError,
+    imageLockBannerMessage,
+    filterLockBannerMessage,
+    requestImageUnlock,
+    requestFilterUnlock,
+    cancelUnlock,
+    confirmUnlock,
+  } = useUnlockDialog({
+    sectionLocks,
+    hasFilter,
     hasTrace,
     filterStack,
     handleClearTrace,
     projectId,
     refreshFilterImage,
     refreshProjectImages,
-  ])
+  })
 
   const imageLock = sectionLocks.imageLocked
     ? {
