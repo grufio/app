@@ -42,6 +42,12 @@ def quantise_image(img: Image.Image, num_colors: int) -> Image.Image:
     PIL's median-cut quantizer. Returns an RGB image with the
     reduced palette baked in (so vtracer sees discrete colors,
     not a continuous gradient).
+
+    Upstream Zod (`lib/editor/trace/lineart.ts`) clamps `num_colors`
+    to [2, 256]; the `< 2` branch is unreachable in prod (kept as
+    defence-in-depth). `>= 256` is the no-op perf shortcut: at the
+    upper bound every PIL bucket maps to one source colour, so
+    quantising is wasted work.
     """
     if num_colors >= 256 or num_colors < 2:
         return img if img.mode == "RGB" else img.convert("RGB")
