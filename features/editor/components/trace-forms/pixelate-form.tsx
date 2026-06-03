@@ -21,7 +21,7 @@ import {
   isPixelateGridValid,
   type PixelateGrid,
 } from "@/lib/editor/trace/pixelate-grid-math"
-import { extractNumberInputProps } from "@/lib/forms/zod-input-props"
+import { extractNumberInputProps, parseFormNumber } from "@/lib/forms/zod-input-props"
 
 import { PanelIconSlot, PanelTwoFieldRow } from "../panel-layout"
 import { EditorSidebarSection } from "../sidebar/editor-sidebar-section"
@@ -67,8 +67,8 @@ export function PixelateForm({ params, onParamsChange, disabled, grid }: Props) 
               id="supercell_width_mm"
               value={String(params.supercell_width_mm)}
               onCommit={(raw) => {
-                const n = Number(raw)
-                if (Number.isFinite(n)) onParamsChange("supercell_width_mm", n)
+                const res = parseFormNumber(pixelateSchema.shape.supercell_width_mm, raw)
+                if (res.ok) onParamsChange("supercell_width_mm", res.value)
               }}
               disabled={disabled}
               inputProps={SUPERCELL_INPUT_PROPS}
@@ -84,8 +84,8 @@ export function PixelateForm({ params, onParamsChange, disabled, grid }: Props) 
               id="supercell_height_mm"
               value={String(params.supercell_height_mm)}
               onCommit={(raw) => {
-                const n = Number(raw)
-                if (Number.isFinite(n)) onParamsChange("supercell_height_mm", n)
+                const res = parseFormNumber(pixelateSchema.shape.supercell_height_mm, raw)
+                if (res.ok) onParamsChange("supercell_height_mm", res.value)
               }}
               disabled={disabled}
               inputProps={SUPERCELL_INPUT_PROPS}

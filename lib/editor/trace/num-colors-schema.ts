@@ -9,12 +9,8 @@ import { z } from "zod"
  * matches typical paint-by-numbers tables; max 32 covers richer
  * print outputs without runaway noise.
  *
- * Single source of truth — drops the previous triple-declaration of
- * `min(2).max(32).default(16)` across `pixelate.ts` / `circulate.ts`
- * / `trace-colors-fields.tsx`.
+ * Single source of truth — `min` / `max` / `default` flow to the
+ * form via `extractNumberInputProps` + `parseFormNumber` (no
+ * `NUM_COLORS_MIN/MAX/DEFAULT` mirror constants).
  */
 export const numColorsSchema = z.coerce.number().int().min(2).max(32).default(16)
-
-export const NUM_COLORS_MIN = 2
-export const NUM_COLORS_MAX = 32
-export const NUM_COLORS_DEFAULT = 16
