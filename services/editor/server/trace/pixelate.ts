@@ -1,6 +1,3 @@
-import crypto from "node:crypto"
-
-import sharp from "sharp"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/lib/supabase/database.types"
@@ -10,11 +7,16 @@ import {
   isPixelateGridValid,
   resolvePixelateGrid,
 } from "@/lib/editor/trace/pixelate-grid-math"
-import { cellAreaAverages } from "@/lib/editor/trace/trace-cell-colors"
-import { callFilterService, startFilterProfiler, toInt, type FilterResult } from "@/services/editor/server/filters/_helpers"
-import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
+import { callFilterService, startFilterProfiler, type FilterResult } from "@/services/editor/server/filters/_helpers"
 import { readTracePalette } from "@/lib/supabase/palette"
 import { resolveMasterState } from "@/services/editor/server/trace/master-state"
+import {
+  buildCellsPayload,
+  downloadSourceImageBuffer,
+  fetchTraceSourceImage,
+  stripTraceSuffix,
+  writeTraceOutputs,
+} from "@/services/editor/server/trace/shared"
 
 /**
  * Pixelate writes two paired image rows: the SVG (`trace_output`)
@@ -28,6 +30,9 @@ import { resolveMasterState } from "@/services/editor/server/trace/master-state"
  * at the working_copy's current display rect. The floor-grid
  * remainder (e.g. 2mm at 200mm working_copy + 6mm cells) is the
  * uncovered border where the working_copy is visible underneath.
+ *
+ * Source / palette / upload share their logic with circulate via
+ * `./shared.ts`; grid math + filter-service request body stay here.
  */
 export type PixelateFilterSuccess = {
   ok: true
@@ -80,28 +85,10 @@ export async function pixelateImageAndActivate(args: {
   }
   const { color_mode: colorMode, num_colors: numColors } = parsed.data
 
-  const { data: src, error: srcErr } = await supabase
-    .from("project_images")
-    .select("id,name,storage_bucket,storage_path,format,width_px,height_px,is_locked")
-    .eq("id", sourceImageId)
-    .eq("project_id", projectId)
-    .is("deleted_at", null)
-    .maybeSingle()
+  const sourceResult = await fetchTraceSourceImage({ supabase, projectId, sourceImageId })
   profiler.mark("source_lookup")
-
-  if (srcErr || !src) {
-    return { ok: false, status: 404, stage: "source_lookup", reason: "Source image not found", code: srcErr?.code }
-  }
-
-  if (src.is_locked) {
-    return { ok: false, status: 409, stage: "lock_conflict", reason: "Source image is locked" }
-  }
-
-  const origWidth = toInt(src.width_px)
-  const origHeight = toInt(src.height_px)
-  if (origWidth == null || origHeight == null || origWidth < 1 || origHeight < 1) {
-    return { ok: false, status: 400, stage: "validation", reason: "Invalid source dimensions" }
-  }
+  if (!sourceResult.ok) return sourceResult
+  const { src, origWidth, origHeight } = sourceResult
 
   // Resolve the image's displayed size + origin on the artboard.
   // `project_image_state` is authoritative (anchored at working_copy.id,
@@ -138,61 +125,19 @@ export async function pixelateImageAndActivate(args: {
     grid,
   })
 
-  const { data: srcBlob, error: downloadErr } = await supabase.storage
-    .from(String(src.storage_bucket ?? PROJECT_IMAGES_BUCKET))
-    .download(String(src.storage_path))
-
-  if (downloadErr || !srcBlob) {
-    return { ok: false, status: 500, stage: "source_download", reason: "Failed to download source image" }
-  }
-
-  const srcBuffer = Buffer.from(await srcBlob.arrayBuffer())
+  const downloadResult = await downloadSourceImageBuffer({ supabase, src })
+  if (!downloadResult.ok) return downloadResult
+  const srcBuffer = downloadResult.buffer
   profiler.mark("source_download")
 
   try {
-    // Crop bounds (clamped to the source image) — mirror of the Python
-    // legacy path's math in `filter-service/app/pixelate.py` so the stored
-    // bitmap dimensions describe the actual cropped region either way.
-    const cropLeft = Math.max(0, Math.round(crop.x))
-    const cropTop = Math.max(0, Math.round(crop.y))
-    const croppedWidth = Math.max(1, Math.min(origWidth, Math.round(crop.x + crop.w)) - cropLeft)
-    const croppedHeight = Math.max(1, Math.min(origHeight, Math.round(crop.y + crop.h)) - cropTop)
-
-    // Single sharp pipeline, two outputs from the cropped region:
-    //   - baseBuffer: PNG bytes for the `trace_base` Supabase row
-    //   - rawRgb: alpha-stripped raw RGB for the per-cell area-average
-    // Sending only the per-cell grid to Cloud Run (~22 KB for a 100×75
-    // grid vs ~16 MB for a 12-MP base64 source) is what eliminates the
+    // Single sharp pipeline, two outputs from the cropped region. Sending
+    // only the per-cell grid to Cloud Run (~22 KB for a 100×75 grid vs
+    // ~16 MB for a 12-MP base64 source) is what eliminates the
     // empty-body 500s — Cloud Run's heavy decode + downsample go away.
-    const extracted = sharp(srcBuffer).extract({
-      left: cropLeft,
-      top: cropTop,
-      width: croppedWidth,
-      height: croppedHeight,
-    })
-    const [baseBuffer, rawRgb] = await Promise.all([
-      extracted.clone().webp({ quality: 90 }).toBuffer(),
-      extracted.clone().removeAlpha().raw().toBuffer(),
-    ])
+    const cells = await buildCellsPayload({ srcBuffer, origWidth, origHeight, crop, grid })
     profiler.mark("sharp_crop")
-
-    const { r, g, b } = cellAreaAverages({
-      rgba: rawRgb,
-      width: croppedWidth,
-      height: croppedHeight,
-      cellsX: grid.cellsX,
-      cellsY: grid.cellsY,
-      bytesPerPixel: 3,
-    })
     profiler.mark("cell_averages")
-
-    const cellBytes = new Uint8Array(grid.cellsX * grid.cellsY * 3)
-    for (let i = 0; i < r.length; i += 1) {
-      cellBytes[i * 3] = r[i]
-      cellBytes[i * 3 + 1] = g[i]
-      cellBytes[i * 3 + 2] = b[i]
-    }
-    const cellsB64 = Buffer.from(cellBytes).toString("base64")
 
     // Snap cells to the active Munsell palette: colour → lab_munsell (128),
     // b/w → lab_grays (48). Read from the DB and passed to the filter-
@@ -204,11 +149,11 @@ export async function pixelateImageAndActivate(args: {
       path: "/filters/pixelate",
       responseKind: "json",
       body: {
-        cells_b64: cellsB64,
+        cells_b64: cells.cellsB64,
         cells_x: grid.cellsX,
         cells_y: grid.cellsY,
-        cropped_w_px: croppedWidth,
-        cropped_h_px: croppedHeight,
+        cropped_w_px: cells.croppedWidth,
+        cropped_h_px: cells.croppedHeight,
         palette_oklab: palette.map((c) => c.oklab),
         palette_rgb: palette.map((c) => c.rgb),
         // Cap on distinct chip count in the rendered output. Drives
@@ -250,93 +195,21 @@ export async function pixelateImageAndActivate(args: {
     // (see `displayRectPxU` above) so they sit in the centred crop
     // region of the master without any stretch.
     const svgBuffer = Buffer.from(svgString, "utf-8")
+    const cleanName = stripTraceSuffix(src.name)
 
-    const cleanName = src.name.replace(
-      / \((?:filter working|pixelate|line art|numerate|B&W hard|B&W soft|B&W warm)\)/g,
-      "",
-    )
-
-    // Order matters: write trace_base first so the trace_output row's
-    // source_image_id can reference it. If trace_output fails we
-    // tombstone trace_base in the catch path below.
-    const baseId = crypto.randomUUID()
-    const baseObjectPath = `projects/${projectId}/images/${baseId}`
-    const { error: baseUploadErr } = await supabase.storage
-      .from("project_images")
-      .upload(baseObjectPath, baseBuffer, {
-        contentType: "image/webp",
-        upsert: false,
-      })
-    if (baseUploadErr) {
-      return { ok: false, status: 500, stage: "storage_upload", reason: "Failed to upload pixelate base image" }
-    }
-
-    const { error: baseInsertErr } = await supabase.from("project_images").insert({
-      id: baseId,
-      project_id: projectId,
-      kind: "trace_base",
-      name: `${cleanName} (pixelate base)`,
-      format: "webp",
-      width_px: croppedWidth,
-      height_px: croppedHeight,
-      storage_bucket: PROJECT_IMAGES_BUCKET,
-      storage_path: baseObjectPath,
-      file_size_bytes: baseBuffer.byteLength,
-      is_active: false,
-      source_image_id: sourceImageId,
+    const writeResult = await writeTraceOutputs({
+      supabase,
+      projectId,
+      sourceImageId,
+      kind: "pixelate",
+      cleanName,
+      baseBuffer: cells.baseBuffer,
+      svgBuffer,
+      croppedWidth: cells.croppedWidth,
+      croppedHeight: cells.croppedHeight,
     })
-    if (baseInsertErr) {
-      await supabase.storage.from(PROJECT_IMAGES_BUCKET).remove([baseObjectPath])
-      return { ok: false, status: 400, stage: "db_insert", reason: baseInsertErr.message, code: baseInsertErr.code }
-    }
-
-    const imageId = crypto.randomUUID()
-    const objectPath = `projects/${projectId}/images/${imageId}`
-
-    const { error: uploadErr } = await supabase.storage
-      .from("project_images")
-      .upload(objectPath, svgBuffer, {
-        contentType: "image/svg+xml",
-        upsert: false,
-      })
-
-    if (uploadErr) {
-      // Roll back the freshly-written base bitmap so storage doesn't
-      // accumulate orphans. Soft-delete the DB row too — the
-      // ON DELETE RESTRICT on project_image_trace.base_image_id only
-      // bites once a trace row exists, which hasn't happened yet.
-      await supabase.storage.from(PROJECT_IMAGES_BUCKET).remove([baseObjectPath])
-      await supabase
-        .from("project_images")
-        .update({ deleted_at: new Date().toISOString() })
-        .eq("id", baseId)
-      return { ok: false, status: 500, stage: "storage_upload", reason: "Failed to upload pixelate image" }
-    }
+    if (!writeResult.ok) return writeResult
     profiler.mark("storage_upload")
-
-    const { error: insertErr } = await supabase.from("project_images").insert({
-      id: imageId,
-      project_id: projectId,
-      kind: "trace_output",
-      name: `${cleanName} (pixelate)`,
-      format: "svg",
-      width_px: croppedWidth,
-      height_px: croppedHeight,
-      storage_bucket: PROJECT_IMAGES_BUCKET,
-      storage_path: objectPath,
-      file_size_bytes: svgBuffer.byteLength,
-      is_active: false,
-      source_image_id: baseId,
-    })
-
-    if (insertErr) {
-      await supabase.storage.from(PROJECT_IMAGES_BUCKET).remove([objectPath, baseObjectPath])
-      await supabase
-        .from("project_images")
-        .update({ deleted_at: new Date().toISOString() })
-        .eq("id", baseId)
-      return { ok: false, status: 400, stage: "db_insert", reason: insertErr.message, code: insertErr.code }
-    }
     profiler.mark("db_insert")
     // State is anchored at working_copy.id (PR #257); the trace's own
     // display rect travels with the project_image_trace row (handled by
@@ -345,24 +218,24 @@ export async function pixelateImageAndActivate(args: {
     profiler.report("pixelate", {
       python_phases: callResult.phases,
       output_bytes: svgBuffer.byteLength,
-      base_bytes: baseBuffer.byteLength,
-      width: croppedWidth,
-      height: croppedHeight,
+      base_bytes: cells.baseBuffer.byteLength,
+      width: cells.croppedWidth,
+      height: cells.croppedHeight,
     })
 
     return {
       ok: true,
-      id: imageId,
-      storagePath: objectPath,
-      widthPx: croppedWidth,
-      heightPx: croppedHeight,
-      baseId,
-      baseStoragePath: baseObjectPath,
+      id: writeResult.imageId,
+      storagePath: writeResult.objectPath,
+      widthPx: cells.croppedWidth,
+      heightPx: cells.croppedHeight,
+      baseId: writeResult.baseId,
+      baseStoragePath: writeResult.baseObjectPath,
       // Freeze the apply-time master/working_copy display rect onto the
       // result. `masterState` is the same authoritative DB read that
-      // sized the grid above (`resolveMasterState`, :221) — reusing it
-      // keeps the persisted geometry byte-consistent with what the
-      // user saw on the artboard at apply time.
+      // sized the grid above (`resolveMasterState`) — reusing it keeps
+      // the persisted geometry byte-consistent with what the user saw
+      // on the artboard at apply time.
       displayRectPxU: {
         xPxU: masterState.xPxU,
         yPxU: masterState.yPxU,
