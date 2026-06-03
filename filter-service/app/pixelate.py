@@ -30,7 +30,7 @@ from PIL import Image
 from .cell_colors import compute_cell_colors, map_cells_to_palette
 from .cell_labels import build_label_map, reconstruct_palette_indices, render_numbers_group
 from .cell_texture import apply_neighbor_invasion
-from .oklab import nearest_palette_indices, rgb255_to_oklab
+from .palette_reduction import reduce_to_top_n
 
 
 def _grid_lines(
@@ -110,29 +110,9 @@ def pixelate_cells_to_svg(
                 arr, np.asarray(palette_rgb, dtype=np.uint8), texture_strength
             )
             phase("texture")
-        # Cap distinct chip count: if the snap (plus any texture
-        # invasion) produced more distinct chips than the user-set
-        # `num_colors`, keep the top-N most-used and re-snap the rest
-        # to the nearest chip in the kept set. Top-by-count is a
-        # stable, dominant-preserving reduction — a future k-medoid
-        # / spread-aware pick could refine clustered outputs.
-        if num_colors is not None and num_colors > 0:
-            palette_rgb_arr = np.asarray(palette_rgb, dtype=np.uint8)
-            pre_indices = reconstruct_palette_indices(arr, palette_rgb_arr)
-            unique, counts = np.unique(pre_indices, return_counts=True)
-            if len(unique) > num_colors:
-                top_n = unique[np.argsort(counts)[-num_colors:]]
-                top_n_rgb = palette_rgb_arr[top_n]
-                top_n_oklab = np.asarray(palette_oklab, dtype=np.float32)[top_n]
-                excluded_mask = ~np.isin(pre_indices, top_n)
-                if excluded_mask.any():
-                    flat = arr.reshape(-1, 3).copy()
-                    excluded_flat = excluded_mask.flatten()
-                    excluded_oklab = rgb255_to_oklab(flat[excluded_flat])
-                    local = nearest_palette_indices(excluded_oklab, top_n_oklab)
-                    flat[excluded_flat] = top_n_rgb[local]
-                    arr = flat.reshape(arr.shape)
-                phase("reduce_colors")
+        arr, did_reduce = reduce_to_top_n(arr, palette_oklab, palette_rgb, num_colors)
+        if did_reduce:
+            phase("reduce_colors")
     color_rects: list[str] = []
     for y in range(cells_y):
         for x in range(cells_x):
