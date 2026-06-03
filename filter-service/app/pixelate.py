@@ -1,33 +1,20 @@
 """
 Pixelate filter pipeline — direct SVG renderer.
 
-Two entry points:
-
-- `pixelate_cells_to_svg` (current): the caller (Vercel server) has already
-  cropped + area-averaged the source to a `cells_y × cells_x × 3` uint8 grid.
-  This function just snaps each cell to the nearest palette chip and emits
-  one `<rect>` per cell + grid lines. The whole job is small-array numpy
-  + string concatenation — milliseconds.
-
-- `pixelate_to_svg` (legacy): full pipeline, kept for the deploy lap while
-  old Vercel revisions are still in rotation. Crops with PIL, downsamples
-  via `Image.BOX` (geometrically equivalent to the TS `cellAreaAverages`
-  mirror in `lib/editor/trace/trace-cell-colors.ts`), then delegates to
-  `pixelate_cells_to_svg`. Also re-encodes the cropped bitmap as PNG and
-  hands it back — the legacy Vercel code stores that as the `trace_base`
-  row. Delete this once the cells path has soaked.
+Single entry point `pixelate_cells_to_svg`: the caller (Vercel server) has
+already cropped + area-averaged the source to a `cells_y × cells_x × 3` uint8
+grid. This function just snaps each cell to the nearest palette chip and
+emits one `<rect>` per cell + grid lines. The whole job is small-array numpy
++ string concatenation — milliseconds.
 
 No quantise, no vtracer — every cell boundary stays pixel-perfect
 axis-aligned by construction.
 """
 from __future__ import annotations
 
-import io
-
 import numpy as np
-from PIL import Image
 
-from .cell_colors import compute_cell_colors, map_cells_to_palette
+from .cell_colors import map_cells_to_palette
 from .cell_labels import build_label_map, reconstruct_palette_indices, render_numbers_group
 from .cell_texture import apply_neighbor_invasion
 from .palette_reduction import reduce_to_top_n
@@ -83,9 +70,9 @@ def pixelate_cells_to_svg(
     `cropped_h_px` are the cropped-source pixel dimensions used for the
     SVG viewBox and the cell-to-pixel scale.
 
-    `palette_oklab` + `palette_rgb`: same contract as the legacy entry
-    point — when both are given, each cell is snapped to its nearest chip;
-    when omitted, raw area-average means are emitted.
+    `palette_oklab` + `palette_rgb`: when both are given, each cell is
+    snapped to its nearest chip; when omitted, raw area-average means
+    are emitted.
 
     Returns `(svg_string, region_count)`. The cropped PNG is the caller's
     responsibility (the Vercel server already has it from sharp).
@@ -172,65 +159,3 @@ def pixelate_cells_to_svg(
     phase("serialize")
 
     return svg_content, region_count, palette_indices_used
-
-
-def pixelate_to_svg(
-    img: Image.Image,
-    cells_x: int,
-    cells_y: int,
-    crop_x: float,
-    crop_y: float,
-    crop_w: float,
-    crop_h: float,
-    stroke_width: float,
-    num_colors: int = 16,
-    palette_oklab: list | None = None,
-    palette_rgb: list | None = None,
-    texture_enabled: bool = False,
-    texture_strength: float = 0.0,
-    on_phase: callable | None = None,
-) -> tuple[str, bytes, int, list[int]]:
-    """
-    Legacy entry point: full source → cropped → downsampled → SVG + PNG.
-
-    Kept on the back-compat code path while old Vercel revisions are still
-    sending `image_base64` + `crop_*`. Delete with the corresponding
-    `_pixelate_filter_legacy` branch once the cells path has soaked.
-    """
-
-    def phase(name: str) -> None:
-        if on_phase is not None:
-            on_phase(name)
-
-    img_w, img_h = img.size
-
-    cx0 = max(0, round(crop_x))
-    cy0 = max(0, round(crop_y))
-    cx1 = min(img_w, round(crop_x + crop_w))
-    cy1 = min(img_h, round(crop_y + crop_h))
-    cropped = img.convert("RGB").crop((cx0, cy0, cx1, cy1))
-    phase("crop")
-
-    cropped_w_px, cropped_h_px = cropped.size
-
-    cell_means = compute_cell_colors(cropped, cells_x, cells_y)
-    phase("downsample")
-
-    svg_content, region_count, palette_indices_used = pixelate_cells_to_svg(
-        cell_means=cell_means,
-        cropped_w_px=cropped_w_px,
-        cropped_h_px=cropped_h_px,
-        palette_oklab=palette_oklab,
-        palette_rgb=palette_rgb,
-        num_colors=num_colors,
-        texture_enabled=texture_enabled,
-        texture_strength=texture_strength,
-        on_phase=on_phase,
-    )
-
-    buf = io.BytesIO()
-    cropped.save(buf, format="PNG")
-    cropped_png = buf.getvalue()
-    phase("encode_cropped")
-
-    return svg_content, cropped_png, region_count, palette_indices_used

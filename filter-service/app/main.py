@@ -14,9 +14,9 @@ import numpy as np
 import io
 import base64
 
-from app.circulate import circulate_cells_to_svg, circulate_to_svg
+from app.circulate import circulate_cells_to_svg
 from app.lineart import lineart_to_svg
-from app.pixelate import pixelate_cells_to_svg, pixelate_to_svg
+from app.pixelate import pixelate_cells_to_svg
 
 
 class PhaseTimer:
@@ -245,30 +245,16 @@ class LineArtRequest(BaseModel):
 
 
 class PixelateRequest(BaseModel):
-    # Cells path (current): the Vercel server has already cropped + area-
-    # averaged the source to a `cells_y × cells_x × 3` uint8 grid. We get the
-    # raw bytes as base64 (~700× smaller than shipping the source image), plus
-    # the cropped pixel dimensions for the SVG viewBox.
-    cells_b64: str | None = None
-    cropped_w_px: int | None = None
-    cropped_h_px: int | None = None
-    # Legacy path (kept for the deploy lap while old Vercel revisions are
-    # still serving traffic; remove once gruf.app has run on the new path
-    # for a day without regressions). The handler decides which path to
-    # take based on whether `cells_b64` is present.
-    image_base64: str | None = None
-    crop_x: float | None = None
-    crop_y: float | None = None
-    crop_w: float | None = None
-    crop_h: float | None = None
-    # Always required: the cell grid dimensions (1 cell = 1 px in the
-    # downsampled grid), used by both paths.
+    # The Vercel server has already cropped + area-averaged the source to a
+    # `cells_y × cells_x × 3` uint8 grid. We get the raw bytes as base64
+    # (~700× smaller than shipping the source image), plus the cropped pixel
+    # dimensions for the SVG viewBox.
+    cells_b64: str
+    cropped_w_px: int
+    cropped_h_px: int
     cells_x: int
     cells_y: int
-    # Legacy-path knob. Stroke width is hardcoded to 1px server-side and
-    # the editor never overrode it. num_colors drives the post-snap
-    # top-N reduction (see `pixelate_cells_to_svg`).
-    stroke_width: float = 1.0
+    # Drives the post-snap top-N reduction (see `pixelate_cells_to_svg`).
     num_colors: int = 16
     # Active palette (Munsell colour `lab_munsell` or b/w `lab_grays`),
     # passed by the Node server from the DB. `palette_oklab[i]` = [L, a, b]
@@ -291,35 +277,13 @@ class PixelateRequest(BaseModel):
 async def pixelate_filter(request: PixelateRequest):
     """
     Pixelate: emit a `<rect>` per cell at its area-averaged colour, with
-    grid lines overlaid. Two request shapes:
-
-    - **Cells path (preferred):** `cells_b64` carries the pre-computed
-      `cells_y × cells_x × 3` uint8 RGB grid produced by the Vercel server.
-      The service decodes, palette-snaps, renders SVG. Returns `{svg,
-      region_count}`. No image decode, no crop, no downsample on this side.
-
-    - **Legacy path:** `image_base64` + `crop_*` carries the full source
-      bitmap, the service does the entire pipeline (decode → crop →
-      downsample → palette → render). Returns `{svg, cropped_png_b64,
-      region_count}` so the Vercel server can store the cropped bitmap as
-      a `trace_base` row. Kept for the deploy lap; drop once the new
-      path has soaked.
+    grid lines overlaid. `cells_b64` carries the pre-computed
+    `cells_y × cells_x × 3` uint8 RGB grid produced by the Vercel server;
+    the service decodes, palette-snaps, renders SVG. No image decode,
+    no crop, no downsample on this side.
     """
     if request.cells_x < 1 or request.cells_y < 1:
         raise HTTPException(status_code=400, detail="cells_x and cells_y must be >= 1")
-
-    if request.cells_b64 is not None:
-        return _pixelate_filter_cells(request)
-    return _pixelate_filter_legacy(request)
-
-
-def _pixelate_filter_cells(request: PixelateRequest) -> JSONResponse:
-    """New path: cells_b64 already holds the per-cell area-average grid."""
-    if request.cropped_w_px is None or request.cropped_h_px is None:
-        raise HTTPException(
-            status_code=400,
-            detail="cells_b64 path requires cropped_w_px and cropped_h_px",
-        )
     if request.cropped_w_px < 1 or request.cropped_h_px < 1:
         raise HTTPException(status_code=400, detail="cropped_w_px and cropped_h_px must be >= 1")
 
@@ -366,82 +330,15 @@ def _pixelate_filter_cells(request: PixelateRequest) -> JSONResponse:
         raise HTTPException(status_code=500, detail=f"Image processing failed: {str(e)}")
 
 
-def _pixelate_filter_legacy(request: PixelateRequest) -> JSONResponse:
-    """Legacy path: full image_base64 + crop_*, server does crop+downsample."""
-    if request.image_base64 is None:
-        raise HTTPException(
-            status_code=400,
-            detail="Either cells_b64 (new) or image_base64 + crop_* (legacy) must be provided",
-        )
-    if request.crop_w is None or request.crop_h is None or request.crop_x is None or request.crop_y is None:
-        raise HTTPException(status_code=400, detail="legacy path requires crop_x, crop_y, crop_w, crop_h")
-    if request.crop_w <= 0 or request.crop_h <= 0:
-        raise HTTPException(status_code=400, detail="crop_w and crop_h must be > 0")
-    if request.stroke_width < 0.1 or request.stroke_width > 20:
-        raise HTTPException(status_code=400, detail="Stroke width must be between 0.1 and 20")
-
-    timer = PhaseTimer()
-    try:
-        img_bytes = base64.b64decode(request.image_base64)
-        img = Image.open(io.BytesIO(img_bytes))
-        if img.mode not in ("RGB", "L"):
-            img = img.convert("RGB")
-        timer.mark("decode")
-
-        svg_content, cropped_png, region_count, palette_indices_used = pixelate_to_svg(
-            img,
-            cells_x=request.cells_x,
-            cells_y=request.cells_y,
-            crop_x=request.crop_x,
-            crop_y=request.crop_y,
-            crop_w=request.crop_w,
-            crop_h=request.crop_h,
-            stroke_width=request.stroke_width,
-            num_colors=request.num_colors,
-            palette_oklab=request.palette_oklab,
-            palette_rgb=request.palette_rgb,
-            texture_enabled=request.texture_enabled,
-            texture_strength=request.texture_strength,
-            on_phase=timer.mark,
-        )
-
-        return JSONResponse(
-            content={
-                "svg": svg_content,
-                "cropped_png_b64": base64.b64encode(cropped_png).decode("ascii"),
-                "region_count": region_count,
-                "palette_indices_used": palette_indices_used,
-            },
-            headers={
-                "X-Profile-Phases": timer.header(),
-                "X-Region-Count": str(region_count),
-            },
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Image processing failed: {str(e)}")
-
-
 class CirculateRequest(BaseModel):
-    # Cells path (current, mirrors Pixelate post-#323): the Vercel server has
-    # already cropped + area-averaged the source to a `cells_y × cells_x × 3`
-    # uint8 grid via `sharp().raw()` + `cellAreaAverages`. The wire shape
-    # ships the raw bytes as base64 (~22 KB for a 100×75 grid vs ~16 MB for
-    # a 12-MP base64 source), plus the cropped pixel dimensions for the SVG
-    # viewBox.
-    cells_b64: str | None = None
-    cropped_w_px: int | None = None
-    cropped_h_px: int | None = None
-    # Legacy path (kept for the deploy lap while old Vercel revisions are
-    # still serving traffic; remove once gruf.app has run on the new path
-    # for a day without regressions).
-    image_base64: str | None = None
-    crop_x: float | None = None
-    crop_y: float | None = None
-    crop_w: float | None = None
-    crop_h: float | None = None
-    # Always required: the cell grid dimensions, used by both paths.
+    # The Vercel server has already cropped + area-averaged the source to a
+    # `cells_y × cells_x × 3` uint8 grid via `sharp().raw()` +
+    # `cellAreaAverages`. The wire shape ships the raw bytes as base64
+    # (~22 KB for a 100×75 grid vs ~16 MB for a 12-MP base64 source), plus
+    # the cropped pixel dimensions for the SVG viewBox.
+    cells_b64: str
+    cropped_w_px: int
+    cropped_h_px: int
     cells_x: int
     cells_y: int
     # Ellipse axes as a FRACTION of the cell pitch (0..1). The server converts
@@ -480,17 +377,9 @@ class CirculateRequest(BaseModel):
 async def circulate_filter(request: CirculateRequest):
     """
     Circulate: emit one ellipse (optionally two) per cell at its cell centre
-    with a contour stroke. Two request shapes:
-
-    - **Cells path (preferred):** `cells_b64` carries the pre-computed
-      `cells_y × cells_x × 3` uint8 RGB grid from the Vercel server. The
-      service decodes, palette-snaps, optionally texturizes, emits SVG.
-      Returns `{svg, region_count}`. No image decode, no crop, no downsample.
-
-    - **Legacy path:** `image_base64` + `crop_*` carries the full source
-      bitmap, the service runs the entire pipeline. Returns `{svg,
-      cropped_png_b64, region_count}` so the Vercel server can store the
-      cropped bitmap as a `trace_base` row. Kept for the deploy lap.
+    with a contour stroke. `cells_b64` carries the pre-computed
+    `cells_y × cells_x × 3` uint8 RGB grid from the Vercel server; the
+    service decodes, palette-snaps, optionally texturizes, emits SVG.
     """
     if request.cells_x < 1 or request.cells_y < 1:
         raise HTTPException(status_code=400, detail="cells_x and cells_y must be >= 1")
@@ -502,19 +391,6 @@ async def circulate_filter(request: CirculateRequest):
         raise HTTPException(status_code=400, detail="inner ellipse fractions must be in (0, 1]")
     if request.contour_width_px < 0:
         raise HTTPException(status_code=400, detail="contour_width_px must be >= 0")
-
-    if request.cells_b64 is not None:
-        return _circulate_filter_cells(request)
-    return _circulate_filter_legacy(request)
-
-
-def _circulate_filter_cells(request: CirculateRequest) -> JSONResponse:
-    """New path: cells_b64 already holds the per-cell area-average grid."""
-    if request.cropped_w_px is None or request.cropped_h_px is None:
-        raise HTTPException(
-            status_code=400,
-            detail="cells_b64 path requires cropped_w_px and cropped_h_px",
-        )
     if request.cropped_w_px < 1 or request.cropped_h_px < 1:
         raise HTTPException(status_code=400, detail="cropped_w_px and cropped_h_px must be >= 1")
 
@@ -556,69 +432,6 @@ def _circulate_filter_cells(request: CirculateRequest) -> JSONResponse:
         return JSONResponse(
             content={
                 "svg": svg_content,
-                "region_count": region_count,
-                "palette_indices_used": palette_indices_used,
-            },
-            headers={
-                "X-Profile-Phases": timer.header(),
-                "X-Region-Count": str(region_count),
-            },
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Image processing failed: {str(e)}")
-
-
-def _circulate_filter_legacy(request: CirculateRequest) -> JSONResponse:
-    """Legacy path: image_base64 + crop_*, server does crop + downsample."""
-    if request.image_base64 is None:
-        raise HTTPException(
-            status_code=400,
-            detail="Either cells_b64 (new) or image_base64 + crop_* (legacy) must be provided",
-        )
-    if request.crop_w is None or request.crop_h is None or request.crop_x is None or request.crop_y is None:
-        raise HTTPException(status_code=400, detail="legacy path requires crop_x, crop_y, crop_w, crop_h")
-    if request.crop_w <= 0 or request.crop_h <= 0:
-        raise HTTPException(status_code=400, detail="crop_w and crop_h must be > 0")
-
-    timer = PhaseTimer()
-    try:
-        img_bytes = base64.b64decode(request.image_base64)
-        img = Image.open(io.BytesIO(img_bytes))
-        if img.mode not in ("RGB", "L"):
-            img = img.convert("RGB")
-        timer.mark("decode")
-
-        svg_content, cropped_png, region_count, palette_indices_used = circulate_to_svg(
-            img,
-            cells_x=request.cells_x,
-            cells_y=request.cells_y,
-            crop_x=request.crop_x,
-            crop_y=request.crop_y,
-            crop_w=request.crop_w,
-            crop_h=request.crop_h,
-            outer_w_frac=request.outer_w_frac,
-            outer_h_frac=request.outer_h_frac,
-            inner_enabled=request.inner_enabled,
-            inner_w_frac=request.inner_w_frac,
-            inner_h_frac=request.inner_h_frac,
-            contour_width_px=request.contour_width_px,
-            inner_hue_deg=request.inner_hue_deg,
-            inner_lightness_delta=request.inner_lightness_delta,
-            inner_chroma_scale=request.inner_chroma_scale,
-            palette_oklab=request.palette_oklab,
-            palette_rgb=request.palette_rgb,
-            num_colors=request.num_colors,
-            texture_enabled=request.texture_enabled,
-            texture_strength=request.texture_strength,
-            on_phase=timer.mark,
-        )
-
-        return JSONResponse(
-            content={
-                "svg": svg_content,
-                "cropped_png_b64": base64.b64encode(cropped_png).decode("ascii"),
                 "region_count": region_count,
                 "palette_indices_used": palette_indices_used,
             },
