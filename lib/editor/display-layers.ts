@@ -57,12 +57,14 @@
  * as additional booleans — consumer code stays a property lookup per
  * layer.
  */
+import type { MobileSection } from "@/lib/editor/mobile-sections"
+
 export type DisplayImage = {
   id: string
   signedUrl: string
 }
 
-export type MobileSection = "artboard" | "filter" | "trace" | "colors"
+export type { MobileSection }
 
 export type DisplayLayers = {
   /** True when the canvas should source from the filter chain tip
