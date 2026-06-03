@@ -16,12 +16,12 @@
 import { ArrowLeftRight, ArrowUpDown } from "lucide-react"
 
 import { FormField } from "@/components/ui/form-controls"
-import { type PixelateParams } from "@/lib/editor/trace/pixelate"
+import { pixelateSchema, type PixelateParams } from "@/lib/editor/trace/pixelate"
 import {
   isPixelateGridValid,
-  MIN_SUPERCELL_MM,
   type PixelateGrid,
 } from "@/lib/editor/trace/pixelate-grid-math"
+import { extractNumberInputProps } from "@/lib/forms/zod-input-props"
 
 import { PanelIconSlot, PanelTwoFieldRow } from "../panel-layout"
 import { EditorSidebarSection } from "../sidebar/editor-sidebar-section"
@@ -33,6 +33,14 @@ type Props = {
   onParamsChange: <K extends keyof PixelateParams>(key: K, value: PixelateParams[K]) => void
   disabled: boolean
   grid: PixelateGrid
+}
+
+// Zod is the source of truth for min/max on these numeric fields;
+// `step` is a UI-only convention (0.5 mm = the granularity the
+// design picked for supercell sizing).
+const SUPERCELL_INPUT_PROPS = {
+  ...extractNumberInputProps(pixelateSchema.shape.supercell_width_mm),
+  step: 0.5,
 }
 
 function fmt1(n: number): string {
@@ -63,7 +71,7 @@ export function PixelateForm({ params, onParamsChange, disabled, grid }: Props) 
                 if (Number.isFinite(n)) onParamsChange("supercell_width_mm", n)
               }}
               disabled={disabled}
-              inputProps={{ min: MIN_SUPERCELL_MM, step: 0.5 }}
+              inputProps={SUPERCELL_INPUT_PROPS}
             />
 
             <FormField
@@ -80,7 +88,7 @@ export function PixelateForm({ params, onParamsChange, disabled, grid }: Props) 
                 if (Number.isFinite(n)) onParamsChange("supercell_height_mm", n)
               }}
               disabled={disabled}
-              inputProps={{ min: MIN_SUPERCELL_MM, step: 0.5 }}
+              inputProps={SUPERCELL_INPUT_PROPS}
             />
 
             <PanelIconSlot />

@@ -20,12 +20,15 @@
 import type { ReactNode } from "react"
 import { ArrowLeftRight, ArrowUpDown, Circle, Droplet } from "lucide-react"
 
+import type { z } from "zod"
+
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { FormField, type SelectFieldOption } from "@/components/ui/form-controls"
-import { MIN_ELLIPSE_MM, type CirculateParams } from "@/lib/editor/trace/circulate"
+import { circulateSchema, type CirculateParams } from "@/lib/editor/trace/circulate"
 import { isCirculateGridValid, type CirculateGrid } from "@/lib/editor/trace/circulate-grid-math"
 import { INNER_FILTERS } from "@/lib/editor/trace/inner-color-filters"
+import { extractNumberInputProps } from "@/lib/forms/zod-input-props"
 
 import { PanelIconSlot, PanelTwoFieldRow } from "../panel-layout"
 import { EditorSidebarSection } from "../sidebar/editor-sidebar-section"
@@ -65,37 +68,42 @@ export function CirculateForm({ params, onParamsChange, disabled, grid }: Props)
   const valid = isCirculateGridValid(grid)
   const innerDisabled = disabled || !params.inner_enabled
 
+  // Min comes from the Zod schema slice for this field; step is a
+  // UI-only granularity choice (0.5 mm default, 0.1 mm for contour).
   const mmField = (
     key: keyof CirculateParams,
     label: string,
     icon: ReactNode,
-    opts: { disabled?: boolean; min?: number; step?: number } = {},
-  ) => (
-    <FormField
-      variant="numeric"
-      numericMode="decimal"
-      label={label}
-      labelVisuallyHidden
-      iconStart={icon}
-      unit="mm"
-      id={key}
-      value={String(params[key])}
-      onCommit={(raw) => {
-        const n = Number(raw)
-        if (Number.isFinite(n)) onParamsChange(key, n as CirculateParams[typeof key])
-      }}
-      disabled={opts.disabled ?? disabled}
-      inputProps={{ min: opts.min ?? 0, step: opts.step ?? 0.5 }}
-    />
-  )
+    opts: { disabled?: boolean; step?: number } = {},
+  ) => {
+    const schemaSlice = circulateSchema.shape[key] as z.ZodTypeAny
+    return (
+      <FormField
+        variant="numeric"
+        numericMode="decimal"
+        label={label}
+        labelVisuallyHidden
+        iconStart={icon}
+        unit="mm"
+        id={key}
+        value={String(params[key])}
+        onCommit={(raw) => {
+          const n = Number(raw)
+          if (Number.isFinite(n)) onParamsChange(key, n as CirculateParams[typeof key])
+        }}
+        disabled={opts.disabled ?? disabled}
+        inputProps={{ ...extractNumberInputProps(schemaSlice), step: opts.step ?? 0.5 }}
+      />
+    )
+  }
 
   return (
     <>
       <EditorSidebarSection title="Circle">
         <div className="space-y-3">
           <PanelTwoFieldRow>
-            {mmField("outer_width_mm", "Outer width", <ArrowLeftRight aria-hidden="true" />, { min: MIN_ELLIPSE_MM })}
-            {mmField("outer_height_mm", "Outer height", <ArrowUpDown aria-hidden="true" />, { min: MIN_ELLIPSE_MM })}
+            {mmField("outer_width_mm", "Outer width", <ArrowLeftRight aria-hidden="true" />)}
+            {mmField("outer_height_mm", "Outer height", <ArrowUpDown aria-hidden="true" />)}
             <PanelIconSlot />
           </PanelTwoFieldRow>
 
@@ -114,16 +122,14 @@ export function CirculateForm({ params, onParamsChange, disabled, grid }: Props)
           <PanelTwoFieldRow>
             {mmField("inner_width_mm", "Inner width", <ArrowLeftRight aria-hidden="true" />, {
               disabled: innerDisabled,
-              min: MIN_ELLIPSE_MM,
             })}
             {mmField("inner_height_mm", "Inner height", <ArrowUpDown aria-hidden="true" />, {
               disabled: innerDisabled,
-              min: MIN_ELLIPSE_MM,
             })}
             <PanelIconSlot />
           </PanelTwoFieldRow>
 
-          {loneRow(mmField("contour_width_mm", "Stroke width", <Circle aria-hidden="true" />, { min: 0, step: 0.1 }))}
+          {loneRow(mmField("contour_width_mm", "Stroke width", <Circle aria-hidden="true" />, { step: 0.1 }))}
 
           {!valid ? (
             <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-destructive">
@@ -141,13 +147,13 @@ export function CirculateForm({ params, onParamsChange, disabled, grid }: Props)
       <EditorSidebarSection title="Spacing">
         <div className="space-y-3">
           <PanelTwoFieldRow>
-            {mmField("spacing_left_mm", "Spacing left", <ArrowLeftRight aria-hidden="true" />, { min: 0 })}
-            {mmField("spacing_right_mm", "Spacing right", <ArrowLeftRight aria-hidden="true" />, { min: 0 })}
+            {mmField("spacing_left_mm", "Spacing left", <ArrowLeftRight aria-hidden="true" />)}
+            {mmField("spacing_right_mm", "Spacing right", <ArrowLeftRight aria-hidden="true" />)}
             <PanelIconSlot />
           </PanelTwoFieldRow>
           <PanelTwoFieldRow>
-            {mmField("spacing_top_mm", "Spacing top", <ArrowUpDown aria-hidden="true" />, { min: 0 })}
-            {mmField("spacing_bottom_mm", "Spacing bottom", <ArrowUpDown aria-hidden="true" />, { min: 0 })}
+            {mmField("spacing_top_mm", "Spacing top", <ArrowUpDown aria-hidden="true" />)}
+            {mmField("spacing_bottom_mm", "Spacing bottom", <ArrowUpDown aria-hidden="true" />)}
             <PanelIconSlot />
           </PanelTwoFieldRow>
         </div>
