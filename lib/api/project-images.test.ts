@@ -72,10 +72,19 @@ describe("project-images API wrapper", () => {
 
     await deleteMasterImageById("project-1", "img-1")
 
-    expect(invalidateFetchJsonGetCacheMock).toHaveBeenNthCalledWith(1, "/api/projects/project-1/images/master/list")
-    expect(invalidateFetchJsonGetCacheMock).toHaveBeenNthCalledWith(2, "/api/projects/project-1/images/master")
-    expect(invalidateFetchJsonGetCacheMock).toHaveBeenNthCalledWith(3, "/api/projects/project-1/images/master/list")
-    expect(invalidateFetchJsonGetCacheMock).toHaveBeenNthCalledWith(4, "/api/projects/project-1/images/master")
+    // Invariant: both master + master/list cleared, twice (pre + post).
+    // Order is incidental; the cache invalidation helper rotates through
+    // the configured paths and the call sites pre-flush to keep in-flight
+    // reads from racing the DELETE.
+    expect(invalidateFetchJsonGetCacheMock).toHaveBeenCalledTimes(4)
+    const listCalls = invalidateFetchJsonGetCacheMock.mock.calls.filter(
+      ([p]) => p === "/api/projects/project-1/images/master/list",
+    )
+    const masterCalls = invalidateFetchJsonGetCacheMock.mock.calls.filter(
+      ([p]) => p === "/api/projects/project-1/images/master",
+    )
+    expect(listCalls).toHaveLength(2)
+    expect(masterCalls).toHaveLength(2)
   })
 
   it("invalidates cache again when delete-by-id fails with stale_selection", async () => {
@@ -87,9 +96,16 @@ describe("project-images API wrapper", () => {
     fetchJsonMock.mockResolvedValueOnce(stale)
 
     await expect(deleteMasterImageById("project-1", "img-stale")).rejects.toThrow("stage=stale_selection")
-    expect(invalidateFetchJsonGetCacheMock).toHaveBeenNthCalledWith(1, "/api/projects/project-1/images/master/list")
-    expect(invalidateFetchJsonGetCacheMock).toHaveBeenNthCalledWith(2, "/api/projects/project-1/images/master")
-    expect(invalidateFetchJsonGetCacheMock).toHaveBeenNthCalledWith(3, "/api/projects/project-1/images/master/list")
-    expect(invalidateFetchJsonGetCacheMock).toHaveBeenNthCalledWith(4, "/api/projects/project-1/images/master")
+    // Pre-flush + stale_selection branch flush = 2 invalidation sweeps; helper
+    // touches master + master/list per sweep → 4 total calls.
+    expect(invalidateFetchJsonGetCacheMock).toHaveBeenCalledTimes(4)
+    const listCalls = invalidateFetchJsonGetCacheMock.mock.calls.filter(
+      ([p]) => p === "/api/projects/project-1/images/master/list",
+    )
+    const masterCalls = invalidateFetchJsonGetCacheMock.mock.calls.filter(
+      ([p]) => p === "/api/projects/project-1/images/master",
+    )
+    expect(listCalls).toHaveLength(2)
+    expect(masterCalls).toHaveLength(2)
   })
 })

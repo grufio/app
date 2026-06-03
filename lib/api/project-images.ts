@@ -5,8 +5,9 @@
  * - Fetch metadata and signed URLs for the master image.
  * - Perform existence checks and deletion via API routes.
  */
+import { invalidateProjectMutationCaches } from "@/lib/api/cache-invalidation"
 import { formatApiError } from "@/lib/api/error-formatting"
-import { fetchJson, invalidateFetchJsonGetCache } from "@/lib/api/http"
+import { fetchJson } from "@/lib/api/http"
 import type { RegisteredFilterId } from "@/lib/editor/filters/registry"
 
 export type MasterImageResponse =
@@ -126,10 +127,8 @@ export async function deleteMasterImage(projectId: string): Promise<void> {
  * project's master + all derivatives + filter rows + state row + trace row +
  * storage objects. Leaves the project shell intact. */
 export async function deleteMasterImageWithCascade(projectId: string): Promise<void> {
-  const masterListPath = `/api/projects/${projectId}/images/master/list`
-  const masterPath = `/api/projects/${projectId}/images/master`
-  invalidateFetchJsonGetCache(masterListPath)
-  invalidateFetchJsonGetCache(masterPath)
+  // Pre-flush to keep in-flight reads from racing the DELETE.
+  invalidateProjectMutationCaches(projectId, ["images"])
 
   const res = await fetchJson<unknown>(`/api/projects/${projectId}/images/master/cascade`, {
     method: "DELETE",
@@ -138,8 +137,7 @@ export async function deleteMasterImageWithCascade(projectId: string): Promise<v
   if (!res.ok) {
     throw new Error(formatApiError("Failed to delete image", res.status, res.error))
   }
-  invalidateFetchJsonGetCache(masterListPath)
-  invalidateFetchJsonGetCache(masterPath)
+  invalidateProjectMutationCaches(projectId, ["images"])
 }
 
 /** GET /api/projects/[projectId]/images/master/list — all non-deleted images + display/fallback targets. */
@@ -174,10 +172,8 @@ export async function listMasterImages(projectId: string): Promise<{ items: Proj
 
 /** DELETE /api/projects/[projectId]/images/master/[imageId] — soft-delete a specific image. */
 export async function deleteMasterImageById(projectId: string, imageId: string): Promise<void> {
-  const masterListPath = `/api/projects/${projectId}/images/master/list`
-  const masterPath = `/api/projects/${projectId}/images/master`
-  invalidateFetchJsonGetCache(masterListPath)
-  invalidateFetchJsonGetCache(masterPath)
+  // Pre-flush so an in-flight read can't pick up stale data while DELETE runs.
+  invalidateProjectMutationCaches(projectId, ["images"])
 
   const res = await fetchJson<unknown>(`/api/projects/${projectId}/images/master/${imageId}`, {
     method: "DELETE",
@@ -187,13 +183,11 @@ export async function deleteMasterImageById(projectId: string, imageId: string):
     const stage = typeof res.error?.stage === "string" ? res.error.stage : ""
     if (stage === "stale_selection") {
       // Force next refresh to bypass short GET cache and fetch fresh targets.
-      invalidateFetchJsonGetCache(masterListPath)
-      invalidateFetchJsonGetCache(masterPath)
+      invalidateProjectMutationCaches(projectId, ["images"])
     }
     throw new Error(formatApiError("Failed to delete image", res.status, res.error))
   }
-  invalidateFetchJsonGetCache(masterListPath)
-  invalidateFetchJsonGetCache(masterPath)
+  invalidateProjectMutationCaches(projectId, ["images"])
 }
 
 /** PATCH /api/projects/[projectId]/images/master/[imageId]/lock — toggles is_locked. */
@@ -211,8 +205,7 @@ export async function setProjectImageLocked(
   if (!res.ok) {
     throw new Error(formatApiError("Failed to update image lock", res.status, res.error))
   }
-  invalidateFetchJsonGetCache(`/api/projects/${projectId}/images/master/list`)
-  invalidateFetchJsonGetCache(`/api/projects/${projectId}/images/master`)
+  invalidateProjectMutationCaches(projectId, ["images"])
   if (!res.data?.ok || !res.data?.id) {
     throw new Error("Failed to update image lock (invalid response)")
   }
@@ -254,8 +247,7 @@ export async function cropImageVariant(args: {
   if (!res.data?.id) {
     throw new Error("Failed to crop image (missing id)")
   }
-  invalidateFetchJsonGetCache(`/api/projects/${projectId}/images/master`)
-  invalidateFetchJsonGetCache(`/api/projects/${projectId}/images/master/list`)
+  invalidateProjectMutationCaches(projectId, ["images"])
   return {
     id: String(res.data.id),
     width_px: Number(res.data.width_px ?? 0),
@@ -275,8 +267,7 @@ export async function restoreInitialMasterImage(projectId: string): Promise<{ im
   if (!res.data?.image_id) {
     throw new Error("Failed to restore initial image (missing image_id)")
   }
-  invalidateFetchJsonGetCache(`/api/projects/${projectId}/images/master`)
-  invalidateFetchJsonGetCache(`/api/projects/${projectId}/images/master/list`)
+  invalidateProjectMutationCaches(projectId, ["images"])
   return { image_id: String(res.data.image_id) }
 }
 
@@ -320,9 +311,7 @@ export async function applyProjectImageFilter(args: {
   if (!res.data?.item || !res.data.image_id) {
     throw new Error("Failed to apply filter (invalid response)")
   }
-  invalidateFetchJsonGetCache(`/api/projects/${projectId}/images/master`)
-  invalidateFetchJsonGetCache(`/api/projects/${projectId}/images/master/list`)
-  invalidateFetchJsonGetCache(`/api/projects/${projectId}/images/filters`)
+  invalidateProjectMutationCaches(projectId, ["images", "filters"])
   return {
     item: res.data.item,
     image_id: String(res.data.image_id),
@@ -347,9 +336,7 @@ export async function removeProjectImageFilter(args: {
   if (!res.data?.active_image_id) {
     throw new Error("Failed to remove filter (invalid response)")
   }
-  invalidateFetchJsonGetCache(`/api/projects/${projectId}/images/master`)
-  invalidateFetchJsonGetCache(`/api/projects/${projectId}/images/master/list`)
-  invalidateFetchJsonGetCache(`/api/projects/${projectId}/images/filters`)
+  invalidateProjectMutationCaches(projectId, ["images", "filters"])
   return { active_image_id: String(res.data.active_image_id) }
 }
 
@@ -369,7 +356,7 @@ export async function setProjectImageFilterHidden(args: {
   if (!res.ok) {
     throw new Error(formatApiError("Failed to update filter visibility", res.status, res.error))
   }
-  invalidateFetchJsonGetCache(`/api/projects/${projectId}/images/filters`)
+  invalidateProjectMutationCaches(projectId, ["filters"])
   return { is_hidden: Boolean(res.data?.is_hidden ?? isHidden) }
 }
 

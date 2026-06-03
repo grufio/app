@@ -5,8 +5,9 @@
  * trace artefact at a time (pixelate xor lineart). Applying
  * replaces; clearing falls the canvas back to the master image.
  */
+import { invalidateProjectMutationCaches } from "@/lib/api/cache-invalidation"
 import { formatApiError } from "@/lib/api/error-formatting"
-import { fetchJson, invalidateFetchJsonGetCache } from "@/lib/api/http"
+import { fetchJson } from "@/lib/api/http"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
 
 export type TraceKind = RegisteredTraceId
@@ -122,7 +123,7 @@ export async function applyProjectTrace(args: {
   if (!res.data?.trace || !res.data.image_id) {
     throw new Error("Failed to apply trace (invalid response)")
   }
-  invalidateFetchJsonGetCache(tracePath(projectId))
+  invalidateProjectMutationCaches(projectId, ["trace"])
   return {
     trace: res.data.trace,
     image_id: String(res.data.image_id),
@@ -144,6 +145,6 @@ export async function clearProjectTrace(projectId: string): Promise<{ active_ima
   if (!res.data?.active_image_id) {
     throw new Error("Failed to clear trace (invalid response)")
   }
-  invalidateFetchJsonGetCache(tracePath(projectId))
+  invalidateProjectMutationCaches(projectId, ["trace"])
   return { active_image_id: String(res.data.active_image_id) }
 }
