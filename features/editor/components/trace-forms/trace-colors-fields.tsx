@@ -13,14 +13,21 @@
 import { Layers, Palette } from "lucide-react"
 
 import { FormField, type SelectFieldOption } from "@/components/ui/form-controls"
+import {
+  numColorsSchema,
+  NUM_COLORS_DEFAULT,
+  NUM_COLORS_MAX,
+  NUM_COLORS_MIN,
+} from "@/lib/editor/trace/num-colors-schema"
+import { extractNumberInputProps } from "@/lib/forms/zod-input-props"
 
 import { PanelIconSlot, PanelTwoFieldRow } from "../panel-layout"
 
 export type TraceColorMode = "color" | "bw"
 
-export const NUM_COLORS_MIN = 2
-export const NUM_COLORS_MAX = 32
-export const NUM_COLORS_DEFAULT = 16
+// Re-export so existing consumers (e.g. legacy form code) don't need
+// to touch their imports; the source of truth is the schema module.
+export { NUM_COLORS_DEFAULT, NUM_COLORS_MAX, NUM_COLORS_MIN }
 
 // Module-level so the `options` reference stays stable across renders (the
 // select FormField memoises on `prev.options === next.options`).
@@ -28,6 +35,8 @@ const COLOR_MODE_OPTIONS: SelectFieldOption[] = [
   { value: "color", label: "Color" },
   { value: "bw", label: "B/W" },
 ]
+
+const NUM_COLORS_INPUT_PROPS = extractNumberInputProps(numColorsSchema)
 
 export function TraceColorsFields(props: {
   colorMode: TraceColorMode
@@ -70,7 +79,7 @@ export function TraceColorsFields(props: {
           )
           onNumColorsChange(clamped)
         }}
-        inputProps={{ min: NUM_COLORS_MIN, max: NUM_COLORS_MAX, step: 1 }}
+        inputProps={NUM_COLORS_INPUT_PROPS}
         disabled={disabled}
       />
       <PanelIconSlot />

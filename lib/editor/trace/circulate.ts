@@ -2,6 +2,7 @@ import { z } from "zod"
 
 import type { TraceDefinition } from "./types"
 import { DEFAULT_INNER_FILTER, INNER_FILTER_IDS } from "./inner-color-filters"
+import { numColorsSchema } from "./num-colors-schema"
 
 /**
  * Circulate trace — a Chuck-Close-style dot grid: one ellipse per cell
@@ -62,10 +63,10 @@ export const circulateSchema = z.object({
   // Colors segment (shared contract with Pixelate): `color` → lab_munsell
   // (128), `bw` → lab_grays (48), strictly separate.
   color_mode: z.enum(["color", "bw"]).default("color"),
-  // Cap on distinct palette chips in the rendered output. See
-  // `lib/editor/trace/pixelate.ts` for the full semantic — same
-  // top-N reduction is applied by the filter-service.
-  num_colors: z.coerce.number().int().min(2).max(32).default(16),
+  // Cap on distinct palette chips in the rendered output. Shared with
+  // pixelate via `num-colors-schema.ts`; same top-N reduction is
+  // applied by the filter-service.
+  num_colors: numColorsSchema,
   // Blue-noise neighbour-invasion texture on the outer ellipses (shared
   // contract with Pixelate). Same default + persistence semantics: the
   // checkbox toggles `texture_enabled`, the dropdown commits
