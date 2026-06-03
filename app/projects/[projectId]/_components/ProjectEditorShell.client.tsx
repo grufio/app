@@ -21,8 +21,8 @@ import {
 } from "@/features/editor"
 import { buildNavId } from "@/features/editor/navigation/nav-id"
 import { deriveSectionLocks } from "@/lib/editor/section-locks"
-import { MobileBottomNav, type MobileNavSection } from "@/features/editor/components/mobile-bottom-nav"
-import { MobileColorsSheet } from "@/features/editor/components/mobile-colors-sheet"
+import { MobileBottomNav } from "@/features/editor/components/mobile-bottom-nav"
+import type { MobileSection } from "@/lib/editor/mobile-sections"
 import { deleteMasterImageWithCascade, removeProjectImageFilter } from "@/lib/api/project-images"
 import {
   Dialog,
@@ -60,6 +60,7 @@ import { useRightPanelModel } from "./editor-shell/use-right-panel-model"
 import { useStageInteractionPolicy } from "./editor-shell/use-stage-interaction-policy"
 import { useEditorWorkflowAdapter } from "./editor-shell/use-editor-workflow-adapter"
 import { ArtboardSurfaceScope } from "./editor-shell/artboard-surface-scope"
+import { ColorsSurfaceScope } from "./editor-shell/colors-surface-scope"
 import { FilterSurfaceScope } from "./editor-shell/filter-surface-scope"
 import { TraceSurfaceScope } from "./editor-shell/trace-surface-scope"
 import { useLeftPanelModel } from "./editor-shell/use-left-panel-model"
@@ -129,8 +130,8 @@ export function ProjectDetailPageClient({
   // surfaces section-specific layers (mirror desktop's `leftPanelTab`
   // gating — see `deriveDisplayLayers`), and each surface's scope
   // component owns its own floating Edit-icon + sheet.
-  const [mobileSection, setMobileSection] = useState<MobileNavSection>("artboard")
-  const handleMobileNavTap = useCallback((section: MobileNavSection) => {
+  const [mobileSection, setMobileSection] = useState<MobileSection>("artboard")
+  const handleMobileNavTap = useCallback((section: MobileSection) => {
     setMobileSection(section)
   }, [])
   // Mobile-only drawer state for the side panels. On `md+` both panels
@@ -869,20 +870,7 @@ export function ProjectDetailPageClient({
           />
         ) : null}
         {isMobile && mobileSection === "colors" ? (
-          <MobileColorsSheet
-            paletteIndicesUsed={trace?.palette_indices_used ?? null}
-            traceMode={(() => {
-              // All three trace kinds (pixelate, circulate, lineart)
-              // carry color_mode in params and snap on Munsell. Default
-              // "color" when missing (pre-snap legacy rows would never
-              // reach this branch — they have palette_indices_used=null
-              // and short-circuit to the "re-run" empty state).
-              if (!trace) return null
-              const cm = (trace.params as { color_mode?: unknown }).color_mode
-              return cm === "bw" ? "bw" : "color"
-            })()}
-            hasTrace={trace != null}
-          />
+          <ColorsSurfaceScope trace={trace} />
         ) : null}
       </ProjectEditorLayout>
       <MobileBottomNav

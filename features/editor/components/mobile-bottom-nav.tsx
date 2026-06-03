@@ -31,12 +31,11 @@ import {
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import type { MobileSection } from "@/lib/editor/mobile-sections"
 import { cn } from "@/lib/utils"
 
-export type MobileNavSection = "artboard" | "filter" | "trace" | "colors"
-
 type NavItem = {
-  key: "home" | MobileNavSection
+  key: "home" | MobileSection
   label: string
   Icon: LucideIcon
 }
@@ -52,8 +51,8 @@ const ITEMS: NavItem[] = [
 export function MobileBottomNav(props: {
   /** Currently active section. Drives the visual highlight. `null`
    * = no section is active (e.g. user is on Home). */
-  activeSection?: MobileNavSection | null
-  onSectionTap?: (section: MobileNavSection) => void
+  activeSection?: MobileSection | null
+  onSectionTap?: (section: MobileSection) => void
   /** Surfaces a red dot on the Artboard icon — the Artboard section
    * owns the master image, so an image-lock surfaces there on mobile. */
   imageLocked?: boolean
