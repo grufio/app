@@ -34,6 +34,14 @@ distinction in the `kind` column.
   lives on `project_images.kind`.
   Bucket isolation isn't the access boundary — RLS via `auth.uid()`
   is.
+- **`pigment_swatches` bucket is read-only by design.** Authenticated
+  users have a SELECT policy (`pigment_swatches_select`) and nothing
+  else — no INSERT / UPDATE / DELETE policies. The bucket holds
+  swatch reference images that ship as service-role seeded reference
+  data; no user flow uploads to it and no client write path exists.
+  If a future audit flags the missing write policies as a gap: link
+  this section. Adding writes is intentional schema scope, not a
+  bug-fix.
 - **Path convention** — every object key matches:
   ```
   projects/<projectId>/images/<imageId>

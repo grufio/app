@@ -44,6 +44,51 @@ against fresh prod dumps so manual Studio edits get caught.
 - **Drift handling:** if `verify:schema-drift` fails, prod has been
   hand-edited via Studio — close it with a backfill migration, not
   by editing prod.
+- **CI auto-regenerates `database.types.ts`** after every migration
+  push (deploy.yml). Do NOT hand-edit
+  [lib/supabase/database.types.ts](../../lib/supabase/database.types.ts) —
+  changes get overwritten on the next deploy. If TypeScript complains
+  about a new column the migration adds, cast at the call site (`as any`
+  / `as Database["public"]["Tables"]["…"]`) and let CI's regen put the
+  types right. CLAUDE.md mirrors the same warning.
+
+## Reserved-but-unused schema slots
+
+The following objects look dead to a code-grep audit but are
+intentional placeholders or limited-scope helpers. Don't drop them
+without checking the rationale below.
+
+### `*_variants` tables (reserved)
+
+Five tables hold paint-variant metadata (size, weight, stock, price)
+and are not yet read by any app code path:
+
+- `public.color_acryl_schmincke_primacryl_variants`
+- `public.color_oil_schmincke_norma_variants`
+- `public.lab_custom_variants`
+- `public.lab_grays_variants`
+- `public.lab_munsell_variants`
+
+These are reserved for the upcoming paint-tube-size feature
+(5 ml / 35 ml / 200 ml variants per pigment, plus per-variant SKU /
+stock / price). Schema is forward-compatible with that feature; rows
+will be backfilled when the consumer code lands. Their RLS policies
+stay in place to avoid a delete-then-recreate churn.
+
+If a future audit flags them again: link this section.
+
+### `lab_munsell.hue_pct / hue_family / value / chroma`
+
+Four columns on `lab_munsell` are populated at seed time but read
+by exactly one consumer — the `derive_iscc_nbs_name(hue_family,
+hue_pct, value, chroma)` SQL function (see migration
+`20260602…_derive_iscc_nbs_name.sql`). App code never reads them
+directly; ISCC-NBS chip names flow back via `lab_munsell.iscc_nbs_name`
+which the function populates.
+
+Don't promote these columns to TypeScript consumers — that's the
+function's job, and bypassing it duplicates the Kelly-&-Judd
+binning logic in two places.
 
 ## Cross-references
 

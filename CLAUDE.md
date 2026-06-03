@@ -112,7 +112,9 @@ npm run gate:ci
 supabase start --exclude vector,inbucket,realtime,studio
 supabase db reset --local        # apply baseline migration
 
-# regenerate types from prod (needs SUPABASE_DB_PASSWORD + access token)
+# regenerate types from prod (needs SUPABASE_DB_PASSWORD + access token).
+# CI runs this automatically post-deploy — don't hand-edit
+# `lib/supabase/database.types.ts` in a PR, it gets overwritten.
 npm run types:gen
 
 # verify db schema against prod (needs creds, gates against silent drift)
@@ -162,6 +164,15 @@ refactor. Save your future self the bruise.
   --linked` only dumps `public`. The `storage.objects` RLS DO-block
   must be manually re-appended; see
   [docs/playbooks/squash-migrations.md](docs/playbooks/squash-migrations.md).
+- **Never hand-edit `lib/supabase/database.types.ts`.** CI
+  regenerates it post-deploy via `npm run types:gen` (see
+  `.github/workflows/deploy.yml`). Hand-edits during a migration
+  PR (to silence TS errors about new columns) get overwritten on
+  the next deploy. The right pattern is: cast at the call site
+  (`as any` / explicit `Database["public"]["Tables"][…]`) for the
+  PR, let CI fix the types post-merge. Confirmed during the
+  iscc_nbs_name + palette_indices_used rollout (#365, #367) where
+  hand-edits to types.ts kept getting clobbered.
 
 ## When stuck
 
