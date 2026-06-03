@@ -5,6 +5,7 @@
  * trace artefact at a time (pixelate xor lineart). Applying
  * replaces; clearing falls the canvas back to the master image.
  */
+import { formatApiError } from "@/lib/api/error-formatting"
 import { fetchJson, invalidateFetchJsonGetCache } from "@/lib/api/http"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
 
@@ -51,20 +52,6 @@ export type TraceBaseImage = {
   height_px: number
 }
 
-type ApiErrorPayload = Record<string, unknown> | null
-
-function formatTraceApiError(prefix: string, status: number, payload: ApiErrorPayload): string {
-  const stage = typeof payload?.stage === "string" && payload.stage.trim() ? payload.stage : `http_${status}`
-  const error =
-    typeof payload?.error === "string" && payload.error.trim()
-      ? payload.error
-      : payload
-        ? JSON.stringify(payload)
-        : "No JSON error body returned"
-  const code = typeof payload?.code === "string" && payload.code.trim() ? ` code=${payload.code}` : ""
-  return `${prefix} (${status} ${stage}${code}): ${error}`
-}
-
 function tracePath(projectId: string): string {
   return `/api/projects/${projectId}/trace`
 }
@@ -87,7 +74,7 @@ export async function getProjectTrace(projectId: string): Promise<ProjectTraceWi
     credentials: "same-origin",
   })
   if (!res.ok) {
-    throw new Error(formatTraceApiError("Failed to load trace", res.status, res.error))
+    throw new Error(formatApiError("Failed to load trace", res.status, res.error))
   }
   return {
     trace: res.data?.trace ?? null,
@@ -130,7 +117,7 @@ export async function applyProjectTrace(args: {
     }),
   })
   if (!res.ok) {
-    throw new Error(formatTraceApiError("Failed to apply trace", res.status, res.error))
+    throw new Error(formatApiError("Failed to apply trace", res.status, res.error))
   }
   if (!res.data?.trace || !res.data.image_id) {
     throw new Error("Failed to apply trace (invalid response)")
@@ -152,7 +139,7 @@ export async function clearProjectTrace(projectId: string): Promise<{ active_ima
     credentials: "same-origin",
   })
   if (!res.ok) {
-    throw new Error(formatTraceApiError("Failed to clear trace", res.status, res.error))
+    throw new Error(formatApiError("Failed to clear trace", res.status, res.error))
   }
   if (!res.data?.active_image_id) {
     throw new Error("Failed to clear trace (invalid response)")
