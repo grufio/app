@@ -151,7 +151,7 @@ describe("image-state route contract", () => {
     expect(body.stage).toBe("no_master_image")
   })
 
-  it("POST anchors the upsert at the resolved anchor (= working_copy.id), not at any body-level image id", async () => {
+  it("POST anchors the upsert at the resolved anchor (= working_copy.id)", async () => {
     const supabase = makeSupabaseStub({ projectAccessible: true })
     const captured: CapturedUpsert = { value: null }
     const mod = await importRouteWithMocks({
@@ -166,9 +166,6 @@ describe("image-state route contract", () => {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          // Deploy-window compat: old clients send these, the server ignores them.
-          image_id: "old-client-image-id",
-          role: "master",
           x_px_u: "555555",
           y_px_u: "666666",
           width_px_u: "1000000",

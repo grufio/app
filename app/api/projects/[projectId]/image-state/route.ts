@@ -9,8 +9,6 @@
  * re-anchored from master.id; resolved via `resolveStateAnchorImage`).
  * The client sends only transform fields; the server resolves the
  * persistence key and the lock-guard target from `projectId` alone.
- * Legacy clients still in flight may include `image_id` and `role`
- * in the body — both are accepted by the validator and ignored.
  */
 import { NextResponse } from "next/server"
 
@@ -68,9 +66,6 @@ export async function GET(_req: Request, { params }: { params: Promise<{ project
  * preservation: the route reads the current row and merges the
  * unchanged axis from there. Width / height / rotation are always
  * required.
- *
- * Legacy `image_id` and `role` body fields are accepted and ignored
- * (deploy-window backward compat — see `validate.ts`).
  *
  * Lock-guard: blocks the write with `409 lock_conflict` if the
  * working_copy row has `is_locked = true`.
