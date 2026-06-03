@@ -5,22 +5,9 @@
  * - Fetch metadata and signed URLs for the master image.
  * - Perform existence checks and deletion via API routes.
  */
+import { formatApiError } from "@/lib/api/error-formatting"
 import { fetchJson, invalidateFetchJsonGetCache } from "@/lib/api/http"
 import type { RegisteredFilterId } from "@/lib/editor/filters/registry"
-
-type ApiErrorPayload = Record<string, unknown> | null
-
-function formatApiError(prefix: string, status: number, payload: ApiErrorPayload): string {
-  const stage = typeof payload?.stage === "string" && payload.stage.trim() ? payload.stage : `http_${status}`
-  const error =
-    typeof payload?.error === "string" && payload.error.trim()
-      ? payload.error
-      : payload
-        ? JSON.stringify(payload)
-        : "No JSON error body returned"
-  const code = typeof payload?.code === "string" && payload.code.trim() ? ` code=${payload.code}` : ""
-  return `${prefix} (HTTP ${status}, stage=${stage}${code}): ${error}`
-}
 
 export type MasterImageResponse =
   | { exists: false }
