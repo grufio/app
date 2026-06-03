@@ -2,7 +2,7 @@
  * Unit tests for `lib/editor/layer-selection-storage.ts`.
  *
  * Focus:
- * - LocalStorage read/write behavior and legacy key compatibility.
+ * - LocalStorage read/write behavior.
  */
 import { describe, expect, test } from "vitest"
 
@@ -27,7 +27,7 @@ describe("layer-selection-storage", () => {
     g.window = orig
   })
 
-  test("write sets v1 and legacy keys", () => {
+  test("write persists under the v1 key", () => {
     const store = new Map<string, string>()
     const g = globalThis as unknown as GlobalWithWindow
     const orig = g.window
@@ -39,18 +39,14 @@ describe("layer-selection-storage", () => {
     }
 
     writeSelectedLayerId("p1", "image:master")
-    // v1
     expect(store.get("gruf:v1:editor:layers:selected:p1")).toBe("image:master")
-    // legacy
-    expect(store.get("gruf:editor:layers:selected:p1")).toBe("image:master")
 
     g.window = orig
   })
 
-  test("read prefers v1 over legacy", () => {
+  test("read returns the value previously written under the v1 key", () => {
     const store = new Map<string, string>([
-      ["gruf:editor:layers:selected:p1", "legacy"],
-      ["gruf:v1:editor:layers:selected:p1", "v1"],
+      ["gruf:v1:editor:layers:selected:p1", "image:master"],
     ])
     const g = globalThis as unknown as GlobalWithWindow
     const orig = g.window
@@ -61,9 +57,8 @@ describe("layer-selection-storage", () => {
       } as unknown as Storage,
     }
 
-    expect(readSelectedLayerId("p1")).toBe("v1")
+    expect(readSelectedLayerId("p1")).toBe("image:master")
 
     g.window = orig
   })
 })
-
