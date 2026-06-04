@@ -3,7 +3,7 @@
 /**
  * Loads the trace Munsell palettes from `/api/palette` and returns the chips
  * for the requested mode (`color` → active tier of the 512-chip palette, default
- * 128; `bw` → 48). The palette is static per session, so the response is cached
+ * 256; `bw` → 48). The palette is static per session, so the response is cached
  * module-wide and shared across all
  * previews — one fetch per session. Returns `null` until loaded; callers fall
  * back to raw means meanwhile.
