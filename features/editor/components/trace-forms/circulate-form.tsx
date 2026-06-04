@@ -114,7 +114,7 @@ export function CirculateForm({ params, onParamsChange, disabled, grid }: Props)
               onCheckedChange={(c) => onParamsChange("inner_enabled", c === true)}
               disabled={disabled}
             />
-            <Label htmlFor="inner_enabled" className="cursor-pointer text-sm font-normal">
+            <Label htmlFor="inner_enabled" className="cursor-pointer text-panel font-normal">
               Inner ellipse
             </Label>
           </div>

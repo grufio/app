@@ -46,7 +46,7 @@ export function TraceVisibilitySection(props: {
             checked={traceOverlayVisible}
             onCheckedChange={(c) => onTraceOverlayChange(c === true)}
           />
-          <Label htmlFor="visibility_trace" className="cursor-pointer text-sm font-normal">
+          <Label htmlFor="visibility_trace" className="cursor-pointer text-panel font-normal">
             Trace
           </Label>
         </div>
@@ -56,7 +56,7 @@ export function TraceVisibilitySection(props: {
             checked={previewBitmapVisible}
             onCheckedChange={(c) => onPreviewBitmapChange(c === true)}
           />
-          <Label htmlFor="visibility_preview" className="cursor-pointer text-sm font-normal">
+          <Label htmlFor="visibility_preview" className="cursor-pointer text-panel font-normal">
             Preview
           </Label>
         </div>
@@ -66,7 +66,7 @@ export function TraceVisibilitySection(props: {
             checked={numbersLayerVisible}
             onCheckedChange={(c) => onNumbersLayerChange(c === true)}
           />
-          <Label htmlFor="visibility_numbers" className="cursor-pointer text-sm font-normal">
+          <Label htmlFor="visibility_numbers" className="cursor-pointer text-panel font-normal">
             Numbers
           </Label>
         </div>
