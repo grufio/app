@@ -19,15 +19,16 @@ import type { Database } from "./database.types"
 
 export type TraceColorMode = "color" | "bw"
 
-/** Default active colour tier when `PALETTE_TIER` is unset/invalid. */
-const DEFAULT_COLOR_TIER = 128
+/** Default active colour tier when `PALETTE_TIER` is unset/invalid.
+ *  Raised 128 → 256 once the 512-chip palette was live (all 512 seeded). */
+const DEFAULT_COLOR_TIER = 256
 
 /**
  * Active colour-palette tier: how many of the 512 `lab_munsell` chips the app
  * uses, as a prefix of `palette_index` (= selection rank, so a prefix is always
- * the best-N). Grow 128 → 256 → 512 by setting `PALETTE_TIER`; no DB change,
- * because all 512 are already seeded. Applies to `color` only — `lab_grays`
- * (bw, 48 chips) is not tiered.
+ * the best-N). Grow 256 → 512 by bumping `DEFAULT_COLOR_TIER` (or the
+ * `PALETTE_TIER` override); no DB change, because all 512 are already seeded.
+ * Applies to `color` only — `lab_grays` (bw, 48 chips) is not tiered.
  */
 function activeColorTier(): number {
   const raw = Number(process.env.PALETTE_TIER)
