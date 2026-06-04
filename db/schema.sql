@@ -1936,6 +1936,7 @@ CREATE TABLE IF NOT EXISTS "public"."project_image_trace" (
     "display_width_px_u" "text" DEFAULT '0'::"text" NOT NULL,
     "display_height_px_u" "text" DEFAULT '0'::"text" NOT NULL,
     "palette_indices_used" integer[],
+    CONSTRAINT "project_image_trace_base_image_required_ck" CHECK ((("kind" = 'lineart'::"text") OR ("base_image_id" IS NOT NULL))),
     CONSTRAINT "project_image_trace_kind_ck" CHECK (("kind" = ANY (ARRAY['pixelate'::"text", 'circulate'::"text", 'lineart'::"text"])))
 );
 
@@ -1977,6 +1978,7 @@ CREATE TABLE IF NOT EXISTS "public"."project_images" (
     CONSTRAINT "project_images_file_size_bytes_check" CHECK (("file_size_bytes" >= 0)),
     CONSTRAINT "project_images_height_px_check" CHECK (("height_px" > 0)),
     CONSTRAINT "project_images_master_no_source_kind_ck" CHECK ((("kind" <> 'master'::"public"."image_kind") OR ("source_image_id" IS NULL))),
+    CONSTRAINT "project_images_non_master_requires_source_kind_ck" CHECK ((("kind" = 'master'::"public"."image_kind") OR ("source_image_id" IS NOT NULL))),
     CONSTRAINT "project_images_width_px_check" CHECK (("width_px" > 0))
 );
 
@@ -2473,11 +2475,6 @@ ALTER TABLE ONLY "public"."project_image_state"
 
 ALTER TABLE ONLY "public"."project_image_trace"
     ADD CONSTRAINT "project_image_trace_pkey" PRIMARY KEY ("project_id");
-
-
-
-ALTER TABLE "public"."project_images"
-    ADD CONSTRAINT "project_images_non_master_requires_source_kind_ck" CHECK ((("kind" = 'master'::"public"."image_kind") OR ("source_image_id" IS NOT NULL))) NOT VALID;
 
 
 

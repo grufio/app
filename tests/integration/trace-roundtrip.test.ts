@@ -2,8 +2,9 @@
  * Integration test: project_image_trace round-trip (F21 PR 1).
  *
  * The Trace surface is mutually exclusive — one row per project,
- * `kind` constrained to {pixelate, lineart}, `output_image_id`
- * referencing `project_images`. This test proves the schema
+ * `kind` constrained to {pixelate, circulate, lineart}, `output_image_id`
+ * referencing `project_images`, and (M15) a `base_image_id` required for
+ * the crop-bearing kinds pixelate/circulate. This test proves the schema
  * invariants directly via the supabase-js client; the full
  * apply/clear pipeline (which calls the Python filter service)
  * is exercised by Trace UI smoke testing once F21 PR 2 lands.
@@ -56,6 +57,13 @@ describe("project_image_trace round-trip", () => {
       kind: "trace_output",
       sourceImageId: master.imageId,
     })
+    // pixelate/circulate must reference a cropped trace_base (M15 CHECK).
+    const traceBase = await seedImage({
+      supabase,
+      projectId,
+      kind: "trace_base",
+      sourceImageId: master.imageId,
+    })
 
     // 1. Insert pixelate trace.
     const { error: insertErr } = await supabase
@@ -65,6 +73,7 @@ describe("project_image_trace round-trip", () => {
         kind: "pixelate",
         params: { supercell_mm: 6, num_colors: 16 },
         output_image_id: pixelateOut.imageId,
+        base_image_id: traceBase.imageId,
       })
     expect(insertErr).toBeNull()
 
@@ -151,6 +160,13 @@ describe("project_image_trace round-trip", () => {
       kind: "trace_output",
       sourceImageId: master.imageId,
     })
+    // pixelate/circulate must reference a cropped trace_base (M15 CHECK).
+    const traceBase = await seedImage({
+      supabase,
+      projectId,
+      kind: "trace_base",
+      sourceImageId: master.imageId,
+    })
 
     // 1. A trace WITHOUT explicit display_* values inherits DEFAULT '0'
     //    (the legacy / lineart signal). This is what lineart writes and
@@ -195,6 +211,7 @@ describe("project_image_trace round-trip", () => {
           kind: "pixelate",
           params: { supercell_width_mm: 6, supercell_height_mm: 6, num_colors: 16 },
           output_image_id: pixelateOut.imageId,
+          base_image_id: traceBase.imageId,
           ...rect,
         },
         { onConflict: "project_id" },
@@ -219,6 +236,9 @@ describe("project_image_trace round-trip", () => {
           kind: "pixelate",
           params: {},
           output_image_id: pixelateOut.imageId,
+          // base set so the ONLY violation here is the null display_width
+          // (23502), not the M15 base-required CHECK (23514).
+          base_image_id: traceBase.imageId,
           display_width_px_u: null as unknown as string,
         },
         { onConflict: "project_id" },
@@ -239,12 +259,20 @@ describe("project_image_trace round-trip", () => {
       kind: "trace_output",
       sourceImageId: master.imageId,
     })
+    // pixelate/circulate must reference a cropped trace_base (M15 CHECK).
+    const traceBase = await seedImage({
+      supabase,
+      projectId,
+      kind: "trace_base",
+      sourceImageId: master.imageId,
+    })
 
     await supabase.from("project_image_trace").insert({
       project_id: projectId,
       kind: "pixelate",
       params: {},
       output_image_id: traceOut.imageId,
+      base_image_id: traceBase.imageId,
     })
 
     const { error: imageDeleteErr } = await supabase
