@@ -39,10 +39,27 @@ describe("palette tables are seeded by migrations", () => {
     expect(count ?? 0).toBeGreaterThan(0)
   })
 
-  // lab_munsell is currently loaded out-of-band in prod and has no
-  // migration that seeds it — the same gap that caused the bw-mode
-  // 500 still exists for the colour palette. Marking the gate as
-  // `todo` here so the missing migration isn't forgotten; flip to
-  // `it(...)` once a seed migration lands.
-  it.todo("lab_munsell has rows after migrations apply")
+  it("lab_munsell has the 512-chip tier palette after migrations apply", async () => {
+    // Authoritative re-seed in
+    // supabase/migrations/20260604160000_reseed_lab_munsell_512.sql:
+    // 512 chips, palette_index = selection rank 0..511 (tiers are prefixes),
+    // iscc_nbs_name backfilled via derive_iscc_nbs_name(). This closes the
+    // out-of-band-seed gap that previously left lab_munsell unmigrated.
+    const { data, count, error } = await supabase
+      .from("lab_munsell" as never)
+      .select("palette_index,iscc_nbs_name", { count: "exact" })
+      .order("palette_index", { ascending: true })
+    expect(error).toBeNull()
+    expect(count).toBe(512)
+    const rows = (data ?? []) as unknown as {
+      palette_index: number
+      iscc_nbs_name: string | null
+    }[]
+    // Contiguous 0..511 (the active-tier prefix contract relies on this).
+    expect(rows.map((r) => r.palette_index)).toEqual(
+      Array.from({ length: 512 }, (_, i) => i),
+    )
+    // Every chip carries an ISCC-NBS name (backfill covered all 512).
+    expect(rows.every((r) => r.iscc_nbs_name != null)).toBe(true)
+  })
 })
