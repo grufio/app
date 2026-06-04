@@ -1665,6 +1665,10 @@ CREATE TABLE IF NOT EXISTS "public"."color_acryl_schmincke_primacryl_variants" (
 ALTER TABLE "public"."color_acryl_schmincke_primacryl_variants" OWNER TO "postgres";
 
 
+COMMENT ON TABLE "public"."color_acryl_schmincke_primacryl_variants" IS 'reserved for future paint-tube-size/inventory feature; intentionally unreferenced by app code';
+
+
+
 CREATE TABLE IF NOT EXISTS "public"."color_oil_schmincke_norma" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "code" "text" NOT NULL,
@@ -1707,6 +1711,10 @@ CREATE TABLE IF NOT EXISTS "public"."color_oil_schmincke_norma_variants" (
 ALTER TABLE "public"."color_oil_schmincke_norma_variants" OWNER TO "postgres";
 
 
+COMMENT ON TABLE "public"."color_oil_schmincke_norma_variants" IS 'reserved for future paint-tube-size/inventory feature; intentionally unreferenced by app code';
+
+
+
 CREATE TABLE IF NOT EXISTS "public"."lab_custom" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "rgb_r" smallint NOT NULL,
@@ -1743,6 +1751,10 @@ CREATE TABLE IF NOT EXISTS "public"."lab_custom_variants" (
 
 
 ALTER TABLE "public"."lab_custom_variants" OWNER TO "postgres";
+
+
+COMMENT ON TABLE "public"."lab_custom_variants" IS 'reserved for future paint-tube-size/inventory feature; intentionally unreferenced by app code';
+
 
 
 CREATE TABLE IF NOT EXISTS "public"."lab_grays" (
@@ -1787,6 +1799,10 @@ CREATE TABLE IF NOT EXISTS "public"."lab_grays_variants" (
 ALTER TABLE "public"."lab_grays_variants" OWNER TO "postgres";
 
 
+COMMENT ON TABLE "public"."lab_grays_variants" IS 'reserved for future paint-tube-size/inventory feature; intentionally unreferenced by app code';
+
+
+
 CREATE TABLE IF NOT EXISTS "public"."lab_munsell" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "notation" "text" NOT NULL,
@@ -1815,6 +1831,22 @@ CREATE TABLE IF NOT EXISTS "public"."lab_munsell" (
 ALTER TABLE "public"."lab_munsell" OWNER TO "postgres";
 
 
+COMMENT ON COLUMN "public"."lab_munsell"."hue_pct" IS 'consumed by derive_iscc_nbs_name(); not read by app code';
+
+
+
+COMMENT ON COLUMN "public"."lab_munsell"."hue_family" IS 'consumed by derive_iscc_nbs_name(); not read by app code';
+
+
+
+COMMENT ON COLUMN "public"."lab_munsell"."value" IS 'consumed by derive_iscc_nbs_name(); not read by app code';
+
+
+
+COMMENT ON COLUMN "public"."lab_munsell"."chroma" IS 'consumed by derive_iscc_nbs_name(); not read by app code';
+
+
+
 CREATE TABLE IF NOT EXISTS "public"."lab_munsell_variants" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "lab_munsell_id" "uuid" NOT NULL,
@@ -1830,6 +1862,10 @@ CREATE TABLE IF NOT EXISTS "public"."lab_munsell_variants" (
 
 
 ALTER TABLE "public"."lab_munsell_variants" OWNER TO "postgres";
+
+
+COMMENT ON TABLE "public"."lab_munsell_variants" IS 'reserved for future paint-tube-size/inventory feature; intentionally unreferenced by app code';
+
 
 
 CREATE TABLE IF NOT EXISTS "public"."project_grid" (
@@ -2973,10 +3009,18 @@ CREATE POLICY "color_acryl_schmincke_primacryl_select" ON "public"."color_acryl_
 
 
 
+COMMENT ON POLICY "color_acryl_schmincke_primacryl_select" ON "public"."color_acryl_schmincke_primacryl" IS 'global read-only reference data: every authenticated user may read all rows by design (no owner scoping). USING (true) is intentional, not a missing RLS predicate';
+
+
+
 ALTER TABLE "public"."color_acryl_schmincke_primacryl_variants" ENABLE ROW LEVEL SECURITY;
 
 
 CREATE POLICY "color_acryl_schmincke_primacryl_variants_select" ON "public"."color_acryl_schmincke_primacryl_variants" FOR SELECT TO "authenticated" USING (true);
+
+
+
+COMMENT ON POLICY "color_acryl_schmincke_primacryl_variants_select" ON "public"."color_acryl_schmincke_primacryl_variants" IS 'global read-only reference data: every authenticated user may read all rows by design (no owner scoping). USING (true) is intentional, not a missing RLS predicate';
 
 
 
@@ -2987,10 +3031,18 @@ CREATE POLICY "color_oil_schmincke_norma_select" ON "public"."color_oil_schminck
 
 
 
+COMMENT ON POLICY "color_oil_schmincke_norma_select" ON "public"."color_oil_schmincke_norma" IS 'global read-only reference data: every authenticated user may read all rows by design (no owner scoping). USING (true) is intentional, not a missing RLS predicate';
+
+
+
 ALTER TABLE "public"."color_oil_schmincke_norma_variants" ENABLE ROW LEVEL SECURITY;
 
 
 CREATE POLICY "color_oil_schmincke_norma_variants_select" ON "public"."color_oil_schmincke_norma_variants" FOR SELECT TO "authenticated" USING (true);
+
+
+
+COMMENT ON POLICY "color_oil_schmincke_norma_variants_select" ON "public"."color_oil_schmincke_norma_variants" IS 'global read-only reference data: every authenticated user may read all rows by design (no owner scoping). USING (true) is intentional, not a missing RLS predicate';
 
 
 
@@ -3001,10 +3053,18 @@ CREATE POLICY "lab_custom_select" ON "public"."lab_custom" FOR SELECT TO "authen
 
 
 
+COMMENT ON POLICY "lab_custom_select" ON "public"."lab_custom" IS 'global read-only reference data: every authenticated user may read all rows by design (no owner scoping). USING (true) is intentional, not a missing RLS predicate';
+
+
+
 ALTER TABLE "public"."lab_custom_variants" ENABLE ROW LEVEL SECURITY;
 
 
 CREATE POLICY "lab_custom_variants_select" ON "public"."lab_custom_variants" FOR SELECT TO "authenticated" USING (true);
+
+
+
+COMMENT ON POLICY "lab_custom_variants_select" ON "public"."lab_custom_variants" IS 'global read-only reference data: every authenticated user may read all rows by design (no owner scoping). USING (true) is intentional, not a missing RLS predicate';
 
 
 
@@ -3015,10 +3075,18 @@ CREATE POLICY "lab_grays_select" ON "public"."lab_grays" FOR SELECT TO "authenti
 
 
 
+COMMENT ON POLICY "lab_grays_select" ON "public"."lab_grays" IS 'global read-only reference data: every authenticated user may read all rows by design (no owner scoping). USING (true) is intentional, not a missing RLS predicate';
+
+
+
 ALTER TABLE "public"."lab_grays_variants" ENABLE ROW LEVEL SECURITY;
 
 
 CREATE POLICY "lab_grays_variants_select" ON "public"."lab_grays_variants" FOR SELECT TO "authenticated" USING (true);
+
+
+
+COMMENT ON POLICY "lab_grays_variants_select" ON "public"."lab_grays_variants" IS 'global read-only reference data: every authenticated user may read all rows by design (no owner scoping). USING (true) is intentional, not a missing RLS predicate';
 
 
 
@@ -3029,10 +3097,18 @@ CREATE POLICY "lab_munsell_select" ON "public"."lab_munsell" FOR SELECT TO "auth
 
 
 
+COMMENT ON POLICY "lab_munsell_select" ON "public"."lab_munsell" IS 'global read-only reference data: every authenticated user may read all rows by design (no owner scoping). USING (true) is intentional, not a missing RLS predicate';
+
+
+
 ALTER TABLE "public"."lab_munsell_variants" ENABLE ROW LEVEL SECURITY;
 
 
 CREATE POLICY "lab_munsell_variants_select" ON "public"."lab_munsell_variants" FOR SELECT TO "authenticated" USING (true);
+
+
+
+COMMENT ON POLICY "lab_munsell_variants_select" ON "public"."lab_munsell_variants" IS 'global read-only reference data: every authenticated user may read all rows by design (no owner scoping). USING (true) is intentional, not a missing RLS predicate';
 
 
 
@@ -3239,7 +3315,15 @@ CREATE POLICY "recipes_colors_acryl_schmincke_primacryl_components_select" ON "p
 
 
 
+COMMENT ON POLICY "recipes_colors_acryl_schmincke_primacryl_components_select" ON "public"."recipes_colors_acryl_schmincke_primacryl_components" IS 'global read-only reference data: every authenticated user may read all rows by design (no owner scoping). USING (true) is intentional, not a missing RLS predicate';
+
+
+
 CREATE POLICY "recipes_colors_acryl_schmincke_primacryl_select" ON "public"."recipes_colors_acryl_schmincke_primacryl" FOR SELECT TO "authenticated" USING (true);
+
+
+
+COMMENT ON POLICY "recipes_colors_acryl_schmincke_primacryl_select" ON "public"."recipes_colors_acryl_schmincke_primacryl" IS 'global read-only reference data: every authenticated user may read all rows by design (no owner scoping). USING (true) is intentional, not a missing RLS predicate';
 
 
 
@@ -3253,7 +3337,15 @@ CREATE POLICY "recipes_colors_oil_schmincke_norma_components_select" ON "public"
 
 
 
+COMMENT ON POLICY "recipes_colors_oil_schmincke_norma_components_select" ON "public"."recipes_colors_oil_schmincke_norma_components" IS 'global read-only reference data: every authenticated user may read all rows by design (no owner scoping). USING (true) is intentional, not a missing RLS predicate';
+
+
+
 CREATE POLICY "recipes_colors_oil_schmincke_norma_select" ON "public"."recipes_colors_oil_schmincke_norma" FOR SELECT TO "authenticated" USING (true);
+
+
+
+COMMENT ON POLICY "recipes_colors_oil_schmincke_norma_select" ON "public"."recipes_colors_oil_schmincke_norma" IS 'global read-only reference data: every authenticated user may read all rows by design (no owner scoping). USING (true) is intentional, not a missing RLS predicate';
 
 
 
@@ -3267,7 +3359,15 @@ CREATE POLICY "recipes_grays_acryl_schmincke_primacryl_components_select" ON "pu
 
 
 
+COMMENT ON POLICY "recipes_grays_acryl_schmincke_primacryl_components_select" ON "public"."recipes_grays_acryl_schmincke_primacryl_components" IS 'global read-only reference data: every authenticated user may read all rows by design (no owner scoping). USING (true) is intentional, not a missing RLS predicate';
+
+
+
 CREATE POLICY "recipes_grays_acryl_schmincke_primacryl_select" ON "public"."recipes_grays_acryl_schmincke_primacryl" FOR SELECT TO "authenticated" USING (true);
+
+
+
+COMMENT ON POLICY "recipes_grays_acryl_schmincke_primacryl_select" ON "public"."recipes_grays_acryl_schmincke_primacryl" IS 'global read-only reference data: every authenticated user may read all rows by design (no owner scoping). USING (true) is intentional, not a missing RLS predicate';
 
 
 
@@ -3281,7 +3381,15 @@ CREATE POLICY "recipes_grays_oil_schmincke_norma_components_select" ON "public".
 
 
 
+COMMENT ON POLICY "recipes_grays_oil_schmincke_norma_components_select" ON "public"."recipes_grays_oil_schmincke_norma_components" IS 'global read-only reference data: every authenticated user may read all rows by design (no owner scoping). USING (true) is intentional, not a missing RLS predicate';
+
+
+
 CREATE POLICY "recipes_grays_oil_schmincke_norma_select" ON "public"."recipes_grays_oil_schmincke_norma" FOR SELECT TO "authenticated" USING (true);
+
+
+
+COMMENT ON POLICY "recipes_grays_oil_schmincke_norma_select" ON "public"."recipes_grays_oil_schmincke_norma" IS 'global read-only reference data: every authenticated user may read all rows by design (no owner scoping). USING (true) is intentional, not a missing RLS predicate';
 
 
 
