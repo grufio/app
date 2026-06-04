@@ -1831,6 +1831,10 @@ CREATE TABLE IF NOT EXISTS "public"."lab_munsell" (
 ALTER TABLE "public"."lab_munsell" OWNER TO "postgres";
 
 
+COMMENT ON TABLE "public"."lab_munsell" IS '512-chip tier palette (two-stage: deterministic Munsell set + frequency×spread order). palette_index = selection rank 0..511; tiers 128/256/512 are prefixes. Active tier gated app-side by PALETTE_TIER.';
+
+
+
 COMMENT ON COLUMN "public"."lab_munsell"."hue_pct" IS 'consumed by derive_iscc_nbs_name(); not read by app code';
 
 

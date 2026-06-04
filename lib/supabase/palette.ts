@@ -1,8 +1,9 @@
 /**
  * Trace palette accessor — reads the active Munsell palette from the DB.
  *
- * `color` → `lab_munsell` (128 colour chips); `bw` → `lab_grays` (48 grey
- * chips). Strictly separate palettes — no mixing. Chips carry the OKLab
+ * `color` → `lab_munsell` (512-chip tier palette, limited at runtime to the
+ * active tier — see `activeColorTier`); `bw` → `lab_grays` (48 grey chips).
+ * Strictly separate palettes — no mixing. Chips carry the OKLab
  * columns straight from color-lab, so a cell's OKLab (computed with the same
  * transform, `lib/color/oklab.ts` / `filter-service/app/oklab.py`) matches in
  * the same space.
@@ -17,6 +18,21 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "./database.types"
 
 export type TraceColorMode = "color" | "bw"
+
+/** Default active colour tier when `PALETTE_TIER` is unset/invalid. */
+const DEFAULT_COLOR_TIER = 128
+
+/**
+ * Active colour-palette tier: how many of the 512 `lab_munsell` chips the app
+ * uses, as a prefix of `palette_index` (= selection rank, so a prefix is always
+ * the best-N). Grow 128 → 256 → 512 by setting `PALETTE_TIER`; no DB change,
+ * because all 512 are already seeded. Applies to `color` only — `lab_grays`
+ * (bw, 48 chips) is not tiered.
+ */
+function activeColorTier(): number {
+  const raw = Number(process.env.PALETTE_TIER)
+  return Number.isInteger(raw) && raw > 0 ? raw : DEFAULT_COLOR_TIER
+}
 
 /** One palette chip: OKLab (for matching) + RGB (the emitted colour),
  *  plus the chip's Munsell notation and ISCC-NBS Level-3 name for
@@ -49,11 +65,14 @@ export async function readTracePalette(
   mode: TraceColorMode,
 ): Promise<PaletteChip[]> {
   const table = mode === "bw" ? "lab_grays" : "lab_munsell"
-  const { data, error } = await supabase
-    // lab_* tables are untyped in the generated schema (see file header).
+  // lab_* tables are untyped in the generated schema (see file header).
+  let query = supabase
     .from(table as never)
     .select("oklab_l,oklab_a,oklab_b,rgb_r,rgb_g,rgb_b,notation,iscc_nbs_name")
     .order("palette_index", { ascending: true })
+  // Colour palette is tiered: take only the active prefix of the 512 chips.
+  if (mode === "color") query = query.limit(activeColorTier())
+  const { data, error } = await query
   if (error) throw new Error(`Failed to read ${table} palette: ${error.message}`)
   const rows = (data ?? []) as unknown as PaletteRow[]
   if (rows.length === 0) throw new Error(`Palette ${table} is empty`)

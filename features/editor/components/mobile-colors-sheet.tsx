@@ -5,7 +5,7 @@
  *
  * First-class section (mobileSection === "colors") that lists the
  * palette chips the current trace actually references — not the full
- * 128-chip Munsell palette. Each chip renders as a `PaletteColorTile`
+ * Munsell palette (active tier of up to 512). Each chip renders as a `PaletteColorTile`
  * (solid color fill + legend number + ISCC-NBS name + Munsell
  * notation).
  *
