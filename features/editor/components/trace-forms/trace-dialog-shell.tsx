@@ -86,7 +86,11 @@ export function TraceDialogShell({
   onApply,
 }: Props) {
   const isMobile = useIsMobile()
-  const [editOpen, setEditOpen] = useState(false)
+  // Settings first: the mobile dialog opens on the params overlay; "Preview"
+  // (or the header X) collapses it to reveal the live preview, from which the
+  // apply icon commits. The preview is mounted underneath from the start, so
+  // the collapse is instant. (Desktop shows preview + form side by side.)
+  const [editOpen, setEditOpen] = useState(true)
 
   if (isMobile) {
     return (

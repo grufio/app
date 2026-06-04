@@ -72,7 +72,7 @@ describe("PixelateDialog (smoke)", () => {
     expect(apply).toBeTruthy()
   })
 
-  it("mobile: edit icon opens params; Preview returns to preview; apply icon fires the trace", async () => {
+  it("mobile: opens on params; Preview reveals preview; pencil re-opens; apply icon fires the trace", async () => {
     window.matchMedia = ((query: string) =>
       ({
         matches: true,
@@ -98,41 +98,44 @@ describe("PixelateDialog (smoke)", () => {
       />,
     )
 
-    // Outer fullscreen: preview + edit + apply icons, but the form is NOT
-    // mounted yet (the edit dialog is closed).
-    await waitFor(() => {
-      expect(document.body.querySelector('[data-testid="pixelate-preview-mini"]')).not.toBeNull()
-    })
-    const editIcon = document.body.querySelector(
-      'button[aria-label="Edit parameters"]',
-    ) as HTMLButtonElement | null
-    const applyIcon = document.body.querySelector(
-      'button[aria-label="Apply filter"]',
-    ) as HTMLButtonElement | null
-    expect(editIcon).toBeTruthy()
-    expect(applyIcon).toBeTruthy()
-    expect(document.body.querySelector("#supercell_width_mm")).toBeNull()
-
-    // Edit icon opens the params dialog with the form + Preview action.
-    fireEvent.click(editIcon!)
+    // Settings first: the dialog opens on the params overlay — the form is
+    // mounted, the preview is rendered underneath.
     await waitFor(() => {
       expect(document.body.querySelector("#supercell_width_mm")).not.toBeNull()
     })
+    expect(document.body.querySelector('[data-testid="pixelate-preview-mini"]')).not.toBeNull()
+
+    // "Preview" collapses the overlay to reveal the preview, WITHOUT firing the
+    // trace — apply is committed exclusively from the outer apply icon.
     const preview = Array.from(document.body.querySelectorAll("button")).find(
       (b) => b.textContent?.trim() === "Preview",
-    )
+    ) as HTMLButtonElement
     expect(preview).toBeTruthy()
-
-    // Preview returns to the outer preview WITHOUT firing the trace — the
-    // apply step is committed exclusively from the outer apply icon.
-    fireEvent.click(preview as HTMLButtonElement)
+    fireEvent.click(preview)
     await waitFor(() => {
       expect(document.body.querySelector("#supercell_width_mm")).toBeNull()
     })
     expect(onApplyTrace).not.toHaveBeenCalled()
 
-    // Outer apply icon is what actually fires the trace.
-    fireEvent.click(applyIcon!)
+    // The pencil re-opens the params from the preview.
+    const editIcon = document.body.querySelector(
+      'button[aria-label="Edit parameters"]',
+    ) as HTMLButtonElement
+    fireEvent.click(editIcon)
+    await waitFor(() => {
+      expect(document.body.querySelector("#supercell_width_mm")).not.toBeNull()
+    })
+
+    // Collapse again, then the outer apply icon fires the trace.
+    fireEvent.click(
+      Array.from(document.body.querySelectorAll("button")).find(
+        (b) => b.textContent?.trim() === "Preview",
+      ) as HTMLButtonElement,
+    )
+    const applyIcon = document.body.querySelector(
+      'button[aria-label="Apply filter"]',
+    ) as HTMLButtonElement
+    fireEvent.click(applyIcon)
     await waitFor(() => {
       expect(onApplyTrace).toHaveBeenCalledWith(expect.objectContaining({ kind: "pixelate" }))
     })
@@ -168,13 +171,7 @@ describe("PixelateDialog (smoke)", () => {
       />,
     )
 
-    await waitFor(() => {
-      expect(document.body.querySelector('[data-testid="pixelate-preview-mini"]')).not.toBeNull()
-    })
-    const editIcon = document.body.querySelector(
-      'button[aria-label="Edit parameters"]',
-    ) as HTMLButtonElement
-    fireEvent.click(editIcon)
+    // Settings first → the form is mounted on open; no pencil click needed.
     const input = await waitFor(() => {
       const el = document.body.querySelector("#supercell_width_mm") as HTMLInputElement | null
       if (!el) throw new Error("input not mounted")
@@ -245,13 +242,7 @@ describe("PixelateDialog (smoke)", () => {
       />,
     )
 
-    await waitFor(() => {
-      expect(document.body.querySelector('[data-testid="pixelate-preview-mini"]')).not.toBeNull()
-    })
-    const editIcon = document.body.querySelector(
-      'button[aria-label="Edit parameters"]',
-    ) as HTMLButtonElement
-    fireEvent.click(editIcon)
+    // Settings first → form mounted on open.
     await waitFor(() => {
       expect(document.body.querySelector("#supercell_width_mm")).not.toBeNull()
     })
