@@ -103,7 +103,7 @@ export function GenericFilterForm<TSchema extends z.ZodType, TCtx = FilterRender
                     onCheckedChange={(c) => setField(name, c === true)}
                     disabled={busy}
                   />
-                  <Label htmlFor={name} className="cursor-pointer font-normal">
+                  <Label htmlFor={name} className="cursor-pointer text-panel font-normal">
                     {hint.label}
                   </Label>
                 </div>
