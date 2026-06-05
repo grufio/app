@@ -21,11 +21,11 @@ export type ProjectTrace = {
    * the trace cell grid. Null for trace kinds that cover the full
    * source (lineart). */
   base_image_id: string | null
-  /** Unique palette chip indices (lab_munsell.palette_index or
-   * lab_grays.palette_index, depending on the trace's color mode)
-   * that the filter-service snap step actually emitted. Sorted
-   * ascending. Null for legacy traces pre-migration and for lineart
-   * (no palette). */
+  /** Unique palette chip indices the filter-service snap step emitted —
+   * positions in the `readTracePalette(mode)` array sent to the service
+   * (colour = munsell tier ++ lab_grays appended; bw = lab_grays), NOT the DB
+   * `palette_index` column. Sorted ascending. Null for legacy traces
+   * pre-migration and for lineart (no palette). */
   palette_indices_used: number[] | null
   /** The trace's own frozen display rect (µpx, text-encoded). The
    * master/working_copy display rect that was authoritative when the
