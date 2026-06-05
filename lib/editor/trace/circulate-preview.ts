@@ -13,7 +13,6 @@
  * that layer later), then the ellipses on top. Caller (React) owns
  * `target.width`/`target.height` (= crop pixels), like the pixelate preview.
  */
-import { computeCellLabels, paintCellLabels } from "./cell-labels"
 import { applyNeighborInvasion } from "./cell-texture"
 import type { OklabAdjustment } from "./inner-color-filters"
 import { reduceToTopN } from "./palette-reduction"
@@ -168,18 +167,8 @@ export function buildCirculateMiniCanvas(args: {
     }
   }
 
-  // Paint-by-numbers labels on top of the frames. Same per-image
-  // sorted-unique mapping as the server's `<g id="numbers">`; skipped
-  // silently if the palette hasn't loaded.
-  const labelled = computeCellLabels({ cells: outer, cellsX, cellsY, palette })
-  if (labelled) {
-    paintCellLabels({
-      ctx,
-      labels: labelled.labels,
-      cellsX,
-      cellsY,
-      pxPerCellX: cellW,
-      pxPerCellY: cellH,
-    })
-  }
+  // No paint-by-numbers labels in the preview — the preview's purpose
+  // is a quick visual reference for the eventual Apply result, not a
+  // paint-by-numbers key. The Apply path still emits the
+  // `<g id="numbers">` group in the saved SVG.
 }

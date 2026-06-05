@@ -48,6 +48,15 @@ Anything below overrides "common practice" for this repo:
 
 1. **Branch + PR Pflicht.** Never push directly to `main`. Every change:
    `git checkout -b <branch>` → push → `gh pr create` → user reviews + merges.
+   - **PRs werden in der Regel sofort gemerged** nach Review (oft binnen
+     Minuten). Vor JEDEM follow-up commit: `git fetch origin main &&
+     git log --oneline origin/main -5` checken. Wenn der vorige
+     PR-Commit auf `main` ist (= PR gemerged), **niemals auf die alte
+     Branch nachpushen** — der Push landet im Nirvana. Stattdessen:
+     fresh `git checkout main && git pull && git checkout -b <new-branch>`,
+     Änderung re-applizieren, neuer PR. Branches werden via
+     `delete_branch_on_merge=true` remote-seitig sofort gelöscht; das
+     Verhalten des Push (Branch wird neu angelegt) maskiert den Fehler.
 2. **No unsolicited features.** Refactor + consistency work is OK.
    New UI surfaces or API endpoints require explicit user ack — even if
    they appear "in the plan".
