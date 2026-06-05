@@ -1,9 +1,9 @@
 /**
  * Trace palette accessor — reads the active Munsell palette from the DB.
  *
- * `color` → `lab_munsell` (512-chip tier palette, limited at runtime to the
- * active tier — see `activeColorTier`); `bw` → `lab_grays` (48 grey chips).
- * Strictly separate palettes — no mixing. Chips carry the OKLab
+ * `color` → the active tier of `lab_munsell` (see `activeColorTier`) PLUS the
+ * 48 `lab_grays` chips appended, so near-neutral cells snap to a real gray;
+ * `bw` → `lab_grays` only. Chips carry the OKLab
  * columns straight from color-lab, so a cell's OKLab (computed with the same
  * transform, `lib/color/oklab.ts` / `filter-service/app/oklab.py`) matches in
  * the same space.
@@ -57,30 +57,63 @@ type PaletteRow = {
   iscc_nbs_name: string | null
 }
 
+type PaletteTable = "lab_munsell" | "lab_grays"
+
 /**
- * Read the active palette, ordered by `palette_index`. Throws on a DB error
- * or an empty palette (a trace can't render without chips).
+ * Read one palette table → chips, ordered by `palette_index`. `limit` caps the
+ * row count (the colour tier). Throws on a DB error; an empty result is the
+ * caller's decision to handle.
  */
-export async function readTracePalette(
+async function readPaletteRows(
   supabase: SupabaseClient<Database>,
-  mode: TraceColorMode,
+  table: PaletteTable,
+  limit?: number,
 ): Promise<PaletteChip[]> {
-  const table = mode === "bw" ? "lab_grays" : "lab_munsell"
   // lab_* tables are untyped in the generated schema (see file header).
   let query = supabase
     .from(table as never)
     .select("oklab_l,oklab_a,oklab_b,rgb_r,rgb_g,rgb_b,notation,iscc_nbs_name")
     .order("palette_index", { ascending: true })
-  // Colour palette is tiered: take only the active prefix of the 512 chips.
-  if (mode === "color") query = query.limit(activeColorTier())
+  if (limit != null) query = query.limit(limit)
   const { data, error } = await query
   if (error) throw new Error(`Failed to read ${table} palette: ${error.message}`)
-  const rows = (data ?? []) as unknown as PaletteRow[]
-  if (rows.length === 0) throw new Error(`Palette ${table} is empty`)
-  return rows.map((r) => ({
+  return ((data ?? []) as unknown as PaletteRow[]).map((r) => ({
     oklab: [r.oklab_l, r.oklab_a, r.oklab_b],
     rgb: [r.rgb_r, r.rgb_g, r.rgb_b],
     notation: r.notation,
     iscc_nbs_name: r.iscc_nbs_name,
   }))
+}
+
+/**
+ * Read the active palette.
+ *
+ * `bw` → `lab_grays` (48). `color` → the active tier of `lab_munsell` PLUS the
+ * full 48-step `lab_grays` ramp, appended at the end. Near-neutral cells then
+ * snap to a real gray instead of the few muted low-chroma chips the chromatic
+ * palette offers (it has ~1 chip below OKLab-chroma 0.02) — this is what fixes
+ * the heavy banding on neutral images. Grays are appended LAST so existing
+ * munsell array positions (= stored `palette_indices_used`) stay valid;
+ * everything downstream keys off the array position, not the DB `palette_index`.
+ *
+ * Throws on a DB error or an empty required palette (`lab_munsell` for colour,
+ * `lab_grays` for bw). An empty or failed `lab_grays` read in COLOUR mode is
+ * non-fatal — it falls back to munsell-only so a grays issue can't break colour
+ * traces.
+ */
+export async function readTracePalette(
+  supabase: SupabaseClient<Database>,
+  mode: TraceColorMode,
+): Promise<PaletteChip[]> {
+  if (mode === "bw") {
+    const grays = await readPaletteRows(supabase, "lab_grays")
+    if (grays.length === 0) throw new Error("Palette lab_grays is empty")
+    return grays
+  }
+  const [munsell, grays] = await Promise.all([
+    readPaletteRows(supabase, "lab_munsell", activeColorTier()),
+    readPaletteRows(supabase, "lab_grays").catch(() => [] as PaletteChip[]),
+  ])
+  if (munsell.length === 0) throw new Error("Palette lab_munsell is empty")
+  return [...munsell, ...grays]
 }

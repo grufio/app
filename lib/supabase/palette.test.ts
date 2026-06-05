@@ -28,8 +28,28 @@ describe("readTracePalette", () => {
     ])
   })
 
-  it("color reads lab_munsell and maps rows to chips", async () => {
-    const supabase = makeMockSupabase({ tables: { lab_munsell: { select: { data: [munsellRow] } } } })
+  it("color reads lab_munsell and appends lab_grays (union, grays last)", async () => {
+    const supabase = makeMockSupabase({
+      tables: {
+        lab_munsell: { select: { data: [munsellRow] } },
+        lab_grays: { select: { data: [grayRow] } },
+      },
+    })
+    await expect(readTracePalette(supabase, "color")).resolves.toEqual([
+      { oklab: [0.5, 0.1, -0.1], rgb: [128, 64, 64] },
+      { oklab: [0.3, 0, 0], rgb: [77, 77, 77] },
+    ])
+  })
+
+  // Grays must never break colour mode: an empty lab_grays falls back to
+  // munsell-only (no throw), unlike bw where empty grays is fatal.
+  it("color falls back to munsell-only when lab_grays is empty", async () => {
+    const supabase = makeMockSupabase({
+      tables: {
+        lab_munsell: { select: { data: [munsellRow] } },
+        lab_grays: { select: { data: [] } },
+      },
+    })
     await expect(readTracePalette(supabase, "color")).resolves.toEqual([
       { oklab: [0.5, 0.1, -0.1], rgb: [128, 64, 64] },
     ])
@@ -43,7 +63,12 @@ describe("readTracePalette", () => {
   })
 
   it("throws when lab_munsell is empty", async () => {
-    const supabase = makeMockSupabase({ tables: { lab_munsell: { select: { data: [] } } } })
+    const supabase = makeMockSupabase({
+      tables: {
+        lab_munsell: { select: { data: [] } },
+        lab_grays: { select: { data: [grayRow] } },
+      },
+    })
     await expect(readTracePalette(supabase, "color")).rejects.toThrow("Palette lab_munsell is empty")
   })
 

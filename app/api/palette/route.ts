@@ -1,10 +1,11 @@
 /**
  * API route: read the trace Munsell palettes.
  *
- * Returns both fixed palettes (`color` = lab_munsell 128, `bw` = lab_grays
- * 48) so the client live-preview can snap cells to the same chips the server
- * uses. Global + static (append-only), auth-gated; the heavy lifting is the
- * shared `readTracePalette` accessor. The client caches the response.
+ * Returns both palettes (`color` = active tier of lab_munsell + the 48
+ * lab_grays chips appended; `bw` = lab_grays) so the client live-preview snaps
+ * cells to the same chips — in the same array order — as the server. Auth-gated;
+ * the heavy lifting is the shared `readTracePalette` accessor. The client
+ * caches the response.
  */
 import { NextResponse } from "next/server"
 
