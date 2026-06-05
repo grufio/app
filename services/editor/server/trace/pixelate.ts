@@ -83,7 +83,11 @@ export async function pixelateImageAndActivate(args: {
       reason: `Invalid pixelate params: ${issues || "unknown"}`,
     }
   }
-  const { color_mode: colorMode, num_colors: numColors } = parsed.data
+  const {
+    color_mode: colorMode,
+    num_colors: numColors,
+    pre_snap_chroma_scale: preSnapChromaScale,
+  } = parsed.data
 
   const sourceResult = await fetchTraceSourceImage({ supabase, projectId, sourceImageId })
   profiler.mark("source_lookup")
@@ -159,6 +163,9 @@ export async function pixelateImageAndActivate(args: {
         // Cap on distinct chip count in the rendered output. Drives
         // the filter-service's post-snap top-N reduction.
         num_colors: numColors,
+        // Pre-snap chroma boost in OKLCh. Default 1.2 (server-side
+        // default if missing).
+        pre_snap_chroma_scale: preSnapChromaScale,
         texture_enabled: parsed.data.texture_enabled,
         texture_strength: parsed.data.texture_strength,
       },

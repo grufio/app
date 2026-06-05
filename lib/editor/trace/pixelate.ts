@@ -2,6 +2,7 @@ import { z } from "zod"
 
 import type { TraceDefinition } from "./types"
 import { numColorsSchema } from "./num-colors-schema"
+import { preSnapChromaScaleSchema } from "./chroma-scale-schema"
 import { DEFAULT_SUPERCELL_MM, MIN_SUPERCELL_MM } from "./pixelate-grid-math"
 
 export const pixelateSchema = z.object({
@@ -12,13 +13,19 @@ export const pixelateSchema = z.object({
   // cropped at trace time.
   supercell_width_mm: z.coerce.number().min(MIN_SUPERCELL_MM).default(DEFAULT_SUPERCELL_MM),
   supercell_height_mm: z.coerce.number().min(MIN_SUPERCELL_MM).default(DEFAULT_SUPERCELL_MM),
-  // Palette mode: `color` → the 128-chip Munsell palette (`lab_munsell`);
-  // `bw` → the 48 greys (`lab_grays`). Strictly separate, no mixing. Drives
-  // which DB palette the server snaps cells to (the OKLab nearest-match).
+  // Palette mode: `color` → the active tier of `lab_munsell` (256 chips
+  // post-#396) plus the 48 `lab_grays` appended (#399). `bw` → `lab_grays`
+  // only. Drives which DB palette the server snaps cells to (the OKLab
+  // nearest-match).
   color_mode: z.enum(["color", "bw"]).default("color"),
   // Maximum number of distinct palette chips in the rendered output.
   // Shared with circulate via `num-colors-schema.ts`.
   num_colors: numColorsSchema,
+  // Pre-snap chroma boost factor in OKLCh. Default 1.2 lifts dull-
+  // averaged cells into more saturated palette regions so the picked
+  // chip-set spans more of the palette. Shared via
+  // `chroma-scale-schema.ts`.
+  pre_snap_chroma_scale: preSnapChromaScaleSchema,
   // Blue-noise neighbour-invasion texture. `texture_enabled` is the form's
   // checkbox state; `texture_strength` is the chosen Select level (25/50/75/
   // 100% expressed as a 0..1 fraction) and is preserved when the checkbox

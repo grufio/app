@@ -99,6 +99,8 @@ export function CirculatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, p
       contourPx,
       innerAdjustment: resolveInnerFilter(params.inner_filter),
       palette: palette ?? [],
+      preSnapChromaScale: params.pre_snap_chroma_scale,
+      numColors: params.num_colors,
       textureEnabled: params.texture_enabled,
       textureStrength: params.texture_strength,
       textureLut: blueNoiseLut,

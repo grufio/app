@@ -256,6 +256,13 @@ class PixelateRequest(BaseModel):
     cells_y: int
     # Drives the post-snap top-N reduction (see `pixelate_cells_to_svg`).
     num_colors: int = 16
+    # Pre-snap OKLCh chroma multiplier (see
+    # `lib/editor/trace/chroma-scale-schema.ts`). Default `1.0` keeps
+    # behaviour byte-identical to the pre-feature pipeline; the Vercel
+    # default is `1.2` (gemerged with this feature) so callers explicitly
+    # opt out by sending `1.0`. Older Vercel revisions that omit the field
+    # silently fall back to no-op via Pydantic default.
+    pre_snap_chroma_scale: float = 1.0
     # Active palette (Munsell colour `lab_munsell` or b/w `lab_grays`),
     # passed by the Node server from the DB. `palette_oklab[i]` = [L, a, b]
     # (the DB oklab columns), `palette_rgb[i]` = [r, g, b] (0..255), same
@@ -308,6 +315,7 @@ async def pixelate_filter(request: PixelateRequest):
             palette_oklab=request.palette_oklab,
             palette_rgb=request.palette_rgb,
             num_colors=request.num_colors,
+            pre_snap_chroma_scale=request.pre_snap_chroma_scale,
             texture_enabled=request.texture_enabled,
             texture_strength=request.texture_strength,
             on_phase=timer.mark,
@@ -366,6 +374,10 @@ class CirculateRequest(BaseModel):
     # Cap on distinct chip count in the rendered output — same contract as
     # PixelateRequest. Drives the post-snap top-N reduction.
     num_colors: int = 16
+    # Pre-snap OKLCh chroma multiplier — same contract as PixelateRequest.
+    # Default `1.0` keeps behaviour byte-identical to the pre-feature
+    # pipeline; the Vercel default is `1.2`.
+    pre_snap_chroma_scale: float = 1.0
     # Blue-noise neighbour-invasion texture — same contract as PixelateRequest.
     # Applied to the OUTER ellipses only; the inner ellipse keeps its derived
     # sub-colour. No-op when disabled or strength is zero.
@@ -424,6 +436,7 @@ async def circulate_filter(request: CirculateRequest):
             palette_oklab=request.palette_oklab,
             palette_rgb=request.palette_rgb,
             num_colors=request.num_colors,
+            pre_snap_chroma_scale=request.pre_snap_chroma_scale,
             texture_enabled=request.texture_enabled,
             texture_strength=request.texture_strength,
             on_phase=timer.mark,

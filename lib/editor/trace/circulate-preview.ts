@@ -16,6 +16,7 @@
 import { computeCellLabels, paintCellLabels } from "./cell-labels"
 import { applyNeighborInvasion } from "./cell-texture"
 import type { OklabAdjustment } from "./inner-color-filters"
+import { reduceToTopN } from "./palette-reduction"
 import { cellAreaAverages, mapCellsToPalette, mapCellsToPaletteAdjusted, type PaletteChip } from "./trace-cell-colors"
 
 export function buildCirculateMiniCanvas(args: {
@@ -36,6 +37,14 @@ export function buildCirculateMiniCanvas(args: {
   innerAdjustment: OklabAdjustment
   /** Munsell palette to snap cells to; empty while it loads → raw means. */
   palette: ReadonlyArray<PaletteChip>
+  /** Pre-snap OKLCh chroma multiplier (mirrors server `pre_snap_chroma_scale`).
+   * Applies to the OUTER ellipses only — inner keeps its derived sub-colour
+   * math. Default `1.0` = no boost. */
+  preSnapChromaScale?: number
+  /** Cap on distinct chip count in the rendered preview (mirrors server's
+   * `num_colors` top-N reduction). Applied to outer ellipses post-snap +
+   * post-texture so preview matches the Python apply. */
+  numColors?: number | null
   /** Blue-noise texture on the outer ellipses (mirror of `circulate.py`).
    * Inner ellipses keep their derived sub-colour either way. Skipped when
    * disabled, strength 0, LUT still loading, or no palette. */
@@ -57,6 +66,8 @@ export function buildCirculateMiniCanvas(args: {
     contourPx,
     innerAdjustment,
     palette,
+    preSnapChromaScale,
+    numColors,
     textureEnabled,
     textureStrength,
     textureLut,
@@ -78,9 +89,10 @@ export function buildCirculateMiniCanvas(args: {
   const cropData = wctx.getImageData(0, 0, cropW, cropH).data
 
   // (2) Per-cell area-average, then palette snap (outer) + hue-shifted snap
-  // (inner) — mirrors the server.
+  // (inner) — mirrors the server. `preSnapChromaScale` applies to OUTER only;
+  // inner keeps its sub-colour-filter math (`mapCellsToPaletteAdjusted`).
   const means = cellAreaAverages({ rgba: cropData, width: cropW, height: cropH, cellsX, cellsY })
-  let outer = mapCellsToPalette(means, palette)
+  let outer = mapCellsToPalette(means, palette, preSnapChromaScale ?? 1.0)
   // (2b) Blue-noise texture on the OUTER cells only (matches `circulate.py`).
   // Inner ellipses are computed from the original means below, so they keep
   // the sub-colour-filter relationship to the underlying cell.
@@ -93,6 +105,11 @@ export function buildCirculateMiniCanvas(args: {
       strength: textureStrength,
       blueNoiseLut: textureLut,
     })
+  }
+  // (2c) Top-N reduction on the OUTER ellipses — mirrors `reduce_to_top_n` in
+  // the Python pipeline. Inner ellipses are not capped (decorative).
+  if (palette.length > 0 && numColors != null && numColors > 0) {
+    outer = reduceToTopN(outer, palette, numColors).cells
   }
   const inner = innerEnabled ? mapCellsToPaletteAdjusted(means, palette, innerAdjustment) : null
 
