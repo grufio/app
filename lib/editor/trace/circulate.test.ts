@@ -16,7 +16,7 @@ const DEFAULTS = {
   inner_filter: "darker",
   color_mode: "color",
   num_colors: 16,
-  pre_snap_chroma_scale: 1.2,
+  pre_snap_chroma_scale: 1.0,
   // Texture defaults: off + mid-strength preserved. Server treats this as a
   // no-op (the `texture_enabled` gate is false), so old persisted rows that
   // never carried these fields parse identically to a fresh form.
@@ -91,7 +91,7 @@ describe("circulateSchema", () => {
   })
 
   it("accepts and clamps pre_snap_chroma_scale to [1.0, 1.5]", () => {
-    expect(circulateSchema.parse({})).toMatchObject({ pre_snap_chroma_scale: 1.2 })
+    expect(circulateSchema.parse({})).toMatchObject({ pre_snap_chroma_scale: 1.0 })
     expect(circulateSchema.safeParse({ pre_snap_chroma_scale: 0.9 }).success).toBe(false)
     expect(circulateSchema.safeParse({ pre_snap_chroma_scale: 1.51 }).success).toBe(false)
   })

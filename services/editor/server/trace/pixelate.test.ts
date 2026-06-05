@@ -11,7 +11,7 @@ const validParams: PixelateParams = {
   supercell_height_mm: 6,
   color_mode: "color",
   num_colors: 16,
-  pre_snap_chroma_scale: 1.2,
+  pre_snap_chroma_scale: 1.0,
   texture_enabled: false,
   texture_strength: 0.5,
 }

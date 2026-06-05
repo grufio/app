@@ -111,10 +111,8 @@ export function PixelateForm({ params, onParamsChange, disabled, grid }: Props) 
         <TraceColorsFields
           colorMode={params.color_mode}
           numColors={params.num_colors}
-          preSnapChromaScale={params.pre_snap_chroma_scale}
           onColorModeChange={(v) => onParamsChange("color_mode", v)}
           onNumColorsChange={(v) => onParamsChange("num_colors", v)}
-          onPreSnapChromaScaleChange={(v) => onParamsChange("pre_snap_chroma_scale", v)}
           disabled={disabled}
         />
       </EditorSidebarSection>
