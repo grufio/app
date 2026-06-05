@@ -26,7 +26,6 @@
  * Caller (React) owns `target.width` / `target.height` via JSX props
  * set to `crop.w` / `crop.h`.
  */
-import { computeCellLabels, paintCellLabels } from "./cell-labels"
 import { applyNeighborInvasion } from "./cell-texture"
 import { reduceToTopN } from "./palette-reduction"
 import { cellAreaAverages, mapCellsToPalette, type PaletteChip } from "./trace-cell-colors"
@@ -153,19 +152,8 @@ export function buildMiniCanvas(args: {
     }
   }
 
-  // (6) Paint-by-numbers labels. `computeCellLabels` mirrors the
-  // server's per-image sorted-unique mapping; it returns null when
-  // no palette is loaded yet, which silently skips the labels (same
-  // contract as the server emitting no `<g id="numbers">`).
-  const labelled = computeCellLabels({ cells, cellsX, cellsY, palette })
-  if (labelled) {
-    paintCellLabels({
-      ctx,
-      labels: labelled.labels,
-      cellsX,
-      cellsY,
-      pxPerCellX: cellW,
-      pxPerCellY: cellH,
-    })
-  }
+  // No paint-by-numbers labels in the preview — the preview's purpose
+  // is a quick visual reference for "what will this look like after
+  // apply", not a paint-by-numbers key. The Apply path still emits the
+  // `<g id="numbers">` group in the saved SVG.
 }
