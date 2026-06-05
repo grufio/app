@@ -3,29 +3,27 @@ import { z } from "zod"
 /**
  * Shared `pre_snap_chroma_scale` schema used by both pixelate +
  * circulate traces. Multiplies the chroma component of each cell's
- * OKLab mean **before** the nearest-palette-chip snap, pushing dull-
- * averaged cells toward more saturated chips so the picked chip-set
- * spans more of the palette instead of clustering in the low-chroma
- * (gray ramp) region.
+ * OKLab mean **before** the nearest-palette-chip snap.
  *
- * Range `[1.0, 1.5]`:
- *   - `1.0` = no boost = pre-feature behaviour (opt-out for users who
- *     want the unmodified snap).
- *   - `1.2` = default = visible saturation lift for existing users.
- *     Olive-mean (~chroma 0.085) becomes (~0.102) and snaps to the
- *     nearest saturated chip instead of a gray-ramp neighbour.
- *   - `1.5` = strong boost. May push toward out-of-gamut OKLab
- *     positions for already-vivid inputs, but the snap still lands
- *     on an in-gamut chip.
+ * Range `[1.0, 1.5]`, default `1.0` (no-op = byte-identical to
+ * pre-feature pipeline). Form-UI exposes no selector anymore; the
+ * field stays on the schema for backward compatibility with
+ * persisted trace rows that carry an explicit value (`1.2` from
+ * #400's misguided default), so re-applying them still parses.
  *
- * Below `1.0` (desaturate) is out of scope — gegenteilig zur User-
- * Intention. Above `1.5` is unbounded out-of-gamut territory.
+ * Background: #400 shipped this as a `1.2` default with a
+ * three-stop "Color saturation" selector. Investigation against
+ * the user's actual source data showed the boost was suboptimal
+ * for typical warm-beige photo content (it pushed already-warm
+ * cell-means further away from the gray ramp). Rather than tune
+ * the threshold, the trace pipeline is being reworked end-to-end
+ * with established quantization + dithering techniques (see
+ * planning doc — PAM palette restriction, Knoll-Yliluoma dithering,
+ * Floyd-Steinberg as alternative, CIEDE2000 distance metric). This
+ * boost-knob is part of the cleanup that lands ahead of those.
  *
- * Mechanism: `filter-service/app/oklab.py::adjust_oklab(chroma_scale=k)`
- * (Python) and `lib/color/oklab.ts::adjustOklab` (TS preview). Both
- * apply OKLCh chroma multiplication, keep L and hue untouched.
- *
- * Single source of truth — `min` / `max` / `default` flow to the
- * form via `extractNumberInputProps` + `parseFormNumber`.
+ * Mechanism still wired: `filter-service/app/oklab.py::adjust_oklab`
+ * + TS mirror `lib/color/oklab.ts::adjustOklab` apply the OKLCh
+ * chroma multiplication when the field is non-1.0.
  */
-export const preSnapChromaScaleSchema = z.coerce.number().min(1.0).max(1.5).default(1.2)
+export const preSnapChromaScaleSchema = z.coerce.number().min(1.0).max(1.5).default(1.0)
