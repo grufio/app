@@ -16,6 +16,7 @@ const DEFAULTS = {
   inner_filter: "darker",
   color_mode: "color",
   num_colors: 16,
+  pre_snap_chroma_scale: 1.2,
   // Texture defaults: off + mid-strength preserved. Server treats this as a
   // no-op (the `texture_enabled` gate is false), so old persisted rows that
   // never carried these fields parse identically to a fresh form.
@@ -82,7 +83,17 @@ describe("circulateSchema", () => {
   it("rejects unknown color_mode / out-of-range num_colors values", () => {
     expect(circulateSchema.safeParse({ color_mode: "grayscale" }).success).toBe(false)
     expect(circulateSchema.safeParse({ num_colors: 1 }).success).toBe(false)
-    expect(circulateSchema.safeParse({ num_colors: 33 }).success).toBe(false)
+    expect(circulateSchema.safeParse({ num_colors: 129 }).success).toBe(false)
+  })
+
+  it("accepts num_colors up to the raised cap of 128", () => {
+    expect(circulateSchema.parse({ num_colors: 128 })).toMatchObject({ num_colors: 128 })
+  })
+
+  it("accepts and clamps pre_snap_chroma_scale to [1.0, 1.5]", () => {
+    expect(circulateSchema.parse({})).toMatchObject({ pre_snap_chroma_scale: 1.2 })
+    expect(circulateSchema.safeParse({ pre_snap_chroma_scale: 0.9 }).success).toBe(false)
+    expect(circulateSchema.safeParse({ pre_snap_chroma_scale: 1.51 }).success).toBe(false)
   })
 
   it("coerces numeric strings (form inputs arrive as text)", () => {

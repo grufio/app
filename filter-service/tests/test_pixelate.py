@@ -132,3 +132,58 @@ def test_num_colors_noop_when_snap_already_below_cap():
         num_colors=16,
     )
     assert len(used) == 1  # only one chip survived the snap
+
+
+def test_pre_snap_chroma_scale_pushes_dull_cells_to_saturated_chip():
+    """With a 2-chip palette (one gray, one saturated green), an olive-mean
+    cell snaps to gray under `chroma_scale=1.0` (current pre-feature default)
+    but flips to green under `chroma_scale=1.5`. Verifies the
+    `adjust_oklab(chroma_scale=k)` pre-snap math actually changes the
+    nearest-chip argmin in the expected direction.
+    """
+    from app.oklab import rgb255_to_oklab
+
+    chips_rgb = [[128, 128, 128], [50, 150, 50]]  # gray + saturated green
+    chips_oklab = rgb255_to_oklab(np.array(chips_rgb)).tolist()
+    olive_cell = np.array([[[100, 100, 50]]], dtype=np.uint8)
+
+    # No-op chroma scale → snap to gray.
+    _svg, _region, used_natural = pixelate_cells_to_svg(
+        cell_means=olive_cell, cropped_w_px=10, cropped_h_px=10,
+        palette_oklab=chips_oklab, palette_rgb=chips_rgb,
+        pre_snap_chroma_scale=1.0,
+    )
+    assert used_natural == [0], f"chroma_scale=1.0 should snap olive to gray (idx 0), got {used_natural}"
+
+    # Strong chroma boost → snap to saturated green.
+    _svg, _region, used_boost = pixelate_cells_to_svg(
+        cell_means=olive_cell, cropped_w_px=10, cropped_h_px=10,
+        palette_oklab=chips_oklab, palette_rgb=chips_rgb,
+        pre_snap_chroma_scale=1.5,
+    )
+    assert used_boost == [1], f"chroma_scale=1.5 should snap olive to green (idx 1), got {used_boost}"
+
+
+def test_pre_snap_chroma_scale_1_0_is_byte_identical_to_pre_feature():
+    """With the default `pre_snap_chroma_scale=1.0` the snap output must
+    match the pre-feature pipeline exactly — same chip indices, same
+    fill strings. This guarantees existing test cases stay valid and
+    legacy callers that omit the field render unchanged.
+    """
+    from app.oklab import rgb255_to_oklab
+
+    chips_rgb = [[0, 0, 0], [255, 255, 255]]
+    chips_oklab = rgb255_to_oklab(np.array(chips_rgb)).tolist()
+    cells = np.full((4, 4, 3), 130, dtype=np.uint8)
+
+    svg_default, _r, used_default = pixelate_cells_to_svg(
+        cell_means=cells, cropped_w_px=40, cropped_h_px=40,
+        palette_oklab=chips_oklab, palette_rgb=chips_rgb,
+    )
+    svg_explicit, _r, used_explicit = pixelate_cells_to_svg(
+        cell_means=cells, cropped_w_px=40, cropped_h_px=40,
+        palette_oklab=chips_oklab, palette_rgb=chips_rgb,
+        pre_snap_chroma_scale=1.0,
+    )
+    assert svg_default == svg_explicit
+    assert used_default == used_explicit

@@ -86,22 +86,36 @@ export type PaletteChip = {
   iscc_nbs_name: string | null
 }
 
-type CellColors = { r: Uint8ClampedArray; g: Uint8ClampedArray; b: Uint8ClampedArray }
+export type CellColors = { r: Uint8ClampedArray; g: Uint8ClampedArray; b: Uint8ClampedArray }
 
 /**
  * Snap each per-cell mean to the nearest palette chip (OKLab nearest),
  * mirroring the server's `map_cells_to_palette`. Returns new channel arrays;
  * an empty palette returns the input unchanged (raw means).
+ *
+ * `preSnapChromaScale` (default `1.0` = no-op) multiplies each cell mean's
+ * OKLCh chroma BEFORE the nearest-chip argmin. Mirrors the Python
+ * `map_cells_to_palette(..., pre_snap_chroma_scale=k)` and uses the same
+ * `adjustOklab` math (parity-tested in `lib/color/oklab.test.ts`).
  */
-export function mapCellsToPalette(cells: CellColors, palette: ReadonlyArray<PaletteChip>): CellColors {
+export function mapCellsToPalette(
+  cells: CellColors,
+  palette: ReadonlyArray<PaletteChip>,
+  preSnapChromaScale: number = 1.0,
+): CellColors {
   if (palette.length === 0) return cells
   const paletteOklab = palette.map((c) => c.oklab)
   const n = cells.r.length
   const r = new Uint8ClampedArray(n)
   const g = new Uint8ClampedArray(n)
   const b = new Uint8ClampedArray(n)
+  const boost = preSnapChromaScale !== 1.0
   for (let i = 0; i < n; i += 1) {
-    const idx = nearestPaletteIndex(rgb255ToOklab(cells.r[i], cells.g[i], cells.b[i]), paletteOklab)
+    let oklab = rgb255ToOklab(cells.r[i], cells.g[i], cells.b[i])
+    if (boost) {
+      oklab = adjustOklab(oklab, { hueDeg: 0, lightnessDelta: 0, chromaScale: preSnapChromaScale })
+    }
+    const idx = nearestPaletteIndex(oklab, paletteOklab)
     const chip = palette[idx].rgb
     r[i] = chip[0]
     g[i] = chip[1]

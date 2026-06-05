@@ -106,6 +106,7 @@ describe("pixelateSchema", () => {
     supercell_height_mm: 6,
     color_mode: "color",
     num_colors: 16,
+    pre_snap_chroma_scale: 1.2,
     texture_enabled: false,
     texture_strength: 0.5,
   } as const
@@ -141,7 +142,24 @@ describe("pixelateSchema", () => {
   it("rejects unknown color_mode / out-of-range num_colors values", () => {
     expect(pixelateSchema.safeParse({ color_mode: "grayscale" }).success).toBe(false)
     expect(pixelateSchema.safeParse({ num_colors: 1 }).success).toBe(false)
-    expect(pixelateSchema.safeParse({ num_colors: 33 }).success).toBe(false)
+    expect(pixelateSchema.safeParse({ num_colors: 129 }).success).toBe(false)
+  })
+
+  it("accepts num_colors up to the raised cap of 128", () => {
+    expect(pixelateSchema.parse({ num_colors: 128 })).toMatchObject({ num_colors: 128 })
+    expect(pixelateSchema.parse({ num_colors: 64 })).toMatchObject({ num_colors: 64 })
+  })
+
+  it("accepts and clamps pre_snap_chroma_scale to [1.0, 1.5]", () => {
+    expect(pixelateSchema.parse({})).toMatchObject({ pre_snap_chroma_scale: 1.2 })
+    expect(pixelateSchema.parse({ pre_snap_chroma_scale: 1.0 })).toMatchObject({
+      pre_snap_chroma_scale: 1.0,
+    })
+    expect(pixelateSchema.parse({ pre_snap_chroma_scale: 1.5 })).toMatchObject({
+      pre_snap_chroma_scale: 1.5,
+    })
+    expect(pixelateSchema.safeParse({ pre_snap_chroma_scale: 0.9 }).success).toBe(false)
+    expect(pixelateSchema.safeParse({ pre_snap_chroma_scale: 1.51 }).success).toBe(false)
   })
 
   it("accepts the texture toggle + each discrete strength level", () => {

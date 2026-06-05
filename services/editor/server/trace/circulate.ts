@@ -170,6 +170,8 @@ export async function circulateImageAndActivate(args: {
         // Cap on distinct chip count in the rendered output. Drives the
         // filter-service's post-snap top-N reduction.
         num_colors: p.num_colors,
+        // Pre-snap chroma boost in OKLCh — same contract as pixelate.
+        pre_snap_chroma_scale: p.pre_snap_chroma_scale,
         // Texture forwarding — same contract as pixelate. Applies to the
         // outer ellipses only on the server side.
         texture_enabled: p.texture_enabled,

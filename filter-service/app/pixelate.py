@@ -57,6 +57,7 @@ def pixelate_cells_to_svg(
     palette_oklab: list | None = None,
     palette_rgb: list | None = None,
     num_colors: int | None = None,
+    pre_snap_chroma_scale: float = 1.0,
     texture_enabled: bool = False,
     texture_strength: float = 0.0,
     on_phase: callable | None = None,
@@ -86,7 +87,10 @@ def pixelate_cells_to_svg(
     arr = cell_means
 
     if palette_oklab is not None and palette_rgb is not None:
-        arr = map_cells_to_palette(arr, palette_oklab, palette_rgb)
+        arr = map_cells_to_palette(
+            arr, palette_oklab, palette_rgb,
+            pre_snap_chroma_scale=pre_snap_chroma_scale,
+        )
         phase("palette")
         # Optional blue-noise texture step — sporadic neighbour-cluster
         # invasions to break up large monochromatic islands. No-op when

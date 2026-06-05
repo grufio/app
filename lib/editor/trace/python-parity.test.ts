@@ -66,11 +66,24 @@ describe("Python parity: TS trace schema defaults vs Pydantic", () => {
     expect(Object.keys(ts).sort()).toEqual([
       "color_mode",
       "num_colors",
+      "pre_snap_chroma_scale",
       "supercell_height_mm",
       "supercell_width_mm",
       "texture_enabled",
       "texture_strength",
     ])
+  })
+
+  it("PixelateRequest — pre_snap_chroma_scale defaults differ by-design (TS 1.2 ↔ Python 1.0)", () => {
+    // The Vercel-side default 1.2 ships a visible saturation lift to
+    // every new trace; the Python server default stays at 1.0 (= no-op)
+    // so legacy callers that omit the field render byte-identical to
+    // the pre-feature pipeline. Vercel always forwards an explicit
+    // value, so the Python default never fires in production.
+    const py = extractPydanticDefaults("PixelateRequest")
+    const ts = pixelateSchema.parse({})
+    expect(py.pre_snap_chroma_scale).toBe(1)
+    expect(ts.pre_snap_chroma_scale).toBe(1.2)
   })
 
   it("PixelateRequest — texture_enabled default agrees TS ⇄ Python", () => {

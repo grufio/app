@@ -18,7 +18,7 @@ from __future__ import annotations
 import numpy as np
 from PIL import Image
 
-from .oklab import nearest_palette_indices, rgb255_to_oklab
+from .oklab import adjust_oklab, nearest_palette_indices, rgb255_to_oklab
 
 
 def compute_cell_colors(cropped: Image.Image, cells_x: int, cells_y: int) -> np.ndarray:
@@ -39,19 +39,29 @@ def map_cells_to_palette(
     cell_means: np.ndarray,
     palette_oklab: np.ndarray,
     palette_rgb: np.ndarray,
+    pre_snap_chroma_scale: float = 1.0,
 ) -> np.ndarray:
     """Snap each per-cell mean colour to the nearest palette chip.
 
     `cell_means` is the `(cells_y, cells_x, 3)` uint8 array from
     `compute_cell_colors`. `palette_oklab` (M, 3) and `palette_rgb` (M, 3
-    uint8) are the chips of the active palette (`lab_munsell` for colour,
-    `lab_grays` for b/w) — the OKLab columns straight from the DB, so the
-    chip space matches color-lab. Each cell mean is converted to OKLab and
-    replaced by the RGB of its nearest chip. Returns `(cells_y, cells_x, 3)`
-    uint8.
+    uint8) are the chips of the active palette (active-tier `lab_munsell`
+    + `lab_grays` appended for colour, `lab_grays` for b/w) — the OKLab
+    columns straight from the DB, so the chip space matches color-lab.
+    Each cell mean is converted to OKLab and replaced by the RGB of its
+    nearest chip. Returns `(cells_y, cells_x, 3)` uint8.
+
+    `pre_snap_chroma_scale` (default `1.0` = no-op = pre-feature
+    behaviour) multiplies the cell mean's OKLCh chroma BEFORE the
+    nearest-chip argmin. Values > 1.0 push dull-averaged cells toward
+    saturated chips, spreading the picked chip-set across more of the
+    palette. See `lib/editor/trace/chroma-scale-schema.ts` for the
+    range + default-1.2 rationale.
     """
     shape = np.asarray(cell_means).shape
     cells_oklab = rgb255_to_oklab(np.asarray(cell_means).reshape(-1, 3))
+    if pre_snap_chroma_scale != 1.0:
+        cells_oklab = adjust_oklab(cells_oklab, chroma_scale=pre_snap_chroma_scale)
     idx = nearest_palette_indices(cells_oklab, palette_oklab)
     mapped = np.asarray(palette_rgb, dtype=np.uint8)[idx]
     return mapped.reshape(shape)

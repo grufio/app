@@ -69,6 +69,7 @@ def circulate_cells_to_svg(
     palette_oklab: list | None = None,
     palette_rgb: list | None = None,
     num_colors: int | None = None,
+    pre_snap_chroma_scale: float = 1.0,
     texture_enabled: bool = False,
     texture_strength: float = 0.0,
     on_phase: callable | None = None,
@@ -94,8 +95,13 @@ def circulate_cells_to_svg(
     means = cell_means
 
     # Outer fill = nearest palette chip (raw means when no palette).
+    # Pre-snap chroma boost only applies to OUTER ellipses; the INNER
+    # ellipse keeps its derived sub-colour math (see `_inner_colors`).
     if palette_oklab is not None and palette_rgb is not None:
-        outer = map_cells_to_palette(means, palette_oklab, palette_rgb)
+        outer = map_cells_to_palette(
+            means, palette_oklab, palette_rgb,
+            pre_snap_chroma_scale=pre_snap_chroma_scale,
+        )
         # Optional blue-noise texture step on the OUTER cells. Inner ellipses
         # keep their derived sub-colour (the adjustment is computed from the
         # original means below, untouched by the invasion).

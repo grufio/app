@@ -28,6 +28,7 @@
  */
 import { computeCellLabels, paintCellLabels } from "./cell-labels"
 import { applyNeighborInvasion } from "./cell-texture"
+import { reduceToTopN } from "./palette-reduction"
 import { cellAreaAverages, mapCellsToPalette, type PaletteChip } from "./trace-cell-colors"
 
 export function buildMiniCanvas(args: {
@@ -39,6 +40,13 @@ export function buildMiniCanvas(args: {
   /** Munsell palette to snap cells to (mirrors the server). Empty while it
    * loads → raw area-average means as a graceful fallback. */
   palette: ReadonlyArray<PaletteChip>
+  /** Pre-snap OKLCh chroma multiplier (mirrors the server's
+   * `pre_snap_chroma_scale`). Default `1.0` = no boost. */
+  preSnapChromaScale?: number
+  /** Cap on distinct chip count in the rendered preview (mirrors the server's
+   * `num_colors` top-N reduction). When set, applied AFTER snap + texture so
+   * the preview matches the Python output. */
+  numColors?: number | null
   /** Blue-noise neighbour-invasion texture (mirrors the server's
    * `cell_texture.py`). Skipped when `textureEnabled` is false, `strength`
    * is 0, the LUT is still loading (`textureLut === null`), or no palette
@@ -54,6 +62,8 @@ export function buildMiniCanvas(args: {
     cellsX,
     cellsY,
     palette,
+    preSnapChromaScale,
+    numColors,
     textureEnabled,
     textureStrength,
     textureLut,
@@ -80,9 +90,12 @@ export function buildMiniCanvas(args: {
   // cell to the nearest Munsell palette chip via OKLab — `mapCellsToPalette`
   // mirrors the server's `map_cells_to_palette`. An empty palette (still
   // loading) returns the raw means unchanged as a graceful fallback.
+  // `preSnapChromaScale` (default 1.0 = no-op) lifts dull-averaged cells
+  // toward saturated chips before the snap, mirroring the server.
   let cells = mapCellsToPalette(
     cellAreaAverages({ rgba: cropData, width: cropW, height: cropH, cellsX, cellsY }),
     palette,
+    preSnapChromaScale ?? 1.0,
   )
 
   // (2b) Optional blue-noise texture step. Requires the LUT (lazy-fetched by
@@ -98,6 +111,13 @@ export function buildMiniCanvas(args: {
       strength: textureStrength,
       blueNoiseLut: textureLut,
     })
+  }
+
+  // (2c) Top-N reduction — mirrors `reduce_to_top_n` in the Python pipeline.
+  // Skipped when no palette is loaded or numColors is null/<=0; otherwise
+  // caps the distinct chip count to numColors so preview ↔ output match.
+  if (palette.length > 0 && numColors != null && numColors > 0) {
+    cells = reduceToTopN(cells, palette, numColors).cells
   }
   const { r, g, b } = cells
 

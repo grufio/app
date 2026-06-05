@@ -3,6 +3,7 @@ import { z } from "zod"
 import type { TraceDefinition } from "./types"
 import { DEFAULT_INNER_FILTER, INNER_FILTER_IDS } from "./inner-color-filters"
 import { numColorsSchema } from "./num-colors-schema"
+import { preSnapChromaScaleSchema } from "./chroma-scale-schema"
 
 /**
  * Circulate trace — a Chuck-Close-style dot grid: one ellipse per cell
@@ -67,6 +68,11 @@ export const circulateSchema = z.object({
   // pixelate via `num-colors-schema.ts`; same top-N reduction is
   // applied by the filter-service.
   num_colors: numColorsSchema,
+  // Pre-snap chroma boost factor in OKLCh. Default 1.2 lifts dull-
+  // averaged cells into more saturated palette regions so the picked
+  // chip-set spans more of the palette. Shared via
+  // `chroma-scale-schema.ts`.
+  pre_snap_chroma_scale: preSnapChromaScaleSchema,
   // Blue-noise neighbour-invasion texture on the outer ellipses (shared
   // contract with Pixelate). Same default + persistence semantics: the
   // checkbox toggles `texture_enabled`, the dropdown commits
