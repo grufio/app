@@ -55,10 +55,10 @@
  *   - A 1-cell input degenerates to plain nearest-neighbour snap.
  */
 export function floydSteinbergDither(
-  cells: ReadonlyArray<number> | Float64Array,
+  cells: ArrayLike<number>,
   H: number,
   W: number,
-  palette: ReadonlyArray<number>,
+  palette: ArrayLike<number>,
   paletteSize: number,
   dim: number,
 ): Int32Array {

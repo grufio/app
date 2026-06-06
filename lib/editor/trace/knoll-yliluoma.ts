@@ -67,8 +67,8 @@ export const BLUE_NOISE_LUT_SIZE = 256
  * @returns            (N,) candidate indices (may repeat)
  */
 export function knollYliluomaCandidates(
-  target: ReadonlyArray<number>,
-  palette: ReadonlyArray<number>,
+  target: ArrayLike<number>,
+  palette: ArrayLike<number>,
   paletteSize: number,
   dim: number,
   patternSize: number,
@@ -159,16 +159,19 @@ export function thresholdBin(
  * numpy's stable argsort.
  */
 export function candidatesSortedByAxis(
-  candidates: ReadonlyArray<number>,
-  palette: ReadonlyArray<number>,
+  candidates: ArrayLike<number>,
+  palette: ArrayLike<number>,
   dim: number,
   axis = 0,
 ): number[] {
-  return candidates
-    .map((idx, i) => ({ idx, i, key: palette[idx * dim + axis] }))
-    .sort((a, b) => {
-      if (a.key !== b.key) return a.key - b.key
-      return a.i - b.i // stable: preserve insertion order on ties
-    })
-    .map((x) => x.idx)
+  const entries: Array<{ idx: number; i: number; key: number }> = []
+  for (let i = 0; i < candidates.length; i += 1) {
+    const idx = candidates[i]
+    entries.push({ idx, i, key: palette[idx * dim + axis] })
+  }
+  entries.sort((a, b) => {
+    if (a.key !== b.key) return a.key - b.key
+    return a.i - b.i // stable: preserve insertion order on ties
+  })
+  return entries.map((x) => x.idx)
 }

@@ -26,6 +26,7 @@ import { extractNumberInputProps, parseFormNumber } from "@/lib/forms/zod-input-
 import { PanelIconSlot, PanelTwoFieldRow } from "../panel-layout"
 import { EditorSidebarSection } from "../sidebar/editor-sidebar-section"
 import { TraceColorsFields } from "./trace-colors-fields"
+import { TraceDitherFields } from "./trace-dither-fields"
 import { TraceTextureFields } from "./trace-texture-fields"
 
 type Props = {
@@ -117,13 +118,23 @@ export function PixelateForm({ params, onParamsChange, disabled, grid }: Props) 
         />
       </EditorSidebarSection>
 
+      <EditorSidebarSection title="Dither">
+        <TraceDitherFields
+          mode={params.dither_mode}
+          patternSize={params.dither_pattern_size}
+          onModeChange={(v) => onParamsChange("dither_mode", v)}
+          onPatternSizeChange={(v) => onParamsChange("dither_pattern_size", v)}
+          disabled={disabled}
+        />
+      </EditorSidebarSection>
+
       <EditorSidebarSection title="Texture">
         <TraceTextureFields
           enabled={params.texture_enabled}
           strength={params.texture_strength}
           onEnabledChange={(v) => onParamsChange("texture_enabled", v)}
           onStrengthChange={(v) => onParamsChange("texture_strength", v)}
-          disabled={disabled}
+          disabled={disabled || params.dither_mode !== "none"}
         />
       </EditorSidebarSection>
     </>

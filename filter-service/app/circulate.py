@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from .cell_colors import map_cells_to_palette
+from .cell_colors import map_cells_dithered
 from .cell_labels import build_label_map, reconstruct_palette_indices, render_numbers_group
 from .cell_texture import apply_neighbor_invasion
 from .oklab import adjust_oklab, nearest_palette_indices, rgb255_to_oklab
@@ -72,6 +72,8 @@ def circulate_cells_to_svg(
     pre_snap_chroma_scale: float = 1.0,
     texture_enabled: bool = False,
     texture_strength: float = 0.0,
+    dither_mode: str = "none",
+    dither_pattern_size: int = 4,
     on_phase: callable | None = None,
 ) -> tuple[str, int, list[int]]:
     """
@@ -98,14 +100,22 @@ def circulate_cells_to_svg(
     # Pre-snap chroma boost only applies to OUTER ellipses; the INNER
     # ellipse keeps its derived sub-colour math (see `_inner_colors`).
     if palette_oklab is not None and palette_rgb is not None:
-        outer = map_cells_to_palette(
+        # PR-F: single dispatch for the outer ellipse colour — `"none"`
+        # keeps the pre-feature snap; `"knoll_yliluoma"` /
+        # `"floyd_steinberg"` substitute the snap step with the matching
+        # dithering algorithm. Inner ellipse colour is derived from the
+        # *original* (pre-dither, pre-snap) means below — unchanged.
+        outer = map_cells_dithered(
             means, palette_oklab, palette_rgb,
             pre_snap_chroma_scale=pre_snap_chroma_scale,
+            dither_mode=dither_mode,
+            dither_pattern_size=dither_pattern_size,
         )
-        # Optional blue-noise texture step on the OUTER cells. Inner ellipses
-        # keep their derived sub-colour (the adjustment is computed from the
-        # original means below, untouched by the invasion).
-        if texture_enabled and texture_strength > 0:
+        # Optional blue-noise texture step on the OUTER cells. No-op when
+        # the checkbox is off OR when dithering is on (the dither output
+        # already provides the spatial-quantization behaviour that
+        # texture was approximating).
+        if dither_mode == "none" and texture_enabled and texture_strength > 0:
             outer = apply_neighbor_invasion(
                 outer, np.asarray(palette_rgb, dtype=np.uint8), texture_strength
             )

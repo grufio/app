@@ -4,6 +4,7 @@ import type { TraceDefinition } from "./types"
 import { DEFAULT_INNER_FILTER, INNER_FILTER_IDS } from "./inner-color-filters"
 import { numColorsSchema } from "./num-colors-schema"
 import { preSnapChromaScaleSchema } from "./chroma-scale-schema"
+import { ditherModeSchema, ditherPatternSizeSchema } from "./dither-mode-schema"
 
 /**
  * Circulate trace — a Chuck-Close-style dot grid: one ellipse per cell
@@ -79,6 +80,11 @@ export const circulateSchema = z.object({
   // `texture_strength` and the chosen level survives a re-toggle.
   texture_enabled: z.boolean().default(false),
   texture_strength: z.coerce.number().min(0.25).max(1).default(0.5),
+  // Dithering at the snap step — shared contract with Pixelate (see
+  // `dither-mode-schema.ts`). Default `"none"` preserves byte-identical
+  // pre-PR-F behaviour; non-"none" replaces texture functionally.
+  dither_mode: ditherModeSchema,
+  dither_pattern_size: ditherPatternSizeSchema,
 })
 
 export type CirculateParams = z.infer<typeof circulateSchema>

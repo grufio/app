@@ -104,6 +104,8 @@ export function CirculatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, p
       textureEnabled: params.texture_enabled,
       textureStrength: params.texture_strength,
       textureLut: blueNoiseLut,
+      ditherMode: params.dither_mode,
+      ditherPatternSize: params.dither_pattern_size,
     })
   }, [source, crop, valid, grid, params, palette, blueNoiseLut])
 
