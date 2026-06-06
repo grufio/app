@@ -176,6 +176,12 @@ export async function circulateImageAndActivate(args: {
         // outer ellipses only on the server side.
         texture_enabled: p.texture_enabled,
         texture_strength: p.texture_strength,
+        // Dithering at the snap step (PR-F). Applied to outer ellipse
+        // colour; inner ellipse colour derives from the pre-snap means.
+        // Older filter-service revisions drop these via Pydantic extra-
+        // ignore → degrade to the snap path.
+        dither_mode: p.dither_mode,
+        dither_pattern_size: p.dither_pattern_size,
       },
     })
     profiler.mark("filter_service")

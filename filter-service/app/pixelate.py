@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from .cell_colors import map_cells_to_palette
+from .cell_colors import map_cells_dithered
 from .cell_labels import build_label_map, reconstruct_palette_indices, render_numbers_group
 from .cell_texture import apply_neighbor_invasion
 from .palette_reduction import reduce_to_top_n
@@ -60,6 +60,8 @@ def pixelate_cells_to_svg(
     pre_snap_chroma_scale: float = 1.0,
     texture_enabled: bool = False,
     texture_strength: float = 0.0,
+    dither_mode: str = "none",
+    dither_pattern_size: int = 4,
     on_phase: callable | None = None,
 ) -> tuple[str, int, list[int]]:
     """
@@ -87,16 +89,24 @@ def pixelate_cells_to_svg(
     arr = cell_means
 
     if palette_oklab is not None and palette_rgb is not None:
-        arr = map_cells_to_palette(
+        # PR-F: single dispatch — `"none"` keeps the pre-feature snap;
+        # `"knoll_yliluoma"` / `"floyd_steinberg"` substitute the snap
+        # step with the matching dithering algorithm. The texture step
+        # below is skipped when dithering is on (KY/FS replace it
+        # functionally; stacking would double-dither).
+        arr = map_cells_dithered(
             arr, palette_oklab, palette_rgb,
             pre_snap_chroma_scale=pre_snap_chroma_scale,
+            dither_mode=dither_mode,
+            dither_pattern_size=dither_pattern_size,
         )
         phase("palette")
         # Optional blue-noise texture step — sporadic neighbour-cluster
         # invasions to break up large monochromatic islands. No-op when
-        # the user has the checkbox off; the chip set never expands (the
-        # invading colour is always a palette chip).
-        if texture_enabled and texture_strength > 0:
+        # the user has the checkbox off OR when dithering is on (the
+        # dither output already provides the spatial-quantization
+        # behaviour that texture was approximating).
+        if dither_mode == "none" and texture_enabled and texture_strength > 0:
             arr = apply_neighbor_invasion(
                 arr, np.asarray(palette_rgb, dtype=np.uint8), texture_strength
             )

@@ -120,6 +120,8 @@ export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
       textureEnabled: params.texture_enabled,
       textureStrength: params.texture_strength,
       textureLut: blueNoiseLut,
+      ditherMode: params.dither_mode,
+      ditherPatternSize: params.dither_pattern_size,
     })
   }, [
     source,
@@ -133,6 +135,8 @@ export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
     params.texture_enabled,
     params.texture_strength,
     blueNoiseLut,
+    params.dither_mode,
+    params.dither_pattern_size,
   ])
 
   const showSpinner = !source

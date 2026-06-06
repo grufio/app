@@ -109,6 +109,9 @@ describe("pixelateSchema", () => {
     pre_snap_chroma_scale: 1.0,
     texture_enabled: false,
     texture_strength: 0.5,
+    // Dither defaults (PR-F): off + mid pattern size.
+    dither_mode: "none",
+    dither_pattern_size: 4,
   } as const
 
   it("applies defaults for all fields", () => {

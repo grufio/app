@@ -3,6 +3,7 @@ import { z } from "zod"
 import type { TraceDefinition } from "./types"
 import { numColorsSchema } from "./num-colors-schema"
 import { preSnapChromaScaleSchema } from "./chroma-scale-schema"
+import { ditherModeSchema, ditherPatternSizeSchema } from "./dither-mode-schema"
 import { DEFAULT_SUPERCELL_MM, MIN_SUPERCELL_MM } from "./pixelate-grid-math"
 
 export const pixelateSchema = z.object({
@@ -34,6 +35,13 @@ export const pixelateSchema = z.object({
   // persisted trace rows without these fields keep applying unchanged.
   texture_enabled: z.boolean().default(false),
   texture_strength: z.coerce.number().min(0.25).max(1).default(0.5),
+  // Dithering at the snap step (PR-F). `"none"` (default) preserves
+  // byte-identical pre-feature behaviour so persisted rows without
+  // these fields apply unchanged. When non-"none", the texture step
+  // (`apply_neighbor_invasion`) is a no-op — KY/FS replace it
+  // functionally. See `dither-mode-schema.ts` for the rationale.
+  dither_mode: ditherModeSchema,
+  dither_pattern_size: ditherPatternSizeSchema,
 })
 
 export type PixelateParams = z.infer<typeof pixelateSchema>

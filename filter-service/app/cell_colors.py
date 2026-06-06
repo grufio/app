@@ -18,6 +18,13 @@ from __future__ import annotations
 import numpy as np
 from PIL import Image
 
+from .floyd_steinberg import floyd_steinberg_dither
+from .knoll_yliluoma import (
+    BLUE_NOISE_LUT,
+    candidates_sorted_by_axis,
+    knoll_yliluoma_candidates,
+    threshold_bin,
+)
 from .oklab import adjust_oklab, nearest_palette_indices, rgb255_to_oklab
 
 
@@ -65,3 +72,91 @@ def map_cells_to_palette(
     idx = nearest_palette_indices(cells_oklab, palette_oklab)
     mapped = np.asarray(palette_rgb, dtype=np.uint8)[idx]
     return mapped.reshape(shape)
+
+
+def _ky_dither_indices(
+    cells_oklab_2d: np.ndarray,
+    palette_oklab: np.ndarray,
+    pattern_size: int,
+) -> np.ndarray:
+    """Knoll-Yliluoma dispatch: per-cell candidate-selection +
+    lightness-sort + blue-noise threshold pick. Returns (H, W) int64
+    palette indices.
+
+    Pattern size collapses to plain nearest-neighbour when `pattern_size
+    == 1` (Yliluoma 2014 §2 — the first candidate is always argmin).
+    The threshold lookup uses the module-shared `BLUE_NOISE_LUT` so
+    placement matches the existing texture step's blue-noise binary.
+
+    Lightness sort axis = 0 (OKLab L) so the darkest candidate lands on
+    the low-threshold positions and the brightest on the high — implied
+    tone-mapping rather than random noise.
+    """
+    H, W, _ = cells_oklab_2d.shape
+    out = np.empty((H, W), dtype=np.int64)
+    for y in range(H):
+        for x in range(W):
+            candidates = knoll_yliluoma_candidates(
+                cells_oklab_2d[y, x], palette_oklab, pattern_size
+            )
+            sorted_candidates = candidates_sorted_by_axis(
+                candidates, palette_oklab, axis=0
+            )
+            bin_idx = threshold_bin(x, y, pattern_size, BLUE_NOISE_LUT)
+            out[y, x] = int(sorted_candidates[bin_idx])
+    return out
+
+
+def map_cells_dithered(
+    cell_means: np.ndarray,
+    palette_oklab: np.ndarray,
+    palette_rgb: np.ndarray,
+    pre_snap_chroma_scale: float = 1.0,
+    dither_mode: str = "none",
+    dither_pattern_size: int = 4,
+) -> np.ndarray:
+    """Snap-or-dither dispatch shared by pixelate + circulate (PR-F).
+
+    Replaces direct calls to `map_cells_to_palette` from the pipeline
+    so the same cell-mean → palette-chip step can pick between three
+    behaviours via the `dither_mode` parameter:
+
+      - `"none"`            → `map_cells_to_palette` semantics
+                              (byte-identical to pre-PR-F behaviour);
+                              `dither_pattern_size` is ignored.
+      - `"knoll_yliluoma"`  → per-cell candidate selection +
+                              blue-noise threshold pick (PR-D's
+                              `knoll_yliluoma.py`); `pattern_size`
+                              controls the candidate count (N).
+      - `"floyd_steinberg"` → scan-order error diffusion (PR-E's
+                              `floyd_steinberg.py`);
+                              `dither_pattern_size` is ignored.
+
+    All paths run in OKLab space (the `pre_snap_chroma_scale` boost
+    happens once up-front) and return the same shape
+    `(cells_y, cells_x, 3)` uint8 RGB array as `map_cells_to_palette`
+    — callers shouldn't notice which dispatch ran.
+    """
+    if dither_mode not in {"none", "knoll_yliluoma", "floyd_steinberg"}:
+        raise ValueError(f"unknown dither_mode: {dither_mode!r}")
+
+    cells = np.asarray(cell_means)
+    shape = cells.shape
+    cells_oklab_flat = rgb255_to_oklab(cells.reshape(-1, 3))
+    if pre_snap_chroma_scale != 1.0:
+        cells_oklab_flat = adjust_oklab(cells_oklab_flat, chroma_scale=pre_snap_chroma_scale)
+    palette_oklab_arr = np.asarray(palette_oklab, dtype=np.float64)
+    palette_rgb_arr = np.asarray(palette_rgb, dtype=np.uint8)
+
+    if dither_mode == "none":
+        idx = nearest_palette_indices(cells_oklab_flat, palette_oklab_arr)
+    elif dither_mode == "knoll_yliluoma":
+        cells_oklab_2d = cells_oklab_flat.reshape(shape[0], shape[1], 3)
+        idx = _ky_dither_indices(
+            cells_oklab_2d, palette_oklab_arr, int(dither_pattern_size)
+        ).ravel()
+    else:  # "floyd_steinberg"
+        cells_oklab_2d = cells_oklab_flat.reshape(shape[0], shape[1], 3)
+        idx = floyd_steinberg_dither(cells_oklab_2d, palette_oklab_arr).ravel()
+
+    return palette_rgb_arr[idx].reshape(shape)

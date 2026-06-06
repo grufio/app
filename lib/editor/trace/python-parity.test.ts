@@ -65,6 +65,8 @@ describe("Python parity: TS trace schema defaults vs Pydantic", () => {
     const ts = pixelateSchema.parse({})
     expect(Object.keys(ts).sort()).toEqual([
       "color_mode",
+      "dither_mode",
+      "dither_pattern_size",
       "num_colors",
       "pre_snap_chroma_scale",
       "supercell_height_mm",

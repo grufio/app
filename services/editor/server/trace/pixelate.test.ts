@@ -14,6 +14,8 @@ const validParams: PixelateParams = {
   pre_snap_chroma_scale: 1.0,
   texture_enabled: false,
   texture_strength: 0.5,
+  dither_mode: "none",
+  dither_pattern_size: 4,
 }
 
 describe("pixelateImageAndActivate validation contract", () => {

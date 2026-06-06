@@ -13,7 +13,15 @@
  * server (`filter-service/app/cell_colors.py`).
  */
 import { adjustOklab, nearestPaletteIndex, rgb255ToOklab, type Oklab } from "@/lib/color/oklab"
+import type { DitherMode, DitherPatternSize } from "./dither-mode-schema"
+import { floydSteinbergDither } from "./floyd-steinberg"
 import type { OklabAdjustment } from "./inner-color-filters"
+import {
+  candidatesSortedByAxis,
+  knollYliluomaCandidates,
+  thresholdBin,
+  type BlueNoiseLut,
+} from "./knoll-yliluoma"
 
 /**
  * Pure per-cell area-average. Given a flat pixel buffer (`width × height`,
@@ -120,6 +128,125 @@ export function mapCellsToPalette(
     r[i] = chip[0]
     g[i] = chip[1]
     b[i] = chip[2]
+  }
+  return { r, g, b }
+}
+
+/**
+ * Snap-or-dither dispatch shared by pixelate + circulate previews
+ * (PR-F). Mirror of the server's `map_cells_dithered`
+ * (`filter-service/app/cell_colors.py`); same dispatch tree:
+ *
+ *   - `dither_mode === "none"`            → falls through to
+ *                                            `mapCellsToPalette`
+ *                                            (byte-identical to the
+ *                                            pre-PR-F preview).
+ *   - `dither_mode === "knoll_yliluoma"`  → per-cell candidate
+ *                                            selection + lightness
+ *                                            sort + blue-noise
+ *                                            threshold pick.
+ *   - `dither_mode === "floyd_steinberg"` → scan-order error
+ *                                            diffusion.
+ *
+ * Shape (`cellsX` / `cellsY`) is required because KY needs cell coords
+ * for the blue-noise threshold lookup and FS walks rows + cols in
+ * scan order. The plain {@link mapCellsToPalette} is shape-free
+ * because the snap is position-independent.
+ *
+ * KY also needs the blue-noise LUT (caller-loaded via
+ * `loadBlueNoiseLut()`); without it KY falls back to the snap path so
+ * the preview stays usable while the LUT is fetching.
+ *
+ * An empty palette returns the input unchanged for every mode.
+ */
+export function mapCellsDithered(args: {
+  cells: CellColors
+  cellsX: number
+  cellsY: number
+  palette: ReadonlyArray<PaletteChip>
+  preSnapChromaScale?: number
+  ditherMode?: DitherMode
+  ditherPatternSize?: DitherPatternSize | number
+  blueNoiseLut?: BlueNoiseLut | null
+}): CellColors {
+  const {
+    cells,
+    cellsX,
+    cellsY,
+    palette,
+    preSnapChromaScale = 1.0,
+    ditherMode = "none",
+    ditherPatternSize = 4,
+    blueNoiseLut = null,
+  } = args
+  if (palette.length === 0) return cells
+  const lutAvailable = blueNoiseLut != null
+  if (ditherMode === "none" || (ditherMode === "knoll_yliluoma" && !lutAvailable)) {
+    return mapCellsToPalette(cells, palette, preSnapChromaScale)
+  }
+
+  const n = cells.r.length
+  if (n !== cellsX * cellsY) {
+    throw new Error(
+      `mapCellsDithered: cells length ${n} != cellsX*cellsY = ${cellsX * cellsY}`,
+    )
+  }
+
+  // Build the cell-mean OKLab array (with optional pre-snap chroma boost),
+  // flattened row-major `cellsOklab[i*3 + d]` matching the algorithm helpers.
+  const cellsOklab = new Float64Array(n * 3)
+  const boost = preSnapChromaScale !== 1.0
+  for (let i = 0; i < n; i += 1) {
+    let lab = rgb255ToOklab(cells.r[i], cells.g[i], cells.b[i])
+    if (boost) {
+      lab = adjustOklab(lab, { hueDeg: 0, lightnessDelta: 0, chromaScale: preSnapChromaScale })
+    }
+    cellsOklab[i * 3] = lab[0]
+    cellsOklab[i * 3 + 1] = lab[1]
+    cellsOklab[i * 3 + 2] = lab[2]
+  }
+
+  // Flat palette OKLab + RGB rows for the algorithm helpers.
+  const M = palette.length
+  const paletteOklabFlat = new Float64Array(M * 3)
+  for (let i = 0; i < M; i += 1) {
+    const lab = palette[i].oklab
+    paletteOklabFlat[i * 3] = lab[0]
+    paletteOklabFlat[i * 3 + 1] = lab[1]
+    paletteOklabFlat[i * 3 + 2] = lab[2]
+  }
+
+  const r = new Uint8ClampedArray(n)
+  const g = new Uint8ClampedArray(n)
+  const b = new Uint8ClampedArray(n)
+
+  if (ditherMode === "knoll_yliluoma") {
+    // We've already validated `lutAvailable` above when we didn't return
+    // early — so `blueNoiseLut` is non-null here.
+    const lut = blueNoiseLut as BlueNoiseLut
+    const patternSize = Math.max(1, Math.floor(ditherPatternSize))
+    for (let y = 0; y < cellsY; y += 1) {
+      for (let x = 0; x < cellsX; x += 1) {
+        const ci = y * cellsX + x
+        const target = [cellsOklab[ci * 3], cellsOklab[ci * 3 + 1], cellsOklab[ci * 3 + 2]]
+        const candidates = knollYliluomaCandidates(target, paletteOklabFlat, M, 3, patternSize)
+        const sorted = candidatesSortedByAxis(candidates, paletteOklabFlat, 3, 0)
+        const bin = thresholdBin(x, y, patternSize, lut)
+        const chip = palette[sorted[bin]].rgb
+        r[ci] = chip[0]
+        g[ci] = chip[1]
+        b[ci] = chip[2]
+      }
+    }
+  } else {
+    // floyd_steinberg
+    const indices = floydSteinbergDither(cellsOklab, cellsY, cellsX, paletteOklabFlat, M, 3)
+    for (let i = 0; i < n; i += 1) {
+      const chip = palette[indices[i]].rgb
+      r[i] = chip[0]
+      g[i] = chip[1]
+      b[i] = chip[2]
+    }
   }
   return { r, g, b }
 }

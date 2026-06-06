@@ -87,6 +87,8 @@ export async function pixelateImageAndActivate(args: {
     color_mode: colorMode,
     num_colors: numColors,
     pre_snap_chroma_scale: preSnapChromaScale,
+    dither_mode: ditherMode,
+    dither_pattern_size: ditherPatternSize,
   } = parsed.data
 
   const sourceResult = await fetchTraceSourceImage({ supabase, projectId, sourceImageId })
@@ -168,6 +170,11 @@ export async function pixelateImageAndActivate(args: {
         pre_snap_chroma_scale: preSnapChromaScale,
         texture_enabled: parsed.data.texture_enabled,
         texture_strength: parsed.data.texture_strength,
+        // Dithering at the snap step (PR-F). Older filter-service
+        // revisions silently drop these via Pydantic's extra-ignore
+        // default → degrade to the snap path.
+        dither_mode: ditherMode,
+        dither_pattern_size: ditherPatternSize,
       },
     })
     profiler.mark("filter_service")

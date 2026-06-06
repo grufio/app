@@ -27,8 +27,14 @@
  * set to `crop.w` / `crop.h`.
  */
 import { applyNeighborInvasion } from "./cell-texture"
+import type { DitherMode, DitherPatternSize } from "./dither-mode-schema"
+import type { BlueNoiseLut } from "./knoll-yliluoma"
 import { reduceToTopN } from "./palette-reduction"
-import { cellAreaAverages, mapCellsToPalette, type PaletteChip } from "./trace-cell-colors"
+import {
+  cellAreaAverages,
+  mapCellsDithered,
+  type PaletteChip,
+} from "./trace-cell-colors"
 
 export function buildMiniCanvas(args: {
   target: HTMLCanvasElement
@@ -53,6 +59,11 @@ export function buildMiniCanvas(args: {
   textureEnabled?: boolean
   textureStrength?: number
   textureLut?: Uint8Array | null
+  /** Dithering at the snap step (PR-F). `"none"` (default) preserves
+   * byte-identical pre-feature preview output. When non-"none", the
+   * texture step is no-op'd — KY/FS replace it functionally. */
+  ditherMode?: DitherMode
+  ditherPatternSize?: DitherPatternSize | number
 }): void {
   const {
     target,
@@ -66,6 +77,8 @@ export function buildMiniCanvas(args: {
     textureEnabled,
     textureStrength,
     textureLut,
+    ditherMode,
+    ditherPatternSize,
   } = args
   const ctx = target.getContext("2d", { willReadFrequently: true })
   if (!ctx) throw new Error("buildMiniCanvas: 2D context unavailable")
@@ -85,23 +98,41 @@ export function buildMiniCanvas(args: {
   wctx.drawImage(source, crop.x, crop.y, crop.w, crop.h, 0, 0, cropW, cropH)
   const cropData = wctx.getImageData(0, 0, cropW, cropH).data
 
-  // (2) True area-average per cell (mirrors server Image.BOX), then snap each
-  // cell to the nearest Munsell palette chip via OKLab — `mapCellsToPalette`
-  // mirrors the server's `map_cells_to_palette`. An empty palette (still
-  // loading) returns the raw means unchanged as a graceful fallback.
-  // `preSnapChromaScale` (default 1.0 = no-op) lifts dull-averaged cells
-  // toward saturated chips before the snap, mirroring the server.
-  let cells = mapCellsToPalette(
-    cellAreaAverages({ rgba: cropData, width: cropW, height: cropH, cellsX, cellsY }),
+  // (2) True area-average per cell (mirrors server Image.BOX), then snap or
+  // dither to the palette via OKLab — `mapCellsDithered` mirrors the
+  // server's `map_cells_dithered`. `dither_mode="none"` (default) falls
+  // through to plain `mapCellsToPalette`, byte-identical to the pre-PR-F
+  // preview. An empty palette (still loading) returns the raw means
+  // unchanged as a graceful fallback. `preSnapChromaScale` (default 1.0 =
+  // no-op) lifts dull-averaged cells toward saturated chips before the
+  // snap.
+  let cells = mapCellsDithered({
+    cells: cellAreaAverages({ rgba: cropData, width: cropW, height: cropH, cellsX, cellsY }),
+    cellsX,
+    cellsY,
     palette,
-    preSnapChromaScale ?? 1.0,
-  )
+    preSnapChromaScale: preSnapChromaScale ?? 1.0,
+    ditherMode: ditherMode ?? "none",
+    ditherPatternSize: ditherPatternSize ?? 4,
+    // KY needs the LUT — reuse the same one the texture step uses. FS
+    // doesn't need it (sequential error diffusion); the dispatch only
+    // gates KY on LUT availability.
+    blueNoiseLut: textureLut as BlueNoiseLut | null | undefined ?? null,
+  })
 
-  // (2b) Optional blue-noise texture step. Requires the LUT (lazy-fetched by
-  // the preview pane) and a palette — without either, the snapped output
-  // ships unchanged. Mirrors the server-side branch in `pixelate.py` so the
-  // preview and the applied SVG agree byte-for-byte when both inputs match.
-  if (textureEnabled && textureStrength && textureStrength > 0 && textureLut && palette.length > 0) {
+  // (2b) Optional blue-noise texture step. Skipped when dithering is on
+  // (the dither output already provides spatial quantization — stacking
+  // both would double-dither). Mirrors the server-side branch in
+  // `pixelate.py` so the preview and the applied SVG agree byte-for-byte
+  // when both inputs match.
+  if (
+    (ditherMode ?? "none") === "none" &&
+    textureEnabled &&
+    textureStrength &&
+    textureStrength > 0 &&
+    textureLut &&
+    palette.length > 0
+  ) {
     cells = applyNeighborInvasion({
       cells,
       palette: palette.map((c) => c.rgb),

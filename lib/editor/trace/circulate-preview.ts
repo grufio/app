@@ -14,9 +14,16 @@
  * `target.width`/`target.height` (= crop pixels), like the pixelate preview.
  */
 import { applyNeighborInvasion } from "./cell-texture"
+import type { DitherMode, DitherPatternSize } from "./dither-mode-schema"
 import type { OklabAdjustment } from "./inner-color-filters"
+import type { BlueNoiseLut } from "./knoll-yliluoma"
 import { reduceToTopN } from "./palette-reduction"
-import { cellAreaAverages, mapCellsToPalette, mapCellsToPaletteAdjusted, type PaletteChip } from "./trace-cell-colors"
+import {
+  cellAreaAverages,
+  mapCellsDithered,
+  mapCellsToPaletteAdjusted,
+  type PaletteChip,
+} from "./trace-cell-colors"
 
 export function buildCirculateMiniCanvas(args: {
   target: HTMLCanvasElement
@@ -50,6 +57,12 @@ export function buildCirculateMiniCanvas(args: {
   textureEnabled?: boolean
   textureStrength?: number
   textureLut?: Uint8Array | null
+  /** Dithering at the snap step (PR-F). Applies to OUTER ellipses only;
+   * inner ellipses keep their sub-colour-filter math (computed from the
+   * pre-snap means). `"none"` (default) preserves byte-identical
+   * pre-PR-F preview output. */
+  ditherMode?: DitherMode
+  ditherPatternSize?: DitherPatternSize | number
 }): void {
   const {
     target,
@@ -70,6 +83,8 @@ export function buildCirculateMiniCanvas(args: {
     textureEnabled,
     textureStrength,
     textureLut,
+    ditherMode,
+    ditherPatternSize,
   } = args
   const ctx = target.getContext("2d", { willReadFrequently: true })
   if (!ctx) throw new Error("buildCirculateMiniCanvas: 2D context unavailable")
@@ -87,15 +102,35 @@ export function buildCirculateMiniCanvas(args: {
   wctx.drawImage(source, crop.x, crop.y, crop.w, crop.h, 0, 0, cropW, cropH)
   const cropData = wctx.getImageData(0, 0, cropW, cropH).data
 
-  // (2) Per-cell area-average, then palette snap (outer) + hue-shifted snap
+  // (2) Per-cell area-average, then snap-or-dither (outer) + hue-shifted snap
   // (inner) — mirrors the server. `preSnapChromaScale` applies to OUTER only;
   // inner keeps its sub-colour-filter math (`mapCellsToPaletteAdjusted`).
+  // `mapCellsDithered` with `dither_mode="none"` (default) falls through to
+  // the plain snap, byte-identical to the pre-PR-F preview.
   const means = cellAreaAverages({ rgba: cropData, width: cropW, height: cropH, cellsX, cellsY })
-  let outer = mapCellsToPalette(means, palette, preSnapChromaScale ?? 1.0)
-  // (2b) Blue-noise texture on the OUTER cells only (matches `circulate.py`).
-  // Inner ellipses are computed from the original means below, so they keep
+  let outer = mapCellsDithered({
+    cells: means,
+    cellsX,
+    cellsY,
+    palette,
+    preSnapChromaScale: preSnapChromaScale ?? 1.0,
+    ditherMode: ditherMode ?? "none",
+    ditherPatternSize: ditherPatternSize ?? 4,
+    blueNoiseLut: textureLut as BlueNoiseLut | null | undefined ?? null,
+  })
+  // (2b) Blue-noise texture on the OUTER cells only. Skipped when dithering
+  // is on (the dither output already provides spatial quantization —
+  // stacking both would double-dither). Inner ellipses are computed from
+  // the original means below regardless of texture/dither, so they keep
   // the sub-colour-filter relationship to the underlying cell.
-  if (textureEnabled && textureStrength && textureStrength > 0 && textureLut && palette.length > 0) {
+  if (
+    (ditherMode ?? "none") === "none" &&
+    textureEnabled &&
+    textureStrength &&
+    textureStrength > 0 &&
+    textureLut &&
+    palette.length > 0
+  ) {
     outer = applyNeighborInvasion({
       cells: outer,
       palette: palette.map((c) => c.rgb),

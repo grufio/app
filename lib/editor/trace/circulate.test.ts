@@ -22,6 +22,10 @@ const DEFAULTS = {
   // never carried these fields parse identically to a fresh form.
   texture_enabled: false,
   texture_strength: 0.5,
+  // Dither defaults (PR-F): off + mid pattern size. Same guarantee — old
+  // persisted rows without these fields parse to the no-op behaviour.
+  dither_mode: "none",
+  dither_pattern_size: 4,
 } as const
 
 describe("circulateSchema", () => {

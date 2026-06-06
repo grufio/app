@@ -278,6 +278,15 @@ class PixelateRequest(BaseModel):
     # ignore drops the fields and we silently render without texture.
     texture_enabled: bool = False
     texture_strength: float = 0.0
+    # Dithering at the snap step (PR-F). Default `"none"` preserves
+    # byte-identical pre-feature behaviour; Pydantic's default-extra-
+    # ignore drops the fields silently when an older Vercel revision
+    # omits them. When set to `"knoll_yliluoma"` / `"floyd_steinberg"`,
+    # the texture step (`texture_enabled`) is no-op'd — the dither
+    # output already covers spatial quantization. `dither_pattern_size`
+    # only applies to KY (candidate count N); FS ignores it.
+    dither_mode: str = "none"
+    dither_pattern_size: int = 4
 
 
 @app.post("/filters/pixelate")
@@ -318,6 +327,8 @@ async def pixelate_filter(request: PixelateRequest):
             pre_snap_chroma_scale=request.pre_snap_chroma_scale,
             texture_enabled=request.texture_enabled,
             texture_strength=request.texture_strength,
+            dither_mode=request.dither_mode,
+            dither_pattern_size=request.dither_pattern_size,
             on_phase=timer.mark,
         )
 
@@ -383,6 +394,11 @@ class CirculateRequest(BaseModel):
     # sub-colour. No-op when disabled or strength is zero.
     texture_enabled: bool = False
     texture_strength: float = 0.0
+    # Dithering at the snap step — same contract as PixelateRequest (PR-F).
+    # Applied to OUTER ellipse colour; inner ellipse colour is derived from
+    # the original pre-snap means.
+    dither_mode: str = "none"
+    dither_pattern_size: int = 4
 
 
 @app.post("/filters/circulate")
@@ -439,6 +455,8 @@ async def circulate_filter(request: CirculateRequest):
             pre_snap_chroma_scale=request.pre_snap_chroma_scale,
             texture_enabled=request.texture_enabled,
             texture_strength=request.texture_strength,
+            dither_mode=request.dither_mode,
+            dither_pattern_size=request.dither_pattern_size,
             on_phase=timer.mark,
         )
 
