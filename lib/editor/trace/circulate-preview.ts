@@ -14,6 +14,7 @@
  * `target.width`/`target.height` (= crop pixels), like the pixelate preview.
  */
 import { applyNeighborInvasion } from "./cell-texture"
+import type { DistanceMetric } from "./distance-metric-schema"
 import type { DitherMode, DitherPatternSize } from "./dither-mode-schema"
 import type { OklabAdjustment } from "./inner-color-filters"
 import type { BlueNoiseLut } from "./knoll-yliluoma"
@@ -63,6 +64,10 @@ export function buildCirculateMiniCanvas(args: {
    * pre-PR-F preview output. */
   ditherMode?: DitherMode
   ditherPatternSize?: DitherPatternSize | number
+  /** Snap-step distance metric (PR-H). Applied to OUTER cells (snap +
+   * top-N re-snap) AND the inner-ellipse snap-back after the OKLCh
+   * sub-colour-filter adjustment. */
+  distanceMetric?: DistanceMetric
 }): void {
   const {
     target,
@@ -85,6 +90,7 @@ export function buildCirculateMiniCanvas(args: {
     textureLut,
     ditherMode,
     ditherPatternSize,
+    distanceMetric,
   } = args
   const ctx = target.getContext("2d", { willReadFrequently: true })
   if (!ctx) throw new Error("buildCirculateMiniCanvas: 2D context unavailable")
@@ -117,6 +123,7 @@ export function buildCirculateMiniCanvas(args: {
     ditherMode: ditherMode ?? "none",
     ditherPatternSize: ditherPatternSize ?? 4,
     blueNoiseLut: textureLut as BlueNoiseLut | null | undefined ?? null,
+    distanceMetric: distanceMetric ?? "oklab",
   })
   // (2b) Blue-noise texture on the OUTER cells only. Skipped when dithering
   // is on (the dither output already provides spatial quantization —
@@ -143,9 +150,11 @@ export function buildCirculateMiniCanvas(args: {
   // (2c) Top-N reduction on the OUTER ellipses — mirrors `reduce_to_top_n` in
   // the Python pipeline. Inner ellipses are not capped (decorative).
   if (palette.length > 0 && numColors != null && numColors > 0) {
-    outer = reduceToTopN(outer, palette, numColors).cells
+    outer = reduceToTopN(outer, palette, numColors, distanceMetric ?? "oklab").cells
   }
-  const inner = innerEnabled ? mapCellsToPaletteAdjusted(means, palette, innerAdjustment) : null
+  const inner = innerEnabled
+    ? mapCellsToPaletteAdjusted(means, palette, innerAdjustment, distanceMetric ?? "oklab")
+    : null
 
   // (3) Background = the cropped source, scaled into the target (the bitmap
   // layer the ellipses overlay). Then paint the ellipses on top.

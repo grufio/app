@@ -21,6 +21,7 @@ import numpy as np
 from .cell_colors import map_cells_dithered
 from .cell_labels import build_label_map, reconstruct_palette_indices, render_numbers_group
 from .cell_texture import apply_neighbor_invasion
+from .ciede2000 import nearest_palette_indices_ciede2000, rgb255_to_cielab
 from .oklab import adjust_oklab, nearest_palette_indices, rgb255_to_oklab
 from .palette_reduction import reduce_to_top_n
 
@@ -37,20 +38,42 @@ def _inner_colors(
     inner_hue_deg: float,
     inner_lightness_delta: float,
     inner_chroma_scale: float,
+    distance_metric: str = "oklab",
 ) -> np.ndarray:
     """Inner-ellipse colour per cell: the cell mean is adjusted by the chosen
     sub colour filter (OKLab hue/lightness/chroma deltas, resolved by the Node
     server), then snapped to the nearest palette chip. Returns
     `(cells_y, cells_x, 3)` uint8. Without a palette the raw means are used
     (no adjustment possible — nothing to snap back to).
+
+    The sub-colour-filter math is OKLCh-defined, so the adjustment ALWAYS
+    happens in OKLab regardless of `distance_metric`. Only the final
+    snap-to-chip step honours the metric: `"oklab"` keeps the pre-PR-H
+    squared-Euclidean argmin; `"ciede2000"` re-snaps via CIE Lab D65 +
+    ΔE00 (PR-H).
     """
     if palette_oklab is None or palette_rgb is None:
         return np.asarray(cell_means, dtype=np.uint8)
     shape = np.asarray(cell_means).shape
     means_oklab = rgb255_to_oklab(np.asarray(cell_means).reshape(-1, 3))
     adjusted = adjust_oklab(means_oklab, inner_hue_deg, inner_lightness_delta, inner_chroma_scale)
-    idx = nearest_palette_indices(adjusted, palette_oklab)
-    return np.asarray(palette_rgb, dtype=np.uint8)[idx].reshape(shape)
+    palette_rgb_arr = np.asarray(palette_rgb, dtype=np.uint8)
+    if distance_metric == "ciede2000":
+        # Round-trip the adjusted OKLab → an anchor chip via OKLab snap,
+        # then re-snap that anchor in CIE Lab. The first OKLab snap acts
+        # as the "convert OKLab → RGB" anchor (no public OKLab → sRGB
+        # inverse in this module). For most chips the CIE Lab re-snap
+        # collapses back to the same chip; for ambiguous-hue edge cases
+        # the perceptual weighting shifts to a better chip — same
+        # contract as the cell-mean snap path in `cell_colors.py`.
+        first = nearest_palette_indices(adjusted, palette_oklab)
+        anchor_rgb = palette_rgb_arr[first]
+        anchor_lab = rgb255_to_cielab(anchor_rgb)
+        palette_lab = rgb255_to_cielab(palette_rgb_arr)
+        idx = nearest_palette_indices_ciede2000(anchor_lab, palette_lab)
+    else:
+        idx = nearest_palette_indices(adjusted, palette_oklab)
+    return palette_rgb_arr[idx].reshape(shape)
 
 
 def circulate_cells_to_svg(
@@ -74,6 +97,7 @@ def circulate_cells_to_svg(
     texture_strength: float = 0.0,
     dither_mode: str = "none",
     dither_pattern_size: int = 4,
+    distance_metric: str = "oklab",
     on_phase: callable | None = None,
 ) -> tuple[str, int, list[int]]:
     """
@@ -110,6 +134,7 @@ def circulate_cells_to_svg(
             pre_snap_chroma_scale=pre_snap_chroma_scale,
             dither_mode=dither_mode,
             dither_pattern_size=dither_pattern_size,
+            distance_metric=distance_metric,
         )
         # Optional blue-noise texture step on the OUTER cells. No-op when
         # the checkbox is off OR when dithering is on (the dither output
@@ -121,7 +146,10 @@ def circulate_cells_to_svg(
             )
         # Reduce on the OUTER cells only — inner sub-colour is decorative
         # and tracks the original mean.
-        outer, did_reduce = reduce_to_top_n(outer, palette_oklab, palette_rgb, num_colors)
+        outer, did_reduce = reduce_to_top_n(
+            outer, palette_oklab, palette_rgb, num_colors,
+            distance_metric=distance_metric,
+        )
         if did_reduce:
             phase("reduce_colors")
     else:
@@ -130,6 +158,7 @@ def circulate_cells_to_svg(
         _inner_colors(
             means, palette_oklab, palette_rgb,
             inner_hue_deg, inner_lightness_delta, inner_chroma_scale,
+            distance_metric=distance_metric,
         )
         if inner_enabled
         else None

@@ -89,6 +89,7 @@ export async function pixelateImageAndActivate(args: {
     pre_snap_chroma_scale: preSnapChromaScale,
     dither_mode: ditherMode,
     dither_pattern_size: ditherPatternSize,
+    distance_metric: distanceMetric,
   } = parsed.data
 
   const sourceResult = await fetchTraceSourceImage({ supabase, projectId, sourceImageId })
@@ -175,6 +176,9 @@ export async function pixelateImageAndActivate(args: {
         // default → degrade to the snap path.
         dither_mode: ditherMode,
         dither_pattern_size: ditherPatternSize,
+        // Snap-step distance metric (PR-H). Older filter-service revisions
+        // drop this via Pydantic extra-ignore → server stays on OKLab.
+        distance_metric: distanceMetric,
       },
     })
     profiler.mark("filter_service")

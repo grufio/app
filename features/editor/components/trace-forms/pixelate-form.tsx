@@ -26,6 +26,7 @@ import { extractNumberInputProps, parseFormNumber } from "@/lib/forms/zod-input-
 import { PanelIconSlot, PanelTwoFieldRow } from "../panel-layout"
 import { EditorSidebarSection } from "../sidebar/editor-sidebar-section"
 import { TraceColorsFields } from "./trace-colors-fields"
+import { TraceDistanceFields } from "./trace-distance-fields"
 import { TraceDitherFields } from "./trace-dither-fields"
 import { TraceTextureFields } from "./trace-texture-fields"
 
@@ -114,6 +115,14 @@ export function PixelateForm({ params, onParamsChange, disabled, grid }: Props) 
           numColors={params.num_colors}
           onColorModeChange={(v) => onParamsChange("color_mode", v)}
           onNumColorsChange={(v) => onParamsChange("num_colors", v)}
+          disabled={disabled}
+        />
+      </EditorSidebarSection>
+
+      <EditorSidebarSection title="Distance">
+        <TraceDistanceFields
+          metric={params.distance_metric}
+          onMetricChange={(v) => onParamsChange("distance_metric", v)}
           disabled={disabled}
         />
       </EditorSidebarSection>

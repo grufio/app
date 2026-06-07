@@ -65,6 +65,7 @@ describe("Python parity: TS trace schema defaults vs Pydantic", () => {
     const ts = pixelateSchema.parse({})
     expect(Object.keys(ts).sort()).toEqual([
       "color_mode",
+      "distance_metric",
       "dither_mode",
       "dither_pattern_size",
       "num_colors",
@@ -101,6 +102,20 @@ describe("Python parity: TS trace schema defaults vs Pydantic", () => {
     expect(ts.dither_mode).toBe("knoll_yliluoma")
     expect(py.dither_pattern_size).toBe(4)
     expect(ts.dither_pattern_size).toBe(4)
+  })
+
+  it("PixelateRequest — distance_metric defaults agree TS ⇄ Python at 'oklab' (PR-H)", () => {
+    // Both halves of the rolling deploy default to "oklab" so a
+    // request that omits the field renders byte-identically to the
+    // pre-PR-H pipeline. The Vercel-side default doubles as the form
+    // default; persisted rows without the field parse to "oklab" on
+    // both server bridges. Parity is the gate: a future PR that
+    // flips the default on one side only would diverge preview ⇄
+    // apply output but fail this assertion first.
+    const py = extractPydanticDefaults("PixelateRequest")
+    const ts = pixelateSchema.parse({})
+    expect(py.distance_metric).toBe("oklab")
+    expect(ts.distance_metric).toBe("oklab")
   })
 
   it("PixelateRequest — texture_enabled default agrees TS ⇄ Python", () => {

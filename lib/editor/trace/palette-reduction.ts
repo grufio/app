@@ -11,8 +11,14 @@
  * apply ever emits, so the user can't tune `num_colors` visually. Parity-
  * tested via `palette-reduction.test.ts`.
  */
+import {
+  nearestPaletteIndexCiede2000,
+  rgb255ToCielab,
+  type CieLab,
+} from "@/lib/color/ciede2000"
 import { nearestPaletteIndex, rgb255ToOklab } from "@/lib/color/oklab"
 
+import type { DistanceMetric } from "./distance-metric-schema"
 import type { CellColors, PaletteChip } from "./trace-cell-colors"
 
 /**
@@ -64,6 +70,7 @@ export function reduceToTopN(
   cells: CellColors,
   palette: ReadonlyArray<PaletteChip>,
   numColors: number | null | undefined,
+  distanceMetric: DistanceMetric = "oklab",
 ): { cells: CellColors; didReduce: boolean } {
   if (numColors == null || numColors <= 0 || palette.length === 0) {
     return { cells, didReduce: false }
@@ -85,9 +92,19 @@ export function reduceToTopN(
   })
   const keptIdx = new Set<number>()
   for (let i = 0; i < numColors; i += 1) keptIdx.add(ranked[i][0])
-  // Build the kept-set OKLab array for re-snapping excluded cells.
   const keptList = Array.from(keptIdx)
-  const keptOklab = keptList.map((idx) => palette[idx].oklab)
+  // Build the kept-set in the active metric's space for re-snapping
+  // excluded cells. The non-excluded cells just pass through unchanged
+  // — they're already an exact palette chip.
+  const keptOklab =
+    distanceMetric === "ciede2000" ? null : keptList.map((idx) => palette[idx].oklab)
+  const keptLab: CieLab[] | null =
+    distanceMetric === "ciede2000"
+      ? keptList.map((idx) => {
+          const chip = palette[idx].rgb
+          return rgb255ToCielab(chip[0], chip[1], chip[2])
+        })
+      : null
 
   const n = cells.r.length
   const r = new Uint8ClampedArray(n)
@@ -101,10 +118,17 @@ export function reduceToTopN(
       b[i] = cells.b[i]
       continue
     }
-    const localIdx = nearestPaletteIndex(
-      rgb255ToOklab(cells.r[i], cells.g[i], cells.b[i]),
-      keptOklab,
-    )
+    const localIdx =
+      keptLab !== null
+        ? nearestPaletteIndexCiede2000(
+            rgb255ToCielab(cells.r[i], cells.g[i], cells.b[i]),
+            keptLab,
+          )
+        : nearestPaletteIndex(
+            rgb255ToOklab(cells.r[i], cells.g[i], cells.b[i]),
+            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+            keptOklab!,
+          )
     const chip = palette[keptList[localIdx]].rgb
     r[i] = chip[0]
     g[i] = chip[1]

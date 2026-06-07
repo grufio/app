@@ -33,6 +33,7 @@ import { extractNumberInputProps, parseFormNumber } from "@/lib/forms/zod-input-
 import { PanelIconSlot, PanelTwoFieldRow } from "../panel-layout"
 import { EditorSidebarSection } from "../sidebar/editor-sidebar-section"
 import { TraceColorsFields } from "./trace-colors-fields"
+import { TraceDistanceFields } from "./trace-distance-fields"
 import { TraceDitherFields } from "./trace-dither-fields"
 import { TraceTextureFields } from "./trace-texture-fields"
 
@@ -183,6 +184,14 @@ export function CirculateForm({ params, onParamsChange, disabled, grid }: Props)
             />,
           )}
         </div>
+      </EditorSidebarSection>
+
+      <EditorSidebarSection title="Distance">
+        <TraceDistanceFields
+          metric={params.distance_metric}
+          onMetricChange={(v) => onParamsChange("distance_metric", v)}
+          disabled={disabled}
+        />
       </EditorSidebarSection>
 
       <EditorSidebarSection title="Dither">

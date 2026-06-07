@@ -182,6 +182,11 @@ export async function circulateImageAndActivate(args: {
         // ignore → degrade to the snap path.
         dither_mode: p.dither_mode,
         dither_pattern_size: p.dither_pattern_size,
+        // Snap-step distance metric (PR-H). Applied to outer cells AND
+        // inner-ellipse snap-back (after the OKLCh sub-colour-filter
+        // adjustment). Same rolling-deploy degradation as the dither
+        // fields above.
+        distance_metric: p.distance_metric,
       },
     })
     profiler.mark("filter_service")
