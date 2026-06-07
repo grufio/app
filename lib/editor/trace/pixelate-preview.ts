@@ -27,6 +27,7 @@
  * set to `crop.w` / `crop.h`.
  */
 import { applyNeighborInvasion } from "./cell-texture"
+import type { DistanceMetric } from "./distance-metric-schema"
 import type { DitherMode, DitherPatternSize } from "./dither-mode-schema"
 import type { BlueNoiseLut } from "./knoll-yliluoma"
 import { reduceToTopN } from "./palette-reduction"
@@ -64,6 +65,10 @@ export function buildMiniCanvas(args: {
    * texture step is no-op'd — KY/FS replace it functionally. */
   ditherMode?: DitherMode
   ditherPatternSize?: DitherPatternSize | number
+  /** Snap-step distance metric (PR-H). Default `"oklab"` keeps the
+   * pre-PR-H preview output byte-identical; `"ciede2000"` switches the
+   * `"none"` dither path + the top-N re-snap step to CIE Lab + ΔE00. */
+  distanceMetric?: DistanceMetric
 }): void {
   const {
     target,
@@ -79,6 +84,7 @@ export function buildMiniCanvas(args: {
     textureLut,
     ditherMode,
     ditherPatternSize,
+    distanceMetric,
   } = args
   const ctx = target.getContext("2d", { willReadFrequently: true })
   if (!ctx) throw new Error("buildMiniCanvas: 2D context unavailable")
@@ -118,6 +124,7 @@ export function buildMiniCanvas(args: {
     // doesn't need it (sequential error diffusion); the dispatch only
     // gates KY on LUT availability.
     blueNoiseLut: textureLut as BlueNoiseLut | null | undefined ?? null,
+    distanceMetric: distanceMetric ?? "oklab",
   })
 
   // (2b) Optional blue-noise texture step. Skipped when dithering is on
@@ -147,7 +154,7 @@ export function buildMiniCanvas(args: {
   // Skipped when no palette is loaded or numColors is null/<=0; otherwise
   // caps the distinct chip count to numColors so preview ↔ output match.
   if (palette.length > 0 && numColors != null && numColors > 0) {
-    cells = reduceToTopN(cells, palette, numColors).cells
+    cells = reduceToTopN(cells, palette, numColors, distanceMetric ?? "oklab").cells
   }
   const { r, g, b } = cells
 

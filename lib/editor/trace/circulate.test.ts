@@ -30,6 +30,10 @@ const DEFAULTS = {
   // row, the user can explicitly set `dither_mode = "none"`.
   dither_mode: "knoll_yliluoma",
   dither_pattern_size: 4,
+  // Distance-metric default (PR-H): OKLab squared-Euclidean = legacy.
+  // CIEDE2000 is opt-in via the form select; persisted rows without
+  // the field parse to "oklab" so re-applying them stays byte-identical.
+  distance_metric: "oklab",
 } as const
 
 describe("circulateSchema", () => {

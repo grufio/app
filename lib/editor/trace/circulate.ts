@@ -4,6 +4,7 @@ import type { TraceDefinition } from "./types"
 import { DEFAULT_INNER_FILTER, INNER_FILTER_IDS } from "./inner-color-filters"
 import { numColorsSchema } from "./num-colors-schema"
 import { preSnapChromaScaleSchema } from "./chroma-scale-schema"
+import { distanceMetricSchema } from "./distance-metric-schema"
 import { ditherModeSchema, ditherPatternSizeSchema } from "./dither-mode-schema"
 
 /**
@@ -85,6 +86,11 @@ export const circulateSchema = z.object({
   // pre-PR-F behaviour; non-"none" replaces texture functionally.
   dither_mode: ditherModeSchema,
   dither_pattern_size: ditherPatternSizeSchema,
+  // Snap-step distance metric (PR-H). Same contract as Pixelate —
+  // see `distance-metric-schema.ts` for the rationale. Default
+  // `"oklab"` keeps byte-identical pre-feature behaviour on both the
+  // outer snap and the `_inner_colors` adjusted snap.
+  distance_metric: distanceMetricSchema,
 })
 
 export type CirculateParams = z.infer<typeof circulateSchema>

@@ -18,6 +18,7 @@ from __future__ import annotations
 import numpy as np
 from PIL import Image
 
+from .ciede2000 import nearest_palette_indices_ciede2000, rgb255_to_cielab
 from .floyd_steinberg import floyd_steinberg_dither
 from .knoll_yliluoma import (
     BLUE_NOISE_LUT,
@@ -26,6 +27,48 @@ from .knoll_yliluoma import (
     threshold_bin,
 )
 from .oklab import adjust_oklab, nearest_palette_indices, rgb255_to_oklab
+
+# `distance_metric` PR-H — keep the enum values in sync with the Zod
+# slice (`lib/editor/trace/distance-metric-schema.ts`). The parity test
+# (`python-parity.test.ts`) verifies that.
+_VALID_DISTANCE_METRICS = ("oklab", "ciede2000")
+
+
+def _snap_indices(
+    cells_rgb_flat: np.ndarray,
+    palette_oklab: np.ndarray,
+    palette_rgb: np.ndarray,
+    pre_snap_chroma_scale: float,
+    distance_metric: str,
+) -> np.ndarray:
+    """Cell-RGB → palette-chip indices via the selected distance metric.
+
+    - `"oklab"`     : convert cells to OKLab (optionally chroma-boosted),
+                      argmin via squared-Euclidean against `palette_oklab`.
+                      Pre-PR-H behaviour, byte-identical to the previous
+                      `nearest_palette_indices` call site.
+    - `"ciede2000"` : convert cells to CIE Lab D65, convert
+                      `palette_rgb` to CIE Lab D65 on the fly (cheap;
+                      ~300 chips), argmin via ΔE00 against the palette
+                      Lab vectors. The OKLCh `pre_snap_chroma_scale`
+                      boost is SKIPPED here because the math is
+                      OKLCh-specific — see `distance-metric-schema.ts`.
+
+    The helper is shared between `map_cells_to_palette`,
+    `map_cells_dithered` (none-path), `circulate._inner_colors` and
+    `palette_reduction.reduce_to_top_n`'s re-snap step so the dispatch
+    lives in one place.
+    """
+    cells = np.asarray(cells_rgb_flat, dtype=np.uint8).reshape(-1, 3)
+    if distance_metric == "ciede2000":
+        cells_lab = rgb255_to_cielab(cells)
+        palette_lab = rgb255_to_cielab(np.asarray(palette_rgb, dtype=np.uint8))
+        return nearest_palette_indices_ciede2000(cells_lab, palette_lab)
+    # default "oklab" path
+    cells_oklab = rgb255_to_oklab(cells)
+    if pre_snap_chroma_scale != 1.0:
+        cells_oklab = adjust_oklab(cells_oklab, chroma_scale=pre_snap_chroma_scale)
+    return nearest_palette_indices(cells_oklab, palette_oklab)
 
 
 def compute_cell_colors(cropped: Image.Image, cells_x: int, cells_y: int) -> np.ndarray:
@@ -47,6 +90,7 @@ def map_cells_to_palette(
     palette_oklab: np.ndarray,
     palette_rgb: np.ndarray,
     pre_snap_chroma_scale: float = 1.0,
+    distance_metric: str = "oklab",
 ) -> np.ndarray:
     """Snap each per-cell mean colour to the nearest palette chip.
 
@@ -55,21 +99,31 @@ def map_cells_to_palette(
     uint8) are the chips of the active palette (active-tier `lab_munsell`
     + `lab_grays` appended for colour, `lab_grays` for b/w) — the OKLab
     columns straight from the DB, so the chip space matches color-lab.
-    Each cell mean is converted to OKLab and replaced by the RGB of its
-    nearest chip. Returns `(cells_y, cells_x, 3)` uint8.
+    Each cell mean is converted to the active metric's space and
+    replaced by the RGB of its nearest chip. Returns `(cells_y, cells_x, 3)`
+    uint8.
 
     `pre_snap_chroma_scale` (default `1.0` = no-op = pre-feature
     behaviour) multiplies the cell mean's OKLCh chroma BEFORE the
     nearest-chip argmin. Values > 1.0 push dull-averaged cells toward
     saturated chips, spreading the picked chip-set across more of the
     palette. See `lib/editor/trace/chroma-scale-schema.ts` for the
-    range + default-1.2 rationale.
+    range + default-1.0 rationale. Honoured only on the `"oklab"`
+    path; the `"ciede2000"` path skips the boost since OKLCh ≠ CIE LCh
+    (see `distance-metric-schema.ts`).
+
+    `distance_metric` (default `"oklab"`) picks the snap metric:
+    `"oklab"` keeps the pre-PR-H squared-Euclidean snap; `"ciede2000"`
+    switches to CIE Lab D65 + ΔE00 via `ciede2000.py`.
     """
     shape = np.asarray(cell_means).shape
-    cells_oklab = rgb255_to_oklab(np.asarray(cell_means).reshape(-1, 3))
-    if pre_snap_chroma_scale != 1.0:
-        cells_oklab = adjust_oklab(cells_oklab, chroma_scale=pre_snap_chroma_scale)
-    idx = nearest_palette_indices(cells_oklab, palette_oklab)
+    idx = _snap_indices(
+        np.asarray(cell_means).reshape(-1, 3),
+        palette_oklab,
+        palette_rgb,
+        pre_snap_chroma_scale,
+        distance_metric,
+    )
     mapped = np.asarray(palette_rgb, dtype=np.uint8)[idx]
     return mapped.reshape(shape)
 
@@ -114,43 +168,63 @@ def map_cells_dithered(
     pre_snap_chroma_scale: float = 1.0,
     dither_mode: str = "none",
     dither_pattern_size: int = 4,
+    distance_metric: str = "oklab",
 ) -> np.ndarray:
-    """Snap-or-dither dispatch shared by pixelate + circulate (PR-F).
+    """Snap-or-dither dispatch shared by pixelate + circulate.
 
-    Replaces direct calls to `map_cells_to_palette` from the pipeline
-    so the same cell-mean → palette-chip step can pick between three
-    behaviours via the `dither_mode` parameter:
-
-      - `"none"`            → `map_cells_to_palette` semantics
-                              (byte-identical to pre-PR-F behaviour);
-                              `dither_pattern_size` is ignored.
+    `dither_mode` (PR-F) picks behaviour:
+      - `"none"`            → plain snap; metric chosen by
+                              `distance_metric` (PR-H — OKLab squared-
+                              Euclidean by default, CIEDE2000 on opt-in).
       - `"knoll_yliluoma"`  → per-cell candidate selection +
-                              blue-noise threshold pick (PR-D's
-                              `knoll_yliluoma.py`); `pattern_size`
-                              controls the candidate count (N).
-      - `"floyd_steinberg"` → scan-order error diffusion (PR-E's
-                              `floyd_steinberg.py`);
-                              `dither_pattern_size` is ignored.
+                              blue-noise threshold pick. ALWAYS in
+                              OKLab squared-Euclidean — the
+                              algorithm's internal argmin is hardcoded
+                              squared-Euclidean and metric-aware KY is
+                              out of scope (see `distance-metric-schema.ts`
+                              docstring + the plan file).
+      - `"floyd_steinberg"` → scan-order error diffusion. Same OKLab
+                              constraint as KY.
+
+    Both dither modes therefore IGNORE `distance_metric` — only the
+    `"none"` path honours it. This is documented at the call sites
+    that surface the metric to the user.
 
     All paths run in OKLab space (the `pre_snap_chroma_scale` boost
-    happens once up-front) and return the same shape
-    `(cells_y, cells_x, 3)` uint8 RGB array as `map_cells_to_palette`
-    — callers shouldn't notice which dispatch ran.
+    happens once up-front IF the snap path uses OKLab) and return the
+    same shape `(cells_y, cells_x, 3)` uint8 RGB array — callers
+    shouldn't notice which dispatch ran.
     """
     if dither_mode not in {"none", "knoll_yliluoma", "floyd_steinberg"}:
         raise ValueError(f"unknown dither_mode: {dither_mode!r}")
+    if distance_metric not in _VALID_DISTANCE_METRICS:
+        raise ValueError(f"unknown distance_metric: {distance_metric!r}")
 
     cells = np.asarray(cell_means)
     shape = cells.shape
-    cells_oklab_flat = rgb255_to_oklab(cells.reshape(-1, 3))
-    if pre_snap_chroma_scale != 1.0:
-        cells_oklab_flat = adjust_oklab(cells_oklab_flat, chroma_scale=pre_snap_chroma_scale)
     palette_oklab_arr = np.asarray(palette_oklab, dtype=np.float64)
     palette_rgb_arr = np.asarray(palette_rgb, dtype=np.uint8)
 
     if dither_mode == "none":
-        idx = nearest_palette_indices(cells_oklab_flat, palette_oklab_arr)
-    elif dither_mode == "knoll_yliluoma":
+        # Single dispatch through `_snap_indices` keeps the OKLab vs
+        # CIEDE2000 fork in one place. Pre-snap chroma boost is
+        # honoured only on the OKLab path — see helper docstring.
+        idx = _snap_indices(
+            cells.reshape(-1, 3),
+            palette_oklab_arr,
+            palette_rgb_arr,
+            pre_snap_chroma_scale,
+            distance_metric,
+        )
+        return palette_rgb_arr[idx].reshape(shape)
+
+    # KY / FS — always OKLab. Boost applied up-front into the cells'
+    # OKLab so the dither algorithm sees the boosted means.
+    cells_oklab_flat = rgb255_to_oklab(cells.reshape(-1, 3))
+    if pre_snap_chroma_scale != 1.0:
+        cells_oklab_flat = adjust_oklab(cells_oklab_flat, chroma_scale=pre_snap_chroma_scale)
+
+    if dither_mode == "knoll_yliluoma":
         cells_oklab_2d = cells_oklab_flat.reshape(shape[0], shape[1], 3)
         idx = _ky_dither_indices(
             cells_oklab_2d, palette_oklab_arr, int(dither_pattern_size)

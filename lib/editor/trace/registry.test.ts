@@ -113,6 +113,8 @@ describe("pixelateSchema", () => {
     // pattern. See `circulate.test.ts` for the rationale.
     dither_mode: "knoll_yliluoma",
     dither_pattern_size: 4,
+    // Distance-metric default (PR-H): OKLab — see `circulate.test.ts`.
+    distance_metric: "oklab",
   } as const
 
   it("applies defaults for all fields", () => {

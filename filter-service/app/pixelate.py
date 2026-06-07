@@ -62,6 +62,7 @@ def pixelate_cells_to_svg(
     texture_strength: float = 0.0,
     dither_mode: str = "none",
     dither_pattern_size: int = 4,
+    distance_metric: str = "oklab",
     on_phase: callable | None = None,
 ) -> tuple[str, int, list[int]]:
     """
@@ -99,6 +100,7 @@ def pixelate_cells_to_svg(
             pre_snap_chroma_scale=pre_snap_chroma_scale,
             dither_mode=dither_mode,
             dither_pattern_size=dither_pattern_size,
+            distance_metric=distance_metric,
         )
         phase("palette")
         # Optional blue-noise texture step — sporadic neighbour-cluster
@@ -111,7 +113,10 @@ def pixelate_cells_to_svg(
                 arr, np.asarray(palette_rgb, dtype=np.uint8), texture_strength
             )
             phase("texture")
-        arr, did_reduce = reduce_to_top_n(arr, palette_oklab, palette_rgb, num_colors)
+        arr, did_reduce = reduce_to_top_n(
+            arr, palette_oklab, palette_rgb, num_colors,
+            distance_metric=distance_metric,
+        )
         if did_reduce:
             phase("reduce_colors")
     color_rects: list[str] = []

@@ -12,7 +12,13 @@
  * snaps each cell to the nearest Munsell chip via OKLab — mirroring the
  * server (`filter-service/app/cell_colors.py`).
  */
+import {
+  nearestPaletteIndexCiede2000,
+  rgb255ToCielab,
+  type CieLab,
+} from "@/lib/color/ciede2000"
 import { adjustOklab, nearestPaletteIndex, rgb255ToOklab, type Oklab } from "@/lib/color/oklab"
+import type { DistanceMetric } from "./distance-metric-schema"
 import type { DitherMode, DitherPatternSize } from "./dither-mode-schema"
 import { floydSteinbergDither } from "./floyd-steinberg"
 import type { OklabAdjustment } from "./inner-color-filters"
@@ -97,26 +103,53 @@ export type PaletteChip = {
 export type CellColors = { r: Uint8ClampedArray; g: Uint8ClampedArray; b: Uint8ClampedArray }
 
 /**
- * Snap each per-cell mean to the nearest palette chip (OKLab nearest),
- * mirroring the server's `map_cells_to_palette`. Returns new channel arrays;
- * an empty palette returns the input unchanged (raw means).
+ * Snap each per-cell mean to the nearest palette chip, mirroring the
+ * server's `map_cells_to_palette`. Returns new channel arrays; an
+ * empty palette returns the input unchanged (raw means).
  *
  * `preSnapChromaScale` (default `1.0` = no-op) multiplies each cell mean's
  * OKLCh chroma BEFORE the nearest-chip argmin. Mirrors the Python
  * `map_cells_to_palette(..., pre_snap_chroma_scale=k)` and uses the same
  * `adjustOklab` math (parity-tested in `lib/color/oklab.test.ts`).
+ * Honoured only on the `"oklab"` metric path; the `"ciede2000"` path
+ * skips the boost (OKLCh ≠ CIE LCh — see `distance-metric-schema.ts`).
+ *
+ * `distanceMetric` (PR-H, default `"oklab"`) picks the snap metric:
+ *   - `"oklab"`     → OKLab squared-Euclidean argmin (pre-PR-H semantics)
+ *   - `"ciede2000"` → CIE Lab D65 + ΔE00 via `nearestPaletteIndexCiede2000`
+ *
+ * Palette CIE Lab vectors are computed once up-front from each chip's
+ * RGB (~300 chips per request, sub-millisecond).
  */
 export function mapCellsToPalette(
   cells: CellColors,
   palette: ReadonlyArray<PaletteChip>,
   preSnapChromaScale: number = 1.0,
+  distanceMetric: DistanceMetric = "oklab",
 ): CellColors {
   if (palette.length === 0) return cells
-  const paletteOklab = palette.map((c) => c.oklab)
   const n = cells.r.length
   const r = new Uint8ClampedArray(n)
   const g = new Uint8ClampedArray(n)
   const b = new Uint8ClampedArray(n)
+
+  if (distanceMetric === "ciede2000") {
+    const paletteLab: CieLab[] = palette.map((c) =>
+      rgb255ToCielab(c.rgb[0], c.rgb[1], c.rgb[2]),
+    )
+    for (let i = 0; i < n; i += 1) {
+      const lab = rgb255ToCielab(cells.r[i], cells.g[i], cells.b[i])
+      const idx = nearestPaletteIndexCiede2000(lab, paletteLab)
+      const chip = palette[idx].rgb
+      r[i] = chip[0]
+      g[i] = chip[1]
+      b[i] = chip[2]
+    }
+    return { r, g, b }
+  }
+
+  // "oklab" — the pre-PR-H path. Boost applies only here.
+  const paletteOklab = palette.map((c) => c.oklab)
   const boost = preSnapChromaScale !== 1.0
   for (let i = 0; i < n; i += 1) {
     let oklab = rgb255ToOklab(cells.r[i], cells.g[i], cells.b[i])
@@ -168,6 +201,10 @@ export function mapCellsDithered(args: {
   ditherMode?: DitherMode
   ditherPatternSize?: DitherPatternSize | number
   blueNoiseLut?: BlueNoiseLut | null
+  /** Snap-step distance metric (PR-H, default `"oklab"`). Honoured only
+   * on the `"none"` dither path; KY + FS keep squared-Euclidean argmin
+   * in OKLab regardless. */
+  distanceMetric?: DistanceMetric
 }): CellColors {
   const {
     cells,
@@ -178,11 +215,12 @@ export function mapCellsDithered(args: {
     ditherMode = "none",
     ditherPatternSize = 4,
     blueNoiseLut = null,
+    distanceMetric = "oklab",
   } = args
   if (palette.length === 0) return cells
   const lutAvailable = blueNoiseLut != null
   if (ditherMode === "none" || (ditherMode === "knoll_yliluoma" && !lutAvailable)) {
-    return mapCellsToPalette(cells, palette, preSnapChromaScale)
+    return mapCellsToPalette(cells, palette, preSnapChromaScale, distanceMetric)
   }
 
   const n = cells.r.length
@@ -258,11 +296,19 @@ export function mapCellsDithered(args: {
  * `_inner_colors` (`filter-service/app/circulate.py`); the adjusted colour
  * stays in the palette. The identity adjustment reduces to
  * {@link mapCellsToPalette}. An empty palette returns the input unchanged.
+ *
+ * The sub-colour-filter math is OKLCh-defined, so the adjustment ALWAYS
+ * happens in OKLab regardless of `distanceMetric` (PR-H). Only the
+ * final snap-to-chip step honours the metric: `"oklab"` keeps the
+ * pre-PR-H squared-Euclidean argmin; `"ciede2000"` re-snaps via CIE
+ * Lab D65 + ΔE00 (same round-trip-through-anchor-chip strategy as the
+ * Python `_inner_colors`).
  */
 export function mapCellsToPaletteAdjusted(
   cells: CellColors,
   palette: ReadonlyArray<PaletteChip>,
   adjustment: OklabAdjustment,
+  distanceMetric: DistanceMetric = "oklab",
 ): CellColors {
   if (palette.length === 0) return cells
   const paletteOklab = palette.map((c) => c.oklab)
@@ -270,6 +316,27 @@ export function mapCellsToPaletteAdjusted(
   const r = new Uint8ClampedArray(n)
   const g = new Uint8ClampedArray(n)
   const b = new Uint8ClampedArray(n)
+
+  if (distanceMetric === "ciede2000") {
+    const paletteLab: CieLab[] = palette.map((c) =>
+      rgb255ToCielab(c.rgb[0], c.rgb[1], c.rgb[2]),
+    )
+    for (let i = 0; i < n; i += 1) {
+      // OKLab adjustment → anchor chip via OKLab snap → re-snap anchor RGB
+      // in CIE Lab. Mirror of the Python helper's round-trip in
+      // `circulate.py::_inner_colors`.
+      const adjusted = adjustOklab(rgb255ToOklab(cells.r[i], cells.g[i], cells.b[i]), adjustment)
+      const anchorIdx = nearestPaletteIndex(adjusted, paletteOklab)
+      const anchor = palette[anchorIdx].rgb
+      const anchorLab = rgb255ToCielab(anchor[0], anchor[1], anchor[2])
+      const chip = palette[nearestPaletteIndexCiede2000(anchorLab, paletteLab)].rgb
+      r[i] = chip[0]
+      g[i] = chip[1]
+      b[i] = chip[2]
+    }
+    return { r, g, b }
+  }
+
   for (let i = 0; i < n; i += 1) {
     const adjusted = adjustOklab(rgb255ToOklab(cells.r[i], cells.g[i], cells.b[i]), adjustment)
     const chip = palette[nearestPaletteIndex(adjusted, paletteOklab)].rgb

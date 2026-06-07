@@ -287,6 +287,12 @@ class PixelateRequest(BaseModel):
     # only applies to KY (candidate count N); FS ignores it.
     dither_mode: str = "knoll_yliluoma"
     dither_pattern_size: int = 4
+    # Snap-step distance metric (PR-H). Default `"oklab"` preserves
+    # byte-identical pre-feature behaviour; `"ciede2000"` switches the
+    # plain snap path to CIE Lab D65 + ΔE00. Pydantic's default-extra-
+    # ignore keeps the rolling-deploy story safe (old Vercel revisions
+    # omit the field → server defaults to oklab → no behaviour change).
+    distance_metric: str = "oklab"
 
 
 @app.post("/filters/pixelate")
@@ -329,6 +335,7 @@ async def pixelate_filter(request: PixelateRequest):
             texture_strength=request.texture_strength,
             dither_mode=request.dither_mode,
             dither_pattern_size=request.dither_pattern_size,
+            distance_metric=request.distance_metric,
             on_phase=timer.mark,
         )
 
@@ -399,6 +406,8 @@ class CirculateRequest(BaseModel):
     # the original pre-snap means.
     dither_mode: str = "knoll_yliluoma"
     dither_pattern_size: int = 4
+    # Snap-step distance metric (PR-H) — same contract as PixelateRequest.
+    distance_metric: str = "oklab"
 
 
 @app.post("/filters/circulate")
@@ -457,6 +466,7 @@ async def circulate_filter(request: CirculateRequest):
             texture_strength=request.texture_strength,
             dither_mode=request.dither_mode,
             dither_pattern_size=request.dither_pattern_size,
+            distance_metric=request.distance_metric,
             on_phase=timer.mark,
         )
 

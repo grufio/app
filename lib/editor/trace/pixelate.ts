@@ -3,6 +3,7 @@ import { z } from "zod"
 import type { TraceDefinition } from "./types"
 import { numColorsSchema } from "./num-colors-schema"
 import { preSnapChromaScaleSchema } from "./chroma-scale-schema"
+import { distanceMetricSchema } from "./distance-metric-schema"
 import { ditherModeSchema, ditherPatternSizeSchema } from "./dither-mode-schema"
 import { DEFAULT_SUPERCELL_MM, MIN_SUPERCELL_MM } from "./pixelate-grid-math"
 
@@ -42,6 +43,12 @@ export const pixelateSchema = z.object({
   // functionally. See `dither-mode-schema.ts` for the rationale.
   dither_mode: ditherModeSchema,
   dither_pattern_size: ditherPatternSizeSchema,
+  // Snap-step distance metric (PR-H). Default `"oklab"` preserves
+  // byte-identical pre-feature behaviour; `"ciede2000"` switches the
+  // plain snap path to CIE Lab D65 + ΔE00. KY/FS dithering keep
+  // squared-Euclidean argmin regardless — see `distance-metric-schema.ts`
+  // for the rationale and the `pre_snap_chroma_scale` interaction.
+  distance_metric: distanceMetricSchema,
 })
 
 export type PixelateParams = z.infer<typeof pixelateSchema>
