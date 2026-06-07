@@ -90,6 +90,7 @@ export async function pixelateImageAndActivate(args: {
     dither_mode: ditherMode,
     dither_pattern_size: ditherPatternSize,
     distance_metric: distanceMetric,
+    palette_restriction: paletteRestriction,
   } = parsed.data
 
   const sourceResult = await fetchTraceSourceImage({ supabase, projectId, sourceImageId })
@@ -179,6 +180,9 @@ export async function pixelateImageAndActivate(args: {
         // Snap-step distance metric (PR-H). Older filter-service revisions
         // drop this via Pydantic extra-ignore → server stays on OKLab.
         distance_metric: distanceMetric,
+        // Palette-cap strategy (PR-I). Older filter-service revisions
+        // drop this via Pydantic extra-ignore → server stays on top_n.
+        palette_restriction: paletteRestriction,
       },
     })
     profiler.mark("filter_service")

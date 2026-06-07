@@ -17,6 +17,7 @@ const validParams: PixelateParams = {
   dither_mode: "knoll_yliluoma",
   dither_pattern_size: 4,
   distance_metric: "oklab",
+  palette_restriction: "top_n",
 }
 
 describe("pixelateImageAndActivate validation contract", () => {

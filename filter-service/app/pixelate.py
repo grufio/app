@@ -17,7 +17,7 @@ import numpy as np
 from .cell_colors import map_cells_dithered
 from .cell_labels import build_label_map, reconstruct_palette_indices, render_numbers_group
 from .cell_texture import apply_neighbor_invasion
-from .palette_reduction import reduce_to_top_n
+from .palette_reduction import reduce_to_top_n, restrict_palette_pam, translate_palette_indices
 
 
 def _grid_lines(
@@ -63,6 +63,7 @@ def pixelate_cells_to_svg(
     dither_mode: str = "none",
     dither_pattern_size: int = 4,
     distance_metric: str = "oklab",
+    palette_restriction: str = "top_n",
     on_phase: callable | None = None,
 ) -> tuple[str, int, list[int]]:
     """
@@ -88,15 +89,33 @@ def pixelate_cells_to_svg(
 
     cells_y, cells_x, _ = cell_means.shape
     arr = cell_means
+    # PR-I: when `palette_restriction == "pam"`, the active palette is
+    # narrowed PRE-snap to `num_colors` medoid chips. The snap then runs
+    # against the restricted palette and the post-snap `reduce_to_top_n`
+    # is skipped. `kept_indices` translates restricted-array indices
+    # back to ORIGINAL palette indices for the `palette_indices_used`
+    # wire contract — see the labels block below.
+    kept_indices: np.ndarray | None = None
+    snap_palette_oklab = palette_oklab
+    snap_palette_rgb = palette_rgb
 
     if palette_oklab is not None and palette_rgb is not None:
+        if palette_restriction == "pam":
+            restricted_oklab, restricted_rgb, kept_indices = restrict_palette_pam(
+                arr, palette_oklab, palette_rgb,
+                num_colors=num_colors,
+                distance_metric=distance_metric,
+            )
+            snap_palette_oklab = restricted_oklab
+            snap_palette_rgb = restricted_rgb
+            phase("pam_restrict")
         # PR-F: single dispatch — `"none"` keeps the pre-feature snap;
         # `"knoll_yliluoma"` / `"floyd_steinberg"` substitute the snap
         # step with the matching dithering algorithm. The texture step
         # below is skipped when dithering is on (KY/FS replace it
         # functionally; stacking would double-dither).
         arr = map_cells_dithered(
-            arr, palette_oklab, palette_rgb,
+            arr, snap_palette_oklab, snap_palette_rgb,
             pre_snap_chroma_scale=pre_snap_chroma_scale,
             dither_mode=dither_mode,
             dither_pattern_size=dither_pattern_size,
@@ -110,15 +129,16 @@ def pixelate_cells_to_svg(
         # behaviour that texture was approximating).
         if dither_mode == "none" and texture_enabled and texture_strength > 0:
             arr = apply_neighbor_invasion(
-                arr, np.asarray(palette_rgb, dtype=np.uint8), texture_strength
+                arr, np.asarray(snap_palette_rgb, dtype=np.uint8), texture_strength
             )
             phase("texture")
-        arr, did_reduce = reduce_to_top_n(
-            arr, palette_oklab, palette_rgb, num_colors,
-            distance_metric=distance_metric,
-        )
-        if did_reduce:
-            phase("reduce_colors")
+        if palette_restriction != "pam":
+            arr, did_reduce = reduce_to_top_n(
+                arr, snap_palette_oklab, snap_palette_rgb, num_colors,
+                distance_metric=distance_metric,
+            )
+            if did_reduce:
+                phase("reduce_colors")
     color_rects: list[str] = []
     for y in range(cells_y):
         for x in range(cells_x):
@@ -152,12 +172,29 @@ def pixelate_cells_to_svg(
     numbers_group = ""
     palette_indices_used: list[int] = []
     if palette_rgb is not None:
-        indices = reconstruct_palette_indices(arr, np.asarray(palette_rgb, dtype=np.uint8))
+        # PR-I: when PAM restricted the palette pre-snap, `arr` only
+        # contains chips from the restricted set. Reconstruct against
+        # the RESTRICTED palette, then translate back through
+        # `kept_indices` so labels + `palette_indices_used` carry the
+        # ORIGINAL palette positions. The Top-N branch leaves
+        # `kept_indices` as None and skips the translation (cells are
+        # already in full-palette space).
+        reconstruct_palette = np.asarray(
+            snap_palette_rgb if kept_indices is not None else palette_rgb,
+            dtype=np.uint8,
+        )
+        indices_in_active = reconstruct_palette_indices(arr, reconstruct_palette)
+        if kept_indices is not None:
+            indices = translate_palette_indices(indices_in_active, kept_indices)
+        else:
+            indices = indices_in_active
         labels = build_label_map(indices)
         numbers_group = render_numbers_group(indices, labels, scale_x, scale_y)
         # Unique palette chips actually used in the final output (after
         # snap + texture invasion). Sorted ascending by palette_index so
-        # the client renders them deterministically.
+        # the client renders them deterministically. Always in ORIGINAL
+        # palette-index space (translated above for PAM) so the editor's
+        # Colors sheet matches the right chip names.
         palette_indices_used = sorted(int(i) for i in np.unique(indices).tolist())
         phase("numbers")
 

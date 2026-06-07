@@ -187,6 +187,10 @@ export async function circulateImageAndActivate(args: {
         // adjustment). Same rolling-deploy degradation as the dither
         // fields above.
         distance_metric: p.distance_metric,
+        // Palette-cap strategy (PR-I). PAM restriction applies to
+        // OUTER ellipse colour only; inner ellipses always snap
+        // against the full palette.
+        palette_restriction: p.palette_restriction,
       },
     })
     profiler.mark("filter_service")

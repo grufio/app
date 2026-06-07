@@ -5,6 +5,7 @@ import { DEFAULT_INNER_FILTER, INNER_FILTER_IDS } from "./inner-color-filters"
 import { numColorsSchema } from "./num-colors-schema"
 import { preSnapChromaScaleSchema } from "./chroma-scale-schema"
 import { distanceMetricSchema } from "./distance-metric-schema"
+import { paletteRestrictionSchema } from "./palette-restriction-schema"
 import { ditherModeSchema, ditherPatternSizeSchema } from "./dither-mode-schema"
 
 /**
@@ -91,6 +92,12 @@ export const circulateSchema = z.object({
   // `"oklab"` keeps byte-identical pre-feature behaviour on both the
   // outer snap and the `_inner_colors` adjusted snap.
   distance_metric: distanceMetricSchema,
+  // Palette-cap strategy (PR-I). Same contract as Pixelate — when
+  // `"pam"`, the OUTER palette is restricted pre-snap to `num_colors`
+  // medoid chips. Inner ellipses still snap against the FULL palette
+  // because the sub-colour-filter math (`_inner_colors`) needs every
+  // chip available — see `palette-restriction-schema.ts`.
+  palette_restriction: paletteRestrictionSchema,
 })
 
 export type CirculateParams = z.infer<typeof circulateSchema>

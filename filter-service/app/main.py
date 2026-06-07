@@ -293,6 +293,12 @@ class PixelateRequest(BaseModel):
     # ignore keeps the rolling-deploy story safe (old Vercel revisions
     # omit the field → server defaults to oklab → no behaviour change).
     distance_metric: str = "oklab"
+    # Palette-cap strategy (PR-I). Default `"top_n"` keeps the count-
+    # based post-snap reduction. `"pam"` switches to a PRE-snap k-medoid
+    # restriction (Kaufman & Rousseeuw 1987) — spread-optimal, more
+    # expensive (<1s for typical sizes), uses the active `distance_metric`
+    # for its distance matrix. Backward-compat via default-extra-ignore.
+    palette_restriction: str = "top_n"
 
 
 @app.post("/filters/pixelate")
@@ -336,6 +342,7 @@ async def pixelate_filter(request: PixelateRequest):
             dither_mode=request.dither_mode,
             dither_pattern_size=request.dither_pattern_size,
             distance_metric=request.distance_metric,
+            palette_restriction=request.palette_restriction,
             on_phase=timer.mark,
         )
 
@@ -408,6 +415,10 @@ class CirculateRequest(BaseModel):
     dither_pattern_size: int = 4
     # Snap-step distance metric (PR-H) — same contract as PixelateRequest.
     distance_metric: str = "oklab"
+    # Palette-cap strategy (PR-I) — same contract as PixelateRequest. PAM
+    # restriction applies to OUTER ellipse colour only; inner ellipses
+    # always snap against the FULL palette (sub-colour-filter math).
+    palette_restriction: str = "top_n"
 
 
 @app.post("/filters/circulate")
@@ -467,6 +478,7 @@ async def circulate_filter(request: CirculateRequest):
             dither_mode=request.dither_mode,
             dither_pattern_size=request.dither_pattern_size,
             distance_metric=request.distance_metric,
+            palette_restriction=request.palette_restriction,
             on_phase=timer.mark,
         )
 

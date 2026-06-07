@@ -123,6 +123,7 @@ export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
       ditherMode: params.dither_mode,
       ditherPatternSize: params.dither_pattern_size,
       distanceMetric: params.distance_metric,
+      paletteRestriction: params.palette_restriction,
     })
   }, [
     source,
@@ -139,6 +140,7 @@ export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
     params.dither_mode,
     params.dither_pattern_size,
     params.distance_metric,
+    params.palette_restriction,
   ])
 
   const showSpinner = !source

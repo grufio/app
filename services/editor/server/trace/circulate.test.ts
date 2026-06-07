@@ -26,6 +26,7 @@ const validParams: CirculateParams = {
   dither_mode: "knoll_yliluoma",
   dither_pattern_size: 4,
   distance_metric: "oklab",
+  palette_restriction: "top_n",
 }
 
 describe("circulateImageAndActivate validation contract", () => {
