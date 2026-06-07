@@ -28,10 +28,11 @@
  * pane viewport and never scroll away with the zoomed image — like the
  * editor's floating toolbar at the canvas viewport.
  *
- * Source: loaded `HTMLImageElement` is fed directly to `buildMiniCanvas` via
- * `drawImage`. Inputs are reactive: when `params` changes, the mini canvas is
- * redrawn in-place (React owns its `width`/`height` attributes via JSX props,
- * so the bitmap clears + redraws cleanly).
+ * Source: loaded `HTMLImageElement` flows through the staged preview
+ * helpers (`readSourceCells` → snap/dither/texture/reduce → `paintCellsToCanvas`).
+ * Inputs are reactive: when `params` changes, the mini canvas is redrawn
+ * in-place (React owns its `width`/`height` attributes via JSX props, so
+ * the bitmap clears + redraws cleanly).
  */
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Loader2, Maximize2, ZoomIn, ZoomOut } from "lucide-react"
@@ -70,7 +71,8 @@ type Props = {
 export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, params }: Props) {
   const source = useSourceImage(sourceImageUrl)
   // Snap cells to the same Munsell palette the server uses. Null until the
-  // `/api/palette` fetch resolves; buildMiniCanvas falls back to raw means.
+  // `/api/palette` fetch resolves; `snapAndDitherCells` falls back to raw
+  // means when the palette is empty.
   const palette = useTracePalette(params.color_mode)
   // Blue-noise LUT for the texture step. Null while loading → preview just
   // skips the texture, snapped cells ship as-is until the LUT lands.
@@ -259,7 +261,7 @@ export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
         >
           <canvas
             ref={miniCanvasRef}
-            // Canvas bitmap = full source-crop resolution. buildMiniCanvas
+            // Canvas bitmap = full source-crop resolution. `paintCellsToCanvas`
             // paints solid cell blocks at that size — no source→cells
             // downsample touches the visible bitmap.
             width={crop ? Math.max(1, Math.round(crop.w)) : 1}

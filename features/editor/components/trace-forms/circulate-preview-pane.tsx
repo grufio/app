@@ -7,8 +7,9 @@
  *
  * Sizing/zoom/measurement are identical to `PixelatePreviewPane` (explicit-px
  * contain-fit, ResizeObserver, pinned zoom controls); see that file for the
- * layout rationale. The only difference is the renderer
- * (`buildCirculateMiniCanvas`) and the circulate grid math.
+ * layout rationale. The only difference is the renderer pipeline (the
+ * `snap*Outer` / `snapInnerCells` / `paintCirculateCells` stages) and the
+ * circulate grid math.
  */
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Loader2, Maximize2, ZoomIn, ZoomOut } from "lucide-react"
