@@ -22,7 +22,14 @@ import {
 } from "@/lib/editor/trace/circulate-grid-math"
 import { centeredCropPixels } from "@/lib/editor/trace/pixelate-grid-math"
 import { resolveInnerFilter } from "@/lib/editor/trace/inner-color-filters"
-import { buildCirculateMiniCanvas } from "@/lib/editor/trace/circulate-preview"
+import {
+  applyTopNReductionOuter,
+  paintCirculateCells,
+  restrictOuterPalette,
+  snapAndDitherOuter,
+  snapInnerCells,
+} from "@/lib/editor/trace/circulate-preview"
+import { applyTextureStep, readSourceCells } from "@/lib/editor/trace/pixelate-preview"
 import { useBlueNoiseLut } from "@/lib/editor/trace/use-blue-noise-lut"
 import { useSourceImage } from "@/lib/editor/trace/use-source-image"
 import { useTracePalette } from "@/lib/editor/trace/use-trace-palette"
@@ -76,40 +83,140 @@ export function CirculatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, p
     })
   }, [source, valid, displayMmW, displayMmH, grid])
 
-  useEffect(() => {
-    const target = miniCanvasRef.current
-    if (!target || !source || !crop || !valid) return
-    const fracs = circulateEllipseFractions(grid, params)
-    // Contour mm → preview px (px-per-mm averaged over both axes), matching
-    // the server handler's conversion.
+  // Stage 1 (heavy): read the cropped source + per-cell area-average.
+  // Only re-runs when the source / crop / grid shape change, so unrelated
+  // param toggles skip the per-source-pixel loop.
+  const cellMeans = useMemo(
+    () => (source && crop && valid ? readSourceCells({ source, crop, cellsX: grid.cellsX, cellsY: grid.cellsY }) : null),
+    [source, crop, valid, grid.cellsX, grid.cellsY],
+  )
+
+  // Stage 2a: outer-palette PR-I PAM restriction (inner keeps the full palette).
+  const outerPalette = useMemo(
+    () =>
+      cellMeans
+        ? restrictOuterPalette({
+            cellMeans,
+            palette: palette ?? [],
+            numColors: params.num_colors,
+            distanceMetric: params.distance_metric,
+            paletteRestriction: params.palette_restriction,
+          })
+        : (palette ?? []),
+    [cellMeans, palette, params.num_colors, params.distance_metric, params.palette_restriction],
+  )
+
+  // Stage 2b: outer palette-snap + optional dither.
+  const outerSnapped = useMemo(
+    () =>
+      cellMeans
+        ? snapAndDitherOuter({
+            cellMeans,
+            cellsX: grid.cellsX,
+            cellsY: grid.cellsY,
+            palette: outerPalette,
+            preSnapChromaScale: params.pre_snap_chroma_scale,
+            ditherMode: params.dither_mode,
+            ditherPatternSize: params.dither_pattern_size,
+            distanceMetric: params.distance_metric,
+            textureLut: blueNoiseLut,
+          })
+        : null,
+    [
+      cellMeans,
+      grid.cellsX,
+      grid.cellsY,
+      outerPalette,
+      params.pre_snap_chroma_scale,
+      params.dither_mode,
+      params.dither_pattern_size,
+      params.distance_metric,
+      blueNoiseLut,
+    ],
+  )
+
+  // Stage 3: outer texture invasion (skipped when dithering).
+  const outerTextured = useMemo(
+    () =>
+      outerSnapped
+        ? applyTextureStep({
+            cells: outerSnapped,
+            cellsX: grid.cellsX,
+            cellsY: grid.cellsY,
+            palette: outerPalette,
+            textureEnabled: params.texture_enabled,
+            textureStrength: params.texture_strength,
+            textureLut: blueNoiseLut,
+            ditherMode: params.dither_mode,
+          })
+        : null,
+    [
+      outerSnapped,
+      grid.cellsX,
+      grid.cellsY,
+      outerPalette,
+      params.texture_enabled,
+      params.texture_strength,
+      blueNoiseLut,
+      params.dither_mode,
+    ],
+  )
+
+  // Stage 4: outer top-N reduction (no-op for PAM).
+  const outerReduced = useMemo(
+    () =>
+      outerTextured
+        ? applyTopNReductionOuter({
+            cells: outerTextured,
+            palette: outerPalette,
+            numColors: params.num_colors,
+            distanceMetric: params.distance_metric,
+            paletteRestriction: params.palette_restriction,
+          })
+        : null,
+    [outerTextured, outerPalette, params.num_colors, params.distance_metric, params.palette_restriction],
+  )
+
+  // Stage 5: inner ellipse colours (sub-colour filter, full palette).
+  const innerAdjustment = useMemo(() => resolveInnerFilter(params.inner_filter), [params.inner_filter])
+  const innerCells = useMemo(
+    () =>
+      cellMeans
+        ? snapInnerCells({
+            cellMeans,
+            palette: palette ?? [],
+            innerEnabled: params.inner_enabled,
+            innerAdjustment,
+            distanceMetric: params.distance_metric,
+          })
+        : null,
+    [cellMeans, palette, params.inner_enabled, innerAdjustment, params.distance_metric],
+  )
+
+  const ellipseFractions = useMemo(() => circulateEllipseFractions(grid, params), [grid, params])
+  const contourPx = useMemo(() => {
+    if (!crop || grid.usedMmW <= 0 || grid.usedMmH <= 0) return 0
     const pxPerMmX = crop.w / grid.usedMmW
     const pxPerMmY = crop.h / grid.usedMmH
-    const contourPx = params.contour_width_mm * ((pxPerMmX + pxPerMmY) / 2)
-    buildCirculateMiniCanvas({
+    return params.contour_width_mm * ((pxPerMmX + pxPerMmY) / 2)
+  }, [crop, grid.usedMmW, grid.usedMmH, params.contour_width_mm])
+
+  // Stage 6 (light): paint background + outer/inner ellipses + frames.
+  useEffect(() => {
+    const target = miniCanvasRef.current
+    if (!target || !source || !crop || !outerReduced) return
+    paintCirculateCells({
       target,
       source,
       crop,
       cellsX: grid.cellsX,
       cellsY: grid.cellsY,
-      outerWFrac: fracs.outerWFrac,
-      outerHFrac: fracs.outerHFrac,
-      innerEnabled: params.inner_enabled,
-      innerWFrac: fracs.innerWFrac,
-      innerHFrac: fracs.innerHFrac,
+      outer: outerReduced,
+      inner: innerCells,
+      ellipseFractions,
       contourPx,
-      innerAdjustment: resolveInnerFilter(params.inner_filter),
-      palette: palette ?? [],
-      preSnapChromaScale: params.pre_snap_chroma_scale,
-      numColors: params.num_colors,
-      textureEnabled: params.texture_enabled,
-      textureStrength: params.texture_strength,
-      textureLut: blueNoiseLut,
-      ditherMode: params.dither_mode,
-      ditherPatternSize: params.dither_pattern_size,
-      distanceMetric: params.distance_metric,
-      paletteRestriction: params.palette_restriction,
     })
-  }, [source, crop, valid, grid, params, palette, blueNoiseLut])
+  }, [source, crop, outerReduced, innerCells, ellipseFractions, contourPx, grid.cellsX, grid.cellsY])
 
   const showSpinner = !source
   const showInvalid = source !== null && !valid

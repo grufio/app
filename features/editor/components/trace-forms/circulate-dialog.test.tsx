@@ -10,9 +10,18 @@ import { cleanup, fireEvent, render, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("@/lib/editor/trace/circulate-preview", () => ({
-  buildCirculateMiniCanvas: () => {
+  restrictOuterPalette: (args: { palette: unknown }) => args.palette,
+  snapAndDitherOuter: () => null,
+  applyTopNReductionOuter: () => null,
+  snapInnerCells: () => null,
+  paintCirculateCells: () => {
     /* noop in jsdom */
   },
+}))
+
+vi.mock("@/lib/editor/trace/pixelate-preview", () => ({
+  readSourceCells: () => null,
+  applyTextureStep: () => null,
 }))
 
 vi.mock("@/lib/editor/trace/use-trace-palette", () => ({

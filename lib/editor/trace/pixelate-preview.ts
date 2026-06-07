@@ -18,10 +18,12 @@
  * instead of averaging the whole block; that produced the noisy, "too low
  * resolution" cell colours and diverged from the actual trace output.
  *
- * Each cell mean is then snapped to the nearest Munsell palette chip via
- * OKLab (`mapCellsToPalette`), mirroring the server's `map_cells_to_palette`.
- * The palette comes from the DB (single source) over `/api/palette`; while it
- * loads the preview falls back to the raw area-average means.
+ * Pipeline is exposed as a five-stage chain so React callers can
+ * memoize each step against its own subset of params: `readSourceCells`
+ * (the heavy per-source-pixel area-average) only re-runs when the
+ * source / crop / grid change, while `paintCellsToCanvas` re-runs on
+ * every cells / palette update. {@link buildMiniCanvas} keeps the
+ * single-call orchestrator surface for non-React callers and tests.
  *
  * Caller (React) owns `target.width` / `target.height` via JSX props
  * set to `crop.w` / `crop.h`.
@@ -39,6 +41,220 @@ import {
   type PaletteChip,
 } from "./trace-cell-colors"
 
+export type CellColors = {
+  r: Uint8ClampedArray
+  g: Uint8ClampedArray
+  b: Uint8ClampedArray
+}
+
+/**
+ * Stage 1 — read the cropped source and compute the per-cell area-average.
+ *
+ * Heavy: iterates over every source pixel in the crop (`cropW * cropH`),
+ * so callers that re-render on unrelated param changes (palette / dither
+ * / texture) should memoize this against `(source, crop, cellsX, cellsY)`
+ * to skip the work.
+ */
+export function readSourceCells(args: {
+  source: CanvasImageSource
+  crop: { x: number; y: number; w: number; h: number }
+  cellsX: number
+  cellsY: number
+}): CellColors {
+  const { source, crop, cellsX, cellsY } = args
+  const cropW = Math.max(1, Math.round(crop.w))
+  const cropH = Math.max(1, Math.round(crop.h))
+  const work = document.createElement("canvas")
+  work.width = cropW
+  work.height = cropH
+  const wctx = work.getContext("2d", { willReadFrequently: true })
+  if (!wctx) throw new Error("readSourceCells: work 2D context unavailable")
+  wctx.imageSmoothingEnabled = false
+  wctx.drawImage(source, crop.x, crop.y, crop.w, crop.h, 0, 0, cropW, cropH)
+  const cropData = wctx.getImageData(0, 0, cropW, cropH).data
+  return cellAreaAverages({ rgba: cropData, width: cropW, height: cropH, cellsX, cellsY })
+}
+
+/**
+ * Stage 2a — PR-I palette restriction. When `paletteRestriction === "pam"`,
+ * pre-shrink the palette to `numColors` medoid chips against the means.
+ * Otherwise the input palette is returned unchanged. The returned palette is
+ * what {@link snapAndDitherCells} and the rest of the pipeline must snap to.
+ */
+export function restrictPaletteForCells(args: {
+  cellMeans: CellColors
+  palette: ReadonlyArray<PaletteChip>
+  numColors?: number | null
+  distanceMetric?: DistanceMetric
+  paletteRestriction?: PaletteRestriction
+}): ReadonlyArray<PaletteChip> {
+  const { cellMeans, palette, numColors, distanceMetric, paletteRestriction } = args
+  if ((paletteRestriction ?? "top_n") !== "pam") return palette
+  if (palette.length === 0 || numColors == null) return palette
+  return restrictPalettePam({
+    cells: cellMeans,
+    palette,
+    numColors,
+    distanceMetric: distanceMetric ?? "oklab",
+  }).palette
+}
+
+/**
+ * Stage 2b — palette-snap (and optional KY/FS dither). Mirrors the
+ * server's `map_cells_dithered`. `dither_mode="none"` (default) collapses
+ * to plain `mapCellsToPalette`, byte-identical to the pre-PR-F preview.
+ * An empty palette (still loading) returns the raw means as graceful
+ * fallback.
+ */
+export function snapAndDitherCells(args: {
+  cellMeans: CellColors
+  cellsX: number
+  cellsY: number
+  palette: ReadonlyArray<PaletteChip>
+  preSnapChromaScale?: number
+  ditherMode?: DitherMode
+  ditherPatternSize?: DitherPatternSize | number
+  distanceMetric?: DistanceMetric
+  textureLut?: Uint8Array | null
+}): CellColors {
+  const {
+    cellMeans,
+    cellsX,
+    cellsY,
+    palette,
+    preSnapChromaScale,
+    ditherMode,
+    ditherPatternSize,
+    distanceMetric,
+    textureLut,
+  } = args
+  return mapCellsDithered({
+    cells: cellMeans,
+    cellsX,
+    cellsY,
+    palette,
+    preSnapChromaScale: preSnapChromaScale ?? 1.0,
+    ditherMode: ditherMode ?? "none",
+    ditherPatternSize: ditherPatternSize ?? 4,
+    // KY needs the LUT — reuse the same one the texture step uses. FS
+    // doesn't need it (sequential error diffusion); the dispatch only
+    // gates KY on LUT availability.
+    blueNoiseLut: textureLut as BlueNoiseLut | null | undefined ?? null,
+    distanceMetric: distanceMetric ?? "oklab",
+  })
+}
+
+/**
+ * Stage 3 — optional blue-noise neighbour-invasion texture. Skipped when
+ * dithering is on (the dither output already provides spatial quantization
+ * — stacking both would double-dither). Mirrors the server-side branch in
+ * `pixelate.py` so the preview and the applied SVG agree byte-for-byte
+ * when both inputs match.
+ */
+export function applyTextureStep(args: {
+  cells: CellColors
+  cellsX: number
+  cellsY: number
+  palette: ReadonlyArray<PaletteChip>
+  textureEnabled?: boolean
+  textureStrength?: number
+  textureLut?: Uint8Array | null
+  ditherMode?: DitherMode
+}): CellColors {
+  const { cells, cellsX, cellsY, palette, textureEnabled, textureStrength, textureLut, ditherMode } = args
+  if (
+    (ditherMode ?? "none") !== "none" ||
+    !textureEnabled ||
+    !textureStrength ||
+    textureStrength <= 0 ||
+    !textureLut ||
+    palette.length === 0
+  ) {
+    return cells
+  }
+  return applyNeighborInvasion({
+    cells,
+    palette: palette.map((c) => c.rgb),
+    cellsY,
+    cellsX,
+    strength: textureStrength,
+    blueNoiseLut: textureLut,
+  })
+}
+
+/**
+ * Stage 4 — post-snap top-N reduction (mirror of `reduce_to_top_n` in the
+ * Python pipeline). Skipped when no palette is loaded, `numColors` is
+ * null/<=0, OR when PAM already restricted the palette pre-snap.
+ */
+export function applyTopNReduction(args: {
+  cells: CellColors
+  palette: ReadonlyArray<PaletteChip>
+  numColors?: number | null
+  distanceMetric?: DistanceMetric
+  paletteRestriction?: PaletteRestriction
+}): CellColors {
+  const { cells, palette, numColors, distanceMetric, paletteRestriction } = args
+  if ((paletteRestriction ?? "top_n") === "pam") return cells
+  if (palette.length === 0 || numColors == null || numColors <= 0) return cells
+  return reduceToTopN(cells, palette, numColors, distanceMetric ?? "oklab").cells
+}
+
+/**
+ * Stage 5 — paint the resolved cells onto the visible target canvas plus
+ * per-cell frame outlines. Light: cell-count proportional canvas ops.
+ *
+ * No paint-by-numbers labels in the preview — the preview's purpose is a
+ * quick visual reference for "what will this look like after apply",
+ * not a paint-by-numbers key. The Apply path still emits the
+ * `<g id="numbers">` group in the saved SVG.
+ */
+export function paintCellsToCanvas(args: {
+  target: HTMLCanvasElement
+  cells: CellColors
+  cellsX: number
+  cellsY: number
+}): void {
+  const { target, cells, cellsX, cellsY } = args
+  const ctx = target.getContext("2d", { willReadFrequently: true })
+  if (!ctx) throw new Error("paintCellsToCanvas: 2D context unavailable")
+  const { r, g, b } = cells
+  ctx.imageSmoothingEnabled = false
+  const cellW = target.width / cellsX
+  const cellH = target.height / cellsY
+  for (let cy = 0; cy < cellsY; cy += 1) {
+    for (let cx = 0; cx < cellsX; cx += 1) {
+      const i = cy * cellsX + cx
+      ctx.fillStyle = `rgb(${r[i]}, ${g[i]}, ${b[i]})`
+      // +1 px overdraw to avoid sub-pixel seams between adjacent cells.
+      ctx.fillRect(
+        Math.floor(cx * cellW),
+        Math.floor(cy * cellH),
+        Math.ceil(cellW) + 1,
+        Math.ceil(cellH) + 1,
+      )
+    }
+  }
+  // Per-cell frame outline. Mirrors the server's `<g id="grid">` — always
+  // on, never toggled. Without this the preview shows raw colour blocks;
+  // the applied trace would surprise users with grid lines they didn't
+  // see in the dialog.
+  ctx.strokeStyle = "black"
+  ctx.lineWidth = 1
+  for (let cy = 0; cy < cellsY; cy += 1) {
+    for (let cx = 0; cx < cellsX; cx += 1) {
+      ctx.strokeRect(cx * cellW, cy * cellH, cellW, cellH)
+    }
+  }
+}
+
+/**
+ * Single-call orchestrator. Chains all five stages with the same defaults
+ * the per-stage helpers use, so the output is byte-identical to the
+ * pre-decompose implementation. React callers that want to skip stage 1
+ * across unrelated param changes should call the stages directly via
+ * `useMemo` instead of going through this orchestrator.
+ */
 export function buildMiniCanvas(args: {
   target: HTMLCanvasElement
   source: CanvasImageSource
@@ -93,139 +309,41 @@ export function buildMiniCanvas(args: {
     distanceMetric,
     paletteRestriction,
   } = args
-  const ctx = target.getContext("2d", { willReadFrequently: true })
-  if (!ctx) throw new Error("buildMiniCanvas: 2D context unavailable")
-
-  // (1) Copy the cropped source region into a work canvas at FULL crop
-  // resolution (no smoothing — a 1:1 blit), then read it back so every
-  // source pixel feeds the per-cell average. No reduction happens in
-  // drawImage, so the browser can't throw away detail here.
-  const cropW = Math.max(1, Math.round(crop.w))
-  const cropH = Math.max(1, Math.round(crop.h))
-  const work = document.createElement("canvas")
-  work.width = cropW
-  work.height = cropH
-  const wctx = work.getContext("2d", { willReadFrequently: true })
-  if (!wctx) throw new Error("buildMiniCanvas: work 2D context unavailable")
-  wctx.imageSmoothingEnabled = false
-  wctx.drawImage(source, crop.x, crop.y, crop.w, crop.h, 0, 0, cropW, cropH)
-  const cropData = wctx.getImageData(0, 0, cropW, cropH).data
-
-  // (2) True area-average per cell (mirrors server Image.BOX).
-  const cellMeans = cellAreaAverages({
-    rgba: cropData,
-    width: cropW,
-    height: cropH,
-    cellsX,
-    cellsY,
+  const cellMeans = readSourceCells({ source, crop, cellsX, cellsY })
+  const activePalette = restrictPaletteForCells({
+    cellMeans,
+    palette,
+    numColors,
+    distanceMetric,
+    paletteRestriction,
   })
-
-  // (2a) PR-I: when palette_restriction === "pam", restrict the palette
-  // pre-snap to `numColors` medoid chips. The snap/dither below then
-  // runs against the restricted palette and the post-snap top-N
-  // reduction is skipped. Mirrors `pixelate.py::pixelate_cells_to_svg`.
-  const activePalette: ReadonlyArray<PaletteChip> =
-    (paletteRestriction ?? "top_n") === "pam" && palette.length > 0 && numColors != null
-      ? restrictPalettePam({
-          cells: cellMeans,
-          palette,
-          numColors,
-          distanceMetric: distanceMetric ?? "oklab",
-        }).palette
-      : palette
-
-  // (2b) Snap or dither to the (possibly restricted) palette via OKLab
-  // — `mapCellsDithered` mirrors the server's `map_cells_dithered`.
-  // `dither_mode="none"` (default) falls through to plain
-  // `mapCellsToPalette`, byte-identical to the pre-PR-F preview. An
-  // empty palette (still loading) returns the raw means unchanged as a
-  // graceful fallback. `preSnapChromaScale` (default 1.0 = no-op) lifts
-  // dull-averaged cells toward saturated chips before the snap.
-  let cells = mapCellsDithered({
-    cells: cellMeans,
+  let cells = snapAndDitherCells({
+    cellMeans,
     cellsX,
     cellsY,
     palette: activePalette,
-    preSnapChromaScale: preSnapChromaScale ?? 1.0,
-    ditherMode: ditherMode ?? "none",
-    ditherPatternSize: ditherPatternSize ?? 4,
-    // KY needs the LUT — reuse the same one the texture step uses. FS
-    // doesn't need it (sequential error diffusion); the dispatch only
-    // gates KY on LUT availability.
-    blueNoiseLut: textureLut as BlueNoiseLut | null | undefined ?? null,
-    distanceMetric: distanceMetric ?? "oklab",
+    preSnapChromaScale,
+    ditherMode,
+    ditherPatternSize,
+    distanceMetric,
+    textureLut,
   })
-
-  // (2b) Optional blue-noise texture step. Skipped when dithering is on
-  // (the dither output already provides spatial quantization — stacking
-  // both would double-dither). Mirrors the server-side branch in
-  // `pixelate.py` so the preview and the applied SVG agree byte-for-byte
-  // when both inputs match.
-  if (
-    (ditherMode ?? "none") === "none" &&
-    textureEnabled &&
-    textureStrength &&
-    textureStrength > 0 &&
-    textureLut &&
-    activePalette.length > 0
-  ) {
-    cells = applyNeighborInvasion({
-      cells,
-      palette: activePalette.map((c) => c.rgb),
-      cellsY,
-      cellsX,
-      strength: textureStrength,
-      blueNoiseLut: textureLut,
-    })
-  }
-
-  // (2c) Top-N reduction — mirrors `reduce_to_top_n` in the Python pipeline.
-  // Skipped when no palette is loaded, numColors is null/<=0, OR when
-  // PAM already restricted the palette pre-snap (PR-I).
-  if (
-    (paletteRestriction ?? "top_n") !== "pam" &&
-    activePalette.length > 0 &&
-    numColors != null &&
-    numColors > 0
-  ) {
-    cells = reduceToTopN(cells, activePalette, numColors, distanceMetric ?? "oklab").cells
-  }
-  const { r, g, b } = cells
-
-  // (4) Paint the cell palette onto the visible target at source-crop
-  // resolution. Each cell is one solid rectangle; no source downsample
-  // touches the visible canvas.
-  ctx.imageSmoothingEnabled = false
-  const cellW = target.width / cellsX
-  const cellH = target.height / cellsY
-  for (let cy = 0; cy < cellsY; cy += 1) {
-    for (let cx = 0; cx < cellsX; cx += 1) {
-      const i = cy * cellsX + cx
-      ctx.fillStyle = `rgb(${r[i]}, ${g[i]}, ${b[i]})`
-      // +1 px overdraw to avoid sub-pixel seams between adjacent cells.
-      ctx.fillRect(
-        Math.floor(cx * cellW),
-        Math.floor(cy * cellH),
-        Math.ceil(cellW) + 1,
-        Math.ceil(cellH) + 1,
-      )
-    }
-  }
-
-  // (5) Per-cell frame outline. Mirrors the server's `<g id="grid">` —
-  // always on, never toggled. Without this the preview shows raw colour
-  // blocks; the applied trace would surprise users with grid lines
-  // they didn't see in the dialog.
-  ctx.strokeStyle = "black"
-  ctx.lineWidth = 1
-  for (let cy = 0; cy < cellsY; cy += 1) {
-    for (let cx = 0; cx < cellsX; cx += 1) {
-      ctx.strokeRect(cx * cellW, cy * cellH, cellW, cellH)
-    }
-  }
-
-  // No paint-by-numbers labels in the preview — the preview's purpose
-  // is a quick visual reference for "what will this look like after
-  // apply", not a paint-by-numbers key. The Apply path still emits the
-  // `<g id="numbers">` group in the saved SVG.
+  cells = applyTextureStep({
+    cells,
+    cellsX,
+    cellsY,
+    palette: activePalette,
+    textureEnabled,
+    textureStrength,
+    textureLut,
+    ditherMode,
+  })
+  cells = applyTopNReduction({
+    cells,
+    palette: activePalette,
+    numColors,
+    distanceMetric,
+    paletteRestriction,
+  })
+  paintCellsToCanvas({ target, cells, cellsX, cellsY })
 }

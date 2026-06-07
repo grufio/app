@@ -12,7 +12,13 @@ import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("@/lib/editor/trace/pixelate-preview", () => ({
-  buildMiniCanvas: () => {
+  // Pane now consumes the decomposed pipeline; all stages no-op in jsdom.
+  readSourceCells: () => null,
+  restrictPaletteForCells: (args: { palette: unknown }) => args.palette,
+  snapAndDitherCells: () => null,
+  applyTextureStep: () => null,
+  applyTopNReduction: () => null,
+  paintCellsToCanvas: () => {
     /* noop in jsdom */
   },
 }))

@@ -43,7 +43,14 @@ import {
   resolvePixelateGrid,
 } from "@/lib/editor/trace/pixelate-grid-math"
 import { type PixelateParams } from "@/lib/editor/trace/pixelate"
-import { buildMiniCanvas } from "@/lib/editor/trace/pixelate-preview"
+import {
+  applyTextureStep,
+  applyTopNReduction,
+  paintCellsToCanvas,
+  readSourceCells,
+  restrictPaletteForCells,
+  snapAndDitherCells,
+} from "@/lib/editor/trace/pixelate-preview"
 import { useBlueNoiseLut } from "@/lib/editor/trace/use-blue-noise-lut"
 import { useSourceImage } from "@/lib/editor/trace/use-source-image"
 import { useTracePalette } from "@/lib/editor/trace/use-trace-palette"
@@ -105,43 +112,107 @@ export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
     })
   }, [source, valid, displayMmW, displayMmH, grid])
 
+  // Stage 1 (heavy): read the cropped source + per-cell area-average.
+  // Only re-runs when the source bitmap, crop rect, or grid shape change —
+  // unrelated param toggles (palette, dither, texture, distance, …) skip
+  // the per-source-pixel loop entirely.
+  const cellMeans = useMemo(
+    () => (source && crop && valid ? readSourceCells({ source, crop, cellsX: grid.cellsX, cellsY: grid.cellsY }) : null),
+    [source, crop, valid, grid.cellsX, grid.cellsY],
+  )
+
+  // Stage 2a: PR-I PAM pre-snap palette restriction. No-op for top_n.
+  const activePalette = useMemo(
+    () =>
+      cellMeans
+        ? restrictPaletteForCells({
+            cellMeans,
+            palette: palette ?? [],
+            numColors: params.num_colors,
+            distanceMetric: params.distance_metric,
+            paletteRestriction: params.palette_restriction,
+          })
+        : (palette ?? []),
+    [cellMeans, palette, params.num_colors, params.distance_metric, params.palette_restriction],
+  )
+
+  // Stage 2b: palette-snap + optional KY/FS dither.
+  const snappedCells = useMemo(
+    () =>
+      cellMeans
+        ? snapAndDitherCells({
+            cellMeans,
+            cellsX: grid.cellsX,
+            cellsY: grid.cellsY,
+            palette: activePalette,
+            preSnapChromaScale: params.pre_snap_chroma_scale,
+            ditherMode: params.dither_mode,
+            ditherPatternSize: params.dither_pattern_size,
+            distanceMetric: params.distance_metric,
+            textureLut: blueNoiseLut,
+          })
+        : null,
+    [
+      cellMeans,
+      grid.cellsX,
+      grid.cellsY,
+      activePalette,
+      params.pre_snap_chroma_scale,
+      params.dither_mode,
+      params.dither_pattern_size,
+      params.distance_metric,
+      blueNoiseLut,
+    ],
+  )
+
+  // Stage 3: optional blue-noise texture invasion (skipped when dithering).
+  const texturedCells = useMemo(
+    () =>
+      snappedCells
+        ? applyTextureStep({
+            cells: snappedCells,
+            cellsX: grid.cellsX,
+            cellsY: grid.cellsY,
+            palette: activePalette,
+            textureEnabled: params.texture_enabled,
+            textureStrength: params.texture_strength,
+            textureLut: blueNoiseLut,
+            ditherMode: params.dither_mode,
+          })
+        : null,
+    [
+      snappedCells,
+      grid.cellsX,
+      grid.cellsY,
+      activePalette,
+      params.texture_enabled,
+      params.texture_strength,
+      blueNoiseLut,
+      params.dither_mode,
+    ],
+  )
+
+  // Stage 4: post-snap top-N reduction (no-op for PAM).
+  const reducedCells = useMemo(
+    () =>
+      texturedCells
+        ? applyTopNReduction({
+            cells: texturedCells,
+            palette: activePalette,
+            numColors: params.num_colors,
+            distanceMetric: params.distance_metric,
+            paletteRestriction: params.palette_restriction,
+          })
+        : null,
+    [texturedCells, activePalette, params.num_colors, params.distance_metric, params.palette_restriction],
+  )
+
+  // Stage 5 (light): paint the resolved cells onto the visible target.
   useEffect(() => {
     const target = miniCanvasRef.current
-    if (!target || !source || !crop || !valid) return
-    buildMiniCanvas({
-      target,
-      source,
-      crop,
-      cellsX: grid.cellsX,
-      cellsY: grid.cellsY,
-      palette: palette ?? [],
-      preSnapChromaScale: params.pre_snap_chroma_scale,
-      numColors: params.num_colors,
-      textureEnabled: params.texture_enabled,
-      textureStrength: params.texture_strength,
-      textureLut: blueNoiseLut,
-      ditherMode: params.dither_mode,
-      ditherPatternSize: params.dither_pattern_size,
-      distanceMetric: params.distance_metric,
-      paletteRestriction: params.palette_restriction,
-    })
-  }, [
-    source,
-    crop,
-    valid,
-    grid.cellsX,
-    grid.cellsY,
-    palette,
-    params.pre_snap_chroma_scale,
-    params.num_colors,
-    params.texture_enabled,
-    params.texture_strength,
-    blueNoiseLut,
-    params.dither_mode,
-    params.dither_pattern_size,
-    params.distance_metric,
-    params.palette_restriction,
-  ])
+    if (!target || !reducedCells) return
+    paintCellsToCanvas({ target, cells: reducedCells, cellsX: grid.cellsX, cellsY: grid.cellsY })
+  }, [reducedCells, grid.cellsX, grid.cellsY])
 
   const showSpinner = !source
   const showInvalid = source !== null && !valid
