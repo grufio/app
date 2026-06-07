@@ -87,6 +87,22 @@ describe("Python parity: TS trace schema defaults vs Pydantic", () => {
     expect(ts.pre_snap_chroma_scale).toBe(1)
   })
 
+  it("PixelateRequest — dither defaults agree TS ⇄ Python (PR-G flip)", () => {
+    // PR-G flipped both defaults from "none" → "knoll_yliluoma" after
+    // smoke validation. This parity assertion guards against a one-
+    // sided revert: if either side regresses to "none" while the
+    // other stays at the flip, the trace output diverges between
+    // preview (Vercel) and apply (filter-service). Same constraint
+    // pins `dither_pattern_size` so the KY candidate count stays
+    // identical too.
+    const py = extractPydanticDefaults("PixelateRequest")
+    const ts = pixelateSchema.parse({})
+    expect(py.dither_mode).toBe("knoll_yliluoma")
+    expect(ts.dither_mode).toBe("knoll_yliluoma")
+    expect(py.dither_pattern_size).toBe(4)
+    expect(ts.dither_pattern_size).toBe(4)
+  })
+
   it("PixelateRequest — texture_enabled default agrees TS ⇄ Python", () => {
     // The `texture_enabled` gate must default to the same falsy value on
     // both sides so a missing field on the wire results in a no-op texture

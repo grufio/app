@@ -285,7 +285,7 @@ class PixelateRequest(BaseModel):
     # the texture step (`texture_enabled`) is no-op'd — the dither
     # output already covers spatial quantization. `dither_pattern_size`
     # only applies to KY (candidate count N); FS ignores it.
-    dither_mode: str = "none"
+    dither_mode: str = "knoll_yliluoma"
     dither_pattern_size: int = 4
 
 
@@ -397,7 +397,7 @@ class CirculateRequest(BaseModel):
     # Dithering at the snap step — same contract as PixelateRequest (PR-F).
     # Applied to OUTER ellipse colour; inner ellipse colour is derived from
     # the original pre-snap means.
-    dither_mode: str = "none"
+    dither_mode: str = "knoll_yliluoma"
     dither_pattern_size: int = 4
 
 
