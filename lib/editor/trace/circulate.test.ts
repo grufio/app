@@ -22,9 +22,13 @@ const DEFAULTS = {
   // never carried these fields parse identically to a fresh form.
   texture_enabled: false,
   texture_strength: 0.5,
-  // Dither defaults (PR-F): off + mid pattern size. Same guarantee — old
-  // persisted rows without these fields parse to the no-op behaviour.
-  dither_mode: "none",
+  // Dither defaults (PR-G post-flip): Knoll-Yliluoma at 4-candidate
+  // pattern. Persisted rows from BEFORE PR-F that lack these fields
+  // now parse to the dithered default — re-applying them produces
+  // KY-dithered output, which is by design (PR-G's smoke-validated
+  // default). To preserve the legacy snap behaviour on a specific
+  // row, the user can explicitly set `dither_mode = "none"`.
+  dither_mode: "knoll_yliluoma",
   dither_pattern_size: 4,
 } as const
 

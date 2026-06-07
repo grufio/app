@@ -109,8 +109,9 @@ describe("pixelateSchema", () => {
     pre_snap_chroma_scale: 1.0,
     texture_enabled: false,
     texture_strength: 0.5,
-    // Dither defaults (PR-F): off + mid pattern size.
-    dither_mode: "none",
+    // Dither defaults (PR-G post-flip): Knoll-Yliluoma at 4-candidate
+    // pattern. See `circulate.test.ts` for the rationale.
+    dither_mode: "knoll_yliluoma",
     dither_pattern_size: 4,
   } as const
 
