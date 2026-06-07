@@ -10,9 +10,21 @@ import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("@/lib/editor/trace/circulate-preview", () => ({
-  buildCirculateMiniCanvas: () => {
+  // Pane now consumes the decomposed pipeline; all stages no-op in jsdom.
+  restrictOuterPalette: (args: { palette: unknown }) => args.palette,
+  snapAndDitherOuter: () => null,
+  applyTopNReductionOuter: () => null,
+  snapInnerCells: () => null,
+  paintCirculateCells: () => {
     /* noop in jsdom */
   },
+}))
+
+// The pixelate-preview stage helpers (readSourceCells + applyTextureStep)
+// are also reused by the circulate pane; mock them the same way.
+vi.mock("@/lib/editor/trace/pixelate-preview", () => ({
+  readSourceCells: () => null,
+  applyTextureStep: () => null,
 }))
 
 vi.mock("@/lib/editor/trace/use-trace-palette", () => ({
