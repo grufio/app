@@ -22,8 +22,7 @@
  * memoize each step against its own subset of params: `readSourceCells`
  * (the heavy per-source-pixel area-average) only re-runs when the
  * source / crop / grid change, while `paintCellsToCanvas` re-runs on
- * every cells / palette update. {@link buildMiniCanvas} keeps the
- * single-call orchestrator surface for non-React callers and tests.
+ * every cells / palette update.
  *
  * Caller (React) owns `target.width` / `target.height` via JSX props
  * set to `crop.w` / `crop.h`.
@@ -246,104 +245,4 @@ export function paintCellsToCanvas(args: {
       ctx.strokeRect(cx * cellW, cy * cellH, cellW, cellH)
     }
   }
-}
-
-/**
- * Single-call orchestrator. Chains all five stages with the same defaults
- * the per-stage helpers use, so the output is byte-identical to the
- * pre-decompose implementation. React callers that want to skip stage 1
- * across unrelated param changes should call the stages directly via
- * `useMemo` instead of going through this orchestrator.
- */
-export function buildMiniCanvas(args: {
-  target: HTMLCanvasElement
-  source: CanvasImageSource
-  crop: { x: number; y: number; w: number; h: number }
-  cellsX: number
-  cellsY: number
-  /** Munsell palette to snap cells to (mirrors the server). Empty while it
-   * loads → raw area-average means as a graceful fallback. */
-  palette: ReadonlyArray<PaletteChip>
-  /** Pre-snap OKLCh chroma multiplier (mirrors the server's
-   * `pre_snap_chroma_scale`). Default `1.0` = no boost. */
-  preSnapChromaScale?: number
-  /** Cap on distinct chip count in the rendered preview (mirrors the server's
-   * `num_colors` top-N reduction). When set, applied AFTER snap + texture so
-   * the preview matches the Python output. */
-  numColors?: number | null
-  /** Blue-noise neighbour-invasion texture (mirrors the server's
-   * `cell_texture.py`). Skipped when `textureEnabled` is false, `strength`
-   * is 0, the LUT is still loading (`textureLut === null`), or no palette
-   * is available — any of those degenerate to the snapped output. */
-  textureEnabled?: boolean
-  textureStrength?: number
-  textureLut?: Uint8Array | null
-  /** Dithering at the snap step (PR-F). `"none"` (default) preserves
-   * byte-identical pre-feature preview output. When non-"none", the
-   * texture step is no-op'd — KY/FS replace it functionally. */
-  ditherMode?: DitherMode
-  ditherPatternSize?: DitherPatternSize | number
-  /** Snap-step distance metric (PR-H). Default `"oklab"` keeps the
-   * pre-PR-H preview output byte-identical; `"ciede2000"` switches the
-   * `"none"` dither path + the top-N re-snap step to CIE Lab + ΔE00. */
-  distanceMetric?: DistanceMetric
-  /** Palette-cap strategy (PR-I). Default `"top_n"` keeps the post-snap
-   * count-based cap; `"pam"` switches to pre-snap k-medoid restriction
-   * via `restrictPalettePam` and skips the post-snap reduce. */
-  paletteRestriction?: PaletteRestriction
-}): void {
-  const {
-    target,
-    source,
-    crop,
-    cellsX,
-    cellsY,
-    palette,
-    preSnapChromaScale,
-    numColors,
-    textureEnabled,
-    textureStrength,
-    textureLut,
-    ditherMode,
-    ditherPatternSize,
-    distanceMetric,
-    paletteRestriction,
-  } = args
-  const cellMeans = readSourceCells({ source, crop, cellsX, cellsY })
-  const activePalette = restrictPaletteForCells({
-    cellMeans,
-    palette,
-    numColors,
-    distanceMetric,
-    paletteRestriction,
-  })
-  let cells = snapAndDitherCells({
-    cellMeans,
-    cellsX,
-    cellsY,
-    palette: activePalette,
-    preSnapChromaScale,
-    ditherMode,
-    ditherPatternSize,
-    distanceMetric,
-    textureLut,
-  })
-  cells = applyTextureStep({
-    cells,
-    cellsX,
-    cellsY,
-    palette: activePalette,
-    textureEnabled,
-    textureStrength,
-    textureLut,
-    ditherMode,
-  })
-  cells = applyTopNReduction({
-    cells,
-    palette: activePalette,
-    numColors,
-    distanceMetric,
-    paletteRestriction,
-  })
-  paintCellsToCanvas({ target, cells, cellsX, cellsY })
 }
