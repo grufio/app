@@ -27,6 +27,7 @@ import { PanelIconSlot, PanelTwoFieldRow } from "../panel-layout"
 import { EditorSidebarSection } from "../sidebar/editor-sidebar-section"
 import { TraceColorsFields } from "./trace-colors-fields"
 import { TraceDistanceFields } from "./trace-distance-fields"
+import { TracePaletteRestrictionFields } from "./trace-palette-restriction-fields"
 import { TraceDitherFields } from "./trace-dither-fields"
 import { TraceTextureFields } from "./trace-texture-fields"
 
@@ -123,6 +124,14 @@ export function PixelateForm({ params, onParamsChange, disabled, grid }: Props) 
         <TraceDistanceFields
           metric={params.distance_metric}
           onMetricChange={(v) => onParamsChange("distance_metric", v)}
+          disabled={disabled}
+        />
+      </EditorSidebarSection>
+
+      <EditorSidebarSection title="Palette cap">
+        <TracePaletteRestrictionFields
+          restriction={params.palette_restriction}
+          onRestrictionChange={(v) => onParamsChange("palette_restriction", v)}
           disabled={disabled}
         />
       </EditorSidebarSection>

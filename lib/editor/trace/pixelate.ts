@@ -5,6 +5,7 @@ import { numColorsSchema } from "./num-colors-schema"
 import { preSnapChromaScaleSchema } from "./chroma-scale-schema"
 import { distanceMetricSchema } from "./distance-metric-schema"
 import { ditherModeSchema, ditherPatternSizeSchema } from "./dither-mode-schema"
+import { paletteRestrictionSchema } from "./palette-restriction-schema"
 import { DEFAULT_SUPERCELL_MM, MIN_SUPERCELL_MM } from "./pixelate-grid-math"
 
 export const pixelateSchema = z.object({
@@ -49,6 +50,14 @@ export const pixelateSchema = z.object({
   // squared-Euclidean argmin regardless — see `distance-metric-schema.ts`
   // for the rationale and the `pre_snap_chroma_scale` interaction.
   distance_metric: distanceMetricSchema,
+  // Palette-cap strategy (PR-I). Default `"top_n"` preserves byte-
+  // identical pre-feature behaviour (post-snap count-based cap). When
+  // `"pam"`, the palette is restricted PRE-snap to `num_colors` medoid
+  // chips via k-medoid clustering, and the post-snap reduction is
+  // skipped. See `palette-restriction-schema.ts` for the trade-off and
+  // the interaction with `distance_metric` (PAM uses the active metric
+  // for its distance matrix).
+  palette_restriction: paletteRestrictionSchema,
 })
 
 export type PixelateParams = z.infer<typeof pixelateSchema>

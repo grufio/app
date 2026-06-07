@@ -34,6 +34,9 @@ const DEFAULTS = {
   // CIEDE2000 is opt-in via the form select; persisted rows without
   // the field parse to "oklab" so re-applying them stays byte-identical.
   distance_metric: "oklab",
+  // Palette-cap default (PR-I): count-based top-N = legacy. PAM is
+  // opt-in; persisted rows without the field parse to "top_n".
+  palette_restriction: "top_n",
 } as const
 
 describe("circulateSchema", () => {

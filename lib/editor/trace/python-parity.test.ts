@@ -69,6 +69,7 @@ describe("Python parity: TS trace schema defaults vs Pydantic", () => {
       "dither_mode",
       "dither_pattern_size",
       "num_colors",
+      "palette_restriction",
       "pre_snap_chroma_scale",
       "supercell_height_mm",
       "supercell_width_mm",
@@ -116,6 +117,19 @@ describe("Python parity: TS trace schema defaults vs Pydantic", () => {
     const ts = pixelateSchema.parse({})
     expect(py.distance_metric).toBe("oklab")
     expect(ts.distance_metric).toBe("oklab")
+  })
+
+  it("PixelateRequest — palette_restriction defaults agree TS ⇄ Python at 'top_n' (PR-I)", () => {
+    // Same one-sided-flip guard as the metric: PR-I added the strategy
+    // switch with `"top_n"` (legacy count-based) as the default on both
+    // sides. A future revert that flips only one half would diverge
+    // preview ⇄ apply output AND silently shift `palette_indices_used`
+    // (PAM emits original-palette indices via the kept-index translation;
+    // top_n keeps them in original space implicitly).
+    const py = extractPydanticDefaults("PixelateRequest")
+    const ts = pixelateSchema.parse({})
+    expect(py.palette_restriction).toBe("top_n")
+    expect(ts.palette_restriction).toBe("top_n")
   })
 
   it("PixelateRequest — texture_enabled default agrees TS ⇄ Python", () => {

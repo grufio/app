@@ -18,7 +18,9 @@ import type { DistanceMetric } from "./distance-metric-schema"
 import type { DitherMode, DitherPatternSize } from "./dither-mode-schema"
 import type { OklabAdjustment } from "./inner-color-filters"
 import type { BlueNoiseLut } from "./knoll-yliluoma"
+import { restrictPalettePam } from "./pam-palette-restriction"
 import { reduceToTopN } from "./palette-reduction"
+import type { PaletteRestriction } from "./palette-restriction-schema"
 import {
   cellAreaAverages,
   mapCellsDithered,
@@ -68,6 +70,10 @@ export function buildCirculateMiniCanvas(args: {
    * top-N re-snap) AND the inner-ellipse snap-back after the OKLCh
    * sub-colour-filter adjustment. */
   distanceMetric?: DistanceMetric
+  /** Palette-cap strategy (PR-I). Applied to OUTER cells only; inner
+   * ellipses always snap against the FULL palette (sub-colour-filter
+   * math needs every chip). */
+  paletteRestriction?: PaletteRestriction
 }): void {
   const {
     target,
@@ -91,6 +97,7 @@ export function buildCirculateMiniCanvas(args: {
     ditherMode,
     ditherPatternSize,
     distanceMetric,
+    paletteRestriction,
   } = args
   const ctx = target.getContext("2d", { willReadFrequently: true })
   if (!ctx) throw new Error("buildCirculateMiniCanvas: 2D context unavailable")
@@ -114,11 +121,23 @@ export function buildCirculateMiniCanvas(args: {
   // `mapCellsDithered` with `dither_mode="none"` (default) falls through to
   // the plain snap, byte-identical to the pre-PR-F preview.
   const means = cellAreaAverages({ rgba: cropData, width: cropW, height: cropH, cellsX, cellsY })
+  // (2a) PR-I: PAM pre-snap restriction on the OUTER palette only.
+  // Inner ellipses keep the FULL palette so the sub-colour-filter math
+  // can find every chip. Mirrors `circulate.py`.
+  const outerPalette: ReadonlyArray<PaletteChip> =
+    (paletteRestriction ?? "top_n") === "pam" && palette.length > 0 && numColors != null
+      ? restrictPalettePam({
+          cells: means,
+          palette,
+          numColors,
+          distanceMetric: distanceMetric ?? "oklab",
+        }).palette
+      : palette
   let outer = mapCellsDithered({
     cells: means,
     cellsX,
     cellsY,
-    palette,
+    palette: outerPalette,
     preSnapChromaScale: preSnapChromaScale ?? 1.0,
     ditherMode: ditherMode ?? "none",
     ditherPatternSize: ditherPatternSize ?? 4,
@@ -136,11 +155,11 @@ export function buildCirculateMiniCanvas(args: {
     textureStrength &&
     textureStrength > 0 &&
     textureLut &&
-    palette.length > 0
+    outerPalette.length > 0
   ) {
     outer = applyNeighborInvasion({
       cells: outer,
-      palette: palette.map((c) => c.rgb),
+      palette: outerPalette.map((c) => c.rgb),
       cellsY,
       cellsX,
       strength: textureStrength,
@@ -148,9 +167,15 @@ export function buildCirculateMiniCanvas(args: {
     })
   }
   // (2c) Top-N reduction on the OUTER ellipses — mirrors `reduce_to_top_n` in
-  // the Python pipeline. Inner ellipses are not capped (decorative).
-  if (palette.length > 0 && numColors != null && numColors > 0) {
-    outer = reduceToTopN(outer, palette, numColors, distanceMetric ?? "oklab").cells
+  // the Python pipeline. Skipped when PAM already restricted the
+  // palette pre-snap (PR-I). Inner ellipses are not capped (decorative).
+  if (
+    (paletteRestriction ?? "top_n") !== "pam" &&
+    outerPalette.length > 0 &&
+    numColors != null &&
+    numColors > 0
+  ) {
+    outer = reduceToTopN(outer, outerPalette, numColors, distanceMetric ?? "oklab").cells
   }
   const inner = innerEnabled
     ? mapCellsToPaletteAdjusted(means, palette, innerAdjustment, distanceMetric ?? "oklab")

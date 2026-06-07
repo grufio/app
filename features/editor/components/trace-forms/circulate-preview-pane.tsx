@@ -107,6 +107,7 @@ export function CirculatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, p
       ditherMode: params.dither_mode,
       ditherPatternSize: params.dither_pattern_size,
       distanceMetric: params.distance_metric,
+      paletteRestriction: params.palette_restriction,
     })
   }, [source, crop, valid, grid, params, palette, blueNoiseLut])
 

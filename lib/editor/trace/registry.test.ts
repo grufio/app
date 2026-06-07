@@ -115,6 +115,8 @@ describe("pixelateSchema", () => {
     dither_pattern_size: 4,
     // Distance-metric default (PR-H): OKLab — see `circulate.test.ts`.
     distance_metric: "oklab",
+    // Palette-cap default (PR-I): top_n — see `circulate.test.ts`.
+    palette_restriction: "top_n",
   } as const
 
   it("applies defaults for all fields", () => {

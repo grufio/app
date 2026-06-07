@@ -30,7 +30,9 @@ import { applyNeighborInvasion } from "./cell-texture"
 import type { DistanceMetric } from "./distance-metric-schema"
 import type { DitherMode, DitherPatternSize } from "./dither-mode-schema"
 import type { BlueNoiseLut } from "./knoll-yliluoma"
+import { restrictPalettePam } from "./pam-palette-restriction"
 import { reduceToTopN } from "./palette-reduction"
+import type { PaletteRestriction } from "./palette-restriction-schema"
 import {
   cellAreaAverages,
   mapCellsDithered,
@@ -69,6 +71,10 @@ export function buildMiniCanvas(args: {
    * pre-PR-H preview output byte-identical; `"ciede2000"` switches the
    * `"none"` dither path + the top-N re-snap step to CIE Lab + ΔE00. */
   distanceMetric?: DistanceMetric
+  /** Palette-cap strategy (PR-I). Default `"top_n"` keeps the post-snap
+   * count-based cap; `"pam"` switches to pre-snap k-medoid restriction
+   * via `restrictPalettePam` and skips the post-snap reduce. */
+  paletteRestriction?: PaletteRestriction
 }): void {
   const {
     target,
@@ -85,6 +91,7 @@ export function buildMiniCanvas(args: {
     ditherMode,
     ditherPatternSize,
     distanceMetric,
+    paletteRestriction,
   } = args
   const ctx = target.getContext("2d", { willReadFrequently: true })
   if (!ctx) throw new Error("buildMiniCanvas: 2D context unavailable")
@@ -104,19 +111,41 @@ export function buildMiniCanvas(args: {
   wctx.drawImage(source, crop.x, crop.y, crop.w, crop.h, 0, 0, cropW, cropH)
   const cropData = wctx.getImageData(0, 0, cropW, cropH).data
 
-  // (2) True area-average per cell (mirrors server Image.BOX), then snap or
-  // dither to the palette via OKLab — `mapCellsDithered` mirrors the
-  // server's `map_cells_dithered`. `dither_mode="none"` (default) falls
-  // through to plain `mapCellsToPalette`, byte-identical to the pre-PR-F
-  // preview. An empty palette (still loading) returns the raw means
-  // unchanged as a graceful fallback. `preSnapChromaScale` (default 1.0 =
-  // no-op) lifts dull-averaged cells toward saturated chips before the
-  // snap.
-  let cells = mapCellsDithered({
-    cells: cellAreaAverages({ rgba: cropData, width: cropW, height: cropH, cellsX, cellsY }),
+  // (2) True area-average per cell (mirrors server Image.BOX).
+  const cellMeans = cellAreaAverages({
+    rgba: cropData,
+    width: cropW,
+    height: cropH,
     cellsX,
     cellsY,
-    palette,
+  })
+
+  // (2a) PR-I: when palette_restriction === "pam", restrict the palette
+  // pre-snap to `numColors` medoid chips. The snap/dither below then
+  // runs against the restricted palette and the post-snap top-N
+  // reduction is skipped. Mirrors `pixelate.py::pixelate_cells_to_svg`.
+  const activePalette: ReadonlyArray<PaletteChip> =
+    (paletteRestriction ?? "top_n") === "pam" && palette.length > 0 && numColors != null
+      ? restrictPalettePam({
+          cells: cellMeans,
+          palette,
+          numColors,
+          distanceMetric: distanceMetric ?? "oklab",
+        }).palette
+      : palette
+
+  // (2b) Snap or dither to the (possibly restricted) palette via OKLab
+  // — `mapCellsDithered` mirrors the server's `map_cells_dithered`.
+  // `dither_mode="none"` (default) falls through to plain
+  // `mapCellsToPalette`, byte-identical to the pre-PR-F preview. An
+  // empty palette (still loading) returns the raw means unchanged as a
+  // graceful fallback. `preSnapChromaScale` (default 1.0 = no-op) lifts
+  // dull-averaged cells toward saturated chips before the snap.
+  let cells = mapCellsDithered({
+    cells: cellMeans,
+    cellsX,
+    cellsY,
+    palette: activePalette,
     preSnapChromaScale: preSnapChromaScale ?? 1.0,
     ditherMode: ditherMode ?? "none",
     ditherPatternSize: ditherPatternSize ?? 4,
@@ -138,11 +167,11 @@ export function buildMiniCanvas(args: {
     textureStrength &&
     textureStrength > 0 &&
     textureLut &&
-    palette.length > 0
+    activePalette.length > 0
   ) {
     cells = applyNeighborInvasion({
       cells,
-      palette: palette.map((c) => c.rgb),
+      palette: activePalette.map((c) => c.rgb),
       cellsY,
       cellsX,
       strength: textureStrength,
@@ -151,10 +180,15 @@ export function buildMiniCanvas(args: {
   }
 
   // (2c) Top-N reduction — mirrors `reduce_to_top_n` in the Python pipeline.
-  // Skipped when no palette is loaded or numColors is null/<=0; otherwise
-  // caps the distinct chip count to numColors so preview ↔ output match.
-  if (palette.length > 0 && numColors != null && numColors > 0) {
-    cells = reduceToTopN(cells, palette, numColors, distanceMetric ?? "oklab").cells
+  // Skipped when no palette is loaded, numColors is null/<=0, OR when
+  // PAM already restricted the palette pre-snap (PR-I).
+  if (
+    (paletteRestriction ?? "top_n") !== "pam" &&
+    activePalette.length > 0 &&
+    numColors != null &&
+    numColors > 0
+  ) {
+    cells = reduceToTopN(cells, activePalette, numColors, distanceMetric ?? "oklab").cells
   }
   const { r, g, b } = cells
 

@@ -23,7 +23,7 @@ from .cell_labels import build_label_map, reconstruct_palette_indices, render_nu
 from .cell_texture import apply_neighbor_invasion
 from .ciede2000 import nearest_palette_indices_ciede2000, rgb255_to_cielab
 from .oklab import adjust_oklab, nearest_palette_indices, rgb255_to_oklab
-from .palette_reduction import reduce_to_top_n
+from .palette_reduction import reduce_to_top_n, restrict_palette_pam, translate_palette_indices
 
 
 def _hex(rgb) -> str:
@@ -98,6 +98,7 @@ def circulate_cells_to_svg(
     dither_mode: str = "none",
     dither_pattern_size: int = 4,
     distance_metric: str = "oklab",
+    palette_restriction: str = "top_n",
     on_phase: callable | None = None,
 ) -> tuple[str, int, list[int]]:
     """
@@ -119,18 +120,35 @@ def circulate_cells_to_svg(
 
     cells_y, cells_x, _ = cell_means.shape
     means = cell_means
+    # PR-I: PAM pre-snap restriction on the OUTER cells only. Inner
+    # ellipses always snap against the FULL palette because the
+    # sub-colour-filter math (`_inner_colors`) needs every chip
+    # available. `kept_indices` translates restricted-array positions
+    # back to ORIGINAL palette indices for `palette_indices_used`.
+    kept_indices: np.ndarray | None = None
+    outer_palette_oklab = palette_oklab
+    outer_palette_rgb = palette_rgb
 
     # Outer fill = nearest palette chip (raw means when no palette).
     # Pre-snap chroma boost only applies to OUTER ellipses; the INNER
     # ellipse keeps its derived sub-colour math (see `_inner_colors`).
     if palette_oklab is not None and palette_rgb is not None:
+        if palette_restriction == "pam":
+            restricted_oklab, restricted_rgb, kept_indices = restrict_palette_pam(
+                means, palette_oklab, palette_rgb,
+                num_colors=num_colors,
+                distance_metric=distance_metric,
+            )
+            outer_palette_oklab = restricted_oklab
+            outer_palette_rgb = restricted_rgb
+            phase("pam_restrict")
         # PR-F: single dispatch for the outer ellipse colour — `"none"`
         # keeps the pre-feature snap; `"knoll_yliluoma"` /
         # `"floyd_steinberg"` substitute the snap step with the matching
         # dithering algorithm. Inner ellipse colour is derived from the
         # *original* (pre-dither, pre-snap) means below — unchanged.
         outer = map_cells_dithered(
-            means, palette_oklab, palette_rgb,
+            means, outer_palette_oklab, outer_palette_rgb,
             pre_snap_chroma_scale=pre_snap_chroma_scale,
             dither_mode=dither_mode,
             dither_pattern_size=dither_pattern_size,
@@ -142,16 +160,18 @@ def circulate_cells_to_svg(
         # texture was approximating).
         if dither_mode == "none" and texture_enabled and texture_strength > 0:
             outer = apply_neighbor_invasion(
-                outer, np.asarray(palette_rgb, dtype=np.uint8), texture_strength
+                outer, np.asarray(outer_palette_rgb, dtype=np.uint8), texture_strength
             )
         # Reduce on the OUTER cells only — inner sub-colour is decorative
-        # and tracks the original mean.
-        outer, did_reduce = reduce_to_top_n(
-            outer, palette_oklab, palette_rgb, num_colors,
-            distance_metric=distance_metric,
-        )
-        if did_reduce:
-            phase("reduce_colors")
+        # and tracks the original mean. Skipped when PAM already
+        # restricted the palette pre-snap.
+        if palette_restriction != "pam":
+            outer, did_reduce = reduce_to_top_n(
+                outer, outer_palette_oklab, outer_palette_rgb, num_colors,
+                distance_metric=distance_metric,
+            )
+            if did_reduce:
+                phase("reduce_colors")
     else:
         outer = np.asarray(means, dtype=np.uint8)
     inner = (
@@ -224,12 +244,27 @@ def circulate_cells_to_svg(
     numbers_group = ""
     palette_indices_used: list[int] = []
     if palette_rgb is not None:
-        indices = reconstruct_palette_indices(outer, np.asarray(palette_rgb, dtype=np.uint8))
+        # PR-I: when PAM restricted the outer palette, reconstruct
+        # against the RESTRICTED palette then translate back through
+        # `kept_indices` so labels + `palette_indices_used` carry the
+        # ORIGINAL palette positions. Top-N branch leaves
+        # `kept_indices` as None and skips the translation.
+        reconstruct_palette = np.asarray(
+            outer_palette_rgb if kept_indices is not None else palette_rgb,
+            dtype=np.uint8,
+        )
+        indices_in_active = reconstruct_palette_indices(outer, reconstruct_palette)
+        if kept_indices is not None:
+            indices = translate_palette_indices(indices_in_active, kept_indices)
+        else:
+            indices = indices_in_active
         labels = build_label_map(indices)
         numbers_group = render_numbers_group(indices, labels, cell_px_w, cell_px_h)
         # Unique palette chips actually used in the final output. Sorted
         # ascending by palette_index so the client renders them
-        # deterministically. Mirrors the pixelate convention.
+        # deterministically. Always in ORIGINAL palette-index space
+        # (translated above for PAM) so the editor's Colors sheet
+        # matches the right chip names.
         palette_indices_used = sorted(int(i) for i in np.unique(indices).tolist())
         phase("numbers")
 
