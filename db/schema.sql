@@ -1831,7 +1831,7 @@ CREATE TABLE IF NOT EXISTS "public"."lab_munsell" (
 ALTER TABLE "public"."lab_munsell" OWNER TO "postgres";
 
 
-COMMENT ON TABLE "public"."lab_munsell" IS '512-chip tier palette (two-stage: deterministic Munsell set + frequency×spread order). palette_index = selection rank 0..511; tiers 128/256/512 are prefixes. Active tier gated app-side by PALETTE_TIER.';
+COMMENT ON TABLE "public"."lab_munsell" IS '512-chip tier palette (two-stage: deterministic Munsell set + frequency×spread order). palette_index = selection rank 0..511; tiers 128/256/512 are prefixes. Active tier gated app-side by PALETTE_TIER. iscc_nbs_name carries per-chip unique display names (ISCC-NBS bucket + per-bucket sequence number).';
 
 
 
