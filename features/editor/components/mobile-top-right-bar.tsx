@@ -65,13 +65,13 @@ export function MobileTopRightBar({ onEditTap, ariaLabelEdit = "Edit", viewOptio
     <div
       role="toolbar"
       aria-label="Editor actions"
-      className="absolute top-3 right-3 z-20 inline-flex items-center gap-1 rounded-lg bg-zinc-900/95 px-1 py-1 shadow-lg ring-1 ring-white/10 backdrop-blur md:hidden"
+      className="absolute top-3 right-3 z-20 inline-flex items-center gap-1 rounded-lg bg-zinc-900/95 px-1 py-0.5 shadow-lg ring-1 ring-white/10 backdrop-blur md:hidden"
     >
       {viewOptions ? (
         <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
           <DropdownMenuTrigger asChild>
             <ToolbarIconButton label="View options" active={menuOpen}>
-              <Eye aria-hidden="true" className="size-6" />
+              <Eye aria-hidden="true" className="size-5" />
             </ToolbarIconButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
@@ -100,7 +100,7 @@ export function MobileTopRightBar({ onEditTap, ariaLabelEdit = "Edit", viewOptio
         </DropdownMenu>
       ) : null}
       <ToolbarIconButton label={ariaLabelEdit} onClick={onEditTap}>
-        <Pencil aria-hidden="true" className="size-6" />
+        <Pencil aria-hidden="true" className="size-5" />
       </ToolbarIconButton>
     </div>
   )
