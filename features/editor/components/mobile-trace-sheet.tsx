@@ -3,18 +3,19 @@
 /**
  * Mobile full-screen Trace sheet.
  *
- * Combines the desktop left-panel `TraceSidebarSection` (active trace
- * row + add / clear actions) with the right-panel
- * `TraceVisibilitySection` (Trace / Preview / Numbers layer toggles)
- * inside a single scrollable mobile screen. Opens via the Trace
+ * Hosts the active-trace row + add / clear actions (same content as
+ * the desktop left-panel `TraceSidebarSection`). Opens via the Trace
  * icon in the editor's bottom-nav.
+ *
+ * Layer-visibility toggles (Trace / Preview / Numbers) live in the
+ * `MobileViewOptionsButton` FAB on the editor canvas, not in this
+ * sheet — that's a one-tap action surface for a frequently-toggled
+ * control, instead of a sheet open + scroll.
  *
  * `TraceSidebarSection` uses `SidebarMenuButton` which expects a
  * `SidebarProvider` ancestor (`useSidebar()` throws otherwise). The
  * sheet body is wrapped in `SidebarFrame` (= `SidebarProvider`) so
- * the section finds its context. `TraceVisibilitySection` doesn't
- * need the context but renders inside the same SidebarContent for
- * consistent vertical rhythm.
+ * the section finds its context.
  *
  * Render shape mirrors `MobileFilterSheet` exactly: `absolute inset-0`
  * overlay inside the editor layout container, header + scrollable
@@ -31,24 +32,15 @@ import { SidebarContent } from "@/components/ui/sidebar"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
 
 import { TraceSidebarSection } from "./trace-sidebar-section"
-import { TraceVisibilitySection } from "./trace-visibility-section"
 
 export function MobileTraceSheet(props: {
   onClose: () => void
-  // TraceSidebarSection
   trace: { kind: RegisteredTraceId } | null
   isAddTraceDisabled: boolean
   isClearingTrace: boolean
   isLoadingInitial?: boolean
   onClearTrace: () => void
   onOpenSelection: () => void
-  // TraceVisibilitySection
-  traceOverlayVisible: boolean
-  previewBitmapVisible: boolean
-  numbersLayerVisible: boolean
-  onTraceOverlayChange: (visible: boolean) => void
-  onPreviewBitmapChange: (visible: boolean) => void
-  onNumbersLayerChange: (visible: boolean) => void
 }) {
   const {
     onClose,
@@ -58,12 +50,6 @@ export function MobileTraceSheet(props: {
     isLoadingInitial,
     onClearTrace,
     onOpenSelection,
-    traceOverlayVisible,
-    previewBitmapVisible,
-    numbersLayerVisible,
-    onTraceOverlayChange,
-    onPreviewBitmapChange,
-    onNumbersLayerChange,
   } = props
 
   return (
@@ -93,14 +79,6 @@ export function MobileTraceSheet(props: {
             isLoadingInitial={isLoadingInitial}
             onClearTrace={onClearTrace}
             onOpenSelection={onOpenSelection}
-          />
-          <TraceVisibilitySection
-            traceOverlayVisible={traceOverlayVisible}
-            previewBitmapVisible={previewBitmapVisible}
-            numbersLayerVisible={numbersLayerVisible}
-            onTraceOverlayChange={onTraceOverlayChange}
-            onPreviewBitmapChange={onPreviewBitmapChange}
-            onNumbersLayerChange={onNumbersLayerChange}
           />
         </SidebarContent>
       </SidebarFrame>
