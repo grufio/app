@@ -4,15 +4,19 @@
  * Trace dialog host. Sister to `EditorDialogHost`. Mounts the
  * `TraceSelectionController` (trace picker) and, once a kind is chosen, the
  * appropriate configure surface:
- *   - pixelate  → `PixelateDialog`
- *   - circulate → `CirculateDialog`
- *   - lineart   → single-form `GenericTraceController`
+ *   - pixelate         → `PixelateDialog`
+ *   - circulate        → `CirculateDialog`
+ *   - lineart (mobile) → `LineArtDialog` (preview-pane shell)
+ *   - lineart (≥768px) → `GenericTraceController` (legacy single-form)
+ *   - other kinds      → `GenericTraceController`
  */
 import { TraceSelectionController } from "@/features/editor/components/TraceSelectionController"
 import { CirculateDialog } from "@/features/editor/components/trace-forms/circulate-dialog"
 import { GenericTraceController } from "@/features/editor/components/trace-forms/generic-trace-controller"
+import { LineArtDialog } from "@/features/editor/components/trace-forms/lineart-dialog"
 import { PixelateDialog } from "@/features/editor/components/trace-forms/pixelate-dialog"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
+import { useIsMobile } from "@/lib/ui/use-mobile"
 
 export function EditorTraceDialogHost(props: {
   selectionOpen: boolean
@@ -47,6 +51,7 @@ export function EditorTraceDialogHost(props: {
   } = props
 
   const configureOpen = Boolean(traceDialogSource && activeKind)
+  const isMobile = useIsMobile()
 
   return (
     <>
@@ -83,7 +88,23 @@ export function EditorTraceDialogHost(props: {
           onApplyTrace={onApplyTrace}
         />
       ) : null}
-      {configureOpen && traceDialogSource && activeKind && activeKind !== "pixelate" && activeKind !== "circulate" ? (
+      {configureOpen && traceDialogSource && activeKind === "lineart" && isMobile ? (
+        <LineArtDialog
+          open
+          sourceImageUrl={traceDialogSource.sourceImageUrl}
+          displayMmW={traceDialogSource.displayMmW}
+          displayMmH={traceDialogSource.displayMmH}
+          onClose={onCloseConfigure}
+          onSuccess={onApplied}
+          onApplyTrace={onApplyTrace}
+        />
+      ) : null}
+      {configureOpen
+      && traceDialogSource
+      && activeKind
+      && activeKind !== "pixelate"
+      && activeKind !== "circulate"
+      && !(activeKind === "lineart" && isMobile) ? (
         <GenericTraceController
           kind={activeKind}
           ctx={{
