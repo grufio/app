@@ -15,7 +15,7 @@ function chip(r: number, g: number, b: number): PaletteChip {
     oklab: rgb255ToOklab(r, g, b) as Oklab,
     rgb: [r, g, b] as const,
     notation: "",
-    iscc_nbs_name: null,
+    color_name: null,
   }
 }
 

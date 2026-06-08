@@ -90,14 +90,14 @@ export function cellAreaAverages(args: {
 }
 
 /** One palette chip: OKLab (for matching) + RGB (the emitted colour) +
- * the chip's Munsell notation and ISCC-NBS Level-3 name for display.
+ * the chip's Munsell notation and a unique display name (color-name-list).
  * Mirrors the `/api/palette` response and the server
  * `lib/supabase/palette.ts` shape. */
 export type PaletteChip = {
   oklab: Oklab
   rgb: readonly [number, number, number]
   notation: string
-  iscc_nbs_name: string | null
+  color_name: string | null
 }
 
 export type CellColors = { r: Uint8ClampedArray; g: Uint8ClampedArray; b: Uint8ClampedArray }

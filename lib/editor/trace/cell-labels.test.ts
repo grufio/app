@@ -4,10 +4,10 @@ import { computeCellLabels } from "./cell-labels"
 import type { PaletteChip } from "./trace-cell-colors"
 
 const PALETTE: PaletteChip[] = [
-  { oklab: [0.97, 0, 0.18], rgb: [255, 255, 0], notation: "5Y 9/10", iscc_nbs_name: "Vivid yellow" }, // idx 0
-  { oklab: [0.93, 0.02, 0.16], rgb: [255, 200, 0], notation: "10YR 8/10", iscc_nbs_name: "Brilliant orange yellow" }, // idx 1
-  { oklab: [0.45, 0.2, 0.12], rgb: [200, 0, 0], notation: "5R 4/14", iscc_nbs_name: "Vivid red" }, // idx 2
-  { oklab: [0.45, -0.04, -0.31], rgb: [0, 0, 255], notation: "5PB 3/14", iscc_nbs_name: "Vivid blue" }, // idx 3
+  { oklab: [0.97, 0, 0.18], rgb: [255, 255, 0], notation: "5Y 9/10", color_name: "Vivid yellow" }, // idx 0
+  { oklab: [0.93, 0.02, 0.16], rgb: [255, 200, 0], notation: "10YR 8/10", color_name: "Brilliant orange yellow" }, // idx 1
+  { oklab: [0.45, 0.2, 0.12], rgb: [200, 0, 0], notation: "5R 4/14", color_name: "Vivid red" }, // idx 2
+  { oklab: [0.45, -0.04, -0.31], rgb: [0, 0, 255], notation: "5PB 3/14", color_name: "Vivid blue" }, // idx 3
 ]
 
 function cellsFromGrid(grid: ReadonlyArray<ReadonlyArray<readonly [number, number, number]>>) {

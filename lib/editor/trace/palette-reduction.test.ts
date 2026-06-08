@@ -18,7 +18,7 @@ function makeChip(rgb: [number, number, number]): PaletteChip {
     oklab: rgb255ToOklab(rgb[0], rgb[1], rgb[2]),
     rgb,
     notation: rgb.join(","),
-    iscc_nbs_name: null,
+    color_name: null,
   }
 }
 

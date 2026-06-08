@@ -47,13 +47,13 @@ const colorChip: PaletteChip = {
   oklab: [0.5, 0.1, -0.1],
   rgb: [128, 64, 64],
   notation: "5R 4/14",
-  iscc_nbs_name: "Vivid red",
+  color_name: "Vivid red",
 }
 const bwChip: PaletteChip = {
   oklab: [0.3, 0, 0],
   rgb: [77, 77, 77],
   notation: "N 3.0/",
-  iscc_nbs_name: "Dark gray",
+  color_name: "Dark gray",
 }
 
 describe("palette route contract", () => {

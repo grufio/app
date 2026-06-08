@@ -36,14 +36,14 @@ function activeColorTier(): number {
 }
 
 /** One palette chip: OKLab (for matching) + RGB (the emitted colour),
- *  plus the chip's Munsell notation and ISCC-NBS Level-3 name for
- *  display. `iscc_nbs_name` is nullable in case a chip falls outside
- *  every named block; callers should fall back to `notation`. */
+ *  plus the chip's Munsell notation and a unique display name. The DB
+ *  `color_name` column is NOT NULL (every chip has a distinct name from
+ *  color-name-list); typed nullable here only as a defensive fallback. */
 export type PaletteChip = {
   oklab: [number, number, number]
   rgb: [number, number, number]
   notation: string
-  iscc_nbs_name: string | null
+  color_name: string | null
 }
 
 type PaletteRow = {
@@ -54,7 +54,7 @@ type PaletteRow = {
   rgb_g: number
   rgb_b: number
   notation: string
-  iscc_nbs_name: string | null
+  color_name: string | null
 }
 
 type PaletteTable = "lab_munsell" | "lab_grays"
@@ -72,7 +72,7 @@ async function readPaletteRows(
   // lab_* tables are untyped in the generated schema (see file header).
   let query = supabase
     .from(table as never)
-    .select("oklab_l,oklab_a,oklab_b,rgb_r,rgb_g,rgb_b,notation,iscc_nbs_name")
+    .select("oklab_l,oklab_a,oklab_b,rgb_r,rgb_g,rgb_b,notation,color_name")
     .order("palette_index", { ascending: true })
   if (limit != null) query = query.limit(limit)
   const { data, error } = await query
@@ -81,7 +81,7 @@ async function readPaletteRows(
     oklab: [r.oklab_l, r.oklab_a, r.oklab_b],
     rgb: [r.rgb_r, r.rgb_g, r.rgb_b],
     notation: r.notation,
-    iscc_nbs_name: r.iscc_nbs_name,
+    color_name: r.color_name,
   }))
 }
 
