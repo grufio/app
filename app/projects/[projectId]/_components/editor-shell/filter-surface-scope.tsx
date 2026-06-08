@@ -26,8 +26,8 @@
 import { useCallback, useState } from "react"
 
 import { FilterSidebarSection } from "@/features/editor/components/filter-sidebar-section"
-import { MobileEditButton } from "@/features/editor/components/mobile-edit-button"
 import { MobileFilterSheet } from "@/features/editor/components/mobile-filter-sheet"
+import { MobileTopRightBar } from "@/features/editor/components/mobile-top-right-bar"
 import type { OperationError } from "@/lib/api/operation-error"
 import { useDedupingErrorToast } from "@/lib/editor/hooks/use-deduping-error-toast"
 import type { FilterDialogSourceImage, FilterType } from "@/lib/editor/hooks/use-filter-dialog-session"
@@ -114,7 +114,11 @@ export function FilterSurfaceScope(props: FilterSurfaceScopeProps) {
         />
       ) : (
         <>
-          <MobileEditButton onClick={() => setEditOpen(true)} ariaLabel="Edit filter" />
+          <MobileTopRightBar
+            onEditTap={() => setEditOpen(true)}
+            ariaLabelEdit="Edit filter"
+            viewOptions={null}
+          />
           {editOpen ? (
             <MobileFilterSheet
               onClose={() => setEditOpen(false)}

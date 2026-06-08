@@ -11,9 +11,8 @@
  */
 import { useCallback, useMemo, useState } from "react"
 
-import { MobileEditButton } from "@/features/editor/components/mobile-edit-button"
+import { MobileTopRightBar } from "@/features/editor/components/mobile-top-right-bar"
 import { MobileTraceSheet } from "@/features/editor/components/mobile-trace-sheet"
-import { MobileViewOptionsButton } from "@/features/editor/components/mobile-view-options-button"
 import { TraceSidebarSection } from "@/features/editor/components/trace-sidebar-section"
 import type { TraceDialogSourceImage, TraceKind } from "@/lib/editor/hooks/use-trace-dialog-session"
 import { useTraceDialogSession } from "@/lib/editor/hooks/use-trace-dialog-session"
@@ -97,18 +96,23 @@ export function TraceSurfaceScope(props: TraceSurfaceScopeProps) {
         />
       ) : (
         <>
-          {props.trace !== null
-          && (props.trace.kind === "pixelate" || props.trace.kind === "circulate") ? (
-            <MobileViewOptionsButton
-              traceOverlayVisible={props.traceOverlayVisible}
-              previewBitmapVisible={props.previewBitmapVisible}
-              numbersLayerVisible={props.numbersLayerVisible}
-              onTraceOverlayChange={props.onTraceOverlayChange}
-              onPreviewBitmapChange={props.onPreviewBitmapChange}
-              onNumbersLayerChange={props.onNumbersLayerChange}
-            />
-          ) : null}
-          <MobileEditButton onClick={() => setEditOpen(true)} ariaLabel="Edit trace" />
+          <MobileTopRightBar
+            onEditTap={() => setEditOpen(true)}
+            ariaLabelEdit="Edit trace"
+            viewOptions={
+              props.trace !== null
+              && (props.trace.kind === "pixelate" || props.trace.kind === "circulate")
+                ? {
+                    traceOverlayVisible: props.traceOverlayVisible,
+                    previewBitmapVisible: props.previewBitmapVisible,
+                    numbersLayerVisible: props.numbersLayerVisible,
+                    onTraceOverlayChange: props.onTraceOverlayChange,
+                    onPreviewBitmapChange: props.onPreviewBitmapChange,
+                    onNumbersLayerChange: props.onNumbersLayerChange,
+                  }
+                : null
+            }
+          />
           {editOpen ? (
             <MobileTraceSheet
               onClose={() => setEditOpen(false)}
