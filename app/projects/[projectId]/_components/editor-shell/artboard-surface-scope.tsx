@@ -18,7 +18,7 @@
 import { useState, type ComponentProps } from "react"
 
 import { MobileArtboardSheet } from "@/features/editor/components/mobile-artboard-sheet"
-import { MobileEditButton } from "@/features/editor/components/mobile-edit-button"
+import { MobileTopRightBar } from "@/features/editor/components/mobile-top-right-bar"
 
 type ArtboardSheetProps = Omit<ComponentProps<typeof MobileArtboardSheet>, "onClose">
 
@@ -29,7 +29,11 @@ export function ArtboardSurfaceScope(props: ArtboardSurfaceScopeProps) {
 
   return (
     <>
-      <MobileEditButton onClick={() => setEditOpen(true)} ariaLabel="Edit artboard" />
+      <MobileTopRightBar
+        onEditTap={() => setEditOpen(true)}
+        ariaLabelEdit="Edit artboard"
+        viewOptions={null}
+      />
       {editOpen ? (
         <MobileArtboardSheet {...props} onClose={() => setEditOpen(false)} />
       ) : null}

@@ -89,7 +89,7 @@ export function FloatingToolbar({
         role="toolbar"
         aria-label="Canvas toolbar"
         className={cn(
-          "inline-flex items-center gap-3 rounded-lg border bg-background/90 px-2 py-1 shadow-sm backdrop-blur",
+          "inline-flex items-center gap-3 rounded-lg bg-zinc-900/95 px-2 py-1 shadow-lg ring-1 ring-white/10 backdrop-blur",
           className
         )}
       >
