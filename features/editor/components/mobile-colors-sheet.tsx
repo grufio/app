@@ -6,7 +6,7 @@
  * First-class section (mobileSection === "colors") that lists the
  * palette chips the current trace actually references — not the full
  * Munsell palette (active tier of up to 512). Each chip renders as a `PaletteColorTile`
- * (solid color fill + legend number + ISCC-NBS name + Munsell
+ * (solid color fill + legend number + colour name + Munsell
  * notation).
  *
  * Mounted inside the editor layout, sized as an `absolute inset-0`
@@ -109,7 +109,7 @@ function ColorsBody({
         <PaletteColorTile
           key={chip.notation || displayIdx}
           legendNumber={displayIdx + 1}
-          name={chip.iscc_nbs_name}
+          name={chip.color_name}
           notation={chip.notation}
           rgb={chip.rgb}
         />

@@ -22,7 +22,7 @@ function makePalette(rgbs: ReadonlyArray<[number, number, number]>): PaletteChip
     rgb,
     oklab: rgb255ToOklab(rgb[0], rgb[1], rgb[2]) as Oklab,
     notation: "",
-    iscc_nbs_name: null,
+    color_name: null,
   }))
 }
 

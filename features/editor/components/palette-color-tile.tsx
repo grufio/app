@@ -7,8 +7,8 @@
  *   1. legend number — 1-based position of this chip in the visible
  *      sequence (NOT the palette_index; that would jump around as
  *      sparse subsets render)
- *   2. ISCC-NBS Level-3 name (e.g. "Vivid red", or "—" if the chip
- *      falls outside every named block)
+ *   2. unique colour name (e.g. "Young Salmon"; "—" only as a defensive
+ *      fallback — the DB column is NOT NULL)
  *   3. Munsell notation (e.g. "5R 4/14")
  *
  * Square aspect-ratio for the color block; the text rows sit below.
