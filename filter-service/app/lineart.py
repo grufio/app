@@ -19,6 +19,8 @@ from PIL import Image, ImageFilter
 import vtracer
 
 from .oklab import nearest_palette_indices, rgb255_to_oklab
+from .cell_labels import build_label_map
+from .lineart_labels import merge_tiny_regions, render_numbers_group
 
 
 # Lineart variant of the vtracer params: organic contours instead of
@@ -175,11 +177,13 @@ def lineart_to_svg(
     # Map smoothness ∈ [0, 1] to:
     #   corner_threshold ∈ [180, 60]   (0=preserve sharp corners, 1=allow strong curves)
     #   length_threshold ∈ [0, 8]      (0=no simplification, 1=aggressive)
-    #   filter_speckle   ∈ [0, 32]     (0=keep all blobs, 1=drop everything < 32 px)
+    #   filter_speckle   ∈ [16, 32]    (always drop blobs < 16 px so the
+    #     paint-by-numbers merge pass doesn't have to mop up
+    #     unpaintable specks)
     s = max(0.0, min(1.0, smoothness))
     corner_threshold = int(round(180 - s * 120))
     length_threshold = round(s * 8.0, 2)
-    filter_speckle = int(round(s * 32))
+    filter_speckle = max(16, int(round(s * 32)))
     # Encoded bytes, not list(getdata()) — the per-pixel tuple list is
     # a multi-hundred-MB to GB allocation on large images. vtracer
     # decodes the PNG in Rust; output matches.
@@ -205,14 +209,25 @@ def lineart_to_svg(
     # source); only the fills change. The set of indices used flows
     # back to the editor so the Colors sheet renders them.
     palette_indices_used: list[int] = []
+    numbers_group = ""
     if palette_oklab is not None and palette_rgb is not None and raw_paths:
         snapped_paths, indices = snap_path_fills_to_palette(
             raw_paths,
             np.asarray(palette_oklab, dtype=np.float32),
             np.asarray(palette_rgb, dtype=np.uint8),
         )
+        # Paint-by-numbers merge: any region whose largest inscribed
+        # circle is below R_min gets unioned into its largest
+        # neighbour. Recompute `palette_indices_used` from the
+        # post-merge indices so the Colors sheet only lists chips
+        # that actually survive in the output.
+        snapped_paths, indices = merge_tiny_regions(snapped_paths, indices, min_radius=8.0)
         raw_paths = snapped_paths
         palette_indices_used = sorted(int(i) for i in np.unique(indices).tolist())
+        label_map = build_label_map(indices)
+        numbers_group = render_numbers_group(
+            raw_paths, indices, label_map, min_radius=8.0, max_font=24.0
+        )
         phase("palette")
 
     color_paths = [add_stroke_to_path(p, "black", line_thickness) for p in raw_paths]
@@ -222,7 +237,9 @@ def lineart_to_svg(
     # No opaque background rect — the trace renders as a layer on top
     # of the filter chain tip in the editor; a future toggle hides the
     # whole trace layer to reveal the raster underneath. An opaque
-    # white sheet here would block both.
+    # white sheet here would block both. The numbers group sits ABOVE
+    # `<g id="regions">` so labels paint on top of the fills + strokes;
+    # `data-numbers-visible` CSS gates it from the frontend.
     svg_content = (
         f'<?xml version="1.0" encoding="UTF-8"?>\n'
         f'<svg xmlns="http://www.w3.org/2000/svg" '
@@ -231,6 +248,7 @@ def lineart_to_svg(
         f'  <g id="regions">\n'
         f'    {chr(10).join(color_paths)}\n'
         f'  </g>\n'
+        f'  {numbers_group}\n'
         f'</svg>'
     )
     phase("serialize")
