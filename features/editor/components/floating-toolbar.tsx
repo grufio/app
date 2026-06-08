@@ -89,7 +89,7 @@ export function FloatingToolbar({
         role="toolbar"
         aria-label="Canvas toolbar"
         className={cn(
-          "inline-flex items-center gap-3 rounded-lg bg-zinc-900/95 px-2 py-0.5 shadow-lg ring-1 ring-white/10 backdrop-blur",
+          "inline-flex items-center gap-3 rounded-lg bg-zinc-900/95 px-2 py-1 shadow-lg ring-1 ring-white/10 backdrop-blur",
           className
         )}
       >
@@ -99,7 +99,7 @@ export function FloatingToolbar({
           active={tool === "object"}
           onClick={() => onToolChange("object")}
         >
-          <MousePointer2 className="size-5" fill="currentColor" />
+          <MousePointer2 className="size-6" fill="currentColor" />
         </IconButton>
         {showDirectSelect ? (
           <IconButton
@@ -107,27 +107,27 @@ export function FloatingToolbar({
             active={tool === "direct"}
             onClick={() => onToolChange("direct")}
           >
-            <MousePointer2 className="size-5" />
+            <MousePointer2 className="size-6" />
           </IconButton>
         ) : null}
         <IconButton label="Hand (Move Artboard)" active={tool === "hand"} onClick={() => onToolChange("hand")}>
-          <Hand className="size-5" />
+          <Hand className="size-6" />
         </IconButton>
         <IconButton label="Crop" active={tool === "crop"} disabled={cropDisabled} onClick={() => onToolChange("crop")}>
-          <Crop className="size-5" />
+          <Crop className="size-6" />
         </IconButton>
 
         <IconButton label="Zoom in" onClick={onZoomIn} disabled={actionsDisabled}>
-          <ZoomIn className="size-5" />
+          <ZoomIn className="size-6" />
         </IconButton>
         <IconButton label="Zoom out" onClick={onZoomOut} disabled={actionsDisabled}>
-          <ZoomOut className="size-5" />
+          <ZoomOut className="size-6" />
         </IconButton>
         <IconButton label="Fit to screen" onClick={onFit} disabled={actionsDisabled}>
-          <Maximize2 className="size-5" />
+          <Maximize2 className="size-6" />
         </IconButton>
         <IconButton label="Rotate 90°" onClick={onRotate} disabled={actionsDisabled || rotateDisabled}>
-          <RotateCw className="size-5" />
+          <RotateCw className="size-6" />
         </IconButton>
       </div>
     </TooltipProvider>

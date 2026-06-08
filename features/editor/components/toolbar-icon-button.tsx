@@ -23,7 +23,7 @@ type ToolbarIconButtonProps = Omit<React.ComponentProps<"button">, "children"> &
  */
 export function ToolbarIconButton({ label, active = false, className, children, ...props }: ToolbarIconButtonProps) {
   const buttonClassName = cn(
-    "h-7 w-7 min-h-7 min-w-7 max-h-7 max-w-7 rounded aspect-square p-0 shrink-0",
+    "h-8 w-8 min-h-8 min-w-8 max-h-8 max-w-8 rounded aspect-square p-0 shrink-0",
     !active && "text-white/70",
     active && "text-white",
     // Neutralize the ghost variant's default hover; we paint our own.
