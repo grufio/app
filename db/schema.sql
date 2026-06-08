@@ -364,103 +364,6 @@ $$;
 ALTER FUNCTION "public"."delete_project"("p_project_id" "uuid") OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."derive_iscc_nbs_name"("hue_family" "text", "hue_pct" numeric, "value" numeric, "chroma" numeric) RETURNS "text"
-    LANGUAGE "plpgsql" IMMUTABLE
-    AS $$
-DECLARE
-  base text;
-  saturation text;
-  lightness text;
-  name text;
-BEGIN
-  -- Neutrals: bucket by value only. Aligns with the Kelly-Judd
-  -- neutral split-points (Black <1, Dark gray <3.5, Medium gray
-  -- <6.5, Light gray <8.5, White ≥8.5).
-  IF "hue_family" = 'N' OR "hue_family" IS NULL THEN
-    RETURN CASE
-      WHEN "value" < 1.0  THEN 'Black'
-      WHEN "value" < 3.5  THEN 'Dark gray'
-      WHEN "value" < 6.5  THEN 'Medium gray'
-      WHEN "value" < 8.5  THEN 'Light gray'
-      ELSE                     'White'
-    END;
-  END IF;
-
-  -- Base hue word. The hue_pct (2.5 / 5 / 7.5 / 10) within a family
-  -- shifts the perceived hue toward the neighbouring family; this
-  -- partition keeps the within-family modifier coarse so the names
-  -- stay readable. Values of `value` / `chroma` make a strong chip
-  -- a "yellow", a desaturated dark chip a "brown", etc. — that
-  -- value-modulated mapping happens below for YR specifically.
-  base := CASE "hue_family"
-    WHEN 'R'  THEN 'red'
-    WHEN 'YR' THEN 'orange'  -- refined below by value / chroma
-    WHEN 'Y'  THEN 'yellow'
-    WHEN 'GY' THEN 'yellow green'
-    WHEN 'G'  THEN 'green'
-    WHEN 'BG' THEN 'bluish green'
-    WHEN 'B'  THEN 'blue'
-    WHEN 'PB' THEN 'purplish blue'
-    WHEN 'P'  THEN 'purple'
-    WHEN 'RP' THEN 'reddish purple'
-    ELSE          'gray'
-  END;
-
-  -- YR (yellow-red) is special: low-value low-chroma reads as
-  -- "brown", mid-value mid-chroma as "orange", high-value as
-  -- "orange yellow". This is the most common practical distinction
-  -- in the Schmincke palette so it gets dedicated handling.
-  IF "hue_family" = 'YR' THEN
-    IF "chroma" < 3 AND "value" < 6 THEN
-      base := 'brown';
-    ELSIF "value" < 4 AND "chroma" >= 4 THEN
-      base := 'brown';  -- "Strong brown" / "Dark brown" regions
-    ELSIF "value" >= 7 THEN
-      base := 'orange yellow';
-    ELSE
-      base := 'orange';
-    END IF;
-  END IF;
-
-  -- Saturation modifier from chroma. ISCC-NBS uses "Vivid",
-  -- "Strong", "Moderate", "Grayish", with a fuzzy boundary at
-  -- C≈10-12. The thresholds here pick the descriptive word that
-  -- matches the chip's perceptual punch.
-  saturation := CASE
-    WHEN "chroma" >= 12 THEN 'Vivid'
-    WHEN "chroma" >= 8  THEN 'Strong'
-    WHEN "chroma" >= 4  THEN 'Moderate'
-    WHEN "chroma" >= 2  THEN 'Grayish'
-    ELSE                     'Near-neutral'
-  END;
-
-  -- Lightness modifier from value. Mid-band chips get no
-  -- light/dark prefix — the saturation word carries the name.
-  lightness := CASE
-    WHEN "value" < 2.0 THEN 'Very dark'
-    WHEN "value" < 3.5 THEN 'Dark'
-    WHEN "value" < 6.5 THEN ''
-    WHEN "value" < 8.5 THEN 'Light'
-    ELSE                    'Very light'
-  END;
-
-  -- Compose, trimming empties to avoid "  red".
-  IF lightness = '' THEN
-    name := saturation || ' ' || base;
-  ELSE
-    name := lightness || ' ' || lower(saturation) || ' ' || base;
-  END IF;
-
-  -- Capitalise first letter (matches the existing dictionary
-  -- entries like "Vivid red" / "Dark grayish blue").
-  RETURN upper(substring(name, 1, 1)) || substring(name, 2);
-END;
-$$;
-
-
-ALTER FUNCTION "public"."derive_iscc_nbs_name"("hue_family" "text", "hue_pct" numeric, "value" numeric, "chroma" numeric) OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."guard_master_immutable"() RETURNS "trigger"
     LANGUAGE "plpgsql"
     SET "search_path" TO 'public', 'pg_temp'
@@ -1770,7 +1673,7 @@ CREATE TABLE IF NOT EXISTS "public"."lab_grays" (
     "rgb_b" smallint NOT NULL,
     "hex" "text" NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "iscc_nbs_name" "text",
+    "color_name" "text" NOT NULL,
     CONSTRAINT "lab_grays_hex_check" CHECK (("hex" ~ '^#[0-9A-Fa-f]{6}$'::"text")),
     CONSTRAINT "lab_grays_palette_index_check" CHECK (("palette_index" >= 0)),
     CONSTRAINT "lab_grays_rgb_b_check" CHECK ((("rgb_b" >= 0) AND ("rgb_b" <= 255))),
@@ -1819,7 +1722,7 @@ CREATE TABLE IF NOT EXISTS "public"."lab_munsell" (
     "rgb_b" smallint NOT NULL,
     "hex" "text" NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "iscc_nbs_name" "text",
+    "color_name" "text" NOT NULL,
     CONSTRAINT "lab_munsell_hex_check" CHECK (("hex" ~ '^#[0-9A-Fa-f]{6}$'::"text")),
     CONSTRAINT "lab_munsell_palette_index_check" CHECK (("palette_index" >= 0)),
     CONSTRAINT "lab_munsell_rgb_b_check" CHECK ((("rgb_b" >= 0) AND ("rgb_b" <= 255))),
@@ -1831,23 +1734,23 @@ CREATE TABLE IF NOT EXISTS "public"."lab_munsell" (
 ALTER TABLE "public"."lab_munsell" OWNER TO "postgres";
 
 
-COMMENT ON TABLE "public"."lab_munsell" IS '512-chip tier palette (two-stage: deterministic Munsell set + frequency×spread order). palette_index = selection rank 0..511; tiers 128/256/512 are prefixes. Active tier gated app-side by PALETTE_TIER. iscc_nbs_name carries per-chip unique display names (ISCC-NBS bucket + per-bucket sequence number).';
+COMMENT ON TABLE "public"."lab_munsell" IS '512-chip tier palette: perceptually-even OKLab farthest-point over the in-gamut Munsell pool, denser in the specialized regions (skin/nature/sky/sea), JND-floored + chroma-floored (no overlap with lab_grays). palette_index = selection rank 0..511; tiers 128/256/512 are strict prefixes, active tier gated app-side by PALETTE_TIER. color_name = unique display name.';
 
 
 
-COMMENT ON COLUMN "public"."lab_munsell"."hue_pct" IS 'consumed by derive_iscc_nbs_name(); not read by app code';
+COMMENT ON COLUMN "public"."lab_munsell"."hue_pct" IS 'consumed by the build-time palette generator (color-lab); not read by app code';
 
 
 
-COMMENT ON COLUMN "public"."lab_munsell"."hue_family" IS 'consumed by derive_iscc_nbs_name(); not read by app code';
+COMMENT ON COLUMN "public"."lab_munsell"."hue_family" IS 'consumed by the build-time palette generator (color-lab); not read by app code';
 
 
 
-COMMENT ON COLUMN "public"."lab_munsell"."value" IS 'consumed by derive_iscc_nbs_name(); not read by app code';
+COMMENT ON COLUMN "public"."lab_munsell"."value" IS 'consumed by the build-time palette generator (color-lab); not read by app code';
 
 
 
-COMMENT ON COLUMN "public"."lab_munsell"."chroma" IS 'consumed by derive_iscc_nbs_name(); not read by app code';
+COMMENT ON COLUMN "public"."lab_munsell"."chroma" IS 'consumed by the build-time palette generator (color-lab); not read by app code';
 
 
 
@@ -3499,12 +3402,6 @@ GRANT ALL ON FUNCTION "public"."delete_master_with_cascade"("p_project_id" "uuid
 GRANT ALL ON FUNCTION "public"."delete_project"("p_project_id" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."delete_project"("p_project_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."delete_project"("p_project_id" "uuid") TO "service_role";
-
-
-
-GRANT ALL ON FUNCTION "public"."derive_iscc_nbs_name"("hue_family" "text", "hue_pct" numeric, "value" numeric, "chroma" numeric) TO "anon";
-GRANT ALL ON FUNCTION "public"."derive_iscc_nbs_name"("hue_family" "text", "hue_pct" numeric, "value" numeric, "chroma" numeric) TO "authenticated";
-GRANT ALL ON FUNCTION "public"."derive_iscc_nbs_name"("hue_family" "text", "hue_pct" numeric, "value" numeric, "chroma" numeric) TO "service_role";
 
 
 
