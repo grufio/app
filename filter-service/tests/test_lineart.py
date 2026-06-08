@@ -86,3 +86,51 @@ def test_lineart_snaps_fills_to_palette(client):
     assert fills, "expected at least one filled path"
     for hex_str in fills:
         assert hex_str.lower() in palette_hex
+
+
+def test_lineart_emits_numbers_group_when_palette_set(client):
+    """With a palette in play the SVG must contain `<g id="numbers">`
+    with at least one `<text>` element — that's the paint-by-numbers
+    label layer the desktop visibility toggle gates on."""
+    palette_rgb = [[255, 0, 0], [0, 255, 0], [0, 0, 255], [255, 255, 0]]
+    palette_oklab = [
+        [0.628, 0.225, 0.126],
+        [0.866, -0.234, 0.179],
+        [0.452, -0.032, -0.312],
+        [0.968, -0.071, 0.198],
+    ]
+    res = client.post(
+        "/filters/lineart",
+        json={
+            "image_base64": _noise_png_b64(64, 64),
+            "line_thickness": 1.0,
+            "blur_amount": 3,
+            "smoothness": 0.6,
+            "num_colors": 8,
+            "palette_oklab": palette_oklab,
+            "palette_rgb": palette_rgb,
+        },
+    )
+    assert res.status_code == 200
+    svg = res.json()["svg"]
+    assert '<g id="numbers">' in svg
+    assert "</g>" in svg
+
+
+def test_lineart_no_numbers_group_without_palette(client):
+    """Without a palette there's no label-map to drive numbers — the
+    SVG should NOT contain `<g id="numbers">` at all (not an empty
+    group)."""
+    res = client.post(
+        "/filters/lineart",
+        json={
+            "image_base64": _noise_png_b64(),
+            "line_thickness": 1.0,
+            "blur_amount": 3,
+            "smoothness": 0.6,
+            "num_colors": 8,
+        },
+    )
+    assert res.status_code == 200
+    svg = res.json()["svg"]
+    assert '<g id="numbers">' not in svg

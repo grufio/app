@@ -36,7 +36,10 @@ import {
 import { useSourceImage } from "@/lib/editor/trace/use-source-image"
 import { useTracePalette } from "@/lib/editor/trace/use-trace-palette"
 
-const MAX_PREVIEW_EDGE_PX = 256
+// 384px buffer: the 1-px cluster-boundary pass paints a thinner line
+// (~2.7 CSS-px at a 1024 display vs ~4 CSS-px from the previous 256
+// buffer) without making k-means costly enough to need a worker.
+const MAX_PREVIEW_EDGE_PX = 384
 const KMEANS_MAX_ITER = 10
 
 const ZOOM_STEP = 1.5
