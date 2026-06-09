@@ -37,8 +37,13 @@ import type { MobileSection } from "@/lib/editor/mobile-sections"
 
 import { ToolbarIconButton } from "./toolbar-icon-button"
 
-const PILL_CLASS =
-  "inline-flex items-center gap-3 rounded-lg bg-zinc-900/95 px-2 py-0.5 shadow-lg ring-1 ring-white/10 backdrop-blur"
+const PILL_BASE =
+  "inline-flex items-center rounded-lg bg-zinc-900/95 shadow-lg ring-1 ring-white/10 backdrop-blur"
+/** Single-button pill: symmetric `p-1` so the container is square. */
+const PILL_SINGLE = `${PILL_BASE} p-1`
+/** Multi-button pill: same `gap-3 px-2 py-0.5` rhythm as the bottom
+ * floating toolbar so the three bars read as one family. */
+const PILL_GROUP = `${PILL_BASE} gap-3 px-2 py-0.5`
 
 type SectionItem = {
   key: MobileSection
@@ -61,14 +66,14 @@ type Props = {
 export function EditorTopLeftBar({ activeSection = null, onSectionTap }: Props) {
   return (
     <div className="absolute top-3 left-3 z-40 flex items-center gap-3">
-      <div className={PILL_CLASS}>
+      <div className={PILL_SINGLE}>
         <ToolbarIconButton label="Home" asChild>
           <Link href="/dashboard">
             <Home aria-hidden="true" className="size-5" />
           </Link>
         </ToolbarIconButton>
       </div>
-      <div className={PILL_CLASS}>
+      <div className={PILL_GROUP}>
         {SECTION_ITEMS.map(({ key, label, Icon }) => (
           <ToolbarIconButton
             key={key}
