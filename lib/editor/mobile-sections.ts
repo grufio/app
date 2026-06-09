@@ -1,7 +1,7 @@
 /**
  * Mobile editor sections — single source of truth.
  *
- * The four section names that drive the mobile bottom-nav, the
+ * The four section names that drive the top-left section bar, the
  * shell's `mobileSection` state, and `deriveDisplayLayers`'
  * section-gating live here as a `const` tuple. Importing the type
  * from one place keeps the three consumers from drifting (Sprint 2

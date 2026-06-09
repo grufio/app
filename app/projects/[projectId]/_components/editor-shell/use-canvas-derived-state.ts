@@ -51,7 +51,7 @@ export function useCanvasDerivedState(input: {
   editorImageSource: WorkflowSourceSnapshot
   filterDisplayImage: DisplayImage | null
   filterDisplayImageWithoutTrace: DisplayImage | null
-  /** Active mobile section driven by the bottom-nav. Ignored when
+  /** Active mobile section driven by the top-left bar. Ignored when
    * `isMobile=false`. */
   mobileSection: MobileSection
   /** True on `< md` viewports. Switches the display-layer gating and

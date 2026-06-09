@@ -4,13 +4,14 @@
  * Mobile full-screen Trace sheet.
  *
  * Hosts the active-trace row + add / clear actions (same content as
- * the desktop left-panel `TraceSidebarSection`). Opens via the Trace
- * icon in the editor's bottom-nav.
+ * the desktop left-panel `TraceSidebarSection`). Opens via the Edit
+ * (Pencil) icon in the top-right bar while the Trace section is
+ * active.
  *
  * Layer-visibility toggles (Trace / Preview / Numbers) live in the
- * `MobileViewOptionsButton` FAB on the editor canvas, not in this
- * sheet — that's a one-tap action surface for a frequently-toggled
- * control, instead of a sheet open + scroll.
+ * Eye-button of the top-right bar, not in this sheet — that's a one-
+ * tap action surface for a frequently-toggled control, instead of a
+ * sheet open + scroll.
  *
  * `TraceSidebarSection` uses `SidebarMenuButton` which expects a
  * `SidebarProvider` ancestor (`useSidebar()` throws otherwise). The
@@ -19,10 +20,11 @@
  *
  * Render shape mirrors `MobileFilterSheet` exactly: `absolute inset-0`
  * overlay inside the editor layout container, header + scrollable
- * body, bottom-nav stays as a flex-sibling beneath the layout.
- * `TraceSelectionController` + the per-kind configure dialogs are
- * Radix-portaled and already mobile-fullscreen (see #347 pattern),
- * so they surface cleanly over the sheet without changes here.
+ * body; the top-left/top-right bars stay visible via their `z-40`
+ * which paints over this sheet's `z-30`. `TraceSelectionController`
+ * + the per-kind configure dialogs are Radix-portaled and already
+ * mobile-fullscreen (see #347 pattern), so they surface cleanly over
+ * the sheet without changes here.
  */
 import { X } from "lucide-react"
 

@@ -10,9 +10,10 @@
  * notation).
  *
  * Mounted inside the editor layout, sized as an `absolute inset-0`
- * overlay so it covers the canvas area but NOT the bottom-nav. There
- * is no explicit close affordance: switching to another section via
- * the bottom-nav IS the dismissal (like artboard / filter / trace).
+ * overlay at `z-30` so it covers the canvas area but the top-left
+ * section bar (`z-40`) still paints over it. There is no explicit
+ * close affordance: switching to another section via the top-left
+ * bar IS the dismissal (like artboard / filter / trace).
  *
  * Data flow:
  *   - `trace.palette_indices_used`: list of palette chip indices (or

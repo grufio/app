@@ -21,7 +21,6 @@ import {
 } from "@/features/editor"
 import { deriveSectionLocks } from "@/lib/editor/section-locks"
 import { EditorTopLeftBar } from "@/features/editor/components/editor-top-left-bar"
-import { MobileBottomNav } from "@/features/editor/components/mobile-bottom-nav"
 import {
   Dialog,
   DialogContent,
@@ -126,7 +125,7 @@ export function ProjectDetailPageClient({
   // `< md` there's no tab UI, so canvasMode + trace-overlay surface
   // their results based on data presence rather than `leftPanelTab`.
   const isMobile = useIsMobile()
-  // Mobile-only: the bottom-nav picks the active section, the canvas
+  // Mobile-only: the top-left bar picks the active section, the canvas
   // surfaces section-specific layers (mirror desktop's `leftPanelTab`
   // gating — see `deriveDisplayLayers`), and each surface's scope
   // component owns its own floating Edit-icon + sheet. The drawer
@@ -759,12 +758,6 @@ export function ProjectDetailPageClient({
           <ColorsSurfaceScope trace={trace} />
         ) : null}
       </ProjectEditorLayout>
-      <MobileBottomNav
-        activeSection={mobileSection}
-        onSectionTap={handleMobileNavTap}
-        imageLocked={sectionLocks.imageLocked}
-        filterLocked={sectionLocks.filterLocked}
-      />
 
       <Dialog open={unlockRequest !== null} onOpenChange={(o) => (!o ? cancelUnlock() : null)}>
         <DialogContent>

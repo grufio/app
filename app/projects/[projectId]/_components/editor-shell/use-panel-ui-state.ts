@@ -7,7 +7,7 @@
  * Owns:
  *   - `gridVisible` (rendered overlay toggle)
  *   - `selectedNavId` (left-panel nav-tree selection)
- *   - `mobileSection` (bottom-nav active section)
+ *   - `mobileSection` (top-left bar active section)
  *   - `leftPanelOpen` / `rightPanelOpen` (mobile drawers)
  *
  * Plus the callback wrappers (`handleMobileNavTap`,

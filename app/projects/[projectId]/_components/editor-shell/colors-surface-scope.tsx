@@ -3,7 +3,7 @@
 /**
  * Mobile-only scope for the colors surface. The Colors section has no
  * floating Edit-button + Sheet flow (unlike artboard/filter/trace) —
- * tapping the bottom-nav's Colors icon mounts this scope, and the
+ * tapping the top-left bar's Color icon mounts this scope, and the
  * Sheet IS the surface. So the scope is a thin wrapper that derives
  * the sheet's props from the active trace.
  *

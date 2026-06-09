@@ -9,9 +9,9 @@ import { ProjectTitleEditor } from "./project-title-editor"
  *
  * Features:
  * - Desktop-only (`hidden md:flex`). On `< md` the header is gone
- *   entirely — Home navigation lives in the mobile bottom-nav, and
- *   the left/right panel toggles aren't needed because mobile uses
- *   the bottom-nav + Artboard sheet instead of side drawers.
+ *   entirely — Home navigation lives in the top-left bar, and the
+ *   left/right panel toggles aren't needed because mobile uses the
+ *   top-left bar + per-section Sheets instead of side drawers.
  * - Back link to the dashboard
  * - Header stays minimal; editor tabs live in the left sidebar
  * - Mobile-only toggles (PanelLeft / PanelRight icons) here are

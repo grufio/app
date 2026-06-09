@@ -182,9 +182,10 @@ editable).
 - Image panel (`ImagePanel`): banner above the size/position/
   alignment inputs; `useImagePanelEnabled({ locked })` is the
   single disable point.
-- Mobile bottom-nav: red dot on the Artboard (image-lock) and
-  Filter icons. Tap still opens the sheet so the banner is
-  reachable.
+- Mobile top-left section bar: no per-icon lock indicator yet (the
+  bottom-nav previously surfaced red dots; the top-left replacement
+  has no equivalent today). The lock banners inside the per-section
+  sheets remain the single source of truth.
 
 **Unlock cascade order** (in `ProjectEditorShell.client.tsx`):
 trace first (single `clearProjectTrace` call), then filters

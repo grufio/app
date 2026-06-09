@@ -5,8 +5,8 @@
  *
  * Surfaces every artboard-related control that lives on desktop in the
  * right panel (Page-Background, ArtboardPanel, GridPanel, ImagePanel)
- * inside a single scrollable mobile screen. Opens via the Artboard
- * icon in the editor's bottom-nav.
+ * inside a single scrollable mobile screen. Opens via the Edit icon
+ * (Pencil) in the top-right bar while the Artboard section is active.
  *
  * Progressive disclosure (mirroring desktop):
  * - Page-Background + ArtboardPanel: always visible (artboard

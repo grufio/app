@@ -6,16 +6,13 @@
  *
  *   1. Standalone Home pill — links to `/dashboard`
  *   2. Group pill — four section icons (Image / Filter / Trace / Color)
- *      whose tap behaviour mirrors `MobileBottomNav` exactly
- *
- * This bar is the planned long-term replacement for `MobileBottomNav`.
- * Both coexist during the transition phase so the user can compare
- * the surfaces before the bottom bar gets retired in a follow-up.
+ *      that drive the mobile-section state (`activeSection` +
+ *      `onSectionTap`)
  *
  * The bar is **viewport-agnostic** — mounted on both mobile and
  * desktop. On desktop it visually overlaps the left-panel sidebar;
- * that's an accepted transitional cosmetic issue, to be resolved by
- * moving the mount inside the canvas-stage in a later iteration.
+ * that's an accepted cosmetic issue, to be resolved by moving the
+ * mount inside the canvas-stage in a later iteration.
  *
  * "Image" label vs `artboard` section key: the `MobileSection` tuple
  * (`["artboard", "filter", "trace", "colors"]`) is unchanged — only

@@ -21,7 +21,7 @@
  *     and on mobile, just different inputs name the active section:
  *      - **Desktop**: `leftPanelTab` ("image" / "filter" / "trace").
  *      - **Mobile** (`isMobile=true`): `mobileSection` ("artboard" /
- *        "filter" / "trace"), driven by the bottom-nav. Mobile's
+ *        "filter" / "trace"), driven by the top-left bar. Mobile's
  *        "artboard" section maps to desktop's "image" tab.
  *
  *     - Filter section → `showFilterChain` true (Filter sidebar
@@ -90,9 +90,9 @@ export type DisplayLayers = {
 export function deriveDisplayLayers(input: {
   leftPanelTab: string
   isMobile: boolean
-  /** The active section on mobile (driven by the bottom-nav). Ignored
-   * when `isMobile=false`. Mobile's "artboard" maps to desktop's
-   * "image" — no filter chain, no trace overlay. */
+  /** The active section on mobile (driven by the top-left bar).
+   * Ignored when `isMobile=false`. Mobile's "artboard" maps to
+   * desktop's "image" — no filter chain, no trace overlay. */
   mobileSection: MobileSection
   editorImageSourceReady: boolean
   filterDisplayImage: DisplayImage | null | undefined
