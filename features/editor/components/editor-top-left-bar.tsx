@@ -69,7 +69,7 @@ export function EditorTopLeftBar({ activeSection = null, onSectionTap }: Props) 
       <div className={PILL_SINGLE}>
         <ToolbarIconButton label="Home" asChild>
           <Link href="/dashboard">
-            <Home aria-hidden="true" className="size-5" />
+            <Home aria-hidden="true" className="size-4" />
           </Link>
         </ToolbarIconButton>
       </div>
@@ -81,7 +81,7 @@ export function EditorTopLeftBar({ activeSection = null, onSectionTap }: Props) 
             active={key === activeSection}
             onClick={() => onSectionTap?.(key)}
           >
-            <Icon aria-hidden="true" className="size-5" />
+            <Icon aria-hidden="true" className="size-4" />
           </ToolbarIconButton>
         ))}
       </div>
