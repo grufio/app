@@ -71,8 +71,8 @@ export function MobileTopRightBar({ onEditTap, ariaLabelEdit = "Edit", viewOptio
         // the bottom toolbar's rhythm (`gap-3 px-2 py-0.5`) so the
         // three bars read as one family.
         viewOptions
-          ? "absolute top-3 right-3 z-40 inline-flex items-center gap-3 rounded-lg bg-zinc-900/95 px-2 py-0.5 shadow-lg ring-1 ring-white/10 backdrop-blur md:hidden"
-          : "absolute top-3 right-3 z-40 inline-flex items-center rounded-lg bg-zinc-900/95 p-1 shadow-lg ring-1 ring-white/10 backdrop-blur md:hidden"
+          ? "absolute top-3 right-3 z-20 inline-flex items-center gap-3 rounded-lg bg-zinc-900/95 px-2 py-0.5 shadow-lg ring-1 ring-white/10 backdrop-blur md:hidden"
+          : "absolute top-3 right-3 z-20 inline-flex items-center rounded-lg bg-zinc-900/95 p-1 shadow-lg ring-1 ring-white/10 backdrop-blur md:hidden"
       }
     >
       {viewOptions ? (

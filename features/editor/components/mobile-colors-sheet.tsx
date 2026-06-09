@@ -25,6 +25,9 @@
  * `palette_index` ASC so `palette[i]` is the chip with
  * `palette_index === i`.
  */
+import { X } from "lucide-react"
+
+import { Button } from "@/components/ui/button"
 import { useTracePalette } from "@/lib/editor/trace/use-trace-palette"
 
 import { PaletteColorTile } from "./palette-color-tile"
@@ -38,12 +41,14 @@ type MobileColorsSheetProps = {
   traceMode: "color" | "bw" | null
   /** True when no trace is active at all. */
   hasTrace: boolean
+  onClose: () => void
 }
 
 export function MobileColorsSheet({
   paletteIndicesUsed,
   traceMode,
   hasTrace,
+  onClose,
 }: MobileColorsSheetProps) {
   const palette = useTracePalette(traceMode ?? "color")
 
@@ -52,8 +57,17 @@ export function MobileColorsSheet({
       aria-label="Colors"
       className="absolute inset-0 z-30 flex flex-col overflow-hidden bg-background md:hidden"
     >
-      <header className="flex shrink-0 items-center border-b bg-background px-4 py-3">
+      <header className="flex shrink-0 items-center justify-between border-b bg-background px-4 py-3">
         <h2 className="text-sm font-semibold">Colors</h2>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label="Close"
+          onClick={onClose}
+        >
+          <X aria-hidden="true" className="size-5" />
+        </Button>
       </header>
 
       <div className="min-h-0 flex-1 overflow-auto p-4">

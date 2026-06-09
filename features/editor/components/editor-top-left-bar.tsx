@@ -65,7 +65,7 @@ type Props = {
 
 export function EditorTopLeftBar({ activeSection = null, onSectionTap }: Props) {
   return (
-    <div className="absolute top-3 left-3 z-40 flex items-center gap-3">
+    <div className="absolute top-3 left-3 z-20 flex items-center gap-3">
       <div className={PILL_SINGLE}>
         <ToolbarIconButton label="Home" asChild>
           <Link href="/dashboard">
