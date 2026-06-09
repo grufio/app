@@ -39,10 +39,14 @@ import { ToolbarIconButton } from "./toolbar-icon-button"
 
 const PILL_BASE =
   "inline-flex items-center rounded-lg bg-zinc-900/95 shadow-lg ring-1 ring-white/10 backdrop-blur"
-/** Single-button pill: `p-0` so the container is exactly the
- * button-sized square. Any padding makes the solo icon read as
- * "framed" / bigger than the icons in the group pill next to it. */
-const PILL_SINGLE = `${PILL_BASE} p-0`
+/** Single-button pill: `p-0.5` so the pill height matches the group
+ * pill exactly.
+ *   - Button: h-8 (32 px)
+ *   - Group pill height: 32 + 2×py-0.5 (4 px) = 36 px
+ *   - Solo pill with p-0.5: 32 + 4 = 36 px → flush with group
+ *   - Solo pill width with p-0.5: 32 + 4 = 36 px → square 36×36
+ * `p-0` (32 × 32) is visibly shorter than the group pill next to it. */
+const PILL_SINGLE = `${PILL_BASE} p-0.5`
 /** Multi-button pill: same `gap-3 px-2 py-0.5` rhythm as the bottom
  * floating toolbar so the three bars read as one family. */
 const PILL_GROUP = `${PILL_BASE} gap-3 px-2 py-0.5`
