@@ -4,7 +4,7 @@ import type { TraceDefinition } from "./types"
 import { numColorsSchema } from "./num-colors-schema"
 import { preSnapChromaScaleSchema } from "./chroma-scale-schema"
 import { distanceMetricSchema } from "./distance-metric-schema"
-import { ditherModeSchema, ditherPatternSizeSchema } from "./dither-mode-schema"
+import { ditherModeSchema, ditherStrengthSchema } from "./dither-mode-schema"
 import { paletteRestrictionSchema } from "./palette-restriction-schema"
 import { DEFAULT_SUPERCELL_MM, MIN_SUPERCELL_MM } from "./pixelate-grid-math"
 
@@ -29,21 +29,14 @@ export const pixelateSchema = z.object({
   // chip-set spans more of the palette. Shared via
   // `chroma-scale-schema.ts`.
   pre_snap_chroma_scale: preSnapChromaScaleSchema,
-  // Blue-noise neighbour-invasion texture. `texture_enabled` is the form's
-  // checkbox state; `texture_strength` is the chosen Select level (25/50/75/
-  // 100% expressed as a 0..1 fraction) and is preserved when the checkbox
-  // toggles off — like circulate's `inner_*` fields. Defaults make the
-  // pipeline output byte-identical to the pre-feature behaviour, so old
-  // persisted trace rows without these fields keep applying unchanged.
-  texture_enabled: z.boolean().default(false),
-  texture_strength: z.coerce.number().min(0.25).max(1).default(0.5),
-  // Dithering at the snap step (PR-F). `"none"` (default) preserves
-  // byte-identical pre-feature behaviour so persisted rows without
-  // these fields apply unchanged. When non-"none", the texture step
-  // (`apply_neighbor_invasion`) is a no-op — KY/FS replace it
-  // functionally. See `dither-mode-schema.ts` for the rationale.
+  // Dithering at the snap step. `"none"` plain snap, `"knoll_yliluoma"`
+  // / `"floyd_steinberg"` substitute the snap with the matching
+  // algorithm, `"texture"` snaps + blue-noise neighbour-invasion (the
+  // former separate Texture checkbox, folded in as a dither variant).
+  // Strength is meaningful for KY (candidate count) and texture
+  // (invasion strength); None and FS ignore it.
   dither_mode: ditherModeSchema,
-  dither_pattern_size: ditherPatternSizeSchema,
+  dither_strength: ditherStrengthSchema,
   // Snap-step distance metric (PR-H). Default `"oklab"` preserves
   // byte-identical pre-feature behaviour; `"ciede2000"` switches the
   // plain snap path to CIE Lab D65 + ΔE00. KY/FS dithering keep

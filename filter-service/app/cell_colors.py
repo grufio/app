@@ -18,6 +18,7 @@ from __future__ import annotations
 import numpy as np
 from PIL import Image
 
+from .cell_texture import apply_neighbor_invasion
 from .ciede2000 import nearest_palette_indices_ciede2000, rgb255_to_cielab
 from .floyd_steinberg import floyd_steinberg_dither
 from .knoll_yliluoma import (
@@ -32,6 +33,34 @@ from .oklab import adjust_oklab, nearest_palette_indices, rgb255_to_oklab
 # slice (`lib/editor/trace/distance-metric-schema.ts`). The parity test
 # (`python-parity.test.ts`) verifies that.
 _VALID_DISTANCE_METRICS = ("oklab", "ciede2000")
+
+# `dither_mode` values — kept in sync with `DITHER_MODES` in
+# `lib/editor/trace/dither-mode-schema.ts`. The parity test pins both
+# sides.
+_VALID_DITHER_MODES = ("none", "knoll_yliluoma", "floyd_steinberg", "texture")
+
+
+def _strength_to_ky_n(strength: float) -> int:
+    """Map a continuous strength fraction to the Knoll-Yliluoma
+    candidate count `N`.
+
+    The wire contract is a discrete set `{0.25, 0.5, 0.75, 1.0}` but we
+    dispatch by RANGE (not equality) so a JSON round-trip's float drift
+    can't slip a request into the wrong bucket. Boundaries are halfway
+    between the discrete steps:
+
+      strength <= 0.375 → N = 2   (≈ 25 %)
+      strength <= 0.625 → N = 4   (≈ 50 %)
+      strength <= 0.875 → N = 8   (≈ 75 %)
+      otherwise         → N = 16  (≈ 100 %)
+    """
+    if strength <= 0.375:
+        return 2
+    if strength <= 0.625:
+        return 4
+    if strength <= 0.875:
+        return 8
+    return 16
 
 
 def _snap_indices(
@@ -167,12 +196,12 @@ def map_cells_dithered(
     palette_rgb: np.ndarray,
     pre_snap_chroma_scale: float = 1.0,
     dither_mode: str = "none",
-    dither_pattern_size: int = 4,
+    dither_strength: float = 0.5,
     distance_metric: str = "oklab",
 ) -> np.ndarray:
     """Snap-or-dither dispatch shared by pixelate + circulate.
 
-    `dither_mode` (PR-F) picks behaviour:
+    `dither_mode` picks behaviour:
       - `"none"`            → plain snap; metric chosen by
                               `distance_metric` (PR-H — OKLab squared-
                               Euclidean by default, CIEDE2000 on opt-in).
@@ -184,18 +213,26 @@ def map_cells_dithered(
                               out of scope (see `distance-metric-schema.ts`
                               docstring + the plan file).
       - `"floyd_steinberg"` → scan-order error diffusion. Same OKLab
-                              constraint as KY.
+                              constraint as KY. Ignores `dither_strength`.
+      - `"texture"`         → plain OKLab snap + blue-noise neighbour
+                              invasion (the former separate Texture
+                              checkbox). Strength feeds the invasion
+                              probability directly.
 
-    Both dither modes therefore IGNORE `distance_metric` — only the
-    `"none"` path honours it. This is documented at the call sites
-    that surface the metric to the user.
+    KY + FS therefore IGNORE `distance_metric` — only the `"none"` and
+    the texture-snap step honour it. Texture's invasion step is
+    metric-agnostic (RGB-level).
 
     All paths run in OKLab space (the `pre_snap_chroma_scale` boost
     happens once up-front IF the snap path uses OKLab) and return the
     same shape `(cells_y, cells_x, 3)` uint8 RGB array — callers
     shouldn't notice which dispatch ran.
+
+    `dither_strength` is a fraction in {0.25, 0.5, 0.75, 1.0} (25/50/
+    75/100 %) — see `_strength_to_ky_n` for the KY mapping; texture
+    uses the fraction directly as the invasion strength.
     """
-    if dither_mode not in {"none", "knoll_yliluoma", "floyd_steinberg"}:
+    if dither_mode not in _VALID_DITHER_MODES:
         raise ValueError(f"unknown dither_mode: {dither_mode!r}")
     if distance_metric not in _VALID_DISTANCE_METRICS:
         raise ValueError(f"unknown distance_metric: {distance_metric!r}")
@@ -218,6 +255,23 @@ def map_cells_dithered(
         )
         return palette_rgb_arr[idx].reshape(shape)
 
+    if dither_mode == "texture":
+        # First snap to nearest chip (same path as `"none"`), then run
+        # the blue-noise neighbour-invasion. Strength is the invasion
+        # probability scalar — `apply_neighbor_invasion` no-ops for
+        # `strength <= 0`.
+        idx = _snap_indices(
+            cells.reshape(-1, 3),
+            palette_oklab_arr,
+            palette_rgb_arr,
+            pre_snap_chroma_scale,
+            distance_metric,
+        )
+        snapped = palette_rgb_arr[idx].reshape(shape)
+        if dither_strength <= 0:
+            return snapped
+        return apply_neighbor_invasion(snapped, palette_rgb_arr, dither_strength)
+
     # KY / FS — always OKLab. Boost applied up-front into the cells'
     # OKLab so the dither algorithm sees the boosted means.
     cells_oklab_flat = rgb255_to_oklab(cells.reshape(-1, 3))
@@ -227,7 +281,7 @@ def map_cells_dithered(
     if dither_mode == "knoll_yliluoma":
         cells_oklab_2d = cells_oklab_flat.reshape(shape[0], shape[1], 3)
         idx = _ky_dither_indices(
-            cells_oklab_2d, palette_oklab_arr, int(dither_pattern_size)
+            cells_oklab_2d, palette_oklab_arr, _strength_to_ky_n(dither_strength)
         ).ravel()
     else:  # "floyd_steinberg"
         cells_oklab_2d = cells_oklab_flat.reshape(shape[0], shape[1], 3)

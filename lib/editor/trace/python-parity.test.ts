@@ -57,24 +57,21 @@ describe("Python parity: TS trace schema defaults vs Pydantic", () => {
   it("PixelateRequest — TS user-facing fields are the expected set", () => {
     // Pixelate's TS schema and the Pydantic request are mostly disjoint: TS
     // holds the user-facing inputs while Python takes the server-computed
-    // ones (cells_x/_y, crop_*, stroke_width-hardcoded, palette_*). The two
-    // exceptions are the texture fields, which the user picks in TS and the
-    // server forwards verbatim — they appear on both sides intentionally.
-    // num_colors is now a real TS field (caps the post-snap chip count;
+    // ones (cells_x/_y, crop_*, stroke_width-hardcoded, palette_*). Dither
+    // (mode + strength) appears on both sides — TS picks, Python consumes.
+    // num_colors is a real TS field (caps the post-snap chip count;
     // forwarded to Python which honours it as a top-N reduction).
     const ts = pixelateSchema.parse({})
     expect(Object.keys(ts).sort()).toEqual([
       "color_mode",
       "distance_metric",
       "dither_mode",
-      "dither_pattern_size",
+      "dither_strength",
       "num_colors",
       "palette_restriction",
       "pre_snap_chroma_scale",
       "supercell_height_mm",
       "supercell_width_mm",
-      "texture_enabled",
-      "texture_strength",
     ])
   })
 
@@ -89,20 +86,20 @@ describe("Python parity: TS trace schema defaults vs Pydantic", () => {
     expect(ts.pre_snap_chroma_scale).toBe(1)
   })
 
-  it("PixelateRequest — dither defaults agree TS ⇄ Python (PR-G flip)", () => {
+  it("PixelateRequest — dither defaults agree TS ⇄ Python", () => {
     // PR-G flipped both defaults from "none" → "knoll_yliluoma" after
     // smoke validation. This parity assertion guards against a one-
     // sided revert: if either side regresses to "none" while the
     // other stays at the flip, the trace output diverges between
     // preview (Vercel) and apply (filter-service). Same constraint
-    // pins `dither_pattern_size` so the KY candidate count stays
-    // identical too.
+    // pins `dither_strength` so the KY candidate count stays identical
+    // (default 0.5 → N=4 via `_strength_to_ky_n`).
     const py = extractPydanticDefaults("PixelateRequest")
     const ts = pixelateSchema.parse({})
     expect(py.dither_mode).toBe("knoll_yliluoma")
     expect(ts.dither_mode).toBe("knoll_yliluoma")
-    expect(py.dither_pattern_size).toBe(4)
-    expect(ts.dither_pattern_size).toBe(4)
+    expect(py.dither_strength).toBe(0.5)
+    expect(ts.dither_strength).toBe(0.5)
   })
 
   it("PixelateRequest — distance_metric defaults agree TS ⇄ Python at 'oklab' (PR-H)", () => {
@@ -130,16 +127,6 @@ describe("Python parity: TS trace schema defaults vs Pydantic", () => {
     const ts = pixelateSchema.parse({})
     expect(py.palette_restriction).toBe("top_n")
     expect(ts.palette_restriction).toBe("top_n")
-  })
-
-  it("PixelateRequest — texture_enabled default agrees TS ⇄ Python", () => {
-    // The `texture_enabled` gate must default to the same falsy value on
-    // both sides so a missing field on the wire results in a no-op texture
-    // step on either deploy half during a rolling release.
-    const py = extractPydanticDefaults("PixelateRequest")
-    const ts = pixelateSchema.parse({})
-    expect(py.texture_enabled).toBe(false)
-    expect(ts.texture_enabled).toBe(false)
   })
 
   it("extracts the expected fields (regression guard for parser)", () => {

@@ -30,7 +30,7 @@ import {
   snapAndDitherOuter,
   snapInnerCells,
 } from "@/lib/editor/trace/circulate-preview"
-import { applyTextureStep, readSourceCells } from "@/lib/editor/trace/pixelate-preview"
+import { readSourceCells } from "@/lib/editor/trace/pixelate-preview"
 import { useBlueNoiseLut } from "@/lib/editor/trace/use-blue-noise-lut"
 import { useSourceImage } from "@/lib/editor/trace/use-source-image"
 import { useTracePalette } from "@/lib/editor/trace/use-trace-palette"
@@ -107,7 +107,8 @@ export function CirculatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, p
     [cellMeans, palette, params.num_colors, params.distance_metric, params.palette_restriction],
   )
 
-  // Stage 2b: outer palette-snap + optional dither.
+  // Stage 2b: outer palette-snap with optional dithering. `dither_mode
+  // === "texture"` also runs the blue-noise neighbour invasion.
   const outerSnapped = useMemo(
     () =>
       cellMeans
@@ -118,7 +119,7 @@ export function CirculatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, p
             palette: outerPalette,
             preSnapChromaScale: params.pre_snap_chroma_scale,
             ditherMode: params.dither_mode,
-            ditherPatternSize: params.dither_pattern_size,
+            ditherStrength: params.dither_strength,
             distanceMetric: params.distance_metric,
             textureLut: blueNoiseLut,
           })
@@ -130,52 +131,25 @@ export function CirculatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, p
       outerPalette,
       params.pre_snap_chroma_scale,
       params.dither_mode,
-      params.dither_pattern_size,
+      params.dither_strength,
       params.distance_metric,
       blueNoiseLut,
     ],
   )
 
-  // Stage 3: outer texture invasion (skipped when dithering).
-  const outerTextured = useMemo(
-    () =>
-      outerSnapped
-        ? applyTextureStep({
-            cells: outerSnapped,
-            cellsX: grid.cellsX,
-            cellsY: grid.cellsY,
-            palette: outerPalette,
-            textureEnabled: params.texture_enabled,
-            textureStrength: params.texture_strength,
-            textureLut: blueNoiseLut,
-            ditherMode: params.dither_mode,
-          })
-        : null,
-    [
-      outerSnapped,
-      grid.cellsX,
-      grid.cellsY,
-      outerPalette,
-      params.texture_enabled,
-      params.texture_strength,
-      blueNoiseLut,
-      params.dither_mode,
-    ],
-  )
-
-  // Stage 4: outer top-N reduction (no-op for PAM).
+  // Stage 3: outer top-N reduction (no-op for PAM).
   const outerReduced = useMemo(
     () =>
-      outerTextured
+      outerSnapped
         ? applyTopNReductionOuter({
-            cells: outerTextured,
+            cells: outerSnapped,
             palette: outerPalette,
             numColors: params.num_colors,
             distanceMetric: params.distance_metric,
             paletteRestriction: params.palette_restriction,
           })
         : null,
-    [outerTextured, outerPalette, params.num_colors, params.distance_metric, params.palette_restriction],
+    [outerSnapped, outerPalette, params.num_colors, params.distance_metric, params.palette_restriction],
   )
 
   // Stage 5: inner ellipse colours (sub-colour filter, full palette).

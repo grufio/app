@@ -20,7 +20,6 @@ import numpy as np
 
 from .cell_colors import map_cells_dithered
 from .cell_labels import build_label_map, reconstruct_palette_indices, render_numbers_group
-from .cell_texture import apply_neighbor_invasion
 from .ciede2000 import nearest_palette_indices_ciede2000, rgb255_to_cielab
 from .oklab import adjust_oklab, nearest_palette_indices, rgb255_to_oklab
 from .palette_reduction import reduce_to_top_n, restrict_palette_pam, translate_palette_indices
@@ -93,10 +92,8 @@ def circulate_cells_to_svg(
     palette_rgb: list | None = None,
     num_colors: int | None = None,
     pre_snap_chroma_scale: float = 1.0,
-    texture_enabled: bool = False,
-    texture_strength: float = 0.0,
     dither_mode: str = "none",
-    dither_pattern_size: int = 4,
+    dither_strength: float = 0.5,
     distance_metric: str = "oklab",
     palette_restriction: str = "top_n",
     on_phase: callable | None = None,
@@ -142,26 +139,19 @@ def circulate_cells_to_svg(
             outer_palette_oklab = restricted_oklab
             outer_palette_rgb = restricted_rgb
             phase("pam_restrict")
-        # PR-F: single dispatch for the outer ellipse colour — `"none"`
-        # keeps the pre-feature snap; `"knoll_yliluoma"` /
-        # `"floyd_steinberg"` substitute the snap step with the matching
-        # dithering algorithm. Inner ellipse colour is derived from the
-        # *original* (pre-dither, pre-snap) means below — unchanged.
+        # Single dispatch for the outer ellipse colour — `"none"`
+        # plain snap; `"knoll_yliluoma"` / `"floyd_steinberg"` substitute
+        # the snap with the matching dithering algorithm; `"texture"`
+        # snaps then applies blue-noise neighbour invasion. Inner
+        # ellipse colour is derived from the *original* (pre-dither,
+        # pre-snap) means below — unchanged.
         outer = map_cells_dithered(
             means, outer_palette_oklab, outer_palette_rgb,
             pre_snap_chroma_scale=pre_snap_chroma_scale,
             dither_mode=dither_mode,
-            dither_pattern_size=dither_pattern_size,
+            dither_strength=dither_strength,
             distance_metric=distance_metric,
         )
-        # Optional blue-noise texture step on the OUTER cells. No-op when
-        # the checkbox is off OR when dithering is on (the dither output
-        # already provides the spatial-quantization behaviour that
-        # texture was approximating).
-        if dither_mode == "none" and texture_enabled and texture_strength > 0:
-            outer = apply_neighbor_invasion(
-                outer, np.asarray(outer_palette_rgb, dtype=np.uint8), texture_strength
-            )
         # Reduce on the OUTER cells only — inner sub-colour is decorative
         # and tracks the original mean. Skipped when PAM already
         # restricted the palette pre-snap.

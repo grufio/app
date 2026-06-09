@@ -27,9 +27,8 @@
  * Caller (React) owns `target.width` / `target.height` via JSX props
  * set to `crop.w` / `crop.h`.
  */
-import { applyNeighborInvasion } from "./cell-texture"
 import type { DistanceMetric } from "./distance-metric-schema"
-import type { DitherMode, DitherPatternSize } from "./dither-mode-schema"
+import type { DitherMode, DitherStrength } from "./dither-mode-schema"
 import type { BlueNoiseLut } from "./knoll-yliluoma"
 import { restrictPalettePam } from "./pam-palette-restriction"
 import { reduceToTopN } from "./palette-reduction"
@@ -99,11 +98,13 @@ export function restrictPaletteForCells(args: {
 }
 
 /**
- * Stage 2b — palette-snap (and optional KY/FS dither). Mirrors the
- * server's `map_cells_dithered`. `dither_mode="none"` (default) collapses
- * to plain `mapCellsToPalette`, byte-identical to the pre-PR-F preview.
- * An empty palette (still loading) returns the raw means as graceful
- * fallback.
+ * Stage 2b — palette-snap with optional dithering. Mirrors the server's
+ * `map_cells_dithered` (cell_colors.py). All dither modes including
+ * `"texture"` are handled inside `mapCellsDithered`; the separate
+ * texture step is gone post-unification.
+ *
+ * `dither_mode="none"` collapses to plain `mapCellsToPalette`. An empty
+ * palette (still loading) returns the raw means as graceful fallback.
  */
 export function snapAndDitherCells(args: {
   cellMeans: CellColors
@@ -112,8 +113,9 @@ export function snapAndDitherCells(args: {
   palette: ReadonlyArray<PaletteChip>
   preSnapChromaScale?: number
   ditherMode?: DitherMode
-  ditherPatternSize?: DitherPatternSize | number
+  ditherStrength?: DitherStrength | number
   distanceMetric?: DistanceMetric
+  /** Blue-noise LUT, needed by KY and Texture modes. None and FS ignore. */
   textureLut?: Uint8Array | null
 }): CellColors {
   const {
@@ -123,7 +125,7 @@ export function snapAndDitherCells(args: {
     palette,
     preSnapChromaScale,
     ditherMode,
-    ditherPatternSize,
+    ditherStrength,
     distanceMetric,
     textureLut,
   } = args
@@ -134,55 +136,16 @@ export function snapAndDitherCells(args: {
     palette,
     preSnapChromaScale: preSnapChromaScale ?? 1.0,
     ditherMode: ditherMode ?? "none",
-    ditherPatternSize: ditherPatternSize ?? 4,
-    // KY needs the LUT — reuse the same one the texture step uses. FS
-    // doesn't need it (sequential error diffusion); the dispatch only
-    // gates KY on LUT availability.
+    ditherStrength: ditherStrength ?? 0.5,
+    // KY + Texture need the LUT; FS + None ignore it. The dispatch
+    // inside `mapCellsDithered` gates LUT availability.
     blueNoiseLut: textureLut as BlueNoiseLut | null | undefined ?? null,
     distanceMetric: distanceMetric ?? "oklab",
   })
 }
 
 /**
- * Stage 3 — optional blue-noise neighbour-invasion texture. Skipped when
- * dithering is on (the dither output already provides spatial quantization
- * — stacking both would double-dither). Mirrors the server-side branch in
- * `pixelate.py` so the preview and the applied SVG agree byte-for-byte
- * when both inputs match.
- */
-export function applyTextureStep(args: {
-  cells: CellColors
-  cellsX: number
-  cellsY: number
-  palette: ReadonlyArray<PaletteChip>
-  textureEnabled?: boolean
-  textureStrength?: number
-  textureLut?: Uint8Array | null
-  ditherMode?: DitherMode
-}): CellColors {
-  const { cells, cellsX, cellsY, palette, textureEnabled, textureStrength, textureLut, ditherMode } = args
-  if (
-    (ditherMode ?? "none") !== "none" ||
-    !textureEnabled ||
-    !textureStrength ||
-    textureStrength <= 0 ||
-    !textureLut ||
-    palette.length === 0
-  ) {
-    return cells
-  }
-  return applyNeighborInvasion({
-    cells,
-    palette: palette.map((c) => c.rgb),
-    cellsY,
-    cellsX,
-    strength: textureStrength,
-    blueNoiseLut: textureLut,
-  })
-}
-
-/**
- * Stage 4 — post-snap top-N reduction (mirror of `reduce_to_top_n` in the
+ * Stage 3 — post-snap top-N reduction (mirror of `reduce_to_top_n` in the
  * Python pipeline). Skipped when no palette is loaded, `numColors` is
  * null/<=0, OR when PAM already restricted the palette pre-snap.
  */

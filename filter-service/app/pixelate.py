@@ -16,7 +16,6 @@ import numpy as np
 
 from .cell_colors import map_cells_dithered
 from .cell_labels import build_label_map, reconstruct_palette_indices, render_numbers_group
-from .cell_texture import apply_neighbor_invasion
 from .palette_reduction import reduce_to_top_n, restrict_palette_pam, translate_palette_indices
 
 
@@ -58,10 +57,8 @@ def pixelate_cells_to_svg(
     palette_rgb: list | None = None,
     num_colors: int | None = None,
     pre_snap_chroma_scale: float = 1.0,
-    texture_enabled: bool = False,
-    texture_strength: float = 0.0,
     dither_mode: str = "none",
-    dither_pattern_size: int = 4,
+    dither_strength: float = 0.5,
     distance_metric: str = "oklab",
     palette_restriction: str = "top_n",
     on_phase: callable | None = None,
@@ -109,29 +106,19 @@ def pixelate_cells_to_svg(
             snap_palette_oklab = restricted_oklab
             snap_palette_rgb = restricted_rgb
             phase("pam_restrict")
-        # PR-F: single dispatch — `"none"` keeps the pre-feature snap;
+        # Single dispatch — `"none"` keeps the plain snap;
         # `"knoll_yliluoma"` / `"floyd_steinberg"` substitute the snap
-        # step with the matching dithering algorithm. The texture step
-        # below is skipped when dithering is on (KY/FS replace it
-        # functionally; stacking would double-dither).
+        # with the matching dithering algorithm; `"texture"` snaps then
+        # applies the blue-noise neighbour invasion. The four modes are
+        # mutually exclusive — picking one is the user's choice.
         arr = map_cells_dithered(
             arr, snap_palette_oklab, snap_palette_rgb,
             pre_snap_chroma_scale=pre_snap_chroma_scale,
             dither_mode=dither_mode,
-            dither_pattern_size=dither_pattern_size,
+            dither_strength=dither_strength,
             distance_metric=distance_metric,
         )
         phase("palette")
-        # Optional blue-noise texture step — sporadic neighbour-cluster
-        # invasions to break up large monochromatic islands. No-op when
-        # the user has the checkbox off OR when dithering is on (the
-        # dither output already provides the spatial-quantization
-        # behaviour that texture was approximating).
-        if dither_mode == "none" and texture_enabled and texture_strength > 0:
-            arr = apply_neighbor_invasion(
-                arr, np.asarray(snap_palette_rgb, dtype=np.uint8), texture_strength
-            )
-            phase("texture")
         if palette_restriction != "pam":
             arr, did_reduce = reduce_to_top_n(
                 arr, snap_palette_oklab, snap_palette_rgb, num_colors,

@@ -45,7 +45,6 @@ import {
 } from "@/lib/editor/trace/pixelate-grid-math"
 import { type PixelateParams } from "@/lib/editor/trace/pixelate"
 import {
-  applyTextureStep,
   applyTopNReduction,
   paintCellsToCanvas,
   readSourceCells,
@@ -138,7 +137,8 @@ export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
     [cellMeans, palette, params.num_colors, params.distance_metric, params.palette_restriction],
   )
 
-  // Stage 2b: palette-snap + optional KY/FS dither.
+  // Stage 2b: palette-snap with optional dithering. `dither_mode="texture"`
+  // also runs the blue-noise neighbour invasion as part of the dispatch.
   const snappedCells = useMemo(
     () =>
       cellMeans
@@ -149,7 +149,7 @@ export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
             palette: activePalette,
             preSnapChromaScale: params.pre_snap_chroma_scale,
             ditherMode: params.dither_mode,
-            ditherPatternSize: params.dither_pattern_size,
+            ditherStrength: params.dither_strength,
             distanceMetric: params.distance_metric,
             textureLut: blueNoiseLut,
           })
@@ -161,55 +161,28 @@ export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
       activePalette,
       params.pre_snap_chroma_scale,
       params.dither_mode,
-      params.dither_pattern_size,
+      params.dither_strength,
       params.distance_metric,
       blueNoiseLut,
     ],
   )
 
-  // Stage 3: optional blue-noise texture invasion (skipped when dithering).
-  const texturedCells = useMemo(
-    () =>
-      snappedCells
-        ? applyTextureStep({
-            cells: snappedCells,
-            cellsX: grid.cellsX,
-            cellsY: grid.cellsY,
-            palette: activePalette,
-            textureEnabled: params.texture_enabled,
-            textureStrength: params.texture_strength,
-            textureLut: blueNoiseLut,
-            ditherMode: params.dither_mode,
-          })
-        : null,
-    [
-      snappedCells,
-      grid.cellsX,
-      grid.cellsY,
-      activePalette,
-      params.texture_enabled,
-      params.texture_strength,
-      blueNoiseLut,
-      params.dither_mode,
-    ],
-  )
-
-  // Stage 4: post-snap top-N reduction (no-op for PAM).
+  // Stage 3: post-snap top-N reduction (no-op for PAM).
   const reducedCells = useMemo(
     () =>
-      texturedCells
+      snappedCells
         ? applyTopNReduction({
-            cells: texturedCells,
+            cells: snappedCells,
             palette: activePalette,
             numColors: params.num_colors,
             distanceMetric: params.distance_metric,
             paletteRestriction: params.palette_restriction,
           })
         : null,
-    [texturedCells, activePalette, params.num_colors, params.distance_metric, params.palette_restriction],
+    [snappedCells, activePalette, params.num_colors, params.distance_metric, params.palette_restriction],
   )
 
-  // Stage 5 (light): paint the resolved cells onto the visible target.
+  // Stage 4 (light): paint the resolved cells onto the visible target.
   useEffect(() => {
     const target = miniCanvasRef.current
     if (!target || !reducedCells) return

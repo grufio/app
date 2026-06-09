@@ -150,8 +150,8 @@ def test_pixelate_labels_reflect_texture_replaced_cells():
         cropped_h_px=160,
         palette_oklab=PALETTE_OKLAB,
         palette_rgb=PALETTE_RGB,
-        texture_enabled=True,
-        texture_strength=1.0,
+        dither_mode="texture",
+        dither_strength=1.0,
     )
     # Two distinct chips present (yellow + red) → labels {1, 2}. Whether
     # texture flipped any cells or not, every emitted label is one of these
