@@ -101,19 +101,43 @@ jobs:
 
           migration_changed=false
           schema_changed=false
+          all_data_only=true
           if echo "$changed" | grep -qE '^supabase/migrations/.+\.sql$'; then
             migration_changed=true
+            # Data-only carve-out: when EVERY changed migration file is
+            # marked `@intent-data-migration` (a header comment the
+            # author writes to declare "this is an in-place data
+            # rewrite, no structural change"), regenerating db/schema.sql
+            # would produce no diff — the dump captures structure +
+            # reference-data INSERTs, not in-place UPDATEs on user
+            # tables. Skip the gate for these; otherwise it's a false
+            # positive that can only be cleared by editing schema.sql
+            # cosmetically.
+            for f in $(echo "$changed" | grep -E '^supabase/migrations/.+\.sql$'); do
+              if ! head -n 5 "$f" | grep -qE '^-- @intent-data-migration'; then
+                all_data_only=false
+                break
+              fi
+            done
           fi
           if echo "$changed" | grep -qE '^db/schema\.sql$'; then
             schema_changed=true
           fi
 
           if [ "$migration_changed" = "true" ] && [ "$schema_changed" = "false" ]; then
+            if [ "$all_data_only" = "true" ]; then
+              echo "OK: every changed migration is marked @intent-data-migration — no structural change expected in db/schema.sql."
+              exit 0
+            fi
             echo "::error::Migration file(s) changed but db/schema.sql was not updated."
             echo "After applying the migration locally, run \`npm run db:dump\` and commit"
             echo "the resulting db/schema.sql changes in the same PR. Without this update"
             echo "the post-deploy schema-drift check will fail and downstream verify:* gates"
             echo "(RLS, types, lock coverage) walk over a stale snapshot."
+            echo ""
+            echo "If this migration is a pure in-place data rewrite that produces no diff"
+            echo "in db/schema.sql, add \`-- @intent-data-migration\` as the first line of"
+            echo "the migration file."
             exit 1
           fi
 
