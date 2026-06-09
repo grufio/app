@@ -35,26 +35,40 @@ describe("EditorTopLeftBar", () => {
     expect(home.getAttribute("href")).toBe("/dashboard")
   })
 
-  it("invokes onSectionTap with the corresponding section key", () => {
+  it("invokes onSectionTap for Image / Filter / Color but not for Trace", () => {
     const onSectionTap = vi.fn()
     const { getByLabelText } = render(<EditorTopLeftBar onSectionTap={onSectionTap} />)
     fireEvent.click(getByLabelText("Image"))
     expect(onSectionTap).toHaveBeenLastCalledWith("artboard")
     fireEvent.click(getByLabelText("Filter"))
     expect(onSectionTap).toHaveBeenLastCalledWith("filter")
-    fireEvent.click(getByLabelText("Trace"))
-    expect(onSectionTap).toHaveBeenLastCalledWith("trace")
     fireEvent.click(getByLabelText("Color"))
     expect(onSectionTap).toHaveBeenLastCalledWith("colors")
-    expect(onSectionTap).toHaveBeenCalledTimes(4)
+    expect(onSectionTap).toHaveBeenCalledTimes(3)
+    fireEvent.click(getByLabelText("Trace"))
+    expect(onSectionTap).toHaveBeenCalledTimes(3)
   })
 
   it("marks only the active section as aria-pressed", () => {
-    const { getByLabelText } = render(<EditorTopLeftBar activeSection="trace" />)
-    expect(getByLabelText("Trace").getAttribute("aria-pressed")).toBe("true")
+    const { getByLabelText } = render(<EditorTopLeftBar activeSection="filter" />)
+    expect(getByLabelText("Filter").getAttribute("aria-pressed")).toBe("true")
     expect(getByLabelText("Image").getAttribute("aria-pressed")).not.toBe("true")
-    expect(getByLabelText("Filter").getAttribute("aria-pressed")).not.toBe("true")
+    expect(getByLabelText("Trace").getAttribute("aria-pressed")).not.toBe("true")
     expect(getByLabelText("Color").getAttribute("aria-pressed")).not.toBe("true")
+  })
+
+  it("toggles a sub-pill with three trace-kind icons on Trace tap", () => {
+    const { getByLabelText, queryByLabelText } = render(<EditorTopLeftBar />)
+    expect(queryByLabelText("Pixelate")).toBeNull()
+    expect(queryByLabelText("Circulate")).toBeNull()
+    expect(queryByLabelText("Lineart")).toBeNull()
+    fireEvent.click(getByLabelText("Trace"))
+    expect(getByLabelText("Pixelate")).not.toBeNull()
+    expect(getByLabelText("Circulate")).not.toBeNull()
+    expect(getByLabelText("Lineart")).not.toBeNull()
+    expect(getByLabelText("Trace").getAttribute("aria-pressed")).toBe("true")
+    fireEvent.click(getByLabelText("Trace"))
+    expect(queryByLabelText("Pixelate")).toBeNull()
   })
 
   it("renders Home and section group as two separate pill containers", () => {
