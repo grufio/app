@@ -16,9 +16,9 @@
  * Pipeline is exposed as separate stages (mirroring `pixelate-preview.ts`)
  * so React callers can memoize each step against its own subset of params.
  */
-import { applyTextureStep, readSourceCells, type CellColors } from "./pixelate-preview"
+import { readSourceCells, type CellColors } from "./pixelate-preview"
 import type { DistanceMetric } from "./distance-metric-schema"
-import type { DitherMode, DitherPatternSize } from "./dither-mode-schema"
+import type { DitherMode, DitherStrength } from "./dither-mode-schema"
 import type { OklabAdjustment } from "./inner-color-filters"
 import type { BlueNoiseLut } from "./knoll-yliluoma"
 import { restrictPalettePam } from "./pam-palette-restriction"
@@ -62,7 +62,9 @@ export function restrictOuterPalette(args: {
 
 /**
  * Stage 2b — palette-snap (and optional dither) for the OUTER ellipse
- * colours. Same as the pixelate-preview snap step.
+ * colours. Same as the pixelate-preview snap step; `dither_mode ===
+ * "texture"` also runs the blue-noise neighbour invasion inside the
+ * dispatch.
  */
 export function snapAndDitherOuter(args: {
   cellMeans: CellColors
@@ -71,7 +73,7 @@ export function snapAndDitherOuter(args: {
   palette: ReadonlyArray<PaletteChip>
   preSnapChromaScale?: number
   ditherMode?: DitherMode
-  ditherPatternSize?: DitherPatternSize | number
+  ditherStrength?: DitherStrength | number
   distanceMetric?: DistanceMetric
   textureLut?: Uint8Array | null
 }): CellColors {
@@ -82,7 +84,7 @@ export function snapAndDitherOuter(args: {
     palette,
     preSnapChromaScale,
     ditherMode,
-    ditherPatternSize,
+    ditherStrength,
     distanceMetric,
     textureLut,
   } = args
@@ -93,7 +95,7 @@ export function snapAndDitherOuter(args: {
     palette,
     preSnapChromaScale: preSnapChromaScale ?? 1.0,
     ditherMode: ditherMode ?? "none",
-    ditherPatternSize: ditherPatternSize ?? 4,
+    ditherStrength: ditherStrength ?? 0.5,
     blueNoiseLut: textureLut as BlueNoiseLut | null | undefined ?? null,
     distanceMetric: distanceMetric ?? "oklab",
   })

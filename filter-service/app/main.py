@@ -270,23 +270,18 @@ class PixelateRequest(BaseModel):
     # when omitted, raw area-average means are emitted.
     palette_oklab: list[list[float]] | None = None
     palette_rgb: list[list[int]] | None = None
-    # Blue-noise neighbour-invasion texture — sporadic cluster replacements in
-    # deep-interior cells (see `app/cell_texture.py`). `texture_enabled = false`
-    # (default) or `texture_strength <= 0` makes the step a no-op, byte-
-    # identical to the pre-feature pipeline. Independent deploys: when this
-    # service is older than the Vercel-side caller, Pydantic's default-extra-
-    # ignore drops the fields and we silently render without texture.
-    texture_enabled: bool = False
-    texture_strength: float = 0.0
-    # Dithering at the snap step (PR-F). Default `"none"` preserves
-    # byte-identical pre-feature behaviour; Pydantic's default-extra-
-    # ignore drops the fields silently when an older Vercel revision
-    # omits them. When set to `"knoll_yliluoma"` / `"floyd_steinberg"`,
-    # the texture step (`texture_enabled`) is no-op'd — the dither
-    # output already covers spatial quantization. `dither_pattern_size`
-    # only applies to KY (candidate count N); FS ignores it.
+    # Dithering at the snap step. Dispatch lives in `cell_colors.py`:
+    #   - "none"            → plain snap
+    #   - "knoll_yliluoma"  → candidate-count N from `_strength_to_ky_n`
+    #   - "floyd_steinberg" → scan-order error diffusion (ignores strength)
+    #   - "texture"         → snap + blue-noise neighbour invasion at
+    #                          `dither_strength` (was the separate
+    #                          `texture_enabled` + `texture_strength`)
+    # Pydantic's default-extra-ignore drops the fields silently when an
+    # older Vercel revision sends the pre-unification shape, keeping the
+    # rolling-deploy story safe.
     dither_mode: str = "knoll_yliluoma"
-    dither_pattern_size: int = 4
+    dither_strength: float = 0.5
     # Snap-step distance metric (PR-H). Default `"oklab"` preserves
     # byte-identical pre-feature behaviour; `"ciede2000"` switches the
     # plain snap path to CIE Lab D65 + ΔE00. Pydantic's default-extra-
@@ -337,10 +332,8 @@ async def pixelate_filter(request: PixelateRequest):
             palette_rgb=request.palette_rgb,
             num_colors=request.num_colors,
             pre_snap_chroma_scale=request.pre_snap_chroma_scale,
-            texture_enabled=request.texture_enabled,
-            texture_strength=request.texture_strength,
             dither_mode=request.dither_mode,
-            dither_pattern_size=request.dither_pattern_size,
+            dither_strength=request.dither_strength,
             distance_metric=request.distance_metric,
             palette_restriction=request.palette_restriction,
             on_phase=timer.mark,
@@ -403,16 +396,12 @@ class CirculateRequest(BaseModel):
     # Default `1.0` keeps behaviour byte-identical to the pre-feature
     # pipeline; the Vercel default is `1.2`.
     pre_snap_chroma_scale: float = 1.0
-    # Blue-noise neighbour-invasion texture — same contract as PixelateRequest.
-    # Applied to the OUTER ellipses only; the inner ellipse keeps its derived
-    # sub-colour. No-op when disabled or strength is zero.
-    texture_enabled: bool = False
-    texture_strength: float = 0.0
-    # Dithering at the snap step — same contract as PixelateRequest (PR-F).
-    # Applied to OUTER ellipse colour; inner ellipse colour is derived from
-    # the original pre-snap means.
+    # Dithering at the snap step — same contract as PixelateRequest.
+    # Applied to OUTER ellipse colour; inner ellipse colour is derived
+    # from the pre-snap means. `dither_mode == "texture"` runs the
+    # blue-noise neighbour-invasion on the outer cells.
     dither_mode: str = "knoll_yliluoma"
-    dither_pattern_size: int = 4
+    dither_strength: float = 0.5
     # Snap-step distance metric (PR-H) — same contract as PixelateRequest.
     distance_metric: str = "oklab"
     # Palette-cap strategy (PR-I) — same contract as PixelateRequest. PAM
@@ -473,10 +462,8 @@ async def circulate_filter(request: CirculateRequest):
             palette_rgb=request.palette_rgb,
             num_colors=request.num_colors,
             pre_snap_chroma_scale=request.pre_snap_chroma_scale,
-            texture_enabled=request.texture_enabled,
-            texture_strength=request.texture_strength,
             dither_mode=request.dither_mode,
-            dither_pattern_size=request.dither_pattern_size,
+            dither_strength=request.dither_strength,
             distance_metric=request.distance_metric,
             palette_restriction=request.palette_restriction,
             on_phase=timer.mark,

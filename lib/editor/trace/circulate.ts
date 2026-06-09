@@ -6,7 +6,7 @@ import { numColorsSchema } from "./num-colors-schema"
 import { preSnapChromaScaleSchema } from "./chroma-scale-schema"
 import { distanceMetricSchema } from "./distance-metric-schema"
 import { paletteRestrictionSchema } from "./palette-restriction-schema"
-import { ditherModeSchema, ditherPatternSizeSchema } from "./dither-mode-schema"
+import { ditherModeSchema, ditherStrengthSchema } from "./dither-mode-schema"
 
 /**
  * Circulate trace — a Chuck-Close-style dot grid: one ellipse per cell
@@ -76,17 +76,13 @@ export const circulateSchema = z.object({
   // chip-set spans more of the palette. Shared via
   // `chroma-scale-schema.ts`.
   pre_snap_chroma_scale: preSnapChromaScaleSchema,
-  // Blue-noise neighbour-invasion texture on the outer ellipses (shared
-  // contract with Pixelate). Same default + persistence semantics: the
-  // checkbox toggles `texture_enabled`, the dropdown commits
-  // `texture_strength` and the chosen level survives a re-toggle.
-  texture_enabled: z.boolean().default(false),
-  texture_strength: z.coerce.number().min(0.25).max(1).default(0.5),
   // Dithering at the snap step — shared contract with Pixelate (see
-  // `dither-mode-schema.ts`). Default `"none"` preserves byte-identical
-  // pre-PR-F behaviour; non-"none" replaces texture functionally.
+  // `dither-mode-schema.ts`). Applied to the OUTER ellipse colour;
+  // inner ellipse colour is derived from the pre-snap means.
+  // `"texture"` mode runs the blue-noise neighbour-invasion (the
+  // former separate Texture checkbox, folded in as a dither variant).
   dither_mode: ditherModeSchema,
-  dither_pattern_size: ditherPatternSizeSchema,
+  dither_strength: ditherStrengthSchema,
   // Snap-step distance metric (PR-H). Same contract as Pixelate —
   // see `distance-metric-schema.ts` for the rationale. Default
   // `"oklab"` keeps byte-identical pre-feature behaviour on both the

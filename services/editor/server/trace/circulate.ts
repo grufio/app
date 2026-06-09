@@ -172,16 +172,13 @@ export async function circulateImageAndActivate(args: {
         num_colors: p.num_colors,
         // Pre-snap chroma boost in OKLCh — same contract as pixelate.
         pre_snap_chroma_scale: p.pre_snap_chroma_scale,
-        // Texture forwarding — same contract as pixelate. Applies to the
-        // outer ellipses only on the server side.
-        texture_enabled: p.texture_enabled,
-        texture_strength: p.texture_strength,
-        // Dithering at the snap step (PR-F). Applied to outer ellipse
-        // colour; inner ellipse colour derives from the pre-snap means.
-        // Older filter-service revisions drop these via Pydantic extra-
-        // ignore → degrade to the snap path.
+        // Dithering at the snap step. Applied to OUTER ellipse colour;
+        // inner ellipse colour is derived from the pre-snap means.
+        // `dither_strength` is a fraction in {0.25, 0.5, 0.75, 1.0}
+        // consumed by KY (mapped to candidate count N) and texture
+        // (invasion strength). None and Floyd-Steinberg ignore it.
         dither_mode: p.dither_mode,
-        dither_pattern_size: p.dither_pattern_size,
+        dither_strength: p.dither_strength,
         // Snap-step distance metric (PR-H). Applied to outer cells AND
         // inner-ellipse snap-back (after the OKLCh sub-colour-filter
         // adjustment). Same rolling-deploy degradation as the dither

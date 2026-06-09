@@ -36,7 +36,7 @@ describe("PixelateForm", () => {
     expect(container.querySelector("#color_space")).toBeNull()
   })
 
-  it("renders the Texture segment (enable checkbox + strength select)", () => {
+  it("renders the Dither segment (mode + strength select)", () => {
     const grid = resolvePixelateGrid(100, 75, defaults)
     const { container } = render(
       <PixelateForm
@@ -46,12 +46,12 @@ describe("PixelateForm", () => {
         grid={grid}
       />,
     )
-    const checkbox = container.querySelector("#texture_enabled")
-    const select = container.querySelector("#texture_strength")
-    expect(checkbox).not.toBeNull()
-    expect(select).not.toBeNull()
-    // The select sits in the disabled state until the checkbox flips.
-    expect(select?.getAttribute("aria-disabled") ?? select?.hasAttribute("disabled")).toBeTruthy()
+    expect(container.querySelector("#dither_mode")).not.toBeNull()
+    expect(container.querySelector("#dither_strength")).not.toBeNull()
+    // The legacy split — separate Texture checkbox + strength — is gone.
+    // Texture is now a `dither_mode` option, not its own segment.
+    expect(container.querySelector("#texture_enabled")).toBeNull()
+    expect(container.querySelector("#texture_strength")).toBeNull()
   })
 
   it("shows the cut-margin info when the grid is valid", () => {

@@ -88,7 +88,7 @@ export async function pixelateImageAndActivate(args: {
     num_colors: numColors,
     pre_snap_chroma_scale: preSnapChromaScale,
     dither_mode: ditherMode,
-    dither_pattern_size: ditherPatternSize,
+    dither_strength: ditherStrength,
     distance_metric: distanceMetric,
     palette_restriction: paletteRestriction,
   } = parsed.data
@@ -170,13 +170,12 @@ export async function pixelateImageAndActivate(args: {
         // Pre-snap chroma boost in OKLCh. Default 1.2 (server-side
         // default if missing).
         pre_snap_chroma_scale: preSnapChromaScale,
-        texture_enabled: parsed.data.texture_enabled,
-        texture_strength: parsed.data.texture_strength,
-        // Dithering at the snap step (PR-F). Older filter-service
-        // revisions silently drop these via Pydantic's extra-ignore
-        // default → degrade to the snap path.
+        // Dithering at the snap step. `dither_strength` is a fraction
+        // in {0.25, 0.5, 0.75, 1.0} consumed by `knoll_yliluoma`
+        // (mapped to candidate count N) and `texture` (invasion
+        // strength). None and Floyd-Steinberg ignore it.
         dither_mode: ditherMode,
-        dither_pattern_size: ditherPatternSize,
+        dither_strength: ditherStrength,
         // Snap-step distance metric (PR-H). Older filter-service revisions
         // drop this via Pydantic extra-ignore → server stays on OKLab.
         distance_metric: distanceMetric,

@@ -132,12 +132,12 @@ def test_distance_metric_ignored_on_ky_dispatch():
     cells = np.broadcast_to([60, 30, 200], (4, 4, 3)).astype(np.uint8).copy()
     oklab_ky = map_cells_dithered(
         cells, palette_oklab, palette_rgb,
-        dither_mode="knoll_yliluoma", dither_pattern_size=4,
+        dither_mode="knoll_yliluoma", dither_strength=0.5,
         distance_metric="oklab",
     )
     ciede_ky = map_cells_dithered(
         cells, palette_oklab, palette_rgb,
-        dither_mode="knoll_yliluoma", dither_pattern_size=4,
+        dither_mode="knoll_yliluoma", dither_strength=0.5,
         distance_metric="ciede2000",
     )
     np.testing.assert_array_equal(oklab_ky, ciede_ky)

@@ -17,19 +17,15 @@ const DEFAULTS = {
   color_mode: "color",
   num_colors: 16,
   pre_snap_chroma_scale: 1.0,
-  // Texture defaults: off + mid-strength preserved. Server treats this as a
-  // no-op (the `texture_enabled` gate is false), so old persisted rows that
-  // never carried these fields parse identically to a fresh form.
-  texture_enabled: false,
-  texture_strength: 0.5,
-  // Dither defaults (PR-G post-flip): Knoll-Yliluoma at 4-candidate
-  // pattern. Persisted rows from BEFORE PR-F that lack these fields
-  // now parse to the dithered default — re-applying them produces
-  // KY-dithered output, which is by design (PR-G's smoke-validated
-  // default). To preserve the legacy snap behaviour on a specific
-  // row, the user can explicitly set `dither_mode = "none"`.
+  // Dither defaults: Knoll-Yliluoma at 0.5 strength (= candidate
+  // count N=4 via `_strength_to_ky_n`). Persisted rows from BEFORE the
+  // Dither-Texture unification carried `texture_enabled` /
+  // `texture_strength` plus `dither_pattern_size`; the new schema is
+  // shape-clean, callers that need backward-compat parsing should run
+  // the params through the unification helper before passing to
+  // `circulateSchema.parse`.
   dither_mode: "knoll_yliluoma",
-  dither_pattern_size: 4,
+  dither_strength: 0.5,
   // Distance-metric default (PR-H): OKLab squared-Euclidean = legacy.
   // CIEDE2000 is opt-in via the form select; persisted rows without
   // the field parse to "oklab" so re-applying them stays byte-identical.

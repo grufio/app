@@ -1,37 +1,35 @@
 "use client"
 
 /**
- * Shared "Dither" segment for trace dialogs (Pixelate + Circulate) — PR-F.
+ * Shared "Dither" segment for trace dialogs (Pixelate + Circulate).
  *
  * Two selects sit side-by-side in the panel grid:
- *   - mode    → `none` / Knoll-Yliluoma / Floyd-Steinberg
- *   - pattern → 2 / 4 / 8 / 16 (Knoll-Yliluoma candidate count `N`;
- *                ignored when mode is `"none"` or `"floyd_steinberg"`)
+ *   - mode      → `None` / Knoll-Yliluoma / Floyd-Steinberg / Texture
+ *   - strength  → 25 % / 50 % / 75 % / 100 % (consumed by Knoll-Yliluoma
+ *                  and Texture; ignored by None and Floyd-Steinberg)
  *
- * When mode is `"none"` (default), pattern size is greyed out — the
- * value persists so toggling back to KY restores the user's previous
- * choice. When mode is `"floyd_steinberg"`, pattern size is also
- * greyed out (FS has no pattern-size knob).
+ * Strength is greyed out for `none` / `floyd_steinberg`. The value
+ * persists through mode switches so toggling back to KY or Texture
+ * restores the user's previous choice.
  *
- * Both forms wrap this in `<EditorSidebarSection title="Dither">`.
- * The Dither segment SUPERSEDES the Texture segment functionally —
- * KY/FS replace the texture step's spatial-quantization role, so the
- * server skips texture when dithering is on (see PR-F dispatch in
- * `cell_colors.py`). The Texture segment is kept in both forms for
- * backward compat with persisted rows that have `texture_enabled =
- * true`; PR-G will deprecate it.
+ * The "Texture" mode subsumes the former standalone Texture
+ * checkbox+strength block. Algorithmically all three non-trivial
+ * modes belong to the same family (blue-noise modulated palette
+ * modification); presenting them as a single one-of selector
+ * eliminates the artificial mutual-exclusion disable the form used
+ * to enforce between Dither and Texture.
  *
  * Stateless — parent owns the draft and reacts to `onModeChange` /
- * `onPatternSizeChange`. Schema lives in `dither-mode-schema.ts`.
+ * `onStrengthChange`. Schema lives in `dither-mode-schema.ts`.
  */
 import { Shuffle, Sparkles } from "lucide-react"
 
 import { FormField, type SelectFieldOption } from "@/components/ui/form-controls"
 import {
   DITHER_MODES,
-  DITHER_PATTERN_SIZES,
+  DITHER_STRENGTHS,
   type DitherMode,
-  type DitherPatternSize,
+  type DitherStrength,
 } from "@/lib/editor/trace/dither-mode-schema"
 
 import { PanelIconSlot, PanelTwoFieldRow } from "../panel-layout"
@@ -41,11 +39,12 @@ const MODE_OPTIONS: SelectFieldOption[] = [
   { value: "none", label: "None" },
   { value: "knoll_yliluoma", label: "Knoll-Yliluoma" },
   { value: "floyd_steinberg", label: "Floyd-Steinberg" },
+  { value: "texture", label: "Texture" },
 ]
 
-const PATTERN_OPTIONS: SelectFieldOption[] = DITHER_PATTERN_SIZES.map((n) => ({
-  value: String(n),
-  label: `${n}×`,
+const STRENGTH_OPTIONS: SelectFieldOption[] = DITHER_STRENGTHS.map((s) => ({
+  value: String(s),
+  label: `${Math.round(s * 100)} %`,
 }))
 
 // Compile-time sanity: keep the option order aligned with the schema's
@@ -54,13 +53,14 @@ void (DITHER_MODES satisfies ReadonlyArray<DitherMode>)
 
 export function TraceDitherFields(props: {
   mode: DitherMode
-  patternSize: DitherPatternSize | number
+  strength: DitherStrength | number
   onModeChange: (value: DitherMode) => void
-  onPatternSizeChange: (value: DitherPatternSize) => void
+  onStrengthChange: (value: DitherStrength) => void
   disabled?: boolean
 }) {
-  const { mode, patternSize, onModeChange, onPatternSizeChange, disabled } = props
-  const patternDisabled = disabled || mode !== "knoll_yliluoma"
+  const { mode, strength, onModeChange, onStrengthChange, disabled } = props
+  const strengthDisabled =
+    disabled || mode === "none" || mode === "floyd_steinberg"
   return (
     <PanelTwoFieldRow>
       <FormField
@@ -76,14 +76,14 @@ export function TraceDitherFields(props: {
       />
       <FormField
         variant="select"
-        label="Dither pattern size"
+        label="Dither strength"
         labelVisuallyHidden
         iconStart={<Sparkles aria-hidden="true" />}
-        id="dither_pattern_size"
-        value={String(patternSize)}
-        options={PATTERN_OPTIONS}
-        onCommit={(v) => onPatternSizeChange(Number(v) as DitherPatternSize)}
-        disabled={patternDisabled}
+        id="dither_strength"
+        value={String(strength)}
+        options={STRENGTH_OPTIONS}
+        onCommit={(v) => onStrengthChange(Number(v) as DitherStrength)}
+        disabled={strengthDisabled}
       />
       <PanelIconSlot />
     </PanelTwoFieldRow>

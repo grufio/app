@@ -111,7 +111,7 @@ describe("mapCellsDithered — PR-F dispatch contract (Python parity)", () => {
       cellsY: 4,
       palette,
       ditherMode: "knoll_yliluoma",
-      ditherPatternSize: 4,
+      ditherStrength: 0.5,
       blueNoiseLut: null,
     })
     const snap = mapCellsToPalette(cells, palette, 1.0)
@@ -129,7 +129,7 @@ describe("mapCellsDithered — PR-F dispatch contract (Python parity)", () => {
       cellsY: 16,
       palette,
       ditherMode: "knoll_yliluoma",
-      ditherPatternSize: 4,
+      ditherStrength: 0.5,
       blueNoiseLut: syntheticLut(),
     })
     const distinct = new Set<string>()
@@ -164,14 +164,14 @@ describe("mapCellsDithered — PR-F dispatch contract (Python parity)", () => {
     ])
     const chipSet = new Set(palette.map((c) => c.rgb.join(",")))
     const cells = pseudoCells(6, 9, 42)
-    for (const mode of ["none", "knoll_yliluoma", "floyd_steinberg"] as const) {
+    for (const mode of ["none", "knoll_yliluoma", "floyd_steinberg", "texture"] as const) {
       const out = mapCellsDithered({
         cells,
         cellsX: 9,
         cellsY: 6,
         palette,
         ditherMode: mode,
-        ditherPatternSize: 4,
+        ditherStrength: 0.5,
         blueNoiseLut: syntheticLut(),
       })
       for (let i = 0; i < out.r.length; i += 1) {
@@ -181,33 +181,46 @@ describe("mapCellsDithered — PR-F dispatch contract (Python parity)", () => {
     }
   })
 
-  it("Knoll-Yliluoma pattern_size=1 collapses to the snap", () => {
-    // Yliluoma 2014 §2: the first candidate is always argmin, so N=1
-    // by construction equals plain nearest-neighbour. This keeps the
-    // mode select meaningful even at the lowest pattern size.
-    const palette = makePalette([
-      [0, 0, 0], [128, 128, 128], [255, 0, 0], [255, 255, 255],
-    ])
-    const cells = pseudoCells(7, 11, 21)
-    const snap = mapCellsDithered({
+  it("Texture mode falls back to the snap when the LUT is unavailable", () => {
+    // Texture reuses the same blue-noise LUT as Knoll-Yliluoma — until
+    // the fetch resolves the dispatch must degrade to the plain snap,
+    // otherwise flipping the mode would blank the preview.
+    const palette = makePalette([[0, 0, 0], [128, 128, 128], [255, 255, 255]])
+    const cells = pseudoCells(8, 8, 33)
+    const noLut = mapCellsDithered({
       cells,
-      cellsX: 11,
-      cellsY: 7,
+      cellsX: 8,
+      cellsY: 8,
       palette,
-      ditherMode: "none",
+      ditherMode: "texture",
+      ditherStrength: 1,
+      blueNoiseLut: null,
     })
-    const ky1 = mapCellsDithered({
+    const snap = mapCellsToPalette(cells, palette, 1.0)
+    expect(Array.from(noLut.r)).toEqual(Array.from(snap.r))
+    expect(Array.from(noLut.g)).toEqual(Array.from(snap.g))
+    expect(Array.from(noLut.b)).toEqual(Array.from(snap.b))
+  })
+
+  it("Texture mode with strength=0 short-circuits to the plain snap", () => {
+    // The invasion's strength gate: strength <= 0 means the snapped
+    // cells ship through unchanged. Same contract as the Python
+    // `apply_neighbor_invasion` (`if strength <= 0: return snapped`).
+    const palette = makePalette([[0, 0, 0], [128, 128, 128], [255, 255, 255]])
+    const cells = pseudoCells(8, 8, 47)
+    const out = mapCellsDithered({
       cells,
-      cellsX: 11,
-      cellsY: 7,
+      cellsX: 8,
+      cellsY: 8,
       palette,
-      ditherMode: "knoll_yliluoma",
-      ditherPatternSize: 1,
+      ditherMode: "texture",
+      ditherStrength: 0,
       blueNoiseLut: syntheticLut(),
     })
-    expect(Array.from(ky1.r)).toEqual(Array.from(snap.r))
-    expect(Array.from(ky1.g)).toEqual(Array.from(snap.g))
-    expect(Array.from(ky1.b)).toEqual(Array.from(snap.b))
+    const snap = mapCellsToPalette(cells, palette, 1.0)
+    expect(Array.from(out.r)).toEqual(Array.from(snap.r))
+    expect(Array.from(out.g)).toEqual(Array.from(snap.g))
+    expect(Array.from(out.b)).toEqual(Array.from(snap.b))
   })
 
   it("rejects mismatched cells length / shape", () => {
@@ -221,7 +234,7 @@ describe("mapCellsDithered — PR-F dispatch contract (Python parity)", () => {
 
   it("empty palette returns input unchanged across every mode", () => {
     const cells = pseudoCells(3, 5, 11)
-    for (const mode of ["none", "knoll_yliluoma", "floyd_steinberg"] as const) {
+    for (const mode of ["none", "knoll_yliluoma", "floyd_steinberg", "texture"] as const) {
       const out = mapCellsDithered({
         cells,
         cellsX: 5,
@@ -232,5 +245,25 @@ describe("mapCellsDithered — PR-F dispatch contract (Python parity)", () => {
       })
       expect(out).toBe(cells)
     }
+  })
+})
+
+describe("strengthToKyN — Python parity range-based dispatch", () => {
+  it("maps the four discrete strength steps to {2, 4, 8, 16}", async () => {
+    const { strengthToKyN } = await import("./trace-cell-colors")
+    expect(strengthToKyN(0.25)).toBe(2)
+    expect(strengthToKyN(0.5)).toBe(4)
+    expect(strengthToKyN(0.75)).toBe(8)
+    expect(strengthToKyN(1.0)).toBe(16)
+  })
+
+  it("dispatches by range, not equality (JSON round-trip safety)", async () => {
+    const { strengthToKyN } = await import("./trace-cell-colors")
+    // Boundaries are halfway between the discrete steps: 0.375, 0.625, 0.875
+    expect(strengthToKyN(0.376)).toBe(4)
+    expect(strengthToKyN(0.499)).toBe(4)
+    expect(strengthToKyN(0.6249999)).toBe(4)
+    expect(strengthToKyN(0.626)).toBe(8)
+    expect(strengthToKyN(0.876)).toBe(16)
   })
 })

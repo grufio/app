@@ -100,19 +100,17 @@ describe("TRACE_REGISTRY", () => {
 
 describe("pixelateSchema", () => {
   // Default-shape baseline — every parse-with-empty-input test mirrors this.
-  // texture_* defaults are the off-by-default texture filter, see pixelate.ts.
   const PIXELATE_DEFAULTS = {
     supercell_width_mm: 6,
     supercell_height_mm: 6,
     color_mode: "color",
     num_colors: 16,
     pre_snap_chroma_scale: 1.0,
-    texture_enabled: false,
-    texture_strength: 0.5,
-    // Dither defaults (PR-G post-flip): Knoll-Yliluoma at 4-candidate
-    // pattern. See `circulate.test.ts` for the rationale.
+    // Dither defaults: Knoll-Yliluoma at 0.5 strength (= candidate
+    // count N=4 via `_strength_to_ky_n`). See `circulate.test.ts` for
+    // the rationale.
     dither_mode: "knoll_yliluoma",
-    dither_pattern_size: 4,
+    dither_strength: 0.5,
     // Distance-metric default (PR-H): OKLab — see `circulate.test.ts`.
     distance_metric: "oklab",
     // Palette-cap default (PR-I): top_n — see `circulate.test.ts`.
@@ -170,17 +168,18 @@ describe("pixelateSchema", () => {
     expect(pixelateSchema.safeParse({ pre_snap_chroma_scale: 1.51 }).success).toBe(false)
   })
 
-  it("accepts the texture toggle + each discrete strength level", () => {
+  it("accepts the texture dither mode + each discrete strength level", () => {
     for (const s of [0.25, 0.5, 0.75, 1]) {
       expect(
-        pixelateSchema.parse({ texture_enabled: true, texture_strength: s }),
-      ).toMatchObject({ texture_enabled: true, texture_strength: s })
+        pixelateSchema.parse({ dither_mode: "texture", dither_strength: s }),
+      ).toMatchObject({ dither_mode: "texture", dither_strength: s })
     }
   })
 
-  it("rejects texture strengths outside the [0.25, 1] dropdown range", () => {
-    expect(pixelateSchema.safeParse({ texture_strength: 0 }).success).toBe(false)
-    expect(pixelateSchema.safeParse({ texture_strength: 1.25 }).success).toBe(false)
+  it("rejects dither strengths outside the discrete {0.25, 0.5, 0.75, 1} set", () => {
+    expect(pixelateSchema.safeParse({ dither_strength: 0 }).success).toBe(false)
+    expect(pixelateSchema.safeParse({ dither_strength: 1.25 }).success).toBe(false)
+    expect(pixelateSchema.safeParse({ dither_strength: 0.6 }).success).toBe(false)
   })
 
   it("ignores legacy params from old wizard payloads (incl. dropped color_space)", () => {

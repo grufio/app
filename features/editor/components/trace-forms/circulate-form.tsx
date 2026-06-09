@@ -36,7 +36,6 @@ import { TraceColorsFields } from "./trace-colors-fields"
 import { TraceDistanceFields } from "./trace-distance-fields"
 import { TracePaletteRestrictionFields } from "./trace-palette-restriction-fields"
 import { TraceDitherFields } from "./trace-dither-fields"
-import { TraceTextureFields } from "./trace-texture-fields"
 
 // Module-level so the select's `options` reference stays stable across renders.
 const INNER_FILTER_OPTIONS: SelectFieldOption[] = INNER_FILTERS.map((f) => ({
@@ -206,20 +205,10 @@ export function CirculateForm({ params, onParamsChange, disabled, grid }: Props)
       <EditorSidebarSection title="Dither">
         <TraceDitherFields
           mode={params.dither_mode}
-          patternSize={params.dither_pattern_size}
+          strength={params.dither_strength}
           onModeChange={(v) => onParamsChange("dither_mode", v)}
-          onPatternSizeChange={(v) => onParamsChange("dither_pattern_size", v)}
+          onStrengthChange={(v) => onParamsChange("dither_strength", v)}
           disabled={disabled}
-        />
-      </EditorSidebarSection>
-
-      <EditorSidebarSection title="Texture">
-        <TraceTextureFields
-          enabled={params.texture_enabled}
-          strength={params.texture_strength}
-          onEnabledChange={(v) => onParamsChange("texture_enabled", v)}
-          onStrengthChange={(v) => onParamsChange("texture_strength", v)}
-          disabled={disabled || params.dither_mode !== "none"}
         />
       </EditorSidebarSection>
     </>

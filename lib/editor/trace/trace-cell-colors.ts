@@ -18,8 +18,9 @@ import {
   type CieLab,
 } from "@/lib/color/ciede2000"
 import { adjustOklab, nearestPaletteIndex, rgb255ToOklab, type Oklab } from "@/lib/color/oklab"
+import { applyNeighborInvasion } from "./cell-texture"
 import type { DistanceMetric } from "./distance-metric-schema"
-import type { DitherMode, DitherPatternSize } from "./dither-mode-schema"
+import type { DitherMode, DitherStrength } from "./dither-mode-schema"
 import { floydSteinbergDither } from "./floyd-steinberg"
 import type { OklabAdjustment } from "./inner-color-filters"
 import {
@@ -28,6 +29,16 @@ import {
   thresholdBin,
   type BlueNoiseLut,
 } from "./knoll-yliluoma"
+
+/** Mirror of `_strength_to_ky_n` in `filter-service/app/cell_colors.py`.
+ * Range-based dispatch — JSON round-trip float drift never bumps the
+ * KY candidate count into the wrong bucket. */
+export function strengthToKyN(strength: number): number {
+  if (strength <= 0.375) return 2
+  if (strength <= 0.625) return 4
+  if (strength <= 0.875) return 8
+  return 16
+}
 
 /**
  * Pure per-cell area-average. Given a flat pixel buffer (`width × height`,
@@ -166,29 +177,35 @@ export function mapCellsToPalette(
 }
 
 /**
- * Snap-or-dither dispatch shared by pixelate + circulate previews
- * (PR-F). Mirror of the server's `map_cells_dithered`
+ * Snap-or-dither dispatch shared by pixelate + circulate previews.
+ * Mirror of the server's `map_cells_dithered`
  * (`filter-service/app/cell_colors.py`); same dispatch tree:
  *
  *   - `dither_mode === "none"`            → falls through to
  *                                            `mapCellsToPalette`
- *                                            (byte-identical to the
- *                                            pre-PR-F preview).
+ *                                            (plain snap).
  *   - `dither_mode === "knoll_yliluoma"`  → per-cell candidate
  *                                            selection + lightness
  *                                            sort + blue-noise
- *                                            threshold pick.
+ *                                            threshold pick. Strength
+ *                                            maps to candidate count
+ *                                            `N` via {@link strengthToKyN}.
  *   - `dither_mode === "floyd_steinberg"` → scan-order error
- *                                            diffusion.
+ *                                            diffusion. Ignores
+ *                                            strength.
+ *   - `dither_mode === "texture"`         → plain snap + blue-noise
+ *                                            neighbour invasion
+ *                                            (former separate Texture
+ *                                            checkbox). Strength feeds
+ *                                            the invasion probability.
  *
  * Shape (`cellsX` / `cellsY`) is required because KY needs cell coords
- * for the blue-noise threshold lookup and FS walks rows + cols in
- * scan order. The plain {@link mapCellsToPalette} is shape-free
- * because the snap is position-independent.
+ * for the blue-noise threshold lookup, FS walks rows + cols in scan
+ * order, and texture's invasion-step also uses the cell grid.
  *
- * KY also needs the blue-noise LUT (caller-loaded via
- * `loadBlueNoiseLut()`); without it KY falls back to the snap path so
- * the preview stays usable while the LUT is fetching.
+ * KY and Texture both need the blue-noise LUT (caller-loaded via
+ * `loadBlueNoiseLut()`); without it they fall back to the plain snap
+ * path so the preview stays usable while the LUT is fetching.
  *
  * An empty palette returns the input unchanged for every mode.
  */
@@ -199,11 +216,11 @@ export function mapCellsDithered(args: {
   palette: ReadonlyArray<PaletteChip>
   preSnapChromaScale?: number
   ditherMode?: DitherMode
-  ditherPatternSize?: DitherPatternSize | number
+  ditherStrength?: DitherStrength | number
   blueNoiseLut?: BlueNoiseLut | null
   /** Snap-step distance metric (PR-H, default `"oklab"`). Honoured only
-   * on the `"none"` dither path; KY + FS keep squared-Euclidean argmin
-   * in OKLab regardless. */
+   * on the `"none"` and `"texture"` (snap step) paths; KY + FS keep
+   * squared-Euclidean argmin in OKLab regardless. */
   distanceMetric?: DistanceMetric
 }): CellColors {
   const {
@@ -213,14 +230,36 @@ export function mapCellsDithered(args: {
     palette,
     preSnapChromaScale = 1.0,
     ditherMode = "none",
-    ditherPatternSize = 4,
+    ditherStrength = 0.5,
     blueNoiseLut = null,
     distanceMetric = "oklab",
   } = args
   if (palette.length === 0) return cells
   const lutAvailable = blueNoiseLut != null
-  if (ditherMode === "none" || (ditherMode === "knoll_yliluoma" && !lutAvailable)) {
+  // None always uses the plain snap. KY + Texture both need the LUT;
+  // fall back to the plain snap path while it's still fetching.
+  if (
+    ditherMode === "none" ||
+    (ditherMode === "knoll_yliluoma" && !lutAvailable) ||
+    (ditherMode === "texture" && !lutAvailable)
+  ) {
     return mapCellsToPalette(cells, palette, preSnapChromaScale, distanceMetric)
+  }
+
+  if (ditherMode === "texture") {
+    // Snap first (honours distance metric + chroma boost), then run the
+    // neighbour-invasion. LUT is guaranteed non-null by the guard above.
+    const snapped = mapCellsToPalette(cells, palette, preSnapChromaScale, distanceMetric)
+    if (ditherStrength <= 0) return snapped
+    const paletteRgb = palette.map((c) => c.rgb)
+    return applyNeighborInvasion({
+      cells: snapped,
+      palette: paletteRgb,
+      cellsX,
+      cellsY,
+      strength: ditherStrength,
+      blueNoiseLut: blueNoiseLut as BlueNoiseLut,
+    })
   }
 
   const n = cells.r.length
@@ -259,10 +298,9 @@ export function mapCellsDithered(args: {
   const b = new Uint8ClampedArray(n)
 
   if (ditherMode === "knoll_yliluoma") {
-    // We've already validated `lutAvailable` above when we didn't return
-    // early — so `blueNoiseLut` is non-null here.
+    // LUT availability validated above.
     const lut = blueNoiseLut as BlueNoiseLut
-    const patternSize = Math.max(1, Math.floor(ditherPatternSize))
+    const patternSize = strengthToKyN(ditherStrength)
     for (let y = 0; y < cellsY; y += 1) {
       for (let x = 0; x < cellsX; x += 1) {
         const ci = y * cellsX + x
