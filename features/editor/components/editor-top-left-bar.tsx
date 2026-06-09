@@ -50,9 +50,9 @@ const PILL_SINGLE = `${PILL_BASE} p-1`
  * toolbar (`floating-toolbar.tsx:92`) — same height, padding, gap. */
 const PILL_GROUP = `${PILL_BASE} gap-3 px-2 py-1`
 /** Sub-pill that hangs under a section icon (Feather-3D pattern).
- * Same material as the main pills, tighter padding + gap so the row
- * reads as secondary. */
-const PILL_SUB = `${PILL_BASE} gap-2 px-1.5 py-0.5`
+ * Same material as the main pills but a **vertical** icon stack:
+ * the sub-menu drops downward as a column beneath the parent icon. */
+const PILL_SUB = `${PILL_BASE} flex-col gap-2 px-0.5 py-1.5`
 
 type SectionItem = {
   key: MobileSection
