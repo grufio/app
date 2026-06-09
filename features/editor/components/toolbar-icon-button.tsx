@@ -6,6 +6,9 @@ import { cn } from "@/lib/utils"
 type ToolbarIconButtonProps = Omit<React.ComponentProps<"button">, "children"> & {
   label: string
   active?: boolean
+  /** When true, the button forwards its props to its single child via
+   * Radix Slot (e.g. wrap a `<Link>` as the rendered element). */
+  asChild?: boolean
   children: React.ReactNode
 }
 
@@ -21,7 +24,7 @@ type ToolbarIconButtonProps = Omit<React.ComponentProps<"button">, "children"> &
  * "this one is on" from the brighter glyph, not from a circle drawn
  * around it.
  */
-export function ToolbarIconButton({ label, active = false, className, children, ...props }: ToolbarIconButtonProps) {
+export function ToolbarIconButton({ label, active = false, asChild = false, className, children, ...props }: ToolbarIconButtonProps) {
   const buttonClassName = cn(
     "h-7 w-7 min-h-7 min-w-7 max-h-7 max-w-7 rounded aspect-square p-0 shrink-0",
     !active && "text-white/70",
@@ -35,7 +38,8 @@ export function ToolbarIconButton({ label, active = false, className, children, 
 
   return (
     <AppButton
-      type="button"
+      {...(asChild ? {} : { type: "button" as const })}
+      asChild={asChild}
       variant="ghost"
       size="icon"
       aria-label={label}

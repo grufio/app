@@ -20,6 +20,7 @@ import {
   type ProjectCanvasStageHandle,
 } from "@/features/editor"
 import { deriveSectionLocks } from "@/lib/editor/section-locks"
+import { EditorTopLeftBar } from "@/features/editor/components/editor-top-left-bar"
 import { MobileBottomNav } from "@/features/editor/components/mobile-bottom-nav"
 import {
   Dialog,
@@ -679,6 +680,10 @@ export function ProjectDetailPageClient({
           {/* Filter + Trace dialog hosts moved into their respective
               surface scope components (see panel slots + mobile gates). */}
         </EditorErrorBoundary>
+        <EditorTopLeftBar
+          activeSection={mobileSection}
+          onSectionTap={handleMobileNavTap}
+        />
         {isMobile && mobileSection === "artboard" ? (
           <ArtboardSurfaceScope
             projectId={projectId}
