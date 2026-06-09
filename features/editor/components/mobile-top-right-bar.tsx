@@ -65,7 +65,15 @@ export function MobileTopRightBar({ onEditTap, ariaLabelEdit = "Edit", viewOptio
     <div
       role="toolbar"
       aria-label="Editor actions"
-      className="absolute top-3 right-3 z-40 inline-flex items-center gap-3 rounded-lg bg-zinc-900/95 px-2 py-0.5 shadow-lg ring-1 ring-white/10 backdrop-blur md:hidden"
+      className={
+        // Single-button case (only Pencil) gets symmetric `p-1` so the
+        // container is square. Two-button case (Eye + Pencil) matches
+        // the bottom toolbar's rhythm (`gap-3 px-2 py-0.5`) so the
+        // three bars read as one family.
+        viewOptions
+          ? "absolute top-3 right-3 z-40 inline-flex items-center gap-3 rounded-lg bg-zinc-900/95 px-2 py-0.5 shadow-lg ring-1 ring-white/10 backdrop-blur md:hidden"
+          : "absolute top-3 right-3 z-40 inline-flex items-center rounded-lg bg-zinc-900/95 p-1 shadow-lg ring-1 ring-white/10 backdrop-blur md:hidden"
+      }
     >
       {viewOptions ? (
         <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
