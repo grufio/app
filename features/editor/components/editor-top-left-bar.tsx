@@ -39,11 +39,13 @@ import { ToolbarIconButton } from "./toolbar-icon-button"
 
 const PILL_BASE =
   "inline-flex items-center rounded-lg bg-zinc-900/95 shadow-lg ring-1 ring-white/10 backdrop-blur"
-/** Same `gap-3 px-2 py-1` rhythm as the bottom floating toolbar
- * (`floating-toolbar.tsx:92`). Both the solo Home pill and the
- * 4-item group pill use it — same height (32 + 8 = 40 px), same
- * horizontal padding (8 px), same gap. */
-const PILL = `${PILL_BASE} gap-3 px-2 py-1`
+/** Single-button pill: `p-1` so the container is a 40 × 40 square
+ * (32 px button + 4 px padding each side). Matches the bottom
+ * floating-toolbar's height (`py-1` → 40 px) but stays square. */
+const PILL_SINGLE = `${PILL_BASE} p-1`
+/** Multi-button pill: same `gap-3 px-2 py-1` as the bottom floating
+ * toolbar (`floating-toolbar.tsx:92`) — same height, padding, gap. */
+const PILL_GROUP = `${PILL_BASE} gap-3 px-2 py-1`
 
 type SectionItem = {
   key: MobileSection
@@ -66,14 +68,14 @@ type Props = {
 export function EditorTopLeftBar({ activeSection = null, onSectionTap }: Props) {
   return (
     <div className="absolute top-3 left-3 z-20 flex items-center gap-3">
-      <div className={PILL}>
+      <div className={PILL_SINGLE}>
         <ToolbarIconButton label="Home" asChild>
           <Link href="/dashboard">
             <Home aria-hidden="true" className="size-6" />
           </Link>
         </ToolbarIconButton>
       </div>
-      <div className={PILL}>
+      <div className={PILL_GROUP}>
         {SECTION_ITEMS.map(({ key, label, Icon }) => (
           <ToolbarIconButton
             key={key}
