@@ -755,7 +755,10 @@ export function ProjectDetailPageClient({
           />
         ) : null}
         {isMobile && mobileSection === "colors" ? (
-          <ColorsSurfaceScope trace={trace} />
+          <ColorsSurfaceScope
+            trace={trace}
+            onClose={() => handleMobileNavTap("artboard")}
+          />
         ) : null}
       </ProjectEditorLayout>
 
