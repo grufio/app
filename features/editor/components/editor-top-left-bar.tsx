@@ -38,7 +38,7 @@ import type { MobileSection } from "@/lib/editor/mobile-sections"
 import { ToolbarIconButton } from "./toolbar-icon-button"
 
 const PILL_CLASS =
-  "inline-flex items-center rounded-lg bg-zinc-900/95 p-1 shadow-lg ring-1 ring-white/10 backdrop-blur"
+  "inline-flex items-center gap-3 rounded-lg bg-zinc-900/95 px-2 py-0.5 shadow-lg ring-1 ring-white/10 backdrop-blur"
 
 type SectionItem = {
   key: MobileSection
@@ -60,15 +60,15 @@ type Props = {
 
 export function EditorTopLeftBar({ activeSection = null, onSectionTap }: Props) {
   return (
-    <div className="absolute top-3 left-3 z-20 flex items-center gap-3">
+    <div className="absolute top-3 left-3 z-40 flex items-center gap-3">
       <div className={PILL_CLASS}>
         <ToolbarIconButton label="Home" asChild>
           <Link href="/dashboard">
-            <Home aria-hidden="true" className="size-6" />
+            <Home aria-hidden="true" className="size-5" />
           </Link>
         </ToolbarIconButton>
       </div>
-      <div className={`${PILL_CLASS} gap-1`}>
+      <div className={PILL_CLASS}>
         {SECTION_ITEMS.map(({ key, label, Icon }) => (
           <ToolbarIconButton
             key={key}
@@ -76,7 +76,7 @@ export function EditorTopLeftBar({ activeSection = null, onSectionTap }: Props) 
             active={key === activeSection}
             onClick={() => onSectionTap?.(key)}
           >
-            <Icon aria-hidden="true" className="size-6" />
+            <Icon aria-hidden="true" className="size-5" />
           </ToolbarIconButton>
         ))}
       </div>
