@@ -21,7 +21,6 @@ import {
 } from "@/features/editor"
 import { deriveSectionLocks } from "@/lib/editor/section-locks"
 import { EditorTopLeftBar } from "@/features/editor/components/editor-top-left-bar"
-import { MobileBottomNav } from "@/features/editor/components/mobile-bottom-nav"
 import {
   Dialog,
   DialogContent,
@@ -759,12 +758,6 @@ export function ProjectDetailPageClient({
           <ColorsSurfaceScope trace={trace} />
         ) : null}
       </ProjectEditorLayout>
-      <MobileBottomNav
-        activeSection={mobileSection}
-        onSectionTap={handleMobileNavTap}
-        imageLocked={sectionLocks.imageLocked}
-        filterLocked={sectionLocks.filterLocked}
-      />
 
       <Dialog open={unlockRequest !== null} onOpenChange={(o) => (!o ? cancelUnlock() : null)}>
         <DialogContent>
