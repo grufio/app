@@ -39,17 +39,17 @@ import { ToolbarIconButton } from "./toolbar-icon-button"
 
 const PILL_BASE =
   "inline-flex items-center rounded-lg bg-zinc-900/95 shadow-lg ring-1 ring-white/10 backdrop-blur"
-/** Single-button pill: `p-0.5` so the pill height matches the group
- * pill exactly.
- *   - Button: h-8 (32 px)
- *   - Group pill height: 32 + 2×py-0.5 (4 px) = 36 px
- *   - Solo pill with p-0.5: 32 + 4 = 36 px → flush with group
- *   - Solo pill width with p-0.5: 32 + 4 = 36 px → square 36×36
- * `p-0` (32 × 32) is visibly shorter than the group pill next to it. */
-const PILL_SINGLE = `${PILL_BASE} p-0.5`
-/** Multi-button pill: same `gap-3 px-2 py-0.5` rhythm as the bottom
- * floating toolbar so the three bars read as one family. */
-const PILL_GROUP = `${PILL_BASE} gap-3 px-2 py-0.5`
+/** Single-button pill. Matches the bottom floating-toolbar's rhythm:
+ *   - Button: h-8 (32 px) — `ToolbarIconButton`
+ *   - Bottom toolbar (`floating-toolbar.tsx`): `px-2 py-1` → 32 + 8
+ *     = 40 px tall
+ *   - Solo pill with `p-1`: 32 + 8 = 40 px → square 40 × 40, height
+ *     matches the bottom toolbar exactly. */
+const PILL_SINGLE = `${PILL_BASE} p-1`
+/** Multi-button pill. Same rhythm as the bottom floating toolbar
+ * (`gap-3 px-2 py-1`) so the three bars read as one family. Height
+ * 32 + 8 = 40 px. */
+const PILL_GROUP = `${PILL_BASE} gap-3 px-2 py-1`
 
 type SectionItem = {
   key: MobileSection
@@ -75,7 +75,7 @@ export function EditorTopLeftBar({ activeSection = null, onSectionTap }: Props) 
       <div className={PILL_SINGLE}>
         <ToolbarIconButton label="Home" asChild>
           <Link href="/dashboard">
-            <Home aria-hidden="true" className="size-4" />
+            <Home aria-hidden="true" className="size-6" />
           </Link>
         </ToolbarIconButton>
       </div>
@@ -87,7 +87,7 @@ export function EditorTopLeftBar({ activeSection = null, onSectionTap }: Props) 
             active={key === activeSection}
             onClick={() => onSectionTap?.(key)}
           >
-            <Icon aria-hidden="true" className="size-4" />
+            <Icon aria-hidden="true" className="size-6" />
           </ToolbarIconButton>
         ))}
       </div>
