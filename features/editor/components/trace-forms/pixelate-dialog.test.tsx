@@ -103,15 +103,17 @@ describe("PixelateDialog (smoke)", () => {
       />,
     )
 
-    // Settings first: the dialog opens on the params overlay — the form is
-    // mounted, the preview is rendered underneath.
+    // Settings first: the dialog opens on the params overlay; only the
+    // form is mounted. The preview pane is lazy — no work happens until
+    // the user explicitly taps Preview.
     await waitFor(() => {
       expect(document.body.querySelector("#supercell_width_mm")).not.toBeNull()
     })
-    expect(document.body.querySelector('[data-testid="pixelate-preview-mini"]')).not.toBeNull()
+    expect(document.body.querySelector('[data-testid="pixelate-preview-mini"]')).toBeNull()
 
-    // "Preview" collapses the overlay to reveal the preview, WITHOUT firing the
-    // trace — apply is committed exclusively from the outer apply icon.
+    // "Preview" mounts the preview pane and collapses the overlay
+    // WITHOUT firing the trace — apply is committed exclusively from
+    // the outer apply icon.
     const preview = Array.from(document.body.querySelectorAll("button")).find(
       (b) => b.textContent?.trim() === "Preview",
     ) as HTMLButtonElement
@@ -120,6 +122,7 @@ describe("PixelateDialog (smoke)", () => {
     await waitFor(() => {
       expect(document.body.querySelector("#supercell_width_mm")).toBeNull()
     })
+    expect(document.body.querySelector('[data-testid="pixelate-preview-mini"]')).not.toBeNull()
     expect(onApplyTrace).not.toHaveBeenCalled()
 
     // The pencil re-opens the params from the preview.
@@ -268,10 +271,10 @@ describe("PixelateDialog (smoke)", () => {
     ).not.toBeNull()
   })
 
-  // Context-aware close: the header X has two meanings depending on the
-  // mode. In edit mode it should collapse the overlay back to the
-  // preview (NOT end the trace flow); in preview mode it ends the flow.
-  it("mobile: edit-mode X collapses the overlay without ending the trace flow", async () => {
+  // Linear forward flow: form → Preview → Apply. X and Cancel anywhere
+  // close the entire trace flow (call onClose). The only intentional
+  // forward step is the Preview button collapsing the edit overlay.
+  it("mobile: edit-mode X closes the entire trace flow", async () => {
     window.matchMedia = ((query: string) =>
       ({
         matches: true,
@@ -298,31 +301,57 @@ describe("PixelateDialog (smoke)", () => {
     )
 
     await waitFor(() => {
-      expect(document.body.querySelector('[data-testid="pixelate-preview-mini"]')).not.toBeNull()
+      expect(document.body.querySelector("#supercell_width_mm")).not.toBeNull()
     })
-    const editIcon = document.body.querySelector(
-      'button[aria-label="Edit parameters"]',
-    ) as HTMLButtonElement
-    fireEvent.click(editIcon)
+
+    // The edit overlay's X is labelled "Close". Clicking it ends the
+    // entire trace flow — the only forward path is Preview → Apply.
+    const closeX = document.body.querySelectorAll(
+      'button[aria-label="Close"]',
+    )
+    const editClose = closeX[closeX.length - 1] as HTMLButtonElement
+    expect(editClose).toBeTruthy()
+    fireEvent.click(editClose)
+
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it("mobile: edit-mode Cancel closes the entire trace flow", async () => {
+    window.matchMedia = ((query: string) =>
+      ({
+        matches: true,
+        media: query,
+        onchange: null,
+        addListener: () => {},
+        removeListener: () => {},
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }) as unknown as MediaQueryList) as typeof window.matchMedia
+
+    const onClose = vi.fn()
+    render(
+      <PixelateDialog
+        open
+        sourceImageUrl="https://example.test/img.png"
+        displayMmW={100}
+        displayMmH={75}
+        onClose={onClose}
+        onSuccess={() => {}}
+        onApplyTrace={async () => {}}
+      />,
+    )
+
     await waitFor(() => {
       expect(document.body.querySelector("#supercell_width_mm")).not.toBeNull()
     })
 
-    // The edit overlay's X is labelled "Back to preview"; the preview
-    // header's X is labelled "Close". Both render simultaneously in the
-    // DOM but only the overlay's is reachable while editOpen=true.
-    const backX = document.body.querySelector(
-      'button[aria-label="Back to preview"]',
+    const cancel = Array.from(document.body.querySelectorAll("button")).find(
+      (b) => b.textContent?.trim() === "Cancel",
     ) as HTMLButtonElement
-    expect(backX).toBeTruthy()
-    fireEvent.click(backX)
+    expect(cancel).toBeTruthy()
+    fireEvent.click(cancel)
 
-    await waitFor(() => {
-      expect(document.body.querySelector("#supercell_width_mm")).toBeNull()
-    })
-    expect(onClose).not.toHaveBeenCalled()
-    expect(
-      document.body.querySelector('[data-testid="pixelate-preview-mini"]'),
-    ).not.toBeNull()
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 })

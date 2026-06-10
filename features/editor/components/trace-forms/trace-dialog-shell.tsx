@@ -29,11 +29,11 @@
  *   per mode, and Escape is intercepted in edit mode to just dismiss the
  *   overlay.
  *
- * Cancel/Preview in edit mode are functionally identical — both call
- * `setEditOpen(false)`. The labels disambiguate intent ("abort the
- * in-progress field edit" vs. "I'm done, show me the preview"); the
- * draft state lives in the parent and survives either path. The actual
- * filter apply lives exclusively on the outer Apply (check) icon.
+ * Edit-mode close semantics (mobile): X and Cancel close the **entire**
+ * trace flow (call `onCancel`) — same as the preview-header X. The
+ * only forward path is Preview → Apply. The Preview button collapses
+ * the edit overlay to reveal the live preview; Apply on that preview
+ * commits the trace.
  */
 import { useState, type ReactNode } from "react"
 import { Check, Loader2, Pencil, X } from "lucide-react"
@@ -87,10 +87,12 @@ export function TraceDialogShell({
 }: Props) {
   const isMobile = useIsMobile()
   // Settings first: the mobile dialog opens on the params overlay; "Preview"
-  // (or the header X) collapses it to reveal the live preview, from which the
-  // apply icon commits. The preview is mounted underneath from the start, so
-  // the collapse is instant. (Desktop shows preview + form side by side.)
+  // collapses it and mounts the preview pane on demand. Once mounted, the
+  // pane stays alive across edit/preview round-trips so the canvas + loaded
+  // source image survive — only the *first* preview-tap pays the compute.
+  // (Desktop shows preview + form side by side from the start.)
   const [editOpen, setEditOpen] = useState(true)
+  const [previewMounted, setPreviewMounted] = useState(false)
 
   if (isMobile) {
     return (
@@ -100,23 +102,25 @@ export function TraceDialogShell({
           // No built-in close: we render our own X per mode so edit-mode
           // Escape/X dismiss the overlay (not the whole trace flow).
           showCloseButton={false}
-          // Escape in edit mode collapses the overlay back to preview;
-          // in preview mode it falls through to Radix → onCancel.
+          // Escape always closes the entire trace flow — same as the X
+          // and Cancel buttons. The forward path (Preview → Apply) is
+          // the only intentional way to commit.
           onEscapeKeyDown={(e) => {
             if (editOpen) {
               e.preventDefault()
-              setEditOpen(false)
+              onCancel()
             }
           }}
         >
           <DialogTitle className="sr-only">{title}</DialogTitle>
           <DialogDescription className="sr-only">{description}</DialogDescription>
 
-          {/* Preview layer — always mounted. The header's X here is the
-              trace-flow close (calls the shell's `onCancel`). When the
-              edit overlay is open it covers this header visually, but the
-              preview body (canvas, ResizeObserver, source image) keeps
-              running underneath. */}
+          {/* Preview layer — header always rendered (sits under the edit
+              overlay until the user collapses it via Preview). The
+              preview pane itself is mounted lazily on the first Preview
+              tap (`previewMounted`) so no work happens until the user
+              asks for it; thereafter it stays mounted to preserve the
+              canvas + loaded source. */}
           <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
             <span className="text-sm font-medium">{title}</span>
             <div className="ml-auto flex items-center gap-2">
@@ -156,13 +160,13 @@ export function TraceDialogShell({
             </div>
           </header>
           <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            {preview}
+            {previewMounted ? preview : null}
           </main>
 
           {/* Edit overlay — sits ON TOP of the preview inside the same
               DialogContent (no second Portal, no DismissableLayer
-              cascade). Its own X just collapses the overlay; the preview
-              underneath is never unmounted. */}
+              cascade). The X here closes the entire trace flow (same
+              as Cancel below) — the only forward path is Preview. */}
           {editOpen ? (
             <div className="absolute inset-0 z-10 flex flex-col bg-background">
               <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
@@ -172,9 +176,9 @@ export function TraceDialogShell({
                   variant="ghost"
                   size="icon"
                   className="ml-auto"
-                  onClick={() => setEditOpen(false)}
+                  onClick={onCancel}
                   disabled={busy}
-                  aria-label="Back to preview"
+                  aria-label="Close"
                 >
                   <X className="size-4" />
                 </Button>
@@ -199,7 +203,7 @@ export function TraceDialogShell({
                   type="button"
                   variant="outline"
                   size="lg"
-                  onClick={() => setEditOpen(false)}
+                  onClick={onCancel}
                   disabled={busy}
                 >
                   Cancel
@@ -210,9 +214,7 @@ export function TraceDialogShell({
                     reliably blur the focused input on every mobile
                     keyboard (and jsdom never does) — without this the
                     preview underneath would render the pre-edit value
-                    for the focused field. Cancel intentionally does NOT
-                    flush: that's how "discard the in-progress edit" is
-                    expressed. */}
+                    for the focused field. */}
                 <Button
                   type="button"
                   size="lg"
@@ -220,6 +222,7 @@ export function TraceDialogShell({
                     if (document.activeElement instanceof HTMLElement) {
                       document.activeElement.blur()
                     }
+                    setPreviewMounted(true)
                     setEditOpen(false)
                   }}
                   disabled={busy}

@@ -66,8 +66,8 @@ export function LineArtDialog({
         kind: "lineart",
         params: draft as Record<string, unknown>,
       })
+      // See cell-trace-dialog.tsx for why we don't call onClose here.
       onSuccess()
-      onClose()
     } catch (e) {
       const error = e instanceof Error ? e : new Error(String(e))
       console.error("Failed to apply lineart trace:", error)

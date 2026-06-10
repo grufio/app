@@ -37,6 +37,11 @@ export type TraceSurfaceScopeProps = {
    * configure dialog directly (skip the picker) and signal consume. */
   pendingKindOpen?: TraceKind | null
   onConsumePendingKindOpen?: () => void
+  /** Fired when the user cancels the configure dialog (X / Cancel /
+   * Escape / overlay click) — distinct from a successful Apply, which
+   * unmounts via `reset` and never reaches the cancel handler. The
+   * shell wires this to restore the mobile section to "artboard". */
+  onConfigureCancelled?: () => void
   // Mobile-only visibility toggles (rendered inside MobileTraceSheet).
   traceOverlayVisible: boolean
   previewBitmapVisible: boolean
@@ -86,6 +91,12 @@ export function TraceSurfaceScope(props: TraceSurfaceScopeProps) {
     setEditOpen(false)
   }, [traceDialog])
 
+  const { onConfigureCancelled } = props
+  const handleCloseConfigure = useCallback(() => {
+    traceDialog.closeConfigure()
+    onConfigureCancelled?.()
+  }, [traceDialog, onConfigureCancelled])
+
   return (
     <>
       <EditorTraceDialogHost
@@ -94,7 +105,7 @@ export function TraceSurfaceScope(props: TraceSurfaceScopeProps) {
         traceDialogSource={liveTraceDialogSource}
         onCloseSelection={traceDialog.closeSelection}
         onSelectKind={traceDialog.selectKind}
-        onCloseConfigure={traceDialog.closeConfigure}
+        onCloseConfigure={handleCloseConfigure}
         onApplied={handleApplied}
         onApplyTrace={props.onApplyTrace}
       />

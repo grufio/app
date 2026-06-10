@@ -488,6 +488,10 @@ export function ProjectDetailPageClient({
     [hasTrace, isMobile, setMobileSection, setPendingTraceKindOpen],
   )
 
+  const handleTraceConfigureCancelled = useCallback(() => {
+    if (isMobile) setMobileSection("artboard")
+  }, [isMobile, setMobileSection])
+
   const sectionLocks = useMemo(
     () => deriveSectionLocks({ hasFilter, hasTrace }),
     [hasFilter, hasTrace],
@@ -605,6 +609,7 @@ export function ProjectDetailPageClient({
                     onBeforeOpenSelection={closeLeftPanelOnTraceSelection}
                     pendingKindOpen={pendingTraceKindOpen}
                     onConsumePendingKindOpen={consumePendingTraceKindOpen}
+                    onConfigureCancelled={handleTraceConfigureCancelled}
                     traceOverlayVisible={traceOverlayVisible}
                     previewBitmapVisible={previewBitmapVisible}
                     numbersLayerVisible={numbersLayerVisible}
@@ -767,6 +772,7 @@ export function ProjectDetailPageClient({
             onClearTrace={handleClearTrace}
             pendingKindOpen={pendingTraceKindOpen}
             onConsumePendingKindOpen={consumePendingTraceKindOpen}
+            onConfigureCancelled={handleTraceConfigureCancelled}
             traceOverlayVisible={traceOverlayVisible}
             previewBitmapVisible={previewBitmapVisible}
             numbersLayerVisible={numbersLayerVisible}

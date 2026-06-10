@@ -114,7 +114,8 @@ describe("LineArtDialog (smoke)", () => {
     await waitFor(() => {
       expect(document.body.querySelector("#line_thickness")).not.toBeNull()
     })
-    expect(document.body.querySelector('[data-testid="lineart-preview-mini"]')).not.toBeNull()
+    // Preview pane is lazy on mobile — not mounted until the user taps Preview.
+    expect(document.body.querySelector('[data-testid="lineart-preview-mini"]')).toBeNull()
 
     const preview = Array.from(document.body.querySelectorAll("button")).find(
       (b) => b.textContent?.trim() === "Preview",
@@ -124,6 +125,7 @@ describe("LineArtDialog (smoke)", () => {
     await waitFor(() => {
       expect(document.body.querySelector("#line_thickness")).toBeNull()
     })
+    expect(document.body.querySelector('[data-testid="lineart-preview-mini"]')).not.toBeNull()
     expect(onApplyTrace).not.toHaveBeenCalled()
 
     const editIcon = document.body.querySelector(

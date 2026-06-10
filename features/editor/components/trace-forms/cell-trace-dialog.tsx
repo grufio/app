@@ -127,8 +127,10 @@ export function CellTraceDialog<P extends Record<string, unknown>, G extends Cel
         kind: traceKind,
         params: draft as Record<string, unknown>,
       })
+      // `onSuccess` resets the trace dialog state machine to idle
+      // which unmounts this component — calling `onClose` afterwards
+      // would also fire the cancel-path side effects (section reset).
       onSuccess()
-      onClose()
     } catch (e) {
       const error = e instanceof Error ? e : new Error(String(e))
       console.error("Failed to apply trace:", error)
