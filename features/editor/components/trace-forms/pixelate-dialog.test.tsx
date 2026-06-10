@@ -115,6 +115,41 @@ describe("PixelateDialog (smoke)", () => {
     expect(onDeleteTrace).toHaveBeenCalledTimes(1)
   })
 
+  it("seeds the form from initialParams and applies them unchanged (remembers settings)", async () => {
+    const onApplyTrace = vi.fn(async () => {})
+    render(
+      <PixelateDialog
+        open
+        sourceImageUrl="https://example.test/img.png"
+        displayMmW={100}
+        displayMmH={75}
+        onClose={() => {}}
+        onSuccess={() => {}}
+        onApplyTrace={onApplyTrace}
+        initialParams={{ supercell_width_mm: 7.5 }}
+      />,
+    )
+
+    // The form mounts seeded with the saved value — no user input — and
+    // applying it sends that value back, proving the draft was restored
+    // from initialParams rather than schema defaults.
+    await waitFor(() => {
+      expect(document.body.querySelector("#supercell_width_mm")).not.toBeNull()
+    })
+    const apply = Array.from(document.body.querySelectorAll("button")).find((b) =>
+      b.textContent?.trim().startsWith("Apply"),
+    ) as HTMLButtonElement
+    fireEvent.click(apply)
+    await waitFor(() => {
+      expect(onApplyTrace).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: "pixelate",
+          params: expect.objectContaining({ supercell_width_mm: 7.5 }),
+        }),
+      )
+    })
+  })
+
   it("mobile: the edit-overlay header exposes Delete trace when editing the active trace", async () => {
     window.matchMedia = ((query: string) =>
       ({

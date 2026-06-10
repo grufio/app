@@ -607,7 +607,7 @@ export function ProjectDetailPageClient({
                     isAddTraceDisabled={isAddTraceDisabled}
                     isClearingTrace={isClearingTrace}
                     isLoadingInitial={traceLoading}
-                    trace={trace ? { kind: trace.kind } : null}
+                    trace={trace ? { kind: trace.kind, params: trace.params } : null}
                     onClearTrace={handleClearTrace}
                     onBeforeOpenSelection={closeLeftPanelOnTraceSelection}
                     pendingKindOpen={pendingTraceKindOpen}
@@ -771,7 +771,7 @@ export function ProjectDetailPageClient({
             isAddTraceDisabled={isAddTraceDisabled}
             isClearingTrace={isClearingTrace}
             isLoadingInitial={traceLoading}
-            trace={trace ? { kind: trace.kind } : null}
+            trace={trace ? { kind: trace.kind, params: trace.params } : null}
             onClearTrace={handleClearTrace}
             pendingKindOpen={pendingTraceKindOpen}
             onConsumePendingKindOpen={consumePendingTraceKindOpen}

@@ -79,6 +79,9 @@ export type CellTraceDialogProps<P, G extends CellGridMetadata> = {
   /** Present only when editing the active trace — surfaces the Delete
    * action in the dialog header. */
   onDeleteTrace?: () => void
+  /** Saved params of the active trace; seeds the draft when editing
+   * (instead of schema defaults). */
+  initialParams?: Record<string, unknown>
 }
 
 function fmt1(n: number): string {
@@ -104,9 +107,13 @@ export function CellTraceDialog<P extends Record<string, unknown>, G extends Cel
     onSuccess,
     onApplyTrace,
     onDeleteTrace,
+    initialParams,
   } = props
 
-  const defaults = useMemo(() => schema.parse({}) as P, [schema])
+  // Seed from the active trace's saved params when editing (parsing
+  // fills any missing field with its default); schema defaults for the
+  // fresh-create flow.
+  const defaults = useMemo(() => schema.parse(initialParams ?? {}) as P, [schema, initialParams])
   const [draft, setDraft] = useState<P>(defaults)
   const [busy, setBusy] = useState(false)
 

@@ -42,6 +42,9 @@ export function EditorTraceDialogHost(props: {
    * dialog is then editing that active trace and shows a Delete action
    * in its header. Undefined for the new-trace flow. */
   onDeleteTrace?: () => void
+  /** Saved params of the active trace, used to seed the configure form
+   * when editing. Undefined for the new-trace flow (schema defaults). */
+  initialParams?: Record<string, unknown>
 }) {
   const {
     selectionOpen,
@@ -53,6 +56,7 @@ export function EditorTraceDialogHost(props: {
     onApplied,
     onApplyTrace,
     onDeleteTrace,
+    initialParams,
   } = props
 
   const configureOpen = Boolean(traceDialogSource && activeKind)
@@ -81,6 +85,7 @@ export function EditorTraceDialogHost(props: {
           onSuccess={onApplied}
           onApplyTrace={onApplyTrace}
           onDeleteTrace={onDeleteTrace}
+          initialParams={initialParams}
         />
       ) : null}
       {configureOpen && traceDialogSource && activeKind === "circulate" ? (
@@ -93,6 +98,7 @@ export function EditorTraceDialogHost(props: {
           onSuccess={onApplied}
           onApplyTrace={onApplyTrace}
           onDeleteTrace={onDeleteTrace}
+          initialParams={initialParams}
         />
       ) : null}
       {configureOpen && traceDialogSource && activeKind === "lineart" && isMobile ? (
@@ -105,6 +111,7 @@ export function EditorTraceDialogHost(props: {
           onSuccess={onApplied}
           onApplyTrace={onApplyTrace}
           onDeleteTrace={onDeleteTrace}
+          initialParams={initialParams}
         />
       ) : null}
       {configureOpen
@@ -124,6 +131,7 @@ export function EditorTraceDialogHost(props: {
           onSuccess={onApplied}
           onApplyTrace={onApplyTrace}
           onDeleteTrace={onDeleteTrace}
+          initialParams={initialParams}
         />
       ) : null}
     </>

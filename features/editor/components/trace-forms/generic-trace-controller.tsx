@@ -35,6 +35,9 @@ type GenericTraceControllerProps = {
   /** Present only when editing the active trace — renders a Delete
    * action in the dialog header. */
   onDeleteTrace?: () => void
+  /** Saved params of the active trace, used to seed the form when
+   * editing (instead of schema defaults). */
+  initialParams?: Record<string, unknown>
 }
 
 export function GenericTraceController({
@@ -46,6 +49,7 @@ export function GenericTraceController({
   onError,
   onApplyTrace,
   onDeleteTrace,
+  initialParams,
 }: GenericTraceControllerProps) {
   // Each registry entry has a different schema type, so the lookup
   // returns a heterogeneous union. Erase the per-trace schema generic
@@ -89,6 +93,7 @@ export function GenericTraceController({
           ctx={ctx}
           busy={busy}
           applyingLabel={applyingLabel}
+          initialParams={initialParams}
           onCancel={onCancel}
           onApply={(params) => {
             void onApply(params as Record<string, unknown>)
