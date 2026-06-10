@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { cleanup, fireEvent, render } from "@testing-library/react"
+import { cleanup, fireEvent, render, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { EditorTopLeftBar } from "./editor-top-left-bar"
@@ -113,7 +113,7 @@ describe("EditorTopLeftBar", () => {
     expect(queryByLabelText("Lineart")).toBeNull()
   })
 
-  it("shows a Delete-trace circle next to the active kind and clears the trace", () => {
+  it("shows a Delete-trace circle next to the active kind and clears the trace", async () => {
     const onDeleteTrace = vi.fn()
     const { getByLabelText, queryByLabelText } = render(
       <EditorTopLeftBar activeTraceKind="circulate" onDeleteTrace={onDeleteTrace} />,
@@ -125,8 +125,38 @@ describe("EditorTopLeftBar", () => {
     expect(del).not.toBeNull()
     fireEvent.click(del)
     expect(onDeleteTrace).toHaveBeenCalledTimes(1)
-    // Tapping delete closes the menu.
-    expect(queryByLabelText("Circulate")).toBeNull()
+    // The clear is async — the menu closes once it resolves.
+    await waitFor(() => {
+      expect(queryByLabelText("Circulate")).toBeNull()
+    })
+  })
+
+  it("spins the Delete circle (disabled) while the clear is in flight", async () => {
+    let resolveDelete: () => void = () => {}
+    const onDeleteTrace = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveDelete = resolve
+        }),
+    )
+    const { getByLabelText, queryByLabelText } = render(
+      <EditorTopLeftBar activeTraceKind="pixelate" onDeleteTrace={onDeleteTrace} />,
+    )
+    fireEvent.click(getByLabelText("Add trace"))
+    const del = getByLabelText("Delete trace") as HTMLButtonElement
+    fireEvent.click(del)
+
+    // In flight: spinner shown + button disabled.
+    await waitFor(() => {
+      expect(del.querySelector(".animate-spin")).not.toBeNull()
+    })
+    expect(del.disabled).toBe(true)
+
+    // Resolve → the menu closes (Delete circle leaves the DOM).
+    resolveDelete()
+    await waitFor(() => {
+      expect(queryByLabelText("Delete trace")).toBeNull()
+    })
   })
 
   it("does not show the Delete-trace circle in the no-trace 3-kind picker", () => {
