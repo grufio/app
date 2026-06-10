@@ -79,20 +79,16 @@ const TRACE_KIND_ITEMS: TraceKindItem[] = [
 type Props = {
   activeSection?: MobileSection | null
   onSectionTap?: (section: MobileSection) => void
-  /** When true, the trace sub-pill items are inert (visually
-   * disabled, no callback fired). Re-edit of an existing trace
-   * happens through the per-surface controls, not this bar. */
-  hasTrace?: boolean
-  /** Fired when the user picks a trace kind from the sub-pill while
-   * `hasTrace` is false. The shell wires this to open the matching
-   * configure dialog directly, bypassing the kind picker. */
+  /** Fired when the user picks a trace kind from the sub-pill. The
+   * shell wires this to open the matching configure dialog directly,
+   * bypassing the kind picker. Always live — the bar does not gate
+   * on existing-trace state. */
   onTraceKindTap?: (kind: RegisteredTraceId) => void
 }
 
 export function EditorTopLeftBar({
   activeSection = null,
   onSectionTap,
-  hasTrace = false,
   onTraceKindTap,
 }: Props) {
   const [traceSubOpen, setTraceSubOpen] = useState(false)
@@ -138,15 +134,10 @@ export function EditorTopLeftBar({
                       <ToolbarIconButton
                         key={kindKey}
                         label={kindLabel}
-                        disabled={hasTrace}
-                        onClick={
-                          hasTrace
-                            ? undefined
-                            : () => {
-                                setTraceSubOpen(false)
-                                onTraceKindTap?.(kindKey)
-                              }
-                        }
+                        onClick={() => {
+                          setTraceSubOpen(false)
+                          onTraceKindTap?.(kindKey)
+                        }}
                       >
                         <KindIcon aria-hidden="true" className="size-6" />
                       </ToolbarIconButton>

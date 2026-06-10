@@ -481,11 +481,10 @@ export function ProjectDetailPageClient({
 
   const handleTraceKindTap = useCallback(
     (kind: RegisteredTraceId) => {
-      if (hasTrace) return
       setPendingTraceKindOpen(kind)
       if (isMobile) setMobileSection("trace")
     },
-    [hasTrace, isMobile, setMobileSection, setPendingTraceKindOpen],
+    [isMobile, setMobileSection, setPendingTraceKindOpen],
   )
 
   const handleTraceConfigureCancelled = useCallback(() => {
@@ -704,7 +703,6 @@ export function ProjectDetailPageClient({
         <EditorTopLeftBar
           activeSection={mobileSection}
           onSectionTap={handleMobileNavTap}
-          hasTrace={hasTrace}
           onTraceKindTap={handleTraceKindTap}
         />
         {isMobile && mobileSection === "artboard" ? (
