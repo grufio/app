@@ -150,6 +150,54 @@ describe("PixelateDialog (smoke)", () => {
     })
   })
 
+  it("desktop: spins the Delete action and disables Apply while the clear runs", async () => {
+    let resolveDelete: () => void = () => {}
+    const onDeleteTrace = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveDelete = resolve
+        }),
+    )
+    render(
+      <PixelateDialog
+        open
+        sourceImageUrl="https://example.test/img.png"
+        displayMmW={100}
+        displayMmH={75}
+        onClose={() => {}}
+        onSuccess={() => {}}
+        onApplyTrace={async () => {}}
+        onDeleteTrace={onDeleteTrace}
+      />,
+    )
+
+    const del = await waitFor(() => {
+      const el = document.body.querySelector(
+        'button[aria-label="Delete trace"]',
+      ) as HTMLButtonElement | null
+      if (!el) throw new Error("delete button not mounted")
+      return el
+    })
+
+    fireEvent.click(del)
+
+    // The clear is in flight: Delete shows a spinner (mirrors Apply's
+    // Check → Loader2) and Apply is disabled so it can't race.
+    await waitFor(() => {
+      expect(del.querySelector(".animate-spin")).not.toBeNull()
+    })
+    const apply = Array.from(document.body.querySelectorAll("button")).find((b) =>
+      b.textContent?.trim().startsWith("Apply"),
+    ) as HTMLButtonElement
+    expect(apply.hasAttribute("disabled")).toBe(true)
+
+    // Settle: once the clear resolves, the spinner clears.
+    resolveDelete()
+    await waitFor(() => {
+      expect(del.querySelector(".animate-spin")).toBeNull()
+    })
+  })
+
   it("mobile: the edit-overlay header exposes Delete trace when editing the active trace", async () => {
     window.matchMedia = ((query: string) =>
       ({

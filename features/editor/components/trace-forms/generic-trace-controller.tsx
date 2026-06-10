@@ -10,8 +10,9 @@
  * with the trace context (image dims + inherited Pixelate
  * superpixel grid).
  */
+import { useState } from "react"
 import type { z } from "zod"
-import { Trash2 } from "lucide-react"
+import { Loader2, Trash2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { TRACE_REGISTRY, type RegisteredTraceId } from "@/lib/editor/trace/registry"
@@ -34,7 +35,7 @@ type GenericTraceControllerProps = {
   }) => Promise<void>
   /** Present only when editing the active trace — renders a Delete
    * action in the dialog header. */
-  onDeleteTrace?: () => void
+  onDeleteTrace?: () => void | Promise<void>
   /** Saved params of the active trace, used to seed the form when
    * editing (instead of schema defaults). */
   initialParams?: Record<string, unknown>
@@ -62,6 +63,20 @@ export function GenericTraceController({
   // controller.
   const applyingLabel = kind === "lineart" ? "Processing..." : undefined
 
+  // Delete spinner (mirrors the Apply busy state): keep the dialog up
+  // with a Loader2 on the Delete button until the async clear resolves
+  // and the surface dismisses, so it doesn't switch back too early.
+  const [deleting, setDeleting] = useState(false)
+  const handleDelete = async () => {
+    if (deleting || !onDeleteTrace) return
+    setDeleting(true)
+    try {
+      await onDeleteTrace()
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   return (
     <BaseFilterController<Record<string, unknown>>
       open={open}
@@ -71,15 +86,20 @@ export function GenericTraceController({
       title={title}
       description={description}
       headerAction={
-        onDeleteTrace ? (
+        onDeleteTrace || deleting ? (
           <Button
             type="button"
             variant="ghost"
             size="icon"
-            onClick={onDeleteTrace}
+            onClick={() => void handleDelete()}
+            disabled={deleting}
             aria-label="Delete trace"
           >
-            <Trash2 className="size-4" />
+            {deleting ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Trash2 className="size-4" />
+            )}
           </Button>
         ) : undefined
       }

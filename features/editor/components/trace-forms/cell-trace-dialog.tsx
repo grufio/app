@@ -78,7 +78,7 @@ export type CellTraceDialogProps<P, G extends CellGridMetadata> = {
   }) => Promise<void>
   /** Present only when editing the active trace — surfaces the Delete
    * action in the dialog header. */
-  onDeleteTrace?: () => void
+  onDeleteTrace?: () => void | Promise<void>
   /** Saved params of the active trace; seeds the draft when editing
    * (instead of schema defaults). */
   initialParams?: Record<string, unknown>

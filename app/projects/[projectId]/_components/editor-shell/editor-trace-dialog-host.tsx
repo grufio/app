@@ -41,7 +41,7 @@ export function EditorTraceDialogHost(props: {
   /** Present only when a trace is already applied — the configure
    * dialog is then editing that active trace and shows a Delete action
    * in its header. Undefined for the new-trace flow. */
-  onDeleteTrace?: () => void
+  onDeleteTrace?: () => void | Promise<void>
   /** Saved params of the active trace, used to seed the configure form
    * when editing. Undefined for the new-trace flow (schema defaults). */
   initialParams?: Record<string, unknown>
