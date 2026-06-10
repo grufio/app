@@ -38,6 +38,10 @@ export function EditorTraceDialogHost(props: {
     kind: RegisteredTraceId
     params: Record<string, unknown>
   }) => Promise<void>
+  /** Present only when a trace is already applied — the configure
+   * dialog is then editing that active trace and shows a Delete action
+   * in its header. Undefined for the new-trace flow. */
+  onDeleteTrace?: () => void
 }) {
   const {
     selectionOpen,
@@ -48,6 +52,7 @@ export function EditorTraceDialogHost(props: {
     onCloseConfigure,
     onApplied,
     onApplyTrace,
+    onDeleteTrace,
   } = props
 
   const configureOpen = Boolean(traceDialogSource && activeKind)
@@ -75,6 +80,7 @@ export function EditorTraceDialogHost(props: {
           onClose={onCloseConfigure}
           onSuccess={onApplied}
           onApplyTrace={onApplyTrace}
+          onDeleteTrace={onDeleteTrace}
         />
       ) : null}
       {configureOpen && traceDialogSource && activeKind === "circulate" ? (
@@ -86,6 +92,7 @@ export function EditorTraceDialogHost(props: {
           onClose={onCloseConfigure}
           onSuccess={onApplied}
           onApplyTrace={onApplyTrace}
+          onDeleteTrace={onDeleteTrace}
         />
       ) : null}
       {configureOpen && traceDialogSource && activeKind === "lineart" && isMobile ? (
@@ -97,6 +104,7 @@ export function EditorTraceDialogHost(props: {
           onClose={onCloseConfigure}
           onSuccess={onApplied}
           onApplyTrace={onApplyTrace}
+          onDeleteTrace={onDeleteTrace}
         />
       ) : null}
       {configureOpen
@@ -115,6 +123,7 @@ export function EditorTraceDialogHost(props: {
           onClose={onCloseConfigure}
           onSuccess={onApplied}
           onApplyTrace={onApplyTrace}
+          onDeleteTrace={onDeleteTrace}
         />
       ) : null}
     </>

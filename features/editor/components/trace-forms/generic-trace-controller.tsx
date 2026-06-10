@@ -11,7 +11,9 @@
  * superpixel grid).
  */
 import type { z } from "zod"
+import { Trash2 } from "lucide-react"
 
+import { Button } from "@/components/ui/button"
 import { TRACE_REGISTRY, type RegisteredTraceId } from "@/lib/editor/trace/registry"
 import type { TraceRenderContext } from "@/lib/editor/trace/types"
 import type { FilterDefinition } from "@/lib/editor/filters/types"
@@ -30,6 +32,9 @@ type GenericTraceControllerProps = {
     kind: RegisteredTraceId
     params: Record<string, unknown>
   }) => Promise<void>
+  /** Present only when editing the active trace — renders a Delete
+   * action in the dialog header. */
+  onDeleteTrace?: () => void
 }
 
 export function GenericTraceController({
@@ -40,6 +45,7 @@ export function GenericTraceController({
   onSuccess,
   onError,
   onApplyTrace,
+  onDeleteTrace,
 }: GenericTraceControllerProps) {
   // Each registry entry has a different schema type, so the lookup
   // returns a heterogeneous union. Erase the per-trace schema generic
@@ -60,6 +66,19 @@ export function GenericTraceController({
       onError={onError}
       title={title}
       description={description}
+      headerAction={
+        onDeleteTrace ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={onDeleteTrace}
+            aria-label="Delete trace"
+          >
+            <Trash2 className="size-4" />
+          </Button>
+        ) : undefined
+      }
       applyFilter={async (data) => {
         await onApplyTrace({ kind, params: data })
       }}

@@ -31,6 +31,7 @@ type Props = {
     kind: RegisteredTraceId
     params: Record<string, unknown>
   }) => Promise<void>
+  onDeleteTrace?: () => void
 }
 
 function fmt1(n: number): string {
@@ -45,6 +46,7 @@ export function LineArtDialog({
   onClose,
   onSuccess,
   onApplyTrace,
+  onDeleteTrace,
 }: Props) {
   const defaults = useMemo(() => lineartSchema.parse({}) as LineartParams, [])
   const [draft, setDraft] = useState<LineartParams>(defaults)
@@ -101,6 +103,7 @@ export function LineArtDialog({
       busy={busy}
       onCancel={handleCancel}
       onApply={() => void handleApply()}
+      onDeleteTrace={onDeleteTrace}
     />
   )
 }

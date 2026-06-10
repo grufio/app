@@ -36,7 +36,7 @@
  * commits the trace.
  */
 import { useState, type ReactNode } from "react"
-import { Check, Loader2, Pencil, X } from "lucide-react"
+import { Check, Loader2, Pencil, Trash2, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -71,6 +71,10 @@ type Props = {
   busy: boolean
   onCancel: () => void
   onApply: () => void
+  /** When set, the active trace is being edited — renders a Delete
+   * (Trash2) action in every header variant that removes the trace and
+   * closes the dialog. Omitted for the new-trace flow (no icon). */
+  onDeleteTrace?: () => void
 }
 
 export function TraceDialogShell({
@@ -84,6 +88,7 @@ export function TraceDialogShell({
   busy,
   onCancel,
   onApply,
+  onDeleteTrace,
 }: Props) {
   const isMobile = useIsMobile()
   // Settings first: the mobile dialog opens on the params overlay; "Preview"
@@ -124,6 +129,18 @@ export function TraceDialogShell({
           <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
             <span className="text-sm font-medium">{title}</span>
             <div className="ml-auto flex items-center gap-2">
+              {onDeleteTrace ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={onDeleteTrace}
+                  disabled={busy}
+                  aria-label="Delete trace"
+                >
+                  <Trash2 className="size-4" />
+                </Button>
+              ) : null}
               <Button
                 type="button"
                 variant="outline"
@@ -171,17 +188,30 @@ export function TraceDialogShell({
             <div className="absolute inset-0 z-10 flex flex-col bg-background">
               <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
                 <span className="text-sm font-medium">{title}</span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="ml-auto"
-                  onClick={onCancel}
-                  disabled={busy}
-                  aria-label="Close"
-                >
-                  <X className="size-4" />
-                </Button>
+                <div className="ml-auto flex items-center gap-2">
+                  {onDeleteTrace ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={onDeleteTrace}
+                      disabled={busy}
+                      aria-label="Delete trace"
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  ) : null}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={onCancel}
+                    disabled={busy}
+                    aria-label="Close"
+                  >
+                    <X className="size-4" />
+                  </Button>
+                </div>
               </header>
               {/* Borderless, full-width scroll column: the form's
                   `EditorSidebarSection`s own their `px-4 py-3` + full-width
@@ -253,6 +283,19 @@ export function TraceDialogShell({
         <div className="flex h-full min-h-0 flex-col">
           <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
             <span className="text-sm font-medium">{title}</span>
+            {onDeleteTrace ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="ml-auto"
+                onClick={onDeleteTrace}
+                disabled={busy}
+                aria-label="Delete trace"
+              >
+                <Trash2 className="size-4" />
+              </Button>
+            ) : null}
           </header>
 
           {/* SidebarProvider defaults to `min-h-svh`; override to `min-h-0` so

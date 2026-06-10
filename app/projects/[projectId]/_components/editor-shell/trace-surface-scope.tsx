@@ -97,6 +97,14 @@ export function TraceSurfaceScope(props: TraceSurfaceScopeProps) {
     onConfigureCancelled?.()
   }, [traceDialog, onConfigureCancelled])
 
+  // Delete from inside the active trace's configure dialog: clear the
+  // trace (async, self-toasting) and dismiss the dialog like a cancel.
+  const { onClearTrace } = props
+  const handleDeleteTrace = useCallback(() => {
+    onClearTrace()
+    handleCloseConfigure()
+  }, [onClearTrace, handleCloseConfigure])
+
   return (
     <>
       <EditorTraceDialogHost
@@ -108,6 +116,7 @@ export function TraceSurfaceScope(props: TraceSurfaceScopeProps) {
         onCloseConfigure={handleCloseConfigure}
         onApplied={handleApplied}
         onApplyTrace={props.onApplyTrace}
+        onDeleteTrace={props.trace !== null ? handleDeleteTrace : undefined}
       />
       {props.intent === "desktop" ? (
         <TraceSidebarSection

@@ -77,6 +77,83 @@ describe("PixelateDialog (smoke)", () => {
     expect(apply).toBeTruthy()
   })
 
+  it("desktop: renders a Delete trace action in the header only when onDeleteTrace is set, and it fires", async () => {
+    const onDeleteTrace = vi.fn()
+    const { rerender } = render(
+      <PixelateDialog
+        open
+        sourceImageUrl="https://example.test/img.png"
+        displayMmW={100}
+        displayMmH={75}
+        onClose={() => {}}
+        onSuccess={() => {}}
+        onApplyTrace={async () => {}}
+      />,
+    )
+
+    // New-trace flow: no delete affordance in the header.
+    expect(document.body.querySelector('button[aria-label="Delete trace"]')).toBeNull()
+
+    // Editing the active trace: the header surfaces Delete.
+    rerender(
+      <PixelateDialog
+        open
+        sourceImageUrl="https://example.test/img.png"
+        displayMmW={100}
+        displayMmH={75}
+        onClose={() => {}}
+        onSuccess={() => {}}
+        onApplyTrace={async () => {}}
+        onDeleteTrace={onDeleteTrace}
+      />,
+    )
+    const del = document.body.querySelector(
+      'button[aria-label="Delete trace"]',
+    ) as HTMLButtonElement
+    expect(del).toBeTruthy()
+    fireEvent.click(del)
+    expect(onDeleteTrace).toHaveBeenCalledTimes(1)
+  })
+
+  it("mobile: the edit-overlay header exposes Delete trace when editing the active trace", async () => {
+    window.matchMedia = ((query: string) =>
+      ({
+        matches: true,
+        media: query,
+        onchange: null,
+        addListener: () => {},
+        removeListener: () => {},
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }) as unknown as MediaQueryList) as typeof window.matchMedia
+
+    const onDeleteTrace = vi.fn()
+    render(
+      <PixelateDialog
+        open
+        sourceImageUrl="https://example.test/img.png"
+        displayMmW={100}
+        displayMmH={75}
+        onClose={() => {}}
+        onSuccess={() => {}}
+        onApplyTrace={async () => {}}
+        onDeleteTrace={onDeleteTrace}
+      />,
+    )
+
+    // Mobile opens on the edit overlay (params); its header carries Delete.
+    await waitFor(() => {
+      expect(document.body.querySelector("#supercell_width_mm")).not.toBeNull()
+    })
+    const del = document.body.querySelector(
+      'button[aria-label="Delete trace"]',
+    ) as HTMLButtonElement
+    expect(del).toBeTruthy()
+    fireEvent.click(del)
+    expect(onDeleteTrace).toHaveBeenCalledTimes(1)
+  })
+
   it("mobile: opens on params; Preview reveals preview; pencil re-opens; apply icon fires the trace", async () => {
     window.matchMedia = ((query: string) =>
       ({
