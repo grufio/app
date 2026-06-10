@@ -39,7 +39,10 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { cn } from "@/lib/utils"
 
+import { useEditorToolbarTone } from "./editor-toolbar-tone"
+import { pillClass } from "./floating-bar-styles"
 import { ToolbarIconButton } from "./toolbar-icon-button"
 
 export type MobileTopRightBarViewOptions = {
@@ -67,29 +70,26 @@ type Props = {
 
 export function MobileTopRightBar({ onEditTap, ariaLabelEdit = "Edit", viewOptions, desktop = false }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const tone = useEditorToolbarTone()
 
   // Nothing to show without an Edit trigger or a view-options menu.
   if (!onEditTap && !viewOptions) return null
 
-  // Two buttons → match the bottom floating-toolbar's `gap-3 px-2 py-1`.
-  // A single button → `p-1` (40 × 40 square).
+  // Two buttons → the `group` pill (gap-3 px-2 py-1); a single button →
+  // the `single` pill (p-1, 40 × 40 square).
   const multi = Boolean(viewOptions) && Boolean(onEditTap)
 
   return (
     <div
       role="toolbar"
       aria-label="Editor actions"
-      className={
+      className={cn(
+        pillClass(tone, multi ? "group" : "single"),
+        "absolute top-3 right-3 z-20",
         // `md:hidden` only when NOT desktop — the unified editor surfaces
         // keep the bar on `md+`.
-        [
-          "absolute top-3 right-3 z-20 inline-flex items-center rounded-lg bg-zinc-900/95 shadow-lg ring-1 ring-white/10 backdrop-blur",
-          multi ? "gap-3 px-2 py-1" : "p-1",
-          desktop ? "" : "md:hidden",
-        ]
-          .filter(Boolean)
-          .join(" ")
-      }
+        desktop ? "" : "md:hidden",
+      )}
     >
       {viewOptions ? (
         <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
