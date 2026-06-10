@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/dialog"
 import { AppButton } from "@/components/ui/form-controls"
 import { displayTxToMm } from "@/lib/editor/trace/display-tx-to-mm"
+import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
 import { useDisplaySize } from "@/lib/editor/hooks/use-display-size"
 import { useDedupingErrorToast } from "@/lib/editor/hooks/use-deduping-error-toast"
 import { useFilterStackActions } from "@/lib/editor/hooks/use-filter-stack-actions"
@@ -138,6 +139,7 @@ export function ProjectDetailPageClient({
     selectedNavId,
     setSelectedNavId,
     mobileSection,
+    setMobileSection,
     handleMobileNavTap,
     leftPanelOpen,
     setLeftPanelOpen,
@@ -146,6 +148,9 @@ export function ProjectDetailPageClient({
     setRightPanelOpen,
     handleToggleRightPanel,
     closeLeftPanelOnTraceSelection,
+    pendingTraceKindOpen,
+    setPendingTraceKindOpen,
+    consumePendingTraceKindOpen,
   } = usePanelUIState()
   const canvasRef = useRef<ProjectCanvasStageHandle | null>(null)
   const lastNoWorkingImageMetricRef = useRef("")
@@ -473,6 +478,16 @@ export function ProjectDetailPageClient({
   // cascade-delete behind an unlock is wired below.
   const hasFilter = filterStack.length > 0
   const hasTrace = Boolean(trace)
+
+  const handleTraceKindTap = useCallback(
+    (kind: RegisteredTraceId) => {
+      if (hasTrace) return
+      setPendingTraceKindOpen(kind)
+      if (isMobile) setMobileSection("trace")
+    },
+    [hasTrace, isMobile, setMobileSection, setPendingTraceKindOpen],
+  )
+
   const sectionLocks = useMemo(
     () => deriveSectionLocks({ hasFilter, hasTrace }),
     [hasFilter, hasTrace],
@@ -588,6 +603,8 @@ export function ProjectDetailPageClient({
                     trace={trace ? { kind: trace.kind } : null}
                     onClearTrace={handleClearTrace}
                     onBeforeOpenSelection={closeLeftPanelOnTraceSelection}
+                    pendingKindOpen={pendingTraceKindOpen}
+                    onConsumePendingKindOpen={consumePendingTraceKindOpen}
                     traceOverlayVisible={traceOverlayVisible}
                     previewBitmapVisible={previewBitmapVisible}
                     numbersLayerVisible={numbersLayerVisible}
@@ -682,6 +699,8 @@ export function ProjectDetailPageClient({
         <EditorTopLeftBar
           activeSection={mobileSection}
           onSectionTap={handleMobileNavTap}
+          hasTrace={hasTrace}
+          onTraceKindTap={handleTraceKindTap}
         />
         {isMobile && mobileSection === "artboard" ? (
           <ArtboardSurfaceScope
@@ -746,6 +765,8 @@ export function ProjectDetailPageClient({
             isLoadingInitial={traceLoading}
             trace={trace ? { kind: trace.kind } : null}
             onClearTrace={handleClearTrace}
+            pendingKindOpen={pendingTraceKindOpen}
+            onConsumePendingKindOpen={consumePendingTraceKindOpen}
             traceOverlayVisible={traceOverlayVisible}
             previewBitmapVisible={previewBitmapVisible}
             numbersLayerVisible={numbersLayerVisible}

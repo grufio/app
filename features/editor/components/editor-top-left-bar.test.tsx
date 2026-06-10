@@ -71,6 +71,49 @@ describe("EditorTopLeftBar", () => {
     expect(queryByLabelText("Pixelate")).toBeNull()
   })
 
+  it("invokes onTraceKindTap with the picked kind and closes the sub-pill when hasTrace is false", () => {
+    const onTraceKindTap = vi.fn()
+    const { getByLabelText, queryByLabelText } = render(
+      <EditorTopLeftBar onTraceKindTap={onTraceKindTap} />,
+    )
+    fireEvent.click(getByLabelText("Trace"))
+    fireEvent.click(getByLabelText("Pixelate"))
+    expect(onTraceKindTap).toHaveBeenLastCalledWith("pixelate")
+    expect(queryByLabelText("Pixelate")).toBeNull()
+    fireEvent.click(getByLabelText("Trace"))
+    fireEvent.click(getByLabelText("Circulate"))
+    expect(onTraceKindTap).toHaveBeenLastCalledWith("circulate")
+    fireEvent.click(getByLabelText("Trace"))
+    fireEvent.click(getByLabelText("Lineart"))
+    expect(onTraceKindTap).toHaveBeenLastCalledWith("lineart")
+    expect(onTraceKindTap).toHaveBeenCalledTimes(3)
+  })
+
+  it("disables sub-pill items and skips onTraceKindTap when hasTrace is true", () => {
+    const onTraceKindTap = vi.fn()
+    const { getByLabelText } = render(
+      <EditorTopLeftBar hasTrace onTraceKindTap={onTraceKindTap} />,
+    )
+    fireEvent.click(getByLabelText("Trace"))
+    const pixelate = getByLabelText("Pixelate") as HTMLButtonElement
+    expect(pixelate.disabled).toBe(true)
+    fireEvent.click(pixelate)
+    expect(onTraceKindTap).not.toHaveBeenCalled()
+  })
+
+  it("closes the sub-pill when the user clicks outside", () => {
+    const { getByLabelText, queryByLabelText } = render(
+      <div>
+        <EditorTopLeftBar />
+        <button type="button" aria-label="outside">outside</button>
+      </div>,
+    )
+    fireEvent.click(getByLabelText("Trace"))
+    expect(getByLabelText("Pixelate")).not.toBeNull()
+    fireEvent.pointerDown(getByLabelText("outside"))
+    expect(queryByLabelText("Pixelate")).toBeNull()
+  })
+
   it("renders Home and section group as two separate pill containers", () => {
     const { container } = render(<EditorTopLeftBar />)
     const pills = container.querySelectorAll(":scope > div > div")

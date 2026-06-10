@@ -24,7 +24,7 @@
  * of scope for this bar.
  */
 import Link from "next/link"
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import {
   CircleDot,
   Frame,
@@ -37,6 +37,7 @@ import {
 } from "lucide-react"
 
 import type { MobileSection } from "@/lib/editor/mobile-sections"
+import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
 
 import { ToolbarIconButton } from "./toolbar-icon-button"
 
@@ -67,7 +68,7 @@ const SECTION_ITEMS: SectionItem[] = [
   { key: "colors", label: "Color", Icon: Palette },
 ]
 
-type TraceKindItem = { key: string; label: string; Icon: LucideIcon }
+type TraceKindItem = { key: RegisteredTraceId; label: string; Icon: LucideIcon }
 
 const TRACE_KIND_ITEMS: TraceKindItem[] = [
   { key: "pixelate", label: "Pixelate", Icon: Grid3x3 },
@@ -78,10 +79,35 @@ const TRACE_KIND_ITEMS: TraceKindItem[] = [
 type Props = {
   activeSection?: MobileSection | null
   onSectionTap?: (section: MobileSection) => void
+  /** When true, the trace sub-pill items are inert (visually
+   * disabled, no callback fired). Re-edit of an existing trace
+   * happens through the per-surface controls, not this bar. */
+  hasTrace?: boolean
+  /** Fired when the user picks a trace kind from the sub-pill while
+   * `hasTrace` is false. The shell wires this to open the matching
+   * configure dialog directly, bypassing the kind picker. */
+  onTraceKindTap?: (kind: RegisteredTraceId) => void
 }
 
-export function EditorTopLeftBar({ activeSection = null, onSectionTap }: Props) {
+export function EditorTopLeftBar({
+  activeSection = null,
+  onSectionTap,
+  hasTrace = false,
+  onTraceKindTap,
+}: Props) {
   const [traceSubOpen, setTraceSubOpen] = useState(false)
+  const traceWrapperRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!traceSubOpen) return
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null
+      if (target && traceWrapperRef.current?.contains(target)) return
+      setTraceSubOpen(false)
+    }
+    document.addEventListener("pointerdown", onPointerDown)
+    return () => document.removeEventListener("pointerdown", onPointerDown)
+  }, [traceSubOpen])
 
   return (
     <div className="absolute top-3 left-3 z-20 flex items-center gap-3">
@@ -96,7 +122,7 @@ export function EditorTopLeftBar({ activeSection = null, onSectionTap }: Props) 
         {SECTION_ITEMS.map(({ key, label, Icon }) => {
           if (key === "trace") {
             return (
-              <div key={key} className="relative">
+              <div key={key} ref={traceWrapperRef} className="relative">
                 <ToolbarIconButton
                   label={label}
                   active={traceSubOpen}
@@ -109,7 +135,19 @@ export function EditorTopLeftBar({ activeSection = null, onSectionTap }: Props) 
                     className={`${PILL_SUB} absolute top-full left-1/2 mt-2 -translate-x-1/2`}
                   >
                     {TRACE_KIND_ITEMS.map(({ key: kindKey, label: kindLabel, Icon: KindIcon }) => (
-                      <ToolbarIconButton key={kindKey} label={kindLabel}>
+                      <ToolbarIconButton
+                        key={kindKey}
+                        label={kindLabel}
+                        disabled={hasTrace}
+                        onClick={
+                          hasTrace
+                            ? undefined
+                            : () => {
+                                setTraceSubOpen(false)
+                                onTraceKindTap?.(kindKey)
+                              }
+                        }
+                      >
                         <KindIcon aria-hidden="true" className="size-6" />
                       </ToolbarIconButton>
                     ))}

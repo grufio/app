@@ -19,6 +19,7 @@ import { useCallback, useState } from "react"
 
 import { buildNavId } from "@/features/editor/navigation/nav-id"
 import type { MobileSection } from "@/lib/editor/mobile-sections"
+import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
 
 export function usePanelUIState() {
   const [gridVisible, setGridVisible] = useState(true)
@@ -28,9 +29,19 @@ export function usePanelUIState() {
   const [mobileSection, setMobileSection] = useState<MobileSection>("artboard")
   const [leftPanelOpen, setLeftPanelOpen] = useState(false)
   const [rightPanelOpen, setRightPanelOpen] = useState(false)
+  // Cross-mount channel: the EditorTopLeftBar trace sub-pill sets a
+  // pending kind when the user picks Pixelate / Circulate / Lineart
+  // from outside the trace surface. The TraceSurfaceScope reads it on
+  // mount (mobile) or next render (desktop, always mounted) and opens
+  // the matching configure dialog, then clears via the consume cb.
+  const [pendingTraceKindOpen, setPendingTraceKindOpen] = useState<RegisteredTraceId | null>(null)
 
   const handleMobileNavTap = useCallback((section: MobileSection) => {
     setMobileSection(section)
+  }, [])
+
+  const consumePendingTraceKindOpen = useCallback(() => {
+    setPendingTraceKindOpen(null)
   }, [])
 
   const handleToggleLeftPanel = useCallback(() => {
@@ -55,6 +66,7 @@ export function usePanelUIState() {
     selectedNavId,
     setSelectedNavId,
     mobileSection,
+    setMobileSection,
     handleMobileNavTap,
     leftPanelOpen,
     setLeftPanelOpen,
@@ -63,5 +75,8 @@ export function usePanelUIState() {
     setRightPanelOpen,
     handleToggleRightPanel,
     closeLeftPanelOnTraceSelection,
+    pendingTraceKindOpen,
+    setPendingTraceKindOpen,
+    consumePendingTraceKindOpen,
   }
 }

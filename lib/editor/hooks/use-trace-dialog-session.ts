@@ -46,6 +46,14 @@ export function useTraceDialogSession(sourceImage: TraceDialogSourceImage | null
     dispatch({ type: "selectKind", kind })
   }, [])
 
+  const openKind = useCallback(
+    (kind: TraceKind) => {
+      if (!beginSelection()) return
+      selectKind(kind)
+    },
+    [beginSelection, selectKind],
+  )
+
   const closeConfigure = useCallback(() => {
     dispatch({ type: "closeConfigure" })
   }, [])
@@ -70,6 +78,7 @@ export function useTraceDialogSession(sourceImage: TraceDialogSourceImage | null
       beginSelection,
       closeSelection,
       selectKind,
+      openKind,
       closeConfigure,
       reset,
     }),
@@ -79,6 +88,7 @@ export function useTraceDialogSession(sourceImage: TraceDialogSourceImage | null
       closeConfigure,
       closeSelection,
       error,
+      openKind,
       reset,
       selectionOpen,
       selectKind,
