@@ -39,13 +39,13 @@ describe("useToolbarTone", () => {
     rerender(<ToneProbe L={0.9} />)
     expect(tone()).toBe("dark") // bright image → dark bars
 
-    rerender(<ToneProbe L={0.1} />)
-    expect(tone()).toBe("light") // dark image → light bars
+    rerender(<ToneProbe L={0.4} />)
+    expect(tone()).toBe("light") // dark/mid image → light bars
 
-    rerender(<ToneProbe L={0.5} />)
-    expect(tone()).toBe("light") // inside the deadband → holds light
+    rerender(<ToneProbe L={0.62} />)
+    expect(tone()).toBe("light") // inside the deadband (0.6–0.68) → holds light
 
-    rerender(<ToneProbe L={0.6} />)
-    expect(tone()).toBe("dark") // above 0.55 → flips back to dark
+    rerender(<ToneProbe L={0.75} />)
+    expect(tone()).toBe("dark") // above 0.68 → flips back to dark
   })
 })
