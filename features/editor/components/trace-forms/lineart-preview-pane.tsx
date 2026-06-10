@@ -96,10 +96,13 @@ export function LineArtPreviewPane({ sourceImageUrl, displayMmW, displayMmH, par
     return kMeansOklab(blurred, params.num_colors, KMEANS_MAX_ITER)
   }, [blurred, params.num_colors])
 
-  // Stage 4: snap centroids to the active Munsell palette.
+  // Stage 4: snap centroids to the active Munsell palette. Gate on
+  // `palette`: until `/api/palette` resolves, snapping to an empty palette
+  // leaves the raw K-means centroids — a vivid preview replaced ~150ms
+  // later by the duller palette-snapped one. Hold the paint until ready.
   const snapped = useMemo(() => {
-    if (!quantized) return null
-    return snapCentroidsToPalette(quantized.centroids, palette ?? [])
+    if (!quantized || !palette) return null
+    return snapCentroidsToPalette(quantized.centroids, palette)
   }, [quantized, palette])
 
   // Stage 5: paint. Re-runs when assignments, snapped colours, or the
@@ -118,8 +121,10 @@ export function LineArtPreviewPane({ sourceImageUrl, displayMmW, displayMmH, par
   }, [blurred, quantized, snapped, params.line_thickness])
 
   const valid = displayMmW > 0 && displayMmH > 0
-  const showSpinner = !source
-  const showInvalid = source !== null && !valid
+  // Spinner covers both the image load and the palette fetch: without the
+  // palette the preview would paint the raw (unsnapped) K-means centroids.
+  const showSpinner = !source || !palette
+  const showInvalid = source !== null && palette !== null && !valid
 
   const handleZoomIn = () => setZoom((z) => Math.min(ZOOM_MAX, z * ZOOM_STEP))
   const handleZoomOut = () => setZoom((z) => Math.max(ZOOM_MIN, z / ZOOM_STEP))

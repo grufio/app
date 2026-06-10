@@ -111,7 +111,11 @@ export function CirculatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, p
   // === "texture"` also runs the blue-noise neighbour invasion.
   const outerSnapped = useMemo(
     () =>
-      cellMeans
+      // Gate on `palette`: until `/api/palette` resolves the snap would
+      // fall back to raw cell means (a vivid preview replaced ~150ms later
+      // by the duller palette-snapped one). Hold the paint until the
+      // palette is ready so the first preview shown is the accurate one.
+      cellMeans && palette
         ? snapAndDitherOuter({
             cellMeans,
             cellsX: grid.cellsX,
@@ -126,6 +130,7 @@ export function CirculatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, p
         : null,
     [
       cellMeans,
+      palette,
       grid.cellsX,
       grid.cellsY,
       outerPalette,
@@ -193,8 +198,10 @@ export function CirculatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, p
     })
   }, [source, crop, outerReduced, innerCells, ellipseFractions, contourPx, grid.cellsX, grid.cellsY])
 
-  const showSpinner = !source
-  const showInvalid = source !== null && !valid
+  // Spinner covers both the image load and the palette fetch: a valid grid
+  // with no palette yet would otherwise paint the raw-means preview.
+  const showSpinner = !source || !palette
+  const showInvalid = source !== null && palette !== null && !valid
 
   const handleZoomIn = () => setZoom((z) => Math.min(ZOOM_MAX, z * ZOOM_STEP))
   const handleZoomOut = () => setZoom((z) => Math.max(ZOOM_MIN, z / ZOOM_STEP))
