@@ -132,6 +132,10 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
   traceOverlayVisible?: boolean
   previewBitmapVisible?: boolean
   numbersLayerVisible?: boolean
+  /** Hides the bottom canvas toolbar (tools + zoom/fit/rotate) when
+   * false. The Colors section is a read-only palette view, so the
+   * canvas-editing toolbar doesn't belong there. Defaults to shown. */
+  showFloatingToolbar?: boolean
 }) {
   const {
     masterImage,
@@ -155,6 +159,7 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
     traceOverlayVisible = true,
     previewBitmapVisible = true,
     numbersLayerVisible = true,
+    showFloatingToolbar = true,
   } = props
 
   void _masterImageLoading
@@ -176,22 +181,25 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
 
       {/* Workspace */}
       <div className="relative min-h-0 flex-1" style={bgStyle}>
-        {/* Floating toolbar overlay (Figma-like) */}
-        <div className="absolute bottom-4 left-1/2 z-10 w-max -translate-x-1/2">
-          <FloatingToolbar
-            className="pointer-events-auto"
-            tool={toolbar.tool}
-            onToolChange={toolbar.setTool}
-            showDirectSelect={Boolean(toolbar.showDirectSelect)}
-            cropDisabled={Boolean(toolbar.cropDisabled)}
-            onZoomIn={toolbar.actions.zoomIn}
-            onZoomOut={toolbar.actions.zoomOut}
-            onFit={toolbar.actions.fit}
-            onRotate={toolbar.actions.rotate}
-            actionsDisabled={toolbar.actionsDisabled}
-            rotateDisabled={Boolean(toolbar.rotateDisabled)}
-          />
-        </div>
+        {/* Floating toolbar overlay (Figma-like). Hidden on sections
+            (e.g. Colors) where the canvas-editing tools don't belong. */}
+        {showFloatingToolbar ? (
+          <div className="absolute bottom-4 left-1/2 z-10 w-max -translate-x-1/2">
+            <FloatingToolbar
+              className="pointer-events-auto"
+              tool={toolbar.tool}
+              onToolChange={toolbar.setTool}
+              showDirectSelect={Boolean(toolbar.showDirectSelect)}
+              cropDisabled={Boolean(toolbar.cropDisabled)}
+              onZoomIn={toolbar.actions.zoomIn}
+              onZoomOut={toolbar.actions.zoomOut}
+              onFit={toolbar.actions.fit}
+              onRotate={toolbar.actions.rotate}
+              actionsDisabled={toolbar.actionsDisabled}
+              rotateDisabled={Boolean(toolbar.rotateDisabled)}
+            />
+          </div>
+        ) : null}
         <ProjectCanvasStage
             ref={canvasRef}
             src={masterImage?.signedUrl ?? undefined}

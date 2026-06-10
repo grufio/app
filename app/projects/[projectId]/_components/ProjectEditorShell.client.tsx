@@ -525,6 +525,9 @@ export function ProjectDetailPageClient({
               masterImageLoading={editorImageSource.status === "loading"}
               masterImageError={editorImageSource.status === "error" ? editorImageSource.error : ""}
               toolbar={stageToolbar}
+              // Colors is a read-only palette view — hide the canvas
+              // tools/zoom toolbar there (they don't belong on Colors).
+              showFloatingToolbar={mobileSection !== "colors"}
               canvasRef={canvasRef}
               artboardWidthPx={artboardWidthPx ?? undefined}
               artboardHeightPx={artboardHeightPx ?? undefined}

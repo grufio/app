@@ -12,12 +12,14 @@
  * the current section" carries over. The Eye sits to the left of
  * the Pencil inside the bar.
  *
- * View-options availability is caller-controlled via `viewOptions`:
- *   - `null` → only the Pencil renders (Artboard / Filter / Trace
- *     without pixelate-or-circulate output)
- *   - object → Eye + Pencil; the Eye's `DropdownMenu` carries three
- *     checkbox items (Trace / Preview / Numbers visibility) wired
- *     to the same session-state setters the desktop sidebar uses
+ * Both buttons are independently optional:
+ *   - `onEditTap` omitted → no Pencil (e.g. Trace, where the "+" sub-pill
+ *     opens the kind picker and the configure dialog owns Delete, so the
+ *     Edit trigger is redundant).
+ *   - `viewOptions` null → no Eye.
+ *   - neither present → the bar renders nothing.
+ * The Eye's `DropdownMenu` carries three checkbox items (Trace / Preview /
+ * Numbers visibility) wired to the same session-state setters.
  *
  * Menu kept open on toggle via `e.preventDefault()` in each
  * `DropdownMenuCheckboxItem`'s `onSelect` (Radix's default is
@@ -50,7 +52,8 @@ export type MobileTopRightBarViewOptions = {
 }
 
 type Props = {
-  onEditTap: () => void
+  /** When omitted, the Edit (Pencil) button is not rendered. */
+  onEditTap?: () => void
   /** Aria label for the Edit-button; section-specific ("Edit trace"
    * etc.) so screen readers announce which surface the tap opens. */
   ariaLabelEdit?: string
@@ -65,19 +68,23 @@ type Props = {
 export function MobileTopRightBar({ onEditTap, ariaLabelEdit = "Edit", viewOptions, desktop = false }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)
 
+  // Nothing to show without an Edit trigger or a view-options menu.
+  if (!onEditTap && !viewOptions) return null
+
+  // Two buttons → match the bottom floating-toolbar's `gap-3 px-2 py-1`.
+  // A single button → `p-1` (40 × 40 square).
+  const multi = Boolean(viewOptions) && Boolean(onEditTap)
+
   return (
     <div
       role="toolbar"
       aria-label="Editor actions"
       className={
-        // Solo (Pencil-only): `p-1` → 40 × 40 square. Multi (Eye +
-        // Pencil): `gap-3 px-2 py-1` to match the bottom floating-
-        // toolbar exactly (`floating-toolbar.tsx:92`). `md:hidden`
-        // only when NOT desktop — the unified editor surfaces keep the
-        // bar on `md+`.
+        // `md:hidden` only when NOT desktop — the unified editor surfaces
+        // keep the bar on `md+`.
         [
           "absolute top-3 right-3 z-20 inline-flex items-center rounded-lg bg-zinc-900/95 shadow-lg ring-1 ring-white/10 backdrop-blur",
-          viewOptions ? "gap-3 px-2 py-1" : "p-1",
+          multi ? "gap-3 px-2 py-1" : "p-1",
           desktop ? "" : "md:hidden",
         ]
           .filter(Boolean)
@@ -116,9 +123,11 @@ export function MobileTopRightBar({ onEditTap, ariaLabelEdit = "Edit", viewOptio
           </DropdownMenuContent>
         </DropdownMenu>
       ) : null}
-      <ToolbarIconButton label={ariaLabelEdit} onClick={onEditTap}>
-        <Pencil aria-hidden="true" className="size-6" />
-      </ToolbarIconButton>
+      {onEditTap ? (
+        <ToolbarIconButton label={ariaLabelEdit} onClick={onEditTap}>
+          <Pencil aria-hidden="true" className="size-6" />
+        </ToolbarIconButton>
+      ) : null}
     </div>
   )
 }
