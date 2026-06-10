@@ -74,7 +74,7 @@ type Props = {
   /** When set, the active trace is being edited — renders a Delete
    * (Trash2) action in every header variant that removes the trace and
    * closes the dialog. Omitted for the new-trace flow (no icon). */
-  onDeleteTrace?: () => void
+  onDeleteTrace?: () => void | Promise<void>
 }
 
 export function TraceDialogShell({
@@ -98,6 +98,20 @@ export function TraceDialogShell({
   // (Desktop shows preview + form side by side from the start.)
   const [editOpen, setEditOpen] = useState(true)
   const [previewMounted, setPreviewMounted] = useState(false)
+  // Delete runs the async clear; keep the dialog up with a spinner on
+  // the Delete button (mirrors the Apply Check → Loader2) until it
+  // resolves and the surface dismisses, so it doesn't switch back early.
+  const [deleting, setDeleting] = useState(false)
+  const busyOrDeleting = busy || deleting
+  const handleDelete = async () => {
+    if (busyOrDeleting || !onDeleteTrace) return
+    setDeleting(true)
+    try {
+      await onDeleteTrace()
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   if (isMobile) {
     return (
@@ -129,16 +143,20 @@ export function TraceDialogShell({
           <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
             <span className="text-sm font-medium">{title}</span>
             <div className="ml-auto flex items-center gap-2">
-              {onDeleteTrace ? (
+              {onDeleteTrace || deleting ? (
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon"
-                  onClick={onDeleteTrace}
-                  disabled={busy}
+                  onClick={() => void handleDelete()}
+                  disabled={busyOrDeleting}
                   aria-label="Delete trace"
                 >
-                  <Trash2 className="size-4" />
+                  {deleting ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="size-4" />
+                  )}
                 </Button>
               ) : null}
               <Button
@@ -146,7 +164,7 @@ export function TraceDialogShell({
                 variant="outline"
                 size="icon"
                 onClick={() => setEditOpen(true)}
-                disabled={busy}
+                disabled={busyOrDeleting}
                 aria-label="Edit parameters"
               >
                 <Pencil className="size-4" />
@@ -155,7 +173,7 @@ export function TraceDialogShell({
                 type="button"
                 size="icon"
                 onClick={onApply}
-                disabled={!valid || busy}
+                disabled={!valid || busyOrDeleting}
                 aria-label="Apply filter"
               >
                 {busy ? (
@@ -169,7 +187,7 @@ export function TraceDialogShell({
                 variant="ghost"
                 size="icon"
                 onClick={onCancel}
-                disabled={busy}
+                disabled={busyOrDeleting}
                 aria-label="Close"
               >
                 <X className="size-4" />
@@ -189,16 +207,20 @@ export function TraceDialogShell({
               <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
                 <span className="text-sm font-medium">{title}</span>
                 <div className="ml-auto flex items-center gap-2">
-                  {onDeleteTrace ? (
+                  {onDeleteTrace || deleting ? (
                     <Button
                       type="button"
                       variant="ghost"
                       size="icon"
-                      onClick={onDeleteTrace}
-                      disabled={busy}
+                      onClick={() => void handleDelete()}
+                      disabled={busyOrDeleting}
                       aria-label="Delete trace"
                     >
-                      <Trash2 className="size-4" />
+                      {deleting ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="size-4" />
+                      )}
                     </Button>
                   ) : null}
                   <Button
@@ -206,7 +228,7 @@ export function TraceDialogShell({
                     variant="ghost"
                     size="icon"
                     onClick={onCancel}
-                    disabled={busy}
+                    disabled={busyOrDeleting}
                     aria-label="Close"
                   >
                     <X className="size-4" />
@@ -234,7 +256,7 @@ export function TraceDialogShell({
                   variant="outline"
                   size="lg"
                   onClick={onCancel}
-                  disabled={busy}
+                  disabled={busyOrDeleting}
                 >
                   Cancel
                 </Button>
@@ -255,7 +277,7 @@ export function TraceDialogShell({
                     setPreviewMounted(true)
                     setEditOpen(false)
                   }}
-                  disabled={busy}
+                  disabled={busyOrDeleting}
                 >
                   Preview
                 </Button>
@@ -283,17 +305,21 @@ export function TraceDialogShell({
         <div className="flex h-full min-h-0 flex-col">
           <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
             <span className="text-sm font-medium">{title}</span>
-            {onDeleteTrace ? (
+            {onDeleteTrace || deleting ? (
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
                 className="ml-auto"
-                onClick={onDeleteTrace}
-                disabled={busy}
+                onClick={() => void handleDelete()}
+                disabled={busyOrDeleting}
                 aria-label="Delete trace"
               >
-                <Trash2 className="size-4" />
+                {deleting ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Trash2 className="size-4" />
+                )}
               </Button>
             ) : null}
           </header>
@@ -326,14 +352,14 @@ export function TraceDialogShell({
                     type="button"
                     variant="outline"
                     onClick={onCancel}
-                    disabled={busy}
+                    disabled={busyOrDeleting}
                   >
                     Cancel
                   </AppButton>
                   <AppButton
                     type="button"
                     onClick={onApply}
-                    disabled={!valid || busy}
+                    disabled={!valid || busyOrDeleting}
                   >
                     {busy ? "Applying..." : "Apply"}
                   </AppButton>

@@ -28,7 +28,7 @@ export type TraceSurfaceScopeProps = {
   isClearingTrace: boolean
   isLoadingInitial: boolean
   trace: { kind: TraceKind; params: Record<string, unknown> } | null
-  onClearTrace: () => void
+  onClearTrace: () => void | Promise<void>
   /** Mobile-only: closing the left-panel Sheet drawer before opening
    * the trace selection dialog. Desktop ignores this. */
   onBeforeOpenSelection?: () => void
@@ -98,10 +98,12 @@ export function TraceSurfaceScope(props: TraceSurfaceScopeProps) {
   }, [traceDialog, onConfigureCancelled])
 
   // Delete from inside the active trace's configure dialog: clear the
-  // trace (async, self-toasting) and dismiss the dialog like a cancel.
+  // trace and only THEN dismiss the dialog. Awaiting keeps the dialog
+  // (and its delete spinner) up until the clear + image refresh finish,
+  // so the surface doesn't switch back before the work is done.
   const { onClearTrace } = props
-  const handleDeleteTrace = useCallback(() => {
-    onClearTrace()
+  const handleDeleteTrace = useCallback(async () => {
+    await onClearTrace()
     handleCloseConfigure()
   }, [onClearTrace, handleCloseConfigure])
 

@@ -29,7 +29,7 @@ type Props = {
     kind: RegisteredTraceId
     params: Record<string, unknown>
   }) => Promise<void>
-  onDeleteTrace?: () => void
+  onDeleteTrace?: () => void | Promise<void>
   initialParams?: Record<string, unknown>
 }
 
