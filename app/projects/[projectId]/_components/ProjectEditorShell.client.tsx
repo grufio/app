@@ -704,6 +704,7 @@ export function ProjectDetailPageClient({
           activeSection={mobileSection}
           onSectionTap={handleMobileNavTap}
           onTraceKindTap={handleTraceKindTap}
+          activeTraceKind={trace?.kind ?? null}
         />
         {isMobile && mobileSection === "artboard" ? (
           <ArtboardSurfaceScope
