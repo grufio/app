@@ -22,10 +22,12 @@ result. It splits into three layers: pure-math canvas model
   [imageState/](../../lib/editor/imageState/),
   [filters/](../../lib/editor/filters/) (filter registry).
 - [features/editor/](../../features/editor/) — React surface:
-  `ProjectEditorStage`, `ProjectEditorRightPanel`, the form
-  components for each filter (`pixelate-form.tsx`,
-  `lineart-form.tsx`, `numerate-form.tsx`),
-  navigation/section routing.
+  `ProjectEditorStage`, the floating section model
+  (`EditorTopLeftBar` → per-surface scopes → `Mobile*Sheet` /
+  `MobileTopRightBar`, canvas-overlay on both viewports — the old
+  desktop side-panels were removed), the form components for each
+  filter (`pixelate-form.tsx`, `lineart-form.tsx`,
+  `numerate-form.tsx`), navigation/section routing.
 - [services/editor/](../../services/editor/) — server-side ops:
   artboard display (`artboard-display.ts`), image sizing
   (`image-sizing.ts`, `image-sizing-operations.ts`), workspace
@@ -86,7 +88,7 @@ result. It splits into three layers: pure-math canvas model
 ## Data flow — restoring a master
 
 ```
-user clicks "restore" in right panel
+user clicks "restore" in the artboard sheet (EditorImageDialogs host)
    → restore/route.ts
      ├── load baseMaster from project_images
      ├── compute placement via lib/editor/image-placement
@@ -107,7 +109,7 @@ user clicks "restore" in right panel
   `lib/editor/filters/`; don't add a form component that talks to
   the filter API on its own.
 - **PascalCase for top-level container components**
-  (`ProjectEditorStage.tsx`, `ProjectEditorRightPanel.tsx`) per
+  (`ProjectEditorStage.tsx`, `ProjectEditorLayout.tsx`) per
   [docs/conventions.md](../conventions.md). Atomic primitives are
   kebab-case.
 

@@ -2,12 +2,9 @@
 
 import { useMemo, useReducer } from "react"
 
-export type EditorSidepanelTab = "image" | "filter" | "trace"
-
 export type SessionState = {
   restoreOpen: boolean
   deleteOpen: boolean
-  leftPanelTab: EditorSidepanelTab
   hiddenFilterIds: Record<string, true>
   /** Trace tab layer visibility — both default to true (everything
    * shown). Independent toggles because the SVG cells overlay and
@@ -27,7 +24,6 @@ export type SessionState = {
 export type SessionAction =
   | { type: "setRestoreOpen"; open: boolean }
   | { type: "setDeleteOpen"; open: boolean }
-  | { type: "setLeftPanelTab"; tab: EditorSidepanelTab }
   | { type: "toggleHiddenFilter"; filterId: string }
   | { type: "showFilter"; filterId: string }
   | { type: "hideFilter"; filterId: string }
@@ -44,9 +40,6 @@ export function editorSessionReducer(state: SessionState, action: SessionAction)
     case "setDeleteOpen":
       if (state.deleteOpen === action.open) return state
       return { ...state, deleteOpen: action.open }
-    case "setLeftPanelTab":
-      if (state.leftPanelTab === action.tab) return state
-      return { ...state, leftPanelTab: action.tab }
     case "toggleHiddenFilter": {
       const next = { ...state.hiddenFilterIds }
       if (next[action.filterId]) delete next[action.filterId]
@@ -91,7 +84,6 @@ export function useEditorSessionState() {
   const [state, dispatch] = useReducer(editorSessionReducer, {
     restoreOpen: false,
     deleteOpen: false,
-    leftPanelTab: "image",
     hiddenFilterIds: {},
     traceOverlayVisible: true,
     previewBitmapVisible: true,
@@ -104,7 +96,6 @@ export function useEditorSessionState() {
       actions: {
         setRestoreOpen: (open: boolean) => dispatch({ type: "setRestoreOpen", open }),
         setDeleteOpen: (open: boolean) => dispatch({ type: "setDeleteOpen", open }),
-        setLeftPanelTab: (tab: EditorSidepanelTab) => dispatch({ type: "setLeftPanelTab", tab }),
         toggleHiddenFilter: (filterId: string) => dispatch({ type: "toggleHiddenFilter", filterId }),
         showFilter: (filterId: string) => dispatch({ type: "showFilter", filterId }),
         hideFilter: (filterId: string) => dispatch({ type: "hideFilter", filterId }),

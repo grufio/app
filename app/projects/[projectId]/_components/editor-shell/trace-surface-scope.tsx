@@ -3,17 +3,17 @@
 /**
  * Twin of `FilterSurfaceScope` for the trace surface. Owns
  * `useTraceDialogSession`, the live mid-resize derivation of
- * `traceDialogSource`, the trace-section leave-guard, and mobile
- * sheet `editOpen` state. Renders `EditorTraceDialogHost` plus the
- * sidebar section or the mobile button + sheet depending on
- * `intent`. See `filter-surface-scope.tsx` for the full architectural
- * rationale (lifecycle IS dismissal).
+ * `traceDialogSource`, the trace-section leave-guard, and the sheet
+ * `editOpen` state. Renders `EditorTraceDialogHost` plus the floating
+ * Edit/Eye bar + the trace sheet (same chrome on both viewports;
+ * `desktop` flips fullscreen → bounded card). See
+ * `filter-surface-scope.tsx` for the full architectural rationale
+ * (lifecycle IS dismissal).
  */
 import { useCallback, useEffect, useMemo, useState } from "react"
 
 import { MobileTopRightBar } from "@/features/editor/components/mobile-top-right-bar"
 import { MobileTraceSheet } from "@/features/editor/components/mobile-trace-sheet"
-import { TraceSidebarSection } from "@/features/editor/components/trace-sidebar-section"
 import type { TraceDialogSourceImage, TraceKind } from "@/lib/editor/hooks/use-trace-dialog-session"
 import { useTraceDialogSession } from "@/lib/editor/hooks/use-trace-dialog-session"
 import { useMutationLeaveGuard } from "@/lib/editor/hooks/use-mutation-leave-guard"
@@ -21,7 +21,14 @@ import { useMutationLeaveGuard } from "@/lib/editor/hooks/use-mutation-leave-gua
 import { EditorTraceDialogHost } from "./editor-trace-dialog-host"
 
 export type TraceSurfaceScopeProps = {
-  intent: "desktop" | "mobile"
+  /** Legacy variant marker — retained as `"mobile"` only so existing
+   * call sites stay explicit. Both viewports render the same chrome
+   * now; styling is driven by `desktop`. */
+  intent: "mobile"
+  /** When true, the Edit/Eye bar + sheet render their desktop variant
+   * (no `md:hidden`, bounded floating card). Default false → the
+   * unchanged mobile fullscreen behaviour. */
+  desktop?: boolean
   traceSourceImage: TraceDialogSourceImage | null
   onApplyTrace: (args: { kind: TraceKind; params: Record<string, unknown> }) => Promise<void>
   isAddTraceDisabled: boolean
@@ -29,9 +36,6 @@ export type TraceSurfaceScopeProps = {
   isLoadingInitial: boolean
   trace: { kind: TraceKind; params: Record<string, unknown> } | null
   onClearTrace: () => void | Promise<void>
-  /** Mobile-only: closing the left-panel Sheet drawer before opening
-   * the trace selection dialog. Desktop ignores this. */
-  onBeforeOpenSelection?: () => void
   /** Cross-mount channel from `EditorTopLeftBar`: when a trace kind
    * has been requested from outside this scope, open the matching
    * configure dialog directly (skip the picker) and signal consume. */
@@ -82,7 +86,6 @@ export function TraceSurfaceScope(props: TraceSurfaceScopeProps) {
 
   const openSelection = useCallback(() => {
     if (props.isAddTraceDisabled) return
-    props.onBeforeOpenSelection?.()
     traceDialog.beginSelection()
   }, [props, traceDialog])
 
@@ -121,8 +124,28 @@ export function TraceSurfaceScope(props: TraceSurfaceScopeProps) {
         onDeleteTrace={props.trace !== null ? handleDeleteTrace : undefined}
         initialParams={props.trace?.params}
       />
-      {props.intent === "desktop" ? (
-        <TraceSidebarSection
+      <MobileTopRightBar
+        desktop={props.desktop}
+        onEditTap={() => setEditOpen(true)}
+        ariaLabelEdit="Edit trace"
+        viewOptions={
+          props.trace !== null
+          && (props.trace.kind === "pixelate" || props.trace.kind === "circulate")
+            ? {
+                traceOverlayVisible: props.traceOverlayVisible,
+                previewBitmapVisible: props.previewBitmapVisible,
+                numbersLayerVisible: props.numbersLayerVisible,
+                onTraceOverlayChange: props.onTraceOverlayChange,
+                onPreviewBitmapChange: props.onPreviewBitmapChange,
+                onNumbersLayerChange: props.onNumbersLayerChange,
+              }
+            : null
+        }
+      />
+      {editOpen ? (
+        <MobileTraceSheet
+          desktop={props.desktop}
+          onClose={() => setEditOpen(false)}
           trace={props.trace}
           isAddTraceDisabled={props.isAddTraceDisabled}
           isClearingTrace={props.isClearingTrace}
@@ -130,38 +153,7 @@ export function TraceSurfaceScope(props: TraceSurfaceScopeProps) {
           onClearTrace={props.onClearTrace}
           onOpenSelection={openSelection}
         />
-      ) : (
-        <>
-          <MobileTopRightBar
-            onEditTap={() => setEditOpen(true)}
-            ariaLabelEdit="Edit trace"
-            viewOptions={
-              props.trace !== null
-              && (props.trace.kind === "pixelate" || props.trace.kind === "circulate")
-                ? {
-                    traceOverlayVisible: props.traceOverlayVisible,
-                    previewBitmapVisible: props.previewBitmapVisible,
-                    numbersLayerVisible: props.numbersLayerVisible,
-                    onTraceOverlayChange: props.onTraceOverlayChange,
-                    onPreviewBitmapChange: props.onPreviewBitmapChange,
-                    onNumbersLayerChange: props.onNumbersLayerChange,
-                  }
-                : null
-            }
-          />
-          {editOpen ? (
-            <MobileTraceSheet
-              onClose={() => setEditOpen(false)}
-              trace={props.trace}
-              isAddTraceDisabled={props.isAddTraceDisabled}
-              isClearingTrace={props.isClearingTrace}
-              isLoadingInitial={props.isLoadingInitial}
-              onClearTrace={props.onClearTrace}
-              onOpenSelection={openSelection}
-            />
-          ) : null}
-        </>
-      )}
+      ) : null}
     </>
   )
 }

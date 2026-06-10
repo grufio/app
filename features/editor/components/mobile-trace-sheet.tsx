@@ -8,7 +8,7 @@
  * icon in the editor's bottom-nav.
  *
  * Layer-visibility toggles (Trace / Preview / Numbers) live in the
- * `MobileViewOptionsButton` FAB on the editor canvas, not in this
+ * `MobileTopRightBar`'s Eye menu on the editor canvas, not in this
  * sheet — that's a one-tap action surface for a frequently-toggled
  * control, instead of a sheet open + scroll.
  *
@@ -17,9 +17,8 @@
  * sheet body is wrapped in `SidebarFrame` (= `SidebarProvider`) so
  * the section finds its context.
  *
- * Render shape mirrors `MobileFilterSheet` exactly: `absolute inset-0`
- * overlay inside the editor layout container, header + scrollable
- * body, bottom-nav stays as a flex-sibling beneath the layout.
+ * Render shape mirrors `MobileFilterSheet` exactly: fullscreen
+ * overlay on mobile, bounded floating card on `md+` (`desktop`).
  * `TraceSelectionController` + the per-kind configure dialogs are
  * Radix-portaled and already mobile-fullscreen (see #347 pattern),
  * so they surface cleanly over the sheet without changes here.
@@ -31,10 +30,13 @@ import { SidebarFrame } from "@/components/navigation/SidebarFrame"
 import { SidebarContent } from "@/components/ui/sidebar"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
 
+import { mobileSheetRootClass } from "./mobile-sheet-shell"
 import { TraceSidebarSection } from "./trace-sidebar-section"
 
 export function MobileTraceSheet(props: {
   onClose: () => void
+  /** Desktop variant — bounded floating card instead of fullscreen. */
+  desktop?: boolean
   trace: { kind: RegisteredTraceId } | null
   isAddTraceDisabled: boolean
   isClearingTrace: boolean
@@ -44,6 +46,7 @@ export function MobileTraceSheet(props: {
 }) {
   const {
     onClose,
+    desktop,
     trace,
     isAddTraceDisabled,
     isClearingTrace,
@@ -53,10 +56,7 @@ export function MobileTraceSheet(props: {
   } = props
 
   return (
-    <section
-      aria-label="Trace"
-      className="absolute inset-0 z-30 flex flex-col overflow-hidden bg-background md:hidden"
-    >
+    <section aria-label="Trace" className={mobileSheetRootClass(desktop)}>
       <header className="flex shrink-0 items-center justify-between border-b bg-background px-4 py-3">
         <h2 className="text-sm font-semibold">Trace</h2>
         <Button

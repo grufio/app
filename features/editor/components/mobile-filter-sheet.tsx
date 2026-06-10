@@ -14,9 +14,8 @@
  * sheet body is wrapped in `SidebarFrame` (= `SidebarProvider`) so
  * the section finds its context.
  *
- * Render shape mirrors `MobileArtboardSheet`: `absolute inset-0`
- * overlay inside the editor layout container, header + scrollable
- * body, bottom-nav stays as a flex-sibling beneath the layout.
+ * Render shape mirrors `MobileArtboardSheet`: fullscreen overlay on
+ * mobile, bounded floating card on `md+` (`desktop`).
  */
 import { X } from "lucide-react"
 
@@ -25,9 +24,12 @@ import { SidebarFrame } from "@/components/navigation/SidebarFrame"
 import { SidebarContent } from "@/components/ui/sidebar"
 
 import { FilterSidebarSection } from "./filter-sidebar-section"
+import { mobileSheetRootClass } from "./mobile-sheet-shell"
 
 export function MobileFilterSheet(props: {
   onClose: () => void
+  /** Desktop variant — bounded floating card instead of fullscreen. */
+  desktop?: boolean
   filterStack: Array<{ id: string; filterType: string }>
   canvasMode: "image" | "filter"
   hiddenFilterIds: Record<string, boolean>
@@ -51,6 +53,7 @@ export function MobileFilterSheet(props: {
 }) {
   const {
     onClose,
+    desktop,
     filterStack,
     canvasMode,
     hiddenFilterIds,
@@ -67,10 +70,7 @@ export function MobileFilterSheet(props: {
   } = props
 
   return (
-    <section
-      aria-label="Filter"
-      className="absolute inset-0 z-30 flex flex-col overflow-hidden bg-background md:hidden"
-    >
+    <section aria-label="Filter" className={mobileSheetRootClass(desktop)}>
       <header className="flex shrink-0 items-center justify-between border-b bg-background px-4 py-3">
         <h2 className="text-sm font-semibold">Filter</h2>
         <Button

@@ -10,22 +10,21 @@ import { test, expect, type Request } from "@playwright/test"
 import { clampPx, pxUToPxNumber, unitToPxUFixed } from "../lib/editor/units"
 import { PROJECT_ID, setupMockRoutes } from "./_mocks"
 
-async function selectLayerNavItem(page: import("@playwright/test").Page, label: "Artboard" | "Image" | "Grid") {
-  const layers = page.getByLabel("Layers")
-  const projectListItem = layers.locator("li").filter({ has: layers.getByRole("button", { name: label, exact: true }) }).first()
-  const layerButton = projectListItem.getByRole("button", { name: label, exact: true })
-  if ((await layerButton.count()) > 0) {
-    await layerButton.click()
-    return
-  }
-
-  // Fallback: older markup where layer switch lived in top tabs.
-  await layers.getByRole("tab", { name: label, exact: true }).click()
+async function selectLayerNavItem(page: import("@playwright/test").Page, _label: "Artboard" | "Image" | "Grid") {
+  // Canvas-first model: artboard / image / grid controls all live in the
+  // single Artboard sheet, opened from the floating top-left "Image"
+  // section + the top-right "Edit artboard" button.
+  await page.getByRole("button", { name: "Image", exact: true }).click()
+  await page.getByRole("button", { name: "Edit artboard" }).click()
 }
 
 async function selectLeftTab(page: import("@playwright/test").Page, tab: "Image" | "Filter") {
-  const tabId = tab === "Filter" ? "#editor-left-tabs-trigger-filter" : "#editor-left-tabs-trigger-image"
-  await page.locator(tabId).click()
+  // Switch the active section via the floating top-left bar, then open
+  // that section's sheet via the top-right Edit button so its controls
+  // are mounted (there is no always-visible side panel anymore).
+  await page.getByRole("button", { name: tab, exact: true }).click()
+  const editLabel = tab === "Filter" ? "Edit filter" : "Edit artboard"
+  await page.getByRole("button", { name: editLabel }).click()
 }
 
 async function gotoProject(page: import("@playwright/test").Page) {
@@ -40,9 +39,8 @@ async function gotoProject(page: import("@playwright/test").Page) {
 async function assertEditorSurfaceVisible(page: import("@playwright/test").Page) {
   const crashed = page.getByText("Editor crashed")
   const canvasRoot = page.getByTestId("editor-canvas-root")
-  const artboardPanel = page.getByTestId("editor-artboard-panel")
 
-  // Wait for either the happy path (canvas + at least one panel) or the error boundary.
+  // Wait for either the happy path (canvas) or the error boundary.
   try {
     await expect(crashed.or(canvasRoot)).toBeVisible()
   } catch (error) {
@@ -60,8 +58,10 @@ async function assertEditorSurfaceVisible(page: import("@playwright/test").Page)
     throw new Error(`Editor crashed in E2E.\n\n${details ?? "(no stack available)"}`)
   }
 
-  // Canvas is present; now ensure the sidebar content is also mounted.
-  await expect(artboardPanel.or(page.getByLabel("Image width (cm)"))).toBeVisible()
+  // Canvas-first model: no always-mounted property panel. The editor
+  // chrome is the floating top-left section bar (Home + section nav) —
+  // assert it mounted alongside the canvas.
+  await expect(page.getByRole("link", { name: "Home" }).first()).toBeVisible()
 }
 
 test("smoke: /projects/:id loads editor with artboard + canvas", async ({ page }) => {

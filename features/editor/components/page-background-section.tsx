@@ -3,10 +3,9 @@
 /**
  * Page-Background controls — color, opacity, visibility toggle.
  *
- * Extracted from the inline markup that used to live in
- * `ProjectEditorRightPanel.tsx` so it can be rendered in two places
- * (desktop right panel + mobile artboard sheet) without duplicating
- * the field wiring.
+ * Extracted from the (now-removed) editor right panel so it can be
+ * rendered by the artboard surface sheet on both viewports without
+ * duplicating the field wiring.
  *
  * Pure presentational: no hooks, no context, no draft state. Parent
  * owns the value + change callbacks, this component only renders the

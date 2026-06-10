@@ -10,6 +10,7 @@
  */
 export * from "./project-editor-header"
 export * from "./editor-error-boundary"
+export * from "./editor-image-dialogs"
 
 export * from "./floating-toolbar"
 export * from "./canvas-tool-sidebar"

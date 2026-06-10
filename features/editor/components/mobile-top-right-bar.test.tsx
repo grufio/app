@@ -180,4 +180,20 @@ describe("MobileTopRightBar", () => {
       expect(getByLabelText("View options").getAttribute("aria-pressed")).toBe("true")
     })
   })
+
+  describe("desktop variant", () => {
+    it("keeps `md:hidden` by default (mobile-only callers unchanged)", () => {
+      const { getByRole } = render(
+        <MobileTopRightBar onEditTap={vi.fn()} ariaLabelEdit="Edit trace" viewOptions={null} />,
+      )
+      expect(getByRole("toolbar").className).toContain("md:hidden")
+    })
+
+    it("drops `md:hidden` when desktop is set (bar stays visible on md+)", () => {
+      const { getByRole } = render(
+        <MobileTopRightBar onEditTap={vi.fn()} ariaLabelEdit="Edit trace" viewOptions={null} desktop />,
+      )
+      expect(getByRole("toolbar").className).not.toContain("md:hidden")
+    })
+  })
 })
