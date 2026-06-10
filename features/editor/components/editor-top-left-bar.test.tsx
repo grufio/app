@@ -35,7 +35,7 @@ describe("EditorTopLeftBar", () => {
     expect(home.getAttribute("href")).toBe("/dashboard")
   })
 
-  it("invokes onSectionTap for Image / Filter / Color but not for Trace", () => {
+  it("invokes onSectionTap for Image / Filter / Color and for Trace (which also shows current state)", () => {
     const onSectionTap = vi.fn()
     const { getByLabelText } = render(<EditorTopLeftBar onSectionTap={onSectionTap} />)
     fireEvent.click(getByLabelText("Image"))
@@ -45,8 +45,11 @@ describe("EditorTopLeftBar", () => {
     fireEvent.click(getByLabelText("Color"))
     expect(onSectionTap).toHaveBeenLastCalledWith("colors")
     expect(onSectionTap).toHaveBeenCalledTimes(3)
+    // Trace also navigates to the trace section (show current trace
+    // state) — on top of toggling its kind sub-pill.
     fireEvent.click(getByLabelText("Trace"))
-    expect(onSectionTap).toHaveBeenCalledTimes(3)
+    expect(onSectionTap).toHaveBeenLastCalledWith("trace")
+    expect(onSectionTap).toHaveBeenCalledTimes(4)
   })
 
   it("marks only the active section as aria-pressed", () => {
@@ -55,6 +58,11 @@ describe("EditorTopLeftBar", () => {
     expect(getByLabelText("Image").getAttribute("aria-pressed")).not.toBe("true")
     expect(getByLabelText("Trace").getAttribute("aria-pressed")).not.toBe("true")
     expect(getByLabelText("Color").getAttribute("aria-pressed")).not.toBe("true")
+  })
+
+  it("marks Trace active when the trace section is the active section", () => {
+    const { getByLabelText } = render(<EditorTopLeftBar activeSection="trace" />)
+    expect(getByLabelText("Trace").getAttribute("aria-pressed")).toBe("true")
   })
 
   it("toggles a sub-pill with three trace-kind icons on Trace tap when no trace is set", () => {

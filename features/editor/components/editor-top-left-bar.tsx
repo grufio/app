@@ -135,8 +135,16 @@ export function EditorTopLeftBar({
               <div key={key} ref={traceWrapperRef} className="relative">
                 <ToolbarIconButton
                   label={label}
-                  active={traceSubOpen}
-                  onClick={() => setTraceSubOpen((open) => !open)}
+                  active={activeSection === "trace" || traceSubOpen}
+                  onClick={() => {
+                    // The Trace icon carries TWO jobs: navigate to the
+                    // trace section so the canvas shows the current trace
+                    // state (parity with the other section icons), and
+                    // reveal the kind sub-pill. The sub-pill entries are
+                    // the ones that open the per-kind configure dialog.
+                    onSectionTap?.(key)
+                    setTraceSubOpen((open) => !open)
+                  }}
                 >
                   <Icon aria-hidden="true" className="size-6" />
                 </ToolbarIconButton>
