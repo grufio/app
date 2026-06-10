@@ -160,55 +160,59 @@ export function EditorTopLeftBar({
                     eats 4px — so the toolbar→circle gap matches the
                     circle→submenu `gap-2` (8px). */}
                 <div className="absolute top-full left-1/2 mt-3 flex -translate-x-1/2 flex-col items-center gap-2">
-                  <button
-                    type="button"
-                    aria-label={traceSubOpen ? "Close trace menu" : "Add trace"}
-                    aria-expanded={traceSubOpen}
-                    onClick={() => setTraceSubOpen((open) => !open)}
-                    className={cn(PILL_BASE, "flex size-10 shrink-0 items-center justify-center rounded-full text-white transition-colors hover:bg-zinc-800")}
-                  >
-                    <Plus
-                      aria-hidden="true"
-                      className={cn(
-                        "size-5 transition-transform duration-200",
-                        traceSubOpen && "rotate-45",
-                      )}
-                    />
-                  </button>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      aria-label={traceSubOpen ? "Close trace menu" : "Add trace"}
+                      aria-expanded={traceSubOpen}
+                      onClick={() => setTraceSubOpen((open) => !open)}
+                      className={cn(PILL_BASE, "flex size-10 shrink-0 items-center justify-center rounded-full text-white transition-colors hover:bg-zinc-800")}
+                    >
+                      <Plus
+                        aria-hidden="true"
+                        className={cn(
+                          "size-5 transition-transform duration-200",
+                          traceSubOpen && "rotate-45",
+                        )}
+                      />
+                    </button>
+                    {/* Active trace → a Delete circle directly to the RIGHT
+                        of the + (the active kind icon sits directly below
+                        the +, so the two form a 90° angle off the +). */}
+                    {traceSubOpen && activeTraceKind ? (
+                      <button
+                        type="button"
+                        aria-label="Delete trace"
+                        onClick={() => {
+                          setTraceSubOpen(false)
+                          onDeleteTrace?.()
+                        }}
+                        className={cn(
+                          PILL_BASE,
+                          "absolute left-full top-0 ml-2 flex size-10 shrink-0 items-center justify-center rounded-full text-white transition-colors hover:bg-zinc-800",
+                        )}
+                      >
+                        <Trash2 aria-hidden="true" className="size-5" />
+                      </button>
+                    ) : null}
+                  </div>
                   {traceSubOpen &&
                     (activeTraceKind ? (
-                      // Active trace → the single kind icon (compact 40×40
-                      // pill) with a Delete circle to its RIGHT (black
-                      // circle + Trash icon) that clears the trace.
-                      <div className="flex items-center gap-2">
-                        <div className={PILL_SINGLE}>
-                          {traceKindItems.map(({ key: kindKey, label: kindLabel, Icon: KindIcon }) => (
-                            <ToolbarIconButton
-                              key={kindKey}
-                              label={kindLabel}
-                              onClick={() => {
-                                setTraceSubOpen(false)
-                                onTraceKindTap?.(kindKey)
-                              }}
-                            >
-                              <KindIcon aria-hidden="true" className="size-6" />
-                            </ToolbarIconButton>
-                          ))}
-                        </div>
-                        <button
-                          type="button"
-                          aria-label="Delete trace"
-                          onClick={() => {
-                            setTraceSubOpen(false)
-                            onDeleteTrace?.()
-                          }}
-                          className={cn(
-                            PILL_BASE,
-                            "flex size-10 shrink-0 items-center justify-center rounded-full text-white transition-colors hover:bg-zinc-800",
-                          )}
-                        >
-                          <Trash2 aria-hidden="true" className="size-5" />
-                        </button>
+                      // Active trace → the single kind icon directly under
+                      // the + (compact 40×40 pill).
+                      <div className={PILL_SINGLE}>
+                        {traceKindItems.map(({ key: kindKey, label: kindLabel, Icon: KindIcon }) => (
+                          <ToolbarIconButton
+                            key={kindKey}
+                            label={kindLabel}
+                            onClick={() => {
+                              setTraceSubOpen(false)
+                              onTraceKindTap?.(kindKey)
+                            }}
+                          >
+                            <KindIcon aria-hidden="true" className="size-6" />
+                          </ToolbarIconButton>
+                        ))}
                       </div>
                     ) : (
                       // No trace → the full vertical 3-kind picker.
