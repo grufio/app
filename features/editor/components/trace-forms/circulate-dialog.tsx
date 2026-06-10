@@ -30,6 +30,7 @@ type Props = {
     params: Record<string, unknown>
   }) => Promise<void>
   onDeleteTrace?: () => void
+  initialParams?: Record<string, unknown>
 }
 
 export function CirculateDialog(props: Props) {

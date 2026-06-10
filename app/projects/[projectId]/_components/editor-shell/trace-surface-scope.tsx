@@ -27,7 +27,7 @@ export type TraceSurfaceScopeProps = {
   isAddTraceDisabled: boolean
   isClearingTrace: boolean
   isLoadingInitial: boolean
-  trace: { kind: TraceKind } | null
+  trace: { kind: TraceKind; params: Record<string, unknown> } | null
   onClearTrace: () => void
   /** Mobile-only: closing the left-panel Sheet drawer before opening
    * the trace selection dialog. Desktop ignores this. */
@@ -117,6 +117,7 @@ export function TraceSurfaceScope(props: TraceSurfaceScopeProps) {
         onApplied={handleApplied}
         onApplyTrace={props.onApplyTrace}
         onDeleteTrace={props.trace !== null ? handleDeleteTrace : undefined}
+        initialParams={props.trace?.params}
       />
       {props.intent === "desktop" ? (
         <TraceSidebarSection

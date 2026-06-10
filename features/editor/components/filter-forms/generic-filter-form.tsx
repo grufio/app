@@ -35,6 +35,11 @@ type GenericFilterFormProps<TSchema extends z.ZodType, TCtx = FilterRenderContex
   ctx: TCtx
   busy?: boolean
   applyingLabel?: string
+  /** Seed values for the form. When editing an already-applied artefact
+   * (e.g. an active trace), pass its saved params so the mask reopens
+   * with the current settings instead of schema defaults. Omitted ⇒
+   * schema defaults (the fresh-create flow). */
+  initialParams?: Record<string, unknown>
   onCancel: () => void
   onApply: (params: z.infer<TSchema>) => void
 }
@@ -57,14 +62,20 @@ export function GenericFilterForm<TSchema extends z.ZodType, TCtx = FilterRender
   ctx,
   busy = false,
   applyingLabel,
+  initialParams,
   onCancel,
   onApply,
 }: GenericFilterFormProps<TSchema, TCtx>) {
-  // Schema defaults seed the per-field state. We keep a flat record
-  // (`Record<string, unknown>`) because the registry doesn't know which
-  // exact zod shape the schema parses into — once `safeParse` returns
-  // we narrow back to TSchema for `onApply`.
-  const defaults = useMemo(() => filterDef.schema.parse({}) as Record<string, unknown>, [filterDef.schema])
+  // Schema defaults seed the per-field state, overlaid with any saved
+  // params (edit flow). We keep a flat record (`Record<string, unknown>`)
+  // because the registry doesn't know which exact zod shape the schema
+  // parses into — once `safeParse` returns we narrow back to TSchema for
+  // `onApply`. Parsing `initialParams` fills in any field the saved set
+  // is missing (e.g. a newer schema key) with its default.
+  const defaults = useMemo(
+    () => filterDef.schema.parse(initialParams ?? {}) as Record<string, unknown>,
+    [filterDef.schema, initialParams],
+  )
   const [draft, setDraft] = useState<Record<string, unknown>>(defaults)
 
   const setField = (key: string, value: unknown) =>
