@@ -81,18 +81,32 @@ type Props = {
   onSectionTap?: (section: MobileSection) => void
   /** Fired when the user picks a trace kind from the sub-pill. The
    * shell wires this to open the matching configure dialog directly,
-   * bypassing the kind picker. Always live — the bar does not gate
-   * on existing-trace state. */
+   * bypassing the kind picker. */
   onTraceKindTap?: (kind: RegisteredTraceId) => void
+  /** The currently-applied trace kind, or `null` when none is set.
+   * Trace is mutually exclusive — at most one kind active per project.
+   * When set, the sub-pill collapses to just that one kind (tapping it
+   * re-opens its configure dialog to edit). To switch kinds, remove the
+   * trace first (Remove trace in the Trace sidebar), which re-exposes
+   * all three. */
+  activeTraceKind?: RegisteredTraceId | null
 }
 
 export function EditorTopLeftBar({
   activeSection = null,
   onSectionTap,
   onTraceKindTap,
+  activeTraceKind = null,
 }: Props) {
   const [traceSubOpen, setTraceSubOpen] = useState(false)
   const traceWrapperRef = useRef<HTMLDivElement>(null)
+
+  // Trace is single-active: once a kind is applied the sub-pill shows
+  // only that kind, mirroring the mutually-exclusive model. With no
+  // trace set, all kinds are offered.
+  const traceKindItems = activeTraceKind
+    ? TRACE_KIND_ITEMS.filter((item) => item.key === activeTraceKind)
+    : TRACE_KIND_ITEMS
 
   useEffect(() => {
     if (!traceSubOpen) return
@@ -130,7 +144,7 @@ export function EditorTopLeftBar({
                   <div
                     className={`${PILL_SUB} absolute top-full left-1/2 mt-2 -translate-x-1/2`}
                   >
-                    {TRACE_KIND_ITEMS.map(({ key: kindKey, label: kindLabel, Icon: KindIcon }) => (
+                    {traceKindItems.map(({ key: kindKey, label: kindLabel, Icon: KindIcon }) => (
                       <ToolbarIconButton
                         key={kindKey}
                         label={kindLabel}

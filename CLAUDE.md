@@ -117,6 +117,26 @@ npm run dev
 # fast offline gate (lint + typecheck + tests + schema sanity)
 npm run gate:ci
 
+# granular checks (what gate:ci bundles)
+npm run lint
+npm run typecheck
+npm run test                       # vitest, unit (one run)
+
+# single test file / single test by name
+npm run test -- lib/editor/machines/image-workflow.machine.test.ts
+npm run test -- -t "name of the test case"
+npm run test:watch                 # vitest watch mode
+npm run test:integration           # vitest.integration.config.ts
+
+# Playwright (builds first; smoke is the default)
+npm run test:e2e                   # smoke
+npm run test:e2e:workflow          # editor regression flow
+
+# filter-service (Python, FastAPI) — from filter-service/
+pip install -r requirements.txt -r requirements-dev.txt
+uvicorn app.main:app --reload --port 8001
+pytest                             # service unit tests
+
 # local Supabase (Colima-based; some services excluded for stability)
 supabase start --exclude vector,inbucket,realtime,studio
 supabase db reset --local        # apply baseline migration

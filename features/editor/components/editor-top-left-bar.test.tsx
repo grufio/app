@@ -57,7 +57,7 @@ describe("EditorTopLeftBar", () => {
     expect(getByLabelText("Color").getAttribute("aria-pressed")).not.toBe("true")
   })
 
-  it("toggles a sub-pill with three trace-kind icons on Trace tap", () => {
+  it("toggles a sub-pill with three trace-kind icons on Trace tap when no trace is set", () => {
     const { getByLabelText, queryByLabelText } = render(<EditorTopLeftBar />)
     expect(queryByLabelText("Pixelate")).toBeNull()
     expect(queryByLabelText("Circulate")).toBeNull()
@@ -71,7 +71,29 @@ describe("EditorTopLeftBar", () => {
     expect(queryByLabelText("Pixelate")).toBeNull()
   })
 
-  it("invokes onTraceKindTap with the picked kind and closes the sub-pill when hasTrace is false", () => {
+  it("collapses the sub-pill to only the active trace kind once one is set", () => {
+    const { getByLabelText, queryByLabelText } = render(
+      <EditorTopLeftBar activeTraceKind="circulate" />,
+    )
+    fireEvent.click(getByLabelText("Trace"))
+    // Trace is mutually exclusive — only the active kind is offered.
+    expect(getByLabelText("Circulate")).not.toBeNull()
+    expect(queryByLabelText("Pixelate")).toBeNull()
+    expect(queryByLabelText("Lineart")).toBeNull()
+  })
+
+  it("re-opens the active kind's dialog when its sub-pill icon is tapped", () => {
+    const onTraceKindTap = vi.fn()
+    const { getByLabelText, queryByLabelText } = render(
+      <EditorTopLeftBar activeTraceKind="lineart" onTraceKindTap={onTraceKindTap} />,
+    )
+    fireEvent.click(getByLabelText("Trace"))
+    fireEvent.click(getByLabelText("Lineart"))
+    expect(onTraceKindTap).toHaveBeenLastCalledWith("lineart")
+    expect(queryByLabelText("Lineart")).toBeNull()
+  })
+
+  it("invokes onTraceKindTap with the picked kind and closes the sub-pill when no trace is set", () => {
     const onTraceKindTap = vi.fn()
     const { getByLabelText, queryByLabelText } = render(
       <EditorTopLeftBar onTraceKindTap={onTraceKindTap} />,
