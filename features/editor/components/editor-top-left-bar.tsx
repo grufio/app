@@ -32,6 +32,7 @@ import {
   Grid3x3,
   Home,
   Palette,
+  Plus,
   SlidersHorizontal,
   Spline,
   type LucideIcon,
@@ -39,6 +40,7 @@ import {
 
 import type { MobileSection } from "@/lib/editor/mobile-sections"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
+import { cn } from "@/lib/utils"
 
 import { ToolbarIconButton } from "./toolbar-icon-button"
 
@@ -134,39 +136,54 @@ export function EditorTopLeftBar({
           if (key === "trace") {
             return (
               <div key={key} ref={traceWrapperRef} className="relative">
+                {/* The Trace icon only navigates to the trace section
+                    (parity with the other icons); it no longer toggles
+                    the kind menu. */}
                 <ToolbarIconButton
                   label={label}
-                  active={activeSection === "trace" || traceSubOpen}
-                  onClick={() => {
-                    // The Trace icon carries TWO jobs: navigate to the
-                    // trace section so the canvas shows the current trace
-                    // state (parity with the other section icons), and
-                    // reveal the kind sub-pill. The sub-pill entries are
-                    // the ones that open the per-kind configure dialog.
-                    onSectionTap?.(key)
-                    setTraceSubOpen((open) => !open)
-                  }}
+                  active={activeSection === "trace"}
+                  onClick={() => onSectionTap?.(key)}
                 >
                   <Icon aria-hidden="true" className="size-6" />
                 </ToolbarIconButton>
-                {traceSubOpen && (
-                  <div
-                    className={`${PILL_SUB} absolute top-full left-1/2 mt-2 -translate-x-1/2`}
+                {/* Vertical stack under the Trace icon, always present:
+                    the + circle toggles the kind menu that drops directly
+                    beneath it. */}
+                <div className="absolute top-full left-1/2 mt-2 flex -translate-x-1/2 flex-col items-center gap-2">
+                  <button
+                    type="button"
+                    aria-label={traceSubOpen ? "Close trace menu" : "Add trace"}
+                    aria-expanded={traceSubOpen}
+                    onClick={() => setTraceSubOpen((open) => !open)}
+                    className="flex size-10 shrink-0 items-center justify-center rounded-full bg-black text-white shadow-lg ring-1 ring-white/15 transition-colors hover:bg-zinc-800"
                   >
-                    {traceKindItems.map(({ key: kindKey, label: kindLabel, Icon: KindIcon }) => (
-                      <ToolbarIconButton
-                        key={kindKey}
-                        label={kindLabel}
-                        onClick={() => {
-                          setTraceSubOpen(false)
-                          onTraceKindTap?.(kindKey)
-                        }}
-                      >
-                        <KindIcon aria-hidden="true" className="size-6" />
-                      </ToolbarIconButton>
-                    ))}
-                  </div>
-                )}
+                    <Plus
+                      aria-hidden="true"
+                      className={cn(
+                        "size-5 transition-transform duration-200",
+                        traceSubOpen && "rotate-45",
+                      )}
+                    />
+                  </button>
+                  {traceSubOpen && (
+                    // Single active kind → compact 40×40 pill; the full
+                    // 3-kind picker → the taller vertical sub-pill.
+                    <div className={traceKindItems.length === 1 ? PILL_SINGLE : PILL_SUB}>
+                      {traceKindItems.map(({ key: kindKey, label: kindLabel, Icon: KindIcon }) => (
+                        <ToolbarIconButton
+                          key={kindKey}
+                          label={kindLabel}
+                          onClick={() => {
+                            setTraceSubOpen(false)
+                            onTraceKindTap?.(kindKey)
+                          }}
+                        >
+                          <KindIcon aria-hidden="true" className="size-6" />
+                        </ToolbarIconButton>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             )
           }
