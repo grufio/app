@@ -9,7 +9,7 @@
  * `intent`. See `filter-surface-scope.tsx` for the full architectural
  * rationale (lifecycle IS dismissal).
  */
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 
 import { MobileTopRightBar } from "@/features/editor/components/mobile-top-right-bar"
 import { MobileTraceSheet } from "@/features/editor/components/mobile-trace-sheet"
@@ -32,6 +32,11 @@ export type TraceSurfaceScopeProps = {
   /** Mobile-only: closing the left-panel Sheet drawer before opening
    * the trace selection dialog. Desktop ignores this. */
   onBeforeOpenSelection?: () => void
+  /** Cross-mount channel from `EditorTopLeftBar`: when a trace kind
+   * has been requested from outside this scope, open the matching
+   * configure dialog directly (skip the picker) and signal consume. */
+  pendingKindOpen?: TraceKind | null
+  onConsumePendingKindOpen?: () => void
   // Mobile-only visibility toggles (rendered inside MobileTraceSheet).
   traceOverlayVisible: boolean
   previewBitmapVisible: boolean
@@ -46,6 +51,14 @@ export function TraceSurfaceScope(props: TraceSurfaceScopeProps) {
   const [editOpen, setEditOpen] = useState(false)
 
   useMutationLeaveGuard({ active: traceDialog.activeKind !== null })
+
+  const { pendingKindOpen, onConsumePendingKindOpen } = props
+  const { openKind: openTraceKind } = traceDialog
+  useEffect(() => {
+    if (!pendingKindOpen) return
+    openTraceKind(pendingKindOpen)
+    onConsumePendingKindOpen?.()
+  }, [pendingKindOpen, openTraceKind, onConsumePendingKindOpen])
 
   // Snapshot from `traceDialog.session` carries the stable identity
   // (sourceImageUrl + intrinsic px), but `displayMmW`/`displayMmH`
