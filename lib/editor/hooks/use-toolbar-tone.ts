@@ -12,8 +12,13 @@ import { useEffect, useState } from "react"
 import { rgb255ToOklab } from "@/lib/color/oklab"
 import type { ToolbarTone } from "@/features/editor/components/editor-toolbar-tone"
 
-const FLIP_TO_LIGHT = 0.45
-const FLIP_TO_DARK = 0.55
+// OKLab L is perceptual lightness (0..1). Perceptual mid-gray sits around
+// ~0.6, not 0.5, so the flip point is biased up: an image whose mean L is
+// below ~0.6 reads as "dark enough" and gets light bars, while only genuinely
+// bright images (white-ish backgrounds, L > ~0.68) keep dark bars. The 0.08
+// deadband is the hysteresis that stops mid-tone images from flickering.
+const FLIP_TO_LIGHT = 0.6
+const FLIP_TO_DARK = 0.68
 
 export function useToolbarTone(luminance: number | null): ToolbarTone {
   const [tone, setTone] = useState<ToolbarTone>("dark")
