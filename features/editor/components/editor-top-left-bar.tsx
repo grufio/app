@@ -35,6 +35,7 @@ import {
   Plus,
   SlidersHorizontal,
   Spline,
+  Trash2,
   type LucideIcon,
 } from "lucide-react"
 
@@ -93,6 +94,10 @@ type Props = {
    * trace first (Remove trace in the Trace sidebar), which re-exposes
    * all three. */
   activeTraceKind?: RegisteredTraceId | null
+  /** Clears the active trace. Wired to the Delete circle that sits next
+   * to the active kind icon in the sub-pill (only shown when a trace is
+   * applied). */
+  onDeleteTrace?: () => void
 }
 
 export function EditorTopLeftBar({
@@ -100,6 +105,7 @@ export function EditorTopLeftBar({
   onSectionTap,
   onTraceKindTap,
   activeTraceKind = null,
+  onDeleteTrace,
 }: Props) {
   const [traceSubOpen, setTraceSubOpen] = useState(false)
   const traceWrapperRef = useRef<HTMLDivElement>(null)
@@ -169,24 +175,58 @@ export function EditorTopLeftBar({
                       )}
                     />
                   </button>
-                  {traceSubOpen && (
-                    // Single active kind → compact 40×40 pill; the full
-                    // 3-kind picker → the taller vertical sub-pill.
-                    <div className={traceKindItems.length === 1 ? PILL_SINGLE : PILL_SUB}>
-                      {traceKindItems.map(({ key: kindKey, label: kindLabel, Icon: KindIcon }) => (
-                        <ToolbarIconButton
-                          key={kindKey}
-                          label={kindLabel}
+                  {traceSubOpen &&
+                    (activeTraceKind ? (
+                      // Active trace → the single kind icon (compact 40×40
+                      // pill) with a Delete circle to its RIGHT (black
+                      // circle + Trash icon) that clears the trace.
+                      <div className="flex items-center gap-2">
+                        <div className={PILL_SINGLE}>
+                          {traceKindItems.map(({ key: kindKey, label: kindLabel, Icon: KindIcon }) => (
+                            <ToolbarIconButton
+                              key={kindKey}
+                              label={kindLabel}
+                              onClick={() => {
+                                setTraceSubOpen(false)
+                                onTraceKindTap?.(kindKey)
+                              }}
+                            >
+                              <KindIcon aria-hidden="true" className="size-6" />
+                            </ToolbarIconButton>
+                          ))}
+                        </div>
+                        <button
+                          type="button"
+                          aria-label="Delete trace"
                           onClick={() => {
                             setTraceSubOpen(false)
-                            onTraceKindTap?.(kindKey)
+                            onDeleteTrace?.()
                           }}
+                          className={cn(
+                            PILL_BASE,
+                            "flex size-10 shrink-0 items-center justify-center rounded-full text-white transition-colors hover:bg-zinc-800",
+                          )}
                         >
-                          <KindIcon aria-hidden="true" className="size-6" />
-                        </ToolbarIconButton>
-                      ))}
-                    </div>
-                  )}
+                          <Trash2 aria-hidden="true" className="size-5" />
+                        </button>
+                      </div>
+                    ) : (
+                      // No trace → the full vertical 3-kind picker.
+                      <div className={PILL_SUB}>
+                        {traceKindItems.map(({ key: kindKey, label: kindLabel, Icon: KindIcon }) => (
+                          <ToolbarIconButton
+                            key={kindKey}
+                            label={kindLabel}
+                            onClick={() => {
+                              setTraceSubOpen(false)
+                              onTraceKindTap?.(kindKey)
+                            }}
+                          >
+                            <KindIcon aria-hidden="true" className="size-6" />
+                          </ToolbarIconButton>
+                        ))}
+                      </div>
+                    ))}
                 </div>
               </div>
             )

@@ -577,6 +577,7 @@ export function ProjectDetailPageClient({
           onSectionTap={handleMobileNavTap}
           onTraceKindTap={handleTraceKindTap}
           activeTraceKind={trace?.kind ?? null}
+          onDeleteTrace={handleClearTrace}
         />
         {mobileSection === "artboard" ? (
           <ArtboardSurfaceScope
