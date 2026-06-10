@@ -29,11 +29,11 @@
  *   per mode, and Escape is intercepted in edit mode to just dismiss the
  *   overlay.
  *
- * Cancel/Preview in edit mode are functionally identical — both call
- * `setEditOpen(false)`. The labels disambiguate intent ("abort the
- * in-progress field edit" vs. "I'm done, show me the preview"); the
- * draft state lives in the parent and survives either path. The actual
- * filter apply lives exclusively on the outer Apply (check) icon.
+ * Edit-mode close semantics (mobile): X and Cancel close the **entire**
+ * trace flow (call `onCancel`) — same as the preview-header X. The
+ * only forward path is Preview → Apply. The Preview button collapses
+ * the edit overlay to reveal the live preview; Apply on that preview
+ * commits the trace.
  */
 import { useState, type ReactNode } from "react"
 import { Check, Loader2, Pencil, X } from "lucide-react"
@@ -100,12 +100,13 @@ export function TraceDialogShell({
           // No built-in close: we render our own X per mode so edit-mode
           // Escape/X dismiss the overlay (not the whole trace flow).
           showCloseButton={false}
-          // Escape in edit mode collapses the overlay back to preview;
-          // in preview mode it falls through to Radix → onCancel.
+          // Escape always closes the entire trace flow — same as the X
+          // and Cancel buttons. The forward path (Preview → Apply) is
+          // the only intentional way to commit.
           onEscapeKeyDown={(e) => {
             if (editOpen) {
               e.preventDefault()
-              setEditOpen(false)
+              onCancel()
             }
           }}
         >
@@ -161,8 +162,8 @@ export function TraceDialogShell({
 
           {/* Edit overlay — sits ON TOP of the preview inside the same
               DialogContent (no second Portal, no DismissableLayer
-              cascade). Its own X just collapses the overlay; the preview
-              underneath is never unmounted. */}
+              cascade). The X here closes the entire trace flow (same
+              as Cancel below) — the only forward path is Preview. */}
           {editOpen ? (
             <div className="absolute inset-0 z-10 flex flex-col bg-background">
               <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
@@ -172,9 +173,9 @@ export function TraceDialogShell({
                   variant="ghost"
                   size="icon"
                   className="ml-auto"
-                  onClick={() => setEditOpen(false)}
+                  onClick={onCancel}
                   disabled={busy}
-                  aria-label="Back to preview"
+                  aria-label="Close"
                 >
                   <X className="size-4" />
                 </Button>
@@ -199,7 +200,7 @@ export function TraceDialogShell({
                   type="button"
                   variant="outline"
                   size="lg"
-                  onClick={() => setEditOpen(false)}
+                  onClick={onCancel}
                   disabled={busy}
                 >
                   Cancel
@@ -210,9 +211,7 @@ export function TraceDialogShell({
                     reliably blur the focused input on every mobile
                     keyboard (and jsdom never does) — without this the
                     preview underneath would render the pre-edit value
-                    for the focused field. Cancel intentionally does NOT
-                    flush: that's how "discard the in-progress edit" is
-                    expressed. */}
+                    for the focused field. */}
                 <Button
                   type="button"
                   size="lg"
