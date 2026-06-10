@@ -113,6 +113,28 @@ describe("EditorTopLeftBar", () => {
     expect(queryByLabelText("Lineart")).toBeNull()
   })
 
+  it("shows a Delete-trace circle next to the active kind and clears the trace", () => {
+    const onDeleteTrace = vi.fn()
+    const { getByLabelText, queryByLabelText } = render(
+      <EditorTopLeftBar activeTraceKind="circulate" onDeleteTrace={onDeleteTrace} />,
+    )
+    // No delete affordance until the menu is opened.
+    expect(queryByLabelText("Delete trace")).toBeNull()
+    fireEvent.click(getByLabelText("Add trace"))
+    const del = getByLabelText("Delete trace")
+    expect(del).not.toBeNull()
+    fireEvent.click(del)
+    expect(onDeleteTrace).toHaveBeenCalledTimes(1)
+    // Tapping delete closes the menu.
+    expect(queryByLabelText("Circulate")).toBeNull()
+  })
+
+  it("does not show the Delete-trace circle in the no-trace 3-kind picker", () => {
+    const { getByLabelText, queryByLabelText } = render(<EditorTopLeftBar />)
+    fireEvent.click(getByLabelText("Add trace"))
+    expect(queryByLabelText("Delete trace")).toBeNull()
+  })
+
   it("re-opens the active kind's dialog when its menu icon is tapped", () => {
     const onTraceKindTap = vi.fn()
     const { getByLabelText, queryByLabelText } = render(
