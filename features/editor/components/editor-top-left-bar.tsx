@@ -31,6 +31,7 @@ import {
   Grid2x2,
   Grid3x3,
   Home,
+  Loader2,
   Palette,
   Plus,
   SlidersHorizontal,
@@ -96,8 +97,8 @@ type Props = {
   activeTraceKind?: RegisteredTraceId | null
   /** Clears the active trace. Wired to the Delete circle that sits next
    * to the active kind icon in the sub-pill (only shown when a trace is
-   * applied). */
-  onDeleteTrace?: () => void
+   * applied). May be async — the Delete circle spins until it resolves. */
+  onDeleteTrace?: () => void | Promise<void>
 }
 
 export function EditorTopLeftBar({
@@ -108,14 +109,35 @@ export function EditorTopLeftBar({
   onDeleteTrace,
 }: Props) {
   const [traceSubOpen, setTraceSubOpen] = useState(false)
+  // The kind currently being deleted (null when idle). Held in state so
+  // the Delete circle keeps spinning and the active-kind icon stays put
+  // even after `trace` (and thus `activeTraceKind`) flips to null
+  // mid-clear — the clear resolves a beat before the menu closes.
+  const [deletingKind, setDeletingKind] = useState<RegisteredTraceId | null>(null)
   const traceWrapperRef = useRef<HTMLDivElement>(null)
+
+  const deleting = deletingKind !== null
+  // Freeze the displayed kind during a delete so the menu doesn't morph
+  // into the 3-kind picker while the spinner runs.
+  const displayKind = deletingKind ?? activeTraceKind
 
   // Trace is single-active: once a kind is applied the sub-pill shows
   // only that kind, mirroring the mutually-exclusive model. With no
   // trace set, all kinds are offered.
-  const traceKindItems = activeTraceKind
-    ? TRACE_KIND_ITEMS.filter((item) => item.key === activeTraceKind)
+  const traceKindItems = displayKind
+    ? TRACE_KIND_ITEMS.filter((item) => item.key === displayKind)
     : TRACE_KIND_ITEMS
+
+  const handleDeleteTrace = async () => {
+    if (deleting || !activeTraceKind) return
+    setDeletingKind(activeTraceKind)
+    try {
+      await onDeleteTrace?.()
+    } finally {
+      setDeletingKind(null)
+      setTraceSubOpen(false)
+    }
+  }
 
   useEffect(() => {
     if (!traceSubOpen) return
@@ -179,25 +201,27 @@ export function EditorTopLeftBar({
                     {/* Active trace → a Delete circle directly to the RIGHT
                         of the + (the active kind icon sits directly below
                         the +, so the two form a 90° angle off the +). */}
-                    {traceSubOpen && activeTraceKind ? (
+                    {traceSubOpen && displayKind ? (
                       <button
                         type="button"
                         aria-label="Delete trace"
-                        onClick={() => {
-                          setTraceSubOpen(false)
-                          onDeleteTrace?.()
-                        }}
+                        onClick={() => void handleDeleteTrace()}
+                        disabled={deleting}
                         className={cn(
                           PILL_BASE,
                           "absolute left-full top-0 ml-2 flex size-10 shrink-0 items-center justify-center rounded-full text-white transition-colors hover:bg-zinc-800",
                         )}
                       >
-                        <Trash2 aria-hidden="true" className="size-5" />
+                        {deleting ? (
+                          <Loader2 aria-hidden="true" className="size-5 animate-spin" />
+                        ) : (
+                          <Trash2 aria-hidden="true" className="size-5" />
+                        )}
                       </button>
                     ) : null}
                   </div>
                   {traceSubOpen &&
-                    (activeTraceKind ? (
+                    (displayKind ? (
                       // Active trace → the single kind icon directly under
                       // the + (compact 40×40 pill).
                       <div className={PILL_SINGLE}>
@@ -205,6 +229,7 @@ export function EditorTopLeftBar({
                           <ToolbarIconButton
                             key={kindKey}
                             label={kindLabel}
+                            disabled={deleting}
                             onClick={() => {
                               setTraceSubOpen(false)
                               onTraceKindTap?.(kindKey)
