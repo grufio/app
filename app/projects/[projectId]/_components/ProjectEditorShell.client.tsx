@@ -487,8 +487,12 @@ export function ProjectDetailPageClient({
     [isMobile, setMobileSection, setPendingTraceKindOpen],
   )
 
+  // Closing the configure dialog returns to the trace section so the
+  // user lands back on the current trace state (the Trace icon's job),
+  // not the Image/artboard tab. The dialog itself unmounts via
+  // closeConfigure, so no stale draft preview lingers.
   const handleTraceConfigureCancelled = useCallback(() => {
-    if (isMobile) setMobileSection("artboard")
+    if (isMobile) setMobileSection("trace")
   }, [isMobile, setMobileSection])
 
   const sectionLocks = useMemo(
