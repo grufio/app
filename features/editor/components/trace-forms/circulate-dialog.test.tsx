@@ -112,15 +112,15 @@ describe("CirculateDialog (smoke)", () => {
       />,
     )
 
-    // Settings first: the dialog opens on the params overlay — the form is
-    // mounted, the preview is rendered underneath.
+    // Settings first: the dialog opens on the params overlay; only the
+    // form is mounted. Preview pane is lazy — mounts on first Preview tap.
     await waitFor(() => {
       expect(document.body.querySelector("#outer_width_mm")).not.toBeNull()
     })
-    expect(document.body.querySelector('[data-testid="circulate-preview-mini"]')).not.toBeNull()
+    expect(document.body.querySelector('[data-testid="circulate-preview-mini"]')).toBeNull()
 
-    // "Preview" collapses the overlay to reveal the preview, WITHOUT firing the
-    // trace — apply is committed exclusively from the outer apply icon.
+    // "Preview" mounts the preview pane and collapses the overlay
+    // WITHOUT firing the trace.
     const preview = Array.from(document.body.querySelectorAll("button")).find(
       (b) => b.textContent?.trim() === "Preview",
     ) as HTMLButtonElement
@@ -129,6 +129,7 @@ describe("CirculateDialog (smoke)", () => {
     await waitFor(() => {
       expect(document.body.querySelector("#outer_width_mm")).toBeNull()
     })
+    expect(document.body.querySelector('[data-testid="circulate-preview-mini"]')).not.toBeNull()
     expect(onApplyTrace).not.toHaveBeenCalled()
 
     // The pencil re-opens the params from the preview.

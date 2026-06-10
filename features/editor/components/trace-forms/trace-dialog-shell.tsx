@@ -87,10 +87,12 @@ export function TraceDialogShell({
 }: Props) {
   const isMobile = useIsMobile()
   // Settings first: the mobile dialog opens on the params overlay; "Preview"
-  // (or the header X) collapses it to reveal the live preview, from which the
-  // apply icon commits. The preview is mounted underneath from the start, so
-  // the collapse is instant. (Desktop shows preview + form side by side.)
+  // collapses it and mounts the preview pane on demand. Once mounted, the
+  // pane stays alive across edit/preview round-trips so the canvas + loaded
+  // source image survive — only the *first* preview-tap pays the compute.
+  // (Desktop shows preview + form side by side from the start.)
   const [editOpen, setEditOpen] = useState(true)
+  const [previewMounted, setPreviewMounted] = useState(false)
 
   if (isMobile) {
     return (
@@ -113,11 +115,12 @@ export function TraceDialogShell({
           <DialogTitle className="sr-only">{title}</DialogTitle>
           <DialogDescription className="sr-only">{description}</DialogDescription>
 
-          {/* Preview layer — always mounted. The header's X here is the
-              trace-flow close (calls the shell's `onCancel`). When the
-              edit overlay is open it covers this header visually, but the
-              preview body (canvas, ResizeObserver, source image) keeps
-              running underneath. */}
+          {/* Preview layer — header always rendered (sits under the edit
+              overlay until the user collapses it via Preview). The
+              preview pane itself is mounted lazily on the first Preview
+              tap (`previewMounted`) so no work happens until the user
+              asks for it; thereafter it stays mounted to preserve the
+              canvas + loaded source. */}
           <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
             <span className="text-sm font-medium">{title}</span>
             <div className="ml-auto flex items-center gap-2">
@@ -157,7 +160,7 @@ export function TraceDialogShell({
             </div>
           </header>
           <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            {preview}
+            {previewMounted ? preview : null}
           </main>
 
           {/* Edit overlay — sits ON TOP of the preview inside the same
@@ -219,6 +222,7 @@ export function TraceDialogShell({
                     if (document.activeElement instanceof HTMLElement) {
                       document.activeElement.blur()
                     }
+                    setPreviewMounted(true)
                     setEditOpen(false)
                   }}
                   disabled={busy}

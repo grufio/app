@@ -103,15 +103,17 @@ describe("PixelateDialog (smoke)", () => {
       />,
     )
 
-    // Settings first: the dialog opens on the params overlay — the form is
-    // mounted, the preview is rendered underneath.
+    // Settings first: the dialog opens on the params overlay; only the
+    // form is mounted. The preview pane is lazy — no work happens until
+    // the user explicitly taps Preview.
     await waitFor(() => {
       expect(document.body.querySelector("#supercell_width_mm")).not.toBeNull()
     })
-    expect(document.body.querySelector('[data-testid="pixelate-preview-mini"]')).not.toBeNull()
+    expect(document.body.querySelector('[data-testid="pixelate-preview-mini"]')).toBeNull()
 
-    // "Preview" collapses the overlay to reveal the preview, WITHOUT firing the
-    // trace — apply is committed exclusively from the outer apply icon.
+    // "Preview" mounts the preview pane and collapses the overlay
+    // WITHOUT firing the trace — apply is committed exclusively from
+    // the outer apply icon.
     const preview = Array.from(document.body.querySelectorAll("button")).find(
       (b) => b.textContent?.trim() === "Preview",
     ) as HTMLButtonElement
@@ -120,6 +122,7 @@ describe("PixelateDialog (smoke)", () => {
     await waitFor(() => {
       expect(document.body.querySelector("#supercell_width_mm")).toBeNull()
     })
+    expect(document.body.querySelector('[data-testid="pixelate-preview-mini"]')).not.toBeNull()
     expect(onApplyTrace).not.toHaveBeenCalled()
 
     // The pencil re-opens the params from the preview.
