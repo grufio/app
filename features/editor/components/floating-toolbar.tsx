@@ -15,6 +15,8 @@ import { Crop, Hand, Maximize2, MousePointer2, RotateCw, ZoomIn, ZoomOut } from 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import type { EditorTool } from "@/lib/editor/floating-toolbar-controls"
+import { useEditorToolbarTone } from "./editor-toolbar-tone"
+import { pillClass } from "./floating-bar-styles"
 import { ToolbarIconButton } from "./toolbar-icon-button"
 
 export type FloatingToolbarTool = EditorTool
@@ -83,15 +85,13 @@ export function FloatingToolbar({
   rotateDisabled = false,
   className,
 }: Props) {
+  const tone = useEditorToolbarTone()
   return (
     <TooltipProvider delayDuration={150}>
       <div
         role="toolbar"
         aria-label="Canvas toolbar"
-        className={cn(
-          "inline-flex items-center gap-3 rounded-lg bg-zinc-900/95 px-2 py-1 shadow-lg ring-1 ring-white/10 backdrop-blur",
-          className
-        )}
+        className={cn(pillClass(tone, "group"), className)}
       >
         {leftSlot}
         <IconButton

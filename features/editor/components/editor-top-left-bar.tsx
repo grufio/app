@@ -44,21 +44,9 @@ import type { MobileSection } from "@/lib/editor/mobile-sections"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
 import { cn } from "@/lib/utils"
 
+import { useEditorToolbarTone } from "./editor-toolbar-tone"
+import { circleClass, pillClass } from "./floating-bar-styles"
 import { ToolbarIconButton } from "./toolbar-icon-button"
-
-const PILL_BASE =
-  "inline-flex items-center rounded-lg bg-zinc-900/95 shadow-lg ring-1 ring-white/10 backdrop-blur"
-/** Single-button pill: `p-1` so the container is a 40 × 40 square
- * (32 px button + 4 px padding each side). Matches the bottom
- * floating-toolbar's height (`py-1` → 40 px) but stays square. */
-const PILL_SINGLE = `${PILL_BASE} p-1`
-/** Multi-button pill: same `gap-3 px-2 py-1` as the bottom floating
- * toolbar (`floating-toolbar.tsx:92`) — same height, padding, gap. */
-const PILL_GROUP = `${PILL_BASE} gap-3 px-2 py-1`
-/** Sub-pill that hangs under a section icon (Feather-3D pattern).
- * Same material as the main pills but a **vertical** icon stack:
- * the sub-menu drops downward as a column beneath the parent icon. */
-const PILL_SUB = `${PILL_BASE} flex-col gap-2 px-0.5 py-1.5`
 
 type SectionItem = {
   key: MobileSection
@@ -115,6 +103,7 @@ export function EditorTopLeftBar({
   // mid-clear — the clear resolves a beat before the menu closes.
   const [deletingKind, setDeletingKind] = useState<RegisteredTraceId | null>(null)
   const traceWrapperRef = useRef<HTMLDivElement>(null)
+  const tone = useEditorToolbarTone()
 
   const deleting = deletingKind !== null
   // Freeze the displayed kind during a delete so the menu doesn't morph
@@ -152,14 +141,14 @@ export function EditorTopLeftBar({
 
   return (
     <div className="absolute top-3 left-3 z-20 flex items-center gap-3">
-      <div className={PILL_SINGLE}>
+      <div className={pillClass(tone, "single")}>
         <ToolbarIconButton label="Home" asChild>
           <Link href="/dashboard">
             <Home aria-hidden="true" className="size-6" />
           </Link>
         </ToolbarIconButton>
       </div>
-      <div className={PILL_GROUP}>
+      <div className={pillClass(tone, "group")}>
         {SECTION_ITEMS.map(({ key, label, Icon }) => {
           if (key === "trace") {
             return (
@@ -188,7 +177,7 @@ export function EditorTopLeftBar({
                       aria-label={traceSubOpen ? "Close trace menu" : "Add trace"}
                       aria-expanded={traceSubOpen}
                       onClick={() => setTraceSubOpen((open) => !open)}
-                      className={cn(PILL_BASE, "flex size-10 shrink-0 items-center justify-center rounded-full text-white transition-colors hover:bg-zinc-800")}
+                      className={circleClass(tone)}
                     >
                       <Plus
                         aria-hidden="true"
@@ -207,10 +196,7 @@ export function EditorTopLeftBar({
                         aria-label="Delete trace"
                         onClick={() => void handleDeleteTrace()}
                         disabled={deleting}
-                        className={cn(
-                          PILL_BASE,
-                          "absolute left-full top-0 ml-2 flex size-10 shrink-0 items-center justify-center rounded-full text-white transition-colors hover:bg-zinc-800",
-                        )}
+                        className={cn(circleClass(tone), "absolute left-full top-0 ml-2")}
                       >
                         {deleting ? (
                           <Loader2 aria-hidden="true" className="size-5 animate-spin" />
@@ -224,7 +210,7 @@ export function EditorTopLeftBar({
                     (displayKind ? (
                       // Active trace → the single kind icon directly under
                       // the + (compact 40×40 pill).
-                      <div className={PILL_SINGLE}>
+                      <div className={pillClass(tone, "single")}>
                         {traceKindItems.map(({ key: kindKey, label: kindLabel, Icon: KindIcon }) => (
                           <ToolbarIconButton
                             key={kindKey}
@@ -241,7 +227,7 @@ export function EditorTopLeftBar({
                       </div>
                     ) : (
                       // No trace → the full vertical 3-kind picker.
-                      <div className={PILL_SUB}>
+                      <div className={pillClass(tone, "sub")}>
                         {traceKindItems.map(({ key: kindKey, label: kindLabel, Icon: KindIcon }) => (
                           <ToolbarIconButton
                             key={kindKey}

@@ -3,36 +3,44 @@
 import { AppButton } from "@/components/ui/form-controls"
 import { cn } from "@/lib/utils"
 
+import { useEditorToolbarTone, type ToolbarTone } from "./editor-toolbar-tone"
+import { ICON_TONE } from "./floating-bar-styles"
+
 type ToolbarIconButtonProps = Omit<React.ComponentProps<"button">, "children"> & {
   label: string
   active?: boolean
   /** When true, the button forwards its props to its single child via
    * Radix Slot (e.g. wrap a `<Link>` as the rendered element). */
   asChild?: boolean
+  /** Force a tone; defaults to the `EditorToolbarTone` context (dark). */
+  tone?: ToolbarTone
   children: React.ReactNode
 }
 
 /**
- * Square icon button for the dark Feather-look canvas bars
- * (`floating-toolbar`, `mobile-top-right-bar`, the upload widget).
- * The sibling bar provides the `bg-zinc-900/95` container; the button
- * is transparent by default and lights up on hover.
+ * Square icon button for the Feather-look canvas bars (`floating-toolbar`,
+ * `mobile-top-right-bar`, `editor-top-left-bar`, the upload widget). The
+ * sibling bar provides the surface; the button is transparent by default
+ * and lights up on hover.
  *
- * Active state is signalled via icon brightness only (`text-white` vs.
- * the inactive `text-white/70`) — no background pill, no ring. The
- * tightly packed bar in Feather 3D works the same way: the user reads
- * "this one is on" from the brighter glyph, not from a circle drawn
- * around it.
+ * Active state is signalled via icon brightness only (active vs. the dimmer
+ * inactive glyph) — no background pill, no ring. Colours follow the tone:
+ * dark bars use white ink, light bars use `zinc-900` (the same black as the
+ * dark bar's background). The tone comes from the `EditorToolbarTone`
+ * context unless overridden via the `tone` prop.
  */
-export function ToolbarIconButton({ label, active = false, asChild = false, className, children, ...props }: ToolbarIconButtonProps) {
+export function ToolbarIconButton({ label, active = false, asChild = false, tone, className, children, ...props }: ToolbarIconButtonProps) {
+  const ctxTone = useEditorToolbarTone()
+  const ink = ICON_TONE[tone ?? ctxTone]
   const buttonClassName = cn(
     "h-8 w-8 min-h-8 min-w-8 max-h-8 max-w-8 rounded aspect-square p-0 shrink-0",
-    !active && "text-white/70",
-    active && "text-white",
+    !active && ink.inactive,
+    active && ink.active,
     // Neutralize the ghost variant's default hover; we paint our own.
     "hover:bg-transparent",
-    "hover:text-white",
-    "disabled:bg-transparent disabled:text-white/30 disabled:opacity-100 disabled:hover:bg-transparent",
+    ink.hover,
+    "disabled:bg-transparent disabled:opacity-100 disabled:hover:bg-transparent",
+    ink.disabled,
     className
   )
 

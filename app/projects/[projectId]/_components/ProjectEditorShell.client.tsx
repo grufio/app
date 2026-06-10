@@ -20,6 +20,9 @@ import {
 } from "@/features/editor"
 import { deriveSectionLocks } from "@/lib/editor/section-locks"
 import { EditorTopLeftBar } from "@/features/editor/components/editor-top-left-bar"
+import { EditorToolbarToneProvider } from "@/features/editor/components/editor-toolbar-tone"
+import { useImageLuminance } from "@/lib/editor/hooks/use-image-luminance"
+import { hexLuminance, useToolbarTone } from "@/lib/editor/hooks/use-toolbar-tone"
 import {
   Dialog,
   DialogContent,
@@ -409,6 +412,17 @@ export function ProjectDetailPageClient({
     previewBitmapVisible,
     numbersLayerVisible,
   })
+  // Auto-pick the floating bars' tone from the displayed image's
+  // brightness (bright surface → dark bars; dark surface → light bars),
+  // falling back to the page background when no image is shown.
+  const displayedImageUrl = canvasImage?.signedUrl ?? null
+  const imageLuminance = useImageLuminance(displayedImageUrl)
+  const surfaceLuminance = displayedImageUrl
+    ? imageLuminance
+    : pageBgEnabled
+      ? hexLuminance(pageBgColor)
+      : null
+  const toolbarTone = useToolbarTone(surfaceLuminance)
   // canvasMode is now a pure projection of `showFilterChain` — the
   // tab-vs-mobile-vs-image-ready logic lives in `deriveDisplayLayers`.
   // Kept as a string union because FilterSidebarSection + MobileFilterSheet
@@ -517,6 +531,7 @@ export function ProjectDetailPageClient({
       />
 
       <ProjectEditorLayout>
+        <EditorToolbarToneProvider tone={toolbarTone}>
         <EditorErrorBoundary resetKey={`${projectId}:${masterImage?.signedUrl ?? "no-image"}`}>
           <main className="flex min-w-0 flex-1">
             <ProjectEditorStage
@@ -659,6 +674,7 @@ export function ProjectDetailPageClient({
         {mobileSection === "colors" ? (
           <ColorsSurfaceScope desktop={!isMobile} trace={trace} />
         ) : null}
+        </EditorToolbarToneProvider>
       </ProjectEditorLayout>
 
       <Dialog open={unlockRequest !== null} onOpenChange={(o) => (!o ? cancelUnlock() : null)}>
