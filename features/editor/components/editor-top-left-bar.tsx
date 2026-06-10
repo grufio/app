@@ -28,6 +28,7 @@ import { useEffect, useRef, useState } from "react"
 import {
   CircleDot,
   Frame,
+  Grid2x2,
   Grid3x3,
   Home,
   Palette,
@@ -71,7 +72,7 @@ const SECTION_ITEMS: SectionItem[] = [
 type TraceKindItem = { key: RegisteredTraceId; label: string; Icon: LucideIcon }
 
 const TRACE_KIND_ITEMS: TraceKindItem[] = [
-  { key: "pixelate", label: "Pixelate", Icon: Grid3x3 },
+  { key: "pixelate", label: "Pixelate", Icon: Grid2x2 },
   { key: "circulate", label: "Circulate", Icon: CircleDot },
   { key: "lineart", label: "Lineart", Icon: Spline },
 ]
