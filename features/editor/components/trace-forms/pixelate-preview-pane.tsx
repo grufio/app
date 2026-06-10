@@ -141,7 +141,13 @@ export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
   // also runs the blue-noise neighbour invasion as part of the dispatch.
   const snappedCells = useMemo(
     () =>
-      cellMeans
+      // Gate on `palette`: until `/api/palette` resolves, `palette` is null
+      // and snapping would fall back to raw (unsnapped) cell means — a
+      // vivid preview that gets replaced ~150ms later by the duller
+      // palette-snapped one (and Apply uses the snapped colours). Hold the
+      // paint until the palette is ready so the first preview shown is the
+      // accurate one.
+      cellMeans && palette
         ? snapAndDitherCells({
             cellMeans,
             cellsX: grid.cellsX,
@@ -156,6 +162,7 @@ export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
         : null,
     [
       cellMeans,
+      palette,
       grid.cellsX,
       grid.cellsY,
       activePalette,
@@ -189,8 +196,10 @@ export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
     paintCellsToCanvas({ target, cells: reducedCells, cellsX: grid.cellsX, cellsY: grid.cellsY })
   }, [reducedCells, grid.cellsX, grid.cellsY])
 
-  const showSpinner = !source
-  const showInvalid = source !== null && !valid
+  // Spinner covers both the image load and the palette fetch: a valid grid
+  // with no palette yet would otherwise paint the raw-means preview.
+  const showSpinner = !source || !palette
+  const showInvalid = source !== null && palette !== null && !valid
 
   const handleZoomIn = () => setZoom((z) => Math.min(ZOOM_MAX, z * ZOOM_STEP))
   const handleZoomOut = () => setZoom((z) => Math.max(ZOOM_MIN, z / ZOOM_STEP))

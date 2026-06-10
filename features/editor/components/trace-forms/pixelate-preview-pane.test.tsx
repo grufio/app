@@ -70,6 +70,28 @@ describe("PixelatePreviewPane", () => {
     })
   })
 
+  it("keeps the loading spinner until the palette resolves, even after the source loads", async () => {
+    const { getByText, queryByTestId } = render(
+      <PixelatePreviewPane
+        sourceImageUrl="https://example.test/a.png"
+        displayMmW={100}
+        displayMmH={75}
+        params={defaults}
+      />,
+    )
+
+    // The zoom controls render on `source && valid`, so their presence
+    // proves the source image has loaded.
+    await waitFor(() => {
+      expect(queryByTestId("pixelate-preview-zoom-controls")).not.toBeNull()
+    })
+
+    // …yet the palette mock is still null (loading), so the pane must keep
+    // the spinner instead of painting the raw-means fallback — the vivid
+    // preview that used to flash before the palette-snapped one.
+    expect(getByText(/Loading preview/)).not.toBeNull()
+  })
+
   it("falls back to 1×1 bitmap when grid would be invalid", () => {
     // 4 mm image with 5 mm supercell → cellsX=0, invalid grid, crop=null.
     const { getByTestId } = render(
