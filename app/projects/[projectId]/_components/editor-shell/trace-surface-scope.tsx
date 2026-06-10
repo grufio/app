@@ -124,10 +124,11 @@ export function TraceSurfaceScope(props: TraceSurfaceScopeProps) {
         onDeleteTrace={props.trace !== null ? handleDeleteTrace : undefined}
         initialParams={props.trace?.params}
       />
+      {/* No Edit (Pencil) on Trace: the "+" sub-pill opens the kind
+          picker and the configure dialog owns Delete, so the bar carries
+          only the Eye (view-options) when a trace exists. */}
       <MobileTopRightBar
         desktop={props.desktop}
-        onEditTap={() => setEditOpen(true)}
-        ariaLabelEdit="Edit trace"
         viewOptions={
           props.trace !== null
           && (props.trace.kind === "pixelate" || props.trace.kind === "circulate")

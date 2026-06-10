@@ -58,6 +58,21 @@ describe("MobileTopRightBar", () => {
     expect(queryByLabelText("View options")).toBeNull()
   })
 
+  it("renders only the Eye (no Edit) when onEditTap is omitted", () => {
+    setupRadixPolyfills()
+    const { getByLabelText, queryByLabelText } = render(
+      <MobileTopRightBar viewOptions={defaultViewOptions()} />,
+    )
+    expect(getByLabelText("View options")).not.toBeNull()
+    expect(queryByLabelText("Edit")).toBeNull()
+    expect(queryByLabelText("Edit trace")).toBeNull()
+  })
+
+  it("renders nothing when there is neither an Edit trigger nor view-options", () => {
+    const { queryByRole } = render(<MobileTopRightBar viewOptions={null} />)
+    expect(queryByRole("toolbar")).toBeNull()
+  })
+
   it("renders both Eye and Edit when viewOptions is provided", () => {
     setupRadixPolyfills()
     const { getByLabelText } = render(
