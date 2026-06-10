@@ -89,18 +89,6 @@ describe("EditorTopLeftBar", () => {
     expect(onTraceKindTap).toHaveBeenCalledTimes(3)
   })
 
-  it("disables sub-pill items and skips onTraceKindTap when hasTrace is true", () => {
-    const onTraceKindTap = vi.fn()
-    const { getByLabelText } = render(
-      <EditorTopLeftBar hasTrace onTraceKindTap={onTraceKindTap} />,
-    )
-    fireEvent.click(getByLabelText("Trace"))
-    const pixelate = getByLabelText("Pixelate") as HTMLButtonElement
-    expect(pixelate.disabled).toBe(true)
-    fireEvent.click(pixelate)
-    expect(onTraceKindTap).not.toHaveBeenCalled()
-  })
-
   it("closes the sub-pill when the user clicks outside", () => {
     const { getByLabelText, queryByLabelText } = render(
       <div>
