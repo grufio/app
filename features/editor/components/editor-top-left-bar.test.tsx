@@ -45,11 +45,24 @@ describe("EditorTopLeftBar", () => {
     fireEvent.click(getByLabelText("Color"))
     expect(onSectionTap).toHaveBeenLastCalledWith("colors")
     expect(onSectionTap).toHaveBeenCalledTimes(3)
-    // Trace also navigates to the trace section (show current trace
-    // state) — on top of toggling its kind sub-pill.
+    // The Trace icon only navigates to the trace section (show current
+    // trace state); the kind menu is driven by the separate + circle.
     fireEvent.click(getByLabelText("Trace"))
     expect(onSectionTap).toHaveBeenLastCalledWith("trace")
     expect(onSectionTap).toHaveBeenCalledTimes(4)
+  })
+
+  it("renders an always-present Add-trace + circle that the Trace icon does not control", () => {
+    const onSectionTap = vi.fn()
+    const { getByLabelText, queryByLabelText } = render(
+      <EditorTopLeftBar onSectionTap={onSectionTap} />,
+    )
+    // The + circle is shown regardless of the active section.
+    expect(getByLabelText("Add trace")).not.toBeNull()
+    // Tapping Trace navigates but does NOT open the kind menu.
+    fireEvent.click(getByLabelText("Trace"))
+    expect(onSectionTap).toHaveBeenLastCalledWith("trace")
+    expect(queryByLabelText("Pixelate")).toBeNull()
   })
 
   it("marks only the active section as aria-pressed", () => {
@@ -65,68 +78,78 @@ describe("EditorTopLeftBar", () => {
     expect(getByLabelText("Trace").getAttribute("aria-pressed")).toBe("true")
   })
 
-  it("toggles a sub-pill with three trace-kind icons on Trace tap when no trace is set", () => {
+  it("toggles the kind menu via the + circle with all three kinds when no trace is set", () => {
     const { getByLabelText, queryByLabelText } = render(<EditorTopLeftBar />)
     expect(queryByLabelText("Pixelate")).toBeNull()
     expect(queryByLabelText("Circulate")).toBeNull()
     expect(queryByLabelText("Lineart")).toBeNull()
-    fireEvent.click(getByLabelText("Trace"))
+    fireEvent.click(getByLabelText("Add trace"))
     expect(getByLabelText("Pixelate")).not.toBeNull()
     expect(getByLabelText("Circulate")).not.toBeNull()
     expect(getByLabelText("Lineart")).not.toBeNull()
-    expect(getByLabelText("Trace").getAttribute("aria-pressed")).toBe("true")
-    fireEvent.click(getByLabelText("Trace"))
+    // The circle is now the close affordance and reports expanded.
+    expect(getByLabelText("Close trace menu").getAttribute("aria-expanded")).toBe("true")
+    fireEvent.click(getByLabelText("Close trace menu"))
     expect(queryByLabelText("Pixelate")).toBeNull()
   })
 
-  it("collapses the sub-pill to only the active trace kind once one is set", () => {
+  it("rotates the + into an × (rotate-45) while the menu is open", () => {
+    const { getByLabelText } = render(<EditorTopLeftBar />)
+    const closedIcon = getByLabelText("Add trace").querySelector("svg")
+    expect(closedIcon?.classList.contains("rotate-45")).toBe(false)
+    fireEvent.click(getByLabelText("Add trace"))
+    const openIcon = getByLabelText("Close trace menu").querySelector("svg")
+    expect(openIcon?.classList.contains("rotate-45")).toBe(true)
+  })
+
+  it("shows only the active trace kind in the menu once one is set", () => {
     const { getByLabelText, queryByLabelText } = render(
       <EditorTopLeftBar activeTraceKind="circulate" />,
     )
-    fireEvent.click(getByLabelText("Trace"))
+    fireEvent.click(getByLabelText("Add trace"))
     // Trace is mutually exclusive — only the active kind is offered.
     expect(getByLabelText("Circulate")).not.toBeNull()
     expect(queryByLabelText("Pixelate")).toBeNull()
     expect(queryByLabelText("Lineart")).toBeNull()
   })
 
-  it("re-opens the active kind's dialog when its sub-pill icon is tapped", () => {
+  it("re-opens the active kind's dialog when its menu icon is tapped", () => {
     const onTraceKindTap = vi.fn()
     const { getByLabelText, queryByLabelText } = render(
       <EditorTopLeftBar activeTraceKind="lineart" onTraceKindTap={onTraceKindTap} />,
     )
-    fireEvent.click(getByLabelText("Trace"))
+    fireEvent.click(getByLabelText("Add trace"))
     fireEvent.click(getByLabelText("Lineart"))
     expect(onTraceKindTap).toHaveBeenLastCalledWith("lineart")
     expect(queryByLabelText("Lineart")).toBeNull()
   })
 
-  it("invokes onTraceKindTap with the picked kind and closes the sub-pill when no trace is set", () => {
+  it("invokes onTraceKindTap with the picked kind and closes the menu when no trace is set", () => {
     const onTraceKindTap = vi.fn()
     const { getByLabelText, queryByLabelText } = render(
       <EditorTopLeftBar onTraceKindTap={onTraceKindTap} />,
     )
-    fireEvent.click(getByLabelText("Trace"))
+    fireEvent.click(getByLabelText("Add trace"))
     fireEvent.click(getByLabelText("Pixelate"))
     expect(onTraceKindTap).toHaveBeenLastCalledWith("pixelate")
     expect(queryByLabelText("Pixelate")).toBeNull()
-    fireEvent.click(getByLabelText("Trace"))
+    fireEvent.click(getByLabelText("Add trace"))
     fireEvent.click(getByLabelText("Circulate"))
     expect(onTraceKindTap).toHaveBeenLastCalledWith("circulate")
-    fireEvent.click(getByLabelText("Trace"))
+    fireEvent.click(getByLabelText("Add trace"))
     fireEvent.click(getByLabelText("Lineart"))
     expect(onTraceKindTap).toHaveBeenLastCalledWith("lineart")
     expect(onTraceKindTap).toHaveBeenCalledTimes(3)
   })
 
-  it("closes the sub-pill when the user clicks outside", () => {
+  it("closes the kind menu when the user clicks outside", () => {
     const { getByLabelText, queryByLabelText } = render(
       <div>
         <EditorTopLeftBar />
         <button type="button" aria-label="outside">outside</button>
       </div>,
     )
-    fireEvent.click(getByLabelText("Trace"))
+    fireEvent.click(getByLabelText("Add trace"))
     expect(getByLabelText("Pixelate")).not.toBeNull()
     fireEvent.pointerDown(getByLabelText("outside"))
     expect(queryByLabelText("Pixelate")).toBeNull()
