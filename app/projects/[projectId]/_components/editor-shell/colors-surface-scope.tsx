@@ -14,9 +14,11 @@ import type { ProjectTrace } from "@/lib/api/project-trace"
 
 export type ColorsSurfaceScopeProps = {
   trace: ProjectTrace | null
+  /** When true, the Colors section view stays visible on `md+`. */
+  desktop?: boolean
 }
 
-export function ColorsSurfaceScope({ trace }: ColorsSurfaceScopeProps) {
+export function ColorsSurfaceScope({ trace, desktop }: ColorsSurfaceScopeProps) {
   // All three trace kinds (pixelate, circulate, lineart) carry
   // color_mode in params and snap on Munsell. Default "color" when
   // missing (pre-snap legacy rows never reach this branch — they have
@@ -30,6 +32,7 @@ export function ColorsSurfaceScope({ trace }: ColorsSurfaceScopeProps) {
 
   return (
     <MobileColorsSheet
+      desktop={desktop}
       paletteIndicesUsed={trace?.palette_indices_used ?? null}
       traceMode={traceMode}
       hasTrace={trace != null}

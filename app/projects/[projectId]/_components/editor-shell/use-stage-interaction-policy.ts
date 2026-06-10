@@ -47,7 +47,9 @@ function useEditorInteractionController(args: {
 
 export function useStageInteractionPolicy(args: {
   canvasRef: RefObject<ProjectCanvasStageHandle | null>
-  leftPanelTab: string
+  /** The active editor section (the shell's `mobileSection`) — drives
+   * the per-section tool availability on both viewports. */
+  activeSection: string
   sourceReady: boolean
   selectedNavId: string
   setSelectedNavId: (next: string) => void
@@ -57,7 +59,7 @@ export function useStageInteractionPolicy(args: {
 }) {
   const {
     canvasRef,
-    leftPanelTab,
+    activeSection,
     sourceReady,
     selectedNavId,
     setSelectedNavId,
@@ -73,16 +75,16 @@ export function useStageInteractionPolicy(args: {
     enableShortcuts: true,
   })
 
-  // Per-tab tool availability. Object is the default everywhere
-  // (whole-image drag/resize). Direct only on Trace tab (clicks
-  // trace-overlay regions). Crop only on Image tab. Hand is always
-  // available — it pans the artboard view and never touches the
-  // image or trace.
-  const showDirectSelect = leftPanelTab === "trace"
-  const cropDisabled = leftPanelTab !== "image"
-  const rotateDisabled = leftPanelTab === "filter"
+  // Per-section tool availability. Object is the default everywhere
+  // (whole-image drag/resize). Direct only on the Trace section
+  // (clicks trace-overlay regions). Crop only on the Artboard
+  // section. Hand is always available — it pans the artboard view and
+  // never touches the image or trace.
+  const showDirectSelect = activeSection === "trace"
+  const cropDisabled = activeSection !== "artboard"
+  const rotateDisabled = activeSection === "filter"
 
-  // If the current tool isn't valid on the active tab, fall back to
+  // If the current tool isn't valid on the active section, fall back to
   // object so the user always lands in an image-movable state.
   useEffect(() => {
     if (toolbar.tool === "direct" && !showDirectSelect) {

@@ -19,9 +19,9 @@
  *    rect; `showFilterChain` toggles `canvasMode` (filter-row
  *    highlighting; canvasImage source itself is selected here).
  *
- * Section semantics (desktop `leftPanelTab` / mobile `mobileSection`):
- *  - Image / Artboard → raw master visible, no filter row highlight,
- *    no trace overlay
+ * Section semantics (one `mobileSection` input, both viewports):
+ *  - Artboard → raw master visible, no filter row highlight, no trace
+ *    overlay
  *  - Filter → working copy (chain tip) visible, filter row highlight
  *    active, no trace overlay
  *  - Trace → working copy visible, trace overlay on top
@@ -47,20 +47,15 @@ type DisplayImage = {
 }
 
 export function useCanvasDerivedState(input: {
-  leftPanelTab: string
   editorImageSource: WorkflowSourceSnapshot
   filterDisplayImage: DisplayImage | null
   filterDisplayImageWithoutTrace: DisplayImage | null
-  /** Active mobile section driven by the bottom-nav. Ignored when
-   * `isMobile=false`. */
+  /** Active editor section (the shell's `mobileSection`) — drives the
+   * canvas gating on both viewports. */
   mobileSection: MobileSection
-  /** True on `< md` viewports. Switches the display-layer gating and
-   * the canvas-image section override from `leftPanelTab` (desktop)
-   * to `mobileSection` (mobile). */
-  isMobile: boolean
   /** Master image signed URL — surfaced as the canvas image on the
-   * Image / Artboard section so the user sees the raw upload, not
-   * the filter chain tip. Null when no master is uploaded yet. */
+   * Artboard section so the user sees the raw upload, not the filter
+   * chain tip. Null when no master is uploaded yet. */
   masterSignedUrl: string | null
   /** Raw Trace view-toggle session values. The hook returns the
    * *effective* values via `deriveDisplayLayers` — gated on the
@@ -71,12 +66,10 @@ export function useCanvasDerivedState(input: {
   numbersLayerVisible: boolean
 }) {
   const {
-    leftPanelTab,
     editorImageSource,
     filterDisplayImage,
     filterDisplayImageWithoutTrace,
     mobileSection,
-    isMobile,
     masterSignedUrl,
     traceOverlayVisible,
     previewBitmapVisible,
@@ -100,9 +93,7 @@ export function useCanvasDerivedState(input: {
   const displayLayers = useMemo(
     () =>
       deriveDisplayLayers({
-        leftPanelTab,
-        isMobile,
-        mobileSection,
+        activeSection: mobileSection,
         editorImageSourceReady: editorImageSource.status === "ready",
         filterDisplayImage,
         filterDisplayImageWithoutTrace,
@@ -111,8 +102,6 @@ export function useCanvasDerivedState(input: {
         numbersLayerVisible,
       }),
     [
-      leftPanelTab,
-      isMobile,
       mobileSection,
       editorImageSource.status,
       filterDisplayImage,
@@ -123,13 +112,9 @@ export function useCanvasDerivedState(input: {
     ],
   )
 
-  // Image / Artboard section surfaces the raw master URL — desktop
-  // uses `leftPanelTab === "image"`, mobile uses
-  // `mobileSection === "artboard"`. ID + dimensions stay on the
-  // working copy regardless (persistence invariant).
-  const showRawMaster = isMobile
-    ? mobileSection === "artboard"
-    : leftPanelTab === "image"
+  // Artboard section surfaces the raw master URL. ID + dimensions stay
+  // on the working copy regardless (persistence invariant).
+  const showRawMaster = mobileSection === "artboard"
 
   const canvasImage = useMemo<CanvasImage | null>(
     () =>

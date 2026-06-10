@@ -3,8 +3,8 @@
 /**
  * Compute the Image-Panel disabled flag + a human-readable reason.
  *
- * Centralises the 2-way OR that used to live inline in
- * ProjectEditorRightPanel.tsx:
+ * Centralises the 2-way OR that used to live inline in the
+ * (now-removed) editor right panel:
  *
  *   disabled={
  *     !masterImage ||

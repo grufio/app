@@ -12,10 +12,9 @@ import { useCallback, useEffect, useMemo, useRef } from "react"
 
 import {
   EditorErrorBoundary,
+  EditorImageDialogs,
   ProjectEditorHeader,
   ProjectEditorLayout,
-  ProjectEditorLeftPanel,
-  ProjectEditorRightPanel,
   ProjectEditorStage,
   type ProjectCanvasStageHandle,
 } from "@/features/editor"
@@ -62,10 +61,9 @@ import { ColorsSurfaceScope } from "./editor-shell/colors-surface-scope"
 import { FilterSurfaceScope } from "./editor-shell/filter-surface-scope"
 import { TraceSurfaceScope } from "./editor-shell/trace-surface-scope"
 import { useDeleteMasterImageHandler } from "./editor-shell/use-delete-master-image-handler"
-import { usePanelSizing } from "./editor-shell/use-panel-sizing"
 import { usePanelUIState } from "./editor-shell/use-panel-ui-state"
 import { useUnlockDialog } from "./editor-shell/use-unlock-dialog"
-import { useLeftPanelModel } from "./editor-shell/use-left-panel-model"
+import { useImageActionRequests } from "./editor-shell/use-image-action-requests"
 
 export function ProjectDetailPageClient({
   projectId,
@@ -120,19 +118,18 @@ export function ProjectDetailPageClient({
     state: sessionState,
     actions: sessionActions,
   } = useEditorSessionState()
-  const { restoreOpen, deleteOpen, leftPanelTab, hiddenFilterIds, traceOverlayVisible, previewBitmapVisible, numbersLayerVisible } = sessionState
-  const { setRestoreOpen, setDeleteOpen, setLeftPanelTab, showFilter, hideFilter, toggleHiddenFilter, pruneHiddenFilters, setTraceOverlayVisible, setPreviewBitmapVisible, setNumbersLayerVisible } = sessionActions
-  // Single mobile-viewport check. Drives the canvas-view gates: on
-  // `< md` there's no tab UI, so canvasMode + trace-overlay surface
-  // their results based on data presence rather than `leftPanelTab`.
+  const { restoreOpen, deleteOpen, hiddenFilterIds, traceOverlayVisible, previewBitmapVisible, numbersLayerVisible } = sessionState
+  const { setRestoreOpen, setDeleteOpen, showFilter, hideFilter, toggleHiddenFilter, pruneHiddenFilters, setTraceOverlayVisible, setPreviewBitmapVisible, setNumbersLayerVisible } = sessionActions
+  // `isMobile` no longer gates the canvas — both viewports drive the
+  // canvas through `mobileSection`. It's retained only to steer
+  // section-restore side-effects (e.g. returning to the trace section
+  // after a trace dialog cancel) and the sheets' `desktop` variant.
   const isMobile = useIsMobile()
-  // Mobile-only: the bottom-nav picks the active section, the canvas
-  // surfaces section-specific layers (mirror desktop's `leftPanelTab`
-  // gating — see `deriveDisplayLayers`), and each surface's scope
-  // component owns its own floating Edit-icon + sheet. The drawer
-  // state (`leftPanelOpen` / `rightPanelOpen`) is ignored on `md+`
-  // where both panels are always-on; the Sheet primitive handles
-  // Escape, overlay-click and focus-trap natively on mobile.
+  // The editor is now canvas-first on both viewports: the floating
+  // `EditorTopLeftBar` picks the active section (`mobileSection`), the
+  // canvas surfaces section-specific layers (see `deriveDisplayLayers`),
+  // and each surface's scope component owns its own floating Edit-icon
+  // + sheet (a bounded card on `md+`, fullscreen on mobile).
   const {
     gridVisible,
     setGridVisible,
@@ -141,13 +138,6 @@ export function ProjectDetailPageClient({
     mobileSection,
     setMobileSection,
     handleMobileNavTap,
-    leftPanelOpen,
-    setLeftPanelOpen,
-    handleToggleLeftPanel,
-    rightPanelOpen,
-    setRightPanelOpen,
-    handleToggleRightPanel,
-    closeLeftPanelOnTraceSelection,
     pendingTraceKindOpen,
     setPendingTraceKindOpen,
     consumePendingTraceKindOpen,
@@ -205,12 +195,11 @@ export function ProjectDetailPageClient({
     seedMasterImage,
     saveImageState,
   })
-  // All three surfaces own their own state inside per-surface scope
-  // components mounted only while their surface is active — the
-  // shell composes them with conditional rendering based on
-  // `leftPanelTab` (desktop, via `ProjectEditorLeftPanel`'s
-  // `filterPanelContent` / `tracePanelContent` slot) and
-  // `mobileSection` (mobile). Lifecycle IS dismissal.
+  // Each surface owns its own state inside a per-surface scope
+  // component mounted only while that surface is active — the shell
+  // composes them with conditional rendering on `mobileSection`
+  // (the single section input for both viewports). Lifecycle IS
+  // dismissal.
 
   // Trace dialog needs the image's displayed size on the artboard in mm —
   // pixelate-grid math runs on display-mm, not source-px. The size comes
@@ -292,25 +281,20 @@ export function ProjectDetailPageClient({
   const isAddTraceDisabled = !hasFilterSourceImage || isNewFilterActionBusy || isApplyingTrace || isClearingTrace
 
   const {
-    selectedImageId,
-    requestDeleteImage,
     requestDeleteSelectedImage,
-    requestCreateGrid,
     requestDeleteGrid,
-  } = useLeftPanelModel({
-    selectedNavId,
+  } = useImageActionRequests({
     setSelectedNavId,
     projectImages,
     masterImageId: masterImage?.id ?? null,
     setDeleteError,
     setDeleteOpen,
-    createGrid,
     deleteGrid,
   })
 
   const { toolbar, stageToolbar, applyCropSelection } = useStageInteractionPolicy({
     canvasRef,
-    leftPanelTab,
+    activeSection: mobileSection,
     sourceReady: editorImageSource.status === "ready",
     selectedNavId,
     setSelectedNavId,
@@ -365,15 +349,6 @@ export function ProjectDetailPageClient({
   })
 
   const {
-    leftPanelWidthRem,
-    setLeftPanelWidthRem,
-    rightPanelWidthRem,
-    setRightPanelWidthRem,
-    minPanelRem,
-    maxPanelRem,
-  } = usePanelSizing()
-
-  const {
     pageBgEnabled,
     pageBgColor,
     pageBgOpacity,
@@ -385,14 +360,11 @@ export function ProjectDetailPageClient({
     updateWorkspacePageBg,
   })
 
-  const { panelImageTxU, workspaceReady, imagePanelReady, activeRightSection, panelImageMeta } = useRightPanelModel({
-    selectedNavId,
+  const { panelImageTxU, workspaceReady, imagePanelReady } = useRightPanelModel({
     displayTxU,
     workspaceLoading,
     workspaceUnit,
     masterImage,
-    projectImages,
-    selectedImageId,
   })
 
   useEffect(() => {
@@ -423,12 +395,10 @@ export function ProjectDetailPageClient({
     previewBitmapVisible: effectivePreviewBitmapVisible,
     numbersLayerVisible: effectiveNumbersLayerVisible,
   } = useCanvasDerivedState({
-    leftPanelTab,
     editorImageSource,
     filterDisplayImage,
     filterDisplayImageWithoutTrace,
     mobileSection,
-    isMobile,
     // The Image / Artboard section override needs the kind='master'
     // row's URL specifically, not the active image's URL. `signedUrl`
     // is the active row (filter tip after a filter is applied) — see
@@ -544,87 +514,11 @@ export function ProjectDetailPageClient({
         projectId={projectId}
         initialTitle={project && project.id === projectId ? project.name : "Untitled"}
         onTitleUpdated={handleTitleUpdated}
-        leftPanelOpen={leftPanelOpen}
-        onToggleLeftPanel={handleToggleLeftPanel}
-        rightPanelOpen={rightPanelOpen}
-        onToggleRightPanel={handleToggleRightPanel}
       />
 
       <ProjectEditorLayout>
         <EditorErrorBoundary resetKey={`${projectId}:${masterImage?.signedUrl ?? "no-image"}`}>
           <main className="flex min-w-0 flex-1">
-            <ProjectEditorLeftPanel
-              projectId={projectId}
-              widthRem={leftPanelWidthRem}
-              minRem={minPanelRem}
-              maxRem={maxPanelRem}
-              onWidthRemChange={setLeftPanelWidthRem}
-              activeTab={leftPanelTab}
-              onActiveTabChange={setLeftPanelTab}
-              selectedId={selectedNavId}
-              onSelect={setSelectedNavId}
-              masterImage={
-                masterImage?.id
-                  ? { id: masterImage.id, label: masterImage.name ?? "Image" }
-                  : null
-              }
-              hasGrid={hasGrid}
-              imageLocked={sectionLocks.imageLocked}
-              imageLockToggleable={sectionLocks.imageToggleable}
-              onImageUploaded={handleImageUploaded}
-              onImageDeleteRequested={requestDeleteImage}
-              onImageUnlockRequested={requestImageUnlock}
-              onGridCreateRequested={requestCreateGrid}
-              onGridDeleteRequested={requestDeleteGrid}
-              filterPanelContent={
-                !isMobile ? (
-                  <FilterSurfaceScope
-                    intent="desktop"
-                    filterSourceImage={filterSourceImage}
-                    onApplyFilter={handleApplyFilter}
-                    isAddFilterDisabled={isAddFilterDisabled}
-                    workflowDismissError={workflow.dismissError}
-                    filterStack={filterStack}
-                    canvasMode={canvasMode}
-                    hiddenFilterIds={hiddenFilterIds}
-                    activeDisplayFilterId={activeDisplayFilterId}
-                    isActiveDisplayFilterHidden={isActiveDisplayFilterHidden}
-                    isRemovingFilter={workflow.isRemovingFilter}
-                    isLoadingInitial={filterImageLoading && !filterImageLoadedOnce}
-                    lock={filterLock}
-                    onSelectFilter={showFilter}
-                    onToggleHidden={handleToggleHidden}
-                    onRemoveFilter={workflow.removeFilter}
-                  />
-                ) : null
-              }
-              tracePanelContent={
-                !isMobile ? (
-                  <TraceSurfaceScope
-                    intent="desktop"
-                    traceSourceImage={traceSourceImage}
-                    onApplyTrace={handleApplyTrace}
-                    isAddTraceDisabled={isAddTraceDisabled}
-                    isClearingTrace={isClearingTrace}
-                    isLoadingInitial={traceLoading}
-                    trace={trace ? { kind: trace.kind, params: trace.params } : null}
-                    onClearTrace={handleClearTrace}
-                    onBeforeOpenSelection={closeLeftPanelOnTraceSelection}
-                    pendingKindOpen={pendingTraceKindOpen}
-                    onConsumePendingKindOpen={consumePendingTraceKindOpen}
-                    onConfigureCancelled={handleTraceConfigureCancelled}
-                    traceOverlayVisible={traceOverlayVisible}
-                    previewBitmapVisible={previewBitmapVisible}
-                    numbersLayerVisible={numbersLayerVisible}
-                    onTraceOverlayChange={setTraceOverlayVisible}
-                    onPreviewBitmapChange={setPreviewBitmapVisible}
-                    onNumbersLayerChange={setNumbersLayerVisible}
-                  />
-                ) : null
-              }
-              open={leftPanelOpen}
-              onOpenChange={setLeftPanelOpen}
-            />
             <ProjectEditorStage
               projectId={projectId}
               masterImage={canvasImage}
@@ -637,7 +531,7 @@ export function ProjectDetailPageClient({
               grid={grid}
               traceOverlaySvgUrl={traceOverlaySvgUrl}
               traceDisplayRect={traceDisplayRect}
-              traceInteractive={leftPanelTab === "trace" && stageToolbar.tool === "direct"}
+              traceInteractive={mobileSection === "trace" && stageToolbar.tool === "direct"}
               traceOverlayVisible={effectiveTraceOverlayVisible}
               previewBitmapVisible={effectivePreviewBitmapVisible}
               numbersLayerVisible={effectiveNumbersLayerVisible}
@@ -654,23 +548,11 @@ export function ProjectDetailPageClient({
             />
           </main>
 
-          <ProjectEditorRightPanel
-            panelWidthRem={rightPanelWidthRem}
-            minPanelRem={minPanelRem}
-            maxPanelRem={maxPanelRem}
-            onPanelWidthRemChange={setRightPanelWidthRem}
-            activeSection={activeRightSection}
-            pageBgEnabled={pageBgEnabled}
-            pageBgColor={pageBgColor}
-            pageBgOpacity={pageBgOpacity}
-            onPageBgEnabledChange={handlePageBgEnabledChange}
-            onPageBgColorChange={handlePageBgColorChange}
-            onPageBgOpacityChange={handlePageBgOpacityChange}
-            masterImage={panelImageMeta}
-            masterImageLoading={masterImageLoading}
-            deleteBusy={deleteBusy}
-            deleteError={deleteError}
-            setDeleteError={setDeleteError}
+          {/* Restore + Delete image dialogs — viewport-agnostic,
+              mounted once. Driven by shell state from both the
+              artboard surface scope (Edit sheet) and the keyboard
+              delete path. */}
+          <EditorImageDialogs
             restoreOpen={restoreOpen}
             setRestoreOpen={setRestoreOpen}
             restoreBusy={workflow.isRestoring}
@@ -678,31 +560,14 @@ export function ProjectDetailPageClient({
             onRestoreImage={handleRestoreInitialImage}
             deleteOpen={deleteOpen}
             setDeleteOpen={setDeleteOpen}
+            deleteBusy={deleteBusy}
+            deleteError={deleteError}
             handleDeleteMasterImage={handleDeleteMasterImage}
-            onRequestDeleteImage={requestDeleteSelectedImage}
             cascadeFilterCount={filterStack.length}
             cascadeHasTrace={Boolean(trace)}
-            panelImageTxU={panelImageTxU}
-            workspaceUnit={workspaceUnit ?? "cm"}
-            workspaceReady={workspaceReady}
-            imagePanelReady={imagePanelReady}
-            gridVisible={gridVisible}
-            onGridVisibleChange={setGridVisible}
-            onGridDeleteRequested={requestDeleteGrid}
-            canvasRef={canvasRef}
-            traceTabActive={leftPanelTab === "trace"}
-            traceOverlayVisible={traceOverlayVisible}
-            previewBitmapVisible={previewBitmapVisible}
-            numbersLayerVisible={numbersLayerVisible}
-            onTraceOverlayVisibleChange={setTraceOverlayVisible}
-            onPreviewBitmapVisibleChange={setPreviewBitmapVisible}
-            onNumbersLayerVisibleChange={setNumbersLayerVisible}
-            imageLock={imageLock}
-            open={rightPanelOpen}
-            onOpenChange={setRightPanelOpen}
           />
-          {/* Filter + Trace dialog hosts moved into their respective
-              surface scope components (see panel slots + mobile gates). */}
+          {/* Filter + Trace dialog hosts live inside their respective
+              surface scope components (see the section mounts below). */}
         </EditorErrorBoundary>
         <EditorTopLeftBar
           activeSection={mobileSection}
@@ -710,8 +575,9 @@ export function ProjectDetailPageClient({
           onTraceKindTap={handleTraceKindTap}
           activeTraceKind={trace?.kind ?? null}
         />
-        {isMobile && mobileSection === "artboard" ? (
+        {mobileSection === "artboard" ? (
           <ArtboardSurfaceScope
+            desktop={!isMobile}
             projectId={projectId}
             pageBgEnabled={pageBgEnabled}
             pageBgColor={pageBgColor}
@@ -743,9 +609,10 @@ export function ProjectDetailPageClient({
             onRequestDelete={requestDeleteSelectedImage}
           />
         ) : null}
-        {isMobile && mobileSection === "filter" ? (
+        {mobileSection === "filter" ? (
           <FilterSurfaceScope
             intent="mobile"
+            desktop={!isMobile}
             filterSourceImage={filterSourceImage}
             onApplyFilter={handleApplyFilter}
             isAddFilterDisabled={isAddFilterDisabled}
@@ -763,9 +630,10 @@ export function ProjectDetailPageClient({
             onRemoveFilter={workflow.removeFilter}
           />
         ) : null}
-        {isMobile && mobileSection === "trace" ? (
+        {mobileSection === "trace" ? (
           <TraceSurfaceScope
             intent="mobile"
+            desktop={!isMobile}
             traceSourceImage={traceSourceImage}
             onApplyTrace={handleApplyTrace}
             isAddTraceDisabled={isAddTraceDisabled}
@@ -784,8 +652,8 @@ export function ProjectDetailPageClient({
             onNumbersLayerChange={setNumbersLayerVisible}
           />
         ) : null}
-        {isMobile && mobileSection === "colors" ? (
-          <ColorsSurfaceScope trace={trace} />
+        {mobileSection === "colors" ? (
+          <ColorsSurfaceScope desktop={!isMobile} trace={trace} />
         ) : null}
       </ProjectEditorLayout>
 

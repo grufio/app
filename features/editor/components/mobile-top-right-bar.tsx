@@ -56,9 +56,13 @@ type Props = {
   ariaLabelEdit?: string
   /** When null, the Eye-button is omitted from the bar. */
   viewOptions: MobileTopRightBarViewOptions | null
+  /** When true the bar stays visible on `md+` (editor surfaces in the
+   * unified section model). Default false keeps the historical
+   * mobile-only (`md:hidden`) behaviour for every other caller. */
+  desktop?: boolean
 }
 
-export function MobileTopRightBar({ onEditTap, ariaLabelEdit = "Edit", viewOptions }: Props) {
+export function MobileTopRightBar({ onEditTap, ariaLabelEdit = "Edit", viewOptions, desktop = false }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)
 
   return (
@@ -68,10 +72,16 @@ export function MobileTopRightBar({ onEditTap, ariaLabelEdit = "Edit", viewOptio
       className={
         // Solo (Pencil-only): `p-1` → 40 × 40 square. Multi (Eye +
         // Pencil): `gap-3 px-2 py-1` to match the bottom floating-
-        // toolbar exactly (`floating-toolbar.tsx:92`).
-        viewOptions
-          ? "absolute top-3 right-3 z-20 inline-flex items-center gap-3 rounded-lg bg-zinc-900/95 px-2 py-1 shadow-lg ring-1 ring-white/10 backdrop-blur md:hidden"
-          : "absolute top-3 right-3 z-20 inline-flex items-center rounded-lg bg-zinc-900/95 p-1 shadow-lg ring-1 ring-white/10 backdrop-blur md:hidden"
+        // toolbar exactly (`floating-toolbar.tsx:92`). `md:hidden`
+        // only when NOT desktop — the unified editor surfaces keep the
+        // bar on `md+`.
+        [
+          "absolute top-3 right-3 z-20 inline-flex items-center rounded-lg bg-zinc-900/95 shadow-lg ring-1 ring-white/10 backdrop-blur",
+          viewOptions ? "gap-3 px-2 py-1" : "p-1",
+          desktop ? "" : "md:hidden",
+        ]
+          .filter(Boolean)
+          .join(" ")
       }
     >
       {viewOptions ? (

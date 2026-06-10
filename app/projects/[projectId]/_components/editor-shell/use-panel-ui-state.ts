@@ -1,18 +1,17 @@
 "use client"
 
 /**
- * Shell-scope UI state that drives panel visibility + the
- * desktop/mobile section split.
+ * Shell-scope UI state for the canvas-first editor section model.
  *
  * Owns:
  *   - `gridVisible` (rendered overlay toggle)
- *   - `selectedNavId` (left-panel nav-tree selection)
- *   - `mobileSection` (bottom-nav active section)
- *   - `leftPanelOpen` / `rightPanelOpen` (mobile drawers)
+ *   - `selectedNavId` (image/crop selection — read by the stage
+ *     interaction policy; the crop tool auto-sets it)
+ *   - `mobileSection` (the active editor section, both viewports)
+ *   - `pendingTraceKindOpen` (cross-mount trace-kind open channel)
  *
  * Plus the callback wrappers (`handleMobileNavTap`,
- * `handleToggleLeftPanel`, `handleToggleRightPanel`,
- * `closeLeftPanelOnTraceSelection`) so the shell can pass references
+ * `consumePendingTraceKindOpen`) so the shell can pass references
  * straight through instead of inlining them.
  */
 import { useCallback, useState } from "react"
@@ -27,8 +26,6 @@ export function usePanelUIState() {
     buildNavId({ kind: "artboard" }),
   )
   const [mobileSection, setMobileSection] = useState<MobileSection>("artboard")
-  const [leftPanelOpen, setLeftPanelOpen] = useState(false)
-  const [rightPanelOpen, setRightPanelOpen] = useState(false)
   // Cross-mount channel: the EditorTopLeftBar trace sub-pill sets a
   // pending kind when the user picks Pixelate / Circulate / Lineart
   // from outside the trace surface. The TraceSurfaceScope reads it on
@@ -44,22 +41,6 @@ export function usePanelUIState() {
     setPendingTraceKindOpen(null)
   }, [])
 
-  const handleToggleLeftPanel = useCallback(() => {
-    setLeftPanelOpen((open) => !open)
-  }, [])
-
-  const handleToggleRightPanel = useCallback(() => {
-    setRightPanelOpen((open) => !open)
-  }, [])
-
-  // Mobile-only effect: trace selection is reached via the left-panel
-  // Sheet drawer; closing it before opening the dialog lands every
-  // exit path in a clean editor. Desktop never opens the sheet so
-  // this is a no-op there.
-  const closeLeftPanelOnTraceSelection = useCallback(() => {
-    setLeftPanelOpen(false)
-  }, [])
-
   return {
     gridVisible,
     setGridVisible,
@@ -68,13 +49,6 @@ export function usePanelUIState() {
     mobileSection,
     setMobileSection,
     handleMobileNavTap,
-    leftPanelOpen,
-    setLeftPanelOpen,
-    handleToggleLeftPanel,
-    rightPanelOpen,
-    setRightPanelOpen,
-    handleToggleRightPanel,
-    closeLeftPanelOnTraceSelection,
     pendingTraceKindOpen,
     setPendingTraceKindOpen,
     consumePendingTraceKindOpen,

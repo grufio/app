@@ -2,74 +2,55 @@
 
 import { useCallback, useEffect, useMemo, useRef, type Dispatch, type SetStateAction } from "react"
 
-import { buildNavId, parseNavId } from "@/features/editor/navigation/nav-id"
+import { buildNavId } from "@/features/editor/navigation/nav-id"
 import { recoverSelectedNavId } from "@/features/editor/navigation/selection-recovery"
 
-export function useLeftPanelModel(args: {
-  selectedNavId: string
+/**
+ * Shell-scope image/grid action requests + selection bookkeeping.
+ *
+ * What survives the side-panel removal: the artboard sheet's Delete
+ * action (`requestDeleteSelectedImage`), the grid Delete reset
+ * (`requestDeleteGrid`), the keyboard-delete path, and the
+ * auto-select-master / stale-selection-recovery effect that keeps
+ * `selectedNavId` valid (the crop tool reads it — see
+ * `use-stage-interaction-policy.ts`).
+ *
+ * Dropped with the nav tree: `leftPanelImages`, `selectedImageId`,
+ * `requestDeleteImage` (by-id, nav-tree only) and `requestCreateGrid`
+ * (nav-tree `+` row; grid creation now goes straight through
+ * `createGrid` in the artboard sheet).
+ */
+export function useImageActionRequests(args: {
   setSelectedNavId: Dispatch<SetStateAction<string>>
   projectImages: Array<{ id: string; name?: string | null }>
   /** The current master image's id (null while SSR has no image yet
-   * or after the master is deleted). Drives the auto-select effect
-   * below — when a master appears for the first time and the user is
-   * still on the artboard, jump the selection to the new master. */
+   * or after the master is deleted). Drives the auto-select effect. */
   masterImageId: string | null
   setDeleteError: (v: string) => void
   setDeleteOpen: (v: boolean) => void
-  createGrid: () => Promise<unknown | null>
   deleteGrid: () => Promise<boolean>
 }) {
   const {
-    selectedNavId,
     setSelectedNavId,
     projectImages,
     masterImageId,
     setDeleteError,
     setDeleteOpen,
-    createGrid,
     deleteGrid,
   } = args
 
-  const selectedImageId = useMemo(() => {
-    const selection = parseNavId(selectedNavId)
-    if (selection.kind !== "image") return null
-    return selection.imageId
-  }, [selectedNavId])
-
-  const leftPanelImages = useMemo(
-    () =>
-      projectImages.map((img) => ({
-        id: img.id,
-        label: img.name ?? "Image",
-      })),
-    [projectImages]
-  )
-
   const firstImageNavId = useMemo(
     () =>
-      projectImages.length > 0 ? buildNavId({ kind: "image", imageId: projectImages[0].id }) : buildNavId({ kind: "artboard" }),
+      projectImages.length > 0
+        ? buildNavId({ kind: "image", imageId: projectImages[0].id })
+        : buildNavId({ kind: "artboard" }),
     [projectImages]
-  )
-
-  const requestDeleteImage = useCallback(
-    async (imageId: string) => {
-      setDeleteError("")
-      setSelectedNavId(buildNavId({ kind: "image", imageId }))
-      setDeleteOpen(true)
-    },
-    [setDeleteError, setDeleteOpen, setSelectedNavId]
   )
 
   const requestDeleteSelectedImage = useCallback(() => {
     setDeleteError("")
     setDeleteOpen(true)
   }, [setDeleteError, setDeleteOpen])
-
-  const requestCreateGrid = useCallback(async () => {
-    const out = await createGrid()
-    if (!out) return
-    setSelectedNavId(buildNavId({ kind: "grid" }))
-  }, [createGrid, setSelectedNavId])
 
   const requestDeleteGrid = useCallback(async () => {
     const ok = await deleteGrid()
@@ -84,18 +65,12 @@ export function useLeftPanelModel(args: {
   //
   // 1. When the master image first appears (`masterImageId` flips
   //    null → set) AND the user is still parked on the artboard, jump
-  //    the selection to the new master so the right panel shows
-  //    image-tx controls immediately. The `autoSelectMasterIdRef`
-  //    fires this once per distinct master id — re-selecting the
-  //    artboard manually after that does not re-trigger.
+  //    the selection to the new master. The `autoSelectMasterIdRef`
+  //    fires this once per distinct master id.
   //
   // 2. Validate the current selection against the available images
   //    via `recoverSelectedNavId` (drops dangling image ids after a
   //    delete, falls back to artboard).
-  //
-  // Lives here, not in the shell, because every input is already a
-  // hook param (`projectImages`, `setSelectedNavId`) — the shell was
-  // just plumbing the ref through.
   const autoSelectMasterIdRef = useRef<string | null>(null)
   useEffect(() => {
     setSelectedNavId((prev) => {
@@ -117,11 +92,7 @@ export function useLeftPanelModel(args: {
   }, [masterImageId, projectImages, setSelectedNavId])
 
   return {
-    selectedImageId,
-    leftPanelImages,
-    requestDeleteImage,
     requestDeleteSelectedImage,
-    requestCreateGrid,
     requestDeleteGrid,
   }
 }

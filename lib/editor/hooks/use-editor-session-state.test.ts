@@ -6,7 +6,6 @@ function makeState(overrides?: Partial<SessionState>): SessionState {
   return {
     restoreOpen: false,
     deleteOpen: false,
-    leftPanelTab: "image",
     hiddenFilterIds: {},
     traceOverlayVisible: true,
     previewBitmapVisible: true,
@@ -30,22 +29,6 @@ describe("editorSessionReducer — restoreOpen / deleteOpen", () => {
     const state = makeState()
     expect(editorSessionReducer(state, { type: "setDeleteOpen", open: true }).deleteOpen).toBe(true)
     expect(editorSessionReducer(state, { type: "setDeleteOpen", open: false })).toBe(state)
-  })
-})
-
-describe("editorSessionReducer — leftPanelTab", () => {
-  it("sets the tab to filter or trace", () => {
-    expect(
-      editorSessionReducer(makeState(), { type: "setLeftPanelTab", tab: "filter" }).leftPanelTab,
-    ).toBe("filter")
-    expect(
-      editorSessionReducer(makeState(), { type: "setLeftPanelTab", tab: "trace" }).leftPanelTab,
-    ).toBe("trace")
-  })
-
-  it("returns the same state object when the tab is unchanged", () => {
-    const state = makeState()
-    expect(editorSessionReducer(state, { type: "setLeftPanelTab", tab: "image" })).toBe(state)
   })
 })
 

@@ -10,32 +10,36 @@
  * trace unmounts the scope, killing `editOpen` so a re-visit
  * doesn't pop the sheet back open.
  *
- * Desktop has no artboard sheet — the EditorNavTree (rendered by
- * `ProjectEditorLeftPanel` directly) is the desktop artboard
- * sidebar. So this scope is mounted only when
- * `isMobile && mobileSection === "artboard"`.
+ * Mounted on `mobileSection === "artboard"` for both viewports. The
+ * `desktop` flag flips the Edit bar + artboard sheet from the mobile
+ * fullscreen variant to a bounded floating card on `md+`.
  */
 import { useState, type ComponentProps } from "react"
 
 import { MobileArtboardSheet } from "@/features/editor/components/mobile-artboard-sheet"
 import { MobileTopRightBar } from "@/features/editor/components/mobile-top-right-bar"
 
-type ArtboardSheetProps = Omit<ComponentProps<typeof MobileArtboardSheet>, "onClose">
+type ArtboardSheetProps = Omit<ComponentProps<typeof MobileArtboardSheet>, "onClose" | "desktop">
 
-export type ArtboardSurfaceScopeProps = ArtboardSheetProps
+export type ArtboardSurfaceScopeProps = ArtboardSheetProps & {
+  /** When true, render the desktop variant (bounded card, no
+   * `md:hidden`). Default false → unchanged mobile fullscreen. */
+  desktop?: boolean
+}
 
-export function ArtboardSurfaceScope(props: ArtboardSurfaceScopeProps) {
+export function ArtboardSurfaceScope({ desktop, ...props }: ArtboardSurfaceScopeProps) {
   const [editOpen, setEditOpen] = useState(false)
 
   return (
     <>
       <MobileTopRightBar
+        desktop={desktop}
         onEditTap={() => setEditOpen(true)}
         ariaLabelEdit="Edit artboard"
         viewOptions={null}
       />
       {editOpen ? (
-        <MobileArtboardSheet {...props} onClose={() => setEditOpen(false)} />
+        <MobileArtboardSheet {...props} desktop={desktop} onClose={() => setEditOpen(false)} />
       ) : null}
     </>
   )

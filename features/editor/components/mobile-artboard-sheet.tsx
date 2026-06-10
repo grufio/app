@@ -17,17 +17,16 @@
  * - Grid-Section: the same nav-row pattern for Add-Grid; swaps to
  *   `GridPanel` once created. Delete-grid reverts back.
  *
- * The Add-rows reuse `AddImageMenuAction` + `SidebarMenuAction` from
- * the desktop EditorNavTree — same visual primitives, same upload
- * pipeline, no mobile-specific button variant.
+ * The Add-rows reuse `AddImageMenuAction` + `SidebarMenuAction` —
+ * shared sidebar primitives, same upload pipeline, no surface-
+ * specific button variant.
  *
  * Render shape: an `absolute inset-0` overlay inside the editor
- * layout container. The layout's parent has `position: relative` so
- * the sheet is bounded to the editor area; the bottom nav sits as a
- * flex-sibling below the layout in the shell root, untouched by this
- * overlay. Right panel + its restore/delete Radix dialogs stay
- * mounted (portaled) underneath, so actions from inside the sheet
- * still open the existing dialogs cleanly.
+ * layout container (mobile) or a bounded floating card on `md+`
+ * (`desktop`). The layout's parent has `position: relative` so the
+ * sheet is bounded to the editor area. The shell-root Restore/Delete
+ * Radix dialogs are portaled, so actions from inside the sheet open
+ * those dialogs cleanly on either viewport.
  */
 import dynamic from "next/dynamic"
 import { Grid3x3, ImageIcon, Plus, X } from "lucide-react"
@@ -37,6 +36,7 @@ import { SidebarMenuAction } from "@/components/ui/sidebar"
 import type { UploadedMasterSnapshot } from "@/lib/editor/upload-master-image"
 
 import { AddImageMenuAction } from "./add-image-menu-button"
+import { mobileSheetRootClass } from "./mobile-sheet-shell"
 import { PageBackgroundSection } from "./page-background-section"
 import type { ProjectCanvasStageHandle } from "./project-canvas-stage"
 import type { Unit } from "@/lib/editor/units"
@@ -60,6 +60,8 @@ const ImagePanel = dynamic(() => import("./image-panel").then((m) => m.ImagePane
 export function MobileArtboardSheet(props: {
   projectId: string
   onClose: () => void
+  /** Desktop variant — bounded floating card instead of fullscreen. */
+  desktop?: boolean
   // Page-Background controls
   pageBgEnabled: boolean
   pageBgColor: string
@@ -102,6 +104,7 @@ export function MobileArtboardSheet(props: {
   const {
     projectId,
     onClose,
+    desktop,
     pageBgEnabled,
     pageBgColor,
     pageBgOpacity,
@@ -132,10 +135,7 @@ export function MobileArtboardSheet(props: {
   } = props
 
   return (
-    <section
-      aria-label="Artboard"
-      className="absolute inset-0 z-30 flex flex-col overflow-hidden bg-background md:hidden"
-    >
+    <section aria-label="Artboard" className={mobileSheetRootClass(desktop)}>
       <header className="flex shrink-0 items-center justify-between border-b bg-background px-4 py-3">
         <h2 className="text-sm font-semibold">Artboard</h2>
         <Button
@@ -166,10 +166,9 @@ export function MobileArtboardSheet(props: {
             onDelete={onGridDeleteRequested}
           />
         ) : (
-          /* Mirrors the desktop EditorNavTree row: text-xs label with
-           * an icon on the left, `+` action absolute-positioned top-right
-           * by SidebarMenuAction's default variant. No section header —
-           * desktop's nav-tree rows don't carry one either. */
+          /* Compact nav-style row: text-xs label with an icon on the
+           * left, `+` action absolute-positioned top-right by
+           * SidebarMenuAction's default variant. No section header. */
           <div className="relative flex items-center gap-2 border-b px-3 py-2 text-xs">
             <Grid3x3 className="size-4 shrink-0" />
             <span>Grid</span>

@@ -30,17 +30,14 @@ const filterDisplayImage = {
   name: "filter-tip",
 }
 
-// Defaults represent the "happy desktop, no toggles touched" baseline.
-// Each test overrides only the inputs that drive its assertion — keeps
-// the suite resilient to future hook-input additions (add the default
-// in one place, no test churn).
+// Defaults represent the "happy artboard, no toggles touched"
+// baseline. Each test overrides only the inputs that drive its
+// assertion — keeps the suite resilient to future hook-input additions.
 const baseArgs = {
-  leftPanelTab: "image" as const,
   editorImageSource,
   filterDisplayImage,
   filterDisplayImageWithoutTrace: filterDisplayImage,
   mobileSection: "artboard" as const,
-  isMobile: false,
   masterSignedUrl: MASTER_URL,
   traceOverlayVisible: true,
   previewBitmapVisible: true,
@@ -54,9 +51,9 @@ const baseArgs = {
 // to "master URL" silently became a no-op once a filter was applied
 // (filter URL → filter URL). The hook test below exercises the full
 // chain from "we have a master URL distinct from the filter URL" to
-// "canvas exposes the master URL", on both desktop and mobile.
-describe("useCanvasDerivedState — Image/Artboard section surfaces master URL", () => {
-  it("desktop Image tab: canvas signedUrl swaps to master, ID stays on working copy", () => {
+// "canvas exposes the master URL".
+describe("useCanvasDerivedState — Artboard section surfaces master URL", () => {
+  it("Artboard section: canvas signedUrl swaps to master, ID stays on working copy", () => {
     const { result } = renderHook(() => useCanvasDerivedState(baseArgs))
     expect(result.current.canvasImage?.signedUrl).toBe(MASTER_URL)
     // ID stays on the working copy so persistence keeps targeting the
@@ -64,23 +61,15 @@ describe("useCanvasDerivedState — Image/Artboard section surfaces master URL",
     expect(result.current.canvasImage?.id).toBe(WORKING_COPY_ID)
   })
 
-  it("mobile Artboard section: canvas signedUrl swaps to master, ID stays on working copy", () => {
+  it("Filter section: canvas keeps the working-copy URL (filter tip), no override", () => {
     const { result } = renderHook(() =>
-      useCanvasDerivedState({ ...baseArgs, isMobile: true }),
-    )
-    expect(result.current.canvasImage?.signedUrl).toBe(MASTER_URL)
-    expect(result.current.canvasImage?.id).toBe(WORKING_COPY_ID)
-  })
-
-  it("desktop Filter tab: canvas keeps the working-copy URL (filter tip), no override", () => {
-    const { result } = renderHook(() =>
-      useCanvasDerivedState({ ...baseArgs, leftPanelTab: "filter" }),
+      useCanvasDerivedState({ ...baseArgs, mobileSection: "filter" }),
     )
     expect(result.current.canvasImage?.signedUrl).toBe(FILTER_TIP_URL)
     expect(result.current.showFilterChain).toBe(true)
   })
 
-  it("Image tab with null master URL: gracefully falls back to working-copy URL (partial-boot)", () => {
+  it("Artboard section with null master URL: gracefully falls back to working-copy URL (partial-boot)", () => {
     // When the master sign fails server-side, the API returns
     // masterSignedUrl: "" → shell passes null → pickCanvasImage skips
     // the override. Visual = pre-PR-#354 behaviour, no crash.
@@ -92,66 +81,18 @@ describe("useCanvasDerivedState — Image/Artboard section surfaces master URL",
   })
 })
 
-// Integration guard for the bug where the Trace tab's view toggles
-// leaked into the Image / Filter tabs: `previewBitmapVisible=false`
-// on Trace tab → bitmap hidden on every tab. The fix gates the
-// canvas effect on the Trace section being active; checkbox UI keeps
-// reading the raw session values (so the user's last preference
-// survives a tab trip).
+// Integration guard for the bug where the Trace section's view
+// toggles leaked into the Artboard / Filter sections:
+// `previewBitmapVisible=false` on Trace → bitmap hidden everywhere.
+// The fix gates the canvas effect on the Trace section being active;
+// checkbox UI keeps reading the raw session values (so the user's
+// last preference survives a section trip).
 describe("useCanvasDerivedState — Trace view flags are Trace-section-scoped", () => {
-  it("desktop Image tab: hook returns effective flags = true even when session flags are all false", () => {
+  it("Artboard section: hook returns effective flags = true even when session flags are all false", () => {
     const { result } = renderHook(() =>
       useCanvasDerivedState({
         ...baseArgs,
-        leftPanelTab: "image",
-        traceOverlayVisible: false,
-        previewBitmapVisible: false,
-        numbersLayerVisible: false,
-      }),
-    )
-    expect(result.current.traceOverlayVisible).toBe(true)
-    expect(result.current.previewBitmapVisible).toBe(true)
-    expect(result.current.numbersLayerVisible).toBe(true)
-  })
-
-  it("desktop Filter tab: hook returns effective flags = true even when session flags are all false", () => {
-    const { result } = renderHook(() =>
-      useCanvasDerivedState({
-        ...baseArgs,
-        leftPanelTab: "filter",
-        traceOverlayVisible: false,
-        previewBitmapVisible: false,
-        numbersLayerVisible: false,
-      }),
-    )
-    expect(result.current.traceOverlayVisible).toBe(true)
-    expect(result.current.previewBitmapVisible).toBe(true)
-    expect(result.current.numbersLayerVisible).toBe(true)
-  })
-
-  it("desktop Trace tab: hook returns session flag values unchanged", () => {
-    const { result } = renderHook(() =>
-      useCanvasDerivedState({
-        ...baseArgs,
-        leftPanelTab: "trace",
-        traceOverlayVisible: false,
-        previewBitmapVisible: false,
-        numbersLayerVisible: false,
-      }),
-    )
-    expect(result.current.traceOverlayVisible).toBe(false)
-    expect(result.current.previewBitmapVisible).toBe(false)
-    expect(result.current.numbersLayerVisible).toBe(false)
-  })
-
-  it("mobile artboard section: hook returns effective flags = true even when session flags are all false", () => {
-    const { result } = renderHook(() =>
-      useCanvasDerivedState({
-        ...baseArgs,
-        isMobile: true,
         mobileSection: "artboard",
-        // Desktop tab value irrelevant when isMobile=true.
-        leftPanelTab: "trace",
         traceOverlayVisible: false,
         previewBitmapVisible: false,
         numbersLayerVisible: false,
@@ -162,13 +103,26 @@ describe("useCanvasDerivedState — Trace view flags are Trace-section-scoped", 
     expect(result.current.numbersLayerVisible).toBe(true)
   })
 
-  it("mobile trace section: hook returns session flag values unchanged", () => {
+  it("Filter section: hook returns effective flags = true even when session flags are all false", () => {
     const { result } = renderHook(() =>
       useCanvasDerivedState({
         ...baseArgs,
-        isMobile: true,
+        mobileSection: "filter",
+        traceOverlayVisible: false,
+        previewBitmapVisible: false,
+        numbersLayerVisible: false,
+      }),
+    )
+    expect(result.current.traceOverlayVisible).toBe(true)
+    expect(result.current.previewBitmapVisible).toBe(true)
+    expect(result.current.numbersLayerVisible).toBe(true)
+  })
+
+  it("Trace section: hook returns session flag values unchanged", () => {
+    const { result } = renderHook(() =>
+      useCanvasDerivedState({
+        ...baseArgs,
         mobileSection: "trace",
-        leftPanelTab: "image",
         traceOverlayVisible: false,
         previewBitmapVisible: false,
         numbersLayerVisible: false,

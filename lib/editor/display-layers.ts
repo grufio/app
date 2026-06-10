@@ -17,12 +17,11 @@
  *     trace SVG mounts in inline DOM above Konva, not as a replacement
  *     Konva.Image. Underlying filter colors must show through.
  *
- *  3. Layer surfacing is **section-gated** — the same way on desktop
- *     and on mobile, just different inputs name the active section:
- *      - **Desktop**: `leftPanelTab` ("image" / "filter" / "trace").
- *      - **Mobile** (`isMobile=true`): `mobileSection` ("artboard" /
- *        "filter" / "trace"), driven by the bottom-nav. Mobile's
- *        "artboard" section maps to desktop's "image" tab.
+ *  3. Layer surfacing is **section-gated** — identically on both
+ *     viewports. The single `activeSection` input (the shell's
+ *     `mobileSection`: "artboard" / "filter" / "trace" / "colors")
+ *     names the active surface. "artboard" is the old desktop "image"
+ *     tab.
  *
  *     - Filter section → `showFilterChain` true (Filter sidebar
  *       row-highlight switches on; canvas image source itself is
@@ -88,12 +87,10 @@ export type DisplayLayers = {
 }
 
 export function deriveDisplayLayers(input: {
-  leftPanelTab: string
-  isMobile: boolean
-  /** The active section on mobile (driven by the bottom-nav). Ignored
-   * when `isMobile=false`. Mobile's "artboard" maps to desktop's
-   * "image" — no filter chain, no trace overlay. */
-  mobileSection: MobileSection
+  /** The active editor section (the shell's `mobileSection`), driving
+   * the canvas gating on both viewports. "artboard" → no filter
+   * chain, no trace overlay. */
+  activeSection: MobileSection
   editorImageSourceReady: boolean
   filterDisplayImage: DisplayImage | null | undefined
   filterDisplayImageWithoutTrace: DisplayImage | null | undefined
@@ -109,9 +106,7 @@ export function deriveDisplayLayers(input: {
   numbersLayerVisible?: boolean
 }): DisplayLayers {
   const {
-    leftPanelTab,
-    isMobile,
-    mobileSection,
+    activeSection,
     editorImageSourceReady,
     filterDisplayImage,
     filterDisplayImageWithoutTrace,
@@ -120,15 +115,9 @@ export function deriveDisplayLayers(input: {
     numbersLayerVisible = true,
   } = input
 
-  // Section gating: desktop uses `leftPanelTab`, mobile uses
-  // `mobileSection`. Pick whichever drives the user-intent for this
-  // surface.
-  const filterSectionActive = isMobile
-    ? mobileSection === "filter"
-    : leftPanelTab === "filter"
-  const traceSectionActive = isMobile
-    ? mobileSection === "trace"
-    : leftPanelTab === "trace"
+  // Section gating — one input drives both viewports.
+  const filterSectionActive = activeSection === "filter"
+  const traceSectionActive = activeSection === "trace"
 
   // Filter chain — section + image-ready gate.
   const showFilterChain = filterSectionActive && editorImageSourceReady

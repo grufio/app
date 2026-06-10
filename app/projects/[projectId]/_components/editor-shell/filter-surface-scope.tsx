@@ -3,29 +3,22 @@
 /**
  * Owns the filter dialog session, the filter-dialog error toast, and
  * the filter-section leave-guard registration. Renders the filter
- * dialog host plus (depending on `intent`) the desktop sidebar
- * section or the mobile filter sheet trigger + sheet.
+ * dialog host plus the floating Edit-bar (`MobileTopRightBar`) + the
+ * filter sheet — the same chrome on both viewports, differing only in
+ * the `desktop` styling flag (fullscreen on mobile, bounded card on
+ * `md+`).
  *
  * Lifecycle = dismissal. The shell mounts this scope only while the
- * filter surface is active (desktop tab `leftPanelTab === "filter"`,
- * mobile `mobileSection === "filter"`). Switching surfaces unmounts
- * the scope — the `useReducer` state inside `useFilterDialogSession`
- * dies, the leave-guard's `beforeunload` listener detaches, the
- * dialog host portal closes. No effect-based reset, no flash before
- * paint: the unmount happens inside React's commit phase, ahead of
- * the next browser frame.
- *
- * The `intent` prop is pragmatic — desktop and mobile are mutually
- * exclusive at runtime (each scope mount is reached via either the
- * desktop panel slot or the mobile gate, never both), so a single
- * state owner with two render variants keeps the hook call single.
- * A breakpoint flip (window resize across `md`) remounts the scope;
- * losing in-flight dialog state on viewport change is an accepted
- * non-realistic flow.
+ * filter surface is active (`mobileSection === "filter"`, both
+ * viewports). Switching surfaces unmounts the scope — the
+ * `useReducer` state inside `useFilterDialogSession` dies, the
+ * leave-guard's `beforeunload` listener detaches, the dialog host
+ * portal closes. No effect-based reset, no flash before paint: the
+ * unmount happens inside React's commit phase, ahead of the next
+ * browser frame.
  */
 import { useCallback, useState } from "react"
 
-import { FilterSidebarSection } from "@/features/editor/components/filter-sidebar-section"
 import { MobileFilterSheet } from "@/features/editor/components/mobile-filter-sheet"
 import { MobileTopRightBar } from "@/features/editor/components/mobile-top-right-bar"
 import type { OperationError } from "@/lib/api/operation-error"
@@ -44,7 +37,14 @@ type FilterListLock = {
 } | null
 
 export type FilterSurfaceScopeProps = {
-  intent: "desktop" | "mobile"
+  /** Legacy variant marker — retained as `"mobile"` only so existing
+   * call sites stay explicit. Both viewports render the same chrome
+   * now; styling is driven by `desktop`. */
+  intent: "mobile"
+  /** When true, the Edit bar + sheet render their desktop variant
+   * (no `md:hidden`, bounded floating card). Default false → the
+   * unchanged mobile fullscreen behaviour. */
+  desktop?: boolean
   filterSourceImage: FilterDialogSourceImage | null
   onApplyFilter: (args: { filterType: FilterType; filterParams: Record<string, unknown> }) => Promise<void>
   isAddFilterDisabled: boolean
@@ -96,8 +96,16 @@ export function FilterSurfaceScope(props: FilterSurfaceScopeProps) {
         onCloseSelection={filterDialog.closeSelection}
         onApplyFilter={handleApplyFilter}
       />
-      {props.intent === "desktop" ? (
-        <FilterSidebarSection
+      <MobileTopRightBar
+        desktop={props.desktop}
+        onEditTap={() => setEditOpen(true)}
+        ariaLabelEdit="Edit filter"
+        viewOptions={null}
+      />
+      {editOpen ? (
+        <MobileFilterSheet
+          desktop={props.desktop}
+          onClose={() => setEditOpen(false)}
           filterStack={props.filterStack}
           canvasMode={props.canvasMode}
           hiddenFilterIds={props.hiddenFilterIds}
@@ -112,33 +120,7 @@ export function FilterSurfaceScope(props: FilterSurfaceScopeProps) {
           onRemoveFilter={props.onRemoveFilter}
           onOpenSelection={openSelection}
         />
-      ) : (
-        <>
-          <MobileTopRightBar
-            onEditTap={() => setEditOpen(true)}
-            ariaLabelEdit="Edit filter"
-            viewOptions={null}
-          />
-          {editOpen ? (
-            <MobileFilterSheet
-              onClose={() => setEditOpen(false)}
-              filterStack={props.filterStack}
-              canvasMode={props.canvasMode}
-              hiddenFilterIds={props.hiddenFilterIds}
-              isAddFilterDisabled={props.isAddFilterDisabled}
-              activeDisplayFilterId={props.activeDisplayFilterId}
-              isActiveDisplayFilterHidden={props.isActiveDisplayFilterHidden}
-              isRemovingFilter={props.isRemovingFilter}
-              isLoadingInitial={props.isLoadingInitial}
-              lock={props.lock}
-              onSelectFilter={props.onSelectFilter}
-              onToggleHidden={props.onToggleHidden}
-              onRemoveFilter={props.onRemoveFilter}
-              onOpenSelection={openSelection}
-            />
-          ) : null}
-        </>
-      )}
+      ) : null}
     </>
   )
 }
