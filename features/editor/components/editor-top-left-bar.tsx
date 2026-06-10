@@ -171,7 +171,10 @@ export function EditorTopLeftBar({
                     eats 4px — so the toolbar→circle gap matches the
                     circle→submenu `gap-2` (8px). */}
                 <div className="absolute top-full left-1/2 mt-3 flex -translate-x-1/2 flex-col items-center gap-2">
-                  <div className="relative">
+                  {/* Pin to the + circle's size so the absolutely-placed
+                      Delete (left-full) anchors to the +'s right edge, NOT
+                      to a content-stretched wrapper. */}
+                  <div className="relative size-10">
                     <button
                       type="button"
                       aria-label={traceSubOpen ? "Close trace menu" : "Add trace"}
