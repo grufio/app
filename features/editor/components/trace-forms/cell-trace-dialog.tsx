@@ -76,6 +76,9 @@ export type CellTraceDialogProps<P, G extends CellGridMetadata> = {
     kind: RegisteredTraceId
     params: Record<string, unknown>
   }) => Promise<void>
+  /** Present only when editing the active trace — surfaces the Delete
+   * action in the dialog header. */
+  onDeleteTrace?: () => void
 }
 
 function fmt1(n: number): string {
@@ -100,6 +103,7 @@ export function CellTraceDialog<P extends Record<string, unknown>, G extends Cel
     onClose,
     onSuccess,
     onApplyTrace,
+    onDeleteTrace,
   } = props
 
   const defaults = useMemo(() => schema.parse({}) as P, [schema])
@@ -165,6 +169,7 @@ export function CellTraceDialog<P extends Record<string, unknown>, G extends Cel
       busy={busy}
       onCancel={handleCancel}
       onApply={() => void handleApply()}
+      onDeleteTrace={onDeleteTrace}
     />
   )
 }

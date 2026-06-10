@@ -30,6 +30,10 @@ type BaseFilterControllerProps<TFormData> = {
   title: string
   /** Dialog description/subtitle displayed below the title */
   description: string
+  /** Optional action node pinned to the right of the header (e.g. a
+   * Delete button when the trace path edits an existing trace).
+   * Filters omit it — the header renders exactly as before. */
+  headerAction?: ReactNode
   /** Render prop that receives busy state and action handlers */
   children: (props: {
     busy: boolean
@@ -74,6 +78,7 @@ export function BaseFilterController<TFormData>({
   onError,
   title,
   description,
+  headerAction,
   children,
   applyFilter,
 }: BaseFilterControllerProps<TFormData>) {
@@ -125,8 +130,20 @@ export function BaseFilterController<TFormData>({
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && handleCancel()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
+          {headerAction ? (
+            <div className="flex items-start justify-between gap-2">
+              <div className="grid gap-1.5 text-left">
+                <DialogTitle>{title}</DialogTitle>
+                <DialogDescription>{description}</DialogDescription>
+              </div>
+              {headerAction}
+            </div>
+          ) : (
+            <>
+              <DialogTitle>{title}</DialogTitle>
+              <DialogDescription>{description}</DialogDescription>
+            </>
+          )}
         </DialogHeader>
         {children({ busy, onCancel: handleCancel, onApply: handleApply })}
       </DialogContent>

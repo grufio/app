@@ -29,6 +29,7 @@ type Props = {
     kind: RegisteredTraceId
     params: Record<string, unknown>
   }) => Promise<void>
+  onDeleteTrace?: () => void
 }
 
 export function PixelateDialog(props: Props) {
