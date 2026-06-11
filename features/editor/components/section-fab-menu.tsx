@@ -33,7 +33,7 @@ import { circleClass, frameClass } from "./floating-bar-styles"
  * handlers slower than this floor are unaffected. This is what makes the
  * delete animation consistent across every section that uses this menu.
  */
-const DELETE_SPINNER_MIN_MS = 350
+const DELETE_SPINNER_MIN_MS = 600
 
 /** The optional LEFT-flank circle on an active row (Trace→Edit, Filter→Unlock). */
 type FlankAction = {
