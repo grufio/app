@@ -188,10 +188,14 @@ export function EditorTopLeftBar({
                   </button>
                   {traceSubOpen &&
                     (displayKind ? (
-                      // Active trace → the single kind icon with a Delete
-                      // circle directly to its RIGHT (the spinner shows
-                      // there until the clear resolves).
-                      <div className="flex items-center gap-2">
+                      // Active trace → the single kind icon sits directly
+                      // under the + (centred in the column, same as the
+                      // no-trace picker). The Delete circle hangs off to
+                      // its RIGHT and is absolutely positioned, so adding
+                      // it never pushes the kind icon off-centre from the
+                      // +. The spinner shows on Delete until the clear
+                      // resolves.
+                      <div className="relative">
                         <div className={pillClass(tone, "single")}>
                           {traceKindItems.map(({ key: kindKey, label: kindLabel, Icon: KindIcon }) => (
                             <ToolbarIconButton
@@ -212,7 +216,10 @@ export function EditorTopLeftBar({
                           aria-label="Delete trace"
                           onClick={() => void handleDeleteTrace()}
                           disabled={deleting}
-                          className={circleClass(tone)}
+                          className={cn(
+                            circleClass(tone),
+                            "absolute top-1/2 left-full ml-2 -translate-y-1/2",
+                          )}
                         >
                           {deleting ? (
                             <Loader2 aria-hidden="true" className="size-5 animate-spin" />
