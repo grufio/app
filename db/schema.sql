@@ -1803,7 +1803,6 @@ CREATE TABLE IF NOT EXISTS "public"."project_image_filters" (
     "stack_order" integer NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "is_hidden" boolean DEFAULT false NOT NULL,
     CONSTRAINT "project_image_filters_filter_type_ck" CHECK (("filter_type" = ANY (ARRAY['bw_hard'::"text", 'bw_soft'::"text", 'bw_warm'::"text"]))),
     CONSTRAINT "project_image_filters_input_not_output_ck" CHECK (("input_image_id" <> "output_image_id")),
     CONSTRAINT "project_image_filters_stack_order_check" CHECK (("stack_order" > 0))

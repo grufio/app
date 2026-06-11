@@ -31,7 +31,6 @@ type StackRow = {
   filter_type: string
   filter_params: Record<string, unknown>
   stack_order: number
-  is_hidden: boolean
   created_at: string
 }
 
@@ -88,7 +87,6 @@ function row(id: string, stackOrder: number, input: string, output: string): Sta
     filter_type: "bw_hard",
     filter_params: { superpixel_width: 10, superpixel_height: 10, num_colors: 16, color_mode: "rgb" },
     stack_order: stackOrder,
-    is_hidden: false,
     created_at: "2026-05-06T00:00:00Z",
   }
 }

@@ -45,20 +45,7 @@ describe("MobileTopRightBar", () => {
     cleanup()
   })
 
-  it("renders only the Edit button when viewOptions is null", () => {
-    const onEditTap = vi.fn()
-    const { getByLabelText, queryByLabelText } = render(
-      <MobileTopRightBar
-        onEditTap={onEditTap}
-        ariaLabelEdit="Edit trace"
-        viewOptions={null}
-      />,
-    )
-    expect(getByLabelText("Edit trace")).not.toBeNull()
-    expect(queryByLabelText("View options")).toBeNull()
-  })
-
-  it("renders only the Eye (no Edit) when onEditTap is omitted", () => {
+  it("renders the Eye (view-options) and never an Edit affordance", () => {
     setupRadixPolyfills()
     const { getByLabelText, queryByLabelText } = render(
       <MobileTopRightBar viewOptions={defaultViewOptions()} />,
@@ -66,47 +53,18 @@ describe("MobileTopRightBar", () => {
     expect(getByLabelText("View options")).not.toBeNull()
     expect(queryByLabelText("Edit")).toBeNull()
     expect(queryByLabelText("Edit trace")).toBeNull()
+    expect(queryByLabelText("Edit artboard")).toBeNull()
   })
 
-  it("renders nothing when there is neither an Edit trigger nor view-options", () => {
+  it("renders nothing when there are no view-options", () => {
     const { queryByRole } = render(<MobileTopRightBar viewOptions={null} />)
     expect(queryByRole("toolbar")).toBeNull()
-  })
-
-  it("renders both Eye and Edit when viewOptions is provided", () => {
-    setupRadixPolyfills()
-    const { getByLabelText } = render(
-      <MobileTopRightBar
-        onEditTap={vi.fn()}
-        ariaLabelEdit="Edit trace"
-        viewOptions={defaultViewOptions()}
-      />,
-    )
-    expect(getByLabelText("View options")).not.toBeNull()
-    expect(getByLabelText("Edit trace")).not.toBeNull()
-  })
-
-  it("Edit-tap calls onEditTap", () => {
-    setupRadixPolyfills()
-    const onEditTap = vi.fn()
-    const { getByLabelText } = render(
-      <MobileTopRightBar
-        onEditTap={onEditTap}
-        ariaLabelEdit="Edit trace"
-        viewOptions={null}
-      />,
-    )
-    fireEvent.click(getByLabelText("Edit trace"))
-    expect(onEditTap).toHaveBeenCalledTimes(1)
   })
 
   it("opens the menu with three checkbox items in order", async () => {
     setupRadixPolyfills()
     const { getByLabelText } = render(
-      <MobileTopRightBar
-        onEditTap={vi.fn()}
-        viewOptions={defaultViewOptions()}
-      />,
+      <MobileTopRightBar viewOptions={defaultViewOptions()} />,
     )
     openMenu(getByLabelText)
     await waitFor(() => {
@@ -125,7 +83,6 @@ describe("MobileTopRightBar", () => {
     setupRadixPolyfills()
     const { getByLabelText } = render(
       <MobileTopRightBar
-        onEditTap={vi.fn()}
         viewOptions={{ ...defaultViewOptions(), numbersLayerVisible: false }}
       />,
     )
@@ -147,7 +104,7 @@ describe("MobileTopRightBar", () => {
     setupRadixPolyfills()
     const opts = defaultViewOptions()
     const { getByLabelText } = render(
-      <MobileTopRightBar onEditTap={vi.fn()} viewOptions={opts} />,
+      <MobileTopRightBar viewOptions={opts} />,
     )
     openMenu(getByLabelText)
     await waitFor(() => {
@@ -167,7 +124,7 @@ describe("MobileTopRightBar", () => {
   it("keeps the menu open after a toggle (preventDefault on select)", async () => {
     setupRadixPolyfills()
     const { getByLabelText } = render(
-      <MobileTopRightBar onEditTap={vi.fn()} viewOptions={defaultViewOptions()} />,
+      <MobileTopRightBar viewOptions={defaultViewOptions()} />,
     )
     openMenu(getByLabelText)
     await waitFor(() => {
@@ -187,7 +144,7 @@ describe("MobileTopRightBar", () => {
   it("marks the Eye-button as pressed while the menu is open", async () => {
     setupRadixPolyfills()
     const { getByLabelText } = render(
-      <MobileTopRightBar onEditTap={vi.fn()} viewOptions={defaultViewOptions()} />,
+      <MobileTopRightBar viewOptions={defaultViewOptions()} />,
     )
     expect(getByLabelText("View options").getAttribute("aria-pressed")).not.toBe("true")
     openMenu(getByLabelText)
@@ -199,14 +156,14 @@ describe("MobileTopRightBar", () => {
   describe("desktop variant", () => {
     it("keeps `md:hidden` by default (mobile-only callers unchanged)", () => {
       const { getByRole } = render(
-        <MobileTopRightBar onEditTap={vi.fn()} ariaLabelEdit="Edit trace" viewOptions={null} />,
+        <MobileTopRightBar viewOptions={defaultViewOptions()} />,
       )
       expect(getByRole("toolbar").className).toContain("md:hidden")
     })
 
     it("drops `md:hidden` when desktop is set (bar stays visible on md+)", () => {
       const { getByRole } = render(
-        <MobileTopRightBar onEditTap={vi.fn()} ariaLabelEdit="Edit trace" viewOptions={null} desktop />,
+        <MobileTopRightBar viewOptions={defaultViewOptions()} desktop />,
       )
       expect(getByRole("toolbar").className).not.toContain("md:hidden")
     })

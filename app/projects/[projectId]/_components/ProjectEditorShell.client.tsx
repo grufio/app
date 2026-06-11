@@ -37,7 +37,6 @@ import type { RegisteredFilterId } from "@/lib/editor/filters/registry"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
 import { useDisplaySize } from "@/lib/editor/hooks/use-display-size"
 import { useDedupingErrorToast } from "@/lib/editor/hooks/use-deduping-error-toast"
-import { useFilterStackActions } from "@/lib/editor/hooks/use-filter-stack-actions"
 import { useTraceHandlers } from "./editor-shell/use-trace-handlers"
 import { useCanvasDerivedState } from "./editor-shell/use-canvas-derived-state"
 import { useFilterWorkingImage } from "@/lib/editor/hooks/use-filter-working-image"
@@ -62,7 +61,6 @@ import { useStageInteractionPolicy } from "./editor-shell/use-stage-interaction-
 import { useEditorWorkflowAdapter } from "./editor-shell/use-editor-workflow-adapter"
 import { ArtboardSurfaceScope } from "./editor-shell/artboard-surface-scope"
 import { ColorsSurfaceScope } from "./editor-shell/colors-surface-scope"
-import { FilterSurfaceScope } from "./editor-shell/filter-surface-scope"
 import { TraceSurfaceScope } from "./editor-shell/trace-surface-scope"
 import { useDeleteMasterImageHandler } from "./editor-shell/use-delete-master-image-handler"
 import { usePanelUIState } from "./editor-shell/use-panel-ui-state"
@@ -122,8 +120,8 @@ export function ProjectDetailPageClient({
     state: sessionState,
     actions: sessionActions,
   } = useEditorSessionState()
-  const { restoreOpen, deleteOpen, hiddenFilterIds, traceOverlayVisible, previewBitmapVisible, numbersLayerVisible } = sessionState
-  const { setRestoreOpen, setDeleteOpen, showFilter, hideFilter, toggleHiddenFilter, pruneHiddenFilters, setTraceOverlayVisible, setPreviewBitmapVisible, setNumbersLayerVisible } = sessionActions
+  const { restoreOpen, deleteOpen, traceOverlayVisible, previewBitmapVisible, numbersLayerVisible } = sessionState
+  const { setRestoreOpen, setDeleteOpen, setTraceOverlayVisible, setPreviewBitmapVisible, setNumbersLayerVisible } = sessionActions
   // `isMobile` no longer gates the canvas — both viewports drive the
   // canvas through `mobileSection`. It's retained only to steer
   // section-restore side-effects (e.g. returning to the trace section
@@ -237,12 +235,7 @@ export function ProjectDetailPageClient({
     getCurrentImageTx: getCurrentImageState,
   })
 
-  // Workflow-level filter error toasts at shell scope. Dialog-level
-  // filter errors (`filterDialog.error`) are toasted from inside
-  // `FilterSurfaceScope` where the dialog state lives.
-  const activeDisplayFilterId = filterStack[filterStack.length - 1]?.id ?? null
-  const isActiveDisplayFilterHidden = activeDisplayFilterId ? Boolean(hiddenFilterIds[activeDisplayFilterId]) : false
-
+  // Workflow-level filter error toasts at shell scope.
   useDedupingErrorToast(workflowFilterPanelError)
   useDedupingErrorToast(uploadSyncError)
 
@@ -270,16 +263,6 @@ export function ProjectDetailPageClient({
       },
     })
   }, [projectId, sourceSnapshot])
-
-  const { toggleHidden: handleToggleHidden } = useFilterStackActions({
-    filterStack,
-    projectId,
-    refreshFilterImage,
-    toggleHiddenFilter,
-    showFilter,
-    hideFilter,
-    pruneHiddenFilters,
-  })
 
   const hasFilterSourceImage = Boolean(filterSourceImage)
   const isNewFilterActionBusy = filterImageLoading || workflow.isMutating || workflow.isSyncing
@@ -397,7 +380,6 @@ export function ProjectDetailPageClient({
   const {
     canvasImage,
     traceOverlaySvgUrl,
-    showFilterChain,
     traceOverlayVisible: effectiveTraceOverlayVisible,
     previewBitmapVisible: effectivePreviewBitmapVisible,
     numbersLayerVisible: effectiveNumbersLayerVisible,
@@ -427,11 +409,6 @@ export function ProjectDetailPageClient({
       ? hexLuminance(pageBgColor)
       : null
   const toolbarTone = useToolbarTone(surfaceLuminance)
-  // canvasMode is now a pure projection of `showFilterChain` — the
-  // tab-vs-mobile-vs-image-ready logic lives in `deriveDisplayLayers`.
-  // Kept as a string union because FilterSidebarSection + MobileFilterSheet
-  // already destructure `canvasMode === "filter"`.
-  const canvasMode: "image" | "filter" = showFilterChain ? "filter" : "image"
 
   // The trace's own frozen display rect (µpx, stage 2). The overlay
   // renders its SIZE/ASPECT from this rect — decoupled from the live
@@ -662,27 +639,8 @@ export function ProjectDetailPageClient({
             onRequestDelete={requestDeleteSelectedImage}
           />
         ) : null}
-        {mobileSection === "filter" ? (
-          <FilterSurfaceScope
-            intent="mobile"
-            desktop={!isMobile}
-            filterSourceImage={filterSourceImage}
-            onApplyFilter={handleApplyFilter}
-            isAddFilterDisabled={isAddFilterDisabled}
-            workflowDismissError={workflow.dismissError}
-            filterStack={filterStack}
-            canvasMode={canvasMode}
-            hiddenFilterIds={hiddenFilterIds}
-            activeDisplayFilterId={activeDisplayFilterId}
-            isActiveDisplayFilterHidden={isActiveDisplayFilterHidden}
-            isRemovingFilter={workflow.isRemovingFilter}
-            isLoadingInitial={filterImageLoading && !filterImageLoadedOnce}
-            lock={filterLock}
-            onSelectFilter={showFilter}
-            onToggleHidden={handleToggleHidden}
-            onRemoveFilter={workflow.removeFilter}
-          />
-        ) : null}
+        {/* The Filter section has no surface-scope mount: its top-left "+"
+            menu (apply kind / remove / unlock) is the sole filter UI. */}
         {mobileSection === "trace" ? (
           <TraceSurfaceScope
             intent="mobile"

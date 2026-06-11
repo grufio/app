@@ -1,23 +1,18 @@
 /**
  * @vitest-environment jsdom
  */
-import { cleanup, fireEvent, render } from "@testing-library/react"
+import { cleanup, render } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { ArtboardSurfaceScope, type ArtboardSurfaceScopeProps } from "./artboard-surface-scope"
 
 // The real sheet pulls in dynamic panels + a wide prop surface; the channel
-// behaviour is independent of its contents, so stub both children.
+// behaviour is independent of its contents, so stub it.
 vi.mock("@/features/editor/components/mobile-artboard-sheet", () => ({
   MobileArtboardSheet: ({ onClose }: { onClose: () => void }) => (
     <div data-testid="artboard-sheet">
       <button type="button" aria-label="close-sheet" onClick={onClose} />
     </div>
-  ),
-}))
-vi.mock("@/features/editor/components/mobile-top-right-bar", () => ({
-  MobileTopRightBar: ({ onEditTap }: { onEditTap: () => void }) => (
-    <button type="button" aria-label="edit-bar" onClick={onEditTap} />
   ),
 }))
 
@@ -52,13 +47,5 @@ describe("ArtboardSurfaceScope", () => {
     )
     expect(queryByTestId("artboard-sheet")).not.toBeNull()
     expect(onConsumePendingEditOpen).toHaveBeenCalledTimes(1)
-  })
-
-  it("still opens via the Edit bar and closes from the sheet", () => {
-    const { getByLabelText, queryByTestId } = render(<ArtboardSurfaceScope {...baseProps} />)
-    fireEvent.click(getByLabelText("edit-bar"))
-    expect(queryByTestId("artboard-sheet")).not.toBeNull()
-    fireEvent.click(getByLabelText("close-sheet"))
-    expect(queryByTestId("artboard-sheet")).toBeNull()
   })
 })

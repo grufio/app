@@ -86,7 +86,6 @@ export type ProjectImageFilterItem = {
   filter_type: FilterType
   filter_params: Record<string, unknown>
   stack_order: number
-  is_hidden: boolean
   created_at: string
 }
 
@@ -340,26 +339,6 @@ export async function removeProjectImageFilter(args: {
   return { active_image_id: String(res.data.active_image_id) }
 }
 
-/** PATCH /api/projects/[projectId]/images/filters/[filterId] — toggle persisted is_hidden. */
-export async function setProjectImageFilterHidden(args: {
-  projectId: string
-  filterId: string
-  isHidden: boolean
-}): Promise<{ is_hidden: boolean }> {
-  const { projectId, filterId, isHidden } = args
-  const res = await fetchJson<{ ok?: boolean; is_hidden?: boolean }>(`/api/projects/${projectId}/images/filters/${filterId}`, {
-    method: "PATCH",
-    credentials: "same-origin",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ is_hidden: isHidden }),
-  })
-  if (!res.ok) {
-    throw new Error(formatApiError("Failed to update filter visibility", res.status, res.error))
-  }
-  invalidateProjectMutationCaches(projectId, ["filters"])
-  return { is_hidden: Boolean(res.data?.is_hidden ?? isHidden) }
-}
-
 /** POST /api/projects/[projectId]/images/filter-working-copy — ensures a working copy exists for the filter chain. */
 export type FilterDisplayPayload = {
   id: string
@@ -389,7 +368,6 @@ export async function getOrCreateFilterWorkingCopy(projectId: string): Promise<
         name: string
         filterType: RegisteredFilterId | "unknown"
         source_image_id: string | null
-        is_hidden: boolean
       }>
     })
 > {
@@ -420,7 +398,6 @@ export async function getOrCreateFilterWorkingCopy(projectId: string): Promise<
       name?: string
       filterType?: RegisteredFilterId | "unknown"
       source_image_id?: string | null
-      is_hidden?: boolean
     }>
   }>(`/api/projects/${projectId}/images/filter-working-copy`, {
     method: "POST",
@@ -461,7 +438,7 @@ export async function getOrCreateFilterWorkingCopy(projectId: string): Promise<
     },
     stack: Array.isArray(res.data.stack)
       ? res.data.stack
-          .filter((row): row is { id: string; name: string; filterType: RegisteredFilterId | "unknown"; source_image_id?: string | null; is_hidden?: boolean } =>
+          .filter((row): row is { id: string; name: string; filterType: RegisteredFilterId | "unknown"; source_image_id?: string | null } =>
             Boolean(row?.id && row?.name && row?.filterType)
           )
           .map((row) => ({
@@ -469,7 +446,6 @@ export async function getOrCreateFilterWorkingCopy(projectId: string): Promise<
             name: String(row.name),
             filterType: row.filterType,
             source_image_id: row.source_image_id ?? null,
-            is_hidden: Boolean(row.is_hidden),
           }))
       : [],
   }

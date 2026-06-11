@@ -23,8 +23,10 @@ result. It splits into three layers: pure-math canvas model
   [filters/](../../lib/editor/filters/) (filter registry).
 - [features/editor/](../../features/editor/) — React surface:
   `ProjectEditorStage`, the floating section model
-  (`EditorTopLeftBar` → per-surface scopes → `Mobile*Sheet` /
-  `MobileTopRightBar`, canvas-overlay on both viewports — the old
+  (`EditorTopLeftBar` with a per-section "+" menu (`SectionFabMenu`)
+  driving apply/edit, plus per-surface scopes → `MobileArtboardSheet`
+  / `MobileTraceSheet`; `MobileTopRightBar` now carries only Trace's
+  Eye (view-options) — the old per-section Edit pencils and the
   desktop side-panels were removed), the form components for each
   filter (`pixelate-form.tsx`, `lineart-form.tsx`,
   `numerate-form.tsx`), navigation/section routing.
@@ -144,7 +146,7 @@ anchor** for `project_image_state` is the working_copy (PR #257).
 | Tab | Sidebar | State read | State written | Stage display |
 |---|---|---|---|---|
 | **Image** | layers (`editor-nav-tree`) | `project_image_state` at working_copy.id | `project_image_state` at working_copy.id | working_copy / filter-tip raster |
-| **Filter** | filter stack (`FilterSidebarSection`) | `project_image_filters` + `filter_working_copy` rows; `project_image_state` at working_copy.id | `project_image_filters`, `project_images(kind='filter_working_copy')`, `project_image_state` at working_copy.id | filter chain tip raster |
+| **Filter** | "+" kind-menu (`EditorTopLeftBar`) — apply / remove / unlock | `project_image_filters` + `filter_working_copy` rows; `project_image_state` at working_copy.id | `project_image_filters`, `project_images(kind='filter_working_copy')`, `project_image_state` at working_copy.id | filter chain tip raster |
 | **Trace** | trace section (`TraceSidebarSection`) | `project_image_trace`, `project_image_state` at working_copy.id | `project_image_trace` (single row), `project_images(kind='trace_output'/'trace_base')` — `project_image_state` is **not** mutated (non-destructive) | working_copy / filter-tip raster + inline-SVG overlay, positioned at `project_image_state` for working_copy.id |
 | Colors / Output | — | — | — | removed 2026-05-11 (PR #89) |
 
@@ -179,14 +181,14 @@ editable).
 
 - Desktop nav-tree (`LockNavTreeActions`): Lock-icon next to the
   image row's Trash; clicking opens the unlock confirm dialog.
-- Filter section (`FilterSidebarSection`): amber banner above the
-  list plus disabled Add / Hide / Remove actions while locked.
+- Filter section ("+" kind-menu): while locked the active kind rows
+  swap their Delete circle for an Unlock lead, and applying new
+  kinds is disabled.
 - Image panel (`ImagePanel`): banner above the size/position/
   alignment inputs; `useImagePanelEnabled({ locked })` is the
   single disable point.
 - Mobile bottom-nav: red dot on the Artboard (image-lock) and
-  Filter icons. Tap still opens the sheet so the banner is
-  reachable.
+  Filter icons.
 
 **Unlock cascade order** (in `ProjectEditorShell.client.tsx`):
 trace first (single `clearProjectTrace` call), then filters

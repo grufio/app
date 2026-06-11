@@ -2,22 +2,24 @@
 
 /**
  * Mobile-only scope for the artboard surface. Owns its `editOpen`
- * state, renders the floating `MobileEditButton` and the
- * `MobileArtboardSheet`. The artboard surface has no dialog state
- * (no `useFilterDialogSession` / `useTraceDialogSession` analogue) —
- * this scope exists to give artboard the same lifecycle-is-
- * dismissal property as the other surfaces: switching to filter or
- * trace unmounts the scope, killing `editOpen` so a re-visit
- * doesn't pop the sheet back open.
+ * state and renders the `MobileArtboardSheet`. The artboard surface
+ * has no dialog state (no `useFilterDialogSession` /
+ * `useTraceDialogSession` analogue) — this scope exists to give
+ * artboard the same lifecycle-is-dismissal property as the other
+ * surfaces: switching to filter or trace unmounts the scope, killing
+ * `editOpen` so a re-visit doesn't pop the sheet back open.
+ *
+ * The sheet is opened from the top-left artboard "+" menu via the
+ * `pendingEditOpen` cross-mount flag (the old top-right Edit pencil
+ * was removed — the "+" menu is the sole entry point now).
  *
  * Mounted on `mobileSection === "artboard"` for both viewports. The
- * `desktop` flag flips the Edit bar + artboard sheet from the mobile
- * fullscreen variant to a bounded floating card on `md+`.
+ * `desktop` flag flips the artboard sheet from the mobile fullscreen
+ * variant to a bounded floating card on `md+`.
  */
 import { useEffect, useState, type ComponentProps } from "react"
 
 import { MobileArtboardSheet } from "@/features/editor/components/mobile-artboard-sheet"
-import { MobileTopRightBar } from "@/features/editor/components/mobile-top-right-bar"
 
 type ArtboardSheetProps = Omit<ComponentProps<typeof MobileArtboardSheet>, "onClose" | "desktop">
 
@@ -47,17 +49,6 @@ export function ArtboardSurfaceScope({
     onConsumePendingEditOpen?.()
   }, [pendingEditOpen, onConsumePendingEditOpen])
 
-  return (
-    <>
-      <MobileTopRightBar
-        desktop={desktop}
-        onEditTap={() => setEditOpen(true)}
-        ariaLabelEdit="Edit artboard"
-        viewOptions={null}
-      />
-      {editOpen ? (
-        <MobileArtboardSheet {...props} desktop={desktop} onClose={() => setEditOpen(false)} />
-      ) : null}
-    </>
-  )
+  if (!editOpen) return null
+  return <MobileArtboardSheet {...props} desktop={desktop} onClose={() => setEditOpen(false)} />
 }

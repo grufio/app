@@ -10,21 +10,23 @@ import { test, expect, type Request } from "@playwright/test"
 import { clampPx, pxUToPxNumber, unitToPxUFixed } from "../lib/editor/units"
 import { PROJECT_ID, setupMockRoutes } from "./_mocks"
 
-async function selectLayerNavItem(page: import("@playwright/test").Page, _label: "Artboard" | "Image" | "Grid") {
+async function openArtboardSheet(page: import("@playwright/test").Page) {
   // Canvas-first model: artboard / image / grid controls all live in the
-  // single Artboard sheet, opened from the floating top-left "Image"
-  // section + the top-right "Edit artboard" button.
+  // single Artboard sheet, opened from the top-left "Image" section's "+"
+  // menu via its "Edit artboard" lead (the old top-right Edit pencil is gone).
+  // Click the section icon while the menu is closed so the "Image" label is
+  // unambiguous, then open the "+" menu and tap the Edit-artboard lead.
   await page.getByRole("button", { name: "Image", exact: true }).click()
+  await page.getByLabel("Add to artboard").click()
   await page.getByRole("button", { name: "Edit artboard" }).click()
 }
 
-async function selectLeftTab(page: import("@playwright/test").Page, tab: "Image" | "Filter") {
-  // Switch the active section via the floating top-left bar, then open
-  // that section's sheet via the top-right Edit button so its controls
-  // are mounted (there is no always-visible side panel anymore).
-  await page.getByRole("button", { name: tab, exact: true }).click()
-  const editLabel = tab === "Filter" ? "Edit filter" : "Edit artboard"
-  await page.getByRole("button", { name: editLabel }).click()
+async function openFilterMenu(page: import("@playwright/test").Page) {
+  // The Filter section has no sheet: its top-left "+" menu (apply kind /
+  // remove / unlock) is the sole filter UI. Navigate to the section, then
+  // open the "+" menu so the B&W kind frames are mounted.
+  await page.getByRole("button", { name: "Filter", exact: true }).click()
+  await page.getByLabel("Add filter").click()
 }
 
 async function gotoProject(page: import("@playwright/test").Page) {
@@ -148,34 +150,29 @@ test("smoke: upload/crop/filter/remove/restore flow keeps deterministic image so
   expect((workingJson?.stack ?? []).length).toBe(0)
 })
 
-test("regression: new filter stays disabled without active image source", async ({ page }) => {
+test("regression: filter kinds stay disabled without active image source", async ({ page }) => {
   await page.setExtraHTTPHeaders({ "x-e2e-test": "1", "x-e2e-user": "1" })
   await setupMockRoutes(page, { withImage: false })
 
   await gotoProject(page)
   await assertEditorSurfaceVisible(page)
-  await selectLeftTab(page, "Filter")
+  await openFilterMenu(page)
 
-  await expect(page.getByRole("button", { name: "New Filter" })).toBeDisabled()
-  await expect(page.getByLabel("Add filter")).toBeDisabled()
+  // No source image → the "+" menu's kind frames are disabled (can't apply).
+  await expect(page.getByLabel("B&W Hard")).toBeDisabled()
 })
 
-test("regression: add filter is enabled and opens selector with active image source", async ({ page }) => {
+test("regression: filter kinds are enabled with an active image source", async ({ page }) => {
   await page.setExtraHTTPHeaders({ "x-e2e-test": "1", "x-e2e-user": "1" })
   await setupMockRoutes(page, { withImage: true })
 
   await gotoProject(page)
   await assertEditorSurfaceVisible(page)
-  await selectLeftTab(page, "Filter")
+  await openFilterMenu(page)
 
-  const newFilterButton = page.getByRole("button", { name: "New Filter" })
-  const addFilterButton = page.getByLabel("Add filter")
-
-  await expect(newFilterButton).toBeDisabled()
-  await expect(addFilterButton).toBeEnabled()
-
-  await addFilterButton.click()
-  await expect(page.getByRole("heading", { name: "Filter" })).toBeVisible()
+  // With a source image the kind frames are tappable (apply is instant —
+  // there is no selection dialog anymore).
+  await expect(page.getByLabel("B&W Hard")).toBeEnabled()
 })
 
 test("regression: upload makes image usable without page reload", async ({ page }) => {
@@ -184,10 +181,9 @@ test("regression: upload makes image usable without page reload", async ({ page 
 
   await gotoProject(page)
   await assertEditorSurfaceVisible(page)
-  await selectLeftTab(page, "Filter")
-  await expect(page.getByRole("button", { name: "New Filter" })).toBeDisabled()
-  await expect(page.getByLabel("Add filter")).toBeDisabled()
-  await selectLeftTab(page, "Image")
+  await openFilterMenu(page)
+  await expect(page.getByLabel("B&W Hard")).toBeDisabled()
+  await openArtboardSheet(page)
   const uploadInput = page.getByTestId("add-image-input")
   await expect(uploadInput).toBeAttached()
   const waitUploadResponse = page.waitForResponse(
@@ -208,9 +204,8 @@ test("regression: upload makes image usable without page reload", async ({ page 
   const workingCopyJson = (await workingCopyRes.json()) as { exists?: boolean }
   expect(workingCopyJson.exists).toBe(true)
 
-  await selectLeftTab(page, "Filter")
-  await expect(page.getByRole("button", { name: "New Filter" })).toBeDisabled()
-  await expect(page.getByLabel("Add filter")).toBeEnabled()
+  await openFilterMenu(page)
+  await expect(page.getByLabel("B&W Hard")).toBeEnabled()
 })
 
 test("regression: filter error does not leak into restore dialog", async ({ page }) => {
@@ -227,16 +222,14 @@ test("regression: filter error does not leak into restore dialog", async ({ page
 
   await gotoProject(page)
   await assertEditorSurfaceVisible(page)
-  await selectLeftTab(page, "Filter")
+  await openFilterMenu(page)
 
-  await page.getByRole("button", { name: "New Filter" }).click()
-  await page.getByRole("button", { name: "B&W Hard", exact: true }).click()
-  // Apply closes the selection dialog immediately; the failed apply
-  // surfaces as a toast, not in-dialog.
-  await page.getByRole("button", { name: "Apply" }).click()
+  // Tapping a kind frame applies instantly (no selection dialog); the mocked
+  // 500 surfaces as a toast, not in any dialog.
+  await page.getByLabel("B&W Hard").click()
   await expect(page.getByText("forced filter failure")).toBeVisible()
 
-  await selectLayerNavItem(page, "Image")
+  await openArtboardSheet(page)
   await page.getByLabel("Restore image").click()
   await expect(page.getByRole("heading", { name: "Restore image?" })).toBeVisible()
   await expect(page.getByText("forced filter failure")).toHaveCount(0)
@@ -295,7 +288,7 @@ test.skip("image size: setting 100mm survives reload (no drift)", async ({ page 
   })
 
   await page.goto(`/projects/${PROJECT_ID}`)
-  await selectLayerNavItem(page, "Image")
+  await openArtboardSheet(page)
 
   const w = page.getByLabel("Image width (mm)")
   const h = page.getByLabel("Image height (mm)")
@@ -340,12 +333,12 @@ test.skip("image size: setting 100mm survives reload (no drift)", async ({ page 
   expect(state?.width_px_u).toBe(expectedPxU)
   expect(state?.height_px_u).toBe(expectedPxU)
 
-  await selectLayerNavItem(page, "Image")
+  await openArtboardSheet(page)
   await expect(page.getByLabel("Image width (mm)")).toHaveValue("100")
   await expect(page.getByLabel("Image height (mm)")).toHaveValue("100")
 
   // Unit toggle should not trigger image-state save.
-  await selectLayerNavItem(page, "Artboard")
+  await openArtboardSheet(page)
   await page.getByLabel("Artboard unit").click()
   await page.getByRole("option", { name: "cm" }).click()
   await expect(
@@ -359,12 +352,12 @@ test.skip("image size: setting 100mm survives reload (no drift)", async ({ page 
   expect(imageStatePosts).toBe(1)
 
   // DPI-only workspace change must not trigger image-state writes.
-  await selectLayerNavItem(page, "Artboard")
+  await openArtboardSheet(page)
   await page.getByLabel("Raster effects resolution").click()
   await page.getByRole("option", { name: "High (300 ppi)" }).click()
 
   // After DPI change, changing unit in the image panel still must not persist image geometry.
-  await selectLayerNavItem(page, "Artboard")
+  await openArtboardSheet(page)
   await page.getByLabel("Artboard unit").click()
   await page.getByRole("option", { name: "px" }).click()
   await expect(
@@ -394,7 +387,7 @@ test.skip("image transform chain: resize + rotate + drag persists", async ({ pag
   })
 
   await page.goto(`/projects/${PROJECT_ID}`)
-  await selectLayerNavItem(page, "Image")
+  await openArtboardSheet(page)
 
   const w = page.getByLabel("Image width (mm)")
   const h = page.getByLabel("Image height (mm)")
@@ -509,7 +502,7 @@ test.skip("image transform chain: resize + rotate + drag persists", async ({ pag
   expect(imageStateJson.state?.x_px_u).toBeTruthy()
   expect(imageStateJson.state?.y_px_u).toBeTruthy()
 
-  await selectLayerNavItem(page, "Image")
+  await openArtboardSheet(page)
   await expect(page.getByLabel("Image width (mm)")).toHaveValue("120")
   await expect(page.getByLabel("Image height (mm)")).toHaveValue("120")
 })
@@ -539,7 +532,7 @@ test.skip("page background: toggling persists via workspace upsert", async ({ pa
   })
 
   await page.goto(`/projects/${PROJECT_ID}`)
-  await selectLayerNavItem(page, "Artboard")
+  await openArtboardSheet(page)
 
   const toggle = page.getByLabel("Hide page background")
   await expect(toggle).toBeEnabled()
