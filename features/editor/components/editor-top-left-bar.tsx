@@ -33,6 +33,7 @@ import {
   Home,
   Loader2,
   Palette,
+  Pencil,
   Plus,
   SlidersHorizontal,
   Spline,
@@ -190,12 +191,29 @@ export function EditorTopLeftBar({
                     (displayKind ? (
                       // Active trace → the single kind icon sits directly
                       // under the + (centred in the column, same as the
-                      // no-trace picker). The Delete circle hangs off to
-                      // its RIGHT and is absolutely positioned, so adding
-                      // it never pushes the kind icon off-centre from the
-                      // +. The spinner shows on Delete until the clear
-                      // resolves.
+                      // no-trace picker). The Edit (pencil) circle hangs
+                      // off to its LEFT and the Delete circle to its
+                      // RIGHT — both absolutely positioned, so neither
+                      // pushes the kind icon off-centre from the +. Edit
+                      // re-opens the configure dialog; Delete clears the
+                      // trace (spinner shows until the clear resolves).
                       <div className="relative">
+                        <button
+                          type="button"
+                          aria-label="Edit trace"
+                          onClick={() => {
+                            if (deleting || !displayKind) return
+                            setTraceSubOpen(false)
+                            onTraceKindTap?.(displayKind)
+                          }}
+                          disabled={deleting}
+                          className={cn(
+                            circleClass(tone),
+                            "absolute top-1/2 right-full mr-2 -translate-y-1/2",
+                          )}
+                        >
+                          <Pencil aria-hidden="true" className="size-5" />
+                        </button>
                         <div className={pillClass(tone, "single")}>
                           {traceKindItems.map(({ key: kindKey, label: kindLabel, Icon: KindIcon }) => (
                             <ToolbarIconButton
