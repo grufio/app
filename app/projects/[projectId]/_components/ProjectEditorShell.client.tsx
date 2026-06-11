@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/dialog"
 import { AppButton } from "@/components/ui/form-controls"
 import { displayTxToMm } from "@/lib/editor/trace/display-tx-to-mm"
+import type { RegisteredFilterId } from "@/lib/editor/filters/registry"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
 import { useDisplaySize } from "@/lib/editor/hooks/use-display-size"
 import { useDedupingErrorToast } from "@/lib/editor/hooks/use-deduping-error-toast"
@@ -522,6 +523,17 @@ export function ProjectDetailPageClient({
       }
     : null
 
+  // Map each applied filter kind → the instance id to target for delete in the
+  // top-left "+" menu. Later wins, so this is the last-applied instance of a
+  // repeated kind. A kind is "active" in the menu iff it's a key here.
+  const activeFilterByKind = useMemo(() => {
+    const m: Partial<Record<RegisteredFilterId, string>> = {}
+    for (const f of filterStack) {
+      if (f.filterType !== "unknown") m[f.filterType] = f.id
+    }
+    return m
+  }, [filterStack])
+
   return (
     <div className="flex min-h-svh w-full flex-col">
       <ProjectEditorHeader
@@ -593,6 +605,13 @@ export function ProjectDetailPageClient({
           onTraceKindTap={handleTraceKindTap}
           activeTraceKind={trace?.kind ?? null}
           onDeleteTrace={handleClearTrace}
+          activeFilterByKind={activeFilterByKind}
+          onApplyFilterKind={(k) => handleApplyFilter({ filterType: k, filterParams: {} })}
+          onRemoveFilter={workflow.removeFilter}
+          isAddFilterDisabled={isAddFilterDisabled}
+          filterLocked={filterLock != null}
+          onUnlockFilter={filterLock?.onUnlock}
+          unlockBusy={filterLock?.busy ?? false}
         />
         {mobileSection === "artboard" ? (
           <ArtboardSurfaceScope

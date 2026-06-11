@@ -288,4 +288,151 @@ describe("EditorTopLeftBar", () => {
     const pills = container.querySelectorAll(":scope > div > div")
     expect(pills.length).toBe(2)
   })
+
+  // ── Filter "+" menu (parallel, instant apply, unlock-when-locked) ──────────
+
+  it("shows the Add-filter + circle only while the Filter section is active", () => {
+    const { getByLabelText, queryByLabelText, rerender } = render(
+      <EditorTopLeftBar activeSection="trace" />,
+    )
+    expect(queryByLabelText("Add filter")).toBeNull()
+    rerender(<EditorTopLeftBar activeSection="filter" />)
+    expect(getByLabelText("Add filter")).not.toBeNull()
+    expect(queryByLabelText("B&W Hard")).toBeNull()
+  })
+
+  it("applies a filter on tap and keeps the menu open (parallel stacking)", () => {
+    const onApplyFilterKind = vi.fn()
+    const { getByLabelText } = render(
+      <EditorTopLeftBar activeSection="filter" onApplyFilterKind={onApplyFilterKind} />,
+    )
+    fireEvent.click(getByLabelText("Add filter"))
+    fireEvent.click(getByLabelText("B&W Hard"))
+    expect(onApplyFilterKind).toHaveBeenLastCalledWith("bw_hard")
+    // Menu stays open — the other kinds are still on screen.
+    expect(getByLabelText("B&W Soft")).not.toBeNull()
+    expect(getByLabelText("B&W Warm")).not.toBeNull()
+  })
+
+  it("leaves non-active kinds selectable while another is active (parallel)", () => {
+    const onApplyFilterKind = vi.fn()
+    const { getByLabelText } = render(
+      <EditorTopLeftBar
+        activeSection="filter"
+        activeFilterByKind={{ bw_hard: "f1" }}
+        onApplyFilterKind={onApplyFilterKind}
+      />,
+    )
+    fireEvent.click(getByLabelText("Add filter"))
+    // The active kind is a non-button indicator; the others stay enabled.
+    expect(getByLabelText("B&W Hard").tagName).not.toBe("BUTTON")
+    expect((getByLabelText("B&W Soft") as HTMLButtonElement).disabled).toBe(false)
+    fireEvent.click(getByLabelText("B&W Warm"))
+    expect(onApplyFilterKind).toHaveBeenLastCalledWith("bw_warm")
+  })
+
+  it("shows a Delete circle per active kind and removes that instance", async () => {
+    const onRemoveFilter = vi.fn()
+    const { getByLabelText, getAllByLabelText } = render(
+      <EditorTopLeftBar
+        activeSection="filter"
+        activeFilterByKind={{ bw_hard: "f1", bw_warm: "f3" }}
+        onRemoveFilter={onRemoveFilter}
+      />,
+    )
+    fireEvent.click(getByLabelText("Add filter"))
+    // Two active kinds → two Delete circles.
+    expect(getAllByLabelText("Delete filter")).toHaveLength(2)
+    // No Unlock when not locked.
+    expect(getByLabelText("B&W Hard")).not.toBeNull()
+    fireEvent.click(getAllByLabelText("Delete filter")[0])
+    expect(onRemoveFilter).toHaveBeenLastCalledWith("f1")
+  })
+
+  it("spins the filter Delete circle while removal is in flight and stays open", async () => {
+    let resolveDelete: () => void = () => {}
+    const onRemoveFilter = vi.fn(
+      () => new Promise<void>((resolve) => { resolveDelete = resolve }),
+    )
+    const { getByLabelText } = render(
+      <EditorTopLeftBar
+        activeSection="filter"
+        activeFilterByKind={{ bw_hard: "f1" }}
+        onRemoveFilter={onRemoveFilter}
+      />,
+    )
+    fireEvent.click(getByLabelText("Add filter"))
+    const del = getByLabelText("Delete filter") as HTMLButtonElement
+    fireEvent.click(del)
+    await waitFor(() => {
+      expect(del.querySelector(".animate-spin")).not.toBeNull()
+    })
+    expect(del.disabled).toBe(true)
+    resolveDelete()
+    // Filter menu stays open after delete (unlike trace) — the + is still there.
+    await waitFor(() => {
+      expect(getByLabelText("B&W Soft")).not.toBeNull()
+    })
+  })
+
+  it("does not render an Edit affordance on filter rows", () => {
+    const { getByLabelText, queryByLabelText } = render(
+      <EditorTopLeftBar activeSection="filter" activeFilterByKind={{ bw_hard: "f1" }} />,
+    )
+    fireEvent.click(getByLabelText("Add filter"))
+    expect(queryByLabelText("Edit filter")).toBeNull()
+    expect(queryByLabelText("Edit trace")).toBeNull()
+  })
+
+  it("when locked: shows Unlock, hides Delete, disables applies", () => {
+    const onUnlockFilter = vi.fn()
+    const onApplyFilterKind = vi.fn()
+    const { getByLabelText, queryByLabelText } = render(
+      <EditorTopLeftBar
+        activeSection="filter"
+        activeFilterByKind={{ bw_hard: "f1" }}
+        filterLocked
+        onUnlockFilter={onUnlockFilter}
+        onApplyFilterKind={onApplyFilterKind}
+      />,
+    )
+    fireEvent.click(getByLabelText("Add filter"))
+    // Unlock replaces Delete on the active row.
+    expect(getByLabelText("Unlock filters")).not.toBeNull()
+    expect(queryByLabelText("Delete filter")).toBeNull()
+    fireEvent.click(getByLabelText("Unlock filters"))
+    expect(onUnlockFilter).toHaveBeenCalledTimes(1)
+    // Non-active kinds are disabled (can't apply while locked).
+    expect((getByLabelText("B&W Soft") as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(getByLabelText("B&W Soft"))
+    expect(onApplyFilterKind).not.toHaveBeenCalled()
+  })
+
+  it("disables filter applies when add is disabled", () => {
+    const onApplyFilterKind = vi.fn()
+    const { getByLabelText } = render(
+      <EditorTopLeftBar
+        activeSection="filter"
+        isAddFilterDisabled
+        onApplyFilterKind={onApplyFilterKind}
+      />,
+    )
+    fireEvent.click(getByLabelText("Add filter"))
+    expect((getByLabelText("B&W Hard") as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(getByLabelText("B&W Hard"))
+    expect(onApplyFilterKind).not.toHaveBeenCalled()
+  })
+
+  it("closes the filter menu when the user clicks outside", () => {
+    const { getByLabelText, queryByLabelText } = render(
+      <div>
+        <EditorTopLeftBar activeSection="filter" />
+        <button type="button" aria-label="outside">outside</button>
+      </div>,
+    )
+    fireEvent.click(getByLabelText("Add filter"))
+    expect(getByLabelText("B&W Hard")).not.toBeNull()
+    fireEvent.pointerDown(getByLabelText("outside"))
+    expect(queryByLabelText("B&W Hard")).toBeNull()
+  })
 })
