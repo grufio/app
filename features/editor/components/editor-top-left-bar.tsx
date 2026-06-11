@@ -133,6 +133,16 @@ export function EditorTopLeftBar({
     return () => document.removeEventListener("pointerdown", onPointerDown)
   }, [traceSubOpen])
 
+  // The + circle (and its menu) only exist while the Trace section is active.
+  // Collapse the menu when navigating away so returning to Trace shows the
+  // + closed rather than re-expanded.
+  useEffect(() => {
+    if (activeSection !== "trace" && traceSubOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setTraceSubOpen(false)
+    }
+  }, [activeSection, traceSubOpen])
+
   return (
     <div className="absolute top-3 left-3 z-20 flex items-center gap-3">
       <div className={pillClass(tone, "single")}>
@@ -157,13 +167,14 @@ export function EditorTopLeftBar({
                 >
                   <Icon aria-hidden="true" className="size-6" />
                 </ToolbarIconButton>
-                {/* Vertical stack under the Trace icon, always present:
-                    the + circle toggles the kind menu that drops directly
-                    beneath it. */}
+                {/* Vertical stack under the Trace icon, shown ONLY while the
+                    Trace section is active: the + circle toggles the kind menu
+                    that drops directly beneath it. */}
                 {/* `mt-3` (12px from the icon's bottom) lands the circle
                     8px below the pill's bottom edge — the pill's `py-1`
                     eats 4px — so the toolbar→circle gap matches the
                     circle→submenu `gap-2` (8px). */}
+                {activeSection === "trace" && (
                 <div className="absolute top-full left-1/2 mt-3 flex -translate-x-1/2 flex-col items-center gap-2">
                   <button
                     type="button"
@@ -264,6 +275,7 @@ export function EditorTopLeftBar({
                       )
                     })}
                 </div>
+                )}
               </div>
             )
           }

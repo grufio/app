@@ -52,16 +52,31 @@ describe("EditorTopLeftBar", () => {
     expect(onSectionTap).toHaveBeenCalledTimes(4)
   })
 
-  it("renders an always-present Add-trace + circle that the Trace icon does not control", () => {
-    const onSectionTap = vi.fn()
-    const { getByLabelText, queryByLabelText } = render(
-      <EditorTopLeftBar onSectionTap={onSectionTap} />,
+  it("shows the Add-trace + circle only while the Trace section is active", () => {
+    const { getByLabelText, queryByLabelText, rerender } = render(
+      <EditorTopLeftBar activeSection="filter" />,
     )
-    // The + circle is shown regardless of the active section.
+    // Off the Trace section → no + circle.
+    expect(queryByLabelText("Add trace")).toBeNull()
+    // On the Trace section → the + circle appears (but the menu is still closed).
+    rerender(<EditorTopLeftBar activeSection="trace" />)
     expect(getByLabelText("Add trace")).not.toBeNull()
-    // Tapping Trace navigates but does NOT open the kind menu.
-    fireEvent.click(getByLabelText("Trace"))
-    expect(onSectionTap).toHaveBeenLastCalledWith("trace")
+    expect(queryByLabelText("Pixelate")).toBeNull()
+  })
+
+  it("collapses the kind menu when navigating away from the Trace section", () => {
+    const { getByLabelText, queryByLabelText, rerender } = render(
+      <EditorTopLeftBar activeSection="trace" />,
+    )
+    fireEvent.click(getByLabelText("Add trace"))
+    expect(getByLabelText("Pixelate")).not.toBeNull()
+    // Leave Trace → the whole + stack (and its menu) is gone.
+    rerender(<EditorTopLeftBar activeSection="colors" />)
+    expect(queryByLabelText("Add trace")).toBeNull()
+    expect(queryByLabelText("Pixelate")).toBeNull()
+    // Return to Trace → the + is back and CLOSED (menu did not persist).
+    rerender(<EditorTopLeftBar activeSection="trace" />)
+    expect(getByLabelText("Add trace")).not.toBeNull()
     expect(queryByLabelText("Pixelate")).toBeNull()
   })
 
@@ -79,7 +94,7 @@ describe("EditorTopLeftBar", () => {
   })
 
   it("toggles the kind menu via the + circle with all three kinds when no trace is set", () => {
-    const { getByLabelText, queryByLabelText } = render(<EditorTopLeftBar />)
+    const { getByLabelText, queryByLabelText } = render(<EditorTopLeftBar activeSection="trace" />)
     expect(queryByLabelText("Pixelate")).toBeNull()
     expect(queryByLabelText("Circulate")).toBeNull()
     expect(queryByLabelText("Lineart")).toBeNull()
@@ -94,7 +109,7 @@ describe("EditorTopLeftBar", () => {
   })
 
   it("rotates the + into an × (rotate-45) while the menu is open", () => {
-    const { getByLabelText } = render(<EditorTopLeftBar />)
+    const { getByLabelText } = render(<EditorTopLeftBar activeSection="trace" />)
     const closedIcon = getByLabelText("Add trace").querySelector("svg")
     expect(closedIcon?.classList.contains("rotate-45")).toBe(false)
     fireEvent.click(getByLabelText("Add trace"))
@@ -103,7 +118,9 @@ describe("EditorTopLeftBar", () => {
   })
 
   it("shows all three kinds once one is set: active highlighted, other two disabled", () => {
-    const { getByLabelText } = render(<EditorTopLeftBar activeTraceKind="circulate" />)
+    const { getByLabelText } = render(
+      <EditorTopLeftBar activeSection="trace" activeTraceKind="circulate" />,
+    )
     fireEvent.click(getByLabelText("Add trace"))
     // All three are present (individual circles), not just the active one.
     expect(getByLabelText("Pixelate")).not.toBeNull()
@@ -119,7 +136,11 @@ describe("EditorTopLeftBar", () => {
   it("does not invoke onTraceKindTap when a disabled non-active kind is clicked", () => {
     const onTraceKindTap = vi.fn()
     const { getByLabelText } = render(
-      <EditorTopLeftBar activeTraceKind="circulate" onTraceKindTap={onTraceKindTap} />,
+      <EditorTopLeftBar
+        activeSection="trace"
+        activeTraceKind="circulate"
+        onTraceKindTap={onTraceKindTap}
+      />,
     )
     fireEvent.click(getByLabelText("Add trace"))
     fireEvent.click(getByLabelText("Pixelate"))
@@ -130,7 +151,11 @@ describe("EditorTopLeftBar", () => {
   it("shows a Delete-trace circle next to the active kind and clears the trace", async () => {
     const onDeleteTrace = vi.fn()
     const { getByLabelText, queryByLabelText } = render(
-      <EditorTopLeftBar activeTraceKind="circulate" onDeleteTrace={onDeleteTrace} />,
+      <EditorTopLeftBar
+        activeSection="trace"
+        activeTraceKind="circulate"
+        onDeleteTrace={onDeleteTrace}
+      />,
     )
     // No delete affordance until the menu is opened.
     expect(queryByLabelText("Delete trace")).toBeNull()
@@ -154,7 +179,11 @@ describe("EditorTopLeftBar", () => {
         }),
     )
     const { getByLabelText, queryByLabelText } = render(
-      <EditorTopLeftBar activeTraceKind="pixelate" onDeleteTrace={onDeleteTrace} />,
+      <EditorTopLeftBar
+        activeSection="trace"
+        activeTraceKind="pixelate"
+        onDeleteTrace={onDeleteTrace}
+      />,
     )
     fireEvent.click(getByLabelText("Add trace"))
     const del = getByLabelText("Delete trace") as HTMLButtonElement
@@ -174,7 +203,7 @@ describe("EditorTopLeftBar", () => {
   })
 
   it("does not show the Delete-trace circle in the no-trace 3-kind picker", () => {
-    const { getByLabelText, queryByLabelText } = render(<EditorTopLeftBar />)
+    const { getByLabelText, queryByLabelText } = render(<EditorTopLeftBar activeSection="trace" />)
     fireEvent.click(getByLabelText("Add trace"))
     expect(queryByLabelText("Delete trace")).toBeNull()
   })
@@ -182,7 +211,11 @@ describe("EditorTopLeftBar", () => {
   it("re-opens the active kind's dialog via the Edit circle", () => {
     const onTraceKindTap = vi.fn()
     const { getByLabelText, queryByLabelText } = render(
-      <EditorTopLeftBar activeTraceKind="lineart" onTraceKindTap={onTraceKindTap} />,
+      <EditorTopLeftBar
+        activeSection="trace"
+        activeTraceKind="lineart"
+        onTraceKindTap={onTraceKindTap}
+      />,
     )
     fireEvent.click(getByLabelText("Add trace"))
     // The active glyph itself is a non-interactive indicator now; editing is
@@ -201,7 +234,11 @@ describe("EditorTopLeftBar", () => {
         }),
     )
     const { getByLabelText } = render(
-      <EditorTopLeftBar activeTraceKind="circulate" onDeleteTrace={onDeleteTrace} />,
+      <EditorTopLeftBar
+        activeSection="trace"
+        activeTraceKind="circulate"
+        onDeleteTrace={onDeleteTrace}
+      />,
     )
     fireEvent.click(getByLabelText("Add trace"))
     fireEvent.click(getByLabelText("Delete trace"))
@@ -218,7 +255,7 @@ describe("EditorTopLeftBar", () => {
   it("invokes onTraceKindTap with the picked kind and closes the menu when no trace is set", () => {
     const onTraceKindTap = vi.fn()
     const { getByLabelText, queryByLabelText } = render(
-      <EditorTopLeftBar onTraceKindTap={onTraceKindTap} />,
+      <EditorTopLeftBar activeSection="trace" onTraceKindTap={onTraceKindTap} />,
     )
     fireEvent.click(getByLabelText("Add trace"))
     fireEvent.click(getByLabelText("Pixelate"))
@@ -236,7 +273,7 @@ describe("EditorTopLeftBar", () => {
   it("closes the kind menu when the user clicks outside", () => {
     const { getByLabelText, queryByLabelText } = render(
       <div>
-        <EditorTopLeftBar />
+        <EditorTopLeftBar activeSection="trace" />
         <button type="button" aria-label="outside">outside</button>
       </div>,
     )
