@@ -2,9 +2,16 @@
 
 import { useMemo, useReducer } from "react"
 
+import type { ToolbarTone } from "@/features/editor/components/editor-toolbar-tone"
+
 export type SessionState = {
   restoreOpen: boolean
   deleteOpen: boolean
+  /** Floating-bar theme (`"dark"` = black pill / white ink, the default;
+   * `"light"` = white pill / black ink). Manual, session-ephemeral — the
+   * old image-brightness auto-detection was removed. Toggled from the
+   * top-right bar. */
+  toolbarTheme: ToolbarTone
   /** Trace tab layer visibility — both default to true (everything
    * shown). Independent toggles because the SVG cells overlay and
    * the underlying canvas bitmap live in separate DOM layers; users
@@ -23,6 +30,7 @@ export type SessionState = {
 export type SessionAction =
   | { type: "setRestoreOpen"; open: boolean }
   | { type: "setDeleteOpen"; open: boolean }
+  | { type: "toggleToolbarTheme" }
   | { type: "setTraceOverlayVisible"; visible: boolean }
   | { type: "setPreviewBitmapVisible"; visible: boolean }
   | { type: "setNumbersLayerVisible"; visible: boolean }
@@ -35,6 +43,8 @@ export function editorSessionReducer(state: SessionState, action: SessionAction)
     case "setDeleteOpen":
       if (state.deleteOpen === action.open) return state
       return { ...state, deleteOpen: action.open }
+    case "toggleToolbarTheme":
+      return { ...state, toolbarTheme: state.toolbarTheme === "dark" ? "light" : "dark" }
     case "setTraceOverlayVisible":
       if (state.traceOverlayVisible === action.visible) return state
       return { ...state, traceOverlayVisible: action.visible }
@@ -53,6 +63,7 @@ export function useEditorSessionState() {
   const [state, dispatch] = useReducer(editorSessionReducer, {
     restoreOpen: false,
     deleteOpen: false,
+    toolbarTheme: "dark" as ToolbarTone,
     traceOverlayVisible: true,
     previewBitmapVisible: true,
     numbersLayerVisible: true,
@@ -64,6 +75,7 @@ export function useEditorSessionState() {
       actions: {
         setRestoreOpen: (open: boolean) => dispatch({ type: "setRestoreOpen", open }),
         setDeleteOpen: (open: boolean) => dispatch({ type: "setDeleteOpen", open }),
+        toggleToolbarTheme: () => dispatch({ type: "toggleToolbarTheme" }),
         setTraceOverlayVisible: (visible: boolean) => dispatch({ type: "setTraceOverlayVisible", visible }),
         setPreviewBitmapVisible: (visible: boolean) => dispatch({ type: "setPreviewBitmapVisible", visible }),
         setNumbersLayerVisible: (visible: boolean) => dispatch({ type: "setNumbersLayerVisible", visible }),

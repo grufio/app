@@ -1,29 +1,25 @@
 "use client"
 
 /**
- * Mobile-only floating bar in the top-right corner of the editor
- * canvas. Hosts the Trace-layer view-options menu (Eye) in a single
- * dark Feather-style pill. The section Edit-trigger (Pencil) was
- * removed once every surface moved its editing into the top-left "+"
- * menus — Trace is the only remaining caller and it only ever shows
- * the Eye.
+ * Floating bar in the top-right corner of the editor canvas. Hosts a
+ * single dark Feather-style pill with:
+ *   - a **theme toggle** (always) that flips the floating bars between
+ *     the dark (`"dark"` / black) and light (`"light"` / white) tone,
+ *   - the **Eye** view-options menu (only on the Trace section, when a
+ *     pixelate/circulate trace exists) carrying the Trace / Preview /
+ *     Numbers layer toggles.
  *
- * Position bar at `top-3 right-3`. When `viewOptions` is null the bar
- * renders nothing.
+ * Position bar at `top-3 right-3`. Renders nothing only when there is
+ * neither a `theme` toggle nor `viewOptions`.
  *
- * The Eye's `DropdownMenu` carries three checkbox items (Trace /
- * Preview / Numbers visibility) wired to the same session-state
- * setters. Menu kept open on toggle via `e.preventDefault()` in each
- * `DropdownMenuCheckboxItem`'s `onSelect` (Radix's default is
+ * The Eye's `DropdownMenu` keeps open on toggle via `e.preventDefault()`
+ * in each `DropdownMenuCheckboxItem`'s `onSelect` (Radix's default is
  * close-on-select, wrong for a multi-toggle view-options menu — same
- * pattern as `components/app-card-project-menu.tsx`).
- *
- * The Eye-button picks up an `active` style while the menu is open
- * (locally tracked `menuOpen` state), so the user has a visual
- * "this control is in use" cue.
+ * pattern as `components/app-card-project-menu.tsx`). The Eye-button
+ * picks up an `active` style while the menu is open.
  */
 import { useState } from "react"
-import { Eye } from "lucide-react"
+import { Eye, Moon, Sun } from "lucide-react"
 
 import {
   DropdownMenu,
@@ -33,7 +29,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 
-import { useEditorToolbarTone } from "./editor-toolbar-tone"
+import { useEditorToolbarTone, type ToolbarTone } from "./editor-toolbar-tone"
 import { pillClass } from "./floating-bar-styles"
 import { ToolbarIconButton } from "./toolbar-icon-button"
 
@@ -46,8 +42,15 @@ export type MobileTopRightBarViewOptions = {
   onNumbersLayerChange: (visible: boolean) => void
 }
 
+export type MobileTopRightBarTheme = {
+  value: ToolbarTone
+  onToggle: () => void
+}
+
 type Props = {
-  /** When null, the Eye-button is omitted and the bar renders nothing. */
+  /** Theme toggle (always shown). When null the toggle is omitted. */
+  theme?: MobileTopRightBarTheme | null
+  /** Eye view-options menu (Trace section only). When null the Eye is omitted. */
   viewOptions: MobileTopRightBarViewOptions | null
   /** When true the bar stays visible on `md+` (editor surfaces in the
    * unified section model). Default false keeps the historical
@@ -55,25 +58,29 @@ type Props = {
   desktop?: boolean
 }
 
-export function MobileTopRightBar({ viewOptions, desktop = false }: Props) {
+export function MobileTopRightBar({ theme = null, viewOptions, desktop = false }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)
   const tone = useEditorToolbarTone()
 
-  // Nothing to show without a view-options menu.
-  if (!viewOptions) return null
+  // Nothing to show without a theme toggle or a view-options menu.
+  if (!theme && !viewOptions) return null
+
+  // Two controls (Eye + theme) → the `group` pill; a single one → `single`.
+  const multi = Boolean(theme) && Boolean(viewOptions)
 
   return (
     <div
       role="toolbar"
       aria-label="Editor actions"
       className={cn(
-        pillClass(tone, "single"),
+        pillClass(tone, multi ? "group" : "single"),
         "absolute top-3 right-3 z-20",
         // `md:hidden` only when NOT desktop — the unified editor surfaces
         // keep the bar on `md+`.
         desktop ? "" : "md:hidden",
       )}
     >
+      {viewOptions ? (
       <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
         <DropdownMenuTrigger asChild>
           <ToolbarIconButton label="View options" active={menuOpen}>
@@ -104,6 +111,19 @@ export function MobileTopRightBar({ viewOptions, desktop = false }: Props) {
           </DropdownMenuCheckboxItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      ) : null}
+      {theme ? (
+        <ToolbarIconButton
+          label={theme.value === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+          onClick={theme.onToggle}
+        >
+          {theme.value === "dark" ? (
+            <Sun aria-hidden="true" className="size-6" />
+          ) : (
+            <Moon aria-hidden="true" className="size-6" />
+          )}
+        </ToolbarIconButton>
+      ) : null}
     </div>
   )
 }
