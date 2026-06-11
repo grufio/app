@@ -9,7 +9,7 @@
  *     interaction policy; the crop tool auto-sets it)
  *   - `mobileSection` (the active editor section, both viewports)
  *   - `pendingTraceKindOpen` (cross-mount trace-kind open channel)
- *   - `pendingArtboardSheetOpen` (cross-mount artboard-sheet open channel)
+ *   - `pendingArtboardDialog` (cross-mount artboard-dialog open channel)
  *
  * Plus the callback wrappers (`handleMobileNavTap`,
  * `consumePendingTraceKindOpen`) so the shell can pass references
@@ -18,7 +18,7 @@
 import { useCallback, useState } from "react"
 
 import { buildNavId } from "@/features/editor/navigation/nav-id"
-import type { MobileSection } from "@/lib/editor/mobile-sections"
+import type { ArtboardDialog, MobileSection } from "@/lib/editor/mobile-sections"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
 
 export function usePanelUIState() {
@@ -33,11 +33,12 @@ export function usePanelUIState() {
   // mount (mobile) or next render (desktop, always mounted) and opens
   // the matching configure dialog, then clears via the consume cb.
   const [pendingTraceKindOpen, setPendingTraceKindOpen] = useState<RegisteredTraceId | null>(null)
-  // Cross-mount channel: the EditorTopLeftBar artboard sub-pill sets this to
-  // open the artboard sheet (whose `editOpen` is local to ArtboardSurfaceScope).
-  // The scope reads it on render, opens the sheet, then clears it via consume —
-  // keeping `editOpen` local so leaving/re-entering the section doesn't re-pop it.
-  const [pendingArtboardSheetOpen, setPendingArtboardSheetOpen] = useState(false)
+  // Cross-mount channel: the EditorTopLeftBar artboard sub-pill sets which of
+  // the three standalone dialogs (Artboard / Grid / Image) to open — local to
+  // ArtboardSurfaceScope's `activeDialog`. The scope reads it on render, opens
+  // the matching sheet, then clears it via consume so leaving/re-entering the
+  // section doesn't re-pop it.
+  const [pendingArtboardDialog, setPendingArtboardDialog] = useState<ArtboardDialog | null>(null)
 
   const handleMobileNavTap = useCallback((section: MobileSection) => {
     setMobileSection(section)
@@ -47,8 +48,8 @@ export function usePanelUIState() {
     setPendingTraceKindOpen(null)
   }, [])
 
-  const consumePendingArtboardSheetOpen = useCallback(() => {
-    setPendingArtboardSheetOpen(false)
+  const consumePendingArtboardDialog = useCallback(() => {
+    setPendingArtboardDialog(null)
   }, [])
 
   return {
@@ -62,8 +63,8 @@ export function usePanelUIState() {
     pendingTraceKindOpen,
     setPendingTraceKindOpen,
     consumePendingTraceKindOpen,
-    pendingArtboardSheetOpen,
-    setPendingArtboardSheetOpen,
-    consumePendingArtboardSheetOpen,
+    pendingArtboardDialog,
+    setPendingArtboardDialog,
+    consumePendingArtboardDialog,
   }
 }

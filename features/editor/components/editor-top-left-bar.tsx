@@ -52,7 +52,7 @@ import {
 } from "lucide-react"
 
 import type { RegisteredFilterId } from "@/lib/editor/filters/registry"
-import type { MobileSection } from "@/lib/editor/mobile-sections"
+import type { ArtboardDialog, MobileSection } from "@/lib/editor/mobile-sections"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
 
 import { useEditorToolbarTone } from "./editor-toolbar-tone"
@@ -128,8 +128,9 @@ type Props = {
   hasMasterImage?: boolean
   /** Quick-creates a grid (param-free, instant) when none exists. */
   onCreateGrid?: () => void | Promise<void>
-  /** Opens the artboard sheet (the full Page/Artboard/Grid/Image editor). */
-  onOpenArtboard?: () => void
+  /** Opens one of the three standalone artboard dialogs (Artboard / Grid /
+   * Image). The frame the user taps selects which dialog. */
+  onOpenArtboard?: (dialog: ArtboardDialog) => void
   /** The Image section is locked (a filter/trace depends on the master image).
    * When locked the Artboard/Page + Image rows show Unlock instead of Edit.
    * Grid is exempt (independent of the image pipeline). */
@@ -232,25 +233,26 @@ export function EditorTopLeftBar({
   })
 
   // Image / artboard: the three frames are the section's tools, not apply-able
-  // kinds. They launch the artboard sheet (the full editor) and show glanceable
-  // state; Grid quick-creates when empty. When the section is locked (a
-  // filter/trace depends on the master image) the Artboard/Page + Image rows
-  // swap Edit → Unlock; Grid is exempt (independent of the image pipeline).
-  const openArtboardSheet = () => {
-    onOpenArtboard?.()
-    setArtboardSubOpen(false) // collapse the menu as the sheet takes over
+  // kinds. Each frame launches its own standalone dialog (Artboard / Grid /
+  // Image) and shows glanceable state; Grid quick-creates when empty. When the
+  // section is locked (a filter/trace depends on the master image) the
+  // Artboard/Page + Image rows swap Edit → Unlock; Grid is exempt (independent
+  // of the image pipeline).
+  const openDialog = (dialog: ArtboardDialog) => () => {
+    onOpenArtboard?.(dialog)
+    setArtboardSubOpen(false) // collapse the menu as the dialog takes over
   }
-  const editOrUnlock = (editLabel: string): FabMenuItem["lead"] =>
+  const editOrUnlock = (editLabel: string, dialog: ArtboardDialog): FabMenuItem["lead"] =>
     imageLocked
       ? { icon: Unlock, label: "Unlock image", onClick: onUnlockImage, disabled: unlockImageBusy }
-      : { icon: Pencil, label: editLabel, onClick: openArtboardSheet }
+      : { icon: Pencil, label: editLabel, onClick: openDialog(dialog) }
   const artboardItems: FabMenuItem[] = [
     {
       key: "page",
       label: "Artboard/Page",
       Icon: Frame,
       active: true, // structural — always present, so the lead slot can host Unlock
-      lead: editOrUnlock("Edit artboard"),
+      lead: editOrUnlock("Edit artboard", "artboard"),
     },
     {
       key: "grid",
@@ -258,15 +260,15 @@ export function EditorTopLeftBar({
       Icon: Grid3x3,
       active: hasGrid,
       onSelect: hasGrid ? undefined : () => onCreateGrid?.(), // instant; lock-agnostic
-      lead: hasGrid ? { icon: Pencil, label: "Edit grid", onClick: openArtboardSheet } : undefined,
+      lead: hasGrid ? { icon: Pencil, label: "Edit grid", onClick: openDialog("grid") } : undefined,
     },
     {
       key: "image",
       label: "Image",
       Icon: ImageIcon,
       active: hasMasterImage,
-      onSelect: hasMasterImage ? undefined : openArtboardSheet, // (no image ⇒ not locked) upload via sheet
-      lead: hasMasterImage ? editOrUnlock("Edit image") : undefined,
+      onSelect: hasMasterImage ? undefined : openDialog("image"), // (no image ⇒ not locked) upload via dialog
+      lead: hasMasterImage ? editOrUnlock("Edit image", "image") : undefined,
     },
   ]
 

@@ -24,8 +24,12 @@ result. It splits into three layers: pure-math canvas model
 - [features/editor/](../../features/editor/) — React surface:
   `ProjectEditorStage`, the floating section model
   (`EditorTopLeftBar` with a per-section "+" menu (`SectionFabMenu`)
-  driving apply/edit, plus per-surface scopes → `MobileArtboardSheet`
-  / `MobileTraceSheet`; `MobileTopRightBar` now carries only Trace's
+  driving apply/edit, plus per-surface scopes → the trace
+  `MobileTraceSheet` and the artboard section's three standalone
+  dialogs `MobileArtboardSheet` (artboard size + page-background) /
+  `MobileGridSheet` / `MobileImageSheet`, each launched by its own
+  artboard "+" frame and routed through `ArtboardSurfaceScope`'s
+  `activeDialog`; `MobileTopRightBar` now carries only Trace's
   Eye (view-options) — the old per-section Edit pencils and the
   desktop side-panels were removed), the form components for each
   filter (`pixelate-form.tsx`, `lineart-form.tsx`,
@@ -90,7 +94,7 @@ result. It splits into three layers: pure-math canvas model
 ## Data flow — restoring a master
 
 ```
-user clicks "restore" in the artboard sheet (EditorImageDialogs host)
+user clicks "restore" in the Image dialog (EditorImageDialogs host)
    → restore/route.ts
      ├── load baseMaster from project_images
      ├── compute placement via lib/editor/image-placement

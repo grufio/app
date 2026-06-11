@@ -458,6 +458,7 @@ describe("EditorTopLeftBar", () => {
     expect(getByLabelText("Artboard/Page").tagName).not.toBe("BUTTON")
     fireEvent.click(getByLabelText("Edit artboard"))
     expect(onOpenArtboard).toHaveBeenCalledTimes(1)
+    expect(onOpenArtboard).toHaveBeenCalledWith("artboard")
   })
 
   it("quick-creates a grid when none exists and keeps the menu open", () => {
@@ -481,6 +482,7 @@ describe("EditorTopLeftBar", () => {
     expect(getByLabelText("Grid").tagName).not.toBe("BUTTON")
     fireEvent.click(getByLabelText("Edit grid"))
     expect(onOpenArtboard).toHaveBeenCalledTimes(1)
+    expect(onOpenArtboard).toHaveBeenCalledWith("grid")
   })
 
   it("opens the sheet to upload when no image exists, and shows Edit when it does", () => {
@@ -496,6 +498,7 @@ describe("EditorTopLeftBar", () => {
     // the launcher collapses the menu).
     fireEvent.click(menu.getByLabelText("Image"))
     expect(onOpenArtboard).toHaveBeenCalledTimes(1)
+    expect(onOpenArtboard).toHaveBeenCalledWith("image")
     // Re-open with an image present → the Image frame is now an indicator + Edit.
     rerender(<EditorTopLeftBar activeSection="artboard" hasMasterImage onOpenArtboard={onOpenArtboard} />)
     fireEvent.click(getByLabelText("Add to artboard"))

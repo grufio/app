@@ -142,9 +142,9 @@ export function ProjectDetailPageClient({
     pendingTraceKindOpen,
     setPendingTraceKindOpen,
     consumePendingTraceKindOpen,
-    pendingArtboardSheetOpen,
-    setPendingArtboardSheetOpen,
-    consumePendingArtboardSheetOpen,
+    pendingArtboardDialog,
+    setPendingArtboardDialog,
+    consumePendingArtboardDialog,
   } = usePanelUIState()
   const canvasRef = useRef<ProjectCanvasStageHandle | null>(null)
   const lastNoWorkingImageMetricRef = useRef("")
@@ -589,7 +589,7 @@ export function ProjectDetailPageClient({
             await createGrid()
             setGridVisible(true)
           }}
-          onOpenArtboard={() => setPendingArtboardSheetOpen(true)}
+          onOpenArtboard={(dialog) => setPendingArtboardDialog(dialog)}
           imageLocked={imageLock != null}
           onUnlockImage={imageLock?.onUnlock}
           unlockImageBusy={imageLock?.busy ?? false}
@@ -616,8 +616,8 @@ export function ProjectDetailPageClient({
         {mobileSection === "artboard" ? (
           <ArtboardSurfaceScope
             desktop={!isMobile}
-            pendingEditOpen={pendingArtboardSheetOpen}
-            onConsumePendingEditOpen={consumePendingArtboardSheetOpen}
+            pendingDialog={pendingArtboardDialog}
+            onConsumePendingDialog={consumePendingArtboardDialog}
             projectId={projectId}
             pageBgEnabled={pageBgEnabled}
             pageBgColor={pageBgColor}
