@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { circleClass, ICON_TONE, pillClass } from "./floating-bar-styles"
+import { circleClass, frameClass, ICON_TONE, pillClass } from "./floating-bar-styles"
 
 describe("floating-bar-styles", () => {
   it("pills flip surface + ring by tone, keep the variant padding", () => {
@@ -27,6 +27,21 @@ describe("floating-bar-styles", () => {
     expect(circleClass("dark")).toBe(circleClass("dark", "active"))
     expect(circleClass("dark", "active")).toContain("hover:bg-zinc-800")
     expect(circleClass("dark", "active")).toContain("bg-zinc-900/95")
+  })
+
+  it("frames are rounded-rect (not circles) but share the chip surface", () => {
+    const darkFrame = frameClass("dark")
+    expect(darkFrame).toContain("rounded-lg")
+    expect(darkFrame).not.toContain("rounded-full")
+    expect(darkFrame).toContain("bg-zinc-900/95")
+    expect(darkFrame).toContain("size-10")
+    // active frame is interactive (hover), inactive dims + drops hover
+    expect(darkFrame).toContain("hover:bg-zinc-800")
+    const lightInactiveFrame = frameClass("light", "inactive")
+    expect(lightInactiveFrame).toContain("rounded-lg")
+    expect(lightInactiveFrame).toContain("bg-zinc-200/90")
+    expect(lightInactiveFrame).toContain("text-zinc-900/40")
+    expect(lightInactiveFrame).not.toContain("hover:")
   })
 
   it("inactive variant dims surface + ink per tone and drops hover", () => {
