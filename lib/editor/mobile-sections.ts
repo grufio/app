@@ -11,3 +11,12 @@
 export const MOBILE_SECTIONS = ["artboard", "filter", "trace", "colors"] as const
 
 export type MobileSection = (typeof MOBILE_SECTIONS)[number]
+
+/**
+ * The three standalone dialogs the artboard section's top-left "+" menu
+ * can open. Each frame (Artboard/Page, Grid, Image) launches its own
+ * single-purpose sheet instead of one combined sheet. Co-located with
+ * `MobileSection` so the artboard open-channel has a single source of
+ * truth across the shell state, the surface scope, and the top-left bar.
+ */
+export type ArtboardDialog = "artboard" | "grid" | "image"

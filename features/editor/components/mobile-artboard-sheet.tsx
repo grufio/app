@@ -3,65 +3,40 @@
 /**
  * Mobile full-screen Artboard sheet.
  *
- * Surfaces every artboard-related control that lives on desktop in the
- * right panel (Page-Background, ArtboardPanel, GridPanel, ImagePanel)
- * inside a single scrollable mobile screen. Opens via the Artboard
- * icon in the editor's bottom-nav.
- *
- * Progressive disclosure (mirroring desktop):
- * - Page-Background + ArtboardPanel: always visible (artboard
- *   properties, never absent).
- * - Image-Section: a desktop-style nav-row (icon + label + `+`
- *   action) when no master image exists, swaps to `ImagePanel` once
- *   uploaded. Delete in the ImagePanel reverts to the row.
- * - Grid-Section: the same nav-row pattern for Add-Grid; swaps to
- *   `GridPanel` once created. Delete-grid reverts back.
- *
- * The Add-rows reuse `AddImageMenuAction` + `SidebarMenuAction` —
- * shared sidebar primitives, same upload pipeline, no surface-
- * specific button variant.
+ * One of the three standalone dialogs the artboard section's top-left
+ * "+" menu opens (alongside `MobileGridSheet` + `MobileImageSheet`).
+ * Holds the two always-present artboard properties as stacked
+ * sections — `ArtboardPanel` (size) first, then `PageBackgroundSection`
+ * (background colour) — mirroring the desktop right panel.
  *
  * Render shape: an `absolute inset-0` overlay inside the editor
  * layout container (mobile) or a bounded floating card on `md+`
  * (`desktop`). The layout's parent has `position: relative` so the
- * sheet is bounded to the editor area. The shell-root Restore/Delete
- * Radix dialogs are portaled, so actions from inside the sheet open
- * those dialogs cleanly on either viewport.
+ * sheet is bounded to the editor area.
  */
 import dynamic from "next/dynamic"
-import { Grid3x3, ImageIcon, Plus, X } from "lucide-react"
+import { X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { SidebarMenuAction } from "@/components/ui/sidebar"
-import type { UploadedMasterSnapshot } from "@/lib/editor/upload-master-image"
 
-import { AddImageMenuAction } from "./add-image-menu-button"
 import { mobileSheetRootClass } from "./mobile-sheet-shell"
 import { PageBackgroundSection } from "./page-background-section"
-import type { ProjectCanvasStageHandle } from "./project-canvas-stage"
-import type { Unit } from "@/lib/editor/units"
 
 // Mirror the right panel's code-splitting so the bundle cost is paid
-// once, not twice. The dynamic chunks are shared with the desktop
-// right panel when both code paths eventually render.
+// once, not twice. The dynamic chunk is shared with the desktop right
+// panel when both code paths eventually render.
 const ArtboardPanel = dynamic(() => import("./artboard-panel").then((m) => m.ArtboardPanel), {
-  ssr: false,
-  loading: () => null,
-})
-const GridPanel = dynamic(() => import("./grid-panel").then((m) => m.GridPanel), {
-  ssr: false,
-  loading: () => null,
-})
-const ImagePanel = dynamic(() => import("./image-panel").then((m) => m.ImagePanel), {
   ssr: false,
   loading: () => null,
 })
 
 export function MobileArtboardSheet(props: {
-  projectId: string
   onClose: () => void
   /** Desktop variant — bounded floating card instead of fullscreen. */
   desktop?: boolean
+  // ArtboardPanel
+  canFit: boolean
+  onFitArtboardToImage?: () => void | Promise<void>
   // Page-Background controls
   pageBgEnabled: boolean
   pageBgColor: string
@@ -69,69 +44,18 @@ export function MobileArtboardSheet(props: {
   onPageBgEnabledChange: (v: boolean) => void
   onPageBgColorChange: (v: string) => void
   onPageBgOpacityChange: (v: number) => void
-  // ArtboardPanel
-  canFit: boolean
-  onFitToArtboard: () => void
-  onFitArtboardToImage?: () => void | Promise<void>
-  // Grid: hasGrid drives the swap between Add-Button and GridPanel
-  hasGrid: boolean
-  gridVisible: boolean
-  onGridVisibleChange: (v: boolean) => void
-  onGridCreateRequested: () => void | Promise<void>
-  onGridDeleteRequested: () => void | Promise<void>
-  // Image: hasMasterImage drives the swap between Upload-Button and ImagePanel
-  hasMasterImage: boolean
-  onImageUploaded: (master: UploadedMasterSnapshot | null) => void | Promise<void>
-  panelImageTxU: { x: bigint; y: bigint; w: bigint; h: bigint } | null
-  workspaceUnit: Unit
-  imagePanelReady: boolean
-  imagePanelEnabled: boolean
-  /** Section-lock for the Image panel — passed straight through to
-   * the inner `ImagePanel`. Null on desktop or when not locked. */
-  imageLock?: {
-    message: string
-    toggleable: boolean
-    busy?: boolean
-    onUnlock?: () => void
-  } | null
-  masterImageLoading: boolean
-  deleteBusy: boolean
-  restoreBusy: boolean
-  canvasRef: React.RefObject<ProjectCanvasStageHandle | null>
-  onRequestRestore: () => void
-  onRequestDelete: () => void
 }) {
   const {
-    projectId,
     onClose,
     desktop,
+    canFit,
+    onFitArtboardToImage,
     pageBgEnabled,
     pageBgColor,
     pageBgOpacity,
     onPageBgEnabledChange,
     onPageBgColorChange,
     onPageBgOpacityChange,
-    canFit,
-    onFitToArtboard,
-    onFitArtboardToImage,
-    hasGrid,
-    gridVisible,
-    onGridVisibleChange,
-    onGridCreateRequested,
-    onGridDeleteRequested,
-    hasMasterImage,
-    onImageUploaded,
-    panelImageTxU,
-    workspaceUnit,
-    imagePanelReady,
-    imagePanelEnabled,
-    imageLock,
-    masterImageLoading,
-    deleteBusy,
-    restoreBusy,
-    canvasRef,
-    onRequestRestore,
-    onRequestDelete,
   } = props
 
   return (
@@ -150,6 +74,7 @@ export function MobileArtboardSheet(props: {
       </header>
 
       <div className="flex-1 overflow-y-auto">
+        <ArtboardPanel canFitToImage={canFit} onFitToImage={onFitArtboardToImage} />
         <PageBackgroundSection
           pageBgEnabled={pageBgEnabled}
           pageBgColor={pageBgColor}
@@ -158,52 +83,6 @@ export function MobileArtboardSheet(props: {
           onPageBgColorChange={onPageBgColorChange}
           onPageBgOpacityChange={onPageBgOpacityChange}
         />
-        <ArtboardPanel canFitToImage={canFit} onFitToImage={onFitArtboardToImage} />
-        {hasGrid ? (
-          <GridPanel
-            gridVisible={gridVisible}
-            onGridVisibleChange={onGridVisibleChange}
-            onDelete={onGridDeleteRequested}
-          />
-        ) : (
-          /* Compact nav-style row: text-xs label with an icon on the
-           * left, `+` action absolute-positioned top-right by
-           * SidebarMenuAction's default variant. No section header. */
-          <div className="relative flex items-center gap-2 border-b px-3 py-2 text-xs">
-            <Grid3x3 className="size-4 shrink-0" />
-            <span>Grid</span>
-            <SidebarMenuAction aria-label="Add Grid" onClick={() => void onGridCreateRequested()}>
-              <Plus />
-            </SidebarMenuAction>
-          </div>
-        )}
-        {hasMasterImage ? (
-          <ImagePanel
-            widthPxU={panelImageTxU?.w}
-            heightPxU={panelImageTxU?.h}
-            xPxU={panelImageTxU?.x}
-            yPxU={panelImageTxU?.y}
-            unit={workspaceUnit}
-            ready={imagePanelReady}
-            disabled={!imagePanelEnabled}
-            lock={imageLock ?? null}
-            onCommit={(w, h) => canvasRef.current?.setImageSize(w, h)}
-            onCommitPosition={(opts) => canvasRef.current?.setImagePosition(opts)}
-            onAlign={(opts) => canvasRef.current?.alignImage(opts)}
-            canRestore={!masterImageLoading && !deleteBusy && !restoreBusy}
-            canFit={canFit}
-            canDelete={!masterImageLoading && !deleteBusy}
-            onFitToArtboard={onFitToArtboard}
-            onRestore={onRequestRestore}
-            onDelete={onRequestDelete}
-          />
-        ) : (
-          <div className="relative flex items-center gap-2 border-b px-3 py-2 text-xs">
-            <ImageIcon className="size-4 shrink-0" />
-            <span>Image</span>
-            <AddImageMenuAction projectId={projectId} onUploaded={onImageUploaded} />
-          </div>
-        )}
       </div>
     </section>
   )

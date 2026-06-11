@@ -10,15 +10,42 @@ import { test, expect, type Request } from "@playwright/test"
 import { clampPx, pxUToPxNumber, unitToPxUFixed } from "../lib/editor/units"
 import { PROJECT_ID, setupMockRoutes } from "./_mocks"
 
-async function openArtboardSheet(page: import("@playwright/test").Page) {
-  // Canvas-first model: artboard / image / grid controls all live in the
-  // single Artboard sheet, opened from the top-left "Image" section's "+"
-  // menu via its "Edit artboard" lead (the old top-right Edit pencil is gone).
-  // Click the section icon while the menu is closed so the "Image" label is
-  // unambiguous, then open the "+" menu and tap the Edit-artboard lead.
+// Canvas-first model: the artboard section's three tools each open their own
+// standalone dialog (Artboard size + page-background / Grid / Image), launched
+// from the top-left "Image" section's "+" menu. Open the menu first (click the
+// section icon while it's closed so the "Image" label is unambiguous), then tap
+// the frame's Edit lead.
+async function openArtboardMenu(page: import("@playwright/test").Page) {
   await page.getByRole("button", { name: "Image", exact: true }).click()
   await page.getByLabel("Add to artboard").click()
+}
+
+// Artboard dialog — artboard size, unit, raster DPI, page-background.
+async function openArtboardDialog(page: import("@playwright/test").Page) {
+  await openArtboardMenu(page)
   await page.getByRole("button", { name: "Edit artboard" }).click()
+}
+
+// Grid dialog — visibility toggle + delete (only when a grid exists).
+async function openGridDialog(page: import("@playwright/test").Page) {
+  await openArtboardMenu(page)
+  await page.getByRole("button", { name: "Edit grid" }).click()
+}
+
+// Image dialog — size/position/align + fit/restore/delete when a master image
+// exists, else the upload Add-row. With no image the Image frame is itself the
+// launcher (scoped to the "+" menu to dodge the section-nav "Image" label).
+async function openImageDialog(
+  page: import("@playwright/test").Page,
+  { hasImage = true }: { hasImage?: boolean } = {},
+) {
+  await openArtboardMenu(page)
+  if (hasImage) {
+    await page.getByRole("button", { name: "Edit image" }).click()
+  } else {
+    const menu = page.getByLabel("Close artboard menu").locator("..")
+    await menu.getByRole("button", { name: "Image", exact: true }).click()
+  }
 }
 
 async function openFilterMenu(page: import("@playwright/test").Page) {
@@ -183,7 +210,7 @@ test("regression: upload makes image usable without page reload", async ({ page 
   await assertEditorSurfaceVisible(page)
   await openFilterMenu(page)
   await expect(page.getByLabel("B&W Hard")).toBeDisabled()
-  await openArtboardSheet(page)
+  await openImageDialog(page, { hasImage: false })
   const uploadInput = page.getByTestId("add-image-input")
   await expect(uploadInput).toBeAttached()
   const waitUploadResponse = page.waitForResponse(
@@ -229,7 +256,7 @@ test("regression: filter error does not leak into restore dialog", async ({ page
   await page.getByLabel("B&W Hard").click()
   await expect(page.getByText("forced filter failure")).toBeVisible()
 
-  await openArtboardSheet(page)
+  await openImageDialog(page)
   await page.getByLabel("Restore image").click()
   await expect(page.getByRole("heading", { name: "Restore image?" })).toBeVisible()
   await expect(page.getByText("forced filter failure")).toHaveCount(0)
@@ -288,7 +315,7 @@ test.skip("image size: setting 100mm survives reload (no drift)", async ({ page 
   })
 
   await page.goto(`/projects/${PROJECT_ID}`)
-  await openArtboardSheet(page)
+  await openImageDialog(page)
 
   const w = page.getByLabel("Image width (mm)")
   const h = page.getByLabel("Image height (mm)")
@@ -333,12 +360,12 @@ test.skip("image size: setting 100mm survives reload (no drift)", async ({ page 
   expect(state?.width_px_u).toBe(expectedPxU)
   expect(state?.height_px_u).toBe(expectedPxU)
 
-  await openArtboardSheet(page)
+  await openImageDialog(page)
   await expect(page.getByLabel("Image width (mm)")).toHaveValue("100")
   await expect(page.getByLabel("Image height (mm)")).toHaveValue("100")
 
   // Unit toggle should not trigger image-state save.
-  await openArtboardSheet(page)
+  await openArtboardDialog(page)
   await page.getByLabel("Artboard unit").click()
   await page.getByRole("option", { name: "cm" }).click()
   await expect(
@@ -352,12 +379,12 @@ test.skip("image size: setting 100mm survives reload (no drift)", async ({ page 
   expect(imageStatePosts).toBe(1)
 
   // DPI-only workspace change must not trigger image-state writes.
-  await openArtboardSheet(page)
+  await openArtboardDialog(page)
   await page.getByLabel("Raster effects resolution").click()
   await page.getByRole("option", { name: "High (300 ppi)" }).click()
 
   // After DPI change, changing unit in the image panel still must not persist image geometry.
-  await openArtboardSheet(page)
+  await openArtboardDialog(page)
   await page.getByLabel("Artboard unit").click()
   await page.getByRole("option", { name: "px" }).click()
   await expect(
@@ -387,7 +414,7 @@ test.skip("image transform chain: resize + rotate + drag persists", async ({ pag
   })
 
   await page.goto(`/projects/${PROJECT_ID}`)
-  await openArtboardSheet(page)
+  await openImageDialog(page)
 
   const w = page.getByLabel("Image width (mm)")
   const h = page.getByLabel("Image height (mm)")
@@ -502,7 +529,7 @@ test.skip("image transform chain: resize + rotate + drag persists", async ({ pag
   expect(imageStateJson.state?.x_px_u).toBeTruthy()
   expect(imageStateJson.state?.y_px_u).toBeTruthy()
 
-  await openArtboardSheet(page)
+  await openImageDialog(page)
   await expect(page.getByLabel("Image width (mm)")).toHaveValue("120")
   await expect(page.getByLabel("Image height (mm)")).toHaveValue("120")
 })
@@ -532,7 +559,7 @@ test.skip("page background: toggling persists via workspace upsert", async ({ pa
   })
 
   await page.goto(`/projects/${PROJECT_ID}`)
-  await openArtboardSheet(page)
+  await openArtboardDialog(page)
 
   const toggle = page.getByLabel("Hide page background")
   await expect(toggle).toBeEnabled()
