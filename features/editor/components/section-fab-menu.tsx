@@ -25,6 +25,16 @@ import { cn } from "@/lib/utils"
 import { useEditorToolbarTone } from "./editor-toolbar-tone"
 import { circleClass, frameClass } from "./floating-bar-styles"
 
+/**
+ * Minimum time the delete spinner stays visible, so the animation reads even
+ * when `onDelete` is synchronous (e.g. a local state-machine event that
+ * resolves on the next microtask). Without a floor, React batches the
+ * deletingKey on→off in a single paint and the spinner never shows — async
+ * handlers slower than this floor are unaffected. This is what makes the
+ * delete animation consistent across every section that uses this menu.
+ */
+const DELETE_SPINNER_MIN_MS = 350
+
 /** The optional LEFT-flank circle on an active row (Trace→Edit, Filter→Unlock). */
 type FlankAction = {
   icon: LucideIcon
@@ -96,9 +106,14 @@ export function SectionFabMenu({
   const runDelete = async (item: FabMenuItem) => {
     if (deleting || !item.onDelete) return
     setDeletingKey(item.key)
+    // Run the spinner floor concurrently with the delete: we wait for the
+    // longer of the two, so a slow async handler adds no extra delay while a
+    // synchronous one still shows the animation for the floor.
+    const spinnerFloor = new Promise((resolve) => setTimeout(resolve, DELETE_SPINNER_MIN_MS))
     try {
       await item.onDelete()
     } finally {
+      await spinnerFloor
       setDeletingKey(null)
       if (closeOnDelete) onOpenChange(false)
     }

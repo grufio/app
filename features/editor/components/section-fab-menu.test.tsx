@@ -84,6 +84,21 @@ describe("SectionFabMenu", () => {
     expect(queryByLabelText("Delete")).toBeNull()
   })
 
+  it("shows the delete spinner even when onDelete is synchronous", async () => {
+    // Mirrors filter's removeFilter (a sync state-machine event). Without the
+    // minimum-duration floor the spinner would flip on→off in one paint and
+    // never render — this is the regression guard for "animation everywhere".
+    const onDelete = vi.fn()
+    const { getByLabelText } = render(
+      <Harness items={[{ key: "a", label: "Alpha", Icon: Grid2x2, active: true, onDelete }]} />,
+    )
+    fireEvent.click(getByLabelText("Delete"))
+    expect(onDelete).toHaveBeenCalledTimes(1)
+    await waitFor(() => {
+      expect(getByLabelText("Delete").querySelector(".animate-spin")).not.toBeNull()
+    })
+  })
+
   it("freezes the deleting row + spins even after the parent flips it inactive", async () => {
     let resolveDelete: () => void = () => {}
     const onDelete = vi.fn(() => new Promise<void>((r) => { resolveDelete = r }))
