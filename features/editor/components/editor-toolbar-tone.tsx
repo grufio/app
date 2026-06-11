@@ -5,11 +5,11 @@
  * (`EditorTopLeftBar`), the Edit/Eye bar (`MobileTopRightBar`) and the
  * bottom canvas toolbar (`FloatingToolbar`).
  *
- * The shell derives the tone from the displayed image's brightness (see
- * `use-image-luminance` + `use-toolbar-tone`) and provides it here so the
- * bar primitives (`ToolbarIconButton`, the pill/circle helpers) read it
- * from context instead of threading a `tone` prop through every surface
- * scope and the canvas stage. Default `"dark"` (no provider) keeps every
+ * The shell holds the tone as a manual session setting (default `"dark"`,
+ * flipped by the top-right theme toggle) and provides it here so the bar
+ * primitives (`ToolbarIconButton`, the pill/circle helpers) read it from
+ * context instead of threading a `tone` prop through every surface scope
+ * and the canvas stage. Default `"dark"` (no provider) keeps every
  * non-editor caller of `ToolbarIconButton` unchanged.
  */
 import { createContext, useContext, type ReactNode } from "react"

@@ -153,6 +153,38 @@ describe("MobileTopRightBar", () => {
     })
   })
 
+  describe("theme toggle", () => {
+    it("renders the toggle with only a theme (no view-options) and renders nothing when both are absent", () => {
+      const { getByLabelText, queryByLabelText, queryByRole, rerender } = render(
+        <MobileTopRightBar viewOptions={null} theme={{ value: "dark", onToggle: vi.fn() }} />,
+      )
+      // Dark → offers "Switch to light theme"; no Eye when viewOptions is null.
+      expect(getByLabelText("Switch to light theme")).not.toBeNull()
+      expect(queryByLabelText("View options")).toBeNull()
+      // Both absent → nothing.
+      rerender(<MobileTopRightBar viewOptions={null} theme={null} />)
+      expect(queryByRole("toolbar")).toBeNull()
+    })
+
+    it("shows the Moon label while light and calls onToggle", () => {
+      const onToggle = vi.fn()
+      const { getByLabelText } = render(
+        <MobileTopRightBar viewOptions={null} theme={{ value: "light", onToggle }} />,
+      )
+      const btn = getByLabelText("Switch to dark theme")
+      fireEvent.click(btn)
+      expect(onToggle).toHaveBeenCalledTimes(1)
+    })
+
+    it("shows both the Eye and the theme toggle on the trace case", () => {
+      const { getByLabelText } = render(
+        <MobileTopRightBar viewOptions={defaultViewOptions()} theme={{ value: "dark", onToggle: vi.fn() }} />,
+      )
+      expect(getByLabelText("View options")).not.toBeNull()
+      expect(getByLabelText("Switch to light theme")).not.toBeNull()
+    })
+  })
+
   describe("desktop variant", () => {
     it("keeps `md:hidden` by default (mobile-only callers unchanged)", () => {
       const { getByRole } = render(

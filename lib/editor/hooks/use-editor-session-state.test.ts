@@ -6,6 +6,7 @@ function makeState(overrides?: Partial<SessionState>): SessionState {
   return {
     restoreOpen: false,
     deleteOpen: false,
+    toolbarTheme: "dark",
     traceOverlayVisible: true,
     previewBitmapVisible: true,
     numbersLayerVisible: true,
@@ -28,6 +29,17 @@ describe("editorSessionReducer — restoreOpen / deleteOpen", () => {
     const state = makeState()
     expect(editorSessionReducer(state, { type: "setDeleteOpen", open: true }).deleteOpen).toBe(true)
     expect(editorSessionReducer(state, { type: "setDeleteOpen", open: false })).toBe(state)
+  })
+})
+
+describe("editorSessionReducer — toolbarTheme", () => {
+  it("defaults to dark (black) and toggles dark↔light", () => {
+    const state = makeState()
+    expect(state.toolbarTheme).toBe("dark")
+    const light = editorSessionReducer(state, { type: "toggleToolbarTheme" })
+    expect(light.toolbarTheme).toBe("light")
+    const backToDark = editorSessionReducer(light, { type: "toggleToolbarTheme" })
+    expect(backToDark.toolbarTheme).toBe("dark")
   })
 })
 

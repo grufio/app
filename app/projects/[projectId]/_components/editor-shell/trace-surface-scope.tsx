@@ -4,9 +4,10 @@
  * Surface scope for the trace surface. Owns `useTraceDialogSession`,
  * the live mid-resize derivation of `traceDialogSource`, the
  * trace-section leave-guard, and the sheet `editOpen` state. Renders
- * `EditorTraceDialogHost` plus the floating Eye (view-options) bar +
- * the trace sheet (same chrome on both viewports; `desktop` flips
- * fullscreen → bounded card).
+ * `EditorTraceDialogHost` + the trace sheet (same chrome on both
+ * viewports; `desktop` flips fullscreen → bounded card). The top-right
+ * bar (theme toggle + the trace Eye view-options) is mounted by the
+ * shell so it's available on every section.
  *
  * Lifecycle IS dismissal: the shell mounts this scope only while the
  * trace surface is active (`mobileSection === "trace"`); switching
@@ -15,7 +16,6 @@
  */
 import { useCallback, useEffect, useMemo, useState } from "react"
 
-import { MobileTopRightBar } from "@/features/editor/components/mobile-top-right-bar"
 import { MobileTraceSheet } from "@/features/editor/components/mobile-trace-sheet"
 import type { TraceDialogSourceImage, TraceKind } from "@/lib/editor/hooks/use-trace-dialog-session"
 import { useTraceDialogSession } from "@/lib/editor/hooks/use-trace-dialog-session"
@@ -49,13 +49,6 @@ export type TraceSurfaceScopeProps = {
    * unmounts via `reset` and never reaches the cancel handler. The
    * shell wires this to restore the mobile section to "artboard". */
   onConfigureCancelled?: () => void
-  // Mobile-only visibility toggles (rendered inside MobileTraceSheet).
-  traceOverlayVisible: boolean
-  previewBitmapVisible: boolean
-  numbersLayerVisible: boolean
-  onTraceOverlayChange: (v: boolean) => void
-  onPreviewBitmapChange: (v: boolean) => void
-  onNumbersLayerChange: (v: boolean) => void
 }
 
 export function TraceSurfaceScope(props: TraceSurfaceScopeProps) {
@@ -127,25 +120,8 @@ export function TraceSurfaceScope(props: TraceSurfaceScopeProps) {
         onDeleteTrace={props.trace !== null ? handleDeleteTrace : undefined}
         initialParams={props.trace?.params}
       />
-      {/* No Edit (Pencil) on Trace: the "+" sub-pill opens the kind
-          picker and the configure dialog owns Delete, so the bar carries
-          only the Eye (view-options) when a trace exists. */}
-      <MobileTopRightBar
-        desktop={props.desktop}
-        viewOptions={
-          props.trace !== null
-          && (props.trace.kind === "pixelate" || props.trace.kind === "circulate")
-            ? {
-                traceOverlayVisible: props.traceOverlayVisible,
-                previewBitmapVisible: props.previewBitmapVisible,
-                numbersLayerVisible: props.numbersLayerVisible,
-                onTraceOverlayChange: props.onTraceOverlayChange,
-                onPreviewBitmapChange: props.onPreviewBitmapChange,
-                onNumbersLayerChange: props.onNumbersLayerChange,
-              }
-            : null
-        }
-      />
+      {/* The top-right bar (theme toggle + the Eye view-options for trace)
+          is mounted by the shell now, so it shows on every section. */}
       {editOpen ? (
         <MobileTraceSheet
           desktop={props.desktop}

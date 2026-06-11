@@ -41,6 +41,7 @@ import {
   Grid3x3,
   Home,
   Image as ImageIcon,
+  Loader2,
   Palette,
   Pencil,
   SlidersHorizontal,
@@ -137,6 +138,8 @@ type Props = {
   onUnlockImage?: () => void
   /** Image unlock is in flight (disables the Unlock circle). */
   unlockImageBusy?: boolean
+  /** A filter apply is in flight — the Filter section icon shows a spinner. */
+  isApplyingFilter?: boolean
 }
 
 export function EditorTopLeftBar({
@@ -159,6 +162,7 @@ export function EditorTopLeftBar({
   imageLocked = false,
   onUnlockImage,
   unlockImageBusy = false,
+  isApplyingFilter = false,
 }: Props) {
   const [traceSubOpen, setTraceSubOpen] = useState(false)
   const [filterSubOpen, setFilterSubOpen] = useState(false)
@@ -307,12 +311,19 @@ export function EditorTopLeftBar({
           if (key === "filter") {
             return (
               <div key={key} ref={filterWrapperRef} className="relative">
+                {/* Dimmed (but still tappable) while locked — unlock lives in
+                    the "+" menu's Unlock lead. Spinner while a filter applies. */}
                 <ToolbarIconButton
                   label={label}
                   active={activeSection === "filter"}
                   onClick={() => onSectionTap?.(key)}
+                  className={filterLocked ? "opacity-40" : undefined}
                 >
-                  <Icon aria-hidden="true" className="size-6" />
+                  {isApplyingFilter ? (
+                    <Loader2 aria-hidden="true" className="size-6 animate-spin" />
+                  ) : (
+                    <Icon aria-hidden="true" className="size-6" />
+                  )}
                 </ToolbarIconButton>
                 {activeSection === "filter" && (
                   <SectionFabMenu
@@ -330,10 +341,13 @@ export function EditorTopLeftBar({
           if (key === "artboard") {
             return (
               <div key={key} ref={artboardWrapperRef} className="relative">
+                {/* Dimmed (but still tappable) while the image is locked —
+                    unlock lives in the "+" menu's Unlock lead. */}
                 <ToolbarIconButton
                   label={label}
                   active={activeSection === "artboard"}
                   onClick={() => onSectionTap?.(key)}
+                  className={imageLocked ? "opacity-40" : undefined}
                 >
                   <Icon aria-hidden="true" className="size-6" />
                 </ToolbarIconButton>

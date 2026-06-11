@@ -557,4 +557,35 @@ describe("EditorTopLeftBar", () => {
     fireEvent.pointerDown(getByLabelText("outside"))
     expect(queryByLabelText("Artboard/Page")).toBeNull()
   })
+
+  // ── Locked-section dim + filter-apply spinner ──
+
+  it("dims the Filter + Image icons while locked but keeps them tappable", () => {
+    const onSectionTap = vi.fn()
+    const { getByLabelText } = render(
+      <EditorTopLeftBar activeSection="trace" filterLocked imageLocked onSectionTap={onSectionTap} />,
+    )
+    const filterIcon = getByLabelText("Filter")
+    const imageIcon = getByLabelText("Image")
+    expect(filterIcon.className).toContain("opacity-40")
+    expect(imageIcon.className).toContain("opacity-40")
+    // Still navigable (unlock lives inside the section's "+" menu).
+    fireEvent.click(filterIcon)
+    fireEvent.click(imageIcon)
+    expect(onSectionTap).toHaveBeenCalledWith("filter")
+    expect(onSectionTap).toHaveBeenCalledWith("artboard")
+  })
+
+  it("does not dim Filter/Image when unlocked", () => {
+    const { getByLabelText } = render(<EditorTopLeftBar activeSection="trace" />)
+    expect(getByLabelText("Filter").className).not.toContain("opacity-40")
+    expect(getByLabelText("Image").className).not.toContain("opacity-40")
+  })
+
+  it("spins the Filter icon while a filter is applying", () => {
+    const { getByLabelText, rerender } = render(<EditorTopLeftBar activeSection="filter" />)
+    expect(getByLabelText("Filter").querySelector(".animate-spin")).toBeNull()
+    rerender(<EditorTopLeftBar activeSection="filter" isApplyingFilter />)
+    expect(getByLabelText("Filter").querySelector(".animate-spin")).not.toBeNull()
+  })
 })

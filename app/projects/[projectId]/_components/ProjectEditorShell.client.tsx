@@ -21,8 +21,7 @@ import {
 import { deriveSectionLocks } from "@/lib/editor/section-locks"
 import { EditorTopLeftBar } from "@/features/editor/components/editor-top-left-bar"
 import { EditorToolbarToneProvider } from "@/features/editor/components/editor-toolbar-tone"
-import { useImageLuminance } from "@/lib/editor/hooks/use-image-luminance"
-import { hexLuminance, useToolbarTone } from "@/lib/editor/hooks/use-toolbar-tone"
+import { MobileTopRightBar } from "@/features/editor/components/mobile-top-right-bar"
 import {
   Dialog,
   DialogContent,
@@ -120,8 +119,8 @@ export function ProjectDetailPageClient({
     state: sessionState,
     actions: sessionActions,
   } = useEditorSessionState()
-  const { restoreOpen, deleteOpen, traceOverlayVisible, previewBitmapVisible, numbersLayerVisible } = sessionState
-  const { setRestoreOpen, setDeleteOpen, setTraceOverlayVisible, setPreviewBitmapVisible, setNumbersLayerVisible } = sessionActions
+  const { restoreOpen, deleteOpen, toolbarTheme, traceOverlayVisible, previewBitmapVisible, numbersLayerVisible } = sessionState
+  const { setRestoreOpen, setDeleteOpen, toggleToolbarTheme, setTraceOverlayVisible, setPreviewBitmapVisible, setNumbersLayerVisible } = sessionActions
   // `isMobile` no longer gates the canvas — both viewports drive the
   // canvas through `mobileSection`. It's retained only to steer
   // section-restore side-effects (e.g. returning to the trace section
@@ -398,17 +397,9 @@ export function ProjectDetailPageClient({
     previewBitmapVisible,
     numbersLayerVisible,
   })
-  // Auto-pick the floating bars' tone from the displayed image's
-  // brightness (bright surface → dark bars; dark surface → light bars),
-  // falling back to the page background when no image is shown.
-  const displayedImageUrl = canvasImage?.signedUrl ?? null
-  const imageLuminance = useImageLuminance(displayedImageUrl)
-  const surfaceLuminance = displayedImageUrl
-    ? imageLuminance
-    : pageBgEnabled
-      ? hexLuminance(pageBgColor)
-      : null
-  const toolbarTone = useToolbarTone(surfaceLuminance)
+  // Floating-bar tone is a manual session setting (default "dark"/black),
+  // flipped by the top-right theme toggle. No image-brightness detection.
+  const toolbarTone = toolbarTheme
 
   // The trace's own frozen display rect (µpx, stage 2). The overlay
   // renders its SIZE/ASPECT from this rect — decoupled from the live
@@ -602,6 +593,25 @@ export function ProjectDetailPageClient({
           imageLocked={imageLock != null}
           onUnlockImage={imageLock?.onUnlock}
           unlockImageBusy={imageLock?.busy ?? false}
+          isApplyingFilter={workflow.isApplyingFilter}
+        />
+        {/* Always-visible top-right bar: the theme toggle on every section,
+            plus the Eye (layer view-options) only on the Trace section. */}
+        <MobileTopRightBar
+          desktop={!isMobile}
+          theme={{ value: toolbarTone, onToggle: toggleToolbarTheme }}
+          viewOptions={
+            mobileSection === "trace" && trace && (trace.kind === "pixelate" || trace.kind === "circulate")
+              ? {
+                  traceOverlayVisible,
+                  previewBitmapVisible,
+                  numbersLayerVisible,
+                  onTraceOverlayChange: setTraceOverlayVisible,
+                  onPreviewBitmapChange: setPreviewBitmapVisible,
+                  onNumbersLayerChange: setNumbersLayerVisible,
+                }
+              : null
+          }
         />
         {mobileSection === "artboard" ? (
           <ArtboardSurfaceScope
@@ -655,12 +665,6 @@ export function ProjectDetailPageClient({
             pendingKindOpen={pendingTraceKindOpen}
             onConsumePendingKindOpen={consumePendingTraceKindOpen}
             onConfigureCancelled={handleTraceConfigureCancelled}
-            traceOverlayVisible={traceOverlayVisible}
-            previewBitmapVisible={previewBitmapVisible}
-            numbersLayerVisible={numbersLayerVisible}
-            onTraceOverlayChange={setTraceOverlayVisible}
-            onPreviewBitmapChange={setPreviewBitmapVisible}
-            onNumbersLayerChange={setNumbersLayerVisible}
           />
         ) : null}
         {mobileSection === "colors" ? (
