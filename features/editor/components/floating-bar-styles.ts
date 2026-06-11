@@ -33,15 +33,15 @@ export function pillClass(tone: ToolbarTone, variant: PillVariant): string {
   return cn(PILL_COMMON, PILL_MATERIAL[tone], PILL_VARIANT[variant])
 }
 
-/** The `+` / Delete FAB circles: pill material, round, tone-keyed ink + hover. */
-const CIRCLE_TONE: Record<ToolbarTone, string> = {
+/** Ink + hover for an active (interactive) chip — shared by circles & frames. */
+const CHIP_TONE: Record<ToolbarTone, string> = {
   dark: "text-white hover:bg-zinc-800",
   light: "text-zinc-900 hover:bg-zinc-100",
 }
 
 /**
- * Disabled/non-active kind circle. Mirrors the active circle's chrome
- * (ring/size/shadow) but dims the surface + ink and drops hover:
+ * Disabled/non-active chip. Mirrors the active chip's chrome (ring/size/shadow)
+ * but dims the surface + ink and drops hover:
  *   dark  → lighter-black surface (`bg-zinc-800`) + grey icon (`text-white/40`)
  *   light → light-grey surface (`bg-zinc-200/90`) + dark-grey icon (`text-zinc-900/40`)
  * The two tones are perceptual mirrors: `zinc-800` ↔ `zinc-200` are equidistant
@@ -50,21 +50,37 @@ const CIRCLE_TONE: Record<ToolbarTone, string> = {
  * `bg-` utility — two `bg-` classes on one element resolve by stylesheet source
  * order, not class-string order, which would make the surface unpredictable.
  */
-const CIRCLE_INACTIVE_TONE: Record<ToolbarTone, string> = {
+const CHIP_INACTIVE_TONE: Record<ToolbarTone, string> = {
   dark: "bg-zinc-800 ring-1 ring-white/10 text-white/40",
   light: "bg-zinc-200/90 ring-1 ring-zinc-900/10 text-zinc-900/40",
 }
 
-export type CircleVariant = "active" | "inactive"
+export type ChipVariant = "active" | "inactive"
+/** @deprecated alias kept for callers; use `ChipVariant`. */
+export type CircleVariant = ChipVariant
 
-export function circleClass(tone: ToolbarTone, variant: CircleVariant = "active"): string {
+/** A 40×40 chip: `rounded` sets the shape (`rounded-full` circle / `rounded-lg`
+ * frame); the surface/ink follow the active vs inactive variant. */
+function chipClass(tone: ToolbarTone, rounded: string, variant: ChipVariant): string {
   const surface =
-    variant === "active" ? cn(PILL_MATERIAL[tone], CIRCLE_TONE[tone]) : CIRCLE_INACTIVE_TONE[tone]
+    variant === "active" ? cn(PILL_MATERIAL[tone], CHIP_TONE[tone]) : CHIP_INACTIVE_TONE[tone]
   return cn(
     PILL_COMMON,
-    "flex size-10 shrink-0 items-center justify-center rounded-full transition-colors",
+    "flex size-10 shrink-0 items-center justify-center transition-colors",
+    rounded,
     surface,
   )
+}
+
+/** The `+` / Edit / Delete FAB circles (round). */
+export function circleClass(tone: ToolbarTone, variant: ChipVariant = "active"): string {
+  return chipClass(tone, "rounded-full", variant)
+}
+
+/** Trace-kind frames: the same chip but rounded-rect, so the kind icons keep
+ * their framed look (not circles). Standalone + stacked, one per kind. */
+export function frameClass(tone: ToolbarTone, variant: ChipVariant = "active"): string {
+  return chipClass(tone, "rounded-lg", variant)
 }
 
 /** Icon-button ink per tone (consumed by `ToolbarIconButton`). The light

@@ -46,7 +46,7 @@ import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
 import { cn } from "@/lib/utils"
 
 import { useEditorToolbarTone } from "./editor-toolbar-tone"
-import { circleClass, pillClass } from "./floating-bar-styles"
+import { circleClass, frameClass, pillClass } from "./floating-bar-styles"
 import { ToolbarIconButton } from "./toolbar-icon-button"
 
 type SectionItem = {
@@ -133,6 +133,16 @@ export function EditorTopLeftBar({
     return () => document.removeEventListener("pointerdown", onPointerDown)
   }, [traceSubOpen])
 
+  // The + circle (and its menu) only exist while the Trace section is active.
+  // Collapse the menu when navigating away so returning to Trace shows the
+  // + closed rather than re-expanded.
+  useEffect(() => {
+    if (activeSection !== "trace" && traceSubOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setTraceSubOpen(false)
+    }
+  }, [activeSection, traceSubOpen])
+
   return (
     <div className="absolute top-3 left-3 z-20 flex items-center gap-3">
       <div className={pillClass(tone, "single")}>
@@ -157,13 +167,14 @@ export function EditorTopLeftBar({
                 >
                   <Icon aria-hidden="true" className="size-6" />
                 </ToolbarIconButton>
-                {/* Vertical stack under the Trace icon, always present:
-                    the + circle toggles the kind menu that drops directly
-                    beneath it. */}
+                {/* Vertical stack under the Trace icon, shown ONLY while the
+                    Trace section is active: the + circle toggles the kind menu
+                    that drops directly beneath it. */}
                 {/* `mt-3` (12px from the icon's bottom) lands the circle
                     8px below the pill's bottom edge — the pill's `py-1`
                     eats 4px — so the toolbar→circle gap matches the
                     circle→submenu `gap-2` (8px). */}
+                {activeSection === "trace" && (
                 <div className="absolute top-full left-1/2 mt-3 flex -translate-x-1/2 flex-col items-center gap-2">
                   <button
                     type="button"
@@ -180,17 +191,17 @@ export function EditorTopLeftBar({
                       )}
                     />
                   </button>
-                  {/* In every state the three kinds are individual circles
-                      stacked vertically (never grouped in a pill). With no
-                      trace set all are selectable; once one is applied the
-                      active kind is the highlighted indicator (flanked by
-                      Edit on the LEFT and Delete on the RIGHT, both absolute
-                      so they don't shift it off-centre), and the other two
-                      show as dimmed, disabled context — switching kinds
+                  {/* In every state the three kinds are individual rounded-rect
+                      frames stacked vertically (standalone, never grouped in one
+                      pill). With no trace set all are selectable; once one is
+                      applied the active kind is the highlighted indicator frame
+                      (flanked by the Edit and Delete CIRCLES on the LEFT/RIGHT,
+                      both absolute so they don't shift it off-centre), and the
+                      other two show as dimmed, disabled frames — switching kinds
                       still means deleting the active trace first. */}
                   {traceSubOpen &&
                     TRACE_KIND_ITEMS.map(({ key: kindKey, label: kindLabel, Icon: KindIcon }) => {
-                      // No trace at all → every kind is a normal selectable circle.
+                      // No trace at all → every kind is a normal selectable frame.
                       if (!displayKind) {
                         return (
                           <button
@@ -201,9 +212,9 @@ export function EditorTopLeftBar({
                               setTraceSubOpen(false)
                               onTraceKindTap?.(kindKey)
                             }}
-                            className={circleClass(tone)}
+                            className={frameClass(tone)}
                           >
-                            <KindIcon aria-hidden="true" className="size-5" />
+                            <KindIcon aria-hidden="true" className="size-6" />
                           </button>
                         )
                       }
@@ -228,8 +239,8 @@ export function EditorTopLeftBar({
                             >
                               <Pencil aria-hidden="true" className="size-5" />
                             </button>
-                            <div className={circleClass(tone)} aria-label={kindLabel}>
-                              <KindIcon aria-hidden="true" className="size-5" />
+                            <div className={frameClass(tone)} aria-label={kindLabel}>
+                              <KindIcon aria-hidden="true" className="size-6" />
                             </div>
                             <button
                               type="button"
@@ -250,20 +261,21 @@ export function EditorTopLeftBar({
                           </div>
                         )
                       }
-                      // A trace is active and this is NOT it → disabled, dimmed.
+                      // A trace is active and this is NOT it → disabled, dimmed frame.
                       return (
                         <button
                           key={kindKey}
                           type="button"
                           aria-label={kindLabel}
                           disabled
-                          className={circleClass(tone, "inactive")}
+                          className={frameClass(tone, "inactive")}
                         >
-                          <KindIcon aria-hidden="true" className="size-5" />
+                          <KindIcon aria-hidden="true" className="size-6" />
                         </button>
                       )
                     })}
                 </div>
+                )}
               </div>
             )
           }
