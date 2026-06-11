@@ -111,13 +111,6 @@ export function EditorTopLeftBar({
   // into the 3-kind picker while the spinner runs.
   const displayKind = deletingKind ?? activeTraceKind
 
-  // Trace is single-active: once a kind is applied the sub-pill shows
-  // only that kind, mirroring the mutually-exclusive model. With no
-  // trace set, all kinds are offered.
-  const traceKindItems = displayKind
-    ? TRACE_KIND_ITEMS.filter((item) => item.key === displayKind)
-    : TRACE_KIND_ITEMS
-
   const handleDeleteTrace = async () => {
     if (deleting || !activeTraceKind) return
     setDeletingKind(activeTraceKind)
@@ -187,82 +180,89 @@ export function EditorTopLeftBar({
                       )}
                     />
                   </button>
+                  {/* In every state the three kinds are individual circles
+                      stacked vertically (never grouped in a pill). With no
+                      trace set all are selectable; once one is applied the
+                      active kind is the highlighted indicator (flanked by
+                      Edit on the LEFT and Delete on the RIGHT, both absolute
+                      so they don't shift it off-centre), and the other two
+                      show as dimmed, disabled context — switching kinds
+                      still means deleting the active trace first. */}
                   {traceSubOpen &&
-                    (displayKind ? (
-                      // Active trace → the single kind icon sits directly
-                      // under the + (centred in the column, same as the
-                      // no-trace picker). The Edit (pencil) circle hangs
-                      // off to its LEFT and the Delete circle to its
-                      // RIGHT — both absolutely positioned, so neither
-                      // pushes the kind icon off-centre from the +. Edit
-                      // re-opens the configure dialog; Delete clears the
-                      // trace (spinner shows until the clear resolves).
-                      <div className="relative">
-                        <button
-                          type="button"
-                          aria-label="Edit trace"
-                          onClick={() => {
-                            if (deleting || !displayKind) return
-                            setTraceSubOpen(false)
-                            onTraceKindTap?.(displayKind)
-                          }}
-                          disabled={deleting}
-                          className={cn(
-                            circleClass(tone),
-                            "absolute top-1/2 right-full mr-2 -translate-y-1/2",
-                          )}
-                        >
-                          <Pencil aria-hidden="true" className="size-5" />
-                        </button>
-                        <div className={pillClass(tone, "single")}>
-                          {traceKindItems.map(({ key: kindKey, label: kindLabel, Icon: KindIcon }) => (
-                            <ToolbarIconButton
-                              key={kindKey}
-                              label={kindLabel}
-                              disabled={deleting}
-                              onClick={() => {
-                                setTraceSubOpen(false)
-                                onTraceKindTap?.(kindKey)
-                              }}
-                            >
-                              <KindIcon aria-hidden="true" className="size-6" />
-                            </ToolbarIconButton>
-                          ))}
-                        </div>
-                        <button
-                          type="button"
-                          aria-label="Delete trace"
-                          onClick={() => void handleDeleteTrace()}
-                          disabled={deleting}
-                          className={cn(
-                            circleClass(tone),
-                            "absolute top-1/2 left-full ml-2 -translate-y-1/2",
-                          )}
-                        >
-                          {deleting ? (
-                            <Loader2 aria-hidden="true" className="size-5 animate-spin" />
-                          ) : (
-                            <Trash2 aria-hidden="true" className="size-5" />
-                          )}
-                        </button>
-                      </div>
-                    ) : (
-                      // No trace → the full vertical 3-kind picker.
-                      <div className={pillClass(tone, "sub")}>
-                        {traceKindItems.map(({ key: kindKey, label: kindLabel, Icon: KindIcon }) => (
-                          <ToolbarIconButton
+                    TRACE_KIND_ITEMS.map(({ key: kindKey, label: kindLabel, Icon: KindIcon }) => {
+                      // No trace at all → every kind is a normal selectable circle.
+                      if (!displayKind) {
+                        return (
+                          <button
                             key={kindKey}
-                            label={kindLabel}
+                            type="button"
+                            aria-label={kindLabel}
                             onClick={() => {
                               setTraceSubOpen(false)
                               onTraceKindTap?.(kindKey)
                             }}
+                            className={circleClass(tone)}
                           >
-                            <KindIcon aria-hidden="true" className="size-6" />
-                          </ToolbarIconButton>
-                        ))}
-                      </div>
-                    ))}
+                            <KindIcon aria-hidden="true" className="size-5" />
+                          </button>
+                        )
+                      }
+                      // The active kind → a non-interactive indicator (Edit owns
+                      // editing) flanked by Edit (left) + Delete (right).
+                      if (kindKey === displayKind) {
+                        return (
+                          <div key={kindKey} className="relative">
+                            <button
+                              type="button"
+                              aria-label="Edit trace"
+                              onClick={() => {
+                                if (deleting || !displayKind) return
+                                setTraceSubOpen(false)
+                                onTraceKindTap?.(displayKind)
+                              }}
+                              disabled={deleting}
+                              className={cn(
+                                circleClass(tone),
+                                "absolute top-1/2 right-full mr-2 -translate-y-1/2",
+                              )}
+                            >
+                              <Pencil aria-hidden="true" className="size-5" />
+                            </button>
+                            <div className={circleClass(tone)} aria-label={kindLabel}>
+                              <KindIcon aria-hidden="true" className="size-5" />
+                            </div>
+                            <button
+                              type="button"
+                              aria-label="Delete trace"
+                              onClick={() => void handleDeleteTrace()}
+                              disabled={deleting}
+                              className={cn(
+                                circleClass(tone),
+                                "absolute top-1/2 left-full ml-2 -translate-y-1/2",
+                              )}
+                            >
+                              {deleting ? (
+                                <Loader2 aria-hidden="true" className="size-5 animate-spin" />
+                              ) : (
+                                <Trash2 aria-hidden="true" className="size-5" />
+                              )}
+                            </button>
+                          </div>
+                        )
+                      }
+                      // A trace is active and this is NOT it → disabled, dimmed.
+                      return (
+                        <button
+                          key={kindKey}
+                          type="button"
+                          aria-label={kindLabel}
+                          disabled
+                          className={circleClass(tone, "inactive")}
+                        >
+                          <KindIcon aria-hidden="true" className="size-5" />
+                        </button>
+                      )
+                    })}
                 </div>
               </div>
             )
