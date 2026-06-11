@@ -102,15 +102,29 @@ describe("EditorTopLeftBar", () => {
     expect(openIcon?.classList.contains("rotate-45")).toBe(true)
   })
 
-  it("shows only the active trace kind in the menu once one is set", () => {
-    const { getByLabelText, queryByLabelText } = render(
-      <EditorTopLeftBar activeTraceKind="circulate" />,
+  it("shows all three kinds once one is set: active highlighted, other two disabled", () => {
+    const { getByLabelText } = render(<EditorTopLeftBar activeTraceKind="circulate" />)
+    fireEvent.click(getByLabelText("Add trace"))
+    // All three are present (individual circles), not just the active one.
+    expect(getByLabelText("Pixelate")).not.toBeNull()
+    expect(getByLabelText("Circulate")).not.toBeNull()
+    expect(getByLabelText("Lineart")).not.toBeNull()
+    // The two non-active kinds are disabled buttons; switching needs delete-first.
+    expect((getByLabelText("Pixelate") as HTMLButtonElement).disabled).toBe(true)
+    expect((getByLabelText("Lineart") as HTMLButtonElement).disabled).toBe(true)
+    // The active kind is a non-interactive indicator (a div, not a button).
+    expect(getByLabelText("Circulate").tagName).not.toBe("BUTTON")
+  })
+
+  it("does not invoke onTraceKindTap when a disabled non-active kind is clicked", () => {
+    const onTraceKindTap = vi.fn()
+    const { getByLabelText } = render(
+      <EditorTopLeftBar activeTraceKind="circulate" onTraceKindTap={onTraceKindTap} />,
     )
     fireEvent.click(getByLabelText("Add trace"))
-    // Trace is mutually exclusive — only the active kind is offered.
-    expect(getByLabelText("Circulate")).not.toBeNull()
-    expect(queryByLabelText("Pixelate")).toBeNull()
-    expect(queryByLabelText("Lineart")).toBeNull()
+    fireEvent.click(getByLabelText("Pixelate"))
+    fireEvent.click(getByLabelText("Lineart"))
+    expect(onTraceKindTap).not.toHaveBeenCalled()
   })
 
   it("shows a Delete-trace circle next to the active kind and clears the trace", async () => {
@@ -165,15 +179,40 @@ describe("EditorTopLeftBar", () => {
     expect(queryByLabelText("Delete trace")).toBeNull()
   })
 
-  it("re-opens the active kind's dialog when its menu icon is tapped", () => {
+  it("re-opens the active kind's dialog via the Edit circle", () => {
     const onTraceKindTap = vi.fn()
     const { getByLabelText, queryByLabelText } = render(
       <EditorTopLeftBar activeTraceKind="lineart" onTraceKindTap={onTraceKindTap} />,
     )
     fireEvent.click(getByLabelText("Add trace"))
-    fireEvent.click(getByLabelText("Lineart"))
+    // The active glyph itself is a non-interactive indicator now; editing is
+    // driven by the Edit (pencil) circle.
+    fireEvent.click(getByLabelText("Edit trace"))
     expect(onTraceKindTap).toHaveBeenLastCalledWith("lineart")
-    expect(queryByLabelText("Lineart")).toBeNull()
+    expect(queryByLabelText("Edit trace")).toBeNull()
+  })
+
+  it("keeps the other two kinds visible + disabled while a delete is in flight", async () => {
+    let resolveDelete: () => void = () => {}
+    const onDeleteTrace = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveDelete = resolve
+        }),
+    )
+    const { getByLabelText } = render(
+      <EditorTopLeftBar activeTraceKind="circulate" onDeleteTrace={onDeleteTrace} />,
+    )
+    fireEvent.click(getByLabelText("Add trace"))
+    fireEvent.click(getByLabelText("Delete trace"))
+    // In flight: the active kind keeps spinning on Delete, and the other two
+    // kinds stay on screen, disabled.
+    await waitFor(() => {
+      expect(getByLabelText("Delete trace").querySelector(".animate-spin")).not.toBeNull()
+    })
+    expect((getByLabelText("Pixelate") as HTMLButtonElement).disabled).toBe(true)
+    expect((getByLabelText("Lineart") as HTMLButtonElement).disabled).toBe(true)
+    resolveDelete()
   })
 
   it("invokes onTraceKindTap with the picked kind and closes the menu when no trace is set", () => {

@@ -19,7 +19,7 @@ const PILL_MATERIAL: Record<ToolbarTone, string> = {
   light: "bg-white/95 ring-1 ring-zinc-900/10",
 }
 
-export type PillVariant = "single" | "group" | "sub"
+export type PillVariant = "single" | "group"
 
 /** Padding/gap per pill shape (matches the historical PILL_* constants). */
 const PILL_VARIANT: Record<PillVariant, string> = {
@@ -27,8 +27,6 @@ const PILL_VARIANT: Record<PillVariant, string> = {
   single: "p-1",
   // Same height/padding/gap as the bottom floating toolbar.
   group: "gap-3 px-2 py-1",
-  // Vertical icon stack that drops under a section icon.
-  sub: "flex-col gap-2 px-0.5 py-1.5",
 }
 
 export function pillClass(tone: ToolbarTone, variant: PillVariant): string {
@@ -41,12 +39,31 @@ const CIRCLE_TONE: Record<ToolbarTone, string> = {
   light: "text-zinc-900 hover:bg-zinc-100",
 }
 
-export function circleClass(tone: ToolbarTone): string {
+/**
+ * Disabled/non-active kind circle. Mirrors the active circle's chrome
+ * (ring/size/shadow) but dims the surface + ink and drops hover:
+ *   dark  → lighter-black surface (`bg-zinc-800`) + grey icon (`text-white/40`)
+ *   light → light-grey surface (`bg-zinc-200/90`) + dark-grey icon (`text-zinc-900/40`)
+ * The two tones are perceptual mirrors: `zinc-800` ↔ `zinc-200` are equidistant
+ * around mid-grey and both inks drop to 40% of the tone's base black. The ring
+ * is inlined here (not via PILL_MATERIAL) so the variant emits exactly ONE
+ * `bg-` utility — two `bg-` classes on one element resolve by stylesheet source
+ * order, not class-string order, which would make the surface unpredictable.
+ */
+const CIRCLE_INACTIVE_TONE: Record<ToolbarTone, string> = {
+  dark: "bg-zinc-800 ring-1 ring-white/10 text-white/40",
+  light: "bg-zinc-200/90 ring-1 ring-zinc-900/10 text-zinc-900/40",
+}
+
+export type CircleVariant = "active" | "inactive"
+
+export function circleClass(tone: ToolbarTone, variant: CircleVariant = "active"): string {
+  const surface =
+    variant === "active" ? cn(PILL_MATERIAL[tone], CIRCLE_TONE[tone]) : CIRCLE_INACTIVE_TONE[tone]
   return cn(
     PILL_COMMON,
-    PILL_MATERIAL[tone],
     "flex size-10 shrink-0 items-center justify-center rounded-full transition-colors",
-    CIRCLE_TONE[tone],
+    surface,
   )
 }
 
