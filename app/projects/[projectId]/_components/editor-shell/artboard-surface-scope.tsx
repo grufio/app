@@ -14,7 +14,7 @@
  * `desktop` flag flips the Edit bar + artboard sheet from the mobile
  * fullscreen variant to a bounded floating card on `md+`.
  */
-import { useState, type ComponentProps } from "react"
+import { useEffect, useState, type ComponentProps } from "react"
 
 import { MobileArtboardSheet } from "@/features/editor/components/mobile-artboard-sheet"
 import { MobileTopRightBar } from "@/features/editor/components/mobile-top-right-bar"
@@ -25,10 +25,27 @@ export type ArtboardSurfaceScopeProps = ArtboardSheetProps & {
   /** When true, render the desktop variant (bounded card, no
    * `md:hidden`). Default false → unchanged mobile fullscreen. */
   desktop?: boolean
+  /** Cross-mount request from the top-left artboard "+" menu to open the sheet.
+   * Consumed immediately so `editOpen` stays local (revisiting the section
+   * doesn't re-pop the sheet). */
+  pendingEditOpen?: boolean
+  onConsumePendingEditOpen?: () => void
 }
 
-export function ArtboardSurfaceScope({ desktop, ...props }: ArtboardSurfaceScopeProps) {
+export function ArtboardSurfaceScope({
+  desktop,
+  pendingEditOpen = false,
+  onConsumePendingEditOpen,
+  ...props
+}: ArtboardSurfaceScopeProps) {
   const [editOpen, setEditOpen] = useState(false)
+
+  useEffect(() => {
+    if (!pendingEditOpen) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setEditOpen(true)
+    onConsumePendingEditOpen?.()
+  }, [pendingEditOpen, onConsumePendingEditOpen])
 
   return (
     <>

@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { cleanup, fireEvent, render, waitFor } from "@testing-library/react"
+import { cleanup, fireEvent, render, waitFor, within } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { EditorTopLeftBar } from "./editor-top-left-bar"
@@ -434,5 +434,127 @@ describe("EditorTopLeftBar", () => {
     expect(getByLabelText("B&W Hard")).not.toBeNull()
     fireEvent.pointerDown(getByLabelText("outside"))
     expect(queryByLabelText("B&W Hard")).toBeNull()
+  })
+
+  // ── Artboard / Image "+" menu (launcher + glanceable state, image-lock aware) ──
+
+  it("shows the Add-to-artboard + circle only while the artboard section is active", () => {
+    const { getByLabelText, queryByLabelText, rerender } = render(
+      <EditorTopLeftBar activeSection="filter" />,
+    )
+    expect(queryByLabelText("Add to artboard")).toBeNull()
+    rerender(<EditorTopLeftBar activeSection="artboard" />)
+    expect(getByLabelText("Add to artboard")).not.toBeNull()
+    expect(queryByLabelText("Artboard/Page")).toBeNull()
+  })
+
+  it("opens the artboard sheet from the Artboard/Page Edit lead", () => {
+    const onOpenArtboard = vi.fn()
+    const { getByLabelText } = render(
+      <EditorTopLeftBar activeSection="artboard" onOpenArtboard={onOpenArtboard} />,
+    )
+    fireEvent.click(getByLabelText("Add to artboard"))
+    // Artboard/Page is an always-active indicator (non-button) with an Edit lead.
+    expect(getByLabelText("Artboard/Page").tagName).not.toBe("BUTTON")
+    fireEvent.click(getByLabelText("Edit artboard"))
+    expect(onOpenArtboard).toHaveBeenCalledTimes(1)
+  })
+
+  it("quick-creates a grid when none exists and keeps the menu open", () => {
+    const onCreateGrid = vi.fn()
+    const { getByLabelText } = render(
+      <EditorTopLeftBar activeSection="artboard" onCreateGrid={onCreateGrid} />,
+    )
+    fireEvent.click(getByLabelText("Add to artboard"))
+    fireEvent.click(getByLabelText("Grid"))
+    expect(onCreateGrid).toHaveBeenCalledTimes(1)
+    // Menu stays open after create (Artboard/Page is unique to the open menu).
+    expect(getByLabelText("Artboard/Page")).not.toBeNull()
+  })
+
+  it("shows the Grid Edit lead when a grid exists", () => {
+    const onOpenArtboard = vi.fn()
+    const { getByLabelText } = render(
+      <EditorTopLeftBar activeSection="artboard" hasGrid onOpenArtboard={onOpenArtboard} />,
+    )
+    fireEvent.click(getByLabelText("Add to artboard"))
+    expect(getByLabelText("Grid").tagName).not.toBe("BUTTON")
+    fireEvent.click(getByLabelText("Edit grid"))
+    expect(onOpenArtboard).toHaveBeenCalledTimes(1)
+  })
+
+  it("opens the sheet to upload when no image exists, and shows Edit when it does", () => {
+    // "Image" collides with the artboard section-nav label, so scope frame
+    // queries to the open menu (the + button's container).
+    const onOpenArtboard = vi.fn()
+    const { getByLabelText, rerender } = render(
+      <EditorTopLeftBar activeSection="artboard" onOpenArtboard={onOpenArtboard} />,
+    )
+    fireEvent.click(getByLabelText("Add to artboard"))
+    const menu = within(getByLabelText("Close artboard menu").parentElement!)
+    // No image → the Image frame is a selectable button → opens the sheet (and
+    // the launcher collapses the menu).
+    fireEvent.click(menu.getByLabelText("Image"))
+    expect(onOpenArtboard).toHaveBeenCalledTimes(1)
+    // Re-open with an image present → the Image frame is now an indicator + Edit.
+    rerender(<EditorTopLeftBar activeSection="artboard" hasMasterImage onOpenArtboard={onOpenArtboard} />)
+    fireEvent.click(getByLabelText("Add to artboard"))
+    const menu2 = within(getByLabelText("Close artboard menu").parentElement!)
+    expect(menu2.getByLabelText("Image").tagName).not.toBe("BUTTON")
+    expect(getByLabelText("Edit image")).not.toBeNull()
+  })
+
+  it("when image-locked: Artboard/Page + Image show Unlock, Grid is exempt", () => {
+    const onUnlockImage = vi.fn()
+    const onOpenArtboard = vi.fn()
+    const { getByLabelText, queryByLabelText, getAllByLabelText } = render(
+      <EditorTopLeftBar
+        activeSection="artboard"
+        hasGrid
+        hasMasterImage
+        imageLocked
+        onUnlockImage={onUnlockImage}
+        onOpenArtboard={onOpenArtboard}
+      />,
+    )
+    fireEvent.click(getByLabelText("Add to artboard"))
+    // Page + Image swap Edit → Unlock.
+    expect(getAllByLabelText("Unlock image")).toHaveLength(2)
+    expect(queryByLabelText("Edit artboard")).toBeNull()
+    expect(queryByLabelText("Edit image")).toBeNull()
+    fireEvent.click(getAllByLabelText("Unlock image")[0])
+    expect(onUnlockImage).toHaveBeenCalledTimes(1)
+    // Grid is untouched by the lock — still its Edit lead.
+    expect(getByLabelText("Edit grid")).not.toBeNull()
+    fireEvent.click(getByLabelText("Edit grid"))
+    expect(onOpenArtboard).toHaveBeenCalledTimes(1)
+  })
+
+  it("disables the Unlock leads while the image unlock is busy", () => {
+    const { getByLabelText, getAllByLabelText } = render(
+      <EditorTopLeftBar
+        activeSection="artboard"
+        hasMasterImage
+        imageLocked
+        unlockImageBusy
+      />,
+    )
+    fireEvent.click(getByLabelText("Add to artboard"))
+    for (const btn of getAllByLabelText("Unlock image")) {
+      expect((btn as HTMLButtonElement).disabled).toBe(true)
+    }
+  })
+
+  it("closes the artboard menu when the user clicks outside", () => {
+    const { getByLabelText, queryByLabelText } = render(
+      <div>
+        <EditorTopLeftBar activeSection="artboard" />
+        <button type="button" aria-label="outside">outside</button>
+      </div>,
+    )
+    fireEvent.click(getByLabelText("Add to artboard"))
+    expect(getByLabelText("Artboard/Page")).not.toBeNull()
+    fireEvent.pointerDown(getByLabelText("outside"))
+    expect(queryByLabelText("Artboard/Page")).toBeNull()
   })
 })

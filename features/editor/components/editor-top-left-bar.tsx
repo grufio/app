@@ -40,6 +40,7 @@ import {
   Grid2x2,
   Grid3x3,
   Home,
+  Image as ImageIcon,
   Palette,
   Pencil,
   SlidersHorizontal,
@@ -119,6 +120,23 @@ type Props = {
   onUnlockFilter?: () => void
   /** Unlock is in flight (disables the Unlock circle). */
   unlockBusy?: boolean
+
+  /** A grid exists on the project (the Grid frame shows as active). */
+  hasGrid?: boolean
+  /** A master image exists (the Image frame shows as active). */
+  hasMasterImage?: boolean
+  /** Quick-creates a grid (param-free, instant) when none exists. */
+  onCreateGrid?: () => void | Promise<void>
+  /** Opens the artboard sheet (the full Page/Artboard/Grid/Image editor). */
+  onOpenArtboard?: () => void
+  /** The Image section is locked (a filter/trace depends on the master image).
+   * When locked the Artboard/Page + Image rows show Unlock instead of Edit.
+   * Grid is exempt (independent of the image pipeline). */
+  imageLocked?: boolean
+  /** Runs the image unlock action (clears the dependency). */
+  onUnlockImage?: () => void
+  /** Image unlock is in flight (disables the Unlock circle). */
+  unlockImageBusy?: boolean
 }
 
 export function EditorTopLeftBar({
@@ -134,11 +152,20 @@ export function EditorTopLeftBar({
   filterLocked = false,
   onUnlockFilter,
   unlockBusy = false,
+  hasGrid = false,
+  hasMasterImage = false,
+  onCreateGrid,
+  onOpenArtboard,
+  imageLocked = false,
+  onUnlockImage,
+  unlockImageBusy = false,
 }: Props) {
   const [traceSubOpen, setTraceSubOpen] = useState(false)
   const [filterSubOpen, setFilterSubOpen] = useState(false)
+  const [artboardSubOpen, setArtboardSubOpen] = useState(false)
   const traceWrapperRef = useRef<HTMLDivElement>(null)
   const filterWrapperRef = useRef<HTMLDivElement>(null)
+  const artboardWrapperRef = useRef<HTMLDivElement>(null)
   const tone = useEditorToolbarTone()
 
   // Each "+" menu only exists while its section is active. Collapse an open
@@ -155,6 +182,12 @@ export function EditorTopLeftBar({
       setFilterSubOpen(false)
     }
   }, [activeSection, filterSubOpen])
+  useEffect(() => {
+    if (activeSection !== "artboard" && artboardSubOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setArtboardSubOpen(false)
+    }
+  }, [activeSection, artboardSubOpen])
 
   // Trace: mutually exclusive. The active kind is the indicator (Edit re-opens
   // its dialog, Delete clears it); the other two are disabled. No trace → all
@@ -193,6 +226,45 @@ export function EditorTopLeftBar({
       onDelete: active && !filterLocked && activeId ? () => onRemoveFilter?.(activeId) : undefined,
     }
   })
+
+  // Image / artboard: the three frames are the section's tools, not apply-able
+  // kinds. They launch the artboard sheet (the full editor) and show glanceable
+  // state; Grid quick-creates when empty. When the section is locked (a
+  // filter/trace depends on the master image) the Artboard/Page + Image rows
+  // swap Edit → Unlock; Grid is exempt (independent of the image pipeline).
+  const openArtboardSheet = () => {
+    onOpenArtboard?.()
+    setArtboardSubOpen(false) // collapse the menu as the sheet takes over
+  }
+  const editOrUnlock = (editLabel: string): FabMenuItem["lead"] =>
+    imageLocked
+      ? { icon: Unlock, label: "Unlock image", onClick: onUnlockImage, disabled: unlockImageBusy }
+      : { icon: Pencil, label: editLabel, onClick: openArtboardSheet }
+  const artboardItems: FabMenuItem[] = [
+    {
+      key: "page",
+      label: "Artboard/Page",
+      Icon: Frame,
+      active: true, // structural — always present, so the lead slot can host Unlock
+      lead: editOrUnlock("Edit artboard"),
+    },
+    {
+      key: "grid",
+      label: "Grid",
+      Icon: Grid3x3,
+      active: hasGrid,
+      onSelect: hasGrid ? undefined : () => onCreateGrid?.(), // instant; lock-agnostic
+      lead: hasGrid ? { icon: Pencil, label: "Edit grid", onClick: openArtboardSheet } : undefined,
+    },
+    {
+      key: "image",
+      label: "Image",
+      Icon: ImageIcon,
+      active: hasMasterImage,
+      onSelect: hasMasterImage ? undefined : openArtboardSheet, // (no image ⇒ not locked) upload via sheet
+      lead: hasMasterImage ? editOrUnlock("Edit image") : undefined,
+    },
+  ]
 
   return (
     <div className="absolute top-3 left-3 z-20 flex items-center gap-3">
@@ -250,6 +322,29 @@ export function EditorTopLeftBar({
                     items={filterItems}
                     labels={{ add: "Add filter", close: "Close filter menu" }}
                     deleteLabel="Delete filter"
+                  />
+                )}
+              </div>
+            )
+          }
+          if (key === "artboard") {
+            return (
+              <div key={key} ref={artboardWrapperRef} className="relative">
+                <ToolbarIconButton
+                  label={label}
+                  active={activeSection === "artboard"}
+                  onClick={() => onSectionTap?.(key)}
+                >
+                  <Icon aria-hidden="true" className="size-6" />
+                </ToolbarIconButton>
+                {activeSection === "artboard" && (
+                  <SectionFabMenu
+                    open={artboardSubOpen}
+                    onOpenChange={setArtboardSubOpen}
+                    containerRef={artboardWrapperRef}
+                    items={artboardItems}
+                    labels={{ add: "Add to artboard", close: "Close artboard menu" }}
+                    deleteLabel=""
                   />
                 )}
               </div>
