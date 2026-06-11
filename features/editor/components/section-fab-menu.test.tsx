@@ -111,11 +111,13 @@ describe("SectionFabMenu", () => {
     await waitFor(() => {
       expect(getByLabelText("Delete").querySelector(".animate-spin")).not.toBeNull()
     })
-    // Parent flips the item inactive mid-delete (e.g. optimistic state update)
-    // while the handler is still around. The deletingKey freeze keeps the row.
+    // Parent flips the item inactive mid-delete AND drops `onDelete` — exactly
+    // how `filterItems` rebuilds once removeFilter clears the active kind
+    // (onDelete is gated on `active`). The delete circle must stay mounted
+    // through the floor on `isDeleting` alone, else the spinner vanishes.
     rerender(
       <Harness
-        items={[{ key: "a", label: "Alpha", Icon: Grid2x2, active: false, onDelete }]}
+        items={[{ key: "a", label: "Alpha", Icon: Grid2x2, active: false }]}
         closeOnDelete
         onOpenChange={onOpenChange}
       />,

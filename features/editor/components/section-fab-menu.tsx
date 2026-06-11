@@ -188,7 +188,12 @@ export function SectionFabMenu({
               <div className={frameClass(tone)} aria-label={label}>
                 <Icon aria-hidden="true" className="size-6" />
               </div>
-              {item.onDelete ? (
+              {/* Keep the delete circle mounted while a delete is in flight,
+                  even if `onDelete` just became undefined: a parallel section
+                  (filters) flips the row inactive the instant the remove
+                  resolves, which would otherwise unmount the spinner before
+                  the min-duration floor elapses. */}
+              {item.onDelete || isDeleting ? (
                 <button
                   type="button"
                   aria-label={deleteLabel}
