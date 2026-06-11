@@ -22,31 +22,40 @@
  * the user-facing label says "Image". Renaming the key would ripple
  * through `mobile-sections.ts` plus the display-layer plumbing, out
  * of scope for this bar.
+ *
+ * Trace and Filter each get a floating "+" kind-menu (`SectionFabMenu`),
+ * shown only while their section is active. Trace is mutually exclusive
+ * (one kind, Edit + Delete on the active row). Filter is parallel: kinds
+ * stay selectable while others are active, applying is instant (no dialog),
+ * and the active row's LEFT flank hosts an Unlock action when the section
+ * is locked (a trace exists) instead of an Edit pencil.
  */
 import Link from "next/link"
 import { useEffect, useRef, useState } from "react"
 import {
+  CircleDashed,
   CircleDot,
+  Contrast,
   Frame,
   Grid2x2,
   Grid3x3,
   Home,
-  Loader2,
   Palette,
   Pencil,
-  Plus,
   SlidersHorizontal,
   Spline,
-  Trash2,
+  Sun,
+  Unlock,
   type LucideIcon,
 } from "lucide-react"
 
+import type { RegisteredFilterId } from "@/lib/editor/filters/registry"
 import type { MobileSection } from "@/lib/editor/mobile-sections"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
-import { cn } from "@/lib/utils"
 
 import { useEditorToolbarTone } from "./editor-toolbar-tone"
-import { circleClass, frameClass, pillClass } from "./floating-bar-styles"
+import { pillClass } from "./floating-bar-styles"
+import { SectionFabMenu, type FabMenuItem } from "./section-fab-menu"
 import { ToolbarIconButton } from "./toolbar-icon-button"
 
 type SectionItem = {
@@ -70,24 +79,46 @@ const TRACE_KIND_ITEMS: TraceKindItem[] = [
   { key: "lineart", label: "Lineart", Icon: Spline },
 ]
 
+type FilterKindItem = { key: RegisteredFilterId; label: string; Icon: LucideIcon }
+
+// Filters share a single sidebar icon today; give each a distinct glyph so the
+// stacked frames are tellable apart (hard / soft / warm). Tunable.
+const FILTER_KIND_ITEMS: FilterKindItem[] = [
+  { key: "bw_hard", label: "B&W Hard", Icon: Contrast },
+  { key: "bw_soft", label: "B&W Soft", Icon: CircleDashed },
+  { key: "bw_warm", label: "B&W Warm", Icon: Sun },
+]
+
 type Props = {
   activeSection?: MobileSection | null
   onSectionTap?: (section: MobileSection) => void
-  /** Fired when the user picks a trace kind from the sub-pill. The
-   * shell wires this to open the matching configure dialog directly,
-   * bypassing the kind picker. */
+  /** Fired when the user picks a trace kind from the menu. The shell wires
+   * this to open the matching configure dialog directly. */
   onTraceKindTap?: (kind: RegisteredTraceId) => void
-  /** The currently-applied trace kind, or `null` when none is set.
-   * Trace is mutually exclusive — at most one kind active per project.
-   * When set, the sub-pill collapses to just that one kind (tapping it
-   * re-opens its configure dialog to edit). To switch kinds, remove the
-   * trace first (Remove trace in the Trace sidebar), which re-exposes
-   * all three. */
+  /** The currently-applied trace kind, or `null` when none is set. Trace is
+   * mutually exclusive — at most one kind active per project. */
   activeTraceKind?: RegisteredTraceId | null
-  /** Clears the active trace. Wired to the Delete circle that sits next
-   * to the active kind icon in the sub-pill (only shown when a trace is
-   * applied). May be async — the Delete circle spins until it resolves. */
+  /** Clears the active trace. May be async — the Delete circle spins until it
+   * resolves. */
   onDeleteTrace?: () => void | Promise<void>
+
+  /** Map of filter kind → the instance id to target for delete (the last
+   * applied instance of that kind). A kind is "active" iff it's a key here.
+   * Filters are parallel: multiple kinds can be active at once. */
+  activeFilterByKind?: Partial<Record<RegisteredFilterId, string>>
+  /** Applies a new filter of the given kind (instant — filters are param-less). */
+  onApplyFilterKind?: (kind: RegisteredFilterId) => void
+  /** Removes one filter instance by id. May be async (spins). */
+  onRemoveFilter?: (id: string) => void | Promise<void>
+  /** Disables applying new filters (no source image / busy). */
+  isAddFilterDisabled?: boolean
+  /** The Filter section is locked (a trace depends on the filter output). When
+   * locked, active rows show Unlock instead of Delete and applies are blocked. */
+  filterLocked?: boolean
+  /** Runs the unlock action (clears the dependency). */
+  onUnlockFilter?: () => void
+  /** Unlock is in flight (disables the Unlock circle). */
+  unlockBusy?: boolean
 }
 
 export function EditorTopLeftBar({
@@ -96,52 +127,72 @@ export function EditorTopLeftBar({
   onTraceKindTap,
   activeTraceKind = null,
   onDeleteTrace,
+  activeFilterByKind,
+  onApplyFilterKind,
+  onRemoveFilter,
+  isAddFilterDisabled = false,
+  filterLocked = false,
+  onUnlockFilter,
+  unlockBusy = false,
 }: Props) {
   const [traceSubOpen, setTraceSubOpen] = useState(false)
-  // The kind currently being deleted (null when idle). Held in state so
-  // the Delete circle keeps spinning and the active-kind icon stays put
-  // even after `trace` (and thus `activeTraceKind`) flips to null
-  // mid-clear — the clear resolves a beat before the menu closes.
-  const [deletingKind, setDeletingKind] = useState<RegisteredTraceId | null>(null)
+  const [filterSubOpen, setFilterSubOpen] = useState(false)
   const traceWrapperRef = useRef<HTMLDivElement>(null)
+  const filterWrapperRef = useRef<HTMLDivElement>(null)
   const tone = useEditorToolbarTone()
 
-  const deleting = deletingKind !== null
-  // Freeze the displayed kind during a delete so the menu doesn't morph
-  // into the 3-kind picker while the spinner runs.
-  const displayKind = deletingKind ?? activeTraceKind
-
-  const handleDeleteTrace = async () => {
-    if (deleting || !activeTraceKind) return
-    setDeletingKind(activeTraceKind)
-    try {
-      await onDeleteTrace?.()
-    } finally {
-      setDeletingKind(null)
-      setTraceSubOpen(false)
-    }
-  }
-
-  useEffect(() => {
-    if (!traceSubOpen) return
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target as Node | null
-      if (target && traceWrapperRef.current?.contains(target)) return
-      setTraceSubOpen(false)
-    }
-    document.addEventListener("pointerdown", onPointerDown)
-    return () => document.removeEventListener("pointerdown", onPointerDown)
-  }, [traceSubOpen])
-
-  // The + circle (and its menu) only exist while the Trace section is active.
-  // Collapse the menu when navigating away so returning to Trace shows the
-  // + closed rather than re-expanded.
+  // Each "+" menu only exists while its section is active. Collapse an open
+  // menu when navigating away so returning shows the + closed.
   useEffect(() => {
     if (activeSection !== "trace" && traceSubOpen) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setTraceSubOpen(false)
     }
   }, [activeSection, traceSubOpen])
+  useEffect(() => {
+    if (activeSection !== "filter" && filterSubOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setFilterSubOpen(false)
+    }
+  }, [activeSection, filterSubOpen])
+
+  // Trace: mutually exclusive. The active kind is the indicator (Edit re-opens
+  // its dialog, Delete clears it); the other two are disabled. No trace → all
+  // three are selectable.
+  const traceItems: FabMenuItem[] = TRACE_KIND_ITEMS.map(({ key, label, Icon }) => ({
+    key,
+    label,
+    Icon,
+    active: key === activeTraceKind,
+    disabled: activeTraceKind != null && key !== activeTraceKind,
+    onSelect: () => onTraceKindTap?.(key),
+    lead:
+      key === activeTraceKind
+        ? { icon: Pencil, label: "Edit trace", onClick: () => onTraceKindTap?.(key) }
+        : undefined,
+    onDelete: key === activeTraceKind ? () => onDeleteTrace?.() : undefined,
+  }))
+
+  // Filter: parallel. Non-active kinds stay selectable while others are active.
+  // Active rows show Delete when unlocked, or an Unlock circle when the section
+  // is locked (a trace depends on the filters).
+  const filterItems: FabMenuItem[] = FILTER_KIND_ITEMS.map(({ key, label, Icon }) => {
+    const activeId = activeFilterByKind?.[key]
+    const active = activeId != null
+    return {
+      key,
+      label,
+      Icon,
+      active,
+      disabled: isAddFilterDisabled || filterLocked,
+      onSelect: () => onApplyFilterKind?.(key),
+      lead:
+        active && filterLocked
+          ? { icon: Unlock, label: "Unlock filters", onClick: onUnlockFilter, disabled: unlockBusy }
+          : undefined,
+      onDelete: active && !filterLocked && activeId ? () => onRemoveFilter?.(activeId) : undefined,
+    }
+  })
 
   return (
     <div className="absolute top-3 left-3 z-20 flex items-center gap-3">
@@ -157,9 +208,8 @@ export function EditorTopLeftBar({
           if (key === "trace") {
             return (
               <div key={key} ref={traceWrapperRef} className="relative">
-                {/* The Trace icon only navigates to the trace section
-                    (parity with the other icons); it no longer toggles
-                    the kind menu. */}
+                {/* The Trace icon only navigates to the trace section; the kind
+                    menu is driven by the separate + circle below. */}
                 <ToolbarIconButton
                   label={label}
                   active={activeSection === "trace"}
@@ -167,114 +217,40 @@ export function EditorTopLeftBar({
                 >
                   <Icon aria-hidden="true" className="size-6" />
                 </ToolbarIconButton>
-                {/* Vertical stack under the Trace icon, shown ONLY while the
-                    Trace section is active: the + circle toggles the kind menu
-                    that drops directly beneath it. */}
-                {/* `mt-3` (12px from the icon's bottom) lands the circle
-                    8px below the pill's bottom edge — the pill's `py-1`
-                    eats 4px — so the toolbar→circle gap matches the
-                    circle→submenu `gap-2` (8px). */}
                 {activeSection === "trace" && (
-                <div className="absolute top-full left-1/2 mt-3 flex -translate-x-1/2 flex-col items-center gap-2">
-                  <button
-                    type="button"
-                    aria-label={traceSubOpen ? "Close trace menu" : "Add trace"}
-                    aria-expanded={traceSubOpen}
-                    onClick={() => setTraceSubOpen((open) => !open)}
-                    className={circleClass(tone)}
-                  >
-                    <Plus
-                      aria-hidden="true"
-                      className={cn(
-                        "size-5 transition-transform duration-200",
-                        traceSubOpen && "rotate-45",
-                      )}
-                    />
-                  </button>
-                  {/* In every state the three kinds are individual rounded-rect
-                      frames stacked vertically (standalone, never grouped in one
-                      pill). With no trace set all are selectable; once one is
-                      applied the active kind is the highlighted indicator frame
-                      (flanked by the Edit and Delete CIRCLES on the LEFT/RIGHT,
-                      both absolute so they don't shift it off-centre), and the
-                      other two show as dimmed, disabled frames — switching kinds
-                      still means deleting the active trace first. */}
-                  {traceSubOpen &&
-                    TRACE_KIND_ITEMS.map(({ key: kindKey, label: kindLabel, Icon: KindIcon }) => {
-                      // No trace at all → every kind is a normal selectable frame.
-                      if (!displayKind) {
-                        return (
-                          <button
-                            key={kindKey}
-                            type="button"
-                            aria-label={kindLabel}
-                            onClick={() => {
-                              setTraceSubOpen(false)
-                              onTraceKindTap?.(kindKey)
-                            }}
-                            className={frameClass(tone)}
-                          >
-                            <KindIcon aria-hidden="true" className="size-6" />
-                          </button>
-                        )
-                      }
-                      // The active kind → a non-interactive indicator (Edit owns
-                      // editing) flanked by Edit (left) + Delete (right).
-                      if (kindKey === displayKind) {
-                        return (
-                          <div key={kindKey} className="relative">
-                            <button
-                              type="button"
-                              aria-label="Edit trace"
-                              onClick={() => {
-                                if (deleting || !displayKind) return
-                                setTraceSubOpen(false)
-                                onTraceKindTap?.(displayKind)
-                              }}
-                              disabled={deleting}
-                              className={cn(
-                                circleClass(tone),
-                                "absolute top-1/2 right-full mr-2 -translate-y-1/2",
-                              )}
-                            >
-                              <Pencil aria-hidden="true" className="size-5" />
-                            </button>
-                            <div className={frameClass(tone)} aria-label={kindLabel}>
-                              <KindIcon aria-hidden="true" className="size-6" />
-                            </div>
-                            <button
-                              type="button"
-                              aria-label="Delete trace"
-                              onClick={() => void handleDeleteTrace()}
-                              disabled={deleting}
-                              className={cn(
-                                circleClass(tone),
-                                "absolute top-1/2 left-full ml-2 -translate-y-1/2",
-                              )}
-                            >
-                              {deleting ? (
-                                <Loader2 aria-hidden="true" className="size-5 animate-spin" />
-                              ) : (
-                                <Trash2 aria-hidden="true" className="size-5" />
-                              )}
-                            </button>
-                          </div>
-                        )
-                      }
-                      // A trace is active and this is NOT it → disabled, dimmed frame.
-                      return (
-                        <button
-                          key={kindKey}
-                          type="button"
-                          aria-label={kindLabel}
-                          disabled
-                          className={frameClass(tone, "inactive")}
-                        >
-                          <KindIcon aria-hidden="true" className="size-6" />
-                        </button>
-                      )
-                    })}
-                </div>
+                  <SectionFabMenu
+                    open={traceSubOpen}
+                    onOpenChange={setTraceSubOpen}
+                    containerRef={traceWrapperRef}
+                    items={traceItems}
+                    labels={{ add: "Add trace", close: "Close trace menu" }}
+                    deleteLabel="Delete trace"
+                    closeOnSelect
+                    closeOnDelete
+                  />
+                )}
+              </div>
+            )
+          }
+          if (key === "filter") {
+            return (
+              <div key={key} ref={filterWrapperRef} className="relative">
+                <ToolbarIconButton
+                  label={label}
+                  active={activeSection === "filter"}
+                  onClick={() => onSectionTap?.(key)}
+                >
+                  <Icon aria-hidden="true" className="size-6" />
+                </ToolbarIconButton>
+                {activeSection === "filter" && (
+                  <SectionFabMenu
+                    open={filterSubOpen}
+                    onOpenChange={setFilterSubOpen}
+                    containerRef={filterWrapperRef}
+                    items={filterItems}
+                    labels={{ add: "Add filter", close: "Close filter menu" }}
+                    deleteLabel="Delete filter"
+                  />
                 )}
               </div>
             )
