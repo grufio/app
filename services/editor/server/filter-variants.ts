@@ -50,7 +50,6 @@ export type FilterStackItem = {
   filter_type: SupportedFilterType
   filter_params: Record<string, unknown>
   stack_order: number
-  is_hidden: boolean
   created_at: string
 }
 
@@ -167,7 +166,7 @@ export async function listProjectImageFilters(args: {
   const { supabase, projectId } = args
   const { data, error } = await supabase
     .from("project_image_filters")
-    .select("id,input_image_id,output_image_id,filter_type,filter_params,stack_order,is_hidden,created_at")
+    .select("id,input_image_id,output_image_id,filter_type,filter_params,stack_order,created_at")
     .eq("project_id", projectId)
     .order("stack_order", { ascending: true })
   if (error) return { ok: false, status: 400, stage: "filter_lookup", reason: error.message, code: (error as { code?: string }).code }
@@ -184,7 +183,6 @@ export async function listProjectImageFilters(args: {
       filter_type: filterType,
       filter_params: (row.filter_params as Record<string, unknown> | null) ?? {},
       stack_order: Number(row.stack_order),
-      is_hidden: Boolean(row.is_hidden),
       created_at: String(row.created_at),
     })
   }
@@ -310,7 +308,7 @@ export async function applyProjectImageFilter(args: {
 
   const { data: inserted, error: filterErr } = await supabase
     .from("project_image_filters")
-    .select("id,input_image_id,output_image_id,filter_type,filter_params,stack_order,is_hidden,created_at")
+    .select("id,input_image_id,output_image_id,filter_type,filter_params,stack_order,created_at")
     .eq("project_id", projectId)
     .eq("output_image_id", created.imageId)
     .order("created_at", { ascending: false })
@@ -356,7 +354,6 @@ export async function applyProjectImageFilter(args: {
       filter_type: filterType,
       filter_params: (inserted.filter_params as Record<string, unknown> | null) ?? {},
       stack_order: Number(inserted.stack_order),
-      is_hidden: Boolean(inserted.is_hidden),
       created_at: String(inserted.created_at),
     },
     image_id: created.imageId,

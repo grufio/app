@@ -31,7 +31,6 @@ export type FilterStackItem = {
   name: string
   filterType: RegisteredFilterId | "unknown"
   source_image_id: string | null
-  is_hidden: boolean
 }
 
 export function useFilterWorkingImage(projectId: string) {

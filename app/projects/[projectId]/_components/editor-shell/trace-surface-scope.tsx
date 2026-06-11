@@ -1,14 +1,17 @@
 "use client"
 
 /**
- * Twin of `FilterSurfaceScope` for the trace surface. Owns
- * `useTraceDialogSession`, the live mid-resize derivation of
- * `traceDialogSource`, the trace-section leave-guard, and the sheet
- * `editOpen` state. Renders `EditorTraceDialogHost` plus the floating
- * Edit/Eye bar + the trace sheet (same chrome on both viewports;
- * `desktop` flips fullscreen → bounded card). See
- * `filter-surface-scope.tsx` for the full architectural rationale
- * (lifecycle IS dismissal).
+ * Surface scope for the trace surface. Owns `useTraceDialogSession`,
+ * the live mid-resize derivation of `traceDialogSource`, the
+ * trace-section leave-guard, and the sheet `editOpen` state. Renders
+ * `EditorTraceDialogHost` plus the floating Eye (view-options) bar +
+ * the trace sheet (same chrome on both viewports; `desktop` flips
+ * fullscreen → bounded card).
+ *
+ * Lifecycle IS dismissal: the shell mounts this scope only while the
+ * trace surface is active (`mobileSection === "trace"`); switching
+ * surfaces unmounts it, so the dialog/sheet state dies without an
+ * effect-based reset.
  */
 import { useCallback, useEffect, useMemo, useState } from "react"
 

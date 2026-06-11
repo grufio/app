@@ -1,11 +1,9 @@
 /**
  * Pure state machine for the Trace dialog (`useTraceDialogSession`).
  *
- * Mirror of `filter-dialog-state.ts` — same three phases (idle /
- * selecting / configuring). Lives in its own module because Trace is
- * a different surface with a different "kind" set, but the lifecycle
- * is identical and the user's mental model expects the two to behave
- * the same way.
+ * Three phases (idle / selecting / configuring). Lives in its own
+ * module because Trace is a surface with its own "kind" set and a
+ * configure step; the reducer keeps that flow testable in isolation.
  */
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
 
