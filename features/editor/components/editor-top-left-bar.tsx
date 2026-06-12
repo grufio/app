@@ -24,7 +24,7 @@
  * is locked (a trace exists) instead of an Edit pencil.
  */
 import Link from "next/link"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 import {
   CircleDashed,
   CircleDot,
@@ -158,34 +158,7 @@ export function EditorTopLeftBar({
   unlockImageBusy = false,
   isApplyingFilter = false,
 }: Props) {
-  const [traceSubOpen, setTraceSubOpen] = useState(false)
-  const [filterSubOpen, setFilterSubOpen] = useState(false)
-  const [artboardSubOpen, setArtboardSubOpen] = useState(false)
-  const traceWrapperRef = useRef<HTMLDivElement>(null)
-  const filterWrapperRef = useRef<HTMLDivElement>(null)
-  const artboardWrapperRef = useRef<HTMLDivElement>(null)
   const tone = useEditorToolbarTone()
-
-  // Each "+" menu only exists while its section is active. Collapse an open
-  // menu when navigating away so returning shows the + closed.
-  useEffect(() => {
-    if (activeSection !== "trace" && traceSubOpen) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setTraceSubOpen(false)
-    }
-  }, [activeSection, traceSubOpen])
-  useEffect(() => {
-    if (activeSection !== "filter" && filterSubOpen) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setFilterSubOpen(false)
-    }
-  }, [activeSection, filterSubOpen])
-  useEffect(() => {
-    if (activeSection !== "artboard" && artboardSubOpen) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setArtboardSubOpen(false)
-    }
-  }, [activeSection, artboardSubOpen])
 
   // Trace: mutually exclusive. The active kind is the indicator (Edit re-opens
   // its dialog, Delete clears it); the other two are disabled. No trace → all
@@ -231,39 +204,44 @@ export function EditorTopLeftBar({
   // section is locked (a filter/trace depends on the master image) the
   // Artboard/Page + Image rows swap Edit → Unlock; Grid is exempt (independent
   // of the image pipeline).
-  const openDialog = (dialog: ArtboardDialog) => () => {
-    onOpenArtboard?.(dialog)
-    setArtboardSubOpen(false) // collapse the menu as the dialog takes over
+  // Built per-render with the menu's own `close` (opening a dialog collapses the
+  // "+" menu; quick-creating a grid keeps it open — so closing is per-action,
+  // not a blanket closeOnSelect).
+  const buildArtboardItems = (close: () => void): FabMenuItem[] => {
+    const openDialog = (dialog: ArtboardDialog) => () => {
+      onOpenArtboard?.(dialog)
+      close() // collapse the menu as the dialog takes over
+    }
+    const editOrUnlock = (editLabel: string, dialog: ArtboardDialog): FabMenuItem["lead"] =>
+      imageLocked
+        ? { icon: Unlock, label: "Unlock image", onClick: onUnlockImage, disabled: unlockImageBusy }
+        : { icon: Pencil, label: editLabel, onClick: openDialog(dialog) }
+    return [
+      {
+        key: "page",
+        label: "Artboard/Page",
+        Icon: Frame,
+        active: true, // structural — always present, so the lead slot can host Unlock
+        lead: editOrUnlock("Edit artboard", "artboard"),
+      },
+      {
+        key: "grid",
+        label: "Grid",
+        Icon: Grid3x3,
+        active: hasGrid,
+        onSelect: hasGrid ? undefined : () => onCreateGrid?.(), // instant; lock-agnostic
+        lead: hasGrid ? { icon: Pencil, label: "Edit grid", onClick: openDialog("grid") } : undefined,
+      },
+      {
+        key: "image",
+        label: "Image",
+        Icon: ImageIcon,
+        active: hasMasterImage,
+        onSelect: hasMasterImage ? undefined : openDialog("image"), // (no image ⇒ not locked) upload via dialog
+        lead: hasMasterImage ? editOrUnlock("Edit image", "image") : undefined,
+      },
+    ]
   }
-  const editOrUnlock = (editLabel: string, dialog: ArtboardDialog): FabMenuItem["lead"] =>
-    imageLocked
-      ? { icon: Unlock, label: "Unlock image", onClick: onUnlockImage, disabled: unlockImageBusy }
-      : { icon: Pencil, label: editLabel, onClick: openDialog(dialog) }
-  const artboardItems: FabMenuItem[] = [
-    {
-      key: "page",
-      label: "Artboard/Page",
-      Icon: Frame,
-      active: true, // structural — always present, so the lead slot can host Unlock
-      lead: editOrUnlock("Edit artboard", "artboard"),
-    },
-    {
-      key: "grid",
-      label: "Grid",
-      Icon: Grid3x3,
-      active: hasGrid,
-      onSelect: hasGrid ? undefined : () => onCreateGrid?.(), // instant; lock-agnostic
-      lead: hasGrid ? { icon: Pencil, label: "Edit grid", onClick: openDialog("grid") } : undefined,
-    },
-    {
-      key: "image",
-      label: "Image",
-      Icon: ImageIcon,
-      active: hasMasterImage,
-      onSelect: hasMasterImage ? undefined : openDialog("image"), // (no image ⇒ not locked) upload via dialog
-      lead: hasMasterImage ? editOrUnlock("Edit image", "image") : undefined,
-    },
-  ]
 
   return (
     <div className="absolute top-3 left-3 z-20 flex items-center gap-3">
@@ -278,85 +256,64 @@ export function EditorTopLeftBar({
         {SECTION_ITEMS.map(({ key, label, Icon }) => {
           if (key === "trace") {
             return (
-              <div key={key} ref={traceWrapperRef} className="relative">
-                {/* The Trace icon only navigates to the trace section; the kind
-                    menu is driven by the separate + circle below. */}
-                <ToolbarIconButton
-                  label={label}
-                  active={activeSection === "trace"}
-                  onClick={() => onSectionTap?.(key)}
-                >
-                  <Icon aria-hidden="true" className="size-6" />
-                </ToolbarIconButton>
-                {activeSection === "trace" && (
-                  <SectionFabMenu
-                    open={traceSubOpen}
-                    onOpenChange={setTraceSubOpen}
-                    containerRef={traceWrapperRef}
-                    items={traceItems}
-                    labels={{ add: "Add trace", close: "Close trace menu" }}
-                    deleteLabel="Delete trace"
-                    closeOnSelect
-                    closeOnDelete
-                  />
-                )}
-              </div>
+              <SectionMenuButton
+                key={key}
+                label={label}
+                active={activeSection === "trace"}
+                onSectionTap={() => onSectionTap?.(key)}
+                icon={<Icon aria-hidden="true" className="size-6" />}
+                menu={() => ({
+                  items: traceItems,
+                  labels: { add: "Add trace", close: "Close trace menu" },
+                  deleteLabel: "Delete trace",
+                  closeOnSelect: true,
+                  closeOnDelete: true,
+                })}
+              />
             )
           }
           if (key === "filter") {
             return (
-              <div key={key} ref={filterWrapperRef} className="relative">
-                {/* Dimmed (but still tappable) while locked — unlock lives in
-                    the "+" menu's Unlock lead. Spinner while a filter applies. */}
-                <ToolbarIconButton
-                  label={label}
-                  active={activeSection === "filter"}
-                  onClick={() => onSectionTap?.(key)}
-                  className={filterLocked ? "opacity-40" : undefined}
-                >
-                  {isApplyingFilter ? (
+              <SectionMenuButton
+                key={key}
+                label={label}
+                active={activeSection === "filter"}
+                onSectionTap={() => onSectionTap?.(key)}
+                // Dimmed (but still tappable) while locked — unlock lives in the
+                // "+" menu's Unlock lead. Spinner while a filter applies.
+                iconClassName={filterLocked ? "opacity-40" : undefined}
+                icon={
+                  isApplyingFilter ? (
                     <Loader2 aria-hidden="true" className="size-6 animate-spin" />
                   ) : (
                     <Icon aria-hidden="true" className="size-6" />
-                  )}
-                </ToolbarIconButton>
-                {activeSection === "filter" && (
-                  <SectionFabMenu
-                    open={filterSubOpen}
-                    onOpenChange={setFilterSubOpen}
-                    containerRef={filterWrapperRef}
-                    items={filterItems}
-                    labels={{ add: "Add filter", close: "Close filter menu" }}
-                    deleteLabel="Delete filter"
-                  />
-                )}
-              </div>
+                  )
+                }
+                menu={() => ({
+                  items: filterItems,
+                  labels: { add: "Add filter", close: "Close filter menu" },
+                  deleteLabel: "Delete filter",
+                })}
+              />
             )
           }
           if (key === "artboard") {
             return (
-              <div key={key} ref={artboardWrapperRef} className="relative">
-                {/* Dimmed (but still tappable) while the image is locked —
-                    unlock lives in the "+" menu's Unlock lead. */}
-                <ToolbarIconButton
-                  label={label}
-                  active={activeSection === "artboard"}
-                  onClick={() => onSectionTap?.(key)}
-                  className={imageLocked ? "opacity-40" : undefined}
-                >
-                  <Icon aria-hidden="true" className="size-6" />
-                </ToolbarIconButton>
-                {activeSection === "artboard" && (
-                  <SectionFabMenu
-                    open={artboardSubOpen}
-                    onOpenChange={setArtboardSubOpen}
-                    containerRef={artboardWrapperRef}
-                    items={artboardItems}
-                    labels={{ add: "Add to artboard", close: "Close artboard menu" }}
-                    deleteLabel=""
-                  />
-                )}
-              </div>
+              <SectionMenuButton
+                key={key}
+                label={label}
+                active={activeSection === "artboard"}
+                onSectionTap={() => onSectionTap?.(key)}
+                // Dimmed (but still tappable) while the image is locked — unlock
+                // lives in the "+" menu's Unlock lead.
+                iconClassName={imageLocked ? "opacity-40" : undefined}
+                icon={<Icon aria-hidden="true" className="size-6" />}
+                menu={(close) => ({
+                  items: buildArtboardItems(close),
+                  labels: { add: "Add to artboard", close: "Close artboard menu" },
+                  deleteLabel: "",
+                })}
+              />
             )
           }
           return (
@@ -371,6 +328,78 @@ export function EditorTopLeftBar({
           )
         })}
       </div>
+    </div>
+  )
+}
+
+/** Resolved config for a section's "+" menu. `menu` (below) returns this, given
+ * the menu's own `close` so an item action can collapse it. */
+type SectionMenuConfig = {
+  items: FabMenuItem[]
+  labels: { add: string; close: string }
+  deleteLabel: string
+  closeOnSelect?: boolean
+  closeOnDelete?: boolean
+}
+
+/**
+ * One section icon in the group pill plus its floating "+" kind-menu. Owns the
+ * menu's open-state, its wrapper ref (for outside-click dismissal), and the
+ * collapse-on-deactivate effect — so the parent bar carries none of that
+ * per-section bookkeeping. The menu only mounts while the section is active.
+ */
+function SectionMenuButton({
+  label,
+  active,
+  onSectionTap,
+  icon,
+  iconClassName,
+  menu,
+}: {
+  label: string
+  active: boolean
+  onSectionTap: () => void
+  icon: ReactNode
+  iconClassName?: string
+  /** Built with the menu's own `close` so opening a dialog can collapse it. */
+  menu: (close: () => void) => SectionMenuConfig
+}) {
+  const [open, setOpen] = useState(false)
+  const wrapperRef = useRef<HTMLDivElement>(null)
+
+  // The menu only exists while its section is active. Collapse it when
+  // navigating away so returning shows the trigger closed.
+  useEffect(() => {
+    if (!active && open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setOpen(false)
+    }
+  }, [active, open])
+
+  const config = menu(() => setOpen(false))
+
+  return (
+    <div ref={wrapperRef} className="relative">
+      <ToolbarIconButton
+        label={label}
+        active={active}
+        onClick={onSectionTap}
+        className={iconClassName}
+      >
+        {icon}
+      </ToolbarIconButton>
+      {active && (
+        <SectionFabMenu
+          open={open}
+          onOpenChange={setOpen}
+          containerRef={wrapperRef}
+          items={config.items}
+          labels={config.labels}
+          deleteLabel={config.deleteLabel}
+          closeOnSelect={config.closeOnSelect}
+          closeOnDelete={config.closeOnDelete}
+        />
+      )}
     </div>
   )
 }
