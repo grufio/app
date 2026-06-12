@@ -10,11 +10,13 @@ import { SectionFabMenu, type FabMenuItem } from "./section-fab-menu"
 
 function Harness({
   items,
+  open = true,
   onOpenChange = () => {},
   closeOnSelect,
   closeOnDelete,
 }: {
   items: FabMenuItem[]
+  open?: boolean
   onOpenChange?: (open: boolean) => void
   closeOnSelect?: boolean
   closeOnDelete?: boolean
@@ -23,7 +25,7 @@ function Harness({
   return (
     <div ref={ref}>
       <SectionFabMenu
-        open
+        open={open}
         onOpenChange={onOpenChange}
         containerRef={ref}
         items={items}
@@ -40,6 +42,24 @@ const selectable: FabMenuItem = { key: "a", label: "Alpha", Icon: Grid2x2, activ
 
 describe("SectionFabMenu", () => {
   afterEach(() => cleanup())
+
+  it("trigger shows an ellipsis (add) when closed and an × (close) when open", () => {
+    const { container, getByLabelText, queryByLabelText, rerender } = render(
+      <Harness items={[selectable]} open={false} />,
+    )
+    // Closed: ellipsis glyph, "add" label, and the menu items are not mounted.
+    expect(getByLabelText("Add")).not.toBeNull()
+    expect(container.querySelector(".lucide-ellipsis")).not.toBeNull()
+    expect(container.querySelector(".lucide-x")).toBeNull()
+    expect(queryByLabelText("Alpha")).toBeNull()
+
+    // Open: × glyph, "close" label, items mounted.
+    rerender(<Harness items={[selectable]} open />)
+    expect(getByLabelText("Close")).not.toBeNull()
+    expect(container.querySelector(".lucide-x")).not.toBeNull()
+    expect(container.querySelector(".lucide-ellipsis")).toBeNull()
+    expect(getByLabelText("Alpha")).not.toBeNull()
+  })
 
   it("renders a selectable frame that fires onSelect", () => {
     const onSelect = vi.fn()

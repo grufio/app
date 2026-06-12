@@ -5,11 +5,11 @@
  * `EditorTopLeftBar` (Trace, Filter, …). Presentational + section-agnostic:
  * the caller passes an `items` array describing each kind frame and how it
  * behaves, plus two close-on-action flags. The component owns only the
- * `+`/× toggle chrome, the outside-pointerdown dismissal, and the per-item
- * delete spinner.
+ * trigger chrome (a 20×40 `…` stadium that morphs to a 40×40 `×` circle when
+ * open), the outside-pointerdown dismissal, and the per-item delete spinner.
  *
- * Layout (one 40×40-wide, horizontally-centred column under the `+`):
- *   (+/×)            ← circle, toggles the menu
+ * Layout (one horizontally-centred column under the trigger):
+ *   (…/×)            ← trigger, toggles the menu
  *   [kind]           ← selectable / disabled frame  (non-active item)
  *   (lead) [kind] (🗑) ← active item: optional LEFT lead circle (Edit / Unlock)
  *                       + indicator frame + optional RIGHT delete circle
@@ -18,12 +18,12 @@
  * sides so adding them never shifts the frame off-centre from the `+`.
  */
 import { useEffect, useState, type RefObject } from "react"
-import { Loader2, Plus, Trash2, type LucideIcon } from "lucide-react"
+import { Ellipsis, Loader2, Trash2, X, type LucideIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
 import { useEditorToolbarTone } from "./editor-toolbar-tone"
-import { circleClass, frameClass } from "./floating-bar-styles"
+import { circleClass, fabTriggerClass, frameClass } from "./floating-bar-styles"
 
 /**
  * Minimum time the delete spinner stays visible, so the animation reads even
@@ -126,12 +126,13 @@ export function SectionFabMenu({
         aria-label={open ? labels.close : labels.add}
         aria-expanded={open}
         onClick={() => onOpenChange(!open)}
-        className={circleClass(tone)}
+        className={fabTriggerClass(tone, open)}
       >
-        <Plus
-          aria-hidden="true"
-          className={cn("size-5 transition-transform duration-200", open && "rotate-45")}
-        />
+        {open ? (
+          <X aria-hidden="true" className="size-5" />
+        ) : (
+          <Ellipsis aria-hidden="true" className="size-5" />
+        )}
       </button>
       {open &&
         items.map((item) => {

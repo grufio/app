@@ -108,13 +108,15 @@ describe("EditorTopLeftBar", () => {
     expect(queryByLabelText("Pixelate")).toBeNull()
   })
 
-  it("rotates the + into an × (rotate-45) while the menu is open", () => {
+  it("swaps the ellipsis trigger for an × while the menu is open", () => {
     const { getByLabelText } = render(<EditorTopLeftBar activeSection="trace" />)
-    const closedIcon = getByLabelText("Add trace").querySelector("svg")
-    expect(closedIcon?.classList.contains("rotate-45")).toBe(false)
+    // Closed: ellipsis glyph on the "Add" trigger, no ×.
+    expect(getByLabelText("Add trace").querySelector(".lucide-ellipsis")).not.toBeNull()
+    expect(getByLabelText("Add trace").querySelector(".lucide-x")).toBeNull()
     fireEvent.click(getByLabelText("Add trace"))
-    const openIcon = getByLabelText("Close trace menu").querySelector("svg")
-    expect(openIcon?.classList.contains("rotate-45")).toBe(true)
+    // Open: × glyph on the "Close" trigger, no ellipsis.
+    expect(getByLabelText("Close trace menu").querySelector(".lucide-x")).not.toBeNull()
+    expect(getByLabelText("Close trace menu").querySelector(".lucide-ellipsis")).toBeNull()
   })
 
   it("shows all three kinds once one is set: active highlighted, other two disabled", () => {
