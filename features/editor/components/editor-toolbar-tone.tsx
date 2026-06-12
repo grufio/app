@@ -2,7 +2,7 @@
 
 /**
  * Tone (dark | light) for the floating canvas bars — Home + section bar
- * (`EditorTopLeftBar`), the Edit/Eye bar (`MobileTopRightBar`) and the
+ * (`EditorTopLeftBar`), the Edit/Eye bar (`EditorTopRightBar`) and the
  * bottom canvas toolbar (`FloatingToolbar`).
  *
  * The shell holds the tone as a manual session setting (default `"dark"`,

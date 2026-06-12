@@ -12,7 +12,7 @@
  * clickable; `md:w-80` keeps it off the canvas). The inner
  * `flex-1 overflow-y-auto` body already scrolls.
  */
-export function mobileSheetRootClass(desktop: boolean | undefined): string {
+export function sheetRootClass(desktop: boolean | undefined): string {
   const base = "absolute inset-0 z-30 flex flex-col overflow-hidden bg-background"
   if (!desktop) return `${base} md:hidden`
   return `${base} md:inset-auto md:top-16 md:right-3 md:bottom-3 md:left-auto md:w-80 md:rounded-lg md:border md:shadow-xl md:ring-1 md:ring-black/5`

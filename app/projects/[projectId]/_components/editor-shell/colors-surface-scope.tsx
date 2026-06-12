@@ -7,9 +7,9 @@
  * the surface and the floating `EditorTopLeftBar` stays visible above
  * it so the user can switch to Image / Filter / Trace at any time.
  * There's no Edit affordance because Colors has nothing to edit; the
- * `MobileTopRightBar` (Pencil) is intentionally absent.
+ * `EditorTopRightBar` (Pencil) is intentionally absent.
  */
-import { MobileColorsSheet } from "@/features/editor/components/mobile-colors-sheet"
+import { ColorsSheet } from "@/features/editor/components/colors-sheet"
 import type { ProjectTrace } from "@/lib/api/project-trace"
 
 export type ColorsSurfaceScopeProps = {
@@ -31,7 +31,7 @@ export function ColorsSurfaceScope({ trace, desktop }: ColorsSurfaceScopeProps) 
   })()
 
   return (
-    <MobileColorsSheet
+    <ColorsSheet
       desktop={desktop}
       paletteIndicesUsed={trace?.palette_indices_used ?? null}
       traceMode={traceMode}

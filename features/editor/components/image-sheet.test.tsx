@@ -4,7 +4,7 @@
 import { cleanup, fireEvent, render } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { MobileImageSheet } from "./mobile-image-sheet"
+import { ImageSheet } from "./image-sheet"
 
 // ImagePanel is loaded via next/dynamic and pulls in canvas plumbing;
 // AddImageMenuAction wires the upload pipeline. Stub both so the swap
@@ -18,7 +18,7 @@ vi.mock("./add-image-menu-button", () => ({
 
 afterEach(cleanup)
 
-function renderSheet(overrides: Partial<React.ComponentProps<typeof MobileImageSheet>> = {}) {
+function renderSheet(overrides: Partial<React.ComponentProps<typeof ImageSheet>> = {}) {
   const props = {
     projectId: "p1",
     onClose: vi.fn(),
@@ -39,10 +39,10 @@ function renderSheet(overrides: Partial<React.ComponentProps<typeof MobileImageS
     onRequestDelete: vi.fn(),
     ...overrides,
   }
-  return { props, ...render(<MobileImageSheet {...props} />) }
+  return { props, ...render(<ImageSheet {...props} />) }
 }
 
-describe("MobileImageSheet", () => {
+describe("ImageSheet", () => {
   it("shows the upload Add-row when no master image exists", () => {
     const { getByLabelText, queryByTestId } = renderSheet({ hasMasterImage: false })
     expect(queryByTestId("image-panel")).toBeNull()

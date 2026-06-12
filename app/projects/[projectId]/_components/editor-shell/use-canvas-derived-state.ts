@@ -19,7 +19,7 @@
  *    rect; `showFilterChain` toggles `canvasMode` (filter-row
  *    highlighting; canvasImage source itself is selected here).
  *
- * Section semantics (one `mobileSection` input, both viewports):
+ * Section semantics (one `editorSection` input, both viewports):
  *  - Artboard → raw master visible, no filter row highlight, no trace
  *    overlay
  *  - Filter → working copy (chain tip) visible, filter row highlight
@@ -33,7 +33,7 @@ import {
   pickCanvasImage,
   type CanvasImage,
 } from "@/lib/editor/canvas-image-invariant"
-import { deriveDisplayLayers, type MobileSection } from "@/lib/editor/display-layers"
+import { deriveDisplayLayers, type EditorSection } from "@/lib/editor/display-layers"
 import type { WorkflowSourceSnapshot } from "@/lib/editor/machines/image-workflow.types"
 
 export type { CanvasImage }
@@ -50,9 +50,9 @@ export function useCanvasDerivedState(input: {
   editorImageSource: WorkflowSourceSnapshot
   filterDisplayImage: DisplayImage | null
   filterDisplayImageWithoutTrace: DisplayImage | null
-  /** Active editor section (the shell's `mobileSection`) — drives the
+  /** Active editor section (the shell's `editorSection`) — drives the
    * canvas gating on both viewports. */
-  mobileSection: MobileSection
+  editorSection: EditorSection
   /** Master image signed URL — surfaced as the canvas image on the
    * Artboard section so the user sees the raw upload, not the filter
    * chain tip. Null when no master is uploaded yet. */
@@ -69,7 +69,7 @@ export function useCanvasDerivedState(input: {
     editorImageSource,
     filterDisplayImage,
     filterDisplayImageWithoutTrace,
-    mobileSection,
+    editorSection,
     masterSignedUrl,
     traceOverlayVisible,
     previewBitmapVisible,
@@ -93,7 +93,7 @@ export function useCanvasDerivedState(input: {
   const displayLayers = useMemo(
     () =>
       deriveDisplayLayers({
-        activeSection: mobileSection,
+        activeSection: editorSection,
         editorImageSourceReady: editorImageSource.status === "ready",
         filterDisplayImage,
         filterDisplayImageWithoutTrace,
@@ -102,7 +102,7 @@ export function useCanvasDerivedState(input: {
         numbersLayerVisible,
       }),
     [
-      mobileSection,
+      editorSection,
       editorImageSource.status,
       filterDisplayImage,
       filterDisplayImageWithoutTrace,
@@ -114,7 +114,7 @@ export function useCanvasDerivedState(input: {
 
   // Artboard section surfaces the raw master URL. ID + dimensions stay
   // on the working copy regardless (persistence invariant).
-  const showRawMaster = mobileSection === "artboard"
+  const showRawMaster = editorSection === "artboard"
 
   const canvasImage = useMemo<CanvasImage | null>(
     () =>

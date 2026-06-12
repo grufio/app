@@ -19,7 +19,7 @@
  *
  *  3. Layer surfacing is **section-gated** — identically on both
  *     viewports. The single `activeSection` input (the shell's
- *     `mobileSection`: "artboard" / "filter" / "trace" / "colors")
+ *     `editorSection`: "artboard" / "filter" / "trace" / "colors")
  *     names the active surface. "artboard" is the old desktop "image"
  *     tab.
  *
@@ -56,14 +56,14 @@
  * as additional booleans — consumer code stays a property lookup per
  * layer.
  */
-import type { MobileSection } from "@/lib/editor/mobile-sections"
+import type { EditorSection } from "@/lib/editor/editor-sections"
 
 export type DisplayImage = {
   id: string
   signedUrl: string
 }
 
-export type { MobileSection }
+export type { EditorSection }
 
 export type DisplayLayers = {
   /** True when the canvas should source from the filter chain tip
@@ -87,10 +87,10 @@ export type DisplayLayers = {
 }
 
 export function deriveDisplayLayers(input: {
-  /** The active editor section (the shell's `mobileSection`), driving
+  /** The active editor section (the shell's `editorSection`), driving
    * the canvas gating on both viewports. "artboard" → no filter
    * chain, no trace overlay. */
-  activeSection: MobileSection
+  activeSection: EditorSection
   editorImageSourceReady: boolean
   filterDisplayImage: DisplayImage | null | undefined
   filterDisplayImageWithoutTrace: DisplayImage | null | undefined

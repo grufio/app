@@ -21,7 +21,7 @@ import {
 import { deriveSectionLocks } from "@/lib/editor/section-locks"
 import { EditorTopLeftBar } from "@/features/editor/components/editor-top-left-bar"
 import { EditorToolbarToneProvider } from "@/features/editor/components/editor-toolbar-tone"
-import { MobileTopRightBar } from "@/features/editor/components/mobile-top-right-bar"
+import { EditorTopRightBar } from "@/features/editor/components/editor-top-right-bar"
 import {
   Dialog,
   DialogContent,
@@ -122,12 +122,12 @@ export function ProjectDetailPageClient({
   const { restoreOpen, deleteOpen, toolbarTheme, traceOverlayVisible, previewBitmapVisible, numbersLayerVisible } = sessionState
   const { setRestoreOpen, setDeleteOpen, toggleToolbarTheme, setTraceOverlayVisible, setPreviewBitmapVisible, setNumbersLayerVisible } = sessionActions
   // `isMobile` no longer gates the canvas — both viewports drive the
-  // canvas through `mobileSection`. It's retained only to steer
+  // canvas through `editorSection`. It's retained only to steer
   // section-restore side-effects (e.g. returning to the trace section
   // after a trace dialog cancel) and the sheets' `desktop` variant.
   const isMobile = useIsMobile()
   // The editor is now canvas-first on both viewports: the floating
-  // `EditorTopLeftBar` picks the active section (`mobileSection`), the
+  // `EditorTopLeftBar` picks the active section (`editorSection`), the
   // canvas surfaces section-specific layers (see `deriveDisplayLayers`),
   // and each surface's scope component owns its own floating Edit-icon
   // + sheet (a bounded card on `md+`, fullscreen on mobile).
@@ -136,9 +136,9 @@ export function ProjectDetailPageClient({
     setGridVisible,
     selectedNavId,
     setSelectedNavId,
-    mobileSection,
-    setMobileSection,
-    handleMobileNavTap,
+    editorSection,
+    setEditorSection,
+    handleSectionTap,
     pendingTraceKindOpen,
     setPendingTraceKindOpen,
     consumePendingTraceKindOpen,
@@ -201,7 +201,7 @@ export function ProjectDetailPageClient({
   })
   // Each surface owns its own state inside a per-surface scope
   // component mounted only while that surface is active — the shell
-  // composes them with conditional rendering on `mobileSection`
+  // composes them with conditional rendering on `editorSection`
   // (the single section input for both viewports). Lifecycle IS
   // dismissal.
 
@@ -283,7 +283,7 @@ export function ProjectDetailPageClient({
 
   const { toolbar, stageToolbar, applyCropSelection } = useStageInteractionPolicy({
     canvasRef,
-    activeSection: mobileSection,
+    activeSection: editorSection,
     sourceReady: editorImageSource.status === "ready",
     selectedNavId,
     setSelectedNavId,
@@ -386,7 +386,7 @@ export function ProjectDetailPageClient({
     editorImageSource,
     filterDisplayImage,
     filterDisplayImageWithoutTrace,
-    mobileSection,
+    editorSection,
     // The Image / Artboard section override needs the kind='master'
     // row's URL specifically, not the active image's URL. `signedUrl`
     // is the active row (filter tip after a filter is applied) — see
@@ -438,9 +438,9 @@ export function ProjectDetailPageClient({
   const handleTraceKindTap = useCallback(
     (kind: RegisteredTraceId) => {
       setPendingTraceKindOpen(kind)
-      if (isMobile) setMobileSection("trace")
+      if (isMobile) setEditorSection("trace")
     },
-    [isMobile, setMobileSection, setPendingTraceKindOpen],
+    [isMobile, setEditorSection, setPendingTraceKindOpen],
   )
 
   // Closing the configure dialog returns to the trace section so the
@@ -448,8 +448,8 @@ export function ProjectDetailPageClient({
   // not the Image/artboard tab. The dialog itself unmounts via
   // closeConfigure, so no stale draft preview lingers.
   const handleTraceConfigureCancelled = useCallback(() => {
-    if (isMobile) setMobileSection("trace")
-  }, [isMobile, setMobileSection])
+    if (isMobile) setEditorSection("trace")
+  }, [isMobile, setEditorSection])
 
   const sectionLocks = useMemo(
     () => deriveSectionLocks({ hasFilter, hasTrace }),
@@ -525,14 +525,14 @@ export function ProjectDetailPageClient({
               toolbar={stageToolbar}
               // Colors is a read-only palette view — hide the canvas
               // tools/zoom toolbar there (they don't belong on Colors).
-              showFloatingToolbar={mobileSection !== "colors"}
+              showFloatingToolbar={editorSection !== "colors"}
               canvasRef={canvasRef}
               artboardWidthPx={artboardWidthPx ?? undefined}
               artboardHeightPx={artboardHeightPx ?? undefined}
               grid={grid}
               traceOverlaySvgUrl={traceOverlaySvgUrl}
               traceDisplayRect={traceDisplayRect}
-              traceInteractive={mobileSection === "trace" && stageToolbar.tool === "direct"}
+              traceInteractive={editorSection === "trace" && stageToolbar.tool === "direct"}
               traceOverlayVisible={effectiveTraceOverlayVisible}
               previewBitmapVisible={effectivePreviewBitmapVisible}
               numbersLayerVisible={effectiveNumbersLayerVisible}
@@ -571,8 +571,8 @@ export function ProjectDetailPageClient({
               surface scope components (see the section mounts below). */}
         </EditorErrorBoundary>
         <EditorTopLeftBar
-          activeSection={mobileSection}
-          onSectionTap={handleMobileNavTap}
+          activeSection={editorSection}
+          onSectionTap={handleSectionTap}
           onTraceKindTap={handleTraceKindTap}
           activeTraceKind={trace?.kind ?? null}
           onDeleteTrace={handleClearTrace}
@@ -597,11 +597,11 @@ export function ProjectDetailPageClient({
         />
         {/* Always-visible top-right bar: the theme toggle on every section,
             plus the Eye (layer view-options) only on the Trace section. */}
-        <MobileTopRightBar
+        <EditorTopRightBar
           desktop={!isMobile}
           theme={{ value: toolbarTone, onToggle: toggleToolbarTheme }}
           viewOptions={
-            mobileSection === "trace" && trace && (trace.kind === "pixelate" || trace.kind === "circulate")
+            editorSection === "trace" && trace && (trace.kind === "pixelate" || trace.kind === "circulate")
               ? {
                   traceOverlayVisible,
                   previewBitmapVisible,
@@ -613,7 +613,7 @@ export function ProjectDetailPageClient({
               : null
           }
         />
-        {mobileSection === "artboard" ? (
+        {editorSection === "artboard" ? (
           <ArtboardSurfaceScope
             desktop={!isMobile}
             pendingDialog={pendingArtboardDialog}
@@ -651,7 +651,7 @@ export function ProjectDetailPageClient({
         ) : null}
         {/* The Filter section has no surface-scope mount: its top-left "+"
             menu (apply kind / remove / unlock) is the sole filter UI. */}
-        {mobileSection === "trace" ? (
+        {editorSection === "trace" ? (
           <TraceSurfaceScope
             desktop={!isMobile}
             traceSourceImage={traceSourceImage}
@@ -666,7 +666,7 @@ export function ProjectDetailPageClient({
             onConfigureCancelled={handleTraceConfigureCancelled}
           />
         ) : null}
-        {mobileSection === "colors" ? (
+        {editorSection === "colors" ? (
           <ColorsSurfaceScope desktop={!isMobile} trace={trace} />
         ) : null}
         </EditorToolbarToneProvider>

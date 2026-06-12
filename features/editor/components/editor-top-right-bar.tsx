@@ -33,7 +33,7 @@ import { useEditorToolbarTone, type ToolbarTone } from "./editor-toolbar-tone"
 import { pillClass } from "./floating-bar-styles"
 import { ToolbarIconButton } from "./toolbar-icon-button"
 
-export type MobileTopRightBarViewOptions = {
+export type EditorTopRightBarViewOptions = {
   traceOverlayVisible: boolean
   previewBitmapVisible: boolean
   numbersLayerVisible: boolean
@@ -42,23 +42,23 @@ export type MobileTopRightBarViewOptions = {
   onNumbersLayerChange: (visible: boolean) => void
 }
 
-export type MobileTopRightBarTheme = {
+export type EditorTopRightBarTheme = {
   value: ToolbarTone
   onToggle: () => void
 }
 
 type Props = {
   /** Theme toggle (always shown). When null the toggle is omitted. */
-  theme?: MobileTopRightBarTheme | null
+  theme?: EditorTopRightBarTheme | null
   /** Eye view-options menu (Trace section only). When null the Eye is omitted. */
-  viewOptions: MobileTopRightBarViewOptions | null
+  viewOptions: EditorTopRightBarViewOptions | null
   /** When true the bar stays visible on `md+` (editor surfaces in the
    * unified section model). Default false keeps the historical
    * mobile-only (`md:hidden`) behaviour for every other caller. */
   desktop?: boolean
 }
 
-export function MobileTopRightBar({ theme = null, viewOptions, desktop = false }: Props) {
+export function EditorTopRightBar({ theme = null, viewOptions, desktop = false }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)
   const tone = useEditorToolbarTone()
 

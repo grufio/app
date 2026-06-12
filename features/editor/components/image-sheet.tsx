@@ -1,10 +1,10 @@
 "use client"
 
 /**
- * Mobile full-screen Image sheet.
+ * Editor Image sheet (full-screen on mobile, bounded card on desktop).
  *
  * One of the three standalone dialogs the artboard section's top-left
- * "+" menu opens (alongside `MobileArtboardSheet` + `MobileGridSheet`).
+ * "+" menu opens (alongside `ArtboardSheet` + `GridSheet`).
  *
  * Progressive disclosure (mirroring desktop):
  * - No master image yet: a desktop-style nav-row (icon + label + `+`
@@ -15,7 +15,7 @@
  * The Add-row reuses `AddImageMenuAction` + `SidebarMenuAction` —
  * shared sidebar primitives, same upload pipeline, no surface-specific
  * button variant. Render shape matches the other section sheets
- * (`mobileSheetRootClass`); the shell-root Restore/Delete Radix dialogs
+ * (`sheetRootClass`); the shell-root Restore/Delete Radix dialogs
  * are portaled, so actions from inside the sheet open them cleanly.
  */
 import dynamic from "next/dynamic"
@@ -25,7 +25,7 @@ import type { UploadedMasterSnapshot } from "@/lib/editor/upload-master-image"
 import type { Unit } from "@/lib/editor/units"
 
 import { AddImageMenuAction } from "./add-image-menu-button"
-import { mobileSheetRootClass } from "./mobile-sheet-shell"
+import { sheetRootClass } from "./sheet-shell"
 import type { ProjectCanvasStageHandle } from "./project-canvas-stage"
 import { SheetAddRow, SheetHeader } from "./sheet-chrome"
 
@@ -34,7 +34,7 @@ const ImagePanel = dynamic(() => import("./image-panel").then((m) => m.ImagePane
   loading: () => null,
 })
 
-export function MobileImageSheet(props: {
+export function ImageSheet(props: {
   projectId: string
   onClose: () => void
   /** Desktop variant — bounded floating card instead of fullscreen. */
@@ -85,7 +85,7 @@ export function MobileImageSheet(props: {
   } = props
 
   return (
-    <section aria-label="Image" className={mobileSheetRootClass(desktop)}>
+    <section aria-label="Image" className={sheetRootClass(desktop)}>
       <SheetHeader title="Image" onClose={onClose} />
 
       <div className="flex-1 overflow-y-auto">

@@ -9,22 +9,22 @@ import { ArtboardSurfaceScope, type ArtboardSurfaceScopeProps } from "./artboard
 // The real sheets pull in dynamic panels + wide prop surfaces; the channel
 // behaviour is independent of their contents, so stub each one and tag the
 // dialog it represents.
-vi.mock("@/features/editor/components/mobile-artboard-sheet", () => ({
-  MobileArtboardSheet: ({ onClose }: { onClose: () => void }) => (
+vi.mock("@/features/editor/components/artboard-sheet", () => ({
+  ArtboardSheet: ({ onClose }: { onClose: () => void }) => (
     <div data-testid="sheet-artboard">
       <button type="button" aria-label="close-sheet" onClick={onClose} />
     </div>
   ),
 }))
-vi.mock("@/features/editor/components/mobile-grid-sheet", () => ({
-  MobileGridSheet: ({ onClose }: { onClose: () => void }) => (
+vi.mock("@/features/editor/components/grid-sheet", () => ({
+  GridSheet: ({ onClose }: { onClose: () => void }) => (
     <div data-testid="sheet-grid">
       <button type="button" aria-label="close-sheet" onClick={onClose} />
     </div>
   ),
 }))
-vi.mock("@/features/editor/components/mobile-image-sheet", () => ({
-  MobileImageSheet: ({ onClose }: { onClose: () => void }) => (
+vi.mock("@/features/editor/components/image-sheet", () => ({
+  ImageSheet: ({ onClose }: { onClose: () => void }) => (
     <div data-testid="sheet-image">
       <button type="button" aria-label="close-sheet" onClick={onClose} />
     </div>

@@ -37,7 +37,7 @@ const baseArgs = {
   editorImageSource,
   filterDisplayImage,
   filterDisplayImageWithoutTrace: filterDisplayImage,
-  mobileSection: "artboard" as const,
+  editorSection: "artboard" as const,
   masterSignedUrl: MASTER_URL,
   traceOverlayVisible: true,
   previewBitmapVisible: true,
@@ -63,7 +63,7 @@ describe("useCanvasDerivedState — Artboard section surfaces master URL", () =>
 
   it("Filter section: canvas keeps the working-copy URL (filter tip), no override", () => {
     const { result } = renderHook(() =>
-      useCanvasDerivedState({ ...baseArgs, mobileSection: "filter" }),
+      useCanvasDerivedState({ ...baseArgs, editorSection: "filter" }),
     )
     expect(result.current.canvasImage?.signedUrl).toBe(FILTER_TIP_URL)
     expect(result.current.showFilterChain).toBe(true)
@@ -92,7 +92,7 @@ describe("useCanvasDerivedState — Trace view flags are Trace-section-scoped", 
     const { result } = renderHook(() =>
       useCanvasDerivedState({
         ...baseArgs,
-        mobileSection: "artboard",
+        editorSection: "artboard",
         traceOverlayVisible: false,
         previewBitmapVisible: false,
         numbersLayerVisible: false,
@@ -107,7 +107,7 @@ describe("useCanvasDerivedState — Trace view flags are Trace-section-scoped", 
     const { result } = renderHook(() =>
       useCanvasDerivedState({
         ...baseArgs,
-        mobileSection: "filter",
+        editorSection: "filter",
         traceOverlayVisible: false,
         previewBitmapVisible: false,
         numbersLayerVisible: false,
@@ -122,7 +122,7 @@ describe("useCanvasDerivedState — Trace view flags are Trace-section-scoped", 
     const { result } = renderHook(() =>
       useCanvasDerivedState({
         ...baseArgs,
-        mobileSection: "trace",
+        editorSection: "trace",
         traceOverlayVisible: false,
         previewBitmapVisible: false,
         numbersLayerVisible: false,

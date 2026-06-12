@@ -1,9 +1,9 @@
 "use client"
 
 /**
- * Mobile Colors section view.
+ * Colors section view (renders on both viewports).
  *
- * First-class section (mobileSection === "colors") that lists the
+ * First-class section (editorSection === "colors") that lists the
  * palette chips the current trace actually references — not the full
  * Munsell palette (active tier of up to 512). Each chip renders as a
  * `PaletteColorTile` (solid color fill + legend number + colour name
@@ -35,7 +35,7 @@ import { useTracePalette } from "@/lib/editor/trace/use-trace-palette"
 
 import { PaletteColorTile } from "./palette-color-tile"
 
-type MobileColorsSheetProps = {
+type ColorsSheetProps = {
   /** The current trace's used-palette index list. `null` for legacy
    * rows pre-migration (column was added empty). */
   paletteIndicesUsed: number[] | null
@@ -50,12 +50,12 @@ type MobileColorsSheetProps = {
   desktop?: boolean
 }
 
-export function MobileColorsSheet({
+export function ColorsSheet({
   paletteIndicesUsed,
   traceMode,
   hasTrace,
   desktop = false,
-}: MobileColorsSheetProps) {
+}: ColorsSheetProps) {
   const palette = useTracePalette(traceMode ?? "color")
 
   return (

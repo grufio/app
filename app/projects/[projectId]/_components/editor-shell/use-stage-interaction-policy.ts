@@ -47,7 +47,7 @@ function useEditorInteractionController(args: {
 
 export function useStageInteractionPolicy(args: {
   canvasRef: RefObject<ProjectCanvasStageHandle | null>
-  /** The active editor section (the shell's `mobileSection`) — drives
+  /** The active editor section (the shell's `editorSection`) — drives
    * the per-section tool availability on both viewports. */
   activeSection: string
   sourceReady: boolean

@@ -3,7 +3,7 @@
 /**
  * Shared chrome for the editor section dialogs (Artboard / Grid / Image /
  * Trace). These four full-screen-on-mobile / bounded-card-on-desktop sheets
- * (see `mobileSheetRootClass`) all open with the same title-bar and, for the
+ * (see `sheetRootClass`) all open with the same title-bar and, for the
  * empty-state surfaces, the same "add" nav-row — extracted here so the markup
  * lives in one place.
  *

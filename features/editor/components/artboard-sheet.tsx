@@ -1,10 +1,10 @@
 "use client"
 
 /**
- * Mobile full-screen Artboard sheet.
+ * Editor Artboard sheet (full-screen on mobile, bounded card on desktop).
  *
  * One of the three standalone dialogs the artboard section's top-left
- * "+" menu opens (alongside `MobileGridSheet` + `MobileImageSheet`).
+ * "+" menu opens (alongside `GridSheet` + `ImageSheet`).
  * Holds the two always-present artboard properties as stacked
  * sections — `ArtboardPanel` (size) first, then `PageBackgroundSection`
  * (background colour) — mirroring the desktop right panel.
@@ -16,7 +16,7 @@
  */
 import dynamic from "next/dynamic"
 
-import { mobileSheetRootClass } from "./mobile-sheet-shell"
+import { sheetRootClass } from "./sheet-shell"
 import { PageBackgroundSection } from "./page-background-section"
 import { SheetHeader } from "./sheet-chrome"
 
@@ -28,7 +28,7 @@ const ArtboardPanel = dynamic(() => import("./artboard-panel").then((m) => m.Art
   loading: () => null,
 })
 
-export function MobileArtboardSheet(props: {
+export function ArtboardSheet(props: {
   onClose: () => void
   /** Desktop variant — bounded floating card instead of fullscreen. */
   desktop?: boolean
@@ -57,7 +57,7 @@ export function MobileArtboardSheet(props: {
   } = props
 
   return (
-    <section aria-label="Artboard" className={mobileSheetRootClass(desktop)}>
+    <section aria-label="Artboard" className={sheetRootClass(desktop)}>
       <SheetHeader title="Artboard" onClose={onClose} />
 
       <div className="flex-1 overflow-y-auto">
