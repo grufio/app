@@ -20,10 +20,22 @@ distinction in the `kind` column.
   `storage_path`/`storage_bucket` mapping.
 - [services/editor/server/crop-image.ts](../../services/editor/server/crop-image.ts)
   — path construction (`projects/${projectId}/images/${imageId}`).
-- [services/editor/server/master-image-upload/](../../services/editor/server/master-image-upload/)
-  — server-side upload pipeline for the master image kind.
+- [services/editor/server/master-image-upload.ts](../../services/editor/server/master-image-upload.ts)
+  — server-side `finalizeMasterImageUpload` (download → sharp EXIF-normalise →
+  validate → insert → activate) + the `master-image-upload/` submodules.
 - [app/api/projects/[projectId]/images/master/route.ts](../../app/api/projects/%5BprojectId%5D/images/master/route.ts)
-  — POST = upload master, GET = list, DELETE = soft-delete master.
+  — GET = list, DELETE/POST = restore/soft-delete master.
+- [app/api/projects/[projectId]/images/master/finalize/route.ts](../../app/api/projects/%5BprojectId%5D/images/master/finalize/route.ts)
+  — POST = finalize a master upload (see the direct-upload flow below).
+
+**Master upload is direct-to-Storage.** To dodge Vercel's ~4.5 MB serverless
+request-body limit, the client (`lib/editor/upload-master-image.ts`) uploads the
+raw bytes straight to Storage via the browser client (owner-only RLS authorizes
+`projects/{projectId}/images/{imageId}`), then POSTs the tiny JSON `finalize`
+endpoint, which downloads + EXIF-normalises + re-uploads the bytes and inserts
+the rows. No file body passes through a function. The `project_images` bucket's
+`file_size_limit` (50 MB, migration `…_project_images_bucket_size_limit`) is the
+first-line size guard.
 - DB: `storage.objects` RLS policies live in a `DO`-block in the
   squashed baseline migration (preserved through every re-squash).
 

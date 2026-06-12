@@ -51,8 +51,11 @@ a new endpoint is a copy-and-substitute job, not a fresh design.
   `if (!u.ok) return u.res` and continues with `u.user.id`. RLS
   on the Supabase queries is the actual access control; the auth
   check just gives you the `user.id`.
-- **JSON-body cap.** `readJson` enforces 256 KB by default. Larger
-  payloads (image uploads) use `formData()` directly, not JSON.
+- **JSON-body cap.** `readJson` enforces 256 KB by default. No route
+  takes a large body: image uploads go **direct to Supabase Storage**
+  from the client, then a tiny JSON `images/master/finalize` POST
+  triggers server-side processing (see [storage.md](storage.md)) —
+  sidestepping Vercel's ~4.5 MB serverless request-body limit.
 
 ## Standard route shape
 

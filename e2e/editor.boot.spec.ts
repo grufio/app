@@ -216,7 +216,7 @@ test("regression: upload makes image usable without page reload", async ({ page 
   const waitUploadResponse = page.waitForResponse(
     (res) =>
       res.request().method() === "POST" &&
-      res.url().includes(`/api/projects/${PROJECT_ID}/images/master/upload`) &&
+      res.url().includes(`/api/projects/${PROJECT_ID}/images/master/finalize`) &&
       res.status() === 200
   )
   const waitWorkingCopyResponse = page.waitForResponse(

@@ -18,8 +18,8 @@ describe("API routes", () => {
     expect(body.stage).toBe("validation")
   })
 
-  it("master upload route rejects invalid UUID params", async () => {
-    const mod = await import("../[projectId]/images/master/upload/route")
+  it("master finalize route rejects invalid UUID params", async () => {
+    const mod = await import("../[projectId]/images/master/finalize/route")
     const res = await mod.POST(new Request("http://test.local", { method: "POST" }), { params: Promise.resolve({ projectId: "nope" }) })
     expect(res.status).toBe(400)
     const body = await res.json()

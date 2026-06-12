@@ -7,6 +7,8 @@
  * - Normalize API error responses for UI display.
  */
 import { guessImageFormat } from "@/lib/images/format-detection"
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
+import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 
 export type UploadedMasterSnapshot = {
   id: string
@@ -57,25 +59,44 @@ function parseMasterSnapshot(payload: unknown): UploadedMasterSnapshot | null {
   }
 }
 
+/**
+ * Two-step upload that bypasses the serverless request-body limit:
+ *   1. Upload the raw bytes DIRECTLY to Supabase Storage at
+ *      `projects/{projectId}/images/{imageId}` (owner-only RLS authorizes it
+ *      via the browser session — no file ever passes through the function).
+ *   2. POST a tiny JSON `finalize` request; the server downloads that object,
+ *      EXIF-normalises, validates, inserts the rows, and returns the snapshot.
+ *
+ * Pixel dimensions + DPI are still read server-side from the bytes (sharp);
+ * the client only chooses the object id and sends a cheap format hint.
+ */
 export async function uploadMasterImageClient(args: {
   projectId: string
   file: File
   fetchImpl?: typeof fetch
+  /** Browser Supabase client override (tests inject a stub). */
+  supabaseClient?: ReturnType<typeof createSupabaseBrowserClient>
 }): Promise<UploadMasterImageResult> {
-  const { projectId, file, fetchImpl = fetch } = args
-  // Pixel dimensions + DPI are read server-side from the file bytes (sharp)
-  // in the upload route — authoritative and not trusted from the client. The
-  // client only sends the file + a cheap format hint.
+  const { projectId, file, fetchImpl = fetch, supabaseClient } = args
   const format = guessImageFormat(file)
+  const imageId = crypto.randomUUID()
+  const objectPath = `projects/${projectId}/images/${imageId}`
 
-  const form = new FormData()
-  form.set("file", file)
-  form.set("format", format)
+  // Step 1 — direct-to-Storage upload (no Vercel 4.5MB body cap).
+  const supabase = supabaseClient ?? createSupabaseBrowserClient()
+  const { error: storageErr } = await supabase.storage
+    .from(PROJECT_IMAGES_BUCKET)
+    .upload(objectPath, file, { contentType: file.type || undefined, upsert: false })
+  if (storageErr) {
+    return { ok: false, error: `Upload failed (storage): ${storageErr.message}` }
+  }
 
-  const res = await fetchImpl(`/api/projects/${projectId}/images/master/upload`, {
+  // Step 2 — finalize (tiny JSON; server downloads + processes the object).
+  const res = await fetchImpl(`/api/projects/${projectId}/images/master/finalize`, {
     method: "POST",
     credentials: "same-origin",
-    body: form,
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ imageId, fileName: file.name, format }),
   })
 
   if (!res.ok) {
