@@ -57,7 +57,6 @@ export type Database = {
           filter_type: string
           id: string
           input_image_id: string
-          is_hidden: boolean
           output_image_id: string
           project_id: string
           stack_order: number
@@ -69,7 +68,6 @@ export type Database = {
           filter_type: string
           id?: string
           input_image_id: string
-          is_hidden?: boolean
           output_image_id: string
           project_id: string
           stack_order: number
@@ -81,7 +79,6 @@ export type Database = {
           filter_type?: string
           id?: string
           input_image_id?: string
-          is_hidden?: boolean
           output_image_id?: string
           project_id?: string
           stack_order?: number
