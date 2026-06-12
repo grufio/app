@@ -15,12 +15,10 @@
  * sheet is bounded to the editor area.
  */
 import dynamic from "next/dynamic"
-import { X } from "lucide-react"
-
-import { Button } from "@/components/ui/button"
 
 import { mobileSheetRootClass } from "./mobile-sheet-shell"
 import { PageBackgroundSection } from "./page-background-section"
+import { SheetHeader } from "./sheet-chrome"
 
 // Mirror the right panel's code-splitting so the bundle cost is paid
 // once, not twice. The dynamic chunk is shared with the desktop right
@@ -60,18 +58,7 @@ export function MobileArtboardSheet(props: {
 
   return (
     <section aria-label="Artboard" className={mobileSheetRootClass(desktop)}>
-      <header className="flex shrink-0 items-center justify-between border-b bg-background px-4 py-3">
-        <h2 className="text-sm font-semibold">Artboard</h2>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label="Close"
-          onClick={onClose}
-        >
-          <X aria-hidden="true" className="size-5" />
-        </Button>
-      </header>
+      <SheetHeader title="Artboard" onClose={onClose} />
 
       <div className="flex-1 overflow-y-auto">
         <ArtboardPanel canFitToImage={canFit} onFitToImage={onFitArtboardToImage} />

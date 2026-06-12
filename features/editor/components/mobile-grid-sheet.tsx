@@ -18,12 +18,12 @@
  * section sheets (`mobileSheetRootClass`).
  */
 import dynamic from "next/dynamic"
-import { Grid3x3, Plus, X } from "lucide-react"
+import { Grid3x3, Plus } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
 import { SidebarMenuAction } from "@/components/ui/sidebar"
 
 import { mobileSheetRootClass } from "./mobile-sheet-shell"
+import { SheetAddRow, SheetHeader } from "./sheet-chrome"
 
 const GridPanel = dynamic(() => import("./grid-panel").then((m) => m.GridPanel), {
   ssr: false,
@@ -53,18 +53,7 @@ export function MobileGridSheet(props: {
 
   return (
     <section aria-label="Grid" className={mobileSheetRootClass(desktop)}>
-      <header className="flex shrink-0 items-center justify-between border-b bg-background px-4 py-3">
-        <h2 className="text-sm font-semibold">Grid</h2>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label="Close"
-          onClick={onClose}
-        >
-          <X aria-hidden="true" className="size-5" />
-        </Button>
-      </header>
+      <SheetHeader title="Grid" onClose={onClose} />
 
       <div className="flex-1 overflow-y-auto">
         {hasGrid ? (
@@ -74,16 +63,11 @@ export function MobileGridSheet(props: {
             onDelete={onGridDeleteRequested}
           />
         ) : (
-          /* Compact nav-style row: text-xs label with an icon on the
-           * left, `+` action absolute-positioned top-right by
-           * SidebarMenuAction's default variant. No section header. */
-          <div className="relative flex items-center gap-2 border-b px-3 py-2 text-xs">
-            <Grid3x3 className="size-4 shrink-0" />
-            <span>Grid</span>
+          <SheetAddRow Icon={Grid3x3} label="Grid">
             <SidebarMenuAction aria-label="Add Grid" onClick={() => void onGridCreateRequested()}>
               <Plus />
             </SidebarMenuAction>
-          </div>
+          </SheetAddRow>
         )}
       </div>
     </section>

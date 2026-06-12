@@ -23,14 +23,12 @@
  * Radix-portaled and already mobile-fullscreen (see #347 pattern),
  * so they surface cleanly over the sheet without changes here.
  */
-import { X } from "lucide-react"
-
-import { Button } from "@/components/ui/button"
 import { SidebarFrame } from "@/components/navigation/SidebarFrame"
 import { SidebarContent } from "@/components/ui/sidebar"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
 
 import { mobileSheetRootClass } from "./mobile-sheet-shell"
+import { SheetHeader } from "./sheet-chrome"
 import { TraceSidebarSection } from "./trace-sidebar-section"
 
 export function MobileTraceSheet(props: {
@@ -57,18 +55,7 @@ export function MobileTraceSheet(props: {
 
   return (
     <section aria-label="Trace" className={mobileSheetRootClass(desktop)}>
-      <header className="flex shrink-0 items-center justify-between border-b bg-background px-4 py-3">
-        <h2 className="text-sm font-semibold">Trace</h2>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label="Close"
-          onClick={onClose}
-        >
-          <X aria-hidden="true" className="size-5" />
-        </Button>
-      </header>
+      <SheetHeader title="Trace" onClose={onClose} />
 
       <SidebarFrame className="block min-h-0 flex-1">
         <SidebarContent className="gap-0">
