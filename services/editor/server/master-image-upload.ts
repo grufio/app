@@ -61,13 +61,54 @@ async function rollbackCreatedUploadRows(args: {
   await supabase.storage.from(PROJECT_IMAGES_BUCKET).remove([masterObjectPath])
 }
 
-export async function uploadMasterImage(args: {
+/**
+ * Finalize a master upload whose raw bytes the client already uploaded directly
+ * to Storage (at `projects/{projectId}/images/{imageId}`). Downloads that
+ * object, runs the normalise → validate → insert → activate pipeline, and — to
+ * keep the object lifecycle owned here — deletes the orphan object if anything
+ * fails (the row-level rollback inside `processMasterImageBytes` handles DB
+ * state). This is the entry point for the direct-to-Storage upload flow that
+ * sidesteps the serverless request-body size limit.
+ */
+export async function finalizeMasterImageUpload(args: {
   supabase: SupabaseClient<Database>
   projectId: string
-  file: File
+  imageId: string
+  fileName: string
   format: string
 }): Promise<UploadMasterImageResult> {
-  const { supabase, projectId, file, format } = args
+  const { supabase, projectId, imageId, fileName, format } = args
+  const objectPath = `projects/${projectId}/images/${imageId}`
+
+  const { data: blob, error: downloadErr } = await supabase.storage.from(PROJECT_IMAGES_BUCKET).download(objectPath)
+  if (downloadErr || !blob) {
+    return {
+      ok: false,
+      status: 404,
+      stage: "validation",
+      reason: "Uploaded object not found in storage",
+      code: (downloadErr as unknown as { code?: string })?.code,
+    }
+  }
+
+  const inputBuf = Buffer.from(await blob.arrayBuffer())
+  const result = await processMasterImageBytes({ supabase, projectId, imageId, inputBuf, fileName, format })
+  if (!result.ok) {
+    // Drop the orphan object so a failed finalize leaves no dangling bytes.
+    await supabase.storage.from(PROJECT_IMAGES_BUCKET).remove([objectPath]).catch(() => {})
+  }
+  return result
+}
+
+async function processMasterImageBytes(args: {
+  supabase: SupabaseClient<Database>
+  projectId: string
+  imageId: string
+  inputBuf: Buffer
+  fileName: string
+  format: string
+}): Promise<UploadMasterImageResult> {
+  const { supabase, projectId, imageId, inputBuf, fileName, format } = args
 
   // Normalise EXIF Orientation at the upload boundary: `sharp(buf).rotate()`
   // (no args) physically rotates the pixel data per the EXIF Orientation
@@ -85,7 +126,6 @@ export async function uploadMasterImage(args: {
   // DPI is read from the ORIGINAL buffer's metadata (sharp's re-encode
   // drops the JFIF density / pHYs chunk). Orientation cannot affect DPI
   // semantics, so the pre-rotate value remains correct.
-  const inputBuf = Buffer.from(await file.arrayBuffer())
   let normalised: Buffer
   let meta: sharp.Metadata
   let originalDensity: number | undefined
@@ -96,6 +136,11 @@ export async function uploadMasterImage(args: {
   } catch {
     return { ok: false, status: 400, stage: "validation", reason: "Unreadable image file" }
   }
+
+  // Content type for the (re-)stored object is derived from the sharp-detected
+  // format of the authoritative bytes, not a client hint — the re-encode
+  // preserves the input format, so `image/<format>` is correct.
+  const detectedMime = meta.format ? `image/${meta.format}` : ""
 
   // Plausibility-clamp the density: a PNG `pHYs` chunk with unit 0 (pixel
   // aspect ratio, no real DPI) makes libvips report a garbage value
@@ -113,23 +158,23 @@ export async function uploadMasterImage(args: {
   const { widthPx, heightPx, dpi } = validated
 
   // Size check runs against the normalised buffer (= what actually lands
-  // in Storage), not the original `file.size` — those can differ when
-  // sharp re-encodes. MIME stays the original because the re-encode
-  // preserves the input format.
+  // in Storage), not the raw uploaded bytes — those can differ when sharp
+  // re-encodes.
   const limitError = validateUploadLimits({
     sizeBytes: normalised.byteLength,
-    mimeType: file.type,
+    mimeType: detectedMime,
     widthPx,
     heightPx,
   })
   if (limitError) return limitError
 
-  const imageId = crypto.randomUUID()
   const objectPath = `projects/${projectId}/images/${imageId}`
 
+  // Overwrite the client-uploaded raw bytes with the EXIF-normalised bytes so
+  // Storage holds display-orientation pixels (the downstream invariant).
   const { error: uploadErr } = await supabase.storage.from(PROJECT_IMAGES_BUCKET).upload(objectPath, normalised, {
     upsert: true,
-    contentType: file.type || undefined,
+    contentType: detectedMime || undefined,
   })
   if (uploadErr) {
     return {
@@ -145,7 +190,7 @@ export async function uploadMasterImage(args: {
     supabase,
     imageId,
     projectId,
-    fileName: file.name,
+    fileName,
     fileSizeBytes: normalised.byteLength,
     format,
     widthPx,

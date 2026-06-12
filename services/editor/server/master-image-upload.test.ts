@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import sharp from "sharp"
 
 import { makeMockSupabase } from "@/lib/supabase/__mocks__/make-mock-supabase"
-import { uploadMasterImage } from "./master-image-upload"
+import { finalizeMasterImageUpload } from "./master-image-upload"
 
 // Storage spies are module-level so individual tests can attach
 // mockResolvedValue / mockResolvedValueOnce per scenario. The factory's
@@ -11,7 +11,25 @@ import { uploadMasterImage } from "./master-image-upload"
 const uploadSpy = vi.fn()
 const removeSpy = vi.fn()
 const createSignedUrlSpy = vi.fn()
+const downloadSpy = vi.fn()
 const activateSpy = vi.fn()
+
+// The finalize flow downloads the client-uploaded object from Storage; this
+// stand-in id names the object path. The service doesn't validate the id shape
+// (the route does), so any value works here.
+const IMAGE_ID = "a1b2c3d4-0000-4000-8000-000000000001"
+
+/** Stub the storage download to hand the service `file`'s bytes, then finalize. */
+function finalize(supabase: unknown, file: File, format: string) {
+  downloadSpy.mockResolvedValueOnce({ data: file, error: null })
+  return finalizeMasterImageUpload({
+    supabase: supabase as never,
+    projectId: "p1",
+    imageId: IMAGE_ID,
+    fileName: file.name,
+    format,
+  })
+}
 
 type InsertPayload = Record<string, unknown>
 
@@ -127,6 +145,7 @@ function makeSupabase(opts: MakeSupabaseOpts) {
       upload: uploadSpy,
       remove: removeSpy,
       createSignedUrl: createSignedUrlSpy,
+      download: downloadSpy,
     }),
   } as unknown as typeof supabase.storage
 
@@ -139,12 +158,28 @@ describe("master-image-upload service", () => {
     delete process.env.USER_MAX_UPLOAD_BYTES
     delete process.env.USER_ALLOWED_UPLOAD_MIME
     delete process.env.USER_UPLOAD_MAX_PIXELS
+    // Default so finalize's orphan-cleanup `.remove(...)` always returns a promise.
+    removeSpy.mockResolvedValue({ error: null })
+  })
+
+  it("returns 404 when the uploaded object is missing from storage", async () => {
+    const supabase = makeSupabase({ capture: { inserts: [], deletes: 0, stateUpserts: 0, cleanupRpcCalls: 0 } })
+    downloadSpy.mockResolvedValueOnce({ data: null, error: { message: "Not found" } })
+    const out = await finalizeMasterImageUpload({
+      supabase: supabase as never,
+      projectId: "p1",
+      imageId: IMAGE_ID,
+      fileName: "x.png",
+      format: "png",
+    })
+    expect(out.ok).toBe(false)
+    if (!out.ok) expect(out.status).toBe(404)
   })
 
   it("rejects an unreadable image file with validation/400 (sharp cannot parse)", async () => {
     const supabase = makeSupabase({ capture: { inserts: [], deletes: 0, stateUpserts: 0, cleanupRpcCalls: 0 } })
     const file = new File([new Uint8Array([1, 2, 3])], "x.png", { type: "image/png" })
-    const out = await uploadMasterImage({ supabase: supabase as never, projectId: "p1", file, format: "png" })
+    const out = await finalize(supabase, file, "png")
     expect(out.ok).toBe(false)
     if (!out.ok) {
       expect(out.stage).toBe("validation")
@@ -159,7 +194,7 @@ describe("master-image-upload service", () => {
     const supabase = makeSupabase({ capture: { inserts: [], deletes: 0, stateUpserts: 0, cleanupRpcCalls: 0 } })
     const file = await makeImageFile({ width: 10, height: 10 })
 
-    const out = await uploadMasterImage({ supabase: supabase as never, projectId: "p1", file, format: "png" })
+    const out = await finalize(supabase, file, "png")
     expect(out.ok).toBe(false)
     if (!out.ok) {
       expect(out.stage).toBe("upload_limits")
@@ -182,7 +217,7 @@ describe("master-image-upload service", () => {
     // these, NOT any client-sent values.
     const file = await makeImageFile({ width: 400, height: 200, density: 300 })
 
-    const out = await uploadMasterImage({ supabase: supabase as never, projectId: "p1", file, format: "png" })
+    const out = await finalize(supabase, file, "png")
 
     expect(out.ok).toBe(true)
     if (out.ok) {
@@ -223,7 +258,7 @@ describe("master-image-upload service", () => {
     activateSpy.mockResolvedValueOnce({ ok: true })
     const file = await makeImageFile({ width: 120, height: 90, density: 240, format: "jpeg" })
 
-    const out = await uploadMasterImage({ supabase: supabase as never, projectId: "p1", file, format: "jpeg" })
+    const out = await finalize(supabase, file, "jpeg")
     expect(out.ok).toBe(true)
     const masterInsert = capture.inserts.find((row) => row.kind === "master")
     expect(masterInsert?.width_px).toBe(120)
@@ -253,12 +288,7 @@ describe("master-image-upload service", () => {
     createSignedUrlSpy.mockResolvedValue({ data: { signedUrl: "https://signed/master" }, error: null })
     activateSpy.mockResolvedValueOnce({ ok: true })
 
-    const out = await uploadMasterImage({
-      supabase: supabase as never,
-      projectId: "p1",
-      file,
-      format: "jpeg",
-    })
+    const out = await finalize(supabase, file, "jpeg")
     expect(out.ok).toBe(true)
 
     // DB row reflects display dimensions (rotated), not the raw byte dims.
@@ -288,7 +318,7 @@ describe("master-image-upload service", () => {
     activateSpy.mockResolvedValueOnce({ ok: true })
     const file = await makeImageFile({ width: 50, height: 40 }) // no density
 
-    const out = await uploadMasterImage({ supabase: supabase as never, projectId: "p1", file, format: "png" })
+    const out = await finalize(supabase, file, "png")
     expect(out.ok).toBe(true)
     const masterInsert = capture.inserts.find((row) => row.kind === "master")
     expect(masterInsert?.dpi).toBe(72)
@@ -308,7 +338,7 @@ describe("master-image-upload service", () => {
     })
     const file = await makeImageFile({ width: 200, height: 100 })
 
-    const out = await uploadMasterImage({ supabase: supabase as never, projectId: "p1", file, format: "png" })
+    const out = await finalize(supabase, file, "png")
 
     expect(out).toEqual({
       ok: false,

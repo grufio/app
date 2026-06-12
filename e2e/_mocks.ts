@@ -313,7 +313,7 @@ export async function setupMockRoutes(page: Page, opts: SetupMockRoutesOpts) {
     if (
       url.includes(`/api/projects/${PROJECT_ID}/images/master`) &&
       !url.includes("/exists") &&
-      !url.includes("/upload") &&
+      !url.includes("/finalize") &&
       !url.includes("/list") &&
       !url.includes("/restore")
     ) {
@@ -332,15 +332,27 @@ export async function setupMockRoutes(page: Page, opts: SetupMockRoutesOpts) {
       })
     }
 
-    // Internal API: upload master image (mocked)
-    if (url.includes(`/api/projects/${PROJECT_ID}/images/master/upload`)) {
+    // Supabase Storage: the client now uploads the raw bytes DIRECTLY to
+    // Storage (bypassing the 4.5MB serverless body limit). Mock the object PUT
+    // so the browser client's `.upload()` resolves without a real Supabase.
+    if (url.includes("/storage/v1/object/")) {
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ Key: `project_images/projects/${PROJECT_ID}/images/mock` }),
+      })
+    }
+
+    // Internal API: finalize master upload (mocked). The bytes already landed
+    // in Storage above; finalize would download + process them server-side.
+    if (url.includes(`/api/projects/${PROJECT_ID}/images/master/finalize`)) {
       const req = route.request()
       if (req.method() === "POST") {
         hasImage = true
         return route.fulfill({
           status: 200,
           contentType: "application/json",
-          body: JSON.stringify({ ok: true, storage_path: `projects/${PROJECT_ID}/master/mock-upload.svg` }),
+          body: JSON.stringify({ ok: true, storage_path: `projects/${PROJECT_ID}/images/mock-upload` }),
         })
       }
       return route.fulfill({ status: 405, contentType: "application/json", body: JSON.stringify({ error: "Method not allowed" }) })
