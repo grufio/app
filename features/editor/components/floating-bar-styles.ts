@@ -56,8 +56,6 @@ const CHIP_INACTIVE_TONE: Record<ToolbarTone, string> = {
 }
 
 export type ChipVariant = "active" | "inactive"
-/** @deprecated alias kept for callers; use `ChipVariant`. */
-export type CircleVariant = ChipVariant
 
 /** A 40×40 chip: `rounded` sets the shape (`rounded-full` circle / `rounded-lg`
  * frame); the surface/ink follow the active vs inactive variant. */
