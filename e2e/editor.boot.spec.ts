@@ -128,14 +128,14 @@ test("smoke: upload/crop/filter/remove/restore flow keeps deterministic image so
       return { status: r.status, json: await r.json() }
     }
 
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10"><rect width="20" height="10" fill="#ff3b30"/></svg>`
-    const file = new File([new Blob([svg], { type: "image/svg+xml" })], "test.svg", { type: "image/svg+xml" })
-    const fd = new FormData()
-    fd.append("file", file)
-    fd.append("width_px", "20")
-    fd.append("height_px", "10")
-    fd.append("format", "svg")
-    const uploadRes = await fetch(`/api/projects/${projectId}/images/master/upload`, { method: "POST", body: fd })
+    // Upload is now direct-to-Storage + a JSON finalize; at the API level the
+    // mock's finalize branch flips hasImage and returns { ok: true }.
+    const imageId = crypto.randomUUID()
+    const uploadRes = await fetch(`/api/projects/${projectId}/images/master/finalize`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ imageId, fileName: "test.svg", format: "svg" }),
+    })
     out.upload = { status: uploadRes.status, json: await uploadRes.json() }
 
     const master = await get(`/api/projects/${projectId}/images/master`)
@@ -271,14 +271,12 @@ test.skip("storage: upload → master returns signed URL → editor renders imag
   await assertEditorSurfaceVisible(page)
 
   const upload = await page.evaluate(async (projectId: string) => {
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10"><rect width="20" height="10" fill="#ff3b30"/></svg>`
-    const file = new File([new Blob([svg], { type: "image/svg+xml" })], "test.svg", { type: "image/svg+xml" })
-    const fd = new FormData()
-    fd.append("file", file)
-    fd.append("width_px", "20")
-    fd.append("height_px", "10")
-    fd.append("format", "svg")
-    const res = await fetch(`/api/projects/${projectId}/images/master/upload`, { method: "POST", body: fd })
+    const imageId = crypto.randomUUID()
+    const res = await fetch(`/api/projects/${projectId}/images/master/finalize`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ imageId, fileName: "test.svg", format: "svg" }),
+    })
     return { status: res.status, json: await res.json() }
   }, PROJECT_ID)
   expect(upload.status).toBe(200)
