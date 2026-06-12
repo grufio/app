@@ -653,7 +653,6 @@ export function ProjectDetailPageClient({
             menu (apply kind / remove / unlock) is the sole filter UI. */}
         {mobileSection === "trace" ? (
           <TraceSurfaceScope
-            intent="mobile"
             desktop={!isMobile}
             traceSourceImage={traceSourceImage}
             onApplyTrace={handleApplyTrace}

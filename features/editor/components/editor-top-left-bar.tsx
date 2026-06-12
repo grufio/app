@@ -1,21 +1,14 @@
 "use client"
 
 /**
- * Floating navigation bar in the top-left corner of the editor canvas.
- * Two dark Feather-style pills:
+ * Floating navigation bar in the top-left corner of the editor canvas —
+ * the sole editor navigation. Two dark Feather-style pills:
  *
  *   1. Standalone Home pill — links to `/dashboard`
  *   2. Group pill — four section icons (Image / Filter / Trace / Color)
- *      whose tap behaviour mirrors `MobileBottomNav` exactly
+ *      that switch the active `MobileSection`
  *
- * This bar is the planned long-term replacement for `MobileBottomNav`.
- * Both coexist during the transition phase so the user can compare
- * the surfaces before the bottom bar gets retired in a follow-up.
- *
- * The bar is **viewport-agnostic** — mounted on both mobile and
- * desktop. On desktop it visually overlaps the left-panel sidebar;
- * that's an accepted transitional cosmetic issue, to be resolved by
- * moving the mount inside the canvas-stage in a later iteration.
+ * The bar is **viewport-agnostic** — mounted on both mobile and desktop.
  *
  * "Image" label vs `artboard` section key: the `MobileSection` tuple
  * (`["artboard", "filter", "trace", "colors"]`) is unchanged — only
