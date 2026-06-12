@@ -313,7 +313,7 @@ export async function setupMockRoutes(page: Page, opts: SetupMockRoutesOpts) {
     if (
       url.includes(`/api/projects/${PROJECT_ID}/images/master`) &&
       !url.includes("/exists") &&
-      !url.includes("/upload") &&
+      !url.includes("/finalize") &&
       !url.includes("/list") &&
       !url.includes("/restore")
     ) {
