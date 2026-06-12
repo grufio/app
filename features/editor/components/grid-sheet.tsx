@@ -1,10 +1,10 @@
 "use client"
 
 /**
- * Mobile full-screen Grid sheet.
+ * Editor Grid sheet (full-screen on mobile, bounded card on desktop).
  *
  * One of the three standalone dialogs the artboard section's top-left
- * "+" menu opens (alongside `MobileArtboardSheet` + `MobileImageSheet`).
+ * "+" menu opens (alongside `ArtboardSheet` + `ImageSheet`).
  *
  * Progressive disclosure (mirroring desktop):
  * - No grid yet: a desktop-style nav-row (icon + label + `+` action) to
@@ -15,14 +15,14 @@
  *
  * The Add-row reuses `SidebarMenuAction` — a shared sidebar primitive,
  * no surface-specific button variant. Render shape matches the other
- * section sheets (`mobileSheetRootClass`).
+ * section sheets (`sheetRootClass`).
  */
 import dynamic from "next/dynamic"
 import { Grid3x3, Plus } from "lucide-react"
 
 import { SidebarMenuAction } from "@/components/ui/sidebar"
 
-import { mobileSheetRootClass } from "./mobile-sheet-shell"
+import { sheetRootClass } from "./sheet-shell"
 import { SheetAddRow, SheetHeader } from "./sheet-chrome"
 
 const GridPanel = dynamic(() => import("./grid-panel").then((m) => m.GridPanel), {
@@ -30,7 +30,7 @@ const GridPanel = dynamic(() => import("./grid-panel").then((m) => m.GridPanel),
   loading: () => null,
 })
 
-export function MobileGridSheet(props: {
+export function GridSheet(props: {
   onClose: () => void
   /** Desktop variant — bounded floating card instead of fullscreen. */
   desktop?: boolean
@@ -52,7 +52,7 @@ export function MobileGridSheet(props: {
   } = props
 
   return (
-    <section aria-label="Grid" className={mobileSheetRootClass(desktop)}>
+    <section aria-label="Grid" className={sheetRootClass(desktop)}>
       <SheetHeader title="Grid" onClose={onClose} />
 
       <div className="flex-1 overflow-y-auto">

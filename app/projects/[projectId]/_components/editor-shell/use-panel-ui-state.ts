@@ -7,18 +7,18 @@
  *   - `gridVisible` (rendered overlay toggle)
  *   - `selectedNavId` (image/crop selection — read by the stage
  *     interaction policy; the crop tool auto-sets it)
- *   - `mobileSection` (the active editor section, both viewports)
+ *   - `editorSection` (the active editor section, both viewports)
  *   - `pendingTraceKindOpen` (cross-mount trace-kind open channel)
  *   - `pendingArtboardDialog` (cross-mount artboard-dialog open channel)
  *
- * Plus the callback wrappers (`handleMobileNavTap`,
+ * Plus the callback wrappers (`handleSectionTap`,
  * `consumePendingTraceKindOpen`) so the shell can pass references
  * straight through instead of inlining them.
  */
 import { useCallback, useState } from "react"
 
 import { buildNavId } from "@/features/editor/navigation/nav-id"
-import type { ArtboardDialog, MobileSection } from "@/lib/editor/mobile-sections"
+import type { ArtboardDialog, EditorSection } from "@/lib/editor/editor-sections"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
 
 export function usePanelUIState() {
@@ -26,7 +26,7 @@ export function usePanelUIState() {
   const [selectedNavId, setSelectedNavId] = useState<string>(() =>
     buildNavId({ kind: "artboard" }),
   )
-  const [mobileSection, setMobileSection] = useState<MobileSection>("artboard")
+  const [editorSection, setEditorSection] = useState<EditorSection>("artboard")
   // Cross-mount channel: the EditorTopLeftBar trace sub-pill sets a
   // pending kind when the user picks Pixelate / Circulate / Lineart
   // from outside the trace surface. The TraceSurfaceScope reads it on
@@ -40,8 +40,8 @@ export function usePanelUIState() {
   // section doesn't re-pop it.
   const [pendingArtboardDialog, setPendingArtboardDialog] = useState<ArtboardDialog | null>(null)
 
-  const handleMobileNavTap = useCallback((section: MobileSection) => {
-    setMobileSection(section)
+  const handleSectionTap = useCallback((section: EditorSection) => {
+    setEditorSection(section)
   }, [])
 
   const consumePendingTraceKindOpen = useCallback(() => {
@@ -57,9 +57,9 @@ export function usePanelUIState() {
     setGridVisible,
     selectedNavId,
     setSelectedNavId,
-    mobileSection,
-    setMobileSection,
-    handleMobileNavTap,
+    editorSection,
+    setEditorSection,
+    handleSectionTap,
     pendingTraceKindOpen,
     setPendingTraceKindOpen,
     consumePendingTraceKindOpen,

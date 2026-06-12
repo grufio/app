@@ -4,7 +4,7 @@
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { MobileTopRightBar } from "./mobile-top-right-bar"
+import { EditorTopRightBar } from "./editor-top-right-bar"
 
 function defaultViewOptions() {
   return {
@@ -40,7 +40,7 @@ function openMenu(getByLabelText: (label: string) => HTMLElement) {
   fireEvent.click(trigger)
 }
 
-describe("MobileTopRightBar", () => {
+describe("EditorTopRightBar", () => {
   afterEach(() => {
     cleanup()
   })
@@ -48,7 +48,7 @@ describe("MobileTopRightBar", () => {
   it("renders the Eye (view-options) and never an Edit affordance", () => {
     setupRadixPolyfills()
     const { getByLabelText, queryByLabelText } = render(
-      <MobileTopRightBar viewOptions={defaultViewOptions()} />,
+      <EditorTopRightBar viewOptions={defaultViewOptions()} />,
     )
     expect(getByLabelText("View options")).not.toBeNull()
     expect(queryByLabelText("Edit")).toBeNull()
@@ -57,14 +57,14 @@ describe("MobileTopRightBar", () => {
   })
 
   it("renders nothing when there are no view-options", () => {
-    const { queryByRole } = render(<MobileTopRightBar viewOptions={null} />)
+    const { queryByRole } = render(<EditorTopRightBar viewOptions={null} />)
     expect(queryByRole("toolbar")).toBeNull()
   })
 
   it("opens the menu with three checkbox items in order", async () => {
     setupRadixPolyfills()
     const { getByLabelText } = render(
-      <MobileTopRightBar viewOptions={defaultViewOptions()} />,
+      <EditorTopRightBar viewOptions={defaultViewOptions()} />,
     )
     openMenu(getByLabelText)
     await waitFor(() => {
@@ -82,7 +82,7 @@ describe("MobileTopRightBar", () => {
   it("reflects the unchecked state for items whose prop is false", async () => {
     setupRadixPolyfills()
     const { getByLabelText } = render(
-      <MobileTopRightBar
+      <EditorTopRightBar
         viewOptions={{ ...defaultViewOptions(), numbersLayerVisible: false }}
       />,
     )
@@ -104,7 +104,7 @@ describe("MobileTopRightBar", () => {
     setupRadixPolyfills()
     const opts = defaultViewOptions()
     const { getByLabelText } = render(
-      <MobileTopRightBar viewOptions={opts} />,
+      <EditorTopRightBar viewOptions={opts} />,
     )
     openMenu(getByLabelText)
     await waitFor(() => {
@@ -124,7 +124,7 @@ describe("MobileTopRightBar", () => {
   it("keeps the menu open after a toggle (preventDefault on select)", async () => {
     setupRadixPolyfills()
     const { getByLabelText } = render(
-      <MobileTopRightBar viewOptions={defaultViewOptions()} />,
+      <EditorTopRightBar viewOptions={defaultViewOptions()} />,
     )
     openMenu(getByLabelText)
     await waitFor(() => {
@@ -144,7 +144,7 @@ describe("MobileTopRightBar", () => {
   it("marks the Eye-button as pressed while the menu is open", async () => {
     setupRadixPolyfills()
     const { getByLabelText } = render(
-      <MobileTopRightBar viewOptions={defaultViewOptions()} />,
+      <EditorTopRightBar viewOptions={defaultViewOptions()} />,
     )
     expect(getByLabelText("View options").getAttribute("aria-pressed")).not.toBe("true")
     openMenu(getByLabelText)
@@ -156,20 +156,20 @@ describe("MobileTopRightBar", () => {
   describe("theme toggle", () => {
     it("renders the toggle with only a theme (no view-options) and renders nothing when both are absent", () => {
       const { getByLabelText, queryByLabelText, queryByRole, rerender } = render(
-        <MobileTopRightBar viewOptions={null} theme={{ value: "dark", onToggle: vi.fn() }} />,
+        <EditorTopRightBar viewOptions={null} theme={{ value: "dark", onToggle: vi.fn() }} />,
       )
       // Dark → offers "Switch to light theme"; no Eye when viewOptions is null.
       expect(getByLabelText("Switch to light theme")).not.toBeNull()
       expect(queryByLabelText("View options")).toBeNull()
       // Both absent → nothing.
-      rerender(<MobileTopRightBar viewOptions={null} theme={null} />)
+      rerender(<EditorTopRightBar viewOptions={null} theme={null} />)
       expect(queryByRole("toolbar")).toBeNull()
     })
 
     it("shows the Moon label while light and calls onToggle", () => {
       const onToggle = vi.fn()
       const { getByLabelText } = render(
-        <MobileTopRightBar viewOptions={null} theme={{ value: "light", onToggle }} />,
+        <EditorTopRightBar viewOptions={null} theme={{ value: "light", onToggle }} />,
       )
       const btn = getByLabelText("Switch to dark theme")
       fireEvent.click(btn)
@@ -178,7 +178,7 @@ describe("MobileTopRightBar", () => {
 
     it("shows both the Eye and the theme toggle on the trace case", () => {
       const { getByLabelText } = render(
-        <MobileTopRightBar viewOptions={defaultViewOptions()} theme={{ value: "dark", onToggle: vi.fn() }} />,
+        <EditorTopRightBar viewOptions={defaultViewOptions()} theme={{ value: "dark", onToggle: vi.fn() }} />,
       )
       expect(getByLabelText("View options")).not.toBeNull()
       expect(getByLabelText("Switch to light theme")).not.toBeNull()
@@ -188,14 +188,14 @@ describe("MobileTopRightBar", () => {
   describe("desktop variant", () => {
     it("keeps `md:hidden` by default (mobile-only callers unchanged)", () => {
       const { getByRole } = render(
-        <MobileTopRightBar viewOptions={defaultViewOptions()} />,
+        <EditorTopRightBar viewOptions={defaultViewOptions()} />,
       )
       expect(getByRole("toolbar").className).toContain("md:hidden")
     })
 
     it("drops `md:hidden` when desktop is set (bar stays visible on md+)", () => {
       const { getByRole } = render(
-        <MobileTopRightBar viewOptions={defaultViewOptions()} desktop />,
+        <EditorTopRightBar viewOptions={defaultViewOptions()} desktop />,
       )
       expect(getByRole("toolbar").className).not.toContain("md:hidden")
     })

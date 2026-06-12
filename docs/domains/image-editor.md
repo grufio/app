@@ -25,11 +25,11 @@ result. It splits into three layers: pure-math canvas model
   `ProjectEditorStage`, the floating section model
   (`EditorTopLeftBar` with a per-section "+" menu (`SectionFabMenu`)
   driving apply/edit, plus per-surface scopes → the trace
-  `MobileTraceSheet` and the artboard section's three standalone
-  dialogs `MobileArtboardSheet` (artboard size + page-background) /
-  `MobileGridSheet` / `MobileImageSheet`, each launched by its own
+  `TraceSheet` and the artboard section's three standalone
+  dialogs `ArtboardSheet` (artboard size + page-background) /
+  `GridSheet` / `ImageSheet`, each launched by its own
   artboard "+" frame and routed through `ArtboardSurfaceScope`'s
-  `activeDialog`; `MobileTopRightBar` now carries only Trace's
+  `activeDialog`; `EditorTopRightBar` now carries only Trace's
   Eye (view-options) — the old per-section Edit pencils and the
   desktop side-panels were removed), the form components for each
   filter (`pixelate-form.tsx`, `lineart-form.tsx`,

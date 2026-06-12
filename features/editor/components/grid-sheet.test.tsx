@@ -4,7 +4,7 @@
 import { cleanup, fireEvent, render } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { MobileGridSheet } from "./mobile-grid-sheet"
+import { GridSheet } from "./grid-sheet"
 
 // The GridPanel is loaded via next/dynamic and pulls in canvas plumbing;
 // stub it so the swap (Add-row ↔ panel) and close wiring are testable.
@@ -18,7 +18,7 @@ vi.mock("./grid-panel", () => ({
 
 afterEach(cleanup)
 
-function renderSheet(overrides: Partial<React.ComponentProps<typeof MobileGridSheet>> = {}) {
+function renderSheet(overrides: Partial<React.ComponentProps<typeof GridSheet>> = {}) {
   const props = {
     onClose: vi.fn(),
     hasGrid: false,
@@ -28,10 +28,10 @@ function renderSheet(overrides: Partial<React.ComponentProps<typeof MobileGridSh
     onGridDeleteRequested: vi.fn(),
     ...overrides,
   }
-  return { props, ...render(<MobileGridSheet {...props} />) }
+  return { props, ...render(<GridSheet {...props} />) }
 }
 
-describe("MobileGridSheet", () => {
+describe("GridSheet", () => {
   it("shows the Add-Grid row when no grid exists", () => {
     const { props, getByLabelText, queryByTestId } = renderSheet({ hasGrid: false })
     expect(queryByTestId("grid-panel")).toBeNull()

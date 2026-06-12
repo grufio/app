@@ -3,7 +3,7 @@
 /**
  * Mobile-only scope for the artboard surface. Owns its `activeDialog`
  * state and renders one of the three standalone artboard dialogs
- * (`MobileArtboardSheet` / `MobileGridSheet` / `MobileImageSheet`). The
+ * (`ArtboardSheet` / `GridSheet` / `ImageSheet`). The
  * artboard surface has no dialog session (no `useFilterDialogSession` /
  * `useTraceDialogSession` analogue) — this scope exists to give
  * artboard the same lifecycle-is-dismissal property as the other
@@ -14,20 +14,20 @@
  * `pendingDialog` cross-mount channel (the frame you tap — Artboard/Page,
  * Grid, or Image — selects which sheet renders).
  *
- * Mounted on `mobileSection === "artboard"` for both viewports. The
+ * Mounted on `editorSection === "artboard"` for both viewports. The
  * `desktop` flag flips each sheet from the mobile fullscreen variant to
  * a bounded floating card on `md+`.
  */
 import { useEffect, useState, type ComponentProps } from "react"
 
-import { MobileArtboardSheet } from "@/features/editor/components/mobile-artboard-sheet"
-import { MobileGridSheet } from "@/features/editor/components/mobile-grid-sheet"
-import { MobileImageSheet } from "@/features/editor/components/mobile-image-sheet"
-import type { ArtboardDialog } from "@/lib/editor/mobile-sections"
+import { ArtboardSheet } from "@/features/editor/components/artboard-sheet"
+import { GridSheet } from "@/features/editor/components/grid-sheet"
+import { ImageSheet } from "@/features/editor/components/image-sheet"
+import type { ArtboardDialog } from "@/lib/editor/editor-sections"
 
-type ArtboardSheetProps = Omit<ComponentProps<typeof MobileArtboardSheet>, "onClose" | "desktop">
-type GridSheetProps = Omit<ComponentProps<typeof MobileGridSheet>, "onClose" | "desktop">
-type ImageSheetProps = Omit<ComponentProps<typeof MobileImageSheet>, "onClose" | "desktop">
+type ArtboardSheetProps = Omit<ComponentProps<typeof ArtboardSheet>, "onClose" | "desktop">
+type GridSheetProps = Omit<ComponentProps<typeof GridSheet>, "onClose" | "desktop">
+type ImageSheetProps = Omit<ComponentProps<typeof ImageSheet>, "onClose" | "desktop">
 
 export type ArtboardSurfaceScopeProps = ArtboardSheetProps &
   GridSheetProps &
@@ -62,7 +62,7 @@ export function ArtboardSurfaceScope({
   switch (activeDialog) {
     case "artboard":
       return (
-        <MobileArtboardSheet
+        <ArtboardSheet
           desktop={desktop}
           onClose={close}
           canFit={props.canFit}
@@ -77,7 +77,7 @@ export function ArtboardSurfaceScope({
       )
     case "grid":
       return (
-        <MobileGridSheet
+        <GridSheet
           desktop={desktop}
           onClose={close}
           hasGrid={props.hasGrid}
@@ -89,7 +89,7 @@ export function ArtboardSurfaceScope({
       )
     case "image":
       return (
-        <MobileImageSheet
+        <ImageSheet
           desktop={desktop}
           onClose={close}
           projectId={props.projectId}

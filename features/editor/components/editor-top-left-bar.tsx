@@ -6,14 +6,14 @@
  *
  *   1. Standalone Home pill — links to `/dashboard`
  *   2. Group pill — four section icons (Image / Filter / Trace / Color)
- *      that switch the active `MobileSection`
+ *      that switch the active `EditorSection`
  *
  * The bar is **viewport-agnostic** — mounted on both mobile and desktop.
  *
- * "Image" label vs `artboard` section key: the `MobileSection` tuple
+ * "Image" label vs `artboard` section key: the `EditorSection` tuple
  * (`["artboard", "filter", "trace", "colors"]`) is unchanged — only
  * the user-facing label says "Image". Renaming the key would ripple
- * through `mobile-sections.ts` plus the display-layer plumbing, out
+ * through `editor-sections.ts` plus the display-layer plumbing, out
  * of scope for this bar.
  *
  * Trace and Filter each get a floating "+" kind-menu (`SectionFabMenu`),
@@ -45,7 +45,7 @@ import {
 } from "lucide-react"
 
 import type { RegisteredFilterId } from "@/lib/editor/filters/registry"
-import type { ArtboardDialog, MobileSection } from "@/lib/editor/mobile-sections"
+import type { ArtboardDialog, EditorSection } from "@/lib/editor/editor-sections"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
 
 import { useEditorToolbarTone } from "./editor-toolbar-tone"
@@ -54,7 +54,7 @@ import { SectionFabMenu, type FabMenuItem } from "./section-fab-menu"
 import { ToolbarIconButton } from "./toolbar-icon-button"
 
 type SectionItem = {
-  key: MobileSection
+  key: EditorSection
   label: string
   Icon: LucideIcon
 }
@@ -85,8 +85,8 @@ const FILTER_KIND_ITEMS: FilterKindItem[] = [
 ]
 
 type Props = {
-  activeSection?: MobileSection | null
-  onSectionTap?: (section: MobileSection) => void
+  activeSection?: EditorSection | null
+  onSectionTap?: (section: EditorSection) => void
   /** Fired when the user picks a trace kind from the menu. The shell wires
    * this to open the matching configure dialog directly. */
   onTraceKindTap?: (kind: RegisteredTraceId) => void

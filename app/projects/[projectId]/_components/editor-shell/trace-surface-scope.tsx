@@ -10,13 +10,13 @@
  * shell so it's available on every section.
  *
  * Lifecycle IS dismissal: the shell mounts this scope only while the
- * trace surface is active (`mobileSection === "trace"`); switching
+ * trace surface is active (`editorSection === "trace"`); switching
  * surfaces unmounts it, so the dialog/sheet state dies without an
  * effect-based reset.
  */
 import { useCallback, useEffect, useMemo, useState } from "react"
 
-import { MobileTraceSheet } from "@/features/editor/components/mobile-trace-sheet"
+import { TraceSheet } from "@/features/editor/components/trace-sheet"
 import type { TraceDialogSourceImage, TraceKind } from "@/lib/editor/hooks/use-trace-dialog-session"
 import { useTraceDialogSession } from "@/lib/editor/hooks/use-trace-dialog-session"
 import { useMutationLeaveGuard } from "@/lib/editor/hooks/use-mutation-leave-guard"
@@ -119,7 +119,7 @@ export function TraceSurfaceScope(props: TraceSurfaceScopeProps) {
       {/* The top-right bar (theme toggle + the Eye view-options for trace)
           is mounted by the shell now, so it shows on every section. */}
       {editOpen ? (
-        <MobileTraceSheet
+        <TraceSheet
           desktop={props.desktop}
           onClose={() => setEditOpen(false)}
           trace={props.trace}

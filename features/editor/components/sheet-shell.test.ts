@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest"
 
-import { mobileSheetRootClass } from "./mobile-sheet-shell"
+import { sheetRootClass } from "./sheet-shell"
 
-describe("mobileSheetRootClass", () => {
+describe("sheetRootClass", () => {
   it("mobile (default) is a fullscreen overlay hidden on md+", () => {
-    const cls = mobileSheetRootClass(false)
+    const cls = sheetRootClass(false)
     expect(cls).toContain("absolute")
     expect(cls).toContain("inset-0")
     expect(cls).toContain("md:hidden")
@@ -13,11 +13,11 @@ describe("mobileSheetRootClass", () => {
   })
 
   it("undefined behaves like mobile (fullscreen, md:hidden)", () => {
-    expect(mobileSheetRootClass(undefined)).toContain("md:hidden")
+    expect(sheetRootClass(undefined)).toContain("md:hidden")
   })
 
   it("desktop variant drops md:hidden and adds the bounded floating card", () => {
-    const cls = mobileSheetRootClass(true)
+    const cls = sheetRootClass(true)
     expect(cls).not.toContain("md:hidden")
     // Bounded card anchored under the top-right bar.
     expect(cls).toContain("md:inset-auto")

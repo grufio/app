@@ -1,14 +1,14 @@
 "use client"
 
 /**
- * Mobile full-screen Trace sheet.
+ * Editor Trace sheet (full-screen on mobile, bounded card on desktop).
  *
  * Hosts the active-trace row + add / clear actions (same content as
  * the desktop left-panel `TraceSidebarSection`). Opens via the Trace
  * icon in the editor's bottom-nav.
  *
  * Layer-visibility toggles (Trace / Preview / Numbers) live in the
- * `MobileTopRightBar`'s Eye menu on the editor canvas, not in this
+ * `EditorTopRightBar`'s Eye menu on the editor canvas, not in this
  * sheet — that's a one-tap action surface for a frequently-toggled
  * control, instead of a sheet open + scroll.
  *
@@ -27,11 +27,11 @@ import { SidebarFrame } from "@/components/navigation/SidebarFrame"
 import { SidebarContent } from "@/components/ui/sidebar"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
 
-import { mobileSheetRootClass } from "./mobile-sheet-shell"
+import { sheetRootClass } from "./sheet-shell"
 import { SheetHeader } from "./sheet-chrome"
 import { TraceSidebarSection } from "./trace-sidebar-section"
 
-export function MobileTraceSheet(props: {
+export function TraceSheet(props: {
   onClose: () => void
   /** Desktop variant — bounded floating card instead of fullscreen. */
   desktop?: boolean
@@ -54,7 +54,7 @@ export function MobileTraceSheet(props: {
   } = props
 
   return (
-    <section aria-label="Trace" className={mobileSheetRootClass(desktop)}>
+    <section aria-label="Trace" className={sheetRootClass(desktop)}>
       <SheetHeader title="Trace" onClose={onClose} />
 
       <SidebarFrame className="block min-h-0 flex-1">
