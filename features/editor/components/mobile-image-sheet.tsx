@@ -19,15 +19,15 @@
  * are portaled, so actions from inside the sheet open them cleanly.
  */
 import dynamic from "next/dynamic"
-import { ImageIcon, X } from "lucide-react"
+import { ImageIcon } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
 import type { UploadedMasterSnapshot } from "@/lib/editor/upload-master-image"
 import type { Unit } from "@/lib/editor/units"
 
 import { AddImageMenuAction } from "./add-image-menu-button"
 import { mobileSheetRootClass } from "./mobile-sheet-shell"
 import type { ProjectCanvasStageHandle } from "./project-canvas-stage"
+import { SheetAddRow, SheetHeader } from "./sheet-chrome"
 
 const ImagePanel = dynamic(() => import("./image-panel").then((m) => m.ImagePanel), {
   ssr: false,
@@ -86,18 +86,7 @@ export function MobileImageSheet(props: {
 
   return (
     <section aria-label="Image" className={mobileSheetRootClass(desktop)}>
-      <header className="flex shrink-0 items-center justify-between border-b bg-background px-4 py-3">
-        <h2 className="text-sm font-semibold">Image</h2>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label="Close"
-          onClick={onClose}
-        >
-          <X aria-hidden="true" className="size-5" />
-        </Button>
-      </header>
+      <SheetHeader title="Image" onClose={onClose} />
 
       <div className="flex-1 overflow-y-auto">
         {hasMasterImage ? (
@@ -121,11 +110,9 @@ export function MobileImageSheet(props: {
             onDelete={onRequestDelete}
           />
         ) : (
-          <div className="relative flex items-center gap-2 border-b px-3 py-2 text-xs">
-            <ImageIcon className="size-4 shrink-0" />
-            <span>Image</span>
+          <SheetAddRow Icon={ImageIcon} label="Image">
             <AddImageMenuAction projectId={projectId} onUploaded={onImageUploaded} />
-          </div>
+          </SheetAddRow>
         )}
       </div>
     </section>
