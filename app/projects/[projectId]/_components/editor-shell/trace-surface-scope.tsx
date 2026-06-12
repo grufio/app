@@ -24,10 +24,6 @@ import { useMutationLeaveGuard } from "@/lib/editor/hooks/use-mutation-leave-gua
 import { EditorTraceDialogHost } from "./editor-trace-dialog-host"
 
 export type TraceSurfaceScopeProps = {
-  /** Legacy variant marker — retained as `"mobile"` only so existing
-   * call sites stay explicit. Both viewports render the same chrome
-   * now; styling is driven by `desktop`. */
-  intent: "mobile"
   /** When true, the Edit/Eye bar + sheet render their desktop variant
    * (no `md:hidden`, bounded floating card). Default false → the
    * unchanged mobile fullscreen behaviour. */
