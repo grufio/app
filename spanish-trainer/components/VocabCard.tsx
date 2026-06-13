@@ -2,6 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import type { Question } from "@/lib/choices";
+import { spanishSpeechText } from "@/lib/pronunciation";
 import { SpeakerButton } from "./SpeakerButton";
 
 const DIRECTION_LABEL: Record<Question["direction"], string> = {
@@ -44,7 +45,7 @@ export function VocabCard({
         </h1>
       </div>
 
-      <SpeakerButton text={item.es} disabled={speakerDisabled} />
+      <SpeakerButton text={spanishSpeechText(item.es)} disabled={speakerDisabled} />
 
       {item.needsCheck && (
         <span
