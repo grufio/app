@@ -31,7 +31,7 @@ function conjugation(
   }));
 }
 
-export const unidad5: VocabItem[] = [
+const RAW: VocabItem[] = [
   // ── Seite 216, Spalte 1 ───────────────────────────────────────────────
   {
     id: "persona",
@@ -595,3 +595,54 @@ export const unidad5: VocabItem[] = [
     ["dan", "sie geben"],
   ]),
 ];
+
+/**
+ * Coarse themes for the first (vaguest) hint layer. Only confidently thematic
+ * entries are listed; everything else falls back to just the word type.
+ */
+const TOPICS: Record<string, string> = {
+  // Essen
+  desayuno: "Essen",
+  desayunar: "Essen",
+  cereales: "Essen",
+  fruta: "Essen",
+  pan: "Essen",
+  queso: "Essen",
+  mantequilla: "Essen",
+  mermelada: "Essen",
+  fiambre: "Essen",
+  // Schule
+  pizarra: "Schule",
+  aula: "Schule",
+  laboratorio: "Schule",
+  biblioteca: "Schule",
+  informatica: "Schule",
+  "aula-informatica": "Schule",
+  secretaria: "Schule",
+  patio: "Schule",
+  economia: "Schule",
+  matematicas: "Schule",
+  "educacion-fisica": "Schule",
+  "lengua-literatura": "Schule",
+  historia: "Schule",
+  dibujo: "Schule",
+  filosofia: "Schule",
+  asignatura: "Schule",
+  horario: "Schule",
+  recreo: "Schule",
+  examen: "Schule",
+  pregunta: "Schule",
+  // Technik
+  internet: "Technik",
+  conexion: "Technik",
+  // Alltag / Dinge
+  persona: "Alltag",
+  cosa: "Alltag",
+  agujero: "Alltag",
+  mano: "Körper",
+  zapato: "Kleidung",
+};
+
+export const unidad5: VocabItem[] = RAW.map((item) =>
+  TOPICS[item.id] ? { ...item, topic: TOPICS[item.id] } : item,
+);

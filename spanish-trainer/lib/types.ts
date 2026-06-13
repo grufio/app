@@ -16,6 +16,8 @@ export interface VocabItem {
   type: WordType;
   /** Article for nouns. */
   article?: "el" | "la" | "los" | "las";
+  /** Coarse theme used as the first, vaguest hint (e.g. "Essen", "Schule"). */
+  topic?: string;
   /** Optional example sentence used by the hint panel. */
   example?: { es: string; de: string };
   // Conjugation-only metadata:

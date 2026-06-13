@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, MotionConfig } from "framer-motion";
 
 import { unidad5 } from "@/data/unidad5";
-import { useTrainer } from "@/lib/useTrainer";
+import { FREE_HINTS, useTrainer } from "@/lib/useTrainer";
 import { loadHighScore, saveHighScore } from "@/lib/scoring";
 import { playCue, setMuted } from "@/lib/sfx";
 
@@ -18,6 +18,7 @@ import { HintPanel } from "@/components/HintPanel";
 import { LevelUpToast } from "@/components/LevelUpToast";
 import { ResultScreen } from "@/components/ResultScreen";
 import { RestartScreen } from "@/components/RestartScreen";
+import { WorkoutGate } from "@/components/WorkoutGate";
 
 export default function Home() {
   const { state, dispatch, multiplier } = useTrainer(unidad5);
@@ -27,6 +28,33 @@ export default function Home() {
   const [highScore, setHighScore] = useState(0);
   const [isNewBest, setIsNewBest] = useState(false);
   const finishedRef = useRef<number | null>(null);
+
+  // Hint budget: first FREE_HINTS per session are free, then a workout gate.
+  const [gateOpen, setGateOpen] = useState(false);
+  const pendingRevealRef = useRef<(() => void) | null>(null);
+  const freeLeft = Math.max(0, FREE_HINTS - state.hintsUsed);
+
+  function requestHint(reveal: () => void) {
+    if (state.hintsUsed < FREE_HINTS) {
+      dispatch({ type: "USE_HINT" });
+      reveal();
+    } else {
+      pendingRevealRef.current = reveal;
+      setGateOpen(true);
+    }
+  }
+
+  function completeWorkout() {
+    dispatch({ type: "USE_HINT" });
+    pendingRevealRef.current?.();
+    pendingRevealRef.current = null;
+    setGateOpen(false);
+  }
+
+  function cancelWorkout() {
+    pendingRevealRef.current = null;
+    setGateOpen(false);
+  }
 
   useEffect(() => setHighScore(loadHighScore().score), []);
   useEffect(() => setMuted(!soundOn), [soundOn]);
@@ -110,7 +138,12 @@ export default function Home() {
                 />
               </AnimatePresence>
 
-              <HintPanel item={question.item} direction={question.direction} />
+              <HintPanel
+                item={question.item}
+                direction={question.direction}
+                freeLeft={freeLeft}
+                onHintRequest={requestHint}
+              />
 
               <AnswerOptions
                 options={question.options}
@@ -128,6 +161,12 @@ export default function Home() {
                 level={state.level}
                 onContinue={() => dispatch({ type: "DISMISS_LEVELUP" })}
               />
+            )}
+          </AnimatePresence>
+
+          <AnimatePresence>
+            {gateOpen && (
+              <WorkoutGate onComplete={completeWorkout} onCancel={cancelWorkout} />
             )}
           </AnimatePresence>
         </div>

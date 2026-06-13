@@ -93,4 +93,13 @@ describe("trainerReducer", () => {
     expect(s.status).toBe("won");
     expect(s.score).toBeGreaterThan(0);
   });
+
+  it("USE_HINT increments hintsUsed; restart and init reset it", () => {
+    let s = createInitialState(items, 1);
+    expect(s.hintsUsed).toBe(0);
+    s = trainerReducer(s, { type: "USE_HINT" });
+    s = trainerReducer(s, { type: "USE_HINT" });
+    expect(s.hintsUsed).toBe(2);
+    expect(trainerReducer(s, { type: "RESTART" }).hintsUsed).toBe(0);
+  });
 });
