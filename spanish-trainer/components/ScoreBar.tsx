@@ -1,5 +1,7 @@
 "use client";
 
+import { Trophy } from "lucide-react";
+
 export function ScoreBar({
   score,
   level,
@@ -25,7 +27,9 @@ export function ScoreBar({
           <span className="rounded-md bg-indigo-500/20 px-2 py-0.5 font-semibold text-indigo-300">
             Level {level}
           </span>
-          <span className="tabular-nums" title="Bestwert">🏆 {highScore}</span>
+          <span className="flex items-center gap-1 tabular-nums" title="Bestwert">
+            <Trophy className="h-4 w-4" aria-hidden /> {highScore}
+          </span>
         </div>
       </div>
       <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-700/60">

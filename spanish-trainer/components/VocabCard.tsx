@@ -2,6 +2,8 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import type { Question } from "@/lib/choices";
+import { TriangleAlert } from "lucide-react";
+import { spanishSpeechText } from "@/lib/pronunciation";
 import { SpeakerButton } from "./SpeakerButton";
 
 const DIRECTION_LABEL: Record<Question["direction"], string> = {
@@ -44,14 +46,14 @@ export function VocabCard({
         </h1>
       </div>
 
-      <SpeakerButton text={item.es} disabled={speakerDisabled} />
+      <SpeakerButton text={spanishSpeechText(item.es)} disabled={speakerDisabled} />
 
       {item.needsCheck && (
         <span
           title="Transkription noch zu prüfen"
           className="absolute right-3 top-3 text-amber-400/70"
         >
-          ⚠️
+          <TriangleAlert className="h-4 w-4" aria-hidden />
         </span>
       )}
 

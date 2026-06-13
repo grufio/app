@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { motion } from "framer-motion";
 import confetti from "canvas-confetti";
+import { Trophy } from "lucide-react";
 
 export function ResultScreen({
   score,
@@ -35,7 +36,7 @@ export function ResultScreen({
       animate={{ opacity: 1, scale: 1 }}
       className="flex flex-col items-center gap-4 rounded-3xl border border-emerald-400/40 bg-slate-900/80 px-8 py-12 text-center shadow-2xl"
     >
-      <span className="text-6xl">🏆</span>
+      <Trophy className="h-16 w-16 text-emerald-300" aria-hidden />
       <h2 className="text-3xl font-extrabold text-white">¡Muy bien!</h2>
       <p className="text-slate-300">Du hast alle Vokabeln geschafft.</p>
       <p className="text-5xl font-black tabular-nums text-emerald-300">{score}</p>

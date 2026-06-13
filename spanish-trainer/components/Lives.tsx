@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { Heart } from "lucide-react";
 import { MAX_MISTAKES } from "@/lib/useTrainer";
 
 export function Lives({ lives }: { lives: number }) {
@@ -11,11 +12,18 @@ export function Lives({ lives }: { lives: number }) {
         return (
           <motion.span
             key={i}
-            className="text-xl leading-none"
-            animate={{ scale: alive ? 1 : 0.85, opacity: alive ? 1 : 0.25 }}
+            className="leading-none"
+            animate={{ scale: alive ? 1 : 0.85, opacity: alive ? 1 : 0.35 }}
             transition={{ type: "spring", stiffness: 400, damping: 20 }}
           >
-            {alive ? "❤️" : "🤍"}
+            <Heart
+              className={
+                alive
+                  ? "h-5 w-5 fill-rose-500 text-rose-500"
+                  : "h-5 w-5 text-slate-600"
+              }
+              aria-hidden
+            />
           </motion.span>
         );
       })}
