@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { PartyPopper } from "lucide-react";
 
 export function LevelUpToast({
   level,
@@ -23,7 +24,7 @@ export function LevelUpToast({
         transition={{ type: "spring", stiffness: 320, damping: 18 }}
         className="flex flex-col items-center gap-3 rounded-3xl border border-indigo-400/40 bg-slate-900 px-10 py-8 text-center shadow-2xl"
       >
-        <span className="text-5xl">🎉</span>
+        <PartyPopper className="h-12 w-12 text-indigo-300" aria-hidden />
         <p className="text-sm uppercase tracking-widest text-indigo-300">Checkpoint</p>
         <p className="text-2xl font-extrabold text-white">Level {level}!</p>
         <button

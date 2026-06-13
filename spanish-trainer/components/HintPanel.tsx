@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { Direction, VocabItem } from "@/lib/types";
 import { hintLayers } from "@/lib/hints";
+import { Lightbulb } from "lucide-react";
 
 export function HintPanel({
   item,
@@ -26,9 +27,10 @@ export function HintPanel({
         type="button"
         onClick={() => setRevealed((n) => Math.min(n + 1, layers.length))}
         disabled={!more}
-        className="rounded-full border border-amber-400/40 bg-amber-400/10 px-4 py-1.5 text-sm font-medium text-amber-200 transition hover:bg-amber-400/20 active:scale-95 disabled:opacity-40"
+        className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/40 bg-amber-400/10 px-4 py-1.5 text-sm font-medium text-amber-200 transition hover:bg-amber-400/20 active:scale-95 disabled:opacity-40"
       >
-        💡 {revealed === 0 ? "Hinweis" : more ? "Mehr Hinweis" : "Kein Hinweis mehr"}
+        <Lightbulb className="h-4 w-4" aria-hidden />
+        {revealed === 0 ? "Hinweis" : more ? "Mehr Hinweis" : "Kein Hinweis mehr"}
       </button>
 
       <div className="flex min-h-[1.5rem] flex-col items-center gap-1">

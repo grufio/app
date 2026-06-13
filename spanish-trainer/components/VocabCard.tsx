@@ -2,6 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import type { Question } from "@/lib/choices";
+import { TriangleAlert } from "lucide-react";
 import { spanishSpeechText } from "@/lib/pronunciation";
 import { SpeakerButton } from "./SpeakerButton";
 
@@ -52,7 +53,7 @@ export function VocabCard({
           title="Transkription noch zu prüfen"
           className="absolute right-3 top-3 text-amber-400/70"
         >
-          ⚠️
+          <TriangleAlert className="h-4 w-4" aria-hidden />
         </span>
       )}
 

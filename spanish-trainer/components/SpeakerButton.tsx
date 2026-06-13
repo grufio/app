@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Volume2 } from "lucide-react";
 import { speak, speechSupported } from "@/lib/speech";
 
 export function SpeakerButton({
@@ -24,9 +25,9 @@ export function SpeakerButton({
       disabled={disabled}
       aria-label={label}
       title={label}
-      className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-slate-600 bg-slate-800/70 text-2xl transition hover:bg-slate-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-30"
+      className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-slate-600 bg-slate-800/70 transition hover:bg-slate-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-30"
     >
-      🔊
+      <Volume2 className="h-6 w-6" aria-hidden />
     </button>
   );
 }
