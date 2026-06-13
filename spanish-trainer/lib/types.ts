@@ -15,7 +15,7 @@ export interface VocabItem {
   de: string;
   type: WordType;
   /** Article for nouns. */
-  article?: "el" | "la";
+  article?: "el" | "la" | "los" | "las";
   /** Optional example sentence used by the hint panel. */
   example?: { es: string; de: string };
   // Conjugation-only metadata:
