@@ -67,6 +67,10 @@ const eslintConfig = defineConfig([
   },
   // Override default ignores of eslint-config-next.
   globalIgnores([
+    // Self-contained sub-app: spanish-trainer/ ships its own eslint /
+    // tsconfig / vitest config and is built as a separate Vercel project.
+    // Keep gruf's repo-wide lint (with its stricter rule set) out of it.
+    "spanish-trainer/**",
     // Default ignores of eslint-config-next:
     ".next/**",
     "out/**",

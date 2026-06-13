@@ -1,0 +1,47 @@
+## Spanish-Trainer production deploy
+#
+# Mirrors the gruf.io deploy pattern: production deploys are triggered by
+# POSTing to a Vercel Deploy Hook (no auto-deploy on push), so the Vercel
+# project should have "Ignored Build Step: exit 0" set like the main app.
+#
+# Unlike the main app this has no database, so there is no migration gate —
+# the workflow simply pokes the hook when spanish-trainer/** changes on main.
+#
+# One-time setup (Vercel dashboard, needs an account — cannot be scripted here):
+# - Create a Vercel project from grufio/app with Root Directory = spanish-trainer.
+# - Settings → Git → Deploy Hooks: create a hook (e.g. branch "main").
+# - Add the hook URL as the repo secret SPANISH_TRAINER_VERCEL_DEPLOY_HOOK.
+name: Deploy Spanish Trainer
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "spanish-trainer/**"
+      - ".github/workflows/deploy-spanish-trainer.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-spanish-trainer-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger Vercel production deploy
+        env:
+          HOOK: ${{ secrets.SPANISH_TRAINER_VERCEL_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "SPANISH_TRAINER_VERCEL_DEPLOY_HOOK not set — skipping Vercel trigger."
+            echo "Add the deploy hook secret to enable production deploys."
+            exit 0
+          fi
+          echo "Triggering Vercel deploy hook…"
+          curl -fsSL -X POST "$HOOK" -o /dev/null
+          echo "Deploy hook fired."
