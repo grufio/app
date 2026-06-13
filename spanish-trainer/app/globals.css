@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background:
+    radial-gradient(120% 90% at 50% -10%, #1e293b 0%, #0f172a 55%, #020617 100%);
+  color: #e2e8f0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Disable text selection on game controls for a more app-like feel. */
+button {
+  user-select: none;
+}
