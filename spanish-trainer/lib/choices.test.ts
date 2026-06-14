@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { buildQuestion, NUM_OPTIONS, pickDirection } from "./choices";
+import {
+  buildQuestion,
+  isTypeable,
+  NUM_OPTIONS,
+  pickDirection,
+  pickMode,
+} from "./choices";
 import { mulberry32 } from "./rng";
 import type { VocabItem } from "./types";
 
@@ -47,5 +53,37 @@ describe("buildQuestion", () => {
 
   it("pickDirection is stable per seed+index", () => {
     expect(pickDirection(7, 0)).toBe(pickDirection(7, 0));
+  });
+});
+
+describe("pickMode / isTypeable", () => {
+  const noun = pool[0]; // "el gato" / "die Katze" — single word both ways
+
+  it("stays choice-only before level 3", () => {
+    expect(pickMode(1, noun, "es-de", 1, 0)).toBe("choice");
+    expect(pickMode(2, noun, "es-de", 1, 0)).toBe("choice");
+  });
+
+  it("can type single-word targets from level 3", () => {
+    const modes = Array.from({ length: 30 }, (_, i) => pickMode(5, noun, "es-de", 1, i));
+    expect(modes).toContain("type");
+  });
+
+  it("never types multi-word phrases", () => {
+    const phrase: VocabItem = {
+      id: "p",
+      es: "por ejemplo",
+      de: "zum Beispiel",
+      type: "phrase",
+      unit: 5,
+    };
+    expect(isTypeable(phrase, "es-de")).toBe(false);
+    const modes = Array.from({ length: 30 }, (_, i) => pickMode(5, phrase, "es-de", 1, i));
+    expect(modes.every((m) => m === "choice")).toBe(true);
+  });
+
+  it("isTypeable is true for single-word targets in both directions", () => {
+    expect(isTypeable(noun, "es-de")).toBe(true);
+    expect(isTypeable(noun, "de-es")).toBe(true);
   });
 });

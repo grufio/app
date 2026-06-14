@@ -6,6 +6,7 @@ import { AnimatePresence, MotionConfig } from "framer-motion";
 import { unidad5 } from "@/data/unidad5";
 import { FREE_HINTS, useTrainer } from "@/lib/useTrainer";
 import { loadHighScore, saveHighScore } from "@/lib/scoring";
+import { loadSrs, recordResult, saveSrs } from "@/lib/srs";
 import { playCue, setMuted } from "@/lib/sfx";
 
 import { ScoreBar } from "@/components/ScoreBar";
@@ -19,6 +20,7 @@ import { LevelUpToast } from "@/components/LevelUpToast";
 import { ResultScreen } from "@/components/ResultScreen";
 import { RestartScreen } from "@/components/RestartScreen";
 import { WorkoutGate } from "@/components/WorkoutGate";
+import { TypeInput } from "@/components/TypeInput";
 
 export default function Home() {
   const { state, dispatch, multiplier } = useTrainer(unidad5);
@@ -27,6 +29,7 @@ export default function Home() {
   const [animationsOn, setAnimationsOn] = useState(true);
   const [highScore, setHighScore] = useState(0);
   const [isNewBest, setIsNewBest] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const finishedRef = useRef<number | null>(null);
 
   // Hint budget: first FREE_HINTS per session are free, then a workout gate.
@@ -56,6 +59,7 @@ export default function Home() {
     setGateOpen(false);
   }
 
+  useEffect(() => setMounted(true), []);
   useEffect(() => setHighScore(loadHighScore().score), []);
   useEffect(() => setMuted(!soundOn), [soundOn]);
 
@@ -63,6 +67,9 @@ export default function Home() {
   useEffect(() => {
     if (state.status === "answered") {
       playCue(state.lastCorrect ? "correct" : "wrong");
+      if (state.lastResult) {
+        saveSrs(recordResult(loadSrs(), state.question.item.id, state.lastResult));
+      }
     } else if (state.status === "levelup") {
       playCue("levelup");
     } else if (state.status === "won" || state.status === "gameover") {
@@ -83,6 +90,14 @@ export default function Home() {
   }, [state.status, state.index]);
 
   const { question } = state;
+
+  if (!mounted) {
+    return (
+      <main className="flex min-h-dvh items-center justify-center text-ink-soft">
+        Lädt…
+      </main>
+    );
+  }
 
   return (
     <MotionConfig reducedMotion={animationsOn ? "user" : "always"}>
@@ -145,13 +160,22 @@ export default function Home() {
                 onHintRequest={requestHint}
               />
 
-              <AnswerOptions
-                options={question.options}
-                answer={question.answer}
-                selected={state.selected}
-                answered={state.status === "answered"}
-                onSelect={(option) => dispatch({ type: "ANSWER", option })}
-              />
+              {question.mode === "type" ? (
+                <TypeInput
+                  key={question.item.id + state.index}
+                  answer={question.answer}
+                  direction={question.direction}
+                  onResult={(result) => dispatch({ type: "ANSWER_TYPED", result })}
+                />
+              ) : (
+                <AnswerOptions
+                  options={question.options}
+                  answer={question.answer}
+                  selected={state.selected}
+                  answered={state.status === "answered"}
+                  onSelect={(option) => dispatch({ type: "ANSWER", option })}
+                />
+              )}
             </div>
           )}
 
