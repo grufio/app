@@ -79,3 +79,22 @@ export const TESTS: TestDef[] = [
 export function testById(id: string | null | undefined): TestDef {
   return TESTS.find((test) => test.id === id) ?? TESTS[0];
 }
+
+export interface PhysikArea {
+  slug: string;
+  label: string;
+  topic: PhysikTopic;
+}
+
+/** Top-level physics areas (each groups several mc sub-area tests). */
+export const PHYSIK_AREAS: PhysikArea[] = [
+  { slug: "optik", label: "Optik", topic: "Optik" },
+  { slug: "akustik", label: "Akustik", topic: "Akustik" },
+  { slug: "strom", label: "Elektrischer Stromkreis", topic: "Stromkreis" },
+  { slug: "magnetismus", label: "Magnetismus", topic: "Magnetismus" },
+  { slug: "groessen", label: "Größen & Messen", topic: "Größen" },
+];
+
+export function areaBySlug(slug: string | null | undefined): PhysikArea | undefined {
+  return PHYSIK_AREAS.find((area) => area.slug === slug);
+}
