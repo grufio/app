@@ -9,14 +9,17 @@ import { migrateLegacy, setActiveUser, USERS, type UserId } from "@/lib/user";
 export default function Home() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
-  const [counts, setCounts] = useState<Record<UserId, number>>({ admin: 0, q: 0 });
+  const [counts, setCounts] = useState<Record<UserId, number>>(
+    () => Object.fromEntries(USERS.map((u) => [u.id, 0])) as Record<UserId, number>,
+  );
 
   useEffect(() => {
     migrateLegacy();
-    setCounts({
-      admin: totalAnswered(loadSrs("admin")),
-      q: totalAnswered(loadSrs("q")),
-    });
+    setCounts(
+      Object.fromEntries(
+        USERS.map((u) => [u.id, totalAnswered(loadSrs(u.id))]),
+      ) as Record<UserId, number>,
+    );
     setMounted(true);
   }, []);
 
@@ -28,7 +31,7 @@ export default function Home() {
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-8 px-4 py-10">
       <header className="text-center">
-        <h1 className="text-2xl font-semibold text-ink">Spanisch-Trainer</h1>
+        <h1 className="text-2xl font-semibold text-ink">Trainer</h1>
         <p className="mt-1 text-ink-soft">Wer übt?</p>
       </header>
 

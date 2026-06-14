@@ -5,7 +5,7 @@ import Link from "next/link";
 import { AnimatePresence, MotionConfig } from "framer-motion";
 
 import type { TestDef } from "@/lib/tests";
-import { useMcTrainer } from "@/lib/useMcTrainer";
+import { FREE_HINTS, useTrainer } from "@/lib/useTrainer";
 import { loadHighScore, saveHighScore } from "@/lib/scoring";
 import { loadSrs, recordResult, saveSrs } from "@/lib/srs";
 import { playCue, setMuted } from "@/lib/sfx";
@@ -14,14 +14,17 @@ import { ScoreBar } from "@/components/ScoreBar";
 import { Lives } from "@/components/Lives";
 import { ComboMeter } from "@/components/ComboMeter";
 import { SettingsToggle } from "@/components/SettingsToggle";
-import { StemCard } from "@/components/StemCard";
+import { VocabCard } from "@/components/VocabCard";
 import { AnswerOptions } from "@/components/AnswerOptions";
+import { HintPanel } from "@/components/HintPanel";
 import { LevelUpToast } from "@/components/LevelUpToast";
 import { ResultScreen } from "@/components/ResultScreen";
 import { RestartScreen } from "@/components/RestartScreen";
+import { WorkoutGate } from "@/components/WorkoutGate";
+import { TypeInput } from "@/components/TypeInput";
 
-export function McPlay({ test }: { test: Extract<TestDef, { kind: "mc" }> }) {
-  const { state, dispatch, multiplier } = useMcTrainer(test.items);
+export function VocabPlay({ test }: { test: Extract<TestDef, { kind: "vocab" }> }) {
+  const { state, dispatch, multiplier } = useTrainer(test.items);
 
   const [soundOn, setSoundOn] = useState(true);
   const [animationsOn, setAnimationsOn] = useState(true);
@@ -30,24 +33,48 @@ export function McPlay({ test }: { test: Extract<TestDef, { kind: "mc" }> }) {
   const [mounted, setMounted] = useState(false);
   const finishedRef = useRef<number | null>(null);
 
+  // Hint budget: first FREE_HINTS per session are free, then a workout gate.
+  const [gateOpen, setGateOpen] = useState(false);
+  const pendingRevealRef = useRef<(() => void) | null>(null);
+  const freeLeft = Math.max(0, FREE_HINTS - state.hintsUsed);
+
+  function requestHint(reveal: () => void) {
+    if (state.hintsUsed < FREE_HINTS) {
+      dispatch({ type: "USE_HINT" });
+      reveal();
+    } else {
+      pendingRevealRef.current = reveal;
+      setGateOpen(true);
+    }
+  }
+
+  function completeWorkout() {
+    dispatch({ type: "USE_HINT" });
+    pendingRevealRef.current?.();
+    pendingRevealRef.current = null;
+    setGateOpen(false);
+  }
+
+  function cancelWorkout() {
+    pendingRevealRef.current = null;
+    setGateOpen(false);
+  }
+
   useEffect(() => setMounted(true), []);
   useEffect(() => setHighScore(loadHighScore().score), []);
   useEffect(() => setMuted(!soundOn), [soundOn]);
 
-  // Sound cues + SRS / high-score persistence on status transitions.
+  // Sound cues + high-score persistence on status transitions.
   useEffect(() => {
     if (state.status === "answered") {
       playCue(state.lastCorrect ? "correct" : "wrong");
-      saveSrs(
-        recordResult(
-          loadSrs(),
-          state.question.item.id,
-          state.lastCorrect ? "correct" : "wrong",
-        ),
-      );
+      if (state.lastResult) {
+        saveSrs(recordResult(loadSrs(), state.question.item.id, state.lastResult));
+      }
     } else if (state.status === "levelup") {
       playCue("levelup");
     } else if (state.status === "won" || state.status === "gameover") {
+      // Guard so we only finalise a given run once.
       if (finishedRef.current !== state.seed) {
         finishedRef.current = state.seed;
         if (state.status === "won") playCue("win");
@@ -124,24 +151,38 @@ export function McPlay({ test }: { test: Extract<TestDef, { kind: "mc" }> }) {
           ) : (
             <div className="flex flex-1 flex-col justify-between gap-3">
               <AnimatePresence mode="wait">
-                <StemCard
+                <VocabCard
                   key={question.item.id + state.index}
-                  id={question.item.id + state.index}
-                  stem={question.stem}
-                  topic={question.item.topic}
+                  question={question}
                   answered={state.status === "answered"}
                   lastCorrect={state.lastCorrect}
                   lastGain={state.lastGain}
                 />
               </AnimatePresence>
 
-              <AnswerOptions
-                options={question.options}
-                answer={question.answer}
-                selected={state.selected}
-                answered={state.status === "answered"}
-                onSelect={(option) => dispatch({ type: "ANSWER", option })}
+              <HintPanel
+                item={question.item}
+                direction={question.direction}
+                freeLeft={freeLeft}
+                onHintRequest={requestHint}
               />
+
+              {question.mode === "type" ? (
+                <TypeInput
+                  key={question.item.id + state.index}
+                  answer={question.answer}
+                  direction={question.direction}
+                  onResult={(result) => dispatch({ type: "ANSWER_TYPED", result })}
+                />
+              ) : (
+                <AnswerOptions
+                  options={question.options}
+                  answer={question.answer}
+                  selected={state.selected}
+                  answered={state.status === "answered"}
+                  onSelect={(option) => dispatch({ type: "ANSWER", option })}
+                />
+              )}
             </div>
           )}
 
@@ -151,6 +192,12 @@ export function McPlay({ test }: { test: Extract<TestDef, { kind: "mc" }> }) {
                 level={state.level}
                 onContinue={() => dispatch({ type: "DISMISS_LEVELUP" })}
               />
+            )}
+          </AnimatePresence>
+
+          <AnimatePresence>
+            {gateOpen && (
+              <WorkoutGate onComplete={completeWorkout} onCancel={cancelWorkout} />
             )}
           </AnimatePresence>
         </div>
