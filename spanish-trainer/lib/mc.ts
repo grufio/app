@@ -1,4 +1,5 @@
 import { shuffle, type Rng } from "./rng";
+import { boxFor, type SrsMap } from "./srs";
 
 /** Topic buckets for the physics ("Physik Kompakt") multiple-choice tests. */
 export type PhysikTopic =
@@ -44,4 +45,18 @@ export function buildMcQuestion(item: McItem, rng: Rng): McQuestion {
   const answer = item.options[item.correctIndex];
   const options = shuffle(item.options, rng);
   return { item, stem: item.stem, answer, options };
+}
+
+/**
+ * Build a session deck in random order, but with the least-known questions
+ * first: shuffle (random within a knowledge level), then stable-sort by the
+ * Leitner box ascending, so wrong / not-yet-mastered questions (low box) come
+ * before well-known ones. No question is skipped.
+ */
+export function buildMcDeck(
+  items: readonly McItem[],
+  srs: SrsMap,
+  rng: Rng,
+): McItem[] {
+  return shuffle(items, rng).sort((a, b) => boxFor(srs, a.id) - boxFor(srs, b.id));
 }
