@@ -8,6 +8,8 @@ import type { TestDef } from "@/lib/tests";
 import { useMcTrainer } from "@/lib/useMcTrainer";
 import { loadHighScore, saveHighScore } from "@/lib/scoring";
 import { loadSrs, recordResult, saveSrs } from "@/lib/srs";
+import { appendRun } from "@/lib/stats";
+import { getActiveUser } from "@/lib/user";
 import { playCue, setMuted } from "@/lib/sfx";
 
 import { ScoreBar } from "@/components/ScoreBar";
@@ -55,6 +57,14 @@ export function McPlay({ test }: { test: Extract<TestDef, { kind: "mc" }> }) {
         const best = saveHighScore({ score: state.score, level: state.level });
         setIsNewBest(state.score > previous && state.score > 0);
         setHighScore(best.score);
+        appendRun({
+          user: getActiveUser(),
+          testId: test.id,
+          at: Date.now(),
+          score: state.score,
+          total: state.deck.length,
+          outcome: state.status,
+        });
       }
     } else if (state.status === "playing" && state.index === 0) {
       finishedRef.current = null;

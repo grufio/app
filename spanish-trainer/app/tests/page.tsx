@@ -4,15 +4,10 @@ import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
-import { loadSrs, type SrsMap } from "@/lib/srs";
 import { areaBySlug, PHYSIK_AREAS, TESTS, type TestDef } from "@/lib/tests";
 import { getActiveUser, USERS, type UserId } from "@/lib/user";
 
 type McTest = Extract<TestDef, { kind: "mc" }>;
-
-function practicedCount(items: ReadonlyArray<{ id: string }>, srs: SrsMap): number {
-  return items.filter((item) => (srs[item.id]?.seen ?? 0) > 0).length;
-}
 
 function Tile({
   href,
@@ -45,17 +40,14 @@ function TestsView() {
 
   const [mounted, setMounted] = useState(false);
   const [user, setUser] = useState<UserId>("admin");
-  const [srs, setSrs] = useState<SrsMap>({});
 
   useEffect(() => {
-    const active = getActiveUser();
-    setUser(active);
-    setSrs(loadSrs(active));
+    setUser(getActiveUser());
     setMounted(true);
   }, []);
 
   const label = USERS.find((u) => u.id === user)?.label ?? user;
-  const visible = TESTS.filter((test) => test.users.includes(user));
+  const visible = mounted ? TESTS.filter((test) => test.users.includes(user)) : [];
 
   // Second level: the sub-areas of one area, with a back link.
   if (area) {
@@ -80,7 +72,7 @@ function TestsView() {
               href={`/play?test=${test.id}`}
               title={test.title}
               subtitle={test.subtitle}
-              right={mounted ? `${practicedCount(test.items, srs)}/${test.items.length} Fragen` : "…"}
+              right={`${test.items.length} Fragen`}
             />
           ))}
         </div>
@@ -114,19 +106,19 @@ function TestsView() {
             href={`/play?test=${test.id}`}
             title={test.title}
             subtitle={test.subtitle}
-            right={mounted ? `${practicedCount(test.items, srs)}/${test.items.length} Wörter` : "…"}
+            right={`${test.items.length} Wörter`}
           />
         ))}
         {areas.map((a) => {
           const tests = mcTests.filter((test) => test.area === a.topic);
-          const items = tests.flatMap((test) => test.items);
+          const total = tests.reduce((sum, test) => sum + test.items.length, 0);
           return (
             <Tile
               key={a.slug}
               href={`/tests?area=${a.slug}`}
               title={a.label}
               subtitle={`${tests.length} Unterbereiche`}
-              right={mounted ? `${practicedCount(items, srs)}/${items.length} Fragen` : "…"}
+              right={`${total} Fragen`}
             />
           );
         })}
