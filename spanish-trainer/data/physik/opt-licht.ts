@@ -1,0 +1,141 @@
+import type { McItem } from "@/lib/mc";
+
+/** Optik — Licht, Schatten & Sehen (Physik Klasse 7, Realschule BW). */
+export const optLicht: McItem[] = [
+  {
+    id: "opt-lichtquelle",
+    topic: "Optik",
+    stem: "Welcher dieser Körper ist eine Lichtquelle?",
+    options: ["Der Mond", "Ein Spiegel", "Die Sonne", "Ein weißes Blatt Papier"],
+    correctIndex: 2,
+  },
+  {
+    id: "opt-mond-sehen",
+    topic: "Optik",
+    stem: "Warum können wir den Mond sehen?",
+    options: [
+      "Er ist eine eigene Lichtquelle",
+      "Er reflektiert das Sonnenlicht",
+      "Er sendet Wärmestrahlung aus",
+      "Er leuchtet durch die Erdanziehung",
+    ],
+    correctIndex: 1,
+  },
+  {
+    id: "opt-koerper-sehen",
+    topic: "Optik",
+    stem: "Warum können wir einen nicht selbst leuchtenden Körper sehen?",
+    options: [
+      "Weil er Licht in unser Auge reflektiert",
+      "Weil er Wärme abgibt",
+      "Weil er schwingt",
+      "Weil er magnetisch ist",
+    ],
+    correctIndex: 0,
+  },
+  {
+    id: "opt-ausbreitung",
+    topic: "Optik",
+    stem: "Wie breitet sich Licht in einem klaren, gleichmäßigen Stoff aus?",
+    options: ["in Wellenlinien", "geradlinig", "im Kreis", "zufällig um Ecken"],
+    correctIndex: 1,
+  },
+  {
+    id: "opt-geschwindigkeit",
+    topic: "Optik",
+    stem: "Wie schnell ist das Licht im Vakuum ungefähr?",
+    options: ["340 m/s", "3000 km/s", "300000 km/s", "300 km/h"],
+    correctIndex: 2,
+  },
+  {
+    id: "opt-schatten",
+    topic: "Optik",
+    stem: "Wie entsteht ein Schatten?",
+    options: [
+      "Der Körper verschluckt Licht und sendet Dunkelheit aus",
+      "Ein undurchsichtiger Körper hält das geradlinige Licht auf",
+      "Licht wird am Körper gebrochen",
+      "Der Boden zieht das Licht an",
+    ],
+    correctIndex: 1,
+  },
+  {
+    id: "opt-kernschatten",
+    topic: "Optik",
+    stem: "Was ist der Kernschatten?",
+    options: [
+      "Der Bereich mit halbem Licht",
+      "Der hellste Bereich",
+      "Der Bereich, den gar kein Licht der Quelle erreicht",
+      "Der farbige Rand des Schattens",
+    ],
+    correctIndex: 2,
+  },
+  {
+    id: "opt-halbschatten",
+    topic: "Optik",
+    stem: "Ein Halbschatten entsteht, wenn …",
+    options: [
+      "die Lichtquelle ausgedehnt ist (kein Punkt)",
+      "die Lichtquelle ein einziger Punkt ist",
+      "kein Hindernis vorhanden ist",
+      "das Licht gebrochen wird",
+    ],
+    correctIndex: 0,
+  },
+  {
+    id: "opt-schatten-groesse",
+    topic: "Optik",
+    stem: "Wie verändert sich der Schatten, wenn der Körper näher an die Lampe rückt?",
+    options: ["Er wird größer", "Er wird kleiner", "Er verschwindet", "Er bleibt gleich"],
+    correctIndex: 0,
+  },
+  {
+    id: "opt-lochkamera",
+    topic: "Optik",
+    stem: "Wie entsteht das Bild in einer Lochkamera?",
+    options: [
+      "Durch eine Sammellinse",
+      "Durch geradlinige Lichtstrahlen durch das kleine Loch",
+      "Durch Spiegelung im Inneren",
+      "Durch Brechung in einer Flüssigkeit",
+    ],
+    correctIndex: 1,
+  },
+  {
+    id: "opt-mondphasen",
+    topic: "Optik",
+    stem: "Wodurch entstehen die Mondphasen?",
+    options: [
+      "Durch den Erdschatten auf dem Mond",
+      "Durch Wolken vor dem Mond",
+      "Dadurch, dass wir verschieden beleuchtete Teile des Mondes sehen",
+      "Weil der Mond selbst heller und dunkler leuchtet",
+    ],
+    correctIndex: 2,
+  },
+  {
+    id: "opt-mondfinsternis",
+    topic: "Optik",
+    stem: "Was geschieht bei einer Mondfinsternis?",
+    options: [
+      "Der Mond steht im Schatten der Erde",
+      "Die Erde steht im Schatten des Mondes",
+      "Der Mond steht zwischen Sonne und Erde",
+      "Eine Wolke verdeckt den Mond",
+    ],
+    correctIndex: 0,
+  },
+  {
+    id: "opt-sonnenfinsternis",
+    topic: "Optik",
+    stem: "Was geschieht bei einer Sonnenfinsternis?",
+    options: [
+      "Die Erde steht zwischen Sonne und Mond",
+      "Der Mond schiebt sich zwischen Sonne und Erde",
+      "Die Sonne erlischt kurz",
+      "Die Erde dreht sich schneller",
+    ],
+    correctIndex: 1,
+  },
+];
