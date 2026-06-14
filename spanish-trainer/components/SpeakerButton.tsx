@@ -25,7 +25,7 @@ export function SpeakerButton({
       disabled={disabled}
       aria-label={label}
       title={label}
-      className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-slate-600 bg-slate-800/70 transition hover:bg-slate-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-30"
+      className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-line bg-surface text-ink transition hover:bg-canvas active:scale-95 disabled:cursor-not-allowed disabled:opacity-30"
     >
       <Volume2 className="h-6 w-6" aria-hidden />
     </button>

@@ -13,6 +13,8 @@ export function SettingsToggle({
   onToggleSound: () => void;
   onToggleAnimations: () => void;
 }) {
+  const base =
+    "flex h-9 w-9 items-center justify-center rounded-full border border-line bg-surface text-ink-soft transition hover:bg-canvas active:scale-95";
   return (
     <div className="flex items-center gap-2">
       <button
@@ -20,7 +22,7 @@ export function SettingsToggle({
         onClick={onToggleSound}
         aria-pressed={soundOn}
         title={soundOn ? "Ton aus" : "Ton an"}
-        className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-700 bg-slate-800/70 text-base transition hover:bg-slate-700 active:scale-95"
+        className={base}
       >
         {soundOn ? (
           <Volume2 className="h-4 w-4" aria-hidden />
@@ -33,7 +35,7 @@ export function SettingsToggle({
         onClick={onToggleAnimations}
         aria-pressed={animationsOn}
         title={animationsOn ? "Ruhiger Modus (weniger Animation)" : "Animationen an"}
-        className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-700 bg-slate-800/70 text-base transition hover:bg-slate-700 active:scale-95"
+        className={base}
       >
         {animationsOn ? (
           <Sparkles className="h-4 w-4" aria-hidden />

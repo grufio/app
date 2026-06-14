@@ -45,24 +45,24 @@ export function WorkoutGate({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/85 backdrop-blur-sm p-4"
+      className="absolute inset-0 z-30 flex items-center justify-center bg-black/30 p-4 backdrop-blur-sm"
     >
       <motion.div
-        initial={{ scale: 0.8, y: 20 }}
+        initial={{ scale: 0.85, y: 20 }}
         animate={{ scale: 1, y: 0 }}
         transition={{ type: "spring", stiffness: 300, damping: 22 }}
-        className="flex w-full max-w-sm flex-col items-center gap-4 rounded-3xl border border-emerald-400/40 bg-slate-900 px-6 py-7 text-center shadow-2xl"
+        className="flex max-h-[90dvh] w-full max-w-sm flex-col items-center gap-4 overflow-y-auto rounded-3xl border border-line bg-surface px-6 py-7 text-center shadow-[0_10px_40px_rgba(0,0,0,0.12)]"
       >
-        <div className="flex items-center gap-2 text-emerald-300">
+        <div className="flex items-center gap-2 text-brand">
           <Dumbbell className="h-6 w-6" aria-hidden />
-          <span className="text-sm font-bold uppercase tracking-widest">Kämpfe dafür</span>
+          <span className="text-sm font-semibold uppercase tracking-widest">Kämpfe dafür</span>
         </div>
-        <p className="text-sm text-slate-300">
+        <p className="text-sm text-ink-soft">
           Gratis-Hinweise aufgebraucht. Beweg dich 5 Minuten — danach gibt&apos;s
           den nächsten Hinweis. (Bewegung macht den Kopf frei.)
         </p>
 
-        <p className="text-lg font-extrabold text-white">{workout.title}</p>
+        <p className="text-lg font-semibold tracking-tight text-ink">{workout.title}</p>
         <ul className="w-full space-y-2 text-left">
           {workout.steps.map((step, i) => (
             <li key={i}>
@@ -71,13 +71,13 @@ export function WorkoutGate({
                 onClick={() => toggle(i)}
                 className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2 text-sm transition ${
                   done.has(i)
-                    ? "border-emerald-400/50 bg-emerald-500/10 text-emerald-100 line-through"
-                    : "border-slate-700 bg-slate-800/60 text-slate-200"
+                    ? "border-ok/50 bg-ok/10 text-ink line-through"
+                    : "border-line bg-canvas text-ink"
                 }`}
               >
                 <span
                   className={`flex h-5 w-5 items-center justify-center rounded-full border ${
-                    done.has(i) ? "border-emerald-400 bg-emerald-500/30" : "border-slate-500"
+                    done.has(i) ? "border-ok bg-ok/20 text-ok" : "border-black/20"
                   }`}
                 >
                   {done.has(i) && <Check className="h-3.5 w-3.5" aria-hidden />}
@@ -88,13 +88,13 @@ export function WorkoutGate({
           ))}
         </ul>
 
-        <div className="mt-1 flex items-center gap-2 text-3xl font-black tabular-nums text-white">
-          <Timer className="h-7 w-7 text-emerald-300" aria-hidden />
+        <div className="mt-1 flex items-center gap-2 text-3xl font-semibold tabular-nums text-ink">
+          <Timer className="h-7 w-7 text-brand" aria-hidden />
           {format(secondsLeft)}
         </div>
-        <div className="h-2 w-full overflow-hidden rounded-full bg-slate-700/60">
+        <div className="h-2 w-full overflow-hidden rounded-full bg-black/10">
           <div
-            className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-indigo-400 transition-[width] duration-1000 ease-linear"
+            className="h-full rounded-full bg-brand transition-[width] duration-1000 ease-linear"
             style={{ width: `${progress * 100}%` }}
           />
         </div>
@@ -103,14 +103,14 @@ export function WorkoutGate({
           type="button"
           onClick={onComplete}
           disabled={!ready}
-          className="mt-2 w-full rounded-full bg-emerald-500 px-6 py-3 text-base font-bold text-slate-950 transition hover:bg-emerald-400 active:scale-95 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
+          className="mt-2 w-full rounded-full bg-brand px-6 py-3 text-base font-medium text-white transition hover:bg-brand-hover active:scale-95 disabled:cursor-not-allowed disabled:bg-canvas disabled:text-ink-soft"
         >
           {ready ? "Hinweis freischalten" : `Noch ${format(secondsLeft)}`}
         </button>
         <button
           type="button"
           onClick={onCancel}
-          className="inline-flex items-center gap-1 text-xs text-slate-400 transition hover:text-slate-200"
+          className="inline-flex items-center gap-1 text-xs text-ink-soft transition hover:text-ink"
         >
           <X className="h-3.5 w-3.5" aria-hidden /> Abbrechen (ohne Hinweis)
         </button>

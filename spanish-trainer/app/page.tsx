@@ -86,7 +86,7 @@ export default function Home() {
 
   return (
     <MotionConfig reducedMotion={animationsOn ? "user" : "always"}>
-      <main className="mx-auto flex min-h-dvh max-w-xl flex-col px-4 pb-10 pt-5">
+      <main className="mx-auto flex min-h-dvh max-w-md flex-col px-4 pt-[max(0.5rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <header className="flex flex-col gap-3">
           <div className="flex items-start justify-between gap-3">
             <Lives lives={state.lives} />
@@ -109,7 +109,7 @@ export default function Home() {
           </div>
         </header>
 
-        <div className="relative mt-4 flex flex-1 flex-col">
+        <div className="relative mt-3 flex flex-1 flex-col">
           {state.status === "won" ? (
             <div className="flex flex-1 items-center justify-center">
               <ResultScreen
@@ -127,7 +127,7 @@ export default function Home() {
               />
             </div>
           ) : (
-            <div className="flex flex-1 flex-col gap-6">
+            <div className="flex flex-1 flex-col justify-between gap-3">
               <AnimatePresence mode="wait">
                 <VocabCard
                   key={question.item.id + state.index}

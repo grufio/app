@@ -16,19 +16,19 @@ export function AnswerOptions({
   onSelect: (option: string) => void;
 }) {
   return (
-    <div className="grid w-full grid-cols-1 gap-3">
+    <div className="grid w-full grid-cols-1 gap-2">
       {options.map((option) => {
         const isAnswer = option === answer;
         const isSelected = option === selected;
 
         let tone =
-          "border-slate-600 bg-slate-800/70 hover:bg-slate-700 active:scale-[0.98]";
+          "border-line bg-surface text-ink hover:bg-canvas active:scale-[0.98]";
         if (answered && isAnswer) {
-          tone = "border-emerald-400 bg-emerald-500/20 text-emerald-100";
+          tone = "border-ok bg-ok/10 text-ink";
         } else if (answered && isSelected && !isAnswer) {
-          tone = "border-rose-400 bg-rose-500/20 text-rose-100";
+          tone = "border-bad bg-bad/10 text-ink";
         } else if (answered) {
-          tone = "border-slate-700 bg-slate-800/40 opacity-60";
+          tone = "border-line bg-surface text-ink-soft opacity-60";
         }
 
         return (
@@ -43,7 +43,7 @@ export function AnswerOptions({
                 : {}
             }
             transition={{ duration: 0.4 }}
-            className={`min-h-14 rounded-2xl border px-5 py-4 text-left text-lg font-medium transition ${tone}`}
+            className={`min-h-12 rounded-2xl border px-4 py-3 text-left text-[17px] font-medium transition ${tone}`}
           >
             {option}
           </motion.button>
