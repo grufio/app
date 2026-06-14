@@ -1,29 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-import { loadSrs, totalAnswered } from "@/lib/srs";
 import { migrateLegacy, setActiveUser, USERS, type UserId } from "@/lib/user";
 
 export default function Home() {
   const router = useRouter();
-  const [mounted, setMounted] = useState(false);
-  const [counts, setCounts] = useState<Record<UserId, number>>(
-    () => Object.fromEntries(USERS.map((u) => [u.id, 0])) as Record<UserId, number>,
-  );
 
   useEffect(() => {
     migrateLegacy();
-    setCounts(
-      Object.fromEntries(
-        USERS.map((u) => [u.id, totalAnswered(loadSrs(u.id))]),
-      ) as Record<UserId, number>,
-    );
-    setMounted(true);
   }, []);
 
   function choose(id: UserId) {
+    if (id === "admin") {
+      router.push("/admin");
+      return;
+    }
     setActiveUser(id);
     router.push("/tests");
   }
@@ -44,9 +37,9 @@ export default function Home() {
             className="flex items-center justify-between rounded-2xl border border-line bg-surface px-5 py-4 text-left transition hover:border-brand active:scale-[0.99]"
           >
             <span className="text-lg font-medium text-ink">{user.label}</span>
-            <span className="text-sm text-ink-soft">
-              {mounted ? `${counts[user.id]} Fragen beantwortet` : "…"}
-            </span>
+            {user.id === "admin" && (
+              <span className="text-sm text-ink-soft">Statistik</span>
+            )}
           </button>
         ))}
       </div>

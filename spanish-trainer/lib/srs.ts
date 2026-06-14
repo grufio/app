@@ -35,6 +35,16 @@ export function saveSrs(map: SrsMap, user: UserId = getActiveUser()): void {
   }
 }
 
+/** Remove a profile's stored SRS data (used by the admin reset). */
+export function clearSrs(user: UserId): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(srsKey(user));
+  } catch {
+    /* ignore */
+  }
+}
+
 /** Total questions answered (sum of `seen`) — drives the per-profile stat. */
 export function totalAnswered(map: SrsMap): number {
   return Object.values(map).reduce((sum, entry) => sum + entry.seen, 0);

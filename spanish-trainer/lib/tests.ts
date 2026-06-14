@@ -45,7 +45,7 @@ export const TESTS: TestDef[] = [
     id: "unidad5",
     title: "Unidad 5",
     subtitle: "Wortschatz & Konjugationen",
-    users: ["admin", "q"],
+    users: ["q"],
     items: unidad5,
   },
 

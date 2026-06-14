@@ -62,3 +62,13 @@ export function saveHighScore(
   }
   return best;
 }
+
+/** Remove a profile's stored high score (used by the admin reset). */
+export function clearHighScore(user: UserId): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(hiscoreKey(user));
+  } catch {
+    /* ignore */
+  }
+}
