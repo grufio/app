@@ -1,8 +1,8 @@
 import type { VocabItem } from "./types";
 import { shuffle, type Rng } from "./rng";
 import type { MatchResult } from "./answer-match";
+import { getActiveUser, type UserId } from "./user";
 
-export const SRS_KEY = "spanish-trainer:srs";
 export const MAX_BOX = 5;
 
 export interface SrsEntry {
@@ -13,23 +13,32 @@ export interface SrsEntry {
 
 export type SrsMap = Record<string, SrsEntry>;
 
-export function loadSrs(): SrsMap {
+function srsKey(user: UserId): string {
+  return `spanish-trainer:srs:${user}`;
+}
+
+export function loadSrs(user: UserId = getActiveUser()): SrsMap {
   if (typeof window === "undefined") return {};
   try {
-    const raw = window.localStorage.getItem(SRS_KEY);
+    const raw = window.localStorage.getItem(srsKey(user));
     return raw ? (JSON.parse(raw) as SrsMap) : {};
   } catch {
     return {};
   }
 }
 
-export function saveSrs(map: SrsMap): void {
+export function saveSrs(map: SrsMap, user: UserId = getActiveUser()): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(SRS_KEY, JSON.stringify(map));
+    window.localStorage.setItem(srsKey(user), JSON.stringify(map));
   } catch {
     /* ignore quota / privacy-mode errors */
   }
+}
+
+/** Total questions answered (sum of `seen`) — drives the per-profile stat. */
+export function totalAnswered(map: SrsMap): number {
+  return Object.values(map).reduce((sum, entry) => sum + entry.seen, 0);
 }
 
 function entryFor(map: SrsMap, id: string): SrsEntry {
