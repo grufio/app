@@ -9,11 +9,13 @@ export function ResultScreen({
   score,
   highScore,
   isNewBest,
+  subtitle = "Du hast alle Vokabeln geschafft.",
   onRestart,
 }: {
   score: number;
   highScore: number;
   isNewBest: boolean;
+  subtitle?: string;
   onRestart: () => void;
 }) {
   useEffect(() => {
@@ -38,7 +40,7 @@ export function ResultScreen({
     >
       <Trophy className="h-16 w-16 text-ok" aria-hidden />
       <h2 className="text-3xl font-semibold tracking-tight text-ink">¡Muy bien!</h2>
-      <p className="text-ink-soft">Du hast alle Vokabeln geschafft.</p>
+      <p className="text-ink-soft">{subtitle}</p>
       <p className="text-5xl font-semibold tabular-nums text-ink">{score}</p>
       <p className="text-sm text-ink-soft">
         {isNewBest ? (

@@ -7,9 +7,8 @@ describe("user", () => {
     expect(getActiveUser()).toBe("admin");
   });
 
-  it("lists all profiles with labels", () => {
-    expect(USERS.map((u) => u.id)).toEqual(["admin", "q", "r"]);
+  it("lists both profiles with labels", () => {
+    expect(USERS.map((u) => u.id)).toEqual(["admin", "q"]);
     expect(USERS.find((u) => u.id === "q")?.label).toBe("Q");
-    expect(USERS.find((u) => u.id === "r")?.label).toBe("R");
   });
 });
