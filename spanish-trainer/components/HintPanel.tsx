@@ -40,8 +40,8 @@ export function HintPanel({
       : `${revealed === 0 ? "Hinweis" : "Mehr Hinweis"} · noch ${freeLeft} gratis`;
 
   const tone = costsWorkout
-    ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-200 hover:bg-emerald-400/20"
-    : "border-amber-400/40 bg-amber-400/10 text-amber-200 hover:bg-amber-400/20";
+    ? "border-brand/30 bg-brand/10 text-brand hover:bg-brand/15"
+    : "border-line bg-canvas text-brand hover:bg-black/[0.03]";
 
   return (
     <div className="flex flex-col items-center gap-2">
@@ -59,14 +59,15 @@ export function HintPanel({
         {label}
       </button>
 
-      <div className="flex min-h-[1.5rem] flex-col items-center gap-1">
+      {/* Capped so stacked hints never push the answer options off-screen. */}
+      <div className="flex max-h-20 min-h-[1.5rem] flex-col items-center gap-1 overflow-y-auto">
         <AnimatePresence>
           {layers.slice(0, revealed).map((layer, i) => (
             <motion.p
               key={i}
               initial={{ opacity: 0, y: -4 }}
               animate={{ opacity: 1, y: 0 }}
-              className="text-center text-sm text-amber-100/90"
+              className="text-center text-sm text-ink-soft"
             >
               {layer}
             </motion.p>

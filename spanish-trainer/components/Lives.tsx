@@ -13,15 +13,11 @@ export function Lives({ lives }: { lives: number }) {
           <motion.span
             key={i}
             className="leading-none"
-            animate={{ scale: alive ? 1 : 0.85, opacity: alive ? 1 : 0.35 }}
+            animate={{ scale: alive ? 1 : 0.85, opacity: alive ? 1 : 0.6 }}
             transition={{ type: "spring", stiffness: 400, damping: 20 }}
           >
             <Heart
-              className={
-                alive
-                  ? "h-5 w-5 fill-rose-500 text-rose-500"
-                  : "h-5 w-5 text-slate-600"
-              }
+              className={alive ? "h-5 w-5 fill-bad text-bad" : "h-5 w-5 text-black/15"}
               aria-hidden
             />
           </motion.span>

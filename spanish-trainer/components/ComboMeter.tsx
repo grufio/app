@@ -19,7 +19,7 @@ export function ComboMeter({
             initial={{ opacity: 0, y: -6, scale: 0.8 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, scale: 0.8 }}
-            className="flex items-center gap-1 rounded-full bg-amber-400/15 px-3 py-1 text-xs font-bold text-amber-300 ring-1 ring-amber-400/40"
+            className="flex items-center gap-1 rounded-full bg-brand/10 px-3 py-1 text-xs font-semibold text-brand ring-1 ring-brand/20"
           >
             <Flame className="h-3.5 w-3.5" aria-hidden />
             {streak}er-Combo · ×{multiplier}

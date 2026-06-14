@@ -20,11 +20,11 @@ export function ScoreBar({
     <div className="w-full">
       <div className="flex items-end justify-between text-sm">
         <div className="flex items-baseline gap-2">
-          <span className="text-2xl font-extrabold tabular-nums text-white">{score}</span>
-          <span className="text-slate-400">Punkte</span>
+          <span className="text-2xl font-semibold tabular-nums text-ink">{score}</span>
+          <span className="text-ink-soft">Punkte</span>
         </div>
-        <div className="flex items-center gap-3 text-slate-400">
-          <span className="rounded-md bg-indigo-500/20 px-2 py-0.5 font-semibold text-indigo-300">
+        <div className="flex items-center gap-3 text-ink-soft">
+          <span className="rounded-md bg-canvas px-2 py-0.5 font-medium text-ink">
             Level {level}
           </span>
           <span className="flex items-center gap-1 tabular-nums" title="Bestwert">
@@ -32,13 +32,13 @@ export function ScoreBar({
           </span>
         </div>
       </div>
-      <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-700/60">
+      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-black/10">
         <div
-          className="h-full rounded-full bg-gradient-to-r from-indigo-400 to-emerald-400 transition-[width] duration-500"
+          className="h-full rounded-full bg-brand transition-[width] duration-500"
           style={{ width: `${progress}%` }}
         />
       </div>
-      <div className="mt-1 text-right text-xs text-slate-500 tabular-nums">
+      <div className="mt-1 text-right text-xs text-ink-soft tabular-nums">
         {index} / {total}
       </div>
     </div>

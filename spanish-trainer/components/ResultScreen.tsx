@@ -34,19 +34,23 @@ export function ResultScreen({
     <motion.div
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
-      className="flex flex-col items-center gap-4 rounded-3xl border border-emerald-400/40 bg-slate-900/80 px-8 py-12 text-center shadow-2xl"
+      className="flex max-h-[90dvh] flex-col items-center gap-4 overflow-y-auto rounded-3xl border border-line bg-surface px-8 py-10 text-center shadow-[0_10px_40px_rgba(0,0,0,0.12)]"
     >
-      <Trophy className="h-16 w-16 text-emerald-300" aria-hidden />
-      <h2 className="text-3xl font-extrabold text-white">¡Muy bien!</h2>
-      <p className="text-slate-300">Du hast alle Vokabeln geschafft.</p>
-      <p className="text-5xl font-black tabular-nums text-emerald-300">{score}</p>
-      <p className="text-sm text-slate-400">
-        {isNewBest ? "🎉 Neuer Bestwert!" : `Bestwert: ${highScore}`}
+      <Trophy className="h-16 w-16 text-ok" aria-hidden />
+      <h2 className="text-3xl font-semibold tracking-tight text-ink">¡Muy bien!</h2>
+      <p className="text-ink-soft">Du hast alle Vokabeln geschafft.</p>
+      <p className="text-5xl font-semibold tabular-nums text-ink">{score}</p>
+      <p className="text-sm text-ink-soft">
+        {isNewBest ? (
+          <span className="font-medium text-brand">Neuer Bestwert!</span>
+        ) : (
+          `Bestwert: ${highScore}`
+        )}
       </p>
       <button
         type="button"
         onClick={onRestart}
-        className="mt-3 rounded-full bg-emerald-500 px-8 py-3 text-lg font-bold text-slate-950 transition hover:bg-emerald-400 active:scale-95"
+        className="mt-3 rounded-full bg-brand px-8 py-3 text-[17px] font-medium text-white transition hover:bg-brand-hover active:scale-95"
       >
         Nochmal spielen
       </button>

@@ -1,7 +1,23 @@
 @import "tailwindcss";
 
+/* Apple-style design tokens (light, minimal). */
+@theme {
+  --color-ink: #1d1d1f;
+  --color-ink-soft: #6e6e73;
+  --color-surface: #ffffff;
+  --color-canvas: #f5f5f7;
+  --color-line: rgba(0, 0, 0, 0.08);
+  --color-brand: #0071e3;
+  --color-brand-hover: #0077ed;
+  --color-ok: #34c759;
+  --color-bad: #ff3b30;
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
+    "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 html,
@@ -10,13 +26,12 @@ body {
 }
 
 body {
-  background:
-    radial-gradient(120% 90% at 50% -10%, #1e293b 0%, #0f172a 55%, #020617 100%);
-  color: #e2e8f0;
+  background: #f5f5f7;
+  color: #1d1d1f;
+  font-family: var(--font-sans);
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Disable text selection on game controls for a more app-like feel. */
 button {
   user-select: none;
 }
