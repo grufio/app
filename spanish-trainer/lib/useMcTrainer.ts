@@ -1,17 +1,18 @@
 "use client";
 
 import { useEffect, useReducer } from "react";
-import { buildMcQuestion, type McItem, type McQuestion } from "./mc";
+import { buildMcDeck, buildMcQuestion, type McItem, type McQuestion } from "./mc";
 import { mulberry32, randomSeed } from "./rng";
 import { BASE_POINTS, comboMultiplier } from "./scoring";
-import { buildSessionDeck, loadSrs } from "./srs";
+import { loadSrs } from "./srs";
 
 /**
  * Multiple-choice trainer engine. A deliberately separate, slimmer mirror of
  * `useTrainer` (the vocabulary engine): no typed mode, no hints, no direction —
- * just curated multiple-choice questions. It reuses the generic SRS deck
- * builder, scoring, and PRNG, and keeps the same status machine so the shared
- * UI chrome (ScoreBar, Lives, level-up, result/restart screens) works as-is.
+ * just curated multiple-choice questions. The deck is random but puts the
+ * least-known questions first (`buildMcDeck`). It reuses the generic scoring and
+ * PRNG and keeps the same status machine so the shared UI chrome (ScoreBar,
+ * Lives, level-up, result/restart screens) works as-is.
  */
 
 export const MAX_MISTAKES = 5;
@@ -64,7 +65,7 @@ export function createInitialState(
   seed: number = randomSeed(),
 ): McTrainerState {
   const pool = items.slice();
-  const deck = buildSessionDeck(pool, loadSrs(), mulberry32(seed));
+  const deck = buildMcDeck(pool, loadSrs(), mulberry32(seed));
   return {
     pool,
     deck,
