@@ -102,4 +102,23 @@ describe("trainerReducer", () => {
     expect(s.hintsUsed).toBe(2);
     expect(trainerReducer(s, { type: "RESTART" }).hintsUsed).toBe(0);
   });
+
+  it("ANSWER_TYPED grades correct / almost / wrong distinctly", () => {
+    const base = createInitialState(items, 3);
+
+    const correct = trainerReducer(base, { type: "ANSWER_TYPED", result: "correct" });
+    expect(correct.lastResult).toBe("correct");
+    expect(correct.lives).toBe(MAX_MISTAKES);
+    expect(correct.score).toBeGreaterThan(0);
+
+    const almost = trainerReducer(base, { type: "ANSWER_TYPED", result: "almost" });
+    expect(almost.lastResult).toBe("almost");
+    expect(almost.lives).toBe(MAX_MISTAKES); // no life lost
+    expect(almost.score).toBe(0);
+
+    const wrong = trainerReducer(base, { type: "ANSWER_TYPED", result: "wrong" });
+    expect(wrong.lastResult).toBe("wrong");
+    expect(wrong.lives).toBe(MAX_MISTAKES - 1);
+    expect(wrong.mistakes).toBe(1);
+  });
 });
