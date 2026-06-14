@@ -36,10 +36,10 @@ export default function TestsPage() {
       </header>
 
       <div className="flex flex-col gap-3">
-        {TESTS.map((test) => {
-          const practiced = test.items.filter(
-            (item) => (srs[item.id]?.seen ?? 0) > 0,
-          ).length;
+        {TESTS.filter((test) => test.users.includes(user)).map((test) => {
+          const ids = (test.items as { id: string }[]).map((item) => item.id);
+          const practiced = ids.filter((id) => (srs[id]?.seen ?? 0) > 0).length;
+          const unit = test.kind === "mc" ? "Fragen" : "Wörter";
           return (
             <Link
               key={test.id}
@@ -51,7 +51,7 @@ export default function TestsPage() {
                 <p className="text-sm text-ink-soft">{test.subtitle}</p>
               </div>
               <span className="text-sm text-ink-soft">
-                {mounted ? `${practiced}/${test.items.length} Wörter` : "…"}
+                {mounted ? `${practiced}/${ids.length} ${unit}` : "…"}
               </span>
             </Link>
           );
