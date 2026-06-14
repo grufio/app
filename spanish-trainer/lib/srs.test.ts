@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { boxFor, buildSessionDeck, MAX_BOX, recordResult, type SrsMap } from "./srs";
+import {
+  boxFor,
+  buildSessionDeck,
+  MAX_BOX,
+  recordResult,
+  totalAnswered,
+  type SrsMap,
+} from "./srs";
 import { mulberry32 } from "./rng";
 import type { VocabItem } from "./types";
 
@@ -32,6 +39,18 @@ describe("recordResult", () => {
     expect(boxFor(m, "a")).toBe(4);
     m = recordResult(m, "a", "almost");
     expect(boxFor(m, "a")).toBe(2);
+  });
+});
+
+describe("totalAnswered", () => {
+  it("sums seen across entries; empty map is 0", () => {
+    expect(totalAnswered({})).toBe(0);
+    expect(
+      totalAnswered({
+        a: { box: 2, seen: 3, correct: 1 },
+        b: { box: 1, seen: 4, correct: 0 },
+      }),
+    ).toBe(7);
   });
 });
 
