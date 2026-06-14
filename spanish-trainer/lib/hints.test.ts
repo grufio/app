@@ -1,41 +1,71 @@
 import { describe, expect, it } from "vitest";
-import { hintLayers } from "./hints";
+import { articleFromTerm, hintLayers, letterReveal, lengthMask } from "./hints";
 import type { VocabItem } from "./types";
 
+const noun: VocabItem = {
+  id: "ordenador",
+  es: "el ordenador",
+  de: "der Computer",
+  type: "noun",
+  article: "el",
+  topic: "Technik",
+  unit: 5,
+  example: { es: "Trabajo con el ordenador.", de: "Ich arbeite mit dem Computer." },
+};
+
+describe("articleFromTerm", () => {
+  it("detects German and Spanish articles, including parenthesised ones", () => {
+    expect(articleFromTerm("der Computer")).toBe("der");
+    expect(articleFromTerm("el ordenador")).toBe("el");
+    expect(articleFromTerm("(das) Englisch")).toBe("das");
+  });
+
+  it("returns null when there is no leading article", () => {
+    expect(articleFromTerm("según")).toBeNull();
+    expect(articleFromTerm("hablar")).toBeNull();
+  });
+});
+
+describe("lengthMask", () => {
+  it("masks all letters but preserves the word count", () => {
+    const mask = lengthMask("el ordenador");
+    expect(mask).not.toMatch(/\p{L}/u);
+    expect(mask).toContain("·"); // two words → separator present
+  });
+});
+
+describe("letterReveal", () => {
+  it("reveals only the first letter at fraction 0", () => {
+    const out = letterReveal("vuestra", 0);
+    expect(out.startsWith("v")).toBe(true);
+    expect([...out].filter((c) => /\p{L}/u.test(c))).toHaveLength(1);
+  });
+
+  it("reveals about half the letters at fraction 0.5", () => {
+    const revealed = [...letterReveal("computer", 0.5)].filter((c) => /\p{L}/u.test(c));
+    expect(revealed).toHaveLength(4);
+  });
+});
+
 describe("hintLayers", () => {
-  it("shows article for nouns and a letter pattern, skipping the missing example", () => {
-    const noun: VocabItem = {
-      id: "n",
-      es: "el ordenador",
-      de: "der Computer",
-      type: "noun",
-      article: "el",
-      unit: 5,
-    };
+  it("starts with topic + type and derives the target-language article", () => {
+    const esDe = hintLayers(noun, "es-de"); // target German
+    expect(esDe[0]).toContain("Thema: Technik");
+    expect(esDe[1]).toContain("der");
+
+    const deEs = hintLayers(noun, "de-es"); // target Spanish
+    expect(deEs[1]).toContain("el");
+  });
+
+  it("includes a blanked example and a letter layer", () => {
     const layers = hintLayers(noun, "es-de");
-    expect(layers[0]).toContain("el");
-    expect(layers).toHaveLength(2); // type + letter pattern, no example
-    expect(layers[1].startsWith("d")).toBe(true); // first letter of "der Computer"
+    expect(layers.some((l) => l.includes("_____"))).toBe(true);
+    expect(layers.length).toBeGreaterThanOrEqual(4);
   });
 
-  it("includes a blanked example sentence when present", () => {
-    const item: VocabItem = {
-      id: "x",
-      es: "la casa",
-      de: "das Haus",
-      type: "noun",
-      article: "la",
-      unit: 5,
-      example: { es: "Vivo en la casa grande.", de: "Ich wohne im großen Haus." },
-    };
-    const layers = hintLayers(item, "de-es");
-    expect(layers).toHaveLength(3);
-    expect(layers[1]).toContain("_____");
-  });
-
-  it("describes conjugation metadata", () => {
+  it("exposes infinitive metadata for conjugations", () => {
     const conj: VocabItem = {
-      id: "c",
+      id: "hablar-yo",
       es: "hablo",
       de: "ich spreche",
       type: "conjugation",
@@ -45,7 +75,7 @@ describe("hintLayers", () => {
       unit: 5,
     };
     const layers = hintLayers(conj, "es-de");
-    expect(layers[0]).toContain("hablar");
-    expect(layers[0]).toContain("yo");
+    expect(layers[0]).toContain("Verb-Konjugation");
+    expect(layers.some((l) => l.includes("hablar"))).toBe(true);
   });
 });

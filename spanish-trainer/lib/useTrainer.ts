@@ -8,6 +8,8 @@ import { comboMultiplier, pointsFor } from "./scoring";
 
 export const MAX_MISTAKES = 5;
 export const LEVEL_SIZE = 8;
+/** Free hints per session; further hints are gated behind a workout. */
+export const FREE_HINTS = 3;
 
 export type TrainerStatus =
   | "playing"
@@ -32,6 +34,8 @@ export interface TrainerState {
   streak: number;
   bestStreak: number;
   level: number;
+  /** Hints revealed this session; drives the free-hint budget + workout gate. */
+  hintsUsed: number;
   seed: number;
 }
 
@@ -39,6 +43,7 @@ export type TrainerAction =
   | { type: "ANSWER"; option: string }
   | { type: "NEXT" }
   | { type: "DISMISS_LEVELUP" }
+  | { type: "USE_HINT" }
   | { type: "RESTART" };
 
 function levelOf(index: number): number {
@@ -70,6 +75,7 @@ export function createInitialState(
     streak: 0,
     bestStreak: 0,
     level: 1,
+    hintsUsed: 0,
     seed,
   };
 }
@@ -134,6 +140,9 @@ export function trainerReducer(
       if (state.status !== "levelup") return state;
       return { ...state, status: "playing" };
     }
+
+    case "USE_HINT":
+      return { ...state, hintsUsed: state.hintsUsed + 1 };
 
     case "RESTART":
       return createInitialState(state.deck, randomSeed());
