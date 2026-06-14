@@ -194,15 +194,39 @@ refactor. Save your future self the bruise.
   --linked` only dumps `public`. The `storage.objects` RLS DO-block
   must be manually re-appended; see
   [docs/playbooks/squash-migrations.md](docs/playbooks/squash-migrations.md).
-- **Never hand-edit `lib/supabase/database.types.ts`.** CI
-  regenerates it post-deploy via `npm run types:gen` (see
-  `.github/workflows/deploy.yml`). Hand-edits during a migration
-  PR (to silence TS errors about new columns) get overwritten on
-  the next deploy. The right pattern is: cast at the call site
-  (`as any` / explicit `Database["public"]["Tables"][…]`) for the
-  PR, let CI fix the types post-merge. Confirmed during the
-  iscc_nbs_name + palette_indices_used rollout (#365, #367) where
-  hand-edits to types.ts kept getting clobbered.
+- **`lib/supabase/database.types.ts`: `deploy.yml` VERIFIES, it does
+  NOT auto-regenerate** (docs/CLAUDE that say "CI regenerates post-deploy"
+  are stale). The migrations job runs `verify:types-synced`, which
+  **hard-fails the deploy — and so blocks the Vercel trigger** — when the
+  committed file diverges from the remote dump in BOTH directions. It
+  **soft-skips** when committed is a strict *subset* (pure-additive remote
+  drift, e.g. the reference-data tables that are cast at call sites) or
+  strict *superset*. Consequences:
+  - A migration PR must keep types in sync (`npm run types:gen`, linked).
+    Don't hand-edit to ADD types — cast at the call site (`as any` /
+    `Database["public"]["Tables"][…]`), per the iscc_nbs/palette rollout
+    (#365, #367).
+  - A column/table **DROP** migration must ALSO delete those lines from the
+    committed types, or they become "committed-only" lines that flip the
+    gate from soft-skip to **hard fail** on the *next* migration deploy.
+    Lesson: a dropped `is_hidden` left in types.ts blocked the bucket-limit
+    deploy until removed (#482).
+- **Prod DB deploy is the `Deploy` Action behind the `production-db`
+  gate — a human approves it in GitHub.** On push to `main`, deploy.yml's
+  migrations job runs `supabase db push` then triggers Vercel; the gate
+  approval is the user's. In the **web/remote session** the GitHub
+  integration is **read-only for Actions** (cancel / `workflow_dispatch` /
+  approve all return `403`) and there are **no Supabase creds/link**
+  (`types:gen --linked` → "Cannot find project ref"), so the agent can NOT
+  push migrations, trigger, or approve a deploy — stop at merge, let the
+  user approve, don't trial-and-error the pipeline. Two traps: (a) deploys
+  serialize per ref (`cancel-in-progress: false`) — a **stale unapproved
+  migration deploy sits `waiting` and blocks every later deploy**; clear it
+  (approve/cancel) first. (b) To ship frontend AFTER a migration without
+  re-hitting the migration gate, a no-migration PR touching `lib/supabase/**`
+  (etc.) takes the `frontend-only` path → triggers Vercel, no gate. Also:
+  the remote-session clone is **shallow** (~90 commits) — `git log -- <file>`
+  understates a file's history.
 
 ## When stuck
 

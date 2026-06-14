@@ -44,13 +44,17 @@ against fresh prod dumps so manual Studio edits get caught.
 - **Drift handling:** if `verify:schema-drift` fails, prod has been
   hand-edited via Studio — close it with a backfill migration, not
   by editing prod.
-- **CI auto-regenerates `database.types.ts`** after every migration
-  push (deploy.yml). Do NOT hand-edit
-  [lib/supabase/database.types.ts](../../lib/supabase/database.types.ts) —
-  changes get overwritten on the next deploy. If TypeScript complains
-  about a new column the migration adds, cast at the call site (`as any`
-  / `as Database["public"]["Tables"]["…"]`) and let CI's regen put the
-  types right. CLAUDE.md mirrors the same warning.
+- **`deploy.yml` VERIFIES `database.types.ts`, it does NOT
+  auto-regenerate.** The migrations job runs `verify:types-synced`, which
+  **hard-fails the deploy** (blocking the Vercel trigger) when committed
+  [lib/supabase/database.types.ts](../../lib/supabase/database.types.ts)
+  diverges from the remote dump in BOTH directions; it **soft-skips** a
+  strict subset (pure-additive remote drift) or superset. So a migration PR
+  must keep the file in sync via `npm run types:gen` (linked) — and a
+  column/table **DROP** must also delete those lines from the committed
+  types, or they hard-fail the next migration deploy (#482, dropped
+  `is_hidden`). Don't hand-edit to ADD types; cast at the call site
+  (`as any` / `as Database["public"]["Tables"]["…"]`). CLAUDE.md mirrors this.
 
 ## Reserved-but-unused schema slots
 
