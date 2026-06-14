@@ -3,8 +3,7 @@
 import { useEffect, useReducer } from "react";
 import { buildMcQuestion, type McItem, type McQuestion } from "./mc";
 import { mulberry32, randomSeed } from "./rng";
-import { BASE_POINTS, comboMultiplier } from "./scoring";
-import { buildSessionDeck, loadSrs } from "./srs";
+import { BASE_POINTS, buildSessionDeck, comboMultiplier, loadSrs } from "./physik/store";
 
 /**
  * Multiple-choice trainer engine. A deliberately separate, slimmer mirror of

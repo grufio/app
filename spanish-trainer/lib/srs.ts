@@ -1,3 +1,4 @@
+import type { VocabItem } from "./types";
 import { shuffle, type Rng } from "./rng";
 import type { MatchResult } from "./answer-match";
 import { getActiveUser, type UserId } from "./user";
@@ -78,11 +79,11 @@ function inclusionProbability(box: number): number {
  * is shuffled so weak words spread across all levels (and get typed from
  * level 3 on) instead of being front-loaded into the click-only early levels.
  */
-export function buildSessionDeck<T extends { id: string }>(
-  items: readonly T[],
+export function buildSessionDeck(
+  items: readonly VocabItem[],
   map: SrsMap,
   rng: Rng,
-): T[] {
+): VocabItem[] {
   const selected = items.filter(
     (item) => rng() < inclusionProbability(boxFor(map, item.id)),
   );

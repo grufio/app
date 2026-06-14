@@ -4,10 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, MotionConfig } from "framer-motion";
 
-import type { TestDef } from "@/lib/tests";
+import type { PhysikTest } from "@/lib/physik-tests";
 import { useMcTrainer } from "@/lib/useMcTrainer";
-import { loadHighScore, saveHighScore } from "@/lib/scoring";
-import { loadSrs, recordResult, saveSrs } from "@/lib/srs";
+import { loadHighScore, loadSrs, recordResult, saveHighScore, saveSrs } from "@/lib/physik/store";
 import { playCue, setMuted } from "@/lib/sfx";
 
 import { ScoreBar } from "@/components/ScoreBar";
@@ -20,7 +19,7 @@ import { LevelUpToast } from "@/components/LevelUpToast";
 import { ResultScreen } from "@/components/ResultScreen";
 import { RestartScreen } from "@/components/RestartScreen";
 
-export function McPlay({ test }: { test: Extract<TestDef, { kind: "mc" }> }) {
+export function McPlay({ test }: { test: PhysikTest }) {
   const { state, dispatch, multiplier } = useMcTrainer(test.items);
 
   const [soundOn, setSoundOn] = useState(true);
@@ -78,7 +77,7 @@ export function McPlay({ test }: { test: Extract<TestDef, { kind: "mc" }> }) {
       <main className="mx-auto flex min-h-dvh max-w-md flex-col px-4 pt-[max(0.5rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <header className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
-            <Link href="/tests" className="text-sm font-medium text-brand">
+            <Link href="/physik/tests" className="text-sm font-medium text-brand">
               ‹ Tests
             </Link>
             <span className="text-sm text-ink-soft">{test.title}</span>
@@ -111,6 +110,7 @@ export function McPlay({ test }: { test: Extract<TestDef, { kind: "mc" }> }) {
                 score={state.score}
                 highScore={highScore}
                 isNewBest={isNewBest}
+                subtitle="Du hast alle Fragen geschafft."
                 onRestart={() => dispatch({ type: "RESTART" })}
               />
             </div>

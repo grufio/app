@@ -9,17 +9,14 @@ import { migrateLegacy, setActiveUser, USERS, type UserId } from "@/lib/user";
 export default function Home() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
-  const [counts, setCounts] = useState<Record<UserId, number>>(
-    () => Object.fromEntries(USERS.map((u) => [u.id, 0])) as Record<UserId, number>,
-  );
+  const [counts, setCounts] = useState<Record<UserId, number>>({ admin: 0, q: 0 });
 
   useEffect(() => {
     migrateLegacy();
-    setCounts(
-      Object.fromEntries(
-        USERS.map((u) => [u.id, totalAnswered(loadSrs(u.id))]),
-      ) as Record<UserId, number>,
-    );
+    setCounts({
+      admin: totalAnswered(loadSrs("admin")),
+      q: totalAnswered(loadSrs("q")),
+    });
     setMounted(true);
   }, []);
 

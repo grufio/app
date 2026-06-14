@@ -1,17 +1,16 @@
 const USER_KEY = "spanish-trainer:user";
 
-export type UserId = "admin" | "q" | "r";
+export type UserId = "admin" | "q";
 
 export const USERS = [
   { id: "admin", label: "Admin" },
   { id: "q", label: "Q" },
-  { id: "r", label: "R" },
 ] as const satisfies ReadonlyArray<{ id: UserId; label: string }>;
 
 export const DEFAULT_USER: UserId = "admin";
 
 function isUserId(value: string | null): value is UserId {
-  return value === "admin" || value === "q" || value === "r";
+  return value === "admin" || value === "q";
 }
 
 /** The currently selected profile (defaults to Admin). */
