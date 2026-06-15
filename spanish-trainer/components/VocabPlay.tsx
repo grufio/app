@@ -19,6 +19,7 @@ import { SettingsToggle } from "@/components/SettingsToggle";
 import { VocabCard } from "@/components/VocabCard";
 import { AnswerOptions } from "@/components/AnswerOptions";
 import { HintPanel } from "@/components/HintPanel";
+import { NavControls } from "@/components/NavControls";
 import { LevelUpToast } from "@/components/LevelUpToast";
 import { ResultScreen } from "@/components/ResultScreen";
 import { RestartScreen } from "@/components/RestartScreen";
@@ -33,6 +34,9 @@ export function VocabPlay({ test }: { test: Extract<TestDef, { kind: "vocab" }> 
   const [highScore, setHighScore] = useState(0);
   const [isNewBest, setIsNewBest] = useState(false);
   const [mounted, setMounted] = useState(false);
+  // Indices whose answer we've already recorded (SRS + sound) — so paging back
+  // and forth over a question doesn't replay the cue or double-count it.
+  const recordedRef = useRef<Set<number>>(new Set());
   const finishedRef = useRef<number | null>(null);
 
   // Hint budget: first FREE_HINTS per session are free, then a workout gate.
@@ -66,41 +70,45 @@ export function VocabPlay({ test }: { test: Extract<TestDef, { kind: "vocab" }> 
   useEffect(() => setHighScore(loadHighScore().score), []);
   useEffect(() => setMuted(!soundOn), [soundOn]);
 
-  // Sound cues + high-score persistence on status transitions.
+  // A fresh run (RESTART → new seed) clears the per-run guards.
   useEffect(() => {
-    if (state.status === "answered") {
-      playCue(state.lastCorrect ? "correct" : "wrong");
-      if (state.lastResult) {
-        saveSrs(recordResult(loadSrs(), state.question.item.id, state.lastResult));
-      }
-    } else if (state.status === "levelup") {
-      playCue("levelup");
-    } else if (state.status === "won" || state.status === "gameover") {
-      // Guard so we only finalise a given run once.
-      if (finishedRef.current !== state.seed) {
-        finishedRef.current = state.seed;
-        if (state.status === "won") playCue("win");
-        const previous = loadHighScore().score;
-        const best = saveHighScore({ score: state.score, level: state.level });
-        setIsNewBest(state.score > previous && state.score > 0);
-        setHighScore(best.score);
-        appendRun({
-          user: getActiveUser(),
-          testId: test.id,
-          at: Date.now(),
-          score: state.score,
-          total: state.deck.length,
-          outcome: state.status,
-        });
-      }
-    } else if (state.status === "playing" && state.index === 0) {
-      finishedRef.current = null;
-      setIsNewBest(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.status, state.index]);
+    recordedRef.current = new Set();
+    finishedRef.current = null;
+    setIsNewBest(false);
+  }, [state.seed]);
+
+  // Instant feedback side-effects: record the result + play the cue exactly once,
+  // the first time a given question is answered (not on Zurück/Weiter review).
+  useEffect(() => {
+    const record = state.answers[state.index];
+    if (!record || recordedRef.current.has(state.index)) return;
+    recordedRef.current.add(state.index);
+    playCue(record.correct ? "correct" : "wrong");
+    saveSrs(recordResult(loadSrs(), state.question.item.id, record.result));
+  }, [state.index, state.answers, state.question.item.id]);
+
+  // Persist the run + high score once, when the deck ends (won) or after 5 mistakes.
+  useEffect(() => {
+    if (state.status !== "won" && state.status !== "gameover") return;
+    if (finishedRef.current === state.seed) return;
+    finishedRef.current = state.seed;
+    if (state.status === "won") playCue("win");
+    const previous = loadHighScore().score;
+    const best = saveHighScore({ score: state.score, level: state.level });
+    setIsNewBest(state.score > previous && state.score > 0);
+    setHighScore(best.score);
+    appendRun({
+      user: getActiveUser(),
+      testId: test.id,
+      at: Date.now(),
+      score: state.score,
+      total: state.deck.length,
+      outcome: state.status,
+    });
+  }, [state.status, state.seed, state.score, state.level, state.deck.length, test.id]);
 
   const { question } = state;
+  const answered = state.status === "answered";
 
   if (!mounted) {
     return (
@@ -151,57 +159,69 @@ export function VocabPlay({ test }: { test: Extract<TestDef, { kind: "vocab" }> 
                 onRestart={() => dispatch({ type: "RESTART" })}
               />
             </div>
-          ) : state.status === "gameover" ? (
-            <div className="flex flex-1 items-center justify-center">
-              <RestartScreen
-                score={state.score}
-                onRestart={() => dispatch({ type: "RESTART" })}
-              />
-            </div>
           ) : (
             <div className="flex flex-1 flex-col justify-between gap-3">
-              <AnimatePresence mode="wait">
-                <VocabCard
-                  key={question.item.id + state.index}
-                  question={question}
-                  answered={state.status === "answered"}
-                  lastCorrect={state.lastCorrect}
-                  lastGain={state.lastGain}
-                />
-              </AnimatePresence>
-
-              <HintPanel
-                item={question.item}
-                direction={question.direction}
-                freeLeft={freeLeft}
-                onHintRequest={requestHint}
-              />
-
-              {question.mode === "type" ? (
-                <TypeInput
-                  key={question.item.id + state.index}
-                  answer={question.answer}
-                  direction={question.direction}
-                  onResult={(result) => dispatch({ type: "ANSWER_TYPED", result })}
-                />
+              {state.status === "levelup" ? (
+                <div className="flex flex-1 items-center justify-center">
+                  <LevelUpToast level={state.level} />
+                </div>
               ) : (
-                <AnswerOptions
-                  options={question.options}
-                  answer={question.answer}
-                  selected={state.selected}
-                  answered={state.status === "answered"}
-                  onSelect={(option) => dispatch({ type: "ANSWER", option })}
-                />
+                <div className="flex flex-col gap-3">
+                  <AnimatePresence mode="wait">
+                    <VocabCard
+                      key={question.item.id + state.index}
+                      question={question}
+                      answered={answered}
+                      lastCorrect={state.lastCorrect}
+                      lastGain={state.lastGain}
+                    />
+                  </AnimatePresence>
+
+                  <HintPanel
+                    item={question.item}
+                    direction={question.direction}
+                    freeLeft={freeLeft}
+                    onHintRequest={requestHint}
+                  />
+
+                  {question.mode === "type" ? (
+                    <TypeInput
+                      key={question.item.id + state.index}
+                      answer={question.answer}
+                      direction={question.direction}
+                      answeredResult={answered ? state.lastResult : null}
+                      onResult={(result) => dispatch({ type: "ANSWER_TYPED", result })}
+                    />
+                  ) : (
+                    <AnswerOptions
+                      options={question.options}
+                      answer={question.answer}
+                      selected={state.selected}
+                      answered={answered}
+                      onSelect={(option) => dispatch({ type: "ANSWER", option })}
+                    />
+                  )}
+                </div>
               )}
+
+              <NavControls
+                canPrev={state.index > 0}
+                canNext={state.status === "answered" || state.status === "levelup"}
+                onPrev={() => dispatch({ type: "PREV" })}
+                onNext={() => dispatch({ type: "NEXT" })}
+                onReset={() => dispatch({ type: "RESTART" })}
+              />
             </div>
           )}
 
           <AnimatePresence>
-            {state.status === "levelup" && (
-              <LevelUpToast
-                level={state.level}
-                onContinue={() => dispatch({ type: "DISMISS_LEVELUP" })}
-              />
+            {state.status === "gameover" && (
+              <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/20 p-4 backdrop-blur-sm">
+                <RestartScreen
+                  score={state.score}
+                  onRestart={() => dispatch({ type: "RESTART" })}
+                />
+              </div>
             )}
           </AnimatePresence>
 

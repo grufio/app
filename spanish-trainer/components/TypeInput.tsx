@@ -15,18 +15,21 @@ export function TypeInput({
   answer,
   direction,
   onResult,
+  answeredResult = null,
 }: {
   answer: string;
   direction: Direction;
   onResult: (result: MatchResult) => void;
+  /** When set, this question was already answered — render the locked done-view. */
+  answeredResult?: MatchResult | null;
 }) {
   const [value, setValue] = useState("");
-  const [result, setResult] = useState<MatchResult | null>(null);
+  const [result, setResult] = useState<MatchResult | null>(answeredResult);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
+    if (answeredResult === null) inputRef.current?.focus();
+  }, [answeredResult]);
 
   const display = correctDisplay(answer);
   const done = result !== null;

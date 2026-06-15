@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useReducer } from "react";
+import { useReducer } from "react";
 import { buildMcDeck, buildMcQuestion, type McItem, type McQuestion } from "./mc";
 import { mulberry32, randomSeed } from "./rng";
 import { BASE_POINTS, comboMultiplier } from "./scoring";
@@ -10,9 +10,14 @@ import { loadSrs } from "./srs";
  * Multiple-choice trainer engine. A deliberately separate, slimmer mirror of
  * `useTrainer` (the vocabulary engine): no typed mode, no hints, no direction —
  * just curated multiple-choice questions. The deck is random but puts the
- * least-known questions first (`buildMcDeck`). It reuses the generic scoring and
- * PRNG and keeps the same status machine so the shared UI chrome (ScoreBar,
- * Lives, level-up, result/restart screens) works as-is.
+ * least-known questions first (`buildMcDeck`).
+ *
+ * Self-paced flow: answering grades instantly (score / combo / lives update on
+ * the click) and the feedback stays on screen — there is no auto-advance.
+ * `NEXT`/`PREV` move between questions manually; level-up checkpoints are an
+ * interstitial you page through, the result screen waits at the end, and a 5th
+ * mistake raises the game-over dialog immediately. The learner resets via
+ * `RESTART`.
  */
 
 export const MAX_MISTAKES = 5;
@@ -25,6 +30,13 @@ export type McTrainerStatus =
   | "won"
   | "gameover";
 
+/** A graded answer, kept per deck index so revisiting a question shows its result. */
+export interface McAnswerRecord {
+  selected: string;
+  correct: boolean;
+  gain: number;
+}
+
 export interface McTrainerState {
   /** Full question pool (used to rebuild the deck on restart). */
   pool: McItem[];
@@ -32,13 +44,15 @@ export interface McTrainerState {
   index: number;
   question: McQuestion;
   status: McTrainerStatus;
-  /** The option the learner last picked (for highlighting). */
+  /** Graded answers by deck index — the source of truth for review/navigation. */
+  answers: Record<number, McAnswerRecord>;
+  /** The option picked for the current index (derived from `answers`). */
   selected: string | null;
   lastCorrect: boolean | null;
   mistakes: number;
   lives: number;
   score: number;
-  /** Points gained on the last correct answer (drives the popup). */
+  /** Points gained on the current answer (drives the popup). */
   lastGain: number;
   streak: number;
   bestStreak: number;
@@ -49,11 +63,16 @@ export interface McTrainerState {
 export type McTrainerAction =
   | { type: "ANSWER"; option: string }
   | { type: "NEXT" }
-  | { type: "DISMISS_LEVELUP" }
+  | { type: "PREV" }
   | { type: "RESTART" };
 
 function levelOf(index: number): number {
   return Math.floor(index / LEVEL_SIZE) + 1;
+}
+
+/** A level boundary sits before every index that starts a new level (8, 16, …). */
+function isLevelBoundary(index: number): boolean {
+  return index > 0 && index % LEVEL_SIZE === 0;
 }
 
 function questionAt(deck: McItem[], index: number, seed: number): McQuestion {
@@ -72,6 +91,7 @@ export function createInitialState(
     index: 0,
     question: questionAt(deck, 0, seed),
     status: "playing",
+    answers: {},
     selected: null,
     lastCorrect: null,
     mistakes: 0,
@@ -85,17 +105,40 @@ export function createInitialState(
   };
 }
 
+/** Show the question at `index`, deriving the per-question fields from `answers`. */
+function goToQuestion(state: McTrainerState, index: number): McTrainerState {
+  const record = state.answers[index];
+  return {
+    ...state,
+    index,
+    question: questionAt(state.deck, index, state.seed),
+    status: record ? "answered" : "playing",
+    level: levelOf(index),
+    selected: record ? record.selected : null,
+    lastCorrect: record ? record.correct : null,
+    lastGain: record ? record.gain : 0,
+  };
+}
+
+/** Park on the level-up interstitial that precedes the current `index`. */
+function goToLevelGate(state: McTrainerState): McTrainerState {
+  return { ...state, status: "levelup", selected: null, lastCorrect: null, lastGain: 0 };
+}
+
 function applyAnswer(
   state: McTrainerState,
   correct: boolean,
   picked: string,
 ): McTrainerState {
+  const gain = correct ? Math.round(BASE_POINTS * comboMultiplier(state.streak)) : 0;
+  const record: McAnswerRecord = { selected: picked, correct, gain };
+  const answers = { ...state.answers, [state.index]: record };
   if (correct) {
-    const gain = Math.round(BASE_POINTS * comboMultiplier(state.streak));
     const streak = state.streak + 1;
     return {
       ...state,
       status: "answered",
+      answers,
       selected: picked,
       lastCorrect: true,
       score: state.score + gain,
@@ -108,6 +151,7 @@ function applyAnswer(
   return {
     ...state,
     status: "answered",
+    answers,
     selected: picked,
     lastCorrect: false,
     mistakes,
@@ -123,34 +167,40 @@ export function mcTrainerReducer(
 ): McTrainerState {
   switch (action.type) {
     case "ANSWER": {
-      if (state.status !== "playing") return state;
-      return applyAnswer(state, action.option === state.question.answer, action.option);
+      // Grade once; revisiting an already-answered question is a no-op.
+      if (state.status !== "playing" || state.answers[state.index]) return state;
+      const graded = applyAnswer(state, action.option === state.question.answer, action.option);
+      // A 5th mistake raises the game-over dialog right away.
+      return graded.mistakes >= MAX_MISTAKES ? { ...graded, status: "gameover" } : graded;
     }
 
     case "NEXT": {
+      // From the level-up interstitial, Weiter enters the level's first question.
+      if (state.status === "levelup") return goToQuestion(state, state.index);
+      // Only a graded question advances (the UI keeps Weiter disabled otherwise);
+      // won / gameover are terminal.
       if (state.status !== "answered") return state;
-      if (state.mistakes >= MAX_MISTAKES) {
-        return { ...state, status: "gameover", selected: null };
+      const next = state.index + 1;
+      if (next >= state.deck.length) return { ...state, status: "won" };
+      if (isLevelBoundary(next)) {
+        return goToLevelGate({
+          ...state,
+          index: next,
+          question: questionAt(state.deck, next, state.seed),
+          level: levelOf(next),
+        });
       }
-      const nextIndex = state.index + 1;
-      if (nextIndex >= state.deck.length) {
-        return { ...state, status: "won", selected: null };
-      }
-      const crossedLevel = levelOf(nextIndex) > levelOf(state.index);
-      return {
-        ...state,
-        index: nextIndex,
-        question: questionAt(state.deck, nextIndex, state.seed),
-        status: crossedLevel ? "levelup" : "playing",
-        selected: null,
-        lastCorrect: null,
-        level: levelOf(nextIndex),
-      };
+      return goToQuestion(state, next);
     }
 
-    case "DISMISS_LEVELUP": {
-      if (state.status !== "levelup") return state;
-      return { ...state, status: "playing" };
+    case "PREV": {
+      if (state.status === "won") return goToQuestion(state, state.deck.length - 1);
+      if (state.status === "gameover") return state;
+      if (state.status === "levelup") return goToQuestion(state, state.index - 1);
+      if (state.index <= 0) return state;
+      // Crossing a boundary backwards stops on the interstitial first.
+      if (isLevelBoundary(state.index)) return goToLevelGate(state);
+      return goToQuestion(state, state.index - 1);
     }
 
     case "RESTART":
@@ -167,15 +217,6 @@ export function useMcTrainer(items: readonly McItem[]) {
     items,
     (init) => createInitialState(init),
   );
-
-  // Auto-advance after showing feedback: quick on correct, a touch longer on a
-  // mistake so the correct option can be read.
-  useEffect(() => {
-    if (state.status !== "answered") return;
-    const delay = state.lastCorrect ? 750 : 1400;
-    const timer = setTimeout(() => dispatch({ type: "NEXT" }), delay);
-    return () => clearTimeout(timer);
-  }, [state.status, state.lastCorrect, state.index]);
 
   return { state, dispatch, multiplier: comboMultiplier(state.streak) };
 }
