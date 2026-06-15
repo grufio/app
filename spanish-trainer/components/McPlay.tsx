@@ -5,7 +5,7 @@ import Link from "next/link";
 import { AnimatePresence, MotionConfig } from "framer-motion";
 
 import type { TestDef } from "@/lib/tests";
-import { useMcTrainer } from "@/lib/useMcTrainer";
+import { isDeckComplete, useMcTrainer } from "@/lib/useMcTrainer";
 import { loadHighScore, saveHighScore } from "@/lib/scoring";
 import { loadSrs, recordResult, saveSrs } from "@/lib/srs";
 import { appendRun } from "@/lib/stats";
@@ -18,9 +18,7 @@ import { ComboMeter } from "@/components/ComboMeter";
 import { SettingsToggle } from "@/components/SettingsToggle";
 import { StemCard } from "@/components/StemCard";
 import { AnswerOptions } from "@/components/AnswerOptions";
-import { LevelUpToast } from "@/components/LevelUpToast";
-import { ResultScreen } from "@/components/ResultScreen";
-import { RestartScreen } from "@/components/RestartScreen";
+import { NavControls } from "@/components/NavControls";
 
 export function McPlay({ test }: { test: Extract<TestDef, { kind: "mc" }> }) {
   const { state, dispatch, multiplier } = useMcTrainer(test.items);
@@ -28,52 +26,54 @@ export function McPlay({ test }: { test: Extract<TestDef, { kind: "mc" }> }) {
   const [soundOn, setSoundOn] = useState(true);
   const [animationsOn, setAnimationsOn] = useState(true);
   const [highScore, setHighScore] = useState(0);
-  const [isNewBest, setIsNewBest] = useState(false);
   const [mounted, setMounted] = useState(false);
+  // Indices whose answer we've already recorded (SRS + sound) — so paging back
+  // and forth over a question doesn't replay the cue or double-count it.
+  const recordedRef = useRef<Set<number>>(new Set());
   const finishedRef = useRef<number | null>(null);
 
   useEffect(() => setMounted(true), []);
   useEffect(() => setHighScore(loadHighScore().score), []);
   useEffect(() => setMuted(!soundOn), [soundOn]);
 
-  // Sound cues + SRS / high-score persistence on status transitions.
+  // A fresh run (RESTART → new seed) clears the per-run guards.
   useEffect(() => {
-    if (state.status === "answered") {
-      playCue(state.lastCorrect ? "correct" : "wrong");
-      saveSrs(
-        recordResult(
-          loadSrs(),
-          state.question.item.id,
-          state.lastCorrect ? "correct" : "wrong",
-        ),
-      );
-    } else if (state.status === "levelup") {
-      playCue("levelup");
-    } else if (state.status === "won" || state.status === "gameover") {
-      if (finishedRef.current !== state.seed) {
-        finishedRef.current = state.seed;
-        if (state.status === "won") playCue("win");
-        const previous = loadHighScore().score;
-        const best = saveHighScore({ score: state.score, level: state.level });
-        setIsNewBest(state.score > previous && state.score > 0);
-        setHighScore(best.score);
-        appendRun({
-          user: getActiveUser(),
-          testId: test.id,
-          at: Date.now(),
-          score: state.score,
-          total: state.deck.length,
-          outcome: state.status,
-        });
-      }
-    } else if (state.status === "playing" && state.index === 0) {
-      finishedRef.current = null;
-      setIsNewBest(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.status, state.index]);
+    recordedRef.current = new Set();
+    finishedRef.current = null;
+  }, [state.seed]);
+
+  // Instant feedback side-effects: record the result + play the cue exactly once,
+  // the first time a given question is answered.
+  useEffect(() => {
+    if (state.status !== "answered") return;
+    if (recordedRef.current.has(state.index)) return;
+    recordedRef.current.add(state.index);
+    playCue(state.lastCorrect ? "correct" : "wrong");
+    saveSrs(
+      recordResult(loadSrs(), state.question.item.id, state.lastCorrect ? "correct" : "wrong"),
+    );
+  }, [state.status, state.index, state.lastCorrect, state.question.item.id]);
+
+  // Persist the run + high score once, when the whole deck has been answered.
+  useEffect(() => {
+    if (!isDeckComplete(state) || finishedRef.current === state.seed) return;
+    finishedRef.current = state.seed;
+    playCue("win");
+    const best = saveHighScore({ score: state.score, level: state.level });
+    setHighScore(best.score);
+    appendRun({
+      user: getActiveUser(),
+      testId: test.id,
+      at: Date.now(),
+      score: state.score,
+      total: state.deck.length,
+      outcome: "won",
+    });
+  }, [state, test.id]);
 
   const { question } = state;
+  const answered = state.status === "answered";
+  const complete = isDeckComplete(state);
 
   if (!mounted) {
     return (
@@ -114,55 +114,42 @@ export function McPlay({ test }: { test: Extract<TestDef, { kind: "mc" }> }) {
           </div>
         </header>
 
-        <div className="relative mt-3 flex flex-1 flex-col">
-          {state.status === "won" ? (
-            <div className="flex flex-1 items-center justify-center">
-              <ResultScreen
-                score={state.score}
-                highScore={highScore}
-                isNewBest={isNewBest}
-                onRestart={() => dispatch({ type: "RESTART" })}
+        <div className="relative mt-3 flex flex-1 flex-col justify-between gap-3">
+          <div className="flex flex-col gap-3">
+            <AnimatePresence mode="wait">
+              <StemCard
+                key={question.item.id + state.index}
+                id={question.item.id + state.index}
+                stem={question.stem}
+                topic={question.item.topic}
+                answered={answered}
+                lastCorrect={state.lastCorrect}
+                lastGain={state.lastGain}
               />
-            </div>
-          ) : state.status === "gameover" ? (
-            <div className="flex flex-1 items-center justify-center">
-              <RestartScreen
-                score={state.score}
-                onRestart={() => dispatch({ type: "RESTART" })}
-              />
-            </div>
-          ) : (
-            <div className="flex flex-1 flex-col justify-between gap-3">
-              <AnimatePresence mode="wait">
-                <StemCard
-                  key={question.item.id + state.index}
-                  id={question.item.id + state.index}
-                  stem={question.stem}
-                  topic={question.item.topic}
-                  answered={state.status === "answered"}
-                  lastCorrect={state.lastCorrect}
-                  lastGain={state.lastGain}
-                />
-              </AnimatePresence>
+            </AnimatePresence>
 
-              <AnswerOptions
-                options={question.options}
-                answer={question.answer}
-                selected={state.selected}
-                answered={state.status === "answered"}
-                onSelect={(option) => dispatch({ type: "ANSWER", option })}
-              />
-            </div>
-          )}
+            <AnswerOptions
+              options={question.options}
+              answer={question.answer}
+              selected={state.selected}
+              answered={answered}
+              onSelect={(option) => dispatch({ type: "ANSWER", option })}
+            />
 
-          <AnimatePresence>
-            {state.status === "levelup" && (
-              <LevelUpToast
-                level={state.level}
-                onContinue={() => dispatch({ type: "DISMISS_LEVELUP" })}
-              />
+            {complete && (
+              <p className="text-center text-sm font-medium text-ink-soft">
+                Fertig — {state.score} Punkte. Mit „Zurück“ durchsehen oder den Test zurücksetzen.
+              </p>
             )}
-          </AnimatePresence>
+          </div>
+
+          <NavControls
+            canPrev={state.index > 0}
+            canNext={answered && state.index < state.deck.length - 1}
+            onPrev={() => dispatch({ type: "PREV" })}
+            onNext={() => dispatch({ type: "NEXT" })}
+            onReset={() => dispatch({ type: "RESTART" })}
+          />
         </div>
       </main>
     </MotionConfig>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useReducer } from "react";
+import { useReducer } from "react";
 import type { VocabItem } from "./types";
 import { buildQuestion, pickDirection, pickMode, type Question } from "./choices";
 import { mulberry32, randomSeed } from "./rng";
@@ -13,12 +13,22 @@ export const LEVEL_SIZE = 8;
 /** Free hints per session; further hints are gated behind a workout. */
 export const FREE_HINTS = 3;
 
-export type TrainerStatus =
-  | "playing"
-  | "answered"
-  | "levelup"
-  | "won"
-  | "gameover";
+/**
+ * Vocabulary trainer engine. Self-paced: answering (multiple-choice click or
+ * typed confirmation) grades instantly and the feedback stays on screen.
+ * `NEXT`/`PREV` are pure navigation between questions — no auto-advance, no
+ * run-ending, no level-up interrupt. The learner resets via `RESTART`.
+ */
+
+export type TrainerStatus = "playing" | "answered";
+
+/** A graded answer, kept per deck index so revisiting a question shows its result. */
+export interface TrainerAnswerRecord {
+  selected: string | null;
+  correct: boolean;
+  gain: number;
+  result: MatchResult;
+}
 
 export interface TrainerState {
   /** Full word pool (used to rebuild the deck on restart). */
@@ -27,15 +37,17 @@ export interface TrainerState {
   index: number;
   question: Question;
   status: TrainerStatus;
-  /** The option the learner last picked (for highlighting). */
+  /** Graded answers by deck index — the source of truth for review/navigation. */
+  answers: Record<number, TrainerAnswerRecord>;
+  /** The option picked for the current index (derived from `answers`). */
   selected: string | null;
   lastCorrect: boolean | null;
-  /** Three-way grade of the last answer (typed mode can be "almost"). */
+  /** Three-way grade of the current answer (typed mode can be "almost"). */
   lastResult: MatchResult | null;
   mistakes: number;
   lives: number;
   score: number;
-  /** Points gained on the last correct answer (drives the popup). */
+  /** Points gained on the current answer (drives the popup). */
   lastGain: number;
   streak: number;
   bestStreak: number;
@@ -49,7 +61,7 @@ export type TrainerAction =
   | { type: "ANSWER"; option: string }
   | { type: "ANSWER_TYPED"; result: MatchResult }
   | { type: "NEXT" }
-  | { type: "DISMISS_LEVELUP" }
+  | { type: "PREV" }
   | { type: "USE_HINT" }
   | { type: "RESTART" };
 
@@ -65,6 +77,11 @@ function questionAt(deck: VocabItem[], index: number, seed: number): Question {
   return buildQuestion(item, deck, rng, direction, mode);
 }
 
+/** True once every question in the deck has been answered. */
+export function isDeckComplete(state: TrainerState): boolean {
+  return state.deck.length > 0 && Object.keys(state.answers).length >= state.deck.length;
+}
+
 export function createInitialState(
   items: readonly VocabItem[],
   seed: number = randomSeed(),
@@ -77,6 +94,7 @@ export function createInitialState(
     index: 0,
     question: questionAt(deck, 0, seed),
     status: "playing",
+    answers: {},
     selected: null,
     lastCorrect: null,
     lastResult: null,
@@ -92,18 +110,37 @@ export function createInitialState(
   };
 }
 
+/** Move the view to `index`, deriving the per-question fields from `answers`. */
+function goTo(state: TrainerState, index: number): TrainerState {
+  const record = state.answers[index];
+  return {
+    ...state,
+    index,
+    question: questionAt(state.deck, index, state.seed),
+    status: record ? "answered" : "playing",
+    level: levelOf(index),
+    selected: record ? record.selected : null,
+    lastCorrect: record ? record.correct : null,
+    lastResult: record ? record.result : null,
+    lastGain: record ? record.gain : 0,
+  };
+}
+
 /** Apply a graded answer (shared by multiple-choice and typed paths). */
 function applyAnswer(
   state: TrainerState,
   result: MatchResult,
   picked: string | null,
 ): TrainerState {
+  const gain = result === "correct" ? pointsFor(state.question.item, state.streak) : 0;
+  const record: TrainerAnswerRecord = { selected: picked, correct: result === "correct", gain, result };
+  const answers = { ...state.answers, [state.index]: record };
   if (result === "correct") {
-    const gain = pointsFor(state.question.item, state.streak);
     const streak = state.streak + 1;
     return {
       ...state,
       status: "answered",
+      answers,
       selected: picked,
       lastResult: "correct",
       lastCorrect: true,
@@ -118,6 +155,7 @@ function applyAnswer(
     return {
       ...state,
       status: "answered",
+      answers,
       selected: picked,
       lastResult: "almost",
       lastCorrect: false,
@@ -129,6 +167,7 @@ function applyAnswer(
   return {
     ...state,
     status: "answered",
+    answers,
     selected: picked,
     lastResult: "wrong",
     lastCorrect: false,
@@ -145,41 +184,26 @@ export function trainerReducer(
 ): TrainerState {
   switch (action.type) {
     case "ANSWER": {
-      if (state.status !== "playing") return state;
+      // Grade once; revisiting an already-answered question is a no-op.
+      if (state.status !== "playing" || state.answers[state.index]) return state;
       const result = action.option === state.question.answer ? "correct" : "wrong";
       return applyAnswer(state, result, action.option);
     }
 
     case "ANSWER_TYPED": {
-      if (state.status !== "playing") return state;
+      if (state.status !== "playing" || state.answers[state.index]) return state;
       return applyAnswer(state, action.result, null);
     }
 
     case "NEXT": {
-      if (state.status !== "answered") return state;
-      if (state.mistakes >= MAX_MISTAKES) {
-        return { ...state, status: "gameover", selected: null };
-      }
-      const nextIndex = state.index + 1;
-      if (nextIndex >= state.deck.length) {
-        return { ...state, status: "won", selected: null };
-      }
-      const crossedLevel = levelOf(nextIndex) > levelOf(state.index);
-      return {
-        ...state,
-        index: nextIndex,
-        question: questionAt(state.deck, nextIndex, state.seed),
-        status: crossedLevel ? "levelup" : "playing",
-        selected: null,
-        lastCorrect: null,
-        lastResult: null,
-        level: levelOf(nextIndex),
-      };
+      // Pure navigation — never advances on its own, ends the run, or levels up.
+      if (state.index + 1 >= state.deck.length) return state;
+      return goTo(state, state.index + 1);
     }
 
-    case "DISMISS_LEVELUP": {
-      if (state.status !== "levelup") return state;
-      return { ...state, status: "playing" };
+    case "PREV": {
+      if (state.index <= 0) return state;
+      return goTo(state, state.index - 1);
     }
 
     case "USE_HINT":
@@ -199,15 +223,6 @@ export function useTrainer(items: readonly VocabItem[]) {
     items,
     (init) => createInitialState(init),
   );
-
-  // Auto-advance after showing feedback: quick on correct, a touch longer on a
-  // mistake / "almost" so the correct spelling can be read.
-  useEffect(() => {
-    if (state.status !== "answered") return;
-    const delay = state.lastCorrect ? 750 : 1400;
-    const timer = setTimeout(() => dispatch({ type: "NEXT" }), delay);
-    return () => clearTimeout(timer);
-  }, [state.status, state.lastCorrect, state.index]);
 
   return { state, dispatch, multiplier: comboMultiplier(state.streak) };
 }
