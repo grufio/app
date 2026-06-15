@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createInitialState,
-  isDeckComplete,
+  LEVEL_SIZE,
   MAX_MISTAKES,
   mcTrainerReducer,
   type McTrainerState,
@@ -20,7 +20,7 @@ function wrongOption(state: McTrainerState): string {
   return state.question.options.find((o) => o !== state.question.answer)!;
 }
 
-/** Answer the current question correctly, then navigate forward one. */
+/** Answer the current question correctly, then navigate forward one step. */
 function answerCorrect(state: McTrainerState): McTrainerState {
   const answered = mcTrainerReducer(state, {
     type: "ANSWER",
@@ -65,7 +65,7 @@ describe("mcTrainerReducer", () => {
     let s = createInitialState(items, 123);
     s = mcTrainerReducer(s, { type: "ANSWER", option: s.question.answer });
     const again = mcTrainerReducer(s, { type: "ANSWER", option: wrongOption(s) });
-    expect(again).toBe(s); // unchanged reference
+    expect(again).toBe(s);
   });
 
   it("NEXT/PREV navigate without re-grading; revisiting restores the stored answer", () => {
@@ -98,26 +98,59 @@ describe("mcTrainerReducer", () => {
     expect(s.mistakes).toBe(mistakesSnapshot);
   });
 
-  it("PREV at the first question and NEXT at the last are no-ops", () => {
+  it("PREV at the first question is a no-op", () => {
     const s = createInitialState(items, 5);
     expect(mcTrainerReducer(s, { type: "PREV" })).toBe(s);
-    let last = s;
-    for (let i = 0; i < last.deck.length - 1; i++) {
-      last = mcTrainerReducer(last, { type: "ANSWER", option: last.question.answer });
-      last = mcTrainerReducer(last, { type: "NEXT" });
-    }
-    expect(last.index).toBe(last.deck.length - 1);
-    expect(mcTrainerReducer(last, { type: "NEXT" })).toBe(last);
   });
 
-  it("isDeckComplete flips true only after every question is answered", () => {
-    let s = createInitialState(items, 5);
-    expect(isDeckComplete(s)).toBe(false);
-    for (let i = 0; i < s.deck.length; i++) {
-      s = mcTrainerReducer(s, { type: "ANSWER", option: s.question.answer });
-      if (i < s.deck.length - 1) s = mcTrainerReducer(s, { type: "NEXT" });
+  it("raises the game-over dialog immediately on the 5th mistake", () => {
+    let s = createInitialState(items, 7);
+    for (let i = 0; i < MAX_MISTAKES - 1; i++) {
+      s = mcTrainerReducer(s, { type: "ANSWER", option: wrongOption(s) });
+      s = mcTrainerReducer(s, { type: "NEXT" });
     }
-    expect(isDeckComplete(s)).toBe(true);
+    expect(s.mistakes).toBe(MAX_MISTAKES - 1);
+    s = mcTrainerReducer(s, { type: "ANSWER", option: wrongOption(s) }); // 5th mistake
+    expect(s.mistakes).toBe(MAX_MISTAKES);
+    expect(s.status).toBe("gameover");
+  });
+
+  it("crossing a level boundary parks on the level-up interstitial (Weiter/Zurück)", () => {
+    let s = createInitialState(items, 99);
+    for (let i = 0; i < LEVEL_SIZE; i++) {
+      s = mcTrainerReducer(s, { type: "ANSWER", option: s.question.answer });
+      if (i < LEVEL_SIZE - 1) s = mcTrainerReducer(s, { type: "NEXT" });
+    }
+    expect(s.index).toBe(LEVEL_SIZE - 1);
+    expect(s.status).toBe("answered");
+
+    s = mcTrainerReducer(s, { type: "NEXT" }); // cross the boundary
+    expect(s.status).toBe("levelup");
+    expect(s.level).toBe(2);
+    expect(s.index).toBe(LEVEL_SIZE);
+
+    expect(mcTrainerReducer(s, { type: "PREV" })).toMatchObject({
+      status: "answered",
+      index: LEVEL_SIZE - 1,
+    });
+    expect(mcTrainerReducer(s, { type: "NEXT" })).toMatchObject({
+      status: "playing",
+      index: LEVEL_SIZE,
+    });
+  });
+
+  it("reaches the result screen after the whole deck is answered", () => {
+    let s = createInitialState(items, 5);
+    let guard = 0;
+    while (s.status !== "won" && guard++ < 500) {
+      if (s.status === "playing") {
+        s = mcTrainerReducer(s, { type: "ANSWER", option: s.question.answer });
+      } else {
+        s = mcTrainerReducer(s, { type: "NEXT" }); // answered or levelup
+      }
+    }
+    expect(s.status).toBe("won");
+    expect(s.score).toBeGreaterThan(0);
   });
 
   it("restart reshuffles and clears all progress, including answers", () => {

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { AnimatePresence, MotionConfig } from "framer-motion";
 
 import type { TestDef } from "@/lib/tests";
-import { FREE_HINTS, isDeckComplete, useTrainer } from "@/lib/useTrainer";
+import { FREE_HINTS, useTrainer } from "@/lib/useTrainer";
 import { loadHighScore, saveHighScore } from "@/lib/scoring";
 import { loadSrs, recordResult, saveSrs } from "@/lib/srs";
 import { appendRun } from "@/lib/stats";
@@ -20,6 +20,9 @@ import { VocabCard } from "@/components/VocabCard";
 import { AnswerOptions } from "@/components/AnswerOptions";
 import { HintPanel } from "@/components/HintPanel";
 import { NavControls } from "@/components/NavControls";
+import { LevelUpToast } from "@/components/LevelUpToast";
+import { ResultScreen } from "@/components/ResultScreen";
+import { RestartScreen } from "@/components/RestartScreen";
 import { WorkoutGate } from "@/components/WorkoutGate";
 import { TypeInput } from "@/components/TypeInput";
 
@@ -29,6 +32,7 @@ export function VocabPlay({ test }: { test: Extract<TestDef, { kind: "vocab" }> 
   const [soundOn, setSoundOn] = useState(true);
   const [animationsOn, setAnimationsOn] = useState(true);
   const [highScore, setHighScore] = useState(0);
+  const [isNewBest, setIsNewBest] = useState(false);
   const [mounted, setMounted] = useState(false);
   // Indices whose answer we've already recorded (SRS + sound) — so paging back
   // and forth over a question doesn't replay the cue or double-count it.
@@ -70,24 +74,28 @@ export function VocabPlay({ test }: { test: Extract<TestDef, { kind: "vocab" }> 
   useEffect(() => {
     recordedRef.current = new Set();
     finishedRef.current = null;
+    setIsNewBest(false);
   }, [state.seed]);
 
   // Instant feedback side-effects: record the result + play the cue exactly once,
-  // the first time a given question is answered.
+  // the first time a given question is answered (not on Zurück/Weiter review).
   useEffect(() => {
-    if (state.status !== "answered" || state.lastResult === null) return;
-    if (recordedRef.current.has(state.index)) return;
+    const record = state.answers[state.index];
+    if (!record || recordedRef.current.has(state.index)) return;
     recordedRef.current.add(state.index);
-    playCue(state.lastCorrect ? "correct" : "wrong");
-    saveSrs(recordResult(loadSrs(), state.question.item.id, state.lastResult));
-  }, [state.status, state.index, state.lastCorrect, state.lastResult, state.question.item.id]);
+    playCue(record.correct ? "correct" : "wrong");
+    saveSrs(recordResult(loadSrs(), state.question.item.id, record.result));
+  }, [state.index, state.answers, state.question.item.id]);
 
-  // Persist the run + high score once, when the whole deck has been answered.
+  // Persist the run + high score once, when the deck ends (won) or after 5 mistakes.
   useEffect(() => {
-    if (!isDeckComplete(state) || finishedRef.current === state.seed) return;
+    if (state.status !== "won" && state.status !== "gameover") return;
+    if (finishedRef.current === state.seed) return;
     finishedRef.current = state.seed;
-    playCue("win");
+    if (state.status === "won") playCue("win");
+    const previous = loadHighScore().score;
     const best = saveHighScore({ score: state.score, level: state.level });
+    setIsNewBest(state.score > previous && state.score > 0);
     setHighScore(best.score);
     appendRun({
       user: getActiveUser(),
@@ -95,13 +103,12 @@ export function VocabPlay({ test }: { test: Extract<TestDef, { kind: "vocab" }> 
       at: Date.now(),
       score: state.score,
       total: state.deck.length,
-      outcome: "won",
+      outcome: state.status,
     });
-  }, [state, test.id]);
+  }, [state.status, state.seed, state.score, state.level, state.deck.length, test.id]);
 
   const { question } = state;
   const answered = state.status === "answered";
-  const complete = isDeckComplete(state);
 
   if (!mounted) {
     return (
@@ -142,57 +149,81 @@ export function VocabPlay({ test }: { test: Extract<TestDef, { kind: "vocab" }> 
           </div>
         </header>
 
-        <div className="relative mt-3 flex flex-1 flex-col justify-between gap-3">
-          <div className="flex flex-col gap-3">
-            <AnimatePresence mode="wait">
-              <VocabCard
-                key={question.item.id + state.index}
-                question={question}
-                answered={answered}
-                lastCorrect={state.lastCorrect}
-                lastGain={state.lastGain}
+        <div className="relative mt-3 flex flex-1 flex-col">
+          {state.status === "won" ? (
+            <div className="flex flex-1 items-center justify-center">
+              <ResultScreen
+                score={state.score}
+                highScore={highScore}
+                isNewBest={isNewBest}
+                onRestart={() => dispatch({ type: "RESTART" })}
               />
-            </AnimatePresence>
+            </div>
+          ) : (
+            <div className="flex flex-1 flex-col justify-between gap-3">
+              {state.status === "levelup" ? (
+                <div className="flex flex-1 items-center justify-center">
+                  <LevelUpToast level={state.level} />
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  <AnimatePresence mode="wait">
+                    <VocabCard
+                      key={question.item.id + state.index}
+                      question={question}
+                      answered={answered}
+                      lastCorrect={state.lastCorrect}
+                      lastGain={state.lastGain}
+                    />
+                  </AnimatePresence>
 
-            <HintPanel
-              item={question.item}
-              direction={question.direction}
-              freeLeft={freeLeft}
-              onHintRequest={requestHint}
-            />
+                  <HintPanel
+                    item={question.item}
+                    direction={question.direction}
+                    freeLeft={freeLeft}
+                    onHintRequest={requestHint}
+                  />
 
-            {question.mode === "type" ? (
-              <TypeInput
-                key={question.item.id + state.index}
-                answer={question.answer}
-                direction={question.direction}
-                answeredResult={answered ? state.lastResult : null}
-                onResult={(result) => dispatch({ type: "ANSWER_TYPED", result })}
+                  {question.mode === "type" ? (
+                    <TypeInput
+                      key={question.item.id + state.index}
+                      answer={question.answer}
+                      direction={question.direction}
+                      answeredResult={answered ? state.lastResult : null}
+                      onResult={(result) => dispatch({ type: "ANSWER_TYPED", result })}
+                    />
+                  ) : (
+                    <AnswerOptions
+                      options={question.options}
+                      answer={question.answer}
+                      selected={state.selected}
+                      answered={answered}
+                      onSelect={(option) => dispatch({ type: "ANSWER", option })}
+                    />
+                  )}
+                </div>
+              )}
+
+              <NavControls
+                canPrev={state.index > 0}
+                canNext={state.status === "answered" || state.status === "levelup"}
+                onPrev={() => dispatch({ type: "PREV" })}
+                onNext={() => dispatch({ type: "NEXT" })}
+                onReset={() => dispatch({ type: "RESTART" })}
               />
-            ) : (
-              <AnswerOptions
-                options={question.options}
-                answer={question.answer}
-                selected={state.selected}
-                answered={answered}
-                onSelect={(option) => dispatch({ type: "ANSWER", option })}
-              />
+            </div>
+          )}
+
+          <AnimatePresence>
+            {state.status === "gameover" && (
+              <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/20 p-4 backdrop-blur-sm">
+                <RestartScreen
+                  score={state.score}
+                  onRestart={() => dispatch({ type: "RESTART" })}
+                />
+              </div>
             )}
-
-            {complete && (
-              <p className="text-center text-sm font-medium text-ink-soft">
-                Fertig — {state.score} Punkte. Mit „Zurück“ durchsehen oder den Test zurücksetzen.
-              </p>
-            )}
-          </div>
-
-          <NavControls
-            canPrev={state.index > 0}
-            canNext={answered && state.index < state.deck.length - 1}
-            onPrev={() => dispatch({ type: "PREV" })}
-            onNext={() => dispatch({ type: "NEXT" })}
-            onReset={() => dispatch({ type: "RESTART" })}
-          />
+          </AnimatePresence>
 
           <AnimatePresence>
             {gateOpen && (
