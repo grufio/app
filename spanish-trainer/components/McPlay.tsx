@@ -130,13 +130,13 @@ export function McPlay({ test }: { test: Extract<TestDef, { kind: "mc" }> }) {
               />
             </div>
           ) : (
-            <div className="flex flex-1 flex-col justify-between gap-3">
+            <div className="flex flex-1 flex-col gap-3">
               {state.status === "levelup" ? (
                 <div className="flex flex-1 items-center justify-center">
                   <LevelUpToast level={state.level} />
                 </div>
               ) : (
-                <div className="flex flex-col gap-3">
+                <div className="flex flex-1 flex-col justify-center gap-3">
                   <AnimatePresence mode="wait">
                     <StemCard
                       key={question.item.id + state.index}
