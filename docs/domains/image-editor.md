@@ -23,11 +23,11 @@ result. It splits into three layers: pure-math canvas model
   [filters/](../../lib/editor/filters/) (filter registry).
 - [features/editor/](../../features/editor/) — React surface:
   `ProjectEditorStage`, the floating section model. Navigation and
-  functions are split into two floating-pill bars: `EditorBottomNav`
+  functions are split into two floating-pill bars: `EditorNav`
   (Home + the four section icons — pure navigation, switches
-  `editorSection`) at the bottom, and `EditorTopBar` (the active
-  section's per-section "+" menu via `SectionFabMenu`, driving
-  apply/edit) at the top. Per-surface scopes drive the trace
+  `editorSection`) as a vertical column top-left, and `EditorTopBar`
+  (the active section's per-section "+" menu via `SectionFabMenu`,
+  driving apply/edit) top-right, beneath the theme bar. Per-surface scopes drive the trace
   `TraceSheet` and the artboard section's three standalone
   dialogs `ArtboardSheet` (artboard size + page-background) /
   `GridSheet` / `ImageSheet`, each launched by its own

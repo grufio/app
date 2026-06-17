@@ -181,11 +181,11 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
 
       {/* Workspace */}
       <div className="relative min-h-0 flex-1" style={bgStyle}>
-        {/* Floating toolbar overlay (Figma-like) — bottom-right so it clears
-            the centred bottom navigation. Hidden on sections (e.g. Colors)
-            where the canvas-editing tools don't belong. */}
+        {/* Floating toolbar overlay (Figma-like), bottom-centre. Hidden on
+            sections (e.g. Colors) where the canvas-editing tools don't
+            belong. */}
         {showFloatingToolbar ? (
-          <div className="absolute right-3 bottom-4 z-10 w-max">
+          <div className="absolute bottom-4 left-1/2 z-10 w-max -translate-x-1/2">
             <FloatingToolbar
               className="pointer-events-auto"
               tool={toolbar.tool}
