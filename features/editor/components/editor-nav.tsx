@@ -1,22 +1,23 @@
 "use client"
 
 /**
- * Floating **navigation** bar, centred along the bottom of the editor canvas.
- * Pure navigation, no function menus (Material bottom-nav guidance: top-level
- * destinations that switch directly). Two Feather-style floating pills:
+ * Floating **navigation** bar in the top-left corner of the editor canvas —
+ * a vertical column of Feather-style pills. Pure navigation, no function
+ * menus (Material guidance: top-level destinations that switch directly):
  *
  *   1. Standalone Home pill — links to `/dashboard`
  *   2. Group pill — the four section icons (Image / Filter / Trace / Color)
- *      that switch the active `EditorSection`
+ *      stacked vertically, switching the active `EditorSection`
  *
- * The active section's *functions* live in `EditorTopBar` (top of the canvas);
- * this bar only changes which section is active. Tone comes from the
- * `EditorToolbarTone` context, identical to the other floating bars.
+ * The active section's *functions* live in `EditorTopBar` (top-right, under
+ * the theme bar); this bar only changes which section is active. Tone comes
+ * from the `EditorToolbarTone` context, identical to the other floating bars.
  */
 import Link from "next/link"
 import { Home } from "lucide-react"
 
 import type { EditorSection } from "@/lib/editor/editor-sections"
+import { cn } from "@/lib/utils"
 
 import { SECTION_ITEMS } from "./editor-section-items"
 import { useEditorToolbarTone } from "./editor-toolbar-tone"
@@ -28,11 +29,11 @@ type Props = {
   onSelectSection: (section: EditorSection) => void
 }
 
-export function EditorBottomNav({ activeSection, onSelectSection }: Props) {
+export function EditorNav({ activeSection, onSelectSection }: Props) {
   const tone = useEditorToolbarTone()
 
   return (
-    <div className="absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 items-center gap-3">
+    <div className="absolute top-3 left-3 z-20 flex flex-col items-start gap-3">
       <div className={pillClass(tone, "single")}>
         <ToolbarIconButton label="Home" asChild>
           <Link href="/dashboard">
@@ -40,7 +41,7 @@ export function EditorBottomNav({ activeSection, onSelectSection }: Props) {
           </Link>
         </ToolbarIconButton>
       </div>
-      <div className={pillClass(tone, "group")}>
+      <div className={cn(pillClass(tone, "group"), "flex-col")}>
         {SECTION_ITEMS.map(({ key, label, Icon }) => (
           <ToolbarIconButton
             key={key}

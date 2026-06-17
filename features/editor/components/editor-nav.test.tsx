@@ -4,7 +4,7 @@
 import { cleanup, fireEvent, render } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { EditorBottomNav } from "./editor-bottom-nav"
+import { EditorNav } from "./editor-nav"
 
 vi.mock("next/link", () => ({
   default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
@@ -14,14 +14,14 @@ vi.mock("next/link", () => ({
   ),
 }))
 
-describe("EditorBottomNav", () => {
+describe("EditorNav", () => {
   afterEach(() => {
     cleanup()
   })
 
   it("renders Home + four section buttons with the user-facing labels", () => {
     const { getByLabelText } = render(
-      <EditorBottomNav activeSection="artboard" onSelectSection={() => {}} />,
+      <EditorNav activeSection="artboard" onSelectSection={() => {}} />,
     )
     expect(getByLabelText("Home")).not.toBeNull()
     expect(getByLabelText("Image")).not.toBeNull()
@@ -32,7 +32,7 @@ describe("EditorBottomNav", () => {
 
   it("renders Home as a link to /dashboard", () => {
     const { getByLabelText } = render(
-      <EditorBottomNav activeSection="artboard" onSelectSection={() => {}} />,
+      <EditorNav activeSection="artboard" onSelectSection={() => {}} />,
     )
     const home = getByLabelText("Home") as HTMLAnchorElement
     expect(home.tagName).toBe("A")
@@ -42,7 +42,7 @@ describe("EditorBottomNav", () => {
   it("invokes onSelectSection with the matching section key (pure navigation, no menus)", () => {
     const onSelectSection = vi.fn()
     const { getByLabelText, queryByLabelText } = render(
-      <EditorBottomNav activeSection="artboard" onSelectSection={onSelectSection} />,
+      <EditorNav activeSection="artboard" onSelectSection={onSelectSection} />,
     )
     fireEvent.click(getByLabelText("Image"))
     expect(onSelectSection).toHaveBeenLastCalledWith("artboard")
@@ -60,7 +60,7 @@ describe("EditorBottomNav", () => {
 
   it("marks only the active section as aria-pressed", () => {
     const { getByLabelText } = render(
-      <EditorBottomNav activeSection="filter" onSelectSection={() => {}} />,
+      <EditorNav activeSection="filter" onSelectSection={() => {}} />,
     )
     expect(getByLabelText("Filter").getAttribute("aria-pressed")).toBe("true")
     expect(getByLabelText("Image").getAttribute("aria-pressed")).not.toBe("true")
@@ -70,7 +70,7 @@ describe("EditorBottomNav", () => {
 
   it("renders Home and the section group as two separate pill containers", () => {
     const { container } = render(
-      <EditorBottomNav activeSection="artboard" onSelectSection={() => {}} />,
+      <EditorNav activeSection="artboard" onSelectSection={() => {}} />,
     )
     const pills = container.querySelectorAll(":scope > div > div")
     expect(pills.length).toBe(2)

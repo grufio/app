@@ -14,7 +14,7 @@
  *     launching its standalone dialog; Grid quick-creates when empty
  *   - Colors → no menu (read-only palette), just the context chip
  *
- * Section *switching* lives in `EditorBottomNav` (bottom of the canvas); this
+ * Section *switching* lives in `EditorNav` (top-left, vertical); this
  * bar never changes the active section — it only exposes the active section's
  * functions. Ported from the former combined `EditorTopLeftBar`.
  */
@@ -257,7 +257,10 @@ export function EditorTopBar({
     (activeSection === "filter" && filterLocked) || (activeSection === "artboard" && imageLocked)
 
   return (
-    <div className="absolute top-3 left-3 z-20">
+    // Top-right, below the theme/Eye bar (`top-3`). Inset from the right edge
+    // (`right-14`) so the active row's right-hand Delete circle in the dropping
+    // `SectionFabMenu` stays fully on screen.
+    <div className="absolute top-16 right-14 z-20">
       <div ref={wrapperRef} className="relative">
         <div className={pillClass(tone, "single")}>
           {/* Decorative context chip — which section's functions these are.
