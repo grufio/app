@@ -77,4 +77,18 @@ export const satzglieder: McItem[] = [
     ],
     correctIndex: 1,
   },
+  {
+    id: "stg-adv-ort-frage",
+    topic: "Satzglieder",
+    stem: "Mit welcher Frage findet man die adverbiale Bestimmung des Ortes?",
+    options: ["Wo?", "Wann?", "Wie?", "Warum?"],
+    correctIndex: 0,
+  },
+  {
+    id: "stg-praedikat-finden",
+    topic: "Satzglieder",
+    stem: "Was ist in „Am Morgen läuft Tom schnell.“ das Prädikat?",
+    options: ["Tom", "läuft", "schnell", "Am Morgen"],
+    correctIndex: 1,
+  },
 ];

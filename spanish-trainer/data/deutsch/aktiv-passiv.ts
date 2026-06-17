@@ -102,4 +102,23 @@ export const aktivPassiv: McItem[] = [
     options: ["Aktiv", "Passiv", "Weder noch", "Beides zugleich"],
     correctIndex: 1,
   },
+  {
+    id: "akt-praeposition-mittel",
+    topic: "Aktiv/Passiv",
+    stem: "Mit welcher Präposition nennt man im Passiv das Mittel oder die Ursache?",
+    options: ["von", "durch", "mit", "bei"],
+    correctIndex: 1,
+  },
+  {
+    id: "akt-welcher-aktiv",
+    topic: "Aktiv/Passiv",
+    stem: "Welcher Satz steht im Aktiv?",
+    options: [
+      "Das Tor wird geschlossen.",
+      "Das Tor wurde geschlossen.",
+      "Der Hausmeister schließt das Tor.",
+      "Hier wird abgeschlossen.",
+    ],
+    correctIndex: 2,
+  },
 ];

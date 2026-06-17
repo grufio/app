@@ -84,4 +84,16 @@ export const tempus: McItem[] = [
     options: ["habe", "bin", "werde", "war"],
     correctIndex: 1,
   },
+  {
+    id: "tmp-sein-bewegung",
+    topic: "Tempus",
+    stem: "Welche Verben bilden das Perfekt meist mit „sein“?",
+    options: [
+      "Verben der Ortsveränderung wie gehen oder fahren",
+      "alle Verben mit Akkusativobjekt",
+      "nur die Modalverben",
+      "alle reflexiven Verben",
+    ],
+    correctIndex: 0,
+  },
 ];

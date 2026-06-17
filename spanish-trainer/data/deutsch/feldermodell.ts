@@ -87,4 +87,23 @@ export const feldermodell: McItem[] = [
     ],
     correctIndex: 1,
   },
+  {
+    id: "fld-nachfeld",
+    topic: "Feldermodell",
+    stem: "Was steht im Nachfeld?",
+    options: [
+      "alles, was hinter der rechten Satzklammer steht (z. B. ein Vergleich)",
+      "das finite Verb",
+      "genau ein Subjekt",
+      "der erste Satzteil des Satzes",
+    ],
+    correctIndex: 0,
+  },
+  {
+    id: "fld-vorfeld-ort",
+    topic: "Feldermodell",
+    stem: "Was steht in „Heute spielt Tom im Garten.“ im Vorfeld?",
+    options: ["Tom", "spielt", "Heute", "im Garten"],
+    correctIndex: 2,
+  },
 ];

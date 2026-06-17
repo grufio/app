@@ -82,4 +82,23 @@ export const attribute: McItem[] = [
     options: ["Genitivattribut", "Adjektivattribut", "Präpositionalattribut", "Apposition"],
     correctIndex: 1,
   },
+  {
+    id: "att-genitivattribut-2",
+    topic: "Attribute",
+    stem: "Welche Art von Attribut ist „der Lehrerin“ in „die Tasche der Lehrerin“?",
+    options: ["Adjektivattribut", "Genitivattribut", "Präpositionalattribut", "Apposition"],
+    correctIndex: 1,
+  },
+  {
+    id: "att-funktion",
+    topic: "Attribute",
+    stem: "Wozu dient ein Attribut?",
+    options: [
+      "Es bestimmt ein Nomen genauer.",
+      "Es bildet das Prädikat des Satzes.",
+      "Es ersetzt das Subjekt.",
+      "Es verbindet zwei Hauptsätze.",
+    ],
+    correctIndex: 0,
+  },
 ];
