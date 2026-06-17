@@ -2,7 +2,7 @@
 
 /**
  * Tone (dark | light) for the floating canvas bars — the bottom
- * navigation (`EditorBottomNav`), the top functions bar (`EditorTopBar`),
+ * navigation (`EditorNav`), the top functions bar (`EditorTopBar`),
  * the theme/Eye bar (`EditorTopRightBar`) and the canvas toolbar
  * (`FloatingToolbar`).
  *

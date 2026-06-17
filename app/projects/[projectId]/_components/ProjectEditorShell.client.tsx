@@ -19,7 +19,7 @@ import {
   type ProjectCanvasStageHandle,
 } from "@/features/editor"
 import { deriveSectionLocks } from "@/lib/editor/section-locks"
-import { EditorBottomNav } from "@/features/editor/components/editor-bottom-nav"
+import { EditorNav } from "@/features/editor/components/editor-nav"
 import { EditorTopBar } from "@/features/editor/components/editor-top-bar"
 import { EditorToolbarToneProvider } from "@/features/editor/components/editor-toolbar-tone"
 import { EditorTopRightBar } from "@/features/editor/components/editor-top-right-bar"
@@ -662,9 +662,9 @@ export function ProjectDetailPageClient({
         {editorSection === "colors" ? (
           <ColorsSurfaceScope trace={trace} />
         ) : null}
-        {/* Pure navigation: switches the active section. The section's
-            functions live in EditorTopBar at the top of the canvas. */}
-        <EditorBottomNav activeSection={editorSection} onSelectSection={handleSectionTap} />
+        {/* Pure navigation (top-left, vertical): switches the active section.
+            The section's functions live in EditorTopBar (top-right). */}
+        <EditorNav activeSection={editorSection} onSelectSection={handleSectionTap} />
         </EditorToolbarToneProvider>
       </ProjectEditorLayout>
 
