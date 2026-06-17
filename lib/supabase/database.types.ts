@@ -59,7 +59,6 @@ export type Database = {
           input_image_id: string
           output_image_id: string
           project_id: string
-          stack_order: number
           updated_at: string
         }
         Insert: {
@@ -70,7 +69,6 @@ export type Database = {
           input_image_id: string
           output_image_id: string
           project_id: string
-          stack_order: number
           updated_at?: string
         }
         Update: {
@@ -81,7 +79,6 @@ export type Database = {
           input_image_id?: string
           output_image_id?: string
           project_id?: string
-          stack_order?: number
           updated_at?: string
         }
         Relationships: [

@@ -85,7 +85,6 @@ export type ProjectImageFilterItem = {
   output_image_id: string
   filter_type: FilterType
   filter_params: Record<string, unknown>
-  stack_order: number
   created_at: string
 }
 

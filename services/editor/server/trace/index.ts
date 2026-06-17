@@ -260,14 +260,13 @@ export async function applyProjectTrace(args: {
     }
     sourceIsLocked = lookup.isLocked
   } else {
-    // Walk the filter chain for its tip output. project_image_filters
-    // is filter-chain rows only; pixelate / lineart trace rows live
-    // on project_image_trace and never appear here.
+    // Single-artifact model: at most one filter per project, so its output is
+    // the trace source. project_image_filters is filter rows only; pixelate /
+    // lineart trace rows live on project_image_trace and never appear here.
     const { data: chainRows } = await supabase
       .from("project_image_filters")
-      .select("output_image_id,stack_order")
+      .select("output_image_id")
       .eq("project_id", projectId)
-      .order("stack_order", { ascending: false })
       .limit(1)
     const chainTipId = chainRows?.[0]?.output_image_id ? String(chainRows[0].output_image_id) : null
 

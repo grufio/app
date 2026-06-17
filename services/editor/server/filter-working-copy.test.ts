@@ -226,14 +226,12 @@ describe("getFilterPanelData", () => {
         input_image_id: "working-copy-id",
         output_image_id: "img-pixelate",
         filter_type: "bw_hard",
-        stack_order: 1,
       },
       {
         id: "f2",
         input_image_id: "img-pixelate",
         output_image_id: "img-lineart",
         filter_type: "bw_soft",
-        stack_order: 2,
       },
     ]
     const outputImages = [
@@ -293,7 +291,6 @@ describe("getFilterPanelData", () => {
         input_image_id: "other-image-id",
         output_image_id: "img-pixelate",
         filter_type: "bw_hard",
-        stack_order: 1,
       },
     ]
 
