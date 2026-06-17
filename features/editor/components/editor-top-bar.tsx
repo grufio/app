@@ -148,6 +148,7 @@ export function EditorTopBar({
   // The "+" menu belongs to the active section; collapse it whenever the
   // section changes so returning shows the trigger closed.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setOpen(false)
   }, [activeSection])
 

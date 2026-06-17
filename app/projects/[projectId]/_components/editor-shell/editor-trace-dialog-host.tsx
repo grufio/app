@@ -4,11 +4,10 @@
  * Trace dialog host. Sister to `EditorDialogHost`. Mounts the
  * `TraceSelectionController` (trace picker) and, once a kind is chosen, the
  * appropriate configure surface:
- *   - pixelate         → `PixelateDialog`
- *   - circulate        → `CirculateDialog`
- *   - lineart (mobile) → `LineArtDialog` (preview-pane shell)
- *   - lineart (≥768px) → `GenericTraceController` (legacy single-form)
- *   - other kinds      → `GenericTraceController`
+ *   - pixelate    → `PixelateDialog`
+ *   - circulate   → `CirculateDialog`
+ *   - lineart     → `LineArtDialog` (preview-pane shell, all viewports)
+ *   - other kinds → `GenericTraceController`
  */
 import { TraceSelectionController } from "@/features/editor/components/TraceSelectionController"
 import { CirculateDialog } from "@/features/editor/components/trace-forms/circulate-dialog"
@@ -16,7 +15,6 @@ import { GenericTraceController } from "@/features/editor/components/trace-forms
 import { LineArtDialog } from "@/features/editor/components/trace-forms/lineart-dialog"
 import { PixelateDialog } from "@/features/editor/components/trace-forms/pixelate-dialog"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
-import { useIsMobile } from "@/lib/ui/use-mobile"
 
 export function EditorTraceDialogHost(props: {
   selectionOpen: boolean
@@ -60,7 +58,6 @@ export function EditorTraceDialogHost(props: {
   } = props
 
   const configureOpen = Boolean(traceDialogSource && activeKind)
-  const isMobile = useIsMobile()
 
   return (
     <>
@@ -101,7 +98,7 @@ export function EditorTraceDialogHost(props: {
           initialParams={initialParams}
         />
       ) : null}
-      {configureOpen && traceDialogSource && activeKind === "lineart" && isMobile ? (
+      {configureOpen && traceDialogSource && activeKind === "lineart" ? (
         <LineArtDialog
           open
           sourceImageUrl={traceDialogSource.sourceImageUrl}
@@ -119,7 +116,7 @@ export function EditorTraceDialogHost(props: {
       && activeKind
       && activeKind !== "pixelate"
       && activeKind !== "circulate"
-      && !(activeKind === "lineart" && isMobile) ? (
+      && activeKind !== "lineart" ? (
         <GenericTraceController
           kind={activeKind}
           ctx={{

@@ -52,13 +52,9 @@ type Props = {
   theme?: EditorTopRightBarTheme | null
   /** Eye view-options menu (Trace section only). When null the Eye is omitted. */
   viewOptions: EditorTopRightBarViewOptions | null
-  /** When true the bar stays visible on `md+` (editor surfaces in the
-   * unified section model). Default false keeps the historical
-   * mobile-only (`md:hidden`) behaviour for every other caller. */
-  desktop?: boolean
 }
 
-export function EditorTopRightBar({ theme = null, viewOptions, desktop = false }: Props) {
+export function EditorTopRightBar({ theme = null, viewOptions }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)
   const tone = useEditorToolbarTone()
 
@@ -72,13 +68,7 @@ export function EditorTopRightBar({ theme = null, viewOptions, desktop = false }
     <div
       role="toolbar"
       aria-label="Editor actions"
-      className={cn(
-        pillClass(tone, multi ? "group" : "single"),
-        "absolute top-3 right-3 z-20",
-        // `md:hidden` only when NOT desktop — the unified editor surfaces
-        // keep the bar on `md+`.
-        desktop ? "" : "md:hidden",
-      )}
+      className={cn(pillClass(tone, multi ? "group" : "single"), "absolute top-3 right-3 z-20")}
     >
       {viewOptions ? (
       <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>

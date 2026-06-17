@@ -32,8 +32,6 @@ const GridPanel = dynamic(() => import("./grid-panel").then((m) => m.GridPanel),
 
 export function GridSheet(props: {
   onClose: () => void
-  /** Desktop variant — bounded floating card instead of fullscreen. */
-  desktop?: boolean
   /** hasGrid drives the swap between the Add-row and GridPanel. */
   hasGrid: boolean
   gridVisible: boolean
@@ -43,7 +41,6 @@ export function GridSheet(props: {
 }) {
   const {
     onClose,
-    desktop,
     hasGrid,
     gridVisible,
     onGridVisibleChange,
@@ -52,7 +49,7 @@ export function GridSheet(props: {
   } = props
 
   return (
-    <section aria-label="Grid" className={sheetRootClass(desktop)}>
+    <section aria-label="Grid" className={sheetRootClass()}>
       <SheetHeader title="Grid" onClose={onClose} />
 
       <div className="flex-1 overflow-y-auto">

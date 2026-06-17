@@ -12,9 +12,9 @@ import { PROJECT_ID, setupMockRoutes } from "./_mocks"
 
 // Canvas-first model: the artboard section's three tools each open their own
 // standalone dialog (Artboard size + page-background / Grid / Image), launched
-// from the top-left "Image" section's "+" menu. Open the menu first (click the
-// section icon while it's closed so the "Image" label is unambiguous), then tap
-// the frame's Edit lead.
+// from the artboard section's "+" menu in the top functions bar. Switch to the
+// section first via the bottom nav (the "Image" section button), then open the
+// "+" menu and tap the frame's Edit lead.
 async function openArtboardMenu(page: import("@playwright/test").Page) {
   await page.getByRole("button", { name: "Image", exact: true }).click()
   await page.getByLabel("Add to artboard").click()
@@ -49,9 +49,10 @@ async function openImageDialog(
 }
 
 async function openFilterMenu(page: import("@playwright/test").Page) {
-  // The Filter section has no sheet: its top-left "+" menu (apply kind /
-  // remove / unlock) is the sole filter UI. Navigate to the section, then
-  // open the "+" menu so the B&W kind frames are mounted.
+  // The Filter section has no sheet: its "+" menu in the top functions bar
+  // (apply kind / remove / unlock) is the sole filter UI. Switch to the
+  // section via the bottom nav, then open the "+" menu so the B&W kind
+  // frames are mounted.
   await page.getByRole("button", { name: "Filter", exact: true }).click()
   await page.getByLabel("Add filter").click()
 }
@@ -88,7 +89,7 @@ async function assertEditorSurfaceVisible(page: import("@playwright/test").Page)
   }
 
   // Canvas-first model: no always-mounted property panel. The editor
-  // chrome is the floating top-left section bar (Home + section nav) —
+  // chrome is the floating bottom navigation (Home + section nav) —
   // assert it mounted alongside the canvas.
   await expect(page.getByRole("link", { name: "Home" }).first()).toBeVisible()
 }

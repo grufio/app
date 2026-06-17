@@ -37,8 +37,6 @@ const ImagePanel = dynamic(() => import("./image-panel").then((m) => m.ImagePane
 export function ImageSheet(props: {
   projectId: string
   onClose: () => void
-  /** Desktop variant — bounded floating card instead of fullscreen. */
-  desktop?: boolean
   /** hasMasterImage drives the swap between the Add-row and ImagePanel. */
   hasMasterImage: boolean
   onImageUploaded: (master: UploadedMasterSnapshot | null) => void | Promise<void>
@@ -47,7 +45,7 @@ export function ImageSheet(props: {
   imagePanelReady: boolean
   imagePanelEnabled: boolean
   /** Section-lock for the Image panel — passed straight through to the
-   * inner `ImagePanel`. Null on desktop or when not locked. */
+   * inner `ImagePanel`. Null when not locked. */
   imageLock?: {
     message: string
     toggleable: boolean
@@ -66,7 +64,6 @@ export function ImageSheet(props: {
   const {
     projectId,
     onClose,
-    desktop,
     hasMasterImage,
     onImageUploaded,
     panelImageTxU,
@@ -85,7 +82,7 @@ export function ImageSheet(props: {
   } = props
 
   return (
-    <section aria-label="Image" className={sheetRootClass(desktop)}>
+    <section aria-label="Image" className={sheetRootClass()}>
       <SheetHeader title="Image" onClose={onClose} />
 
       <div className="flex-1 overflow-y-auto">

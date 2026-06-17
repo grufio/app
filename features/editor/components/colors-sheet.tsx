@@ -44,26 +44,19 @@ type ColorsSheetProps = {
   traceMode: "color" | "bw" | null
   /** True when no trace is active at all. */
   hasTrace: boolean
-  /** When true, the section view stays visible on `md+` (the unified
-   * desktop section model). Default false keeps the historical
-   * mobile-only behaviour. */
-  desktop?: boolean
 }
 
 export function ColorsSheet({
   paletteIndicesUsed,
   traceMode,
   hasTrace,
-  desktop = false,
 }: ColorsSheetProps) {
   const palette = useTracePalette(traceMode ?? "color")
 
   return (
     <section
       aria-label="Colors"
-      className={
-        `absolute inset-0 flex flex-col overflow-hidden bg-background${desktop ? "" : " md:hidden"}`
-      }
+      className="absolute inset-0 flex flex-col overflow-hidden bg-background"
     >
       <header className="flex shrink-0 items-center border-b bg-background px-4 pt-16 pb-3">
         <h2 className="text-sm font-semibold">Colors</h2>
