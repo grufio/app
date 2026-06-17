@@ -19,7 +19,8 @@ import {
   type ProjectCanvasStageHandle,
 } from "@/features/editor"
 import { deriveSectionLocks } from "@/lib/editor/section-locks"
-import { EditorTopLeftBar } from "@/features/editor/components/editor-top-left-bar"
+import { EditorBottomNav } from "@/features/editor/components/editor-bottom-nav"
+import { EditorTopBar } from "@/features/editor/components/editor-top-bar"
 import { EditorToolbarToneProvider } from "@/features/editor/components/editor-toolbar-tone"
 import { EditorTopRightBar } from "@/features/editor/components/editor-top-right-bar"
 import {
@@ -570,9 +571,8 @@ export function ProjectDetailPageClient({
           {/* Filter + Trace dialog hosts live inside their respective
               surface scope components (see the section mounts below). */}
         </EditorErrorBoundary>
-        <EditorTopLeftBar
+        <EditorTopBar
           activeSection={editorSection}
-          onSectionTap={handleSectionTap}
           onTraceKindTap={handleTraceKindTap}
           activeTraceKind={trace?.kind ?? null}
           onDeleteTrace={handleClearTrace}
@@ -669,6 +669,9 @@ export function ProjectDetailPageClient({
         {editorSection === "colors" ? (
           <ColorsSurfaceScope desktop={!isMobile} trace={trace} />
         ) : null}
+        {/* Pure navigation: switches the active section. The section's
+            functions live in EditorTopBar at the top of the canvas. */}
+        <EditorBottomNav activeSection={editorSection} onSelectSection={handleSectionTap} />
         </EditorToolbarToneProvider>
       </ProjectEditorLayout>
 
