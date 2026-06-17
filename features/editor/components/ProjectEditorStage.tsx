@@ -185,7 +185,7 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
             sections (e.g. Colors) where the canvas-editing tools don't
             belong. */}
         {showFloatingToolbar ? (
-          <div className="absolute bottom-4 left-1/2 z-10 w-max -translate-x-1/2">
+          <div className="absolute top-1/2 right-3 z-10 w-max -translate-y-1/2">
             <FloatingToolbar
               className="pointer-events-auto"
               tool={toolbar.tool}
