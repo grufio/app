@@ -30,7 +30,6 @@ type StackRow = {
   output_image_id: string
   filter_type: string
   filter_params: Record<string, unknown>
-  stack_order: number
   created_at: string
 }
 
@@ -79,21 +78,20 @@ function makeSupabase(args: {
 
 const PROJECT_ID = "00000000-0000-4000-8000-000000000001"
 
-function row(id: string, stackOrder: number, input: string, output: string): StackRow {
+function row(id: string, input: string, output: string): StackRow {
   return {
     id,
     input_image_id: input,
     output_image_id: output,
     filter_type: "bw_hard",
     filter_params: { superpixel_width: 10, superpixel_height: 10, num_colors: 16, color_mode: "rgb" },
-    stack_order: stackOrder,
     created_at: "2026-05-06T00:00:00Z",
   }
 }
 
 describe("removeProjectImageFilter", () => {
   it("returns 404 filter_lookup when the id is not in the stack", async () => {
-    const { supabase } = makeSupabase({ filters: [row("f1", 1, "img-a", "img-b")] })
+    const { supabase } = makeSupabase({ filters: [row("f1", "img-a", "img-b")] })
     const result = await removeProjectImageFilter({ supabase, projectId: PROJECT_ID, filterId: "missing" })
     expect(result.ok).toBe(false)
     if (!result.ok) {
@@ -115,31 +113,28 @@ describe("removeProjectImageFilter", () => {
     }
   })
 
-  it("calls remove_project_image_filter RPC with empty rewires when removing the tail", async () => {
-    const filters = [
-      row("f1", 1, "img-master", "img-1"),
-      row("f2", 2, "img-1", "img-2"),
-    ]
+  it("removes the single filter, activates its input, calls the RPC without rewires", async () => {
+    // Single-artifact model: at most one filter; removing it falls straight back
+    // to its input (the working_copy). No downstream chain / rewires.
+    const filters = [row("f1", "img-working", "img-1")]
     const { supabase, rpcCalls } = makeSupabase({
       filters,
       activeRow: { width_px: 100, height_px: 100, dpi: 72 },
     })
-    const result = await removeProjectImageFilter({ supabase, projectId: PROJECT_ID, filterId: "f2" })
+    const result = await removeProjectImageFilter({ supabase, projectId: PROJECT_ID, filterId: "f1" })
     expect(result.ok).toBe(true)
     if (result.ok) {
-      // After removing the tail, the active image is the input of the removed filter.
-      expect(result.active_image_id).toBe("img-1")
+      expect(result.active_image_id).toBe("img-working")
     }
     const removeCall = rpcCalls.find((c) => c.fn === "remove_project_image_filter")
     expect(removeCall).toBeDefined()
-    const rpcArgs = removeCall?.args as { p_project_id: string; p_filter_id: string; p_rewires: unknown[] }
+    const rpcArgs = removeCall?.args as { p_project_id: string; p_filter_id: string }
     expect(rpcArgs.p_project_id).toBe(PROJECT_ID)
-    expect(rpcArgs.p_filter_id).toBe("f2")
-    expect(rpcArgs.p_rewires).toEqual([])
+    expect(rpcArgs.p_filter_id).toBe("f1")
   })
 
-  it("returns rebuild stage when the RPC fails on tail removal", async () => {
-    const filters = [row("f1", 1, "img-master", "img-1")]
+  it("returns rebuild stage when the RPC fails on removal", async () => {
+    const filters = [row("f1", "img-master", "img-1")]
     const { supabase } = makeSupabase({
       filters,
       activeRow: { width_px: 100, height_px: 100, dpi: 72 },

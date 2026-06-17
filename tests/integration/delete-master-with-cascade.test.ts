@@ -97,7 +97,6 @@ describe("delete_master_with_cascade()", () => {
         input_image_id: workingCopy.imageId,
         output_image_id: filterOutput.imageId,
         filter_type: "bw_hard",
-        stack_order: 1,
       })
     expect(filterErr).toBeNull()
 

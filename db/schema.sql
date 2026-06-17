@@ -87,67 +87,29 @@ CREATE OR REPLACE FUNCTION "public"."append_project_image_filter"("p_project_id"
     LANGUAGE "plpgsql"
     AS $$
 declare
-  v_last_output uuid;
-  v_next_order integer;
   v_inserted_id uuid;
   v_input_project_id uuid;
   v_output_project_id uuid;
 begin
   perform pg_advisory_xact_lock(hashtext(p_project_id::text));
 
-  select project_id
-    into v_input_project_id
-  from public.project_images
-  where id = p_input_image_id
-    and deleted_at is null;
-
+  select project_id into v_input_project_id
+    from public.project_images where id = p_input_image_id and deleted_at is null;
   if v_input_project_id is distinct from p_project_id then
-    raise exception 'input_image_id is not part of project'
-      using errcode = '23503';
+    raise exception 'input_image_id is not part of project' using errcode = '23503';
   end if;
 
-  select project_id
-    into v_output_project_id
-  from public.project_images
-  where id = p_output_image_id
-    and deleted_at is null;
-
+  select project_id into v_output_project_id
+    from public.project_images where id = p_output_image_id and deleted_at is null;
   if v_output_project_id is distinct from p_project_id then
-    raise exception 'output_image_id is not part of project'
-      using errcode = '23503';
+    raise exception 'output_image_id is not part of project' using errcode = '23503';
   end if;
-
-  select f.output_image_id
-    into v_last_output
-  from public.project_image_filters f
-  where f.project_id = p_project_id
-  order by f.stack_order desc
-  limit 1;
-
-  if v_last_output is not null and v_last_output <> p_input_image_id then
-    raise exception 'filter chain tip mismatch'
-      using errcode = '23514';
-  end if;
-
-  select coalesce(max(stack_order), 0) + 1
-    into v_next_order
-  from public.project_image_filters
-  where project_id = p_project_id;
 
   insert into public.project_image_filters (
-    project_id,
-    input_image_id,
-    output_image_id,
-    filter_type,
-    filter_params,
-    stack_order
+    project_id, input_image_id, output_image_id, filter_type, filter_params
   ) values (
-    p_project_id,
-    p_input_image_id,
-    p_output_image_id,
-    p_filter_type,
-    coalesce(p_filter_params, '{}'::jsonb),
-    v_next_order
+    p_project_id, p_input_image_id, p_output_image_id, p_filter_type,
+    coalesce(p_filter_params, '{}'::jsonb)
   )
   returning id into v_inserted_id;
 
@@ -457,63 +419,21 @@ CREATE OR REPLACE FUNCTION "public"."remove_project_image_filter"("p_project_id"
     AS $$
 declare
   v_target_project uuid;
-  v_rewire jsonb;
-  v_filter_id uuid;
-  v_input uuid;
-  v_output uuid;
-  v_row record;
-  v_next integer := 1;
 begin
   perform pg_advisory_xact_lock(hashtext(p_project_id::text));
 
-  select project_id
-    into v_target_project
-  from public.project_image_filters
-  where id = p_filter_id;
+  select project_id into v_target_project
+    from public.project_image_filters where id = p_filter_id;
 
   if v_target_project is null then
     raise exception 'filter not found' using errcode = 'P0002';
   end if;
-
   if v_target_project is distinct from p_project_id then
     raise exception 'filter does not belong to project' using errcode = '23503';
   end if;
 
-  for v_rewire in select * from jsonb_array_elements(coalesce(p_rewires, '[]'::jsonb))
-  loop
-    v_filter_id := (v_rewire ->> 'id')::uuid;
-    v_input := (v_rewire ->> 'input_image_id')::uuid;
-    v_output := (v_rewire ->> 'output_image_id')::uuid;
-
-    update public.project_image_filters
-       set input_image_id = v_input,
-           output_image_id = v_output
-     where id = v_filter_id
-       and project_id = p_project_id;
-
-    if not found then
-      raise exception 'rewire target filter % not found in project', v_filter_id
-        using errcode = 'P0002';
-    end if;
-  end loop;
-
   delete from public.project_image_filters
-   where id = p_filter_id
-     and project_id = p_project_id;
-
-  for v_row in
-    select id, stack_order
-    from public.project_image_filters
-    where project_id = p_project_id
-    order by stack_order asc, created_at asc, id asc
-  loop
-    if v_row.stack_order is distinct from v_next then
-      update public.project_image_filters
-         set stack_order = v_next
-       where id = v_row.id;
-    end if;
-    v_next := v_next + 1;
-  end loop;
+   where id = p_filter_id and project_id = p_project_id;
 end;
 $$;
 
@@ -1800,12 +1720,10 @@ CREATE TABLE IF NOT EXISTS "public"."project_image_filters" (
     "output_image_id" "uuid" NOT NULL,
     "filter_type" "text" NOT NULL,
     "filter_params" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
-    "stack_order" integer NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     CONSTRAINT "project_image_filters_filter_type_ck" CHECK (("filter_type" = ANY (ARRAY['bw_hard'::"text", 'bw_soft'::"text", 'bw_warm'::"text"]))),
-    CONSTRAINT "project_image_filters_input_not_output_ck" CHECK (("input_image_id" <> "output_image_id")),
-    CONSTRAINT "project_image_filters_stack_order_check" CHECK (("stack_order" > 0))
+    CONSTRAINT "project_image_filters_input_not_output_ck" CHECK (("input_image_id" <> "output_image_id"))
 );
 
 
@@ -2370,7 +2288,7 @@ ALTER TABLE ONLY "public"."project_image_filters"
 
 
 ALTER TABLE ONLY "public"."project_image_filters"
-    ADD CONSTRAINT "project_image_filters_project_stack_order_uidx" UNIQUE ("project_id", "stack_order");
+    ADD CONSTRAINT "project_image_filters_project_id_key" UNIQUE ("project_id");
 
 
 
@@ -2539,10 +2457,6 @@ CREATE INDEX "project_image_filters_input_image_idx" ON "public"."project_image_
 
 
 CREATE INDEX "project_image_filters_output_image_idx" ON "public"."project_image_filters" USING "btree" ("output_image_id");
-
-
-
-CREATE INDEX "project_image_filters_project_order_idx" ON "public"."project_image_filters" USING "btree" ("project_id", "stack_order");
 
 
 

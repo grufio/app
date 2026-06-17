@@ -164,9 +164,8 @@ export async function getFilterPanelData(args: {
 
   const { data: filterRows, error: filterErr } = await supabase
     .from("project_image_filters")
-    .select("id,input_image_id,output_image_id,filter_type,stack_order")
+    .select("id,input_image_id,output_image_id,filter_type")
     .eq("project_id", projectId)
-    .order("stack_order", { ascending: true })
 
   if (filterErr) {
     return {

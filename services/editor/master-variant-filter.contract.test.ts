@@ -39,9 +39,10 @@ describe("db contract: master immutable + filter stack", () => {
       /CREATE\s+(?:OR\s+REPLACE\s+)?TRIGGER\s+"?trg_project_images_guard_master_immutable"?/i,
     )
 
-    // project_image_filters table exists with stack_order unique constraint
+    // project_image_filters table exists with the single-filter unique constraint
+    // (one filter per project — UNIQUE(project_id); stack_order was dropped).
     expect(schema).toMatch(/CREATE\s+TABLE[\s\S]+?"?public"?\."?project_image_filters"?/i)
-    expect(schema).toMatch(/UNIQUE[\s\S]{0,80}?\(\s*"?project_id"?\s*,\s*"?stack_order"?\s*\)/i)
+    expect(schema).toMatch(/ADD CONSTRAINT "?project_image_filters_project_id_key"? UNIQUE \(\s*"?project_id"?\s*\)/i)
   })
 })
 
