@@ -26,8 +26,8 @@ result. It splits into three layers: pure-math canvas model
   functions are split into two floating-pill bars: `EditorNav`
   (Home + the four section icons — pure navigation, switches
   `editorSection`) as a vertical column top-left, and `EditorTopBar`
-  (the active section's per-section "+" menu via `SectionFabMenu`,
-  driving apply/edit) top-right, beneath the theme bar. Per-surface scopes drive the trace
+  (the active section's function frames — `EditorFunctionList`, always
+  visible, driving apply/edit/delete) top-right, beneath the theme bar. Per-surface scopes drive the trace
   `TraceSheet` and the artboard section's three standalone
   dialogs `ArtboardSheet` (artboard size + page-background) /
   `GridSheet` / `ImageSheet`, each launched by its own

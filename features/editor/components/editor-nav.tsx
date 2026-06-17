@@ -41,7 +41,9 @@ export function EditorNav({ activeSection, onSelectSection }: Props) {
           </Link>
         </ToolbarIconButton>
       </div>
-      <div className={cn(pillClass(tone, "group"), "flex-col")}>
+      {/* `px-1` (not the group default `px-2`) keeps the vertical pill 40px
+          wide — matching the Home pill — so the icons aren't too wide. */}
+      <div className={cn(pillClass(tone, "group"), "flex-col px-1")}>
         {SECTION_ITEMS.map(({ key, label, Icon }) => (
           <ToolbarIconButton
             key={key}
