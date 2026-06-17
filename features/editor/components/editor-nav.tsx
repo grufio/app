@@ -1,13 +1,13 @@
 "use client"
 
 /**
- * Floating **navigation** bar in the top-left corner of the editor canvas —
- * a vertical column of Feather-style pills. Pure navigation, no function
+ * Floating **navigation** bar at the bottom-centre of the editor canvas —
+ * a horizontal row of Feather-style pills. Pure navigation, no function
  * menus (Material guidance: top-level destinations that switch directly):
  *
  *   1. Standalone Home pill — links to `/dashboard`
  *   2. Group pill — the four section icons (Image / Filter / Trace / Color)
- *      stacked vertically, switching the active `EditorSection`
+ *      in a row, switching the active `EditorSection`
  *
  * The active section's *functions* live in `EditorTopBar` (top-right, under
  * the theme bar); this bar only changes which section is active. Tone comes
@@ -17,7 +17,6 @@ import Link from "next/link"
 import { Home } from "lucide-react"
 
 import type { EditorSection } from "@/lib/editor/editor-sections"
-import { cn } from "@/lib/utils"
 
 import { SECTION_ITEMS } from "./editor-section-items"
 import { useEditorToolbarTone } from "./editor-toolbar-tone"
@@ -33,7 +32,7 @@ export function EditorNav({ activeSection, onSelectSection }: Props) {
   const tone = useEditorToolbarTone()
 
   return (
-    <div className="absolute top-3 left-3 z-20 flex flex-col items-start gap-3">
+    <div className="absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 flex-row items-center gap-3">
       <div className={pillClass(tone, "single")}>
         <ToolbarIconButton label="Home" asChild>
           <Link href="/dashboard">
@@ -41,9 +40,7 @@ export function EditorNav({ activeSection, onSelectSection }: Props) {
           </Link>
         </ToolbarIconButton>
       </div>
-      {/* `px-1` (not the group default `px-2`) keeps the vertical pill 40px
-          wide — matching the Home pill — so the icons aren't too wide. */}
-      <div className={cn(pillClass(tone, "group"), "flex-col px-1")}>
+      <div className={pillClass(tone, "group")}>
         {SECTION_ITEMS.map(({ key, label, Icon }) => (
           <ToolbarIconButton
             key={key}

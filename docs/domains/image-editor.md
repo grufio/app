@@ -25,9 +25,11 @@ result. It splits into three layers: pure-math canvas model
   `ProjectEditorStage`, the floating section model. Navigation and
   functions are split into two floating-pill bars: `EditorNav`
   (Home + the four section icons — pure navigation, switches
-  `editorSection`) as a vertical column top-left, and `EditorTopBar`
+  `editorSection`) as a horizontal row bottom-centre, and `EditorTopBar`
   (the active section's function frames — `EditorFunctionList`, always
-  visible, driving apply/edit/delete) top-right, beneath the theme bar. Per-surface scopes drive the trace
+  visible, driving apply/edit/delete) top-right, beneath the theme bar.
+  The canvas `FloatingToolbar` (tools + zoom/fit/rotate) is a vertical
+  pill on the right edge. Per-surface scopes drive the trace
   `TraceSheet` and the artboard section's three standalone
   dialogs `ArtboardSheet` (artboard size + page-background) /
   `GridSheet` / `ImageSheet`, each launched by its own

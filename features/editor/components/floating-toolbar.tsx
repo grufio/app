@@ -64,7 +64,7 @@ function IconButton({
           {children}
         </ToolbarIconButton>
       </TooltipTrigger>
-      <TooltipContent side="bottom" align="center">
+      <TooltipContent side="left" align="center">
         {label}
       </TooltipContent>
     </Tooltip>
@@ -91,7 +91,7 @@ export function FloatingToolbar({
       <div
         role="toolbar"
         aria-label="Canvas toolbar"
-        className={cn(pillClass(tone, "group"), className)}
+        className={cn(pillClass(tone, "group"), "flex-col", className)}
       >
         {leftSlot}
         <IconButton
