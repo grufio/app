@@ -11,7 +11,7 @@
  *
  * **Not a dialog.** This is a regular section view that sits inside
  * the editor layout (`absolute inset-0`, no z-index) so the floating
- * `EditorTopLeftBar` (`z-20`) paints above it — the user keeps the
+ * the floating bars (`z-20`) paint above it — the user keeps the
  * navigation icons in view and switches away via Image / Filter /
  * Trace just like in any other section. No Close button, no Edit
  * button on the top-right bar; Colors has nothing to "edit".

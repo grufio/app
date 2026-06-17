@@ -22,18 +22,22 @@ result. It splits into three layers: pure-math canvas model
   [imageState/](../../lib/editor/imageState/),
   [filters/](../../lib/editor/filters/) (filter registry).
 - [features/editor/](../../features/editor/) — React surface:
-  `ProjectEditorStage`, the floating section model
-  (`EditorTopLeftBar` with a per-section "+" menu (`SectionFabMenu`)
-  driving apply/edit, plus per-surface scopes → the trace
+  `ProjectEditorStage`, the floating section model. Navigation and
+  functions are split into two floating-pill bars: `EditorBottomNav`
+  (Home + the four section icons — pure navigation, switches
+  `editorSection`) at the bottom, and `EditorTopBar` (the active
+  section's per-section "+" menu via `SectionFabMenu`, driving
+  apply/edit) at the top. Per-surface scopes drive the trace
   `TraceSheet` and the artboard section's three standalone
   dialogs `ArtboardSheet` (artboard size + page-background) /
   `GridSheet` / `ImageSheet`, each launched by its own
   artboard "+" frame and routed through `ArtboardSurfaceScope`'s
-  `activeDialog`; `EditorTopRightBar` now carries only Trace's
-  Eye (view-options) — the old per-section Edit pencils and the
-  desktop side-panels were removed), the form components for each
-  filter (`pixelate-form.tsx`, `lineart-form.tsx`,
-  `numerate-form.tsx`), navigation/section routing.
+  `activeDialog`; `EditorTopRightBar` carries only the theme toggle
+  and Trace's Eye (view-options). All dialogs/sheets render the same
+  fullscreen presentation on every viewport — desktop matches mobile
+  (no bounded right-side cards, no side-by-side trace dialog). Plus
+  the form components for each filter (`pixelate-form.tsx`,
+  `lineart-form.tsx`, `numerate-form.tsx`), navigation/section routing.
 - [services/editor/](../../services/editor/) — server-side ops:
   artboard display (`artboard-display.ts`), image sizing
   (`image-sizing.ts`, `image-sizing-operations.ts`), workspace
@@ -150,7 +154,7 @@ anchor** for `project_image_state` is the working_copy (PR #257).
 | Tab | Sidebar | State read | State written | Stage display |
 |---|---|---|---|---|
 | **Image** | layers (`editor-nav-tree`) | `project_image_state` at working_copy.id | `project_image_state` at working_copy.id | working_copy / filter-tip raster |
-| **Filter** | "+" kind-menu (`EditorTopLeftBar`) — apply / remove / unlock | `project_image_filters` + `filter_working_copy` rows; `project_image_state` at working_copy.id | `project_image_filters`, `project_images(kind='filter_working_copy')`, `project_image_state` at working_copy.id | filter chain tip raster |
+| **Filter** | "+" kind-menu (`EditorTopBar`) — apply / remove / unlock | `project_image_filters` + `filter_working_copy` rows; `project_image_state` at working_copy.id | `project_image_filters`, `project_images(kind='filter_working_copy')`, `project_image_state` at working_copy.id | filter chain tip raster |
 | **Trace** | trace section (`TraceSidebarSection`) | `project_image_trace`, `project_image_state` at working_copy.id | `project_image_trace` (single row), `project_images(kind='trace_output'/'trace_base')` — `project_image_state` is **not** mutated (non-destructive) | working_copy / filter-tip raster + inline-SVG overlay, positioned at `project_image_state` for working_copy.id |
 | Colors / Output | — | — | — | removed 2026-05-11 (PR #89) |
 
@@ -191,8 +195,8 @@ editable).
 - Image panel (`ImagePanel`): banner above the size/position/
   alignment inputs; `useImagePanelEnabled({ locked })` is the
   single disable point.
-- Mobile bottom-nav: red dot on the Artboard (image-lock) and
-  Filter icons.
+- Bottom nav (all viewports): red dot on the Artboard (image-lock)
+  and Filter icons.
 
 **Unlock cascade order** (in `ProjectEditorShell.client.tsx`):
 trace first (single `clearProjectTrace` call), then filters

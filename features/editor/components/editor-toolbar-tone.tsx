@@ -1,9 +1,10 @@
 "use client"
 
 /**
- * Tone (dark | light) for the floating canvas bars — Home + section bar
- * (`EditorTopLeftBar`), the Edit/Eye bar (`EditorTopRightBar`) and the
- * bottom canvas toolbar (`FloatingToolbar`).
+ * Tone (dark | light) for the floating canvas bars — the bottom
+ * navigation (`EditorBottomNav`), the top functions bar (`EditorTopBar`),
+ * the theme/Eye bar (`EditorTopRightBar`) and the canvas toolbar
+ * (`FloatingToolbar`).
  *
  * The shell holds the tone as a manual session setting (default `"dark"`,
  * flipped by the top-right theme toggle) and provides it here so the bar
