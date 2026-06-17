@@ -384,6 +384,12 @@ jobs:
     needs: detect
     if: needs.detect.outputs.has_frontend == 'true'
     runs-on: ubuntu-latest
+    # Run inside the official Playwright image: Chromium + its OS deps are
+    # pre-baked, so the slow/variable `playwright install --with-deps` step
+    # (measured at ~19 min on a cache miss — the real cost of this job, not
+    # the build or the 80s test) disappears entirely. Tag pinned to the
+    # installed Playwright version (package-lock.json → 1.59.1).
+    container: mcr.microsoft.com/playwright:v1.59.1-jammy
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -397,21 +403,6 @@ jobs:
       - name: Install
         run: npm ci
 
-      - name: Cache Playwright browsers
-        id: playwright-cache
-        uses: actions/cache@v5
-        with:
-          path: .playwright-browsers
-          key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-playwright-
-
-      - name: Install Playwright browsers (Chromium)
-        if: ${{ steps.playwright-cache.outputs.cache-hit != 'true' }}
-        env:
-          PLAYWRIGHT_BROWSERS_PATH: .playwright-browsers
-        run: npx -y playwright install --with-deps chromium
-
       - name: E2E visual (forms.visual.spec.ts)
         # Soft-fail gated on E2E_VISUAL_SOFT_FAIL (workflow-level env).
         # Currently "true" because only chromium-darwin baselines exist
@@ -421,7 +412,17 @@ jobs:
         # in a Linux container, commit the new snapshot files), flip
         # E2E_VISUAL_SOFT_FAIL to "false" at the top of this workflow.
         continue-on-error: ${{ env.E2E_VISUAL_SOFT_FAIL == 'true' }}
-        run: npm run test:e2e:visual
+        # Build + start the prod server, then run the visual spec. We do NOT
+        # set PLAYWRIGHT_BROWSERS_PATH (unlike the `npm run test:e2e:visual`
+        # script, which pins it to the local-only `.playwright-browsers`
+        # cache) so Playwright uses the image's pre-installed browsers.
+        env:
+          PLAYWRIGHT_USE_WEBSERVER: "1"
+          PLAYWRIGHT_WEBSERVER_COMMAND: "npm run start:e2e"
+          PLAYWRIGHT_BASE_URL: "http://127.0.0.1:3110"
+        run: |
+          npm run test:e2e:local:prepare
+          npx playwright test e2e/forms.visual.spec.ts
 
       - name: Upload Playwright visual report
         if: failure()
