@@ -589,7 +589,6 @@ export function ProjectDetailPageClient({
           imageLocked={imageLock != null}
           onUnlockImage={imageLock?.onUnlock}
           unlockImageBusy={imageLock?.busy ?? false}
-          isApplyingFilter={workflow.isApplyingFilter}
         />
         {/* Always-visible top-right bar: the theme toggle on every section,
             plus the Eye (layer view-options) only on the Trace section. */}

@@ -1,10 +1,10 @@
 "use client"
 
 /**
- * Floating **functions** bar in the top-left corner of the editor canvas —
- * the contextual toolbar for whichever section is active. It shows the active
- * section's icon as a static context chip, with that section's floating "+"
- * kind-menu (`SectionFabMenu`) dropping beneath it:
+ * Floating **functions** bar in the top-right corner of the editor canvas,
+ * directly beneath the theme/Eye bar (`EditorTopRightBar`). It shows the
+ * active section's function frames as an always-visible vertical column —
+ * no parent icon, no open/close trigger:
  *
  *   - Trace  → the three trace kinds (mutually exclusive; Edit + Delete on the
  *     active row)
@@ -12,13 +12,12 @@
  *     active row while the section is locked)
  *   - Image/Artboard → the three frames (Artboard/Page, Grid, Image), each
  *     launching its standalone dialog; Grid quick-creates when empty
- *   - Colors → no menu (read-only palette), just the context chip
+ *   - Colors → nothing (read-only palette)
  *
- * Section *switching* lives in `EditorNav` (top-left, vertical); this
- * bar never changes the active section — it only exposes the active section's
- * functions. Ported from the former combined `EditorTopLeftBar`.
+ * Section *switching* lives in `EditorNav` (top-left, vertical); this bar only
+ * exposes the active section's functions. Frames are right-aligned (under the
+ * theme toggle) and the active row's Edit/Delete circles flank it on the left.
  */
-import { useEffect, useRef, useState } from "react"
 import {
   CircleDashed,
   CircleDot,
@@ -27,7 +26,6 @@ import {
   Grid2x2,
   Grid3x3,
   Image as ImageIcon,
-  Loader2,
   Pencil,
   Spline,
   Sun,
@@ -38,12 +36,8 @@ import {
 import type { RegisteredFilterId } from "@/lib/editor/filters/registry"
 import type { ArtboardDialog, EditorSection } from "@/lib/editor/editor-sections"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
-import { cn } from "@/lib/utils"
 
-import { SECTION_ITEMS } from "./editor-section-items"
-import { useEditorToolbarTone } from "./editor-toolbar-tone"
-import { ICON_TONE, pillClass } from "./floating-bar-styles"
-import { SectionFabMenu, type FabMenuItem } from "./section-fab-menu"
+import { EditorFunctionList, type FabMenuItem } from "./editor-function-list"
 
 type TraceKindItem = { key: RegisteredTraceId; label: string; Icon: LucideIcon }
 
@@ -63,20 +57,11 @@ const FILTER_KIND_ITEMS: FilterKindItem[] = [
   { key: "bw_warm", label: "B&W Warm", Icon: Sun },
 ]
 
-/** Resolved config for a section's "+" menu. */
-type SectionMenuConfig = {
-  items: FabMenuItem[]
-  labels: { add: string; close: string }
-  deleteLabel: string
-  closeOnSelect?: boolean
-  closeOnDelete?: boolean
-}
-
 type Props = {
   /** The active section — drives which functions this bar exposes. */
   activeSection: EditorSection
-  /** Fired when the user picks a trace kind from the menu. The shell wires
-   * this to open the matching configure dialog directly. */
+  /** Fired when the user picks a trace kind. The shell wires this to open the
+   * matching configure dialog directly. */
   onTraceKindTap?: (kind: RegisteredTraceId) => void
   /** The currently-applied trace kind, or `null` when none is set. Trace is
    * mutually exclusive — at most one kind active per project. */
@@ -116,8 +101,6 @@ type Props = {
   onUnlockImage?: () => void
   /** Image unlock is in flight (disables the Unlock circle). */
   unlockImageBusy?: boolean
-  /** A filter apply is in flight — the Filter context chip shows a spinner. */
-  isApplyingFilter?: boolean
 }
 
 export function EditorTopBar({
@@ -139,19 +122,7 @@ export function EditorTopBar({
   imageLocked = false,
   onUnlockImage,
   unlockImageBusy = false,
-  isApplyingFilter = false,
 }: Props) {
-  const tone = useEditorToolbarTone()
-  const [open, setOpen] = useState(false)
-  const wrapperRef = useRef<HTMLDivElement>(null)
-
-  // The "+" menu belongs to the active section; collapse it whenever the
-  // section changes so returning shows the trigger closed.
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setOpen(false)
-  }, [activeSection])
-
   // Trace: mutually exclusive. The active kind is the indicator (Edit re-opens
   // its dialog, Delete clears it); the other two are disabled. No trace → all
   // three are selectable.
@@ -188,114 +159,54 @@ export function EditorTopBar({
     }
   })
 
-  // Image / artboard: the three frames are the section's tools. Built per-render
-  // with the menu's own `close` so opening a dialog collapses the "+" menu.
-  const buildArtboardItems = (close: () => void): FabMenuItem[] => {
-    const openDialog = (dialog: ArtboardDialog) => () => {
-      onOpenArtboard?.(dialog)
-      close() // collapse the menu as the dialog takes over
-    }
-    const editOrUnlock = (editLabel: string, dialog: ArtboardDialog): FabMenuItem["lead"] =>
-      imageLocked
-        ? { icon: Unlock, label: "Unlock image", onClick: onUnlockImage, disabled: unlockImageBusy }
-        : { icon: Pencil, label: editLabel, onClick: openDialog(dialog) }
-    return [
-      {
-        key: "page",
-        label: "Artboard/Page",
-        Icon: Frame,
-        active: true, // structural — always present, so the lead slot can host Unlock
-        lead: editOrUnlock("Edit artboard", "artboard"),
-      },
-      {
-        key: "grid",
-        label: "Grid",
-        Icon: Grid3x3,
-        active: hasGrid,
-        onSelect: hasGrid ? undefined : () => onCreateGrid?.(), // instant; lock-agnostic
-        lead: hasGrid ? { icon: Pencil, label: "Edit grid", onClick: openDialog("grid") } : undefined,
-      },
-      {
-        key: "image",
-        label: "Image",
-        Icon: ImageIcon,
-        active: hasMasterImage,
-        onSelect: hasMasterImage ? undefined : openDialog("image"), // (no image ⇒ not locked) upload via dialog
-        lead: hasMasterImage ? editOrUnlock("Edit image", "image") : undefined,
-      },
-    ]
-  }
+  // Image / artboard: the three frames are the section's tools.
+  const editOrUnlock = (editLabel: string, dialog: ArtboardDialog): FabMenuItem["lead"] =>
+    imageLocked
+      ? { icon: Unlock, label: "Unlock image", onClick: onUnlockImage, disabled: unlockImageBusy }
+      : { icon: Pencil, label: editLabel, onClick: () => onOpenArtboard?.(dialog) }
+  const artboardItems: FabMenuItem[] = [
+    {
+      key: "page",
+      label: "Artboard/Page",
+      Icon: Frame,
+      active: true, // structural — always present, so the lead slot can host Unlock
+      lead: editOrUnlock("Edit artboard", "artboard"),
+    },
+    {
+      key: "grid",
+      label: "Grid",
+      Icon: Grid3x3,
+      active: hasGrid,
+      onSelect: hasGrid ? undefined : () => onCreateGrid?.(), // instant; lock-agnostic
+      lead: hasGrid ? { icon: Pencil, label: "Edit grid", onClick: () => onOpenArtboard?.("grid") } : undefined,
+    },
+    {
+      key: "image",
+      label: "Image",
+      Icon: ImageIcon,
+      active: hasMasterImage,
+      onSelect: hasMasterImage ? undefined : () => onOpenArtboard?.("image"),
+      lead: hasMasterImage ? editOrUnlock("Edit image", "image") : undefined,
+    },
+  ]
 
-  const config: SectionMenuConfig | null =
+  const config: { items: FabMenuItem[]; deleteLabel: string } | null =
     activeSection === "trace"
-      ? {
-          items: traceItems,
-          labels: { add: "Add trace", close: "Close trace menu" },
-          deleteLabel: "Delete trace",
-          closeOnSelect: true,
-          closeOnDelete: true,
-        }
+      ? { items: traceItems, deleteLabel: "Delete trace" }
       : activeSection === "filter"
-        ? {
-            items: filterItems,
-            labels: { add: "Add filter", close: "Close filter menu" },
-            deleteLabel: "Delete filter",
-          }
+        ? { items: filterItems, deleteLabel: "Delete filter" }
         : activeSection === "artboard"
-          ? {
-              items: buildArtboardItems(() => setOpen(false)),
-              labels: { add: "Add to artboard", close: "Close artboard menu" },
-              deleteLabel: "",
-            }
+          ? { items: artboardItems, deleteLabel: "" }
           : null
 
-  const sectionItem = SECTION_ITEMS.find((item) => item.key === activeSection)
-  if (!sectionItem) return null
-  const { Icon } = sectionItem
-  // Dim the context chip while the section is locked, mirroring the former bar.
-  const dimmed =
-    (activeSection === "filter" && filterLocked) || (activeSection === "artboard" && imageLocked)
+  if (!config) return null
 
   return (
-    // Top-right, below the theme/Eye bar (`top-3`). Inset from the right edge
-    // (`right-14`) so the active row's right-hand Delete circle in the dropping
-    // `SectionFabMenu` stays fully on screen.
-    <div className="absolute top-16 right-14 z-20">
-      <div ref={wrapperRef} className="relative">
-        <div className={pillClass(tone, "single")}>
-          {/* Decorative context chip — which section's functions these are.
-              The labelled, interactive section affordance lives in the bottom
-              nav; here it's purely visual (and avoids a duplicate "Image"
-              accessible name vs the artboard menu's Image frame). */}
-          <span
-            aria-hidden="true"
-            data-testid="editor-top-bar-context"
-            className={cn(
-              "flex size-8 items-center justify-center",
-              ICON_TONE[tone].active,
-              dimmed && "opacity-40",
-            )}
-          >
-            {activeSection === "filter" && isApplyingFilter ? (
-              <Loader2 aria-hidden="true" className="size-6 animate-spin" />
-            ) : (
-              <Icon aria-hidden="true" className="size-6" />
-            )}
-          </span>
-        </div>
-        {config ? (
-          <SectionFabMenu
-            open={open}
-            onOpenChange={setOpen}
-            containerRef={wrapperRef}
-            items={config.items}
-            labels={config.labels}
-            deleteLabel={config.deleteLabel}
-            closeOnSelect={config.closeOnSelect}
-            closeOnDelete={config.closeOnDelete}
-          />
-        ) : null}
-      </div>
+    // Top-right, below the theme/Eye bar (`top-3`). Right-aligned at `right-3`
+    // so the frames sit under the theme toggle; the active row's Delete/Edit
+    // circles flank it on the left, so nothing clips past the right edge.
+    <div className="absolute top-16 right-3 z-20">
+      <EditorFunctionList items={config.items} deleteLabel={config.deleteLabel} />
     </div>
   )
 }
