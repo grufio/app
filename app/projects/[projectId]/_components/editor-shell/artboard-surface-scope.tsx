@@ -14,9 +14,8 @@
  * `pendingDialog` cross-mount channel (the frame you tap — Artboard/Page,
  * Grid, or Image — selects which sheet renders).
  *
- * Mounted on `editorSection === "artboard"` for both viewports. The
- * `desktop` flag flips each sheet from the mobile fullscreen variant to
- * a bounded floating card on `md+`.
+ * Mounted on `editorSection === "artboard"` for both viewports — each
+ * sheet renders as a fullscreen overlay (desktop matches mobile).
  */
 import { useEffect, useState, type ComponentProps } from "react"
 
@@ -25,17 +24,14 @@ import { GridSheet } from "@/features/editor/components/grid-sheet"
 import { ImageSheet } from "@/features/editor/components/image-sheet"
 import type { ArtboardDialog } from "@/lib/editor/editor-sections"
 
-type ArtboardSheetProps = Omit<ComponentProps<typeof ArtboardSheet>, "onClose" | "desktop">
-type GridSheetProps = Omit<ComponentProps<typeof GridSheet>, "onClose" | "desktop">
-type ImageSheetProps = Omit<ComponentProps<typeof ImageSheet>, "onClose" | "desktop">
+type ArtboardSheetProps = Omit<ComponentProps<typeof ArtboardSheet>, "onClose">
+type GridSheetProps = Omit<ComponentProps<typeof GridSheet>, "onClose">
+type ImageSheetProps = Omit<ComponentProps<typeof ImageSheet>, "onClose">
 
 export type ArtboardSurfaceScopeProps = ArtboardSheetProps &
   GridSheetProps &
   ImageSheetProps & {
-    /** When true, render the desktop variant (bounded card, no
-     * `md:hidden`). Default false → unchanged mobile fullscreen. */
-    desktop?: boolean
-    /** Cross-mount request from the top-left artboard "+" menu naming which
+    /** Cross-mount request from the top artboard "+" menu naming which
      * dialog to open. Consumed immediately so `activeDialog` stays local
      * (revisiting the section doesn't re-pop a sheet). */
     pendingDialog?: ArtboardDialog | null
@@ -43,7 +39,6 @@ export type ArtboardSurfaceScopeProps = ArtboardSheetProps &
   }
 
 export function ArtboardSurfaceScope({
-  desktop,
   pendingDialog = null,
   onConsumePendingDialog,
   ...props
@@ -63,7 +58,6 @@ export function ArtboardSurfaceScope({
     case "artboard":
       return (
         <ArtboardSheet
-          desktop={desktop}
           onClose={close}
           canFit={props.canFit}
           onFitArtboardToImage={props.onFitArtboardToImage}
@@ -78,7 +72,6 @@ export function ArtboardSurfaceScope({
     case "grid":
       return (
         <GridSheet
-          desktop={desktop}
           onClose={close}
           hasGrid={props.hasGrid}
           gridVisible={props.gridVisible}
@@ -90,7 +83,6 @@ export function ArtboardSurfaceScope({
     case "image":
       return (
         <ImageSheet
-          desktop={desktop}
           onClose={close}
           projectId={props.projectId}
           hasMasterImage={props.hasMasterImage}

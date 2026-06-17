@@ -24,10 +24,6 @@ import { useMutationLeaveGuard } from "@/lib/editor/hooks/use-mutation-leave-gua
 import { EditorTraceDialogHost } from "./editor-trace-dialog-host"
 
 export type TraceSurfaceScopeProps = {
-  /** When true, the Edit/Eye bar + sheet render their desktop variant
-   * (no `md:hidden`, bounded floating card). Default false → the
-   * unchanged mobile fullscreen behaviour. */
-  desktop?: boolean
   traceSourceImage: TraceDialogSourceImage | null
   onApplyTrace: (args: { kind: TraceKind; params: Record<string, unknown> }) => Promise<void>
   isAddTraceDisabled: boolean
@@ -35,7 +31,7 @@ export type TraceSurfaceScopeProps = {
   isLoadingInitial: boolean
   trace: { kind: TraceKind; params: Record<string, unknown> } | null
   onClearTrace: () => void | Promise<void>
-  /** Cross-mount channel from `EditorTopLeftBar`: when a trace kind
+  /** Cross-mount channel from `EditorTopBar`: when a trace kind
    * has been requested from outside this scope, open the matching
    * configure dialog directly (skip the picker) and signal consume. */
   pendingKindOpen?: TraceKind | null
@@ -120,7 +116,6 @@ export function TraceSurfaceScope(props: TraceSurfaceScopeProps) {
           is mounted by the shell now, so it shows on every section. */}
       {editOpen ? (
         <TraceSheet
-          desktop={props.desktop}
           onClose={() => setEditOpen(false)}
           trace={props.trace}
           isAddTraceDisabled={props.isAddTraceDisabled}

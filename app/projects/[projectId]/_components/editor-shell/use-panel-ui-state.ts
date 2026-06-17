@@ -27,13 +27,13 @@ export function usePanelUIState() {
     buildNavId({ kind: "artboard" }),
   )
   const [editorSection, setEditorSection] = useState<EditorSection>("artboard")
-  // Cross-mount channel: the EditorTopLeftBar trace sub-pill sets a
+  // Cross-mount channel: the EditorTopBar trace sub-pill sets a
   // pending kind when the user picks Pixelate / Circulate / Lineart
   // from outside the trace surface. The TraceSurfaceScope reads it on
-  // mount (mobile) or next render (desktop, always mounted) and opens
-  // the matching configure dialog, then clears via the consume cb.
+  // mount and opens the matching configure dialog, then clears via the
+  // consume cb.
   const [pendingTraceKindOpen, setPendingTraceKindOpen] = useState<RegisteredTraceId | null>(null)
-  // Cross-mount channel: the EditorTopLeftBar artboard sub-pill sets which of
+  // Cross-mount channel: the EditorTopBar artboard sub-pill sets which of
   // the three standalone dialogs (Artboard / Grid / Image) to open — local to
   // ArtboardSurfaceScope's `activeDialog`. The scope reads it on render, opens
   // the matching sheet, then clears it via consume so leaving/re-entering the

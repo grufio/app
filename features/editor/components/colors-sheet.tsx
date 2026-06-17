@@ -11,7 +11,7 @@
  *
  * **Not a dialog.** This is a regular section view that sits inside
  * the editor layout (`absolute inset-0`, no z-index) so the floating
- * `EditorTopLeftBar` (`z-20`) paints above it — the user keeps the
+ * the floating bars (`z-20`) paint above it — the user keeps the
  * navigation icons in view and switches away via Image / Filter /
  * Trace just like in any other section. No Close button, no Edit
  * button on the top-right bar; Colors has nothing to "edit".
@@ -44,26 +44,19 @@ type ColorsSheetProps = {
   traceMode: "color" | "bw" | null
   /** True when no trace is active at all. */
   hasTrace: boolean
-  /** When true, the section view stays visible on `md+` (the unified
-   * desktop section model). Default false keeps the historical
-   * mobile-only behaviour. */
-  desktop?: boolean
 }
 
 export function ColorsSheet({
   paletteIndicesUsed,
   traceMode,
   hasTrace,
-  desktop = false,
 }: ColorsSheetProps) {
   const palette = useTracePalette(traceMode ?? "color")
 
   return (
     <section
       aria-label="Colors"
-      className={
-        `absolute inset-0 flex flex-col overflow-hidden bg-background${desktop ? "" : " md:hidden"}`
-      }
+      className="absolute inset-0 flex flex-col overflow-hidden bg-background"
     >
       <header className="flex shrink-0 items-center border-b bg-background px-4 pt-16 pb-3">
         <h2 className="text-sm font-semibold">Colors</h2>

@@ -33,8 +33,6 @@ import { TraceSidebarSection } from "./trace-sidebar-section"
 
 export function TraceSheet(props: {
   onClose: () => void
-  /** Desktop variant — bounded floating card instead of fullscreen. */
-  desktop?: boolean
   trace: { kind: RegisteredTraceId } | null
   isAddTraceDisabled: boolean
   isClearingTrace: boolean
@@ -44,7 +42,6 @@ export function TraceSheet(props: {
 }) {
   const {
     onClose,
-    desktop,
     trace,
     isAddTraceDisabled,
     isClearingTrace,
@@ -54,7 +51,7 @@ export function TraceSheet(props: {
   } = props
 
   return (
-    <section aria-label="Trace" className={sheetRootClass(desktop)}>
+    <section aria-label="Trace" className={sheetRootClass()}>
       <SheetHeader title="Trace" onClose={onClose} />
 
       <SidebarFrame className="block min-h-0 flex-1">

@@ -30,8 +30,6 @@ const ArtboardPanel = dynamic(() => import("./artboard-panel").then((m) => m.Art
 
 export function ArtboardSheet(props: {
   onClose: () => void
-  /** Desktop variant — bounded floating card instead of fullscreen. */
-  desktop?: boolean
   // ArtboardPanel
   canFit: boolean
   onFitArtboardToImage?: () => void | Promise<void>
@@ -45,7 +43,6 @@ export function ArtboardSheet(props: {
 }) {
   const {
     onClose,
-    desktop,
     canFit,
     onFitArtboardToImage,
     pageBgEnabled,
@@ -57,7 +54,7 @@ export function ArtboardSheet(props: {
   } = props
 
   return (
-    <section aria-label="Artboard" className={sheetRootClass(desktop)}>
+    <section aria-label="Artboard" className={sheetRootClass()}>
       <SheetHeader title="Artboard" onClose={onClose} />
 
       <div className="flex-1 overflow-y-auto">

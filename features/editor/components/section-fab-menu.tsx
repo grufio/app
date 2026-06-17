@@ -2,7 +2,7 @@
 
 /**
  * The floating "+" kind-menu that drops beneath a section icon in
- * `EditorTopLeftBar` (Trace, Filter, …). Presentational + section-agnostic:
+ * `EditorTopBar` (Trace, Filter, …). Presentational + section-agnostic:
  * the caller passes an `items` array describing each kind frame and how it
  * behaves, plus two close-on-action flags. The component owns only the
  * trigger chrome (a 20×40 `…` stadium that morphs to a 40×40 `×` circle when

@@ -59,7 +59,7 @@ describe("CirculateDialog (smoke)", () => {
     vi.unstubAllGlobals()
   })
 
-  it("renders preview canvas + form inputs + Apply/Cancel when open", async () => {
+  it("opens on the params overlay with form + Cancel/Preview, and an Apply icon", async () => {
     render(
       <CirculateDialog
         open
@@ -72,18 +72,19 @@ describe("CirculateDialog (smoke)", () => {
       />,
     )
 
+    // Unified fullscreen flow (desktop matches mobile): opens on the params
+    // overlay (form mounted); the preview pane is lazy.
     await waitFor(() => {
-      expect(document.body.querySelector('[data-testid="circulate-preview-mini"]')).not.toBeNull()
+      expect(document.body.querySelector("#outer_width_mm")).not.toBeNull()
     })
-    expect(document.body.querySelector("#outer_width_mm")).not.toBeNull()
     expect(document.body.querySelector("#inner_enabled")).not.toBeNull()
     expect(document.body.querySelector("#color_mode")).not.toBeNull()
+    expect(document.body.querySelector('[data-testid="circulate-preview-mini"]')).toBeNull()
 
     const buttons = Array.from(document.body.querySelectorAll("button"))
-    const cancel = buttons.find((b) => b.textContent?.trim() === "Cancel")
-    const apply = buttons.find((b) => b.textContent?.trim().startsWith("Apply"))
-    expect(cancel).toBeTruthy()
-    expect(apply).toBeTruthy()
+    expect(buttons.find((b) => b.textContent?.trim() === "Cancel")).toBeTruthy()
+    expect(buttons.find((b) => b.textContent?.trim() === "Preview")).toBeTruthy()
+    expect(document.body.querySelector('button[aria-label="Apply filter"]')).not.toBeNull()
   })
 
   it("mobile: opens on params; Preview reveals preview; pencil re-opens; apply icon fires the trace", async () => {

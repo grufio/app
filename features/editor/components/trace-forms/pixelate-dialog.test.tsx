@@ -51,7 +51,7 @@ describe("PixelateDialog (smoke)", () => {
     vi.unstubAllGlobals()
   })
 
-  it("renders preview canvas + form inputs + Apply/Cancel when open", async () => {
+  it("opens on the params overlay with form + Cancel/Preview, and an Apply icon", async () => {
     render(
       <PixelateDialog
         open
@@ -64,20 +64,23 @@ describe("PixelateDialog (smoke)", () => {
       />,
     )
 
+    // Unified fullscreen flow (desktop matches mobile): opens on the params
+    // overlay. The form is mounted; the preview pane is lazy (mounted on the
+    // first Preview tap).
     await waitFor(() => {
-      expect(document.body.querySelector('[data-testid="pixelate-preview-mini"]')).not.toBeNull()
+      expect(document.body.querySelector("#supercell_width_mm")).not.toBeNull()
     })
-    expect(document.body.querySelector("#supercell_width_mm")).not.toBeNull()
     expect(document.body.querySelector("#color_mode")).not.toBeNull()
+    expect(document.body.querySelector('[data-testid="pixelate-preview-mini"]')).toBeNull()
 
     const buttons = Array.from(document.body.querySelectorAll("button"))
-    const cancel = buttons.find((b) => b.textContent?.trim() === "Cancel")
-    const apply = buttons.find((b) => b.textContent?.trim().startsWith("Apply"))
-    expect(cancel).toBeTruthy()
-    expect(apply).toBeTruthy()
+    expect(buttons.find((b) => b.textContent?.trim() === "Cancel")).toBeTruthy()
+    expect(buttons.find((b) => b.textContent?.trim() === "Preview")).toBeTruthy()
+    // Apply is the icon in the (under-overlay) preview header.
+    expect(document.body.querySelector('button[aria-label="Apply filter"]')).not.toBeNull()
   })
 
-  it("desktop: renders a Delete trace action in the header only when onDeleteTrace is set, and it fires", async () => {
+  it("renders a Delete trace action in the header only when onDeleteTrace is set, and it fires", async () => {
     const onDeleteTrace = vi.fn()
     const { rerender } = render(
       <PixelateDialog
@@ -130,16 +133,21 @@ describe("PixelateDialog (smoke)", () => {
       />,
     )
 
-    // The form mounts seeded with the saved value — no user input — and
-    // applying it sends that value back, proving the draft was restored
-    // from initialParams rather than schema defaults.
+    // The form mounts seeded with the saved value — no user input. Collapse
+    // the overlay via Preview, then the Apply icon sends that value back,
+    // proving the draft was restored from initialParams rather than schema
+    // defaults.
     await waitFor(() => {
       expect(document.body.querySelector("#supercell_width_mm")).not.toBeNull()
     })
-    const apply = Array.from(document.body.querySelectorAll("button")).find((b) =>
-      b.textContent?.trim().startsWith("Apply"),
-    ) as HTMLButtonElement
-    fireEvent.click(apply)
+    fireEvent.click(
+      Array.from(document.body.querySelectorAll("button")).find(
+        (b) => b.textContent?.trim() === "Preview",
+      ) as HTMLButtonElement,
+    )
+    fireEvent.click(
+      document.body.querySelector('button[aria-label="Apply filter"]') as HTMLButtonElement,
+    )
     await waitFor(() => {
       expect(onApplyTrace).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -150,7 +158,7 @@ describe("PixelateDialog (smoke)", () => {
     })
   })
 
-  it("desktop: spins the Delete action and disables Apply while the clear runs", async () => {
+  it("spins the Delete action and disables Apply while the clear runs", async () => {
     let resolveDelete: () => void = () => {}
     const onDeleteTrace = vi.fn(
       () =>
@@ -186,8 +194,8 @@ describe("PixelateDialog (smoke)", () => {
     await waitFor(() => {
       expect(del.querySelector(".animate-spin")).not.toBeNull()
     })
-    const apply = Array.from(document.body.querySelectorAll("button")).find((b) =>
-      b.textContent?.trim().startsWith("Apply"),
+    const apply = document.body.querySelector(
+      'button[aria-label="Apply filter"]',
     ) as HTMLButtonElement
     expect(apply.hasAttribute("disabled")).toBe(true)
 

@@ -185,18 +185,9 @@ describe("EditorTopRightBar", () => {
     })
   })
 
-  describe("desktop variant", () => {
-    it("keeps `md:hidden` by default (mobile-only callers unchanged)", () => {
-      const { getByRole } = render(
-        <EditorTopRightBar viewOptions={defaultViewOptions()} />,
-      )
-      expect(getByRole("toolbar").className).toContain("md:hidden")
-    })
-
-    it("drops `md:hidden` when desktop is set (bar stays visible on md+)", () => {
-      const { getByRole } = render(
-        <EditorTopRightBar viewOptions={defaultViewOptions()} desktop />,
-      )
+  describe("viewport", () => {
+    it("stays visible on every viewport (no md:hidden — desktop matches mobile)", () => {
+      const { getByRole } = render(<EditorTopRightBar viewOptions={defaultViewOptions()} />)
       expect(getByRole("toolbar").className).not.toContain("md:hidden")
     })
   })
