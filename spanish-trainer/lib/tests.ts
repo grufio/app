@@ -1,7 +1,13 @@
 import type { VocabItem } from "./types";
-import type { McItem, PhysikTopic } from "./mc";
+import type { McItem, McTopic } from "./mc";
 import type { UserId } from "./user";
 import { unidad5 } from "@/data/unidad5";
+import { wortarten } from "@/data/deutsch/wortarten";
+import { satzglieder } from "@/data/deutsch/satzglieder";
+import { aktivPassiv } from "@/data/deutsch/aktiv-passiv";
+import { tempus } from "@/data/deutsch/tempus";
+import { attribute } from "@/data/deutsch/attribute";
+import { feldermodell } from "@/data/deutsch/feldermodell";
 import { optLicht } from "@/data/physik/opt-licht";
 import { optSpiegel } from "@/data/physik/opt-spiegel";
 import { optLinsen } from "@/data/physik/opt-linsen";
@@ -34,9 +40,10 @@ interface TestBase {
  */
 export type TestDef =
   | (TestBase & { kind: "vocab"; items: VocabItem[] })
-  | (TestBase & { kind: "mc"; area: PhysikTopic; items: McItem[] });
+  | (TestBase & { kind: "mc"; area: McTopic; items: McItem[] });
 
 const PHYSIK: UserId[] = ["r"];
+const DEUTSCH: UserId[] = ["r"];
 
 /** Registry of available tests. Physics is grouped by `area` into sub-areas. */
 export const TESTS: TestDef[] = [
@@ -73,6 +80,14 @@ export const TESTS: TestDef[] = [
   // Größen & Messen
   { kind: "mc", area: "Größen", id: "grs-groessen", title: "Größen & Einheiten", subtitle: "Größen & Messen", users: PHYSIK, items: grsGroessen },
   { kind: "mc", area: "Größen", id: "grs-messen", title: "Messen & Auswerten", subtitle: "Größen & Messen", users: PHYSIK, items: grsMessen },
+
+  // Deutsch — Grammatikthemen (eine Fragenrunde je Thema)
+  { kind: "mc", area: "Wortarten", id: "deu-wortarten", title: "Wortarten", subtitle: "Nomen, Verben, Adjektive …", users: DEUTSCH, items: wortarten },
+  { kind: "mc", area: "Satzglieder", id: "deu-satzglieder", title: "Satzglieder", subtitle: "Subjekt, Prädikat, Objekte", users: DEUTSCH, items: satzglieder },
+  { kind: "mc", area: "Aktiv/Passiv", id: "deu-aktiv-passiv", title: "Aktiv / Passiv", subtitle: "Handlung vs. Vorgang", users: DEUTSCH, items: aktivPassiv },
+  { kind: "mc", area: "Tempus", id: "deu-tempus", title: "Tempus", subtitle: "Die Zeitformen", users: DEUTSCH, items: tempus },
+  { kind: "mc", area: "Attribute", id: "deu-attribute", title: "Attribute", subtitle: "Beifügungen zum Nomen", users: DEUTSCH, items: attribute },
+  { kind: "mc", area: "Feldermodell", id: "deu-feldermodell", title: "Feldermodell", subtitle: "Vorfeld, Satzklammer, Mittelfeld", users: DEUTSCH, items: feldermodell },
 ];
 
 /** Resolve a test by id, falling back to the first test. */
@@ -80,21 +95,55 @@ export function testById(id: string | null | undefined): TestDef {
   return TESTS.find((test) => test.id === id) ?? TESTS[0];
 }
 
-export interface PhysikArea {
+/** A subject groups several areas on the overview (e.g. Physik, Deutsch). */
+export type Subject = "physik" | "deutsch";
+
+export interface SubjectDef {
+  id: Subject;
+  /** URL slug used by `/tests?subject=…`. */
   slug: string;
   label: string;
-  topic: PhysikTopic;
 }
 
-/** Top-level physics areas (each groups several mc sub-area tests). */
-export const PHYSIK_AREAS: PhysikArea[] = [
-  { slug: "optik", label: "Optik", topic: "Optik" },
-  { slug: "akustik", label: "Akustik", topic: "Akustik" },
-  { slug: "strom", label: "Elektrischer Stromkreis", topic: "Stromkreis" },
-  { slug: "magnetismus", label: "Magnetismus", topic: "Magnetismus" },
-  { slug: "groessen", label: "Größen & Messen", topic: "Größen" },
+export const SUBJECTS: SubjectDef[] = [
+  { id: "physik", slug: "physik", label: "Physik" },
+  { id: "deutsch", slug: "deutsch", label: "Deutsch" },
 ];
 
-export function areaBySlug(slug: string | null | undefined): PhysikArea | undefined {
-  return PHYSIK_AREAS.find((area) => area.slug === slug);
+export interface McArea {
+  /** Subject this area belongs to. */
+  subject: Subject;
+  slug: string;
+  label: string;
+  topic: McTopic;
+}
+
+/**
+ * Areas across all subjects. Physics areas group several sub-area tests; each
+ * German grammar area currently carries a single test (its own topic).
+ */
+export const MC_AREAS: McArea[] = [
+  { subject: "physik", slug: "optik", label: "Optik", topic: "Optik" },
+  { subject: "physik", slug: "akustik", label: "Akustik", topic: "Akustik" },
+  { subject: "physik", slug: "strom", label: "Elektrischer Stromkreis", topic: "Stromkreis" },
+  { subject: "physik", slug: "magnetismus", label: "Magnetismus", topic: "Magnetismus" },
+  { subject: "physik", slug: "groessen", label: "Größen & Messen", topic: "Größen" },
+  { subject: "deutsch", slug: "wortarten", label: "Wortarten", topic: "Wortarten" },
+  { subject: "deutsch", slug: "satzglieder", label: "Satzglieder", topic: "Satzglieder" },
+  { subject: "deutsch", slug: "aktiv-passiv", label: "Aktiv / Passiv", topic: "Aktiv/Passiv" },
+  { subject: "deutsch", slug: "tempus", label: "Tempus", topic: "Tempus" },
+  { subject: "deutsch", slug: "attribute", label: "Attribute", topic: "Attribute" },
+  { subject: "deutsch", slug: "feldermodell", label: "Feldermodell", topic: "Feldermodell" },
+];
+
+export function subjectBySlug(slug: string | null | undefined): SubjectDef | undefined {
+  return SUBJECTS.find((subject) => subject.slug === slug);
+}
+
+export function areasForSubject(subject: Subject): McArea[] {
+  return MC_AREAS.filter((area) => area.subject === subject);
+}
+
+export function areaBySlug(slug: string | null | undefined): McArea | undefined {
+  return MC_AREAS.find((area) => area.slug === slug);
 }

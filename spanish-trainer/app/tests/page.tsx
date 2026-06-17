@@ -4,7 +4,14 @@ import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
-import { areaBySlug, PHYSIK_AREAS, TESTS, type TestDef } from "@/lib/tests";
+import {
+  areaBySlug,
+  areasForSubject,
+  SUBJECTS,
+  subjectBySlug,
+  TESTS,
+  type TestDef,
+} from "@/lib/tests";
 import { getActiveUser, USERS, type UserId } from "@/lib/user";
 
 type McTest = Extract<TestDef, { kind: "mc" }>;
@@ -35,8 +42,9 @@ function Tile({
 }
 
 function TestsView() {
-  const areaSlug = useSearchParams().get("area");
-  const area = areaBySlug(areaSlug);
+  const params = useSearchParams();
+  const area = areaBySlug(params.get("area"));
+  const subject = subjectBySlug(params.get("subject"));
 
   const [mounted, setMounted] = useState(false);
   const [user, setUser] = useState<UserId>("admin");
@@ -48,12 +56,11 @@ function TestsView() {
 
   const label = USERS.find((u) => u.id === user)?.label ?? user;
   const visible = mounted ? TESTS.filter((test) => test.users.includes(user)) : [];
+  const mcTests = visible.filter((test): test is McTest => test.kind === "mc");
 
-  // Second level: the sub-areas of one area, with a back link.
+  // Third level: the sub-areas of one (multi-test) area, with a back link.
   if (area) {
-    const subTests = visible.filter(
-      (test): test is McTest => test.kind === "mc" && test.area === area.topic,
-    );
+    const subTests = mcTests.filter((test) => test.area === area.topic);
     return (
       <main className="mx-auto flex min-h-dvh max-w-md flex-col gap-6 px-4 py-8">
         <header className="flex items-center justify-between">
@@ -61,8 +68,8 @@ function TestsView() {
             <h1 className="text-xl font-semibold text-ink">{area.label}</h1>
             <p className="text-sm text-ink-soft">Unterbereich wählen</p>
           </div>
-          <Link href="/tests" className="text-sm font-medium text-brand">
-            ‹ Tests
+          <Link href={`/tests?subject=${area.subject}`} className="text-sm font-medium text-brand">
+            ‹ Zurück
           </Link>
         </header>
         <div className="flex flex-col gap-3">
@@ -80,10 +87,48 @@ function TestsView() {
     );
   }
 
-  // Top level: vocab tests as direct tiles, physics areas as drill-down tiles.
+  // Second level: the areas of one subject. An area with a single test links
+  // straight to that test; an area with several tests drills down further.
+  if (subject) {
+    const areas = areasForSubject(subject.id).filter((a) =>
+      mcTests.some((test) => test.area === a.topic),
+    );
+    return (
+      <main className="mx-auto flex min-h-dvh max-w-md flex-col gap-6 px-4 py-8">
+        <header className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-semibold text-ink">{subject.label}</h1>
+            <p className="text-sm text-ink-soft">Bereich wählen</p>
+          </div>
+          <Link href="/tests" className="text-sm font-medium text-brand">
+            ‹ Tests
+          </Link>
+        </header>
+        <div className="flex flex-col gap-3">
+          {areas.map((a) => {
+            const tests = mcTests.filter((test) => test.area === a.topic);
+            const total = tests.reduce((sum, test) => sum + test.items.length, 0);
+            const single = tests.length === 1;
+            return (
+              <Tile
+                key={a.slug}
+                href={single ? `/play?test=${tests[0].id}` : `/tests?area=${a.slug}`}
+                title={a.label}
+                subtitle={single ? tests[0].subtitle : `${tests.length} Unterbereiche`}
+                right={`${total} Fragen`}
+              />
+            );
+          })}
+        </div>
+      </main>
+    );
+  }
+
+  // Top level: vocab tests as direct tiles, mc subjects as drill-down tiles.
   const vocabTests = visible.filter((test) => test.kind === "vocab");
-  const mcTests = visible.filter((test): test is McTest => test.kind === "mc");
-  const areas = PHYSIK_AREAS.filter((a) => mcTests.some((test) => test.area === a.topic));
+  const subjects = SUBJECTS.filter((s) =>
+    areasForSubject(s.id).some((a) => mcTests.some((test) => test.area === a.topic)),
+  );
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col gap-6 px-4 py-8">
@@ -109,15 +154,19 @@ function TestsView() {
             right={`${test.items.length} Wörter`}
           />
         ))}
-        {areas.map((a) => {
-          const tests = mcTests.filter((test) => test.area === a.topic);
-          const total = tests.reduce((sum, test) => sum + test.items.length, 0);
+        {subjects.map((s) => {
+          const areas = areasForSubject(s.id).filter((a) =>
+            mcTests.some((test) => test.area === a.topic),
+          );
+          const total = mcTests
+            .filter((test) => areas.some((a) => a.topic === test.area))
+            .reduce((sum, test) => sum + test.items.length, 0);
           return (
             <Tile
-              key={a.slug}
-              href={`/tests?area=${a.slug}`}
-              title={a.label}
-              subtitle={`${tests.length} Unterbereiche`}
+              key={s.slug}
+              href={`/tests?subject=${s.slug}`}
+              title={s.label}
+              subtitle={`${areas.length} ${areas.length === 1 ? "Bereich" : "Bereiche"}`}
               right={`${total} Fragen`}
             />
           );

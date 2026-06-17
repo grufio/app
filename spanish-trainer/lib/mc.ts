@@ -9,6 +9,18 @@ export type PhysikTopic =
   | "Magnetismus"
   | "Größen";
 
+/** Topic buckets for the German grammar ("Deutsch") multiple-choice tests. */
+export type DeutschTopic =
+  | "Aktiv/Passiv"
+  | "Wortarten"
+  | "Satzglieder"
+  | "Feldermodell"
+  | "Attribute"
+  | "Tempus";
+
+/** Every topic an mc question can carry, across all subjects. */
+export type McTopic = PhysikTopic | DeutschTopic;
+
 /**
  * A curated multiple-choice question. Unlike the vocabulary game, the answer
  * options are authored by hand (not derived from a translation pool), so the
@@ -23,7 +35,7 @@ export interface McItem {
   options: string[];
   /** Index of the correct option within `options`. */
   correctIndex: number;
-  topic: PhysikTopic;
+  topic: McTopic;
 }
 
 export interface McQuestion {
