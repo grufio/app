@@ -108,17 +108,16 @@ describe("master identity vs state anchor", () => {
       name: "wc (newer)",
     })
 
-    // Pin ordering + lock state explicitly. The newer working_copy is the
-    // expected anchor; lock it to assert the is_locked boolean coercion.
+    // Pin ordering explicitly. The newer working_copy is the expected anchor.
     {
       const { error: olderErr } = await supabase
         .from("project_images")
-        .update({ created_at: "2026-01-01T00:00:00Z", is_locked: false })
+        .update({ created_at: "2026-01-01T00:00:00Z" })
         .eq("id", olderWc.imageId)
       expect(olderErr).toBeNull()
       const { error: newerErr } = await supabase
         .from("project_images")
-        .update({ created_at: "2026-02-01T00:00:00Z", is_locked: true })
+        .update({ created_at: "2026-02-01T00:00:00Z" })
         .eq("id", newerWc.imageId)
       expect(newerErr).toBeNull()
     }
@@ -126,7 +125,7 @@ describe("master identity vs state anchor", () => {
     const anchor = await resolveStateAnchorImage(supabase, projectId)
 
     // The anchor MUST be the newest working_copy — never the master id.
-    expect(anchor).toEqual({ id: newerWc.imageId, is_locked: true })
+    expect(anchor).toEqual({ id: newerWc.imageId })
     if ("id" in anchor) {
       expect(anchor.id).not.toBe(master.imageId)
       expect(anchor.id).not.toBe(olderWc.imageId)
@@ -149,7 +148,7 @@ describe("master identity vs state anchor", () => {
 
     // Sanity: with a live working_copy it resolves to that working_copy.
     const before = await resolveStateAnchorImage(supabase, projectId)
-    expect(before).toEqual({ id: wc.imageId, is_locked: false })
+    expect(before).toEqual({ id: wc.imageId })
 
     // Tombstone the only working_copy.
     const { error: tombstoneErr } = await supabase

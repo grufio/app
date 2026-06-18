@@ -14,16 +14,16 @@ describe("normalizeApiError — structural ApiError extraction", () => {
       action: "image_state",
       status: 409,
       payload: {
-        error: "Master image is locked",
-        stage: "lock_conflict",
+        error: "Filter chain is out of sync",
+        stage: "chain_invalid",
         correlationId: "abc-123-uuid",
       },
     })
     const out = normalizeApiError(err)
-    expect(out.stage).toBe("lock_conflict")
-    expect(out.message).toBe("Master image is locked")
+    expect(out.stage).toBe("chain_invalid")
+    expect(out.message).toBe("Filter chain is out of sync")
     expect(out.correlationId).toBe("abc-123-uuid")
-    expect(out.code).toMatch(/save\.image_state\.lock_conflict/)
+    expect(out.code).toMatch(/save\.image_state\.chain_invalid/)
   })
 
   it("falls back to err.message when payload.error is missing", () => {
@@ -44,13 +44,13 @@ describe("normalizeApiError — structural ApiError extraction", () => {
       action: "a",
       status: 409,
       payload: {
-        error: "Image locked",
-        stage: "lock_conflict",
-        reason: "image_locked",
+        error: "Filter chain is out of sync",
+        stage: "chain_invalid",
+        reason: "stale_chain",
       },
     })
     const out = normalizeApiError(err)
-    expect(out.reason).toBe("image_locked")
+    expect(out.reason).toBe("stale_chain")
   })
 
   it("defaults stage to 'unknown' when payload omits it", () => {
@@ -96,7 +96,7 @@ describe("normalizeApiError — legacy regex parsing", () => {
   })
 
   it("passes through an already-OperationError input unchanged", () => {
-    const input = { stage: "lock_conflict", message: "Locked", correlationId: "xyz" } as const
+    const input = { stage: "chain_invalid", message: "Out of sync", correlationId: "xyz" } as const
     const out = normalizeApiError(input)
     expect(out).toBe(input)
   })
@@ -108,12 +108,6 @@ describe("formatOperationErrorForToast", () => {
     expect(t.title).toBe("Filter chain is out of sync")
     expect(t.detail).toMatch(/Close this dialog/i)
     expect(t.retriable).toBe(true)
-  })
-
-  it("maps lock_conflict", () => {
-    const t = formatOperationErrorForToast({ stage: "lock_conflict", message: "x" })
-    expect(t.title).toBe("Image is locked")
-    expect(t.retriable).toBe(false)
   })
 
   it("maps service_unavailable as retriable", () => {

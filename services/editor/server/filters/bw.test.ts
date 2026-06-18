@@ -33,7 +33,7 @@ function buildMockSupabase(opts: { source?: Record<string, unknown> | null } = {
 const projectId = "test-project-id"
 const sourceImageId = "source-image-id"
 
-const unlockedSource = {
+const validSource = {
   id: sourceImageId,
   name: "test.jpg",
   storage_bucket: "project_images",
@@ -41,10 +41,9 @@ const unlockedSource = {
   format: "jpeg",
   width_px: 1000,
   height_px: 800,
-  is_locked: false,
 }
 
-describe("bwHardImageAndActivate — lookup + lock contract", () => {
+describe("bwHardImageAndActivate — lookup contract", () => {
   it("returns source_lookup error when the source image is not found", async () => {
     const result = await bwHardImageAndActivate({
       supabase: buildMockSupabase({ source: null }),
@@ -59,23 +58,9 @@ describe("bwHardImageAndActivate — lookup + lock contract", () => {
     }
   })
 
-  it("returns lock_conflict when the source image is locked", async () => {
-    const result = await bwHardImageAndActivate({
-      supabase: buildMockSupabase({ source: { ...unlockedSource, is_locked: true } }),
-      projectId,
-      sourceImageId,
-      params: {},
-    })
-    expect(result.ok).toBe(false)
-    if (!result.ok) {
-      expect(result.stage).toBe("lock_conflict")
-      expect(result.reason).toBe("Source image is locked")
-    }
-  })
-
   it("returns validation error for invalid source dimensions", async () => {
     const result = await bwHardImageAndActivate({
-      supabase: buildMockSupabase({ source: { ...unlockedSource, width_px: 0, height_px: 800 } }),
+      supabase: buildMockSupabase({ source: { ...validSource, width_px: 0, height_px: 800 } }),
       projectId,
       sourceImageId,
       params: {},
@@ -89,7 +74,7 @@ describe("bwHardImageAndActivate — lookup + lock contract", () => {
 
   it("returns source_download error when the storage download fails", async () => {
     const result = await bwHardImageAndActivate({
-      supabase: buildMockSupabase({ source: unlockedSource }),
+      supabase: buildMockSupabase({ source: validSource }),
       projectId,
       sourceImageId,
       params: {},

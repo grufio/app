@@ -131,10 +131,10 @@ export async function upsertBoundImageState(
 export async function resolveStateAnchorImage(
   supabase: SupabaseClient,
   projectId: string,
-): Promise<{ id: string; is_locked: boolean } | { error: string } | { notFound: true }> {
+): Promise<{ id: string } | { error: string } | { notFound: true }> {
   const { data: workingCopy, error: wcErr } = await supabase
     .from("project_images")
-    .select("id,is_locked")
+    .select("id")
     .eq("project_id", projectId)
     .eq("kind", "working_copy")
     .is("deleted_at", null)
@@ -143,7 +143,7 @@ export async function resolveStateAnchorImage(
     .maybeSingle()
   if (wcErr) return { error: wcErr.message }
   if (workingCopy?.id) {
-    return { id: String(workingCopy.id), is_locked: Boolean(workingCopy.is_locked) }
+    return { id: String(workingCopy.id) }
   }
   return { notFound: true }
 }

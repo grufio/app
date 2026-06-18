@@ -238,7 +238,6 @@ export type Database = {
           initial_display_x_px_u: string
           initial_display_y_px_u: string
           is_active: boolean
-          is_locked: boolean
           kind: Database["public"]["Enums"]["image_kind"]
           name: string
           project_id: string
@@ -262,7 +261,6 @@ export type Database = {
           initial_display_x_px_u?: string
           initial_display_y_px_u?: string
           is_active?: boolean
-          is_locked?: boolean
           kind: Database["public"]["Enums"]["image_kind"]
           name: string
           project_id: string
@@ -286,7 +284,6 @@ export type Database = {
           initial_display_x_px_u?: string
           initial_display_y_px_u?: string
           is_active?: boolean
-          is_locked?: boolean
           kind?: Database["public"]["Enums"]["image_kind"]
           name?: string
           project_id?: string

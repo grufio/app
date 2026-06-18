@@ -45,7 +45,7 @@ export async function DELETE(
   // Fetch the explicit image target.
   const { data: imageToDelete, error: fetchErr } = await supabase
     .from("project_images")
-    .select("id,storage_path,storage_bucket,is_active,is_locked,kind,source_image_id,name")
+    .select("id,storage_path,storage_bucket,is_active,kind,source_image_id,name")
     .eq("id", imageId)
     .eq("project_id", projectId)
     .is("deleted_at", null)

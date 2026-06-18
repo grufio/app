@@ -28,7 +28,7 @@ function makeSupabaseStub(opts: {
 type CapturedUpsert = { value: Record<string, unknown> | null }
 
 type AnchorResolution =
-  | { id: string; is_locked: boolean }
+  | { id: string }
   | { error: string }
   | { notFound: true }
 
@@ -84,7 +84,7 @@ describe("image-state route contract", () => {
 
   it("POST rejects payload missing required transform fields", async () => {
     const supabase = makeSupabaseStub({ projectAccessible: true })
-    const mod = await importRouteWithMocks({ supabase, anchor: { id: ANCHOR_UUID, is_locked: false } })
+    const mod = await importRouteWithMocks({ supabase, anchor: { id: ANCHOR_UUID } })
 
     const res = await mod.POST(
       new Request("http://test.local", {
@@ -101,30 +101,6 @@ describe("image-state route contract", () => {
     expect(res.status).toBe(400)
     const body = await res.json()
     expect(body.stage).toBe("validation")
-  })
-
-  it("POST blocks writes when the anchor image is locked (409 lock_conflict)", async () => {
-    const supabase = makeSupabaseStub({ projectAccessible: true })
-    const mod = await importRouteWithMocks({ supabase, anchor: { id: ANCHOR_UUID, is_locked: true } })
-
-    const res = await mod.POST(
-      new Request("http://test.local", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          x_px_u: "0",
-          y_px_u: "0",
-          width_px_u: "1000000",
-          height_px_u: "1000000",
-          rotation_deg: 0,
-        }),
-      }),
-      { params: Promise.resolve({ projectId: VALID_UUID }) }
-    )
-
-    expect(res.status).toBe(409)
-    const body = await res.json()
-    expect(body.stage).toBe("lock_conflict")
   })
 
   it("POST returns no_master_image when the project has no anchor image", async () => {
@@ -156,7 +132,7 @@ describe("image-state route contract", () => {
     const captured: CapturedUpsert = { value: null }
     const mod = await importRouteWithMocks({
       supabase,
-      anchor: { id: ANCHOR_UUID, is_locked: false },
+      anchor: { id: ANCHOR_UUID },
       upsertOk: true,
       captureUpsert: captured,
     })
@@ -187,7 +163,7 @@ describe("image-state route contract", () => {
     const captured: CapturedUpsert = { value: null }
     const mod = await importRouteWithMocks({
       supabase,
-      anchor: { id: ANCHOR_UUID, is_locked: false },
+      anchor: { id: ANCHOR_UUID },
       upsertOk: true,
       loadState: {
         row: {
@@ -229,7 +205,7 @@ describe("image-state route contract", () => {
     const captured: CapturedUpsert = { value: null }
     const mod = await importRouteWithMocks({
       supabase,
-      anchor: { id: ANCHOR_UUID, is_locked: false },
+      anchor: { id: ANCHOR_UUID },
       upsertOk: true,
       // loadState NOT provided — should not be needed.
       captureUpsert: captured,
@@ -259,7 +235,7 @@ describe("image-state route contract", () => {
     const supabase = makeSupabaseStub({ projectAccessible: true })
     const mod = await importRouteWithMocks({
       supabase,
-      anchor: { id: ANCHOR_UUID, is_locked: false },
+      anchor: { id: ANCHOR_UUID },
       upsertOk: true,
     })
 

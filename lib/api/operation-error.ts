@@ -12,14 +12,13 @@
  * the editor's React state slots to carry the shape end-to-end.
  *
  * Stage taxonomy: stages are short snake_case tokens emitted by the
- * server (e.g. `lock_conflict`, `validation`, `schema_missing`,
- * `master_lookup`). The client uses them to pick UI copy without
- * regexing on free-form messages.
+ * server (e.g. `validation`, `schema_missing`, `master_lookup`). The
+ * client uses them to pick UI copy without regexing on free-form
+ * messages.
  *
- * Reason taxonomy: narrower than stage. A `lock_conflict` stage can
- * have reason `image_locked` (lock guard tripped) or `master_busy`
- * (advisory lock contention). Optional — many stages have a single
- * canonical reason.
+ * Reason taxonomy: narrower than stage. A `db_insert` stage can have
+ * reason `fk_violation` or `unique_violation`. Optional — many stages
+ * have a single canonical reason.
  *
  * Correlation id: a per-request UUID emitted by the server in the
  * `X-Request-Id` response header (and echoed back into the error

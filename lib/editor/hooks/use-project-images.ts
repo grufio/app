@@ -12,7 +12,6 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import {
   deleteMasterImageById,
   listMasterImages,
-  setProjectImageLocked,
   type ProjectImageDisplayTarget,
   type ProjectImageFallbackTarget,
   type ProjectImageItem,
@@ -22,7 +21,7 @@ import { reportClientError } from "@/lib/monitoring/with-error-reporting"
 
 function imageListSignature(projectId: string, items: ProjectImageItem[]): string {
   return `${projectId}::${items
-    .map((img) => `${img.id}|${img.is_active ? 1 : 0}|${img.is_locked ? 1 : 0}|${img.name ?? ""}|${img.created_at ?? ""}`)
+    .map((img) => `${img.id}|${img.is_active ? 1 : 0}|${img.name ?? ""}|${img.created_at ?? ""}`)
     .join("::")}`
 }
 
@@ -135,37 +134,6 @@ export function useProjectImages(projectId: string) {
     [projectId, refresh]
   )
 
-  const setLockedById = useCallback(
-    async (imageId: string, isLocked: boolean) => {
-      if (!mountedRef.current) return { ok: false as const, error: "Unmounted" }
-      try {
-        return await mutationChannelRef.current.enqueueLatest(async () => {
-          setError("")
-          const prevImages = images
-          if (mountedRef.current) {
-            setImages((prev) => prev.map((img) => (img.id === imageId ? { ...img, is_locked: isLocked } : img)))
-          }
-          try {
-            await setProjectImageLocked(projectId, imageId, isLocked)
-            return { ok: true as const }
-          } catch (e) {
-            if (mountedRef.current) {
-              setImages(prevImages)
-            }
-            await refresh()
-            const msg = e instanceof Error ? e.message : "Failed to update image lock"
-            if (mountedRef.current) setError(msg)
-            return { ok: false as const, error: msg }
-          }
-        })
-      } catch (e) {
-        if (isSupersededWriteError(e)) return { ok: true as const }
-        throw e
-      }
-    },
-    [images, projectId, refresh]
-  )
-
   useEffect(() => {
     void refresh()
   }, [projectId, refresh])
@@ -180,6 +148,5 @@ export function useProjectImages(projectId: string) {
     refresh,
     seedImages,
     deleteById,
-    setLockedById,
   }
 }

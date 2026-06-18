@@ -54,7 +54,6 @@ export type ActiveProjectImageRow = {
   dpi: number | null
   source_image_id: string | null
   kind: string | null
-  is_locked: boolean | null
 }
 
 function toActiveProjectImageRow(data: Record<string, unknown>): ActiveProjectImageRow | null {
@@ -71,7 +70,6 @@ function toActiveProjectImageRow(data: Record<string, unknown>): ActiveProjectIm
     dpi: data.dpi == null ? null : Number(data.dpi),
     source_image_id: data.source_image_id == null ? null : String(data.source_image_id),
     kind: data.kind == null ? null : String(data.kind),
-    is_locked: data.is_locked == null ? null : Boolean(data.is_locked),
   }
 }
 
@@ -116,7 +114,7 @@ export async function resolveEditorTargetImageRows(
 > {
   const { data, error } = await supabase
     .from("project_images")
-    .select("id,name,storage_bucket,storage_path,format,width_px,height_px,file_size_bytes,dpi,source_image_id,kind,is_locked,updated_at,created_at")
+    .select("id,name,storage_bucket,storage_path,format,width_px,height_px,file_size_bytes,dpi,source_image_id,kind,updated_at,created_at")
     .eq("project_id", projectId)
     .is("deleted_at", null)
 
@@ -169,17 +167,12 @@ export async function getProjectMasterImageId(
 
 export type ProjectMasterImageRow = {
   id: string
-  is_locked: boolean
 }
 
 /**
- * Returns the project's master image row (id + lock flag) in a single
- * query.
+ * Returns the project's master image row id in a single query.
  *
- * Used by the `image-state` route to combine the **persistence key
- * resolution** with the **lock-guard check** — locking is anchored
- * at the master row, not at whichever filter surface the client
- * currently renders.
+ * Used as the **persistence key resolution** for the master anchor.
  *
  * Selection rule: oldest (`created_at ASC`) non-deleted row with
  * `kind = 'master'`. Re-uploads create a new master and soft-delete
@@ -194,7 +187,7 @@ export async function getProjectMasterImageRow(
 ): Promise<{ row: ProjectMasterImageRow | null; error: string | null }> {
   const { data, error } = await supabase
     .from("project_images")
-    .select("id,is_locked")
+    .select("id")
     .eq("project_id", projectId)
     .eq("kind", "master")
     .is("deleted_at", null)
@@ -207,42 +200,6 @@ export async function getProjectMasterImageRow(
   return {
     row: {
       id: String(data.id),
-      is_locked: Boolean(data.is_locked),
-    },
-    error: null,
-  }
-}
-
-export type ActiveProjectImageLockRow = {
-  id: string
-  is_locked: boolean | null
-}
-
-export async function getActiveProjectImageLockRow(
-  supabase: SupabaseClient,
-  projectId: string
-): Promise<{ row: ActiveProjectImageLockRow | null; error: null } | { row: null; error: { reason: string; code?: string } }> {
-  const { data, error } = await supabase
-    .from("project_images")
-    .select("id,is_locked")
-    .eq("project_id", projectId)
-    .eq("is_active", true)
-    .is("deleted_at", null)
-    .maybeSingle()
-  if (error) {
-    return {
-      row: null,
-      error: {
-        reason: error.message,
-        code: readErrorCode(error),
-      },
-    }
-  }
-  if (!data?.id) return { row: null, error: null }
-  return {
-    row: {
-      id: String(data.id),
-      is_locked: data.is_locked == null ? null : Boolean(data.is_locked),
     },
     error: null,
   }

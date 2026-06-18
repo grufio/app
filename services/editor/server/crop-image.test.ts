@@ -47,31 +47,4 @@ describe("crop-image lock and missing guards", () => {
     }
   })
 
-  it("returns lock_conflict when source image is locked", async () => {
-    const supabase = makeSupabase({
-      id: "img-1",
-      project_id: "proj-1",
-      name: "src",
-      format: "png",
-      width_px: 100,
-      height_px: 100,
-      storage_bucket: "project_images",
-      storage_path: "projects/proj-1/images/img-1",
-      deleted_at: null,
-      is_locked: true,
-    })
-    const out = await cropImageAndActivate({
-      supabase: supabase as never,
-      projectId: "proj-1",
-      sourceImageId: "img-1",
-      rect: { x: 0, y: 0, w: 10, h: 10 },
-    })
-    expect(out).toEqual({
-      ok: false,
-      status: 409,
-      stage: "lock_conflict",
-      reason: "Source image is locked",
-      code: "image_locked",
-    })
-  })
 })

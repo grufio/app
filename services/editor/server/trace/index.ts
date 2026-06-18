@@ -30,7 +30,6 @@ export type TraceOpFailure = {
     | "validation"
     | "active_lookup"
     | "source_lookup"
-    | "lock_conflict"
     | "source_download"
     | "pixelate_process"
     | "circulate_process"
@@ -234,14 +233,13 @@ export async function applyProjectTrace(args: {
       : null
 
   let sourceImageId: string
-  let sourceIsLocked = false
 
   const resolveSourceById = async (
     imageId: string,
-  ): Promise<{ ok: true; isLocked: boolean } | { ok: false; reason: string; code?: string }> => {
+  ): Promise<{ ok: true } | { ok: false; reason: string; code?: string }> => {
     const { data: row, error } = await supabase
       .from("project_images")
-      .select("is_locked")
+      .select("id")
       .eq("project_id", projectId)
       .eq("id", imageId)
       .is("deleted_at", null)
@@ -249,7 +247,7 @@ export async function applyProjectTrace(args: {
     if (error || !row) {
       return { ok: false, reason: error?.message ?? "Source image not found", code: error?.code }
     }
-    return { ok: true, isLocked: Boolean(row.is_locked) }
+    return { ok: true }
   }
 
   if (requestedSourceImageId) {
@@ -258,7 +256,6 @@ export async function applyProjectTrace(args: {
     if (!lookup.ok) {
       return { ok: false, status: 404, stage: "source_lookup", reason: lookup.reason, code: lookup.code }
     }
-    sourceIsLocked = lookup.isLocked
   } else {
     // Single-artifact model: at most one filter per project, so its output is
     // the trace source. project_image_filters is filter rows only; pixelate /
@@ -276,7 +273,6 @@ export async function applyProjectTrace(args: {
       if (!lookup.ok) {
         return { ok: false, status: 404, stage: "source_lookup", reason: lookup.reason, code: lookup.code }
       }
-      sourceIsLocked = lookup.isLocked
     } else {
       // No filter chain — fall back to the same "active editor
       // target" resolver the Filter pipeline uses, so trace and
@@ -292,14 +288,12 @@ export async function applyProjectTrace(args: {
       // If none exists yet (no filter has ever been opened on this
       // project), fall back to the active master directly.
       let bitmapRowId: string | null = null
-      let bitmapIsLocked = false
       if (lookup.preferredWorking?.id) {
         bitmapRowId = String(lookup.preferredWorking.id)
-        bitmapIsLocked = Boolean(lookup.preferredWorking.is_locked)
       } else {
         const { data: masterRow, error: masterErr } = await supabase
           .from("project_images")
-          .select("id,is_locked")
+          .select("id")
           .eq("project_id", projectId)
           .eq("kind", "master")
           .eq("is_active", true)
@@ -310,19 +304,13 @@ export async function applyProjectTrace(args: {
         }
         if (masterRow?.id) {
           bitmapRowId = String(masterRow.id)
-          bitmapIsLocked = Boolean(masterRow.is_locked)
         }
       }
       if (!bitmapRowId) {
         return { ok: false, status: 404, stage: "active_lookup", reason: "No bitmap source image found for trace" }
       }
       sourceImageId = bitmapRowId
-      sourceIsLocked = bitmapIsLocked
     }
-  }
-
-  if (sourceIsLocked) {
-    return { ok: false, status: 409, stage: "lock_conflict", reason: "Trace source image is locked", code: "image_locked" }
   }
 
   const handler = TRACE_HANDLERS[kind] as (input: {

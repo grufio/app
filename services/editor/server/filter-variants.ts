@@ -27,7 +27,6 @@ export type FilterOpFailure = {
     | "validation"
     | "active_lookup"
     | "source_lookup"
-    | "lock_conflict"
     | "source_download"
     | "bw_process"
     | "service_unavailable"
@@ -221,9 +220,6 @@ export async function applyProjectImageFilter(args: {
   // passes an explicit `source_image_id` — that's the "I know what
   // I'm doing" path.
   if (!requestedSourceImageId && resolveImageKind(active) !== IMAGE_KIND.FILTER_WORKING_COPY) {
-    if (active.is_locked) {
-      return { ok: false, status: 409, stage: "lock_conflict", reason: "Active image is locked", code: "image_locked" }
-    }
     if (
       !active.name ||
       !active.storage_path ||
@@ -266,9 +262,6 @@ export async function applyProjectImageFilter(args: {
   }
 
   const sourceImageId = requestedSourceImageId ?? String(active.id)
-  if (sourceImageId === String(active.id) && active.is_locked) {
-    return { ok: false, status: 409, stage: "lock_conflict", reason: "Active image is locked", code: "image_locked" }
-  }
   if (sourceImageId !== String(active.id)) {
     const { data: sourceRow, error: sourceErr } = await supabase
       .from("project_images")

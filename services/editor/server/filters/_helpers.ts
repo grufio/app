@@ -25,7 +25,6 @@ export function toInt(value: number): number | null {
 export type FilterFailStage<TProcess extends string> =
   | "validation"
   | "source_lookup"
-  | "lock_conflict"
   | "source_download"
   | TProcess
   | "service_unavailable"
