@@ -33,12 +33,12 @@ describe("EditorNav", () => {
     )
   }
 
-  it("starts collapsed: Home + an expand handle, section buttons hidden", () => {
-    const { getByLabelText, queryByLabelText } = renderNav()
+  it("renders Home + the four section buttons with their labels", () => {
+    const { getByLabelText } = renderNav()
     expect(getByLabelText("Home")).not.toBeNull()
-    expect(getByLabelText("Expand navigation")).not.toBeNull()
-    expect(queryByLabelText("Image")).toBeNull()
-    expect(queryByLabelText("Collapse navigation")).toBeNull()
+    for (const label of ["Image", "Filter", "Trace", "Color"]) {
+      expect(getByLabelText(label)).not.toBeNull()
+    }
   })
 
   it("renders Home as a link to /dashboard", () => {
@@ -48,24 +48,9 @@ describe("EditorNav", () => {
     expect(home.getAttribute("href")).toBe("/dashboard")
   })
 
-  it("expands to reveal the four sections + a collapse handle, then collapses again", () => {
-    const { getByLabelText, queryByLabelText } = renderNav()
-    fireEvent.click(getByLabelText("Expand navigation"))
-    for (const label of ["Image", "Filter", "Trace", "Color"]) {
-      expect(getByLabelText(label)).not.toBeNull()
-    }
-    expect(getByLabelText("Collapse navigation")).not.toBeNull()
-    expect(queryByLabelText("Expand navigation")).toBeNull()
-    // Collapse again → sections hidden, expand handle back.
-    fireEvent.click(getByLabelText("Collapse navigation"))
-    expect(queryByLabelText("Image")).toBeNull()
-    expect(getByLabelText("Expand navigation")).not.toBeNull()
-  })
-
   it("invokes onSelectSection with the matching section key (pure navigation, no menus)", () => {
     const onSelectSection = vi.fn()
     const { getByLabelText, queryByLabelText } = renderNav("artboard", onSelectSection)
-    fireEvent.click(getByLabelText("Expand navigation"))
     fireEvent.click(getByLabelText("Image"))
     expect(onSelectSection).toHaveBeenLastCalledWith("artboard")
     fireEvent.click(getByLabelText("Filter"))
@@ -75,32 +60,27 @@ describe("EditorNav", () => {
     fireEvent.click(getByLabelText("Color"))
     expect(onSelectSection).toHaveBeenLastCalledWith("colors")
     expect(onSelectSection).toHaveBeenCalledTimes(4)
-    // No function "+" menus live in the nav.
     expect(queryByLabelText("Add trace")).toBeNull()
-    expect(queryByLabelText("Add filter")).toBeNull()
-  })
-
-  it("renders the dark/light toggle beneath the drawer and fires onToggle", () => {
-    const onToggle = vi.fn()
-    const { getByLabelText, rerender } = render(
-      <EditorNav activeSection="artboard" onSelectSection={() => {}} theme={{ value: "dark", onToggle }} />,
-    )
-    // Dark tone → the toggle offers switching to light.
-    fireEvent.click(getByLabelText("Switch to light theme"))
-    expect(onToggle).toHaveBeenCalledTimes(1)
-    // Light tone → label flips.
-    rerender(
-      <EditorNav activeSection="artboard" onSelectSection={() => {}} theme={{ value: "light", onToggle }} />,
-    )
-    expect(getByLabelText("Switch to dark theme")).not.toBeNull()
   })
 
   it("marks only the active section as aria-pressed", () => {
     const { getByLabelText } = renderNav("filter")
-    fireEvent.click(getByLabelText("Expand navigation"))
     expect(getByLabelText("Filter").getAttribute("aria-pressed")).toBe("true")
     expect(getByLabelText("Image").getAttribute("aria-pressed")).not.toBe("true")
     expect(getByLabelText("Trace").getAttribute("aria-pressed")).not.toBe("true")
     expect(getByLabelText("Color").getAttribute("aria-pressed")).not.toBe("true")
+  })
+
+  it("renders the dark/light toggle and fires onToggle", () => {
+    const onToggle = vi.fn()
+    const { getByLabelText, rerender } = render(
+      <EditorNav activeSection="artboard" onSelectSection={() => {}} theme={{ value: "dark", onToggle }} />,
+    )
+    fireEvent.click(getByLabelText("Switch to light theme"))
+    expect(onToggle).toHaveBeenCalledTimes(1)
+    rerender(
+      <EditorNav activeSection="artboard" onSelectSection={() => {}} theme={{ value: "light", onToggle }} />,
+    )
+    expect(getByLabelText("Switch to dark theme")).not.toBeNull()
   })
 })
