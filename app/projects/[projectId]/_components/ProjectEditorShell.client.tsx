@@ -590,7 +590,7 @@ export function ProjectDetailPageClient({
 
         {/* Re-integrated artboard actions (top-right, 3 × 40px circles) —
             shown while the Artboard section is active. */}
-        {editorSection === "artboard" ? <EditorArtboardBar /> : null}
+        {editorSection === "artboard" ? <EditorArtboardBar hasImage={Boolean(masterImage)} /> : null}
         {editorSection === "artboard" ? (
           <ArtboardSurfaceScope
             pendingDialog={pendingArtboardDialog}
