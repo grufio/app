@@ -1,13 +1,11 @@
 "use client"
 
 /**
- * Floating **navigation** bar at the bottom-centre of the editor canvas —
- * a horizontal row of Feather-style pills. Pure navigation, no function
- * menus (Material guidance: top-level destinations that switch directly):
+ * Floating **navigation** of the editor canvas — Feather-style pills:
  *
- *   1. Standalone Home pill — links to `/dashboard`
+ *   1. Standalone Home pill — top-left corner, links to `/dashboard`
  *   2. Group pill — the four section icons (Image / Filter / Trace / Color)
- *      in a row, switching the active `EditorSection`
+ *      in a row at the bottom-centre, switching the active `EditorSection`
  *
  * The active section's *functions* live in `EditorTopBar` (top-right, under
  * the theme bar); this bar only changes which section is active. Tone comes
@@ -32,15 +30,19 @@ export function EditorNav({ activeSection, onSelectSection }: Props) {
   const tone = useEditorToolbarTone()
 
   return (
-    <div className="absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 flex-row items-center gap-3">
-      <div className={pillClass(tone, "single")}>
+    <>
+      {/* Home — standalone, top-left. */}
+      <div className={`${pillClass(tone, "single")} absolute top-3 left-3 z-20`}>
         <ToolbarIconButton label="Home" asChild>
           <Link href="/dashboard">
             <Home aria-hidden="true" className="size-6" />
           </Link>
         </ToolbarIconButton>
       </div>
-      <div className={pillClass(tone, "group")}>
+      {/* Section switcher — bottom-centre. */}
+      <div
+        className={`${pillClass(tone, "group")} absolute bottom-4 left-1/2 z-20 -translate-x-1/2`}
+      >
         {SECTION_ITEMS.map(({ key, label, Icon }) => (
           <ToolbarIconButton
             key={key}
@@ -52,6 +54,6 @@ export function EditorNav({ activeSection, onSelectSection }: Props) {
           </ToolbarIconButton>
         ))}
       </div>
-    </div>
+    </>
   )
 }

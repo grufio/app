@@ -68,11 +68,13 @@ describe("EditorNav", () => {
     expect(getByLabelText("Color").getAttribute("aria-pressed")).not.toBe("true")
   })
 
-  it("renders Home and the section group as two separate pill containers", () => {
+  it("renders Home and the section group as two separate floating pills", () => {
     const { container } = render(
       <EditorNav activeSection="artboard" onSelectSection={() => {}} />,
     )
-    const pills = container.querySelectorAll(":scope > div > div")
+    // Home (top-left) and the section group (bottom-centre) are now two
+    // independently-positioned top-level pills, no shared wrapper.
+    const pills = container.querySelectorAll(":scope > div")
     expect(pills.length).toBe(2)
   })
 })
