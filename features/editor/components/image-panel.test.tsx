@@ -15,7 +15,6 @@ function renderPanel(overrides: Partial<React.ComponentProps<typeof ImagePanel>>
     onAlign: vi.fn(),
     onRestore: vi.fn(),
     onFitToArtboard: vi.fn(),
-    onDelete: vi.fn(),
   }
   render(
     <ImagePanel
@@ -32,25 +31,24 @@ function renderPanel(overrides: Partial<React.ComponentProps<typeof ImagePanel>>
 }
 
 describe("ImagePanel", () => {
-  it("renders the header actions disabled by default", () => {
+  it("renders the header actions disabled by default (Delete now lives in the sheet footer)", () => {
     renderPanel()
     expect((screen.getByRole("button", { name: "Restore image" }) as HTMLButtonElement).disabled).toBe(true)
     expect((screen.getByRole("button", { name: "Fit image to artboard" }) as HTMLButtonElement).disabled).toBe(true)
-    expect((screen.getByRole("button", { name: "Delete image" }) as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.queryByRole("button", { name: "Delete image" })).toBeNull()
   })
 
   it("enables actions per their can* flags", () => {
-    renderPanel({ canRestore: true, canFit: true, canDelete: true })
+    renderPanel({ canRestore: true, canFit: true })
     expect((screen.getByRole("button", { name: "Restore image" }) as HTMLButtonElement).disabled).toBe(false)
     expect((screen.getByRole("button", { name: "Fit image to artboard" }) as HTMLButtonElement).disabled).toBe(false)
-    expect((screen.getByRole("button", { name: "Delete image" }) as HTMLButtonElement).disabled).toBe(false)
   })
 
   it("fires the header action handlers when enabled", () => {
-    const h = renderPanel({ canRestore: true, canDelete: true })
+    const h = renderPanel({ canRestore: true, canFit: true })
     fireEvent.click(screen.getByRole("button", { name: "Restore image" }))
-    fireEvent.click(screen.getByRole("button", { name: "Delete image" }))
+    fireEvent.click(screen.getByRole("button", { name: "Fit image to artboard" }))
     expect(h.onRestore).toHaveBeenCalledOnce()
-    expect(h.onDelete).toHaveBeenCalledOnce()
+    expect(h.onFitToArtboard).toHaveBeenCalledOnce()
   })
 })

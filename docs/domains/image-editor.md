@@ -35,9 +35,12 @@ result. It splits into three layers: pure-math canvas model
   `GridSheet` / `ImageSheet`, each launched by its own
   artboard "+" frame and routed through `ArtboardSurfaceScope`'s
   `activeDialog`. `EditorNav` (top-left) also hosts the theme toggle
-  and Trace's Eye (view-options). All dialogs/sheets render the same
-  fullscreen presentation on every viewport — desktop matches mobile
-  (no bounded right-side cards, no side-by-side trace dialog). Plus
+  and Trace's Eye (view-options). Most dialogs/sheets render fullscreen
+  on every viewport. The **`ImageSheet`** is the Feather-3D exception:
+  mobile fullscreen, desktop a centred rounded panel; tone-aware
+  (dark/light via a scoped `dark` class driven by `EditorToolbarTone`),
+  no section title, icon-only inputs, and a footer with round **Apply**
+  (close) + **Delete** (remove image, cascade confirm) actions. Plus
   the form components for each filter (`pixelate-form.tsx`,
   `lineart-form.tsx`, `numerate-form.tsx`), navigation/section routing.
 - [services/editor/](../../services/editor/) — server-side ops:
