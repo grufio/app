@@ -495,6 +495,11 @@ export function ProjectDetailPageClient({
     return m
   }, [filterStack])
 
+  // The section-function bar (`EditorTopBar`) and the canvas toolbar
+  // (`FloatingToolbar`) are temporarily hidden — the toolbars are being
+  // re-integrated step by step. Flip this flag to re-enable both.
+  const showLegacyToolbars = false as boolean
+
   return (
     <div className="flex min-h-svh w-full flex-col">
       <ProjectEditorHeader
@@ -515,7 +520,7 @@ export function ProjectDetailPageClient({
               toolbar={stageToolbar}
               // Colors is a read-only palette view — hide the canvas
               // tools/zoom toolbar there (they don't belong on Colors).
-              showFloatingToolbar={editorSection !== "colors"}
+              showFloatingToolbar={showLegacyToolbars && editorSection !== "colors"}
               canvasRef={canvasRef}
               artboardWidthPx={artboardWidthPx ?? undefined}
               artboardHeightPx={artboardHeightPx ?? undefined}
@@ -560,25 +565,27 @@ export function ProjectDetailPageClient({
           {/* Filter + Trace dialog hosts live inside their respective
               surface scope components (see the section mounts below). */}
         </EditorErrorBoundary>
-        <EditorTopBar
-          activeSection={editorSection}
-          onTraceKindTap={handleTraceKindTap}
-          activeTraceKind={trace?.kind ?? null}
-          onDeleteTrace={handleClearTrace}
-          activeFilterByKind={activeFilterByKind}
-          onApplyFilterKind={(k) => handleApplyFilter({ filterType: k, filterParams: {} })}
-          onRemoveFilter={handleRemoveFilter}
-          isAddFilterDisabled={isAddFilterDisabled}
-          filterLocked={sectionLocks.filterLocked}
-          hasGrid={hasGrid}
-          hasMasterImage={Boolean(masterImage)}
-          onCreateGrid={async () => {
-            await createGrid()
-            setGridVisible(true)
-          }}
-          onOpenArtboard={(dialog) => setPendingArtboardDialog(dialog)}
-          imageLocked={sectionLocks.imageLocked}
-        />
+        {showLegacyToolbars ? (
+          <EditorTopBar
+            activeSection={editorSection}
+            onTraceKindTap={handleTraceKindTap}
+            activeTraceKind={trace?.kind ?? null}
+            onDeleteTrace={handleClearTrace}
+            activeFilterByKind={activeFilterByKind}
+            onApplyFilterKind={(k) => handleApplyFilter({ filterType: k, filterParams: {} })}
+            onRemoveFilter={handleRemoveFilter}
+            isAddFilterDisabled={isAddFilterDisabled}
+            filterLocked={sectionLocks.filterLocked}
+            hasGrid={hasGrid}
+            hasMasterImage={Boolean(masterImage)}
+            onCreateGrid={async () => {
+              await createGrid()
+              setGridVisible(true)
+            }}
+            onOpenArtboard={(dialog) => setPendingArtboardDialog(dialog)}
+            imageLocked={sectionLocks.imageLocked}
+          />
+        ) : null}
         {editorSection === "artboard" ? (
           <ArtboardSurfaceScope
             pendingDialog={pendingArtboardDialog}
