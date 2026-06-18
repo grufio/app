@@ -1,22 +1,30 @@
 "use client"
 
 /**
- * Floating **navigation** in the top-left corner of the editor canvas:
+ * Floating **navigation** in the top-left corner of the editor canvas, a
+ * vertical stack of Feather-style pills:
  *
  *   1. Standalone Home pill — links to `/dashboard`.
- *   2. A collapsible section drawer beneath it, toggled by a small "Lasche"
- *      (tab). Collapsed → a ▶ handle (tap to expand); expanded → the vertical
- *      section pill (Image / Filter / Trace / Color) with a ◀ handle on its
- *      right (tap to collapse). Starts collapsed so the canvas stays clear.
+ *   2. A collapsible section drawer, toggled by a small "Lasche" (tab).
+ *      Collapsed → a ▶ handle (tap to expand); expanded → the vertical section
+ *      pill (Image / Filter / Trace / Color) with a ◀ handle on its right (tap
+ *      to collapse). Starts collapsed so the canvas stays clear.
+ *   3. The dark/light tone toggle, then the Eye view-options menu (Trace
+ *      section only) — stacked beneath the drawer.
  *
- * Pure navigation — no function menus. The active section's *functions* live
- * in `EditorTopBar` (top-right). Tone comes from the `EditorToolbarTone`
- * context, identical to the other floating bars.
+ * The active section's *functions* live in `EditorTopBar` (top-right). Tone
+ * comes from the `EditorToolbarTone` context, identical to the other bars.
  */
 import { useState } from "react"
 import Link from "next/link"
-import { ChevronLeft, ChevronRight, Home, Moon, Sun } from "lucide-react"
+import { ChevronLeft, ChevronRight, Eye, Home, Moon, Sun } from "lucide-react"
 
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import type { EditorSection } from "@/lib/editor/editor-sections"
 import { cn } from "@/lib/utils"
 
@@ -25,16 +33,28 @@ import { useEditorToolbarTone, type ToolbarTone } from "./editor-toolbar-tone"
 import { fabTriggerClass, pillClass } from "./floating-bar-styles"
 import { ToolbarIconButton } from "./toolbar-icon-button"
 
+export type EditorNavViewOptions = {
+  traceOverlayVisible: boolean
+  previewBitmapVisible: boolean
+  numbersLayerVisible: boolean
+  onTraceOverlayChange: (visible: boolean) => void
+  onPreviewBitmapChange: (visible: boolean) => void
+  onNumbersLayerChange: (visible: boolean) => void
+}
+
 type Props = {
   activeSection: EditorSection
   onSelectSection: (section: EditorSection) => void
   /** Dark/light tone toggle, rendered as a pill beneath the nav drawer. */
   theme: { value: ToolbarTone; onToggle: () => void }
+  /** Eye view-options menu (Trace section only). Null → no Eye pill. */
+  viewOptions?: EditorNavViewOptions | null
 }
 
-export function EditorNav({ activeSection, onSelectSection, theme }: Props) {
+export function EditorNav({ activeSection, onSelectSection, theme, viewOptions = null }: Props) {
   const tone = useEditorToolbarTone()
   const [navOpen, setNavOpen] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
 
   // The collapse/expand tab ("Lasche") — a stadium handle (reuses the
   // fab-trigger chrome) whose chevron points the way it moves the drawer.
@@ -102,6 +122,43 @@ export function EditorNav({ activeSection, onSelectSection, theme }: Props) {
           )}
         </ToolbarIconButton>
       </div>
+
+      {/* Eye view-options (Trace section only) — beneath the toggle. The menu
+          stays open on toggle via preventDefault (multi-toggle, not a picker). */}
+      {viewOptions ? (
+        <div className={pillClass(tone, "single")}>
+          <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+            <DropdownMenuTrigger asChild>
+              <ToolbarIconButton label="View options" active={menuOpen}>
+                <Eye aria-hidden="true" className="size-6" />
+              </ToolbarIconButton>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuCheckboxItem
+                checked={viewOptions.traceOverlayVisible}
+                onCheckedChange={viewOptions.onTraceOverlayChange}
+                onSelect={(e) => e.preventDefault()}
+              >
+                Trace
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={viewOptions.previewBitmapVisible}
+                onCheckedChange={viewOptions.onPreviewBitmapChange}
+                onSelect={(e) => e.preventDefault()}
+              >
+                Preview
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={viewOptions.numbersLayerVisible}
+                onCheckedChange={viewOptions.onNumbersLayerChange}
+                onSelect={(e) => e.preventDefault()}
+              >
+                Numbers
+              </DropdownMenuCheckboxItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      ) : null}
     </div>
   )
 }

@@ -1,8 +1,9 @@
 "use client"
 
 /**
- * Floating **functions** bar in the top-right corner of the editor canvas,
- * directly beneath the theme/Eye bar (`EditorTopRightBar`). It shows the
+ * Floating **functions** bar in the top-right corner of the editor canvas.
+ * (The theme toggle and Eye view-options now live in `EditorNav`, top-left.)
+ * It shows the
  * active section's function frames as an always-visible vertical column —
  * no parent icon, no open/close trigger:
  *
@@ -192,9 +193,9 @@ export function EditorTopBar({
   if (!config) return null
 
   return (
-    // Top-right, below the theme/Eye bar (`top-3`). Right-aligned at `right-3`
-    // so the frames sit under the theme toggle; the active row's Delete/Edit
-    // circles flank it on the left, so nothing clips past the right edge.
+    // Top-right (`top-16 right-3`), right-aligned so the frames sit against
+    // the edge; the active row's Delete/Edit circles flank it on the left,
+    // so nothing clips past the right edge.
     <div className="absolute top-16 right-3 z-20">
       <EditorFunctionList items={config.items} deleteLabel={config.deleteLabel} />
     </div>
