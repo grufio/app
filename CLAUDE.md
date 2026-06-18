@@ -46,6 +46,14 @@ Cloud Run filter-service in Python.
 
 Anything below overrides "common practice" for this repo:
 
+> **‼️ Keine Annahmen — im Zweifel NICHTS bauen.** Der User baut UI/Layout
+> bewusst und aufwändig um; Änderungen auf Basis von Vermutungen zerstören
+> diese Arbeit. Wenn du **nicht exakt und eindeutig** weißt, was gewünscht
+> ist (Position, Verhalten, Scope), dann **baue es nicht** — stelle EINE
+> knappe Rückfrage in Prosa oder warte. **Lieber nichts tun als raten.** Das
+> gilt besonders für Layout-/Positionsänderungen, die du hier nicht selbst im
+> Browser verifizieren kannst: nicht „blind" weiterbauen und hoffen.
+
 1. **Branch + PR Pflicht.** Never push directly to `main`. Every change:
    `git checkout -b <branch>` → push → `gh pr create` → user reviews + merges.
    - **PRs werden in der Regel sofort gemerged** nach Review (oft binnen
