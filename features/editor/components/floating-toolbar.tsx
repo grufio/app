@@ -91,7 +91,9 @@ export function FloatingToolbar({
       <div
         role="toolbar"
         aria-label="Canvas toolbar"
-        className={cn(pillClass(tone, "group"), "flex-col", className)}
+        // `px-1` (not the group default `px-2`) keeps the vertical toolbar
+        // 40px wide — matching the nav pills — instead of 48px.
+        className={cn(pillClass(tone, "group"), "flex-col px-1", className)}
       >
         {leftSlot}
         <IconButton
