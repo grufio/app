@@ -21,6 +21,7 @@ import {
 import { deriveSectionLocks } from "@/lib/editor/section-locks"
 import { EditorNav } from "@/features/editor/components/editor-nav"
 import { EditorTopBar } from "@/features/editor/components/editor-top-bar"
+import { EditorArtboardBar } from "@/features/editor/components/editor-artboard-bar"
 import { EditorToolbarToneProvider } from "@/features/editor/components/editor-toolbar-tone"
 import {
   Dialog,
@@ -586,6 +587,10 @@ export function ProjectDetailPageClient({
             imageLocked={sectionLocks.imageLocked}
           />
         ) : null}
+
+        {/* Re-integrated artboard actions (top-right, 3 × 40px circles) —
+            shown while the Artboard section is active. */}
+        {editorSection === "artboard" ? <EditorArtboardBar /> : null}
         {editorSection === "artboard" ? (
           <ArtboardSurfaceScope
             pendingDialog={pendingArtboardDialog}
