@@ -6,9 +6,9 @@ import { routeParams, setupRouteMocks, TEST_UUIDS } from "@/lib/test/route-contr
 const params = { projectId: TEST_UUIDS.project }
 
 // The restore handler runs several `project_images` selects in sequence.
-// The active-image lookup filters on `is_active`; the base-master lookup
-// adds `.order().limit()`. Branch on whether `limit` was used so one
-// mock can serve both reads with different rows.
+// The base-master / anchor lookups add `.order().limit()`. Branch on
+// whether `limit` was used so one mock can serve both reads with
+// different rows.
 function projectImagesByQuery(active: unknown, base: unknown) {
   return {
     projects: { select: { data: { id: TEST_UUIDS.project } } },
@@ -43,20 +43,9 @@ describe("POST /api/projects/[projectId]/images/master/restore contract", () => 
     expect(res.status).toBe(403)
   })
 
-  it("returns 409 lock_conflict when the active image is locked", async () => {
-    setupRouteMocks({
-      supabase: makeMockSupabase({ tables: projectImagesByQuery({ id: TEST_UUIDS.image, is_locked: true }, null) }),
-    })
-    const mod = await import("./route")
-
-    const res = await mod.POST(new Request("http://test.local", { method: "POST" }), routeParams(params))
-    expect(res.status).toBe(409)
-    expect((await res.json()).stage).toBe("lock_conflict")
-  })
-
   it("returns 404 when the initial master image is missing", async () => {
     setupRouteMocks({
-      supabase: makeMockSupabase({ tables: projectImagesByQuery({ id: TEST_UUIDS.image, is_locked: false }, null) }),
+      supabase: makeMockSupabase({ tables: projectImagesByQuery({ id: TEST_UUIDS.image }, null) }),
     })
     const mod = await import("./route")
 

@@ -55,7 +55,6 @@ export type ProjectImageItem = {
   storage_bucket: string | null
   file_size_bytes: number | null
   is_active: boolean
-  is_locked: boolean
   created_at: string
 }
 
@@ -70,12 +69,6 @@ export type ProjectImageFallbackTarget = {
   image_id?: string
   kind: "working_copy"
 } | null
-
-export type SetProjectImageLockedResponse = {
-  ok: true
-  id: string
-  is_locked: boolean
-}
 
 export type FilterType = RegisteredFilterId
 
@@ -186,32 +179,6 @@ export async function deleteMasterImageById(projectId: string, imageId: string):
     throw new Error(formatApiError("Failed to delete image", res.status, res.error))
   }
   invalidateProjectMutationCaches(projectId, ["images"])
-}
-
-/** PATCH /api/projects/[projectId]/images/master/[imageId]/lock — toggles is_locked. */
-export async function setProjectImageLocked(
-  projectId: string,
-  imageId: string,
-  isLocked: boolean
-): Promise<SetProjectImageLockedResponse> {
-  const res = await fetchJson<SetProjectImageLockedResponse>(`/api/projects/${projectId}/images/master/${imageId}/lock`, {
-    method: "PATCH",
-    credentials: "same-origin",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ is_locked: isLocked }),
-  })
-  if (!res.ok) {
-    throw new Error(formatApiError("Failed to update image lock", res.status, res.error))
-  }
-  invalidateProjectMutationCaches(projectId, ["images"])
-  if (!res.data?.ok || !res.data?.id) {
-    throw new Error("Failed to update image lock (invalid response)")
-  }
-  return {
-    ok: true,
-    id: String(res.data.id),
-    is_locked: Boolean(res.data.is_locked),
-  }
 }
 
 /** POST /api/projects/[projectId]/images/crop — creates a cropped variant of an existing image. */

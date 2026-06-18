@@ -5,21 +5,19 @@
  * uploads, writes `project_image_state`) and `activateProjectImageOnly`
  * (for filter/trace/crop apply, flips `is_active` only). Tests focus
  * on the gate paths that don't require a real Supabase environment —
- * failed lookups, lock conflicts, missing workspace, invalid
- * placements. The Supabase client is stubbed via vi.mock.
+ * failed lookups, missing workspace, invalid placements. The Supabase
+ * client is stubbed via vi.mock.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 vi.mock("@/lib/supabase/project-images", () => ({
-  getActiveProjectImageLockRow: vi.fn(),
   getProjectWorkspacePlacementRow: vi.fn(),
   setActiveProjectImageState: vi.fn(),
   setActiveProjectImageOnly: vi.fn(),
 }))
 
 import {
-  getActiveProjectImageLockRow,
   getProjectWorkspacePlacementRow,
   setActiveProjectImageState,
   setActiveProjectImageOnly,
@@ -65,47 +63,13 @@ const onlyArgs = {
 }
 
 beforeEach(() => {
-  vi.mocked(getActiveProjectImageLockRow).mockReset()
   vi.mocked(getProjectWorkspacePlacementRow).mockReset()
   vi.mocked(setActiveProjectImageState).mockReset()
   vi.mocked(setActiveProjectImageOnly).mockReset()
 })
 
 describe("activateProjectMasterAndWorkingCopy", () => {
-  it("returns active_switch error when lock-row lookup fails", async () => {
-    vi.mocked(getActiveProjectImageLockRow).mockResolvedValue({
-      row: null,
-      error: { reason: "boom", code: "lock_lookup_failed" },
-    })
-
-    const out = await activateProjectMasterAndWorkingCopy(masterArgs)
-    expect(out).toEqual({
-      ok: false,
-      status: 400,
-      stage: "active_switch",
-      reason: "boom",
-      code: "lock_lookup_failed",
-    })
-  })
-
-  it("returns lock_conflict when a different image is already locked active", async () => {
-    vi.mocked(getActiveProjectImageLockRow).mockResolvedValue({
-      row: { id: "other", is_locked: true },
-      error: null,
-    })
-
-    const out = await activateProjectMasterAndWorkingCopy(masterArgs)
-    expect(out).toEqual({
-      ok: false,
-      status: 409,
-      stage: "lock_conflict",
-      reason: "Active image is locked",
-      code: "image_locked",
-    })
-  })
-
   it("returns active_switch when workspace lookup fails", async () => {
-    vi.mocked(getActiveProjectImageLockRow).mockResolvedValue({ row: null, error: null })
     vi.mocked(getProjectWorkspacePlacementRow).mockResolvedValue({
       row: null,
       error: { reason: "no workspace", code: "ws_missing" },
@@ -122,7 +86,6 @@ describe("activateProjectMasterAndWorkingCopy", () => {
   })
 
   it("returns active_switch when workspace size is missing/invalid", async () => {
-    vi.mocked(getActiveProjectImageLockRow).mockResolvedValue({ row: null, error: null })
     vi.mocked(getProjectWorkspacePlacementRow).mockResolvedValue({
       row: {
         width_px_u: null,
@@ -143,7 +106,6 @@ describe("activateProjectMasterAndWorkingCopy", () => {
   })
 
   it("delegates to setActiveProjectImageState on the happy path", async () => {
-    vi.mocked(getActiveProjectImageLockRow).mockResolvedValue({ row: null, error: null })
     vi.mocked(getProjectWorkspacePlacementRow).mockResolvedValue({
       row: {
         width_px_u: "1000000000",
@@ -165,7 +127,6 @@ describe("activateProjectMasterAndWorkingCopy", () => {
     const failingSupabase = createSupabaseStub({
       updateError: { message: "constraint violation", code: "23502" },
     })
-    vi.mocked(getActiveProjectImageLockRow).mockResolvedValue({ row: null, error: null })
     vi.mocked(getProjectWorkspacePlacementRow).mockResolvedValue({
       row: {
         width_px_u: "1000000000",
@@ -189,40 +150,7 @@ describe("activateProjectMasterAndWorkingCopy", () => {
 })
 
 describe("activateProjectImageOnly", () => {
-  it("returns active_switch error when lock-row lookup fails", async () => {
-    vi.mocked(getActiveProjectImageLockRow).mockResolvedValue({
-      row: null,
-      error: { reason: "boom", code: "lock_lookup_failed" },
-    })
-
-    const out = await activateProjectImageOnlyService(onlyArgs)
-    expect(out).toEqual({
-      ok: false,
-      status: 400,
-      stage: "active_switch",
-      reason: "boom",
-      code: "lock_lookup_failed",
-    })
-  })
-
-  it("returns lock_conflict when a different image is already locked active", async () => {
-    vi.mocked(getActiveProjectImageLockRow).mockResolvedValue({
-      row: { id: "other", is_locked: true },
-      error: null,
-    })
-
-    const out = await activateProjectImageOnlyService(onlyArgs)
-    expect(out).toEqual({
-      ok: false,
-      status: 409,
-      stage: "lock_conflict",
-      reason: "Active image is locked",
-      code: "image_locked",
-    })
-  })
-
   it("delegates to setActiveProjectImageOnly and never writes state", async () => {
-    vi.mocked(getActiveProjectImageLockRow).mockResolvedValue({ row: null, error: null })
     vi.mocked(setActiveProjectImageOnly).mockResolvedValue({ ok: true })
 
     const out = await activateProjectImageOnlyService(onlyArgs)

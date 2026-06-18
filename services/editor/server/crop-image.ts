@@ -10,7 +10,6 @@ import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 type CropFailStage =
   | "validation"
   | "source_lookup"
-  | "lock_conflict"
   | "source_download"
   | "crop_process"
   | "storage_upload"
@@ -80,7 +79,7 @@ export async function cropImageAndActivate(args: {
 
   const { data: src, error: srcErr } = await supabase
     .from("project_images")
-    .select("id,project_id,name,format,width_px,height_px,dpi,storage_bucket,storage_path,deleted_at,is_locked")
+    .select("id,project_id,name,format,width_px,height_px,dpi,storage_bucket,storage_path,deleted_at")
     .eq("project_id", projectId)
     .eq("id", sourceImageId)
     .is("deleted_at", null)
@@ -91,9 +90,6 @@ export async function cropImageAndActivate(args: {
   }
   if (!src?.storage_path) {
     return { ok: false, status: 404, stage: "source_lookup", reason: "Source image not found" }
-  }
-  if (src.is_locked) {
-    return { ok: false, status: 409, stage: "lock_conflict", reason: "Source image is locked", code: "image_locked" }
   }
 
   const origWidth = toInt(src.width_px)

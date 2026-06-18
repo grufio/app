@@ -59,17 +59,17 @@ describe("applyProjectTrace — active surface invariant", () => {
     const supabase = makeMockSupabase({
       tables: {
         project_images: {
-          // resolveSourceById (no is_active filter) → unlocked source.
-          // getActiveProjectImageLockRow (is_active filter) → the
-          // currently-active working_copy, unlocked.
+          // resolveSourceById (no is_active filter) → the traced source.
+          // The active-image lookup (is_active filter) → the
+          // currently-active working_copy.
           select: (ctx) => {
             const filtersOnIsActive = ctx.args.some(
               (a) => Array.isArray(a) && a[0] === "is_active",
             )
             if (filtersOnIsActive) {
-              return { data: { id: WORKING_COPY_ID, is_locked: false } }
+              return { data: { id: WORKING_COPY_ID } }
             }
-            return { data: { is_locked: false } }
+            return { data: {} }
           },
         },
         project_image_trace: {
@@ -146,9 +146,9 @@ describe("applyProjectTrace — per-trace display rect persistence (Invariant 2)
               (a) => Array.isArray(a) && a[0] === "is_active",
             )
             if (filtersOnIsActive) {
-              return { data: { id: WORKING_COPY_ID, is_locked: false } }
+              return { data: { id: WORKING_COPY_ID } }
             }
-            return { data: { is_locked: false } }
+            return { data: {} }
           },
         },
         project_image_trace: {

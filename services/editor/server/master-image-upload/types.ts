@@ -4,7 +4,6 @@ export type UploadFailStage =
   | "storage_upload"
   | "db_upsert"
   | "active_switch"
-  | "lock_conflict"
   | "transform_sync"
 
 export type UploadMasterImageFailure = {

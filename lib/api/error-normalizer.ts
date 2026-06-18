@@ -40,11 +40,6 @@ const STAGE_COPY: Record<string, { title: string; detail?: string; retriable: bo
     detail: "Close this dialog and re-open the project to refresh the editor state.",
     retriable: true,
   },
-  lock_conflict: {
-    title: "Image is locked",
-    detail: "Unlock the image before applying this filter.",
-    retriable: false,
-  },
   upload_limits: {
     title: "Upload exceeds the limit",
     detail: "Files must stay under 50 MB and 100 megapixels.",

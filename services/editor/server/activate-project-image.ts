@@ -21,7 +21,6 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { computeImagePlacementPx, placementPxToMicroPx } from "@/lib/editor/image-placement"
 import { pxUToPxNumber } from "@/lib/editor/units"
 import {
-  getActiveProjectImageLockRow,
   getProjectWorkspacePlacementRow,
   setActiveProjectImageOnly as setActiveProjectImageOnlyRpc,
   setActiveProjectImageState,
@@ -52,35 +51,8 @@ function resolveArtboardPx(workspace: {
   return { artW, artH }
 }
 
-type ActivateError = { ok: false; status: number; stage: "active_switch" | "lock_conflict"; reason: string; code?: string }
+type ActivateError = { ok: false; status: number; stage: "active_switch"; reason: string; code?: string }
 type ActivateOk = { ok: true }
-
-async function guardActiveLockNotHeldByOther(args: {
-  supabase: SupabaseClient<Database>
-  projectId: string
-  imageId: string
-}): Promise<ActivateOk | ActivateError> {
-  const activeLookup = await getActiveProjectImageLockRow(args.supabase, args.projectId)
-  if (activeLookup.error) {
-    return {
-      ok: false,
-      status: 400,
-      stage: "active_switch",
-      reason: activeLookup.error.reason,
-      code: activeLookup.error.code,
-    }
-  }
-  if (activeLookup.row?.is_locked && String(activeLookup.row.id) !== args.imageId) {
-    return {
-      ok: false,
-      status: 409,
-      stage: "lock_conflict",
-      reason: "Active image is locked",
-      code: "image_locked",
-    }
-  }
-  return { ok: true }
-}
 
 /**
  * Master upload flow: write `initial_display_*` on the master row
@@ -102,9 +74,6 @@ export async function activateProjectMasterAndWorkingCopy(args: {
   imageDpi?: number | null
 }): Promise<ActivateOk | ActivateError> {
   const { supabase, projectId, masterImageId, workingCopyImageId, widthPx, heightPx, imageDpi } = args
-
-  const lockGuard = await guardActiveLockNotHeldByOther({ supabase, projectId, imageId: workingCopyImageId })
-  if (!lockGuard.ok) return lockGuard
 
   const workspaceLookup = await getProjectWorkspacePlacementRow(supabase, projectId)
   if (workspaceLookup.error || !workspaceLookup.row) {
@@ -194,7 +163,5 @@ export async function activateProjectImageOnly(args: {
   projectId: string
   imageId: string
 }): Promise<ActivateOk | ActivateError> {
-  const lockGuard = await guardActiveLockNotHeldByOther(args)
-  if (!lockGuard.ok) return lockGuard
   return setActiveProjectImageOnlyRpc(args)
 }

@@ -44,20 +44,6 @@ export async function POST(
     return jsonError("Forbidden (project not accessible)", 403, { stage: "rls_denied", where: "project_access" })
   }
 
-  const { data: activeImageRow, error: activeImageErr } = await supabase
-    .from("project_images")
-    .select("id,is_locked")
-    .eq("project_id", projectId)
-    .eq("is_active", true)
-    .is("deleted_at", null)
-    .maybeSingle()
-  if (activeImageErr) {
-    return jsonError(activeImageErr.message, 400, { stage: "lock_guard_query" })
-  }
-  if (activeImageRow?.is_locked) {
-    return jsonError("Active image is locked", 409, { stage: "lock_conflict", reason: "image_locked" })
-  }
-
   const { data: baseMaster, error: baseErr } = await supabase
     .from("project_images")
     .select("id,initial_display_x_px_u,initial_display_y_px_u,initial_display_width_px_u,initial_display_height_px_u")

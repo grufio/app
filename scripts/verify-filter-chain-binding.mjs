@@ -77,18 +77,21 @@ function main() {
       select id::text || E'\\t' || project_id::text || E'\\t' || filter_type::text
       from public.project_image_filters
       where filter_type not in (${allowedList})
-      order by project_id, stack_order;
+      order by project_id;
     `
   )
 
-  const duplicateStackOrder = runQuery(
+  // Single-filter model (#506 dropped stack_order; project_id is UNIQUE):
+  // a project must hold at most one filter row. This replaces the former
+  // duplicate-stack_order check.
+  const multipleFiltersPerProject = runQuery(
     dbUrl,
     `
-      select project_id::text || E'\\t' || stack_order::text || E'\\t' || count(*)::text
+      select project_id::text || E'\\t' || count(*)::text
       from public.project_image_filters
-      group by project_id, stack_order
+      group by project_id
       having count(*) > 1
-      order by project_id, stack_order;
+      order by project_id;
     `
   )
 
@@ -100,7 +103,7 @@ function main() {
       left join public.project_images i on i.id = f.input_image_id
       left join public.project_images o on o.id = f.output_image_id
       where i.id is null or o.id is null
-      order by f.project_id, f.stack_order;
+      order by f.project_id;
     `
   )
 
@@ -113,48 +116,25 @@ function main() {
       join public.project_images o on o.id = f.output_image_id
       where i.project_id <> f.project_id
          or o.project_id <> f.project_id
-      order by f.project_id, f.stack_order;
-    `
-  )
-
-  const nonLinearLink = runQuery(
-    dbUrl,
-    `
-      with ordered as (
-        select
-          project_id,
-          id,
-          input_image_id,
-          output_image_id,
-          stack_order,
-          lag(output_image_id) over (partition by project_id order by stack_order) as prev_output
-        from public.project_image_filters
-      )
-      select id::text || E'\\t' || project_id::text || E'\\t' || stack_order::text
-      from ordered
-      where prev_output is not null
-        and input_image_id <> prev_output
-      order by project_id, stack_order;
+      order by f.project_id;
     `
   )
 
   printRows("Gate failed: unsupported filter types (id\\tproject_id\\tfilter_type):", invalidFilterType)
-  printRows("Gate failed: duplicate stack_order per project (project_id\\tstack_order\\tcount):", duplicateStackOrder)
+  printRows("Gate failed: more than one filter per project (project_id\\tcount):", multipleFiltersPerProject)
   printRows("Gate failed: missing input/output image references (filter_id\\tproject_id):", missingInputOutput)
   printRows("Gate failed: cross-project filter linkage (filter_id\\tfilter_project\\tinput_project\\toutput_project):", crossProjectLink)
-  printRows("Gate failed: non-linear chain linkage (filter_id\\tproject_id\\tstack_order):", nonLinearLink)
 
   if (
     invalidFilterType.length ||
-    duplicateStackOrder.length ||
+    multipleFiltersPerProject.length ||
     missingInputOutput.length ||
-    crossProjectLink.length ||
-    nonLinearLink.length
+    crossProjectLink.length
   ) {
     fail("Filter-chain rollout verification failed.")
   }
 
-  console.log("OK: filter-chain rollout gates passed (types + order + linkage consistency).")
+  console.log("OK: filter-chain rollout gates passed (types + single-filter + linkage consistency).")
 }
 
 main()

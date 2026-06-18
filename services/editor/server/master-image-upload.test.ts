@@ -331,10 +331,9 @@ describe("master-image-upload service", () => {
     removeSpy.mockResolvedValue({ error: null })
     activateSpy.mockResolvedValueOnce({
       ok: false,
-      status: 409,
-      stage: "lock_conflict",
-      reason: "Active image is locked",
-      code: "image_locked",
+      status: 400,
+      stage: "active_switch",
+      reason: "Workspace size missing or invalid",
     })
     const file = await makeImageFile({ width: 200, height: 100 })
 
@@ -342,10 +341,9 @@ describe("master-image-upload service", () => {
 
     expect(out).toEqual({
       ok: false,
-      status: 409,
-      stage: "lock_conflict",
-      reason: "Active image is locked",
-      code: "image_locked",
+      status: 400,
+      stage: "active_switch",
+      reason: "Workspace size missing or invalid",
     })
     expect(capture.cleanupRpcCalls).toBe(0)
     expect(capture.stateUpserts).toBe(0)

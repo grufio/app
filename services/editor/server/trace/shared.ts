@@ -26,7 +26,7 @@ import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 type TraceCommonError = {
   ok: false
   status: number
-  stage: "source_lookup" | "lock_conflict" | "validation" | "source_download" | "storage_upload" | "db_insert"
+  stage: "source_lookup" | "validation" | "source_download" | "storage_upload" | "db_insert"
   reason: string
   code?: string
 }
@@ -39,7 +39,6 @@ type TraceSourceImage = {
   format: string | null
   width_px: number | null
   height_px: number | null
-  is_locked: boolean | null
 }
 
 export type FetchedTraceSource = {
@@ -55,8 +54,7 @@ export type FetchedTraceSource = {
  * ints), or one of the common error stages.
  *
  * Stages emitted on failure: `source_lookup` (404, missing or
- * RLS-denied), `lock_conflict` (409, source is locked),
- * `validation` (400, width or height is missing / <1).
+ * RLS-denied), `validation` (400, width or height is missing / <1).
  */
 export async function fetchTraceSourceImage(args: {
   supabase: SupabaseClient<Database>
@@ -66,7 +64,7 @@ export async function fetchTraceSourceImage(args: {
   const { supabase, projectId, sourceImageId } = args
   const { data: src, error: srcErr } = await supabase
     .from("project_images")
-    .select("id,name,storage_bucket,storage_path,format,width_px,height_px,is_locked")
+    .select("id,name,storage_bucket,storage_path,format,width_px,height_px")
     .eq("id", sourceImageId)
     .eq("project_id", projectId)
     .is("deleted_at", null)
@@ -74,10 +72,6 @@ export async function fetchTraceSourceImage(args: {
 
   if (srcErr || !src) {
     return { ok: false, status: 404, stage: "source_lookup", reason: "Source image not found", code: srcErr?.code }
-  }
-
-  if (src.is_locked) {
-    return { ok: false, status: 409, stage: "lock_conflict", reason: "Source image is locked" }
   }
 
   const origWidth = toInt(src.width_px)

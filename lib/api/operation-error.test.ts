@@ -14,11 +14,11 @@ describe("isOperationError", () => {
   it("accepts the full shape", () => {
     expect(
       isOperationError({
-        stage: "lock_conflict",
-        reason: "image_locked",
+        stage: "rpc_call",
+        reason: "check_violation",
         code: "P0001",
         correlationId: "abc-123",
-        message: "Image is locked",
+        message: "Bad input",
       }),
     ).toBe(true)
   })

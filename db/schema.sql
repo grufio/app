@@ -1789,7 +1789,6 @@ CREATE TABLE IF NOT EXISTS "public"."project_images" (
     "dpi" numeric,
     "source_image_id" "uuid",
     "crop_rect_px" "jsonb",
-    "is_locked" boolean DEFAULT false NOT NULL,
     "kind" "public"."image_kind" NOT NULL,
     "initial_display_x_px_u" "text" DEFAULT '0'::"text" NOT NULL,
     "initial_display_y_px_u" "text" DEFAULT '0'::"text" NOT NULL,

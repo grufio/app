@@ -66,8 +66,8 @@ describe("image-state API wrapper", () => {
     )
   })
 
-  it("throws ApiError on failed POST (e.g. lock_conflict)", async () => {
-    const failPost: FetchJsonResult<unknown> = { ok: false, status: 409, error: { stage: "lock_conflict" } }
+  it("throws ApiError on failed POST (e.g. chain_invalid)", async () => {
+    const failPost: FetchJsonResult<unknown> = { ok: false, status: 409, error: { stage: "chain_invalid" } }
     fetchJsonMock.mockResolvedValueOnce(failPost)
 
     await expect(

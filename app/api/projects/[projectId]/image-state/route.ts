@@ -66,9 +66,6 @@ export async function GET(_req: Request, { params }: { params: Promise<{ project
  * preservation: the route reads the current row and merges the
  * unchanged axis from there. Width / height / rotation are always
  * required.
- *
- * Lock-guard: blocks the write with `409 lock_conflict` if the
- * working_copy row has `is_locked = true`.
  */
 export async function POST(req: Request, { params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params
@@ -98,16 +95,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ project
     return jsonError("Invalid fields", 400, { stage: "validation", where: "validate" })
   }
 
-  // Persistence + lock-guard both anchor at the working_copy row (post
-  // the working-copy refactor). Projects without a working_copy are
-  // rejected by resolveStateAnchorImage (no master.id fallback).
+  // Persistence anchors at the working_copy row (post the working-copy
+  // refactor). Projects without a working_copy are rejected by
+  // resolveStateAnchorImage (no master.id fallback).
   const anchor = await resolveStateAnchorImage(supabase, projectId)
   if ("error" in anchor) return jsonError(anchor.error, 400, { stage: "anchor_lookup" })
   if ("notFound" in anchor) {
     return jsonError("Project has no master image", 409, { stage: "no_master_image" })
-  }
-  if (anchor.is_locked) {
-    return jsonError("Working copy is locked", 409, { stage: "lock_conflict", reason: "image_locked" })
   }
 
   // Per-axis preservation: when the payload omits x_px_u or y_px_u

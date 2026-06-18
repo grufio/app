@@ -203,16 +203,16 @@ function findArgPair(captured: ChainCall[], col: string): unknown[] | undefined 
 }
 
 describe("resolveStateAnchorImage", () => {
-  it("returns the working_copy id + is_locked (boolean-coerced) for a single working_copy", async () => {
+  it("returns the working_copy id for a single working_copy", async () => {
     const captured: ChainCall[] = []
     const supabase = makeAnchorSupabase(
-      { data: { id: "wc-1", is_locked: 1 }, error: null },
+      { data: { id: "wc-1" }, error: null },
       captured,
     )
 
     const out = await resolveStateAnchorImage(supabase, "proj-1")
 
-    expect(out).toEqual({ id: "wc-1", is_locked: true })
+    expect(out).toEqual({ id: "wc-1" })
 
     // The resolver MUST filter on kind='working_copy' (not 'master') and
     // exclude tombstoned rows. Rot if the code ever selects master.
@@ -230,13 +230,13 @@ describe("resolveStateAnchorImage", () => {
     // We model that single returned row and assert the ordering contract
     // structurally below.
     const supabase = makeAnchorSupabase(
-      { data: { id: "wc-newest", is_locked: false }, error: null },
+      { data: { id: "wc-newest" }, error: null },
       captured,
     )
 
     const out = await resolveStateAnchorImage(supabase, "proj-1")
 
-    expect(out).toEqual({ id: "wc-newest", is_locked: false })
+    expect(out).toEqual({ id: "wc-newest" })
 
     // "Newest" is enforced by the query: created_at DESC + limit(1).
     expect(findArgPair(captured, "created_at")).toEqual(["created_at", { ascending: false }])
