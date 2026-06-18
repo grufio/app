@@ -284,6 +284,8 @@ export function ProjectDetailPageClient({
     activeCanvasImageId,
     isCropping: workflow.isCropping,
     onApplyCrop: workflow.applyCrop,
+    // Lock all image manipulation while a filter/trace depends on the image.
+    imageLocked: filterStack.length > 0 || Boolean(trace),
   })
 
   const handleDeleteMasterImage = useDeleteMasterImageHandler({
