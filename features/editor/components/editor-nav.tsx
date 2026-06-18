@@ -1,23 +1,17 @@
 "use client"
 
 /**
- * Floating **navigation** in the top-left corner of the editor canvas, a
- * vertical stack of Feather-style pills:
- *
- *   1. Standalone Home pill — links to `/dashboard`.
- *   2. A collapsible section drawer, toggled by a small "Lasche" (tab).
- *      Collapsed → a ▶ handle (tap to expand); expanded → the vertical section
- *      pill (Image / Filter / Trace / Color) with a ◀ handle on its right (tap
- *      to collapse). Starts collapsed so the canvas stays clear.
- *   3. The dark/light tone toggle, then the Eye view-options menu (Trace
- *      section only) — stacked beneath the drawer.
+ * Floating editor **section** navigation, top-left — a vertical stack of
+ * Feather-style pills: Home, the four section icons (Image / Filter / Trace /
+ * Color), the dark/light tone toggle and the Eye view-options menu (Trace
+ * section only). The section icons switch the active `EditorSection`.
  *
  * The active section's *functions* live in `EditorTopBar` (top-right). Tone
  * comes from the `EditorToolbarTone` context, identical to the other bars.
  */
 import { useState } from "react"
 import Link from "next/link"
-import { ChevronLeft, ChevronRight, Eye, Home, Moon, Sun } from "lucide-react"
+import { Eye, Home, Moon, Sun } from "lucide-react"
 
 import {
   DropdownMenu,
@@ -30,7 +24,7 @@ import { cn } from "@/lib/utils"
 
 import { SECTION_ITEMS } from "./editor-section-items"
 import { useEditorToolbarTone, type ToolbarTone } from "./editor-toolbar-tone"
-import { fabTriggerClass, pillClass } from "./floating-bar-styles"
+import { pillClass } from "./floating-bar-styles"
 import { ToolbarIconButton } from "./toolbar-icon-button"
 
 export type EditorNavViewOptions = {
@@ -53,26 +47,7 @@ type Props = {
 
 export function EditorNav({ activeSection, onSelectSection, theme, viewOptions = null }: Props) {
   const tone = useEditorToolbarTone()
-  const [navOpen, setNavOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
-
-  // The collapse/expand tab ("Lasche") — a stadium handle (reuses the
-  // fab-trigger chrome) whose chevron points the way it moves the drawer.
-  const handle = (open: boolean) => (
-    <button
-      type="button"
-      aria-label={open ? "Collapse navigation" : "Expand navigation"}
-      aria-expanded={open}
-      onClick={() => setNavOpen(!open)}
-      className={fabTriggerClass(tone, false)}
-    >
-      {open ? (
-        <ChevronLeft aria-hidden="true" className="size-4" />
-      ) : (
-        <ChevronRight aria-hidden="true" className="size-4" />
-      )}
-    </button>
-  )
 
   return (
     <div className="absolute top-3 left-3 z-20 flex flex-col items-start gap-2">
@@ -85,29 +60,19 @@ export function EditorNav({ activeSection, onSelectSection, theme, viewOptions =
         </ToolbarIconButton>
       </div>
 
-      {navOpen ? (
-        // Expanded: vertical section pill + collapse handle on the right
-        // (the gap leaves space for the tab, per the design).
-        <div className="flex items-center gap-1">
-          {/* `px-1` keeps the vertical pill 40px wide (matches the Home pill). */}
-          <div className={cn(pillClass(tone, "group"), "flex-col px-1")}>
-            {SECTION_ITEMS.map(({ key, label, Icon }) => (
-              <ToolbarIconButton
-                key={key}
-                label={label}
-                active={key === activeSection}
-                onClick={() => onSelectSection(key)}
-              >
-                <Icon aria-hidden="true" className="size-6" />
-              </ToolbarIconButton>
-            ))}
-          </div>
-          {handle(true)}
-        </div>
-      ) : (
-        // Collapsed: just the expand handle beneath Home.
-        handle(false)
-      )}
+      {/* Section switcher (vertical). `px-1` keeps it 40px wide (matches Home). */}
+      <div className={cn(pillClass(tone, "group"), "flex-col px-1")}>
+        {SECTION_ITEMS.map(({ key, label, Icon }) => (
+          <ToolbarIconButton
+            key={key}
+            label={label}
+            active={key === activeSection}
+            onClick={() => onSelectSection(key)}
+          >
+            <Icon aria-hidden="true" className="size-6" />
+          </ToolbarIconButton>
+        ))}
+      </div>
 
       {/* Dark/light toggle — beneath the nav drawer. */}
       <div className={pillClass(tone, "single")}>
