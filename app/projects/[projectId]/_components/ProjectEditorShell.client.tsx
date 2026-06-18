@@ -22,7 +22,6 @@ import { deriveSectionLocks } from "@/lib/editor/section-locks"
 import { EditorNav } from "@/features/editor/components/editor-nav"
 import { EditorTopBar } from "@/features/editor/components/editor-top-bar"
 import { EditorToolbarToneProvider } from "@/features/editor/components/editor-toolbar-tone"
-import { EditorTopRightBar } from "@/features/editor/components/editor-top-right-bar"
 import {
   Dialog,
   DialogContent,
@@ -580,23 +579,6 @@ export function ProjectDetailPageClient({
           onOpenArtboard={(dialog) => setPendingArtboardDialog(dialog)}
           imageLocked={sectionLocks.imageLocked}
         />
-        {/* Always-visible top-right bar: the theme toggle on every section,
-            plus the Eye (layer view-options) only on the Trace section. */}
-        <EditorTopRightBar
-          theme={{ value: toolbarTone, onToggle: toggleToolbarTheme }}
-          viewOptions={
-            editorSection === "trace" && trace && (trace.kind === "pixelate" || trace.kind === "circulate")
-              ? {
-                  traceOverlayVisible,
-                  previewBitmapVisible,
-                  numbersLayerVisible,
-                  onTraceOverlayChange: setTraceOverlayVisible,
-                  onPreviewBitmapChange: setPreviewBitmapVisible,
-                  onNumbersLayerChange: setNumbersLayerVisible,
-                }
-              : null
-          }
-        />
         {editorSection === "artboard" ? (
           <ArtboardSurfaceScope
             pendingDialog={pendingArtboardDialog}
@@ -653,7 +635,23 @@ export function ProjectDetailPageClient({
         ) : null}
         {/* Pure navigation (top-left, vertical): switches the active section.
             The section's functions live in EditorTopBar (top-right). */}
-        <EditorNav activeSection={editorSection} onSelectSection={handleSectionTap} />
+        <EditorNav
+          activeSection={editorSection}
+          onSelectSection={handleSectionTap}
+          theme={{ value: toolbarTone, onToggle: toggleToolbarTheme }}
+          viewOptions={
+            editorSection === "trace" && trace && (trace.kind === "pixelate" || trace.kind === "circulate")
+              ? {
+                  traceOverlayVisible,
+                  previewBitmapVisible,
+                  numbersLayerVisible,
+                  onTraceOverlayChange: setTraceOverlayVisible,
+                  onPreviewBitmapChange: setPreviewBitmapVisible,
+                  onNumbersLayerChange: setNumbersLayerVisible,
+                }
+              : null
+          }
+        />
         </EditorToolbarToneProvider>
       </ProjectEditorLayout>
 

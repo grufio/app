@@ -34,7 +34,7 @@ result. It splits into three layers: pure-math canvas model
   dialogs `ArtboardSheet` (artboard size + page-background) /
   `GridSheet` / `ImageSheet`, each launched by its own
   artboard "+" frame and routed through `ArtboardSurfaceScope`'s
-  `activeDialog`; `EditorTopRightBar` carries only the theme toggle
+  `activeDialog`. `EditorNav` (top-left) also hosts the theme toggle
   and Trace's Eye (view-options). All dialogs/sheets render the same
   fullscreen presentation on every viewport — desktop matches mobile
   (no bounded right-side cards, no side-by-side trace dialog). Plus

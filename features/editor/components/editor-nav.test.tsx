@@ -4,6 +4,7 @@
 import { cleanup, fireEvent, render } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
+import type { EditorSection } from "@/lib/editor/editor-sections"
 import { EditorNav } from "./editor-nav"
 
 vi.mock("next/link", () => ({
@@ -19,31 +20,52 @@ describe("EditorNav", () => {
     cleanup()
   })
 
-  it("renders Home + four section buttons with the user-facing labels", () => {
-    const { getByLabelText } = render(
-      <EditorNav activeSection="artboard" onSelectSection={() => {}} />,
+  function renderNav(
+    activeSection: EditorSection = "artboard",
+    onSelectSection: (s: EditorSection) => void = () => {},
+  ) {
+    return render(
+      <EditorNav
+        activeSection={activeSection}
+        onSelectSection={onSelectSection}
+        theme={{ value: "dark", onToggle: () => {} }}
+      />,
     )
+  }
+
+  it("starts collapsed: Home + an expand handle, section buttons hidden", () => {
+    const { getByLabelText, queryByLabelText } = renderNav()
     expect(getByLabelText("Home")).not.toBeNull()
-    expect(getByLabelText("Image")).not.toBeNull()
-    expect(getByLabelText("Filter")).not.toBeNull()
-    expect(getByLabelText("Trace")).not.toBeNull()
-    expect(getByLabelText("Color")).not.toBeNull()
+    expect(getByLabelText("Expand navigation")).not.toBeNull()
+    expect(queryByLabelText("Image")).toBeNull()
+    expect(queryByLabelText("Collapse navigation")).toBeNull()
   })
 
   it("renders Home as a link to /dashboard", () => {
-    const { getByLabelText } = render(
-      <EditorNav activeSection="artboard" onSelectSection={() => {}} />,
-    )
+    const { getByLabelText } = renderNav()
     const home = getByLabelText("Home") as HTMLAnchorElement
     expect(home.tagName).toBe("A")
     expect(home.getAttribute("href")).toBe("/dashboard")
   })
 
+  it("expands to reveal the four sections + a collapse handle, then collapses again", () => {
+    const { getByLabelText, queryByLabelText } = renderNav()
+    fireEvent.click(getByLabelText("Expand navigation"))
+    for (const label of ["Image", "Filter", "Trace", "Color"]) {
+      expect(getByLabelText(label)).not.toBeNull()
+    }
+    expect(getByLabelText("Collapse navigation")).not.toBeNull()
+    expect(queryByLabelText("Expand navigation")).toBeNull()
+    // Collapse again → sections hidden, expand handle back.
+    fireEvent.click(getByLabelText("Collapse navigation"))
+    expect(queryByLabelText("Image")).toBeNull()
+    expect(getByLabelText("Expand navigation")).not.toBeNull()
+  })
+
   it("invokes onSelectSection with the matching section key (pure navigation, no menus)", () => {
     const onSelectSection = vi.fn()
-    const { getByLabelText, queryByLabelText } = render(
-      <EditorNav activeSection="artboard" onSelectSection={onSelectSection} />,
-    )
+    const { getByLabelText, queryByLabelText } = renderNav("artboard", onSelectSection)
+    fireEvent.click(getByLabelText("Expand navigation"))
     fireEvent.click(getByLabelText("Image"))
     expect(onSelectSection).toHaveBeenLastCalledWith("artboard")
     fireEvent.click(getByLabelText("Filter"))
@@ -58,21 +80,27 @@ describe("EditorNav", () => {
     expect(queryByLabelText("Add filter")).toBeNull()
   })
 
-  it("marks only the active section as aria-pressed", () => {
-    const { getByLabelText } = render(
-      <EditorNav activeSection="filter" onSelectSection={() => {}} />,
+  it("renders the dark/light toggle beneath the drawer and fires onToggle", () => {
+    const onToggle = vi.fn()
+    const { getByLabelText, rerender } = render(
+      <EditorNav activeSection="artboard" onSelectSection={() => {}} theme={{ value: "dark", onToggle }} />,
     )
+    // Dark tone → the toggle offers switching to light.
+    fireEvent.click(getByLabelText("Switch to light theme"))
+    expect(onToggle).toHaveBeenCalledTimes(1)
+    // Light tone → label flips.
+    rerender(
+      <EditorNav activeSection="artboard" onSelectSection={() => {}} theme={{ value: "light", onToggle }} />,
+    )
+    expect(getByLabelText("Switch to dark theme")).not.toBeNull()
+  })
+
+  it("marks only the active section as aria-pressed", () => {
+    const { getByLabelText } = renderNav("filter")
+    fireEvent.click(getByLabelText("Expand navigation"))
     expect(getByLabelText("Filter").getAttribute("aria-pressed")).toBe("true")
     expect(getByLabelText("Image").getAttribute("aria-pressed")).not.toBe("true")
     expect(getByLabelText("Trace").getAttribute("aria-pressed")).not.toBe("true")
     expect(getByLabelText("Color").getAttribute("aria-pressed")).not.toBe("true")
-  })
-
-  it("renders Home and the section group as two separate pill containers", () => {
-    const { container } = render(
-      <EditorNav activeSection="artboard" onSelectSection={() => {}} />,
-    )
-    const pills = container.querySelectorAll(":scope > div > div")
-    expect(pills.length).toBe(2)
   })
 })
