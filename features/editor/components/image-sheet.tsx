@@ -18,7 +18,6 @@
 import dynamic from "next/dynamic"
 import { Check, ImageIcon, Trash2, X } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import type { UploadedMasterSnapshot } from "@/lib/editor/upload-master-image"
 import type { Unit } from "@/lib/editor/units"
@@ -78,21 +77,34 @@ export function ImageSheet(props: {
   const tone = useEditorToolbarTone()
   const canDelete = !masterImageLoading && !deleteBusy && !imageLocked
 
+  // Solid (non-glass) tone chips for the dialog actions.
+  const chipBase =
+    "inline-flex size-9 shrink-0 items-center justify-center rounded-full transition-colors disabled:opacity-50"
+  const chipSolid =
+    tone === "dark" ? "bg-zinc-800 text-white hover:bg-zinc-700" : "bg-zinc-100 text-zinc-900 hover:bg-zinc-200"
+  const chipApply =
+    tone === "dark" ? "bg-white text-zinc-900 hover:bg-zinc-200" : "bg-zinc-900 text-white hover:bg-zinc-800"
+  const chipDelete =
+    tone === "dark" ? "bg-red-500/15 text-red-400 hover:bg-red-500/25" : "bg-red-500/10 text-red-600 hover:bg-red-500/20"
+
   return (
     <section
       aria-label="Image"
       className={cn(
-        // Scope the dark theme to the editor tone (panel + inputs follow it).
-        tone === "dark" && "dark",
-        "text-foreground absolute inset-0 z-30 flex flex-col overflow-hidden bg-background",
+        // Solid tone surface (no glass). `.dark` scopes the app dark theme to
+        // the editor tone, so the inputs inside follow dark/light too.
+        tone === "dark"
+          ? "dark bg-zinc-900 text-white ring-1 ring-white/10"
+          : "bg-white text-zinc-900 ring-1 ring-zinc-900/10",
+        "absolute inset-0 z-30 flex flex-col overflow-hidden",
         // Desktop: centred, rounded, bounded panel.
-        "md:inset-auto md:top-1/2 md:left-1/2 md:max-h-[80vh] md:w-80 md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-2xl md:border md:shadow-xl",
+        "md:inset-auto md:top-1/2 md:left-1/2 md:max-h-[80vh] md:w-80 md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-2xl md:shadow-xl",
       )}
     >
       <header className="flex shrink-0 items-center justify-end px-2 py-2">
-        <Button type="button" variant="ghost" size="icon" aria-label="Close" onClick={onClose}>
+        <button type="button" aria-label="Close" onClick={onClose} className={cn(chipBase, chipSolid)}>
           <X aria-hidden="true" className="size-5" />
-        </Button>
+        </button>
       </header>
 
       <div className="flex-1 overflow-y-auto">
@@ -123,26 +135,23 @@ export function ImageSheet(props: {
 
       {hasMasterImage ? (
         <footer className="flex shrink-0 items-center justify-end gap-2 border-t px-3 py-3">
-          <Button
+          <button
             type="button"
-            variant="ghost"
-            size="icon"
             aria-label="Delete image"
-            className="text-destructive hover:text-destructive rounded-full"
             disabled={!canDelete}
             onClick={onRequestDelete}
+            className={cn(chipBase, chipDelete)}
           >
             <Trash2 aria-hidden="true" className="size-5" />
-          </Button>
-          <Button
+          </button>
+          <button
             type="button"
-            size="icon"
             aria-label="Apply"
-            className="rounded-full"
             onClick={onClose}
+            className={cn(chipBase, chipApply)}
           >
             <Check aria-hidden="true" className="size-5" />
-          </Button>
+          </button>
         </footer>
       ) : null}
     </section>
