@@ -326,6 +326,11 @@ jobs:
     needs: detect
     if: needs.detect.outputs.has_frontend == 'true' || needs.detect.outputs.has_backend == 'true' || needs.detect.outputs.has_other == 'true'
     runs-on: ubuntu-latest
+    # Run inside the official Playwright image (Chromium + OS deps pre-baked)
+    # so the slow/variable `playwright install --with-deps` step is gone — the
+    # same fix already applied to the e2e_visual job (#505). Tag pinned to the
+    # installed Playwright version (package-lock.json → 1.59.1).
+    container: mcr.microsoft.com/playwright:v1.59.1-jammy
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -339,27 +344,19 @@ jobs:
       - name: Install
         run: npm ci
 
-      - name: Cache Playwright browsers
-        id: playwright-cache
-        uses: actions/cache@v5
-        with:
-          path: .playwright-browsers
-          key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-playwright-
-
-      - name: Install Playwright browsers (Chromium)
-        if: ${{ steps.playwright-cache.outputs.cache-hit != 'true' }}
-        env:
-          PLAYWRIGHT_BROWSERS_PATH: .playwright-browsers
-        run: npx -y playwright install --with-deps chromium
-
       - name: E2E (Playwright)
         env:
           PLAYWRIGHT_USE_WEBSERVER: "1"
           PLAYWRIGHT_WEBSERVER_COMMAND: "npm run start:e2e"
           PLAYWRIGHT_BASE_URL: "http://127.0.0.1:3110"
-        run: npm run test:e2e:ci:pr
+        # Build + smoke specs + flaky summary. We do NOT set
+        # PLAYWRIGHT_BROWSERS_PATH (the `test:e2e:ci:pr` script pins it to the
+        # local-only `.playwright-browsers`) so Playwright uses the image's
+        # pre-installed browsers.
+        run: |
+          npm run test:e2e:ci:prepare
+          npx playwright test e2e/editor.boot.spec.ts e2e/auth-flow.spec.ts --grep "smoke:"
+          node scripts/check-playwright-flaky.mjs
 
       - name: Upload Playwright report
         if: failure()
