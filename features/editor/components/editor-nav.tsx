@@ -1,24 +1,28 @@
 "use client"
 
 /**
- * Floating **navigation** of the editor canvas — Feather-style pills:
+ * Floating **navigation** in the top-left corner of the editor canvas:
  *
- *   1. Standalone Home pill — top-left corner, links to `/dashboard`
- *   2. Group pill — the four section icons (Image / Filter / Trace / Color)
- *      in a row at the bottom-centre, switching the active `EditorSection`
+ *   1. Standalone Home pill — links to `/dashboard`.
+ *   2. A collapsible section drawer beneath it, toggled by a small "Lasche"
+ *      (tab). Collapsed → a ▶ handle (tap to expand); expanded → the vertical
+ *      section pill (Image / Filter / Trace / Color) with a ◀ handle on its
+ *      right (tap to collapse). Starts collapsed so the canvas stays clear.
  *
- * The active section's *functions* live in `EditorTopBar` (top-right, under
- * the theme bar); this bar only changes which section is active. Tone comes
- * from the `EditorToolbarTone` context, identical to the other floating bars.
+ * Pure navigation — no function menus. The active section's *functions* live
+ * in `EditorTopBar` (top-right). Tone comes from the `EditorToolbarTone`
+ * context, identical to the other floating bars.
  */
+import { useState } from "react"
 import Link from "next/link"
-import { Home } from "lucide-react"
+import { ChevronLeft, ChevronRight, Home } from "lucide-react"
 
 import type { EditorSection } from "@/lib/editor/editor-sections"
+import { cn } from "@/lib/utils"
 
 import { SECTION_ITEMS } from "./editor-section-items"
 import { useEditorToolbarTone } from "./editor-toolbar-tone"
-import { pillClass } from "./floating-bar-styles"
+import { fabTriggerClass, pillClass } from "./floating-bar-styles"
 import { ToolbarIconButton } from "./toolbar-icon-button"
 
 type Props = {
@@ -28,32 +32,60 @@ type Props = {
 
 export function EditorNav({ activeSection, onSelectSection }: Props) {
   const tone = useEditorToolbarTone()
+  const [navOpen, setNavOpen] = useState(false)
+
+  // The collapse/expand tab ("Lasche") — a stadium handle (reuses the
+  // fab-trigger chrome) whose chevron points the way it moves the drawer.
+  const handle = (open: boolean) => (
+    <button
+      type="button"
+      aria-label={open ? "Collapse navigation" : "Expand navigation"}
+      aria-expanded={open}
+      onClick={() => setNavOpen(!open)}
+      className={fabTriggerClass(tone, false)}
+    >
+      {open ? (
+        <ChevronLeft aria-hidden="true" className="size-4" />
+      ) : (
+        <ChevronRight aria-hidden="true" className="size-4" />
+      )}
+    </button>
+  )
 
   return (
-    <>
-      {/* Home — standalone, top-left. */}
-      <div className={`${pillClass(tone, "single")} absolute top-3 left-3 z-20`}>
+    <div className="absolute top-3 left-3 z-20 flex flex-col items-start gap-2">
+      {/* Home */}
+      <div className={pillClass(tone, "single")}>
         <ToolbarIconButton label="Home" asChild>
           <Link href="/dashboard">
             <Home aria-hidden="true" className="size-6" />
           </Link>
         </ToolbarIconButton>
       </div>
-      {/* Section switcher — bottom-centre. */}
-      <div
-        className={`${pillClass(tone, "group")} absolute bottom-4 left-1/2 z-20 -translate-x-1/2`}
-      >
-        {SECTION_ITEMS.map(({ key, label, Icon }) => (
-          <ToolbarIconButton
-            key={key}
-            label={label}
-            active={key === activeSection}
-            onClick={() => onSelectSection(key)}
-          >
-            <Icon aria-hidden="true" className="size-6" />
-          </ToolbarIconButton>
-        ))}
-      </div>
-    </>
+
+      {navOpen ? (
+        // Expanded: vertical section pill + collapse handle on the right
+        // (the gap leaves space for the tab, per the design).
+        <div className="flex items-center gap-1">
+          {/* `px-1` keeps the vertical pill 40px wide (matches the Home pill). */}
+          <div className={cn(pillClass(tone, "group"), "flex-col px-1")}>
+            {SECTION_ITEMS.map(({ key, label, Icon }) => (
+              <ToolbarIconButton
+                key={key}
+                label={label}
+                active={key === activeSection}
+                onClick={() => onSelectSection(key)}
+              >
+                <Icon aria-hidden="true" className="size-6" />
+              </ToolbarIconButton>
+            ))}
+          </div>
+          {handle(true)}
+        </div>
+      ) : (
+        // Collapsed: just the expand handle beneath Home.
+        handle(false)
+      )}
+    </div>
   )
 }
