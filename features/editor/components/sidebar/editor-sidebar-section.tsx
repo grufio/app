@@ -23,30 +23,31 @@ export function EditorSidebarSection({
   locked,
   children,
 }: {
-  title: string
+  title?: string
   testId?: string
   headerActions?: React.ReactNode
   locked?: boolean
   children: React.ReactNode
 }) {
+  const hasHeader = Boolean(title) || Boolean(headerActions)
   return (
     <div
       className={cn("border-b px-4 py-3", locked && "bg-muted/40")}
       data-testid={testId}
     >
       {headerActions ? (
-        <div className="flex items-center justify-between gap-2">
-          <div className="text-xs font-medium text-sidebar-foreground/70">
-            {title}
-          </div>
+        <div className={cn("flex items-center gap-2", title ? "justify-between" : "justify-end")}>
+          {title ? (
+            <div className="text-xs font-medium text-sidebar-foreground/70">{title}</div>
+          ) : null}
           <div className="flex items-center gap-1">{headerActions}</div>
         </div>
-      ) : (
+      ) : title ? (
         <div className="flex h-6 items-center text-xs font-medium text-sidebar-foreground/70">
           {title}
         </div>
-      )}
-      <div className="mt-3">{children}</div>
+      ) : null}
+      <div className={cn(hasHeader && "mt-3")}>{children}</div>
     </div>
   )
 }

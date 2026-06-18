@@ -28,7 +28,7 @@ function renderSheet(overrides: Partial<React.ComponentProps<typeof ImageSheet>>
     workspaceUnit: "cm" as const,
     imagePanelReady: true,
     imagePanelEnabled: true,
-    imageLock: null,
+    imageLocked: false,
     canFit: false,
     onFitToArtboard: vi.fn(),
     masterImageLoading: false,
@@ -60,5 +60,31 @@ describe("ImageSheet", () => {
     const { props, getByLabelText } = renderSheet()
     fireEvent.click(getByLabelText("Close"))
     expect(props.onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it("renders no 'Image' section title", () => {
+    const { queryByText } = renderSheet({ hasMasterImage: true })
+    expect(queryByText("Image")).toBeNull()
+  })
+
+  // ── Footer: Apply + Delete (only with an image) ──
+
+  it("with an image: footer Apply closes and Delete requests removal", () => {
+    const { props, getByLabelText } = renderSheet({ hasMasterImage: true })
+    fireEvent.click(getByLabelText("Apply"))
+    expect(props.onClose).toHaveBeenCalledTimes(1)
+    fireEvent.click(getByLabelText("Delete image"))
+    expect(props.onRequestDelete).toHaveBeenCalledTimes(1)
+  })
+
+  it("disables Delete while a delete is busy", () => {
+    const { getByLabelText } = renderSheet({ hasMasterImage: true, deleteBusy: true })
+    expect((getByLabelText("Delete image") as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it("without an image: no Apply/Delete footer", () => {
+    const { queryByLabelText } = renderSheet({ hasMasterImage: false })
+    expect(queryByLabelText("Apply")).toBeNull()
+    expect(queryByLabelText("Delete image")).toBeNull()
   })
 })

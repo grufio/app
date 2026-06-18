@@ -19,7 +19,7 @@
  * means the right-panel shell doesn't need to know about image
  * lifecycle ops.
  */
-import { Maximize2, RotateCcw, Trash2 } from "lucide-react"
+import { Maximize2, RotateCcw } from "lucide-react"
 
 import type { Unit } from "@/lib/editor/units"
 
@@ -49,13 +49,12 @@ type Props = {
   onCommit: (widthPxU: bigint, heightPxU: bigint) => void
   onCommitPosition: (opts: { xPxU?: bigint; yPxU?: bigint }) => void
   onAlign: (opts: { x?: "left" | "center" | "right"; y?: "top" | "center" | "bottom" }) => void
-  // Header actions — restore (open dialog), fit-to-artboard, delete (request delete).
+  // Header actions — restore (open dialog) + fit-to-artboard. Delete lives in
+  // the sheet footer now, not here.
   canRestore?: boolean
   canFit?: boolean
-  canDelete?: boolean
   onRestore?: () => void
   onFitToArtboard?: () => void
-  onDelete?: () => void
 }
 
 /**
@@ -78,17 +77,14 @@ export function ImagePanel({
   onAlign,
   canRestore = false,
   canFit = false,
-  canDelete = false,
   onRestore,
   onFitToArtboard,
-  onDelete,
 }: Props) {
   const controlsDisabled = Boolean(disabled) || !ready
   const isLocked = Boolean(locked)
 
   return (
     <EditorSidebarSection
-      title="Image"
       locked={isLocked}
       headerActions={
         <>
@@ -107,14 +103,6 @@ export function ImagePanel({
             onClick={onFitToArtboard}
           >
             <Maximize2 className="size-4" />
-          </RightPanelIconButton>
-          <RightPanelIconButton
-            type="button"
-            aria-label="Delete image"
-            disabled={!canDelete || isLocked}
-            onClick={onDelete}
-          >
-            <Trash2 className="size-4" />
           </RightPanelIconButton>
         </>
       }

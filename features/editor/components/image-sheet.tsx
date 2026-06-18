@@ -1,33 +1,32 @@
 "use client"
 
 /**
- * Editor Image sheet (full-screen on mobile, bounded card on desktop).
+ * Editor Image dialog — Feather-3D style.
  *
- * One of the three standalone dialogs the artboard section's top-left
- * "+" menu opens (alongside `ArtboardSheet` + `GridSheet`).
+ * Responsive: full-screen overlay on mobile, a centred rounded panel on
+ * desktop (`md:`). Tone-aware (dark/light) by scoping the app theme to the
+ * editor's `EditorToolbarTone`: when the tone is dark we add the `dark` class
+ * so the panel **and** the form-controls inside follow the dark theme — no
+ * per-control restyle. No section titles; a footer hosts the round Apply +
+ * Delete actions.
  *
- * Progressive disclosure (mirroring desktop):
- * - No master image yet: a desktop-style nav-row (icon + label + `+`
- *   action) hosting the shared upload pipeline (`AddImageMenuAction`).
- * - Image exists: swaps to `ImagePanel` (size/position/align + fit,
- *   restore, delete). Delete reverts to the row.
- *
- * The Add-row reuses `AddImageMenuAction` + `SidebarMenuAction` —
- * shared sidebar primitives, same upload pipeline, no surface-specific
- * button variant. Render shape matches the other section sheets
- * (`sheetRootClass`); the shell-root Restore/Delete Radix dialogs
- * are portaled, so actions from inside the sheet open them cleanly.
+ * Progressive disclosure:
+ * - No master image yet: an add-row (`AddImageMenuAction` upload pipeline).
+ * - Image exists: `ImagePanel` (size/position/align + restore/fit), with the
+ *   footer Apply (close) and Delete (remove image via the cascade confirm).
  */
 import dynamic from "next/dynamic"
-import { ImageIcon } from "lucide-react"
+import { Check, ImageIcon, Trash2, X } from "lucide-react"
 
+import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 import type { UploadedMasterSnapshot } from "@/lib/editor/upload-master-image"
 import type { Unit } from "@/lib/editor/units"
 
 import { AddImageMenuAction } from "./add-image-menu-button"
-import { sheetRootClass } from "./sheet-shell"
+import { useEditorToolbarTone } from "./editor-toolbar-tone"
 import type { ProjectCanvasStageHandle } from "./project-canvas-stage"
-import { SheetAddRow, SheetHeader } from "./sheet-chrome"
+import { SheetAddRow } from "./sheet-chrome"
 
 const ImagePanel = dynamic(() => import("./image-panel").then((m) => m.ImagePanel), {
   ssr: false,
@@ -76,9 +75,25 @@ export function ImageSheet(props: {
     onRequestDelete,
   } = props
 
+  const tone = useEditorToolbarTone()
+  const canDelete = !masterImageLoading && !deleteBusy && !imageLocked
+
   return (
-    <section aria-label="Image" className={sheetRootClass()}>
-      <SheetHeader title="Image" onClose={onClose} />
+    <section
+      aria-label="Image"
+      className={cn(
+        // Scope the dark theme to the editor tone (panel + inputs follow it).
+        tone === "dark" && "dark",
+        "text-foreground absolute inset-0 z-30 flex flex-col overflow-hidden bg-background",
+        // Desktop: centred, rounded, bounded panel.
+        "md:inset-auto md:top-1/2 md:left-1/2 md:max-h-[80vh] md:w-80 md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-2xl md:border md:shadow-xl",
+      )}
+    >
+      <header className="flex shrink-0 items-center justify-end px-2 py-2">
+        <Button type="button" variant="ghost" size="icon" aria-label="Close" onClick={onClose}>
+          <X aria-hidden="true" className="size-5" />
+        </Button>
+      </header>
 
       <div className="flex-1 overflow-y-auto">
         {hasMasterImage ? (
@@ -96,10 +111,8 @@ export function ImageSheet(props: {
             onAlign={(opts) => canvasRef.current?.alignImage(opts)}
             canRestore={!masterImageLoading && !deleteBusy && !restoreBusy}
             canFit={canFit}
-            canDelete={!masterImageLoading && !deleteBusy}
             onFitToArtboard={onFitToArtboard}
             onRestore={onRequestRestore}
-            onDelete={onRequestDelete}
           />
         ) : (
           <SheetAddRow Icon={ImageIcon} label="Image">
@@ -107,6 +120,31 @@ export function ImageSheet(props: {
           </SheetAddRow>
         )}
       </div>
+
+      {hasMasterImage ? (
+        <footer className="flex shrink-0 items-center justify-end gap-2 border-t px-3 py-3">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="Delete image"
+            className="text-destructive hover:text-destructive rounded-full"
+            disabled={!canDelete}
+            onClick={onRequestDelete}
+          >
+            <Trash2 aria-hidden="true" className="size-5" />
+          </Button>
+          <Button
+            type="button"
+            size="icon"
+            aria-label="Apply"
+            className="rounded-full"
+            onClick={onClose}
+          >
+            <Check aria-hidden="true" className="size-5" />
+          </Button>
+        </footer>
+      ) : null}
     </section>
   )
 }
