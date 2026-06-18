@@ -9,8 +9,9 @@
  * Image circle becomes an "add image" affordance (image-with-plus icon) — the
  * only available action is to bring an image in first.
  *
- * NOTE: tap actions are intentionally NOT wired yet — the editor toolbars are
- * being re-integrated step by step; this step only covers icons + states.
+ * Tapping the Image circle (when an image exists) opens the image dialog
+ * (width / height / x / y / align inputs). The Artboard, Grid and add-image
+ * taps are not wired yet — re-integrating step by step.
  */
 import { Frame, Grid3x3, Image as ImageIcon, ImagePlus, type LucideIcon } from "lucide-react"
 
@@ -20,26 +21,43 @@ import { circleClass } from "./floating-bar-styles"
 type Props = {
   /** Whether a master image already exists on the project. */
   hasImage: boolean
+  /** Opens the image dialog (size/position/align). Wired to the Image circle
+   * while an image exists. */
+  onOpenImage?: () => void
 }
 
-export function EditorArtboardBar({ hasImage }: Props) {
+export function EditorArtboardBar({ hasImage, onOpenImage }: Props) {
   const tone = useEditorToolbarTone()
 
-  const actions: { key: string; label: string; Icon: LucideIcon; disabled: boolean }[] = [
+  const actions: {
+    key: string
+    label: string
+    Icon: LucideIcon
+    disabled: boolean
+    onClick?: () => void
+  }[] = [
     { key: "artboard", label: "Artboard", Icon: Frame, disabled: !hasImage },
     { key: "grid", label: "Grid", Icon: Grid3x3, disabled: !hasImage },
-    // No image yet → the Image circle is the "add image" entry point.
-    { key: "image", label: "Image", Icon: hasImage ? ImageIcon : ImagePlus, disabled: false },
+    {
+      key: "image",
+      label: "Image",
+      // No image yet → the Image circle is the "add image" entry point.
+      Icon: hasImage ? ImageIcon : ImagePlus,
+      disabled: false,
+      // With an image, tapping opens the image dialog; add-image isn't wired yet.
+      onClick: hasImage ? onOpenImage : undefined,
+    },
   ]
 
   return (
     <div className="absolute top-3 right-3 z-20 flex flex-row gap-2">
-      {actions.map(({ key, label, Icon, disabled }) => (
+      {actions.map(({ key, label, Icon, disabled, onClick }) => (
         <button
           key={key}
           type="button"
           aria-label={label}
           disabled={disabled}
+          onClick={onClick}
           className={circleClass(tone, disabled ? "inactive" : "active")}
         >
           <Icon aria-hidden="true" className="size-5" />
