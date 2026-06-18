@@ -15,22 +15,24 @@
  */
 import { useState } from "react"
 import Link from "next/link"
-import { ChevronLeft, ChevronRight, Home } from "lucide-react"
+import { ChevronLeft, ChevronRight, Home, Moon, Sun } from "lucide-react"
 
 import type { EditorSection } from "@/lib/editor/editor-sections"
 import { cn } from "@/lib/utils"
 
 import { SECTION_ITEMS } from "./editor-section-items"
-import { useEditorToolbarTone } from "./editor-toolbar-tone"
+import { useEditorToolbarTone, type ToolbarTone } from "./editor-toolbar-tone"
 import { fabTriggerClass, pillClass } from "./floating-bar-styles"
 import { ToolbarIconButton } from "./toolbar-icon-button"
 
 type Props = {
   activeSection: EditorSection
   onSelectSection: (section: EditorSection) => void
+  /** Dark/light tone toggle, rendered as a pill beneath the nav drawer. */
+  theme: { value: ToolbarTone; onToggle: () => void }
 }
 
-export function EditorNav({ activeSection, onSelectSection }: Props) {
+export function EditorNav({ activeSection, onSelectSection, theme }: Props) {
   const tone = useEditorToolbarTone()
   const [navOpen, setNavOpen] = useState(false)
 
@@ -86,6 +88,20 @@ export function EditorNav({ activeSection, onSelectSection }: Props) {
         // Collapsed: just the expand handle beneath Home.
         handle(false)
       )}
+
+      {/* Dark/light toggle — beneath the nav drawer. */}
+      <div className={pillClass(tone, "single")}>
+        <ToolbarIconButton
+          label={theme.value === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+          onClick={theme.onToggle}
+        >
+          {theme.value === "dark" ? (
+            <Sun aria-hidden="true" className="size-6" />
+          ) : (
+            <Moon aria-hidden="true" className="size-6" />
+          )}
+        </ToolbarIconButton>
+      </div>
     </div>
   )
 }

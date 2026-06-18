@@ -583,7 +583,6 @@ export function ProjectDetailPageClient({
         {/* Always-visible top-right bar: the theme toggle on every section,
             plus the Eye (layer view-options) only on the Trace section. */}
         <EditorTopRightBar
-          theme={{ value: toolbarTone, onToggle: toggleToolbarTheme }}
           viewOptions={
             editorSection === "trace" && trace && (trace.kind === "pixelate" || trace.kind === "circulate")
               ? {
@@ -653,7 +652,11 @@ export function ProjectDetailPageClient({
         ) : null}
         {/* Pure navigation (top-left, vertical): switches the active section.
             The section's functions live in EditorTopBar (top-right). */}
-        <EditorNav activeSection={editorSection} onSelectSection={handleSectionTap} />
+        <EditorNav
+          activeSection={editorSection}
+          onSelectSection={handleSectionTap}
+          theme={{ value: toolbarTone, onToggle: toggleToolbarTheme }}
+        />
         </EditorToolbarToneProvider>
       </ProjectEditorLayout>
 

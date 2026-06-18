@@ -24,7 +24,13 @@ describe("EditorNav", () => {
     activeSection: EditorSection = "artboard",
     onSelectSection: (s: EditorSection) => void = () => {},
   ) {
-    return render(<EditorNav activeSection={activeSection} onSelectSection={onSelectSection} />)
+    return render(
+      <EditorNav
+        activeSection={activeSection}
+        onSelectSection={onSelectSection}
+        theme={{ value: "dark", onToggle: () => {} }}
+      />,
+    )
   }
 
   it("starts collapsed: Home + an expand handle, section buttons hidden", () => {
@@ -72,6 +78,21 @@ describe("EditorNav", () => {
     // No function "+" menus live in the nav.
     expect(queryByLabelText("Add trace")).toBeNull()
     expect(queryByLabelText("Add filter")).toBeNull()
+  })
+
+  it("renders the dark/light toggle beneath the drawer and fires onToggle", () => {
+    const onToggle = vi.fn()
+    const { getByLabelText, rerender } = render(
+      <EditorNav activeSection="artboard" onSelectSection={() => {}} theme={{ value: "dark", onToggle }} />,
+    )
+    // Dark tone → the toggle offers switching to light.
+    fireEvent.click(getByLabelText("Switch to light theme"))
+    expect(onToggle).toHaveBeenCalledTimes(1)
+    // Light tone → label flips.
+    rerender(
+      <EditorNav activeSection="artboard" onSelectSection={() => {}} theme={{ value: "light", onToggle }} />,
+    )
+    expect(getByLabelText("Switch to dark theme")).not.toBeNull()
   })
 
   it("marks only the active section as aria-pressed", () => {
