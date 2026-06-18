@@ -1,10 +1,11 @@
 "use client"
 
 /**
- * Floating editor **section** navigation, top-left — a vertical stack of
- * Feather-style pills: Home, the four section icons (Image / Filter / Trace /
- * Color), the dark/light tone toggle and the Eye view-options menu (Trace
- * section only). The section icons switch the active `EditorSection`.
+ * Floating editor **section** navigation:
+ *   - Top-left, a vertical stack of pills: Home, the dark/light tone toggle
+ *     and the Eye view-options menu (Trace section only).
+ *   - Bottom-centre, a horizontal pill: the four section icons (Image / Filter
+ *     / Trace / Color) that switch the active `EditorSection`.
  *
  * The active section's *functions* live in `EditorTopBar` (top-right). Tone
  * comes from the `EditorToolbarTone` context, identical to the other bars.
@@ -39,7 +40,7 @@ export type EditorNavViewOptions = {
 type Props = {
   activeSection: EditorSection
   onSelectSection: (section: EditorSection) => void
-  /** Dark/light tone toggle, rendered as a pill beneath the nav drawer. */
+  /** Dark/light tone toggle, rendered as a pill in the top-left stack. */
   theme: { value: ToolbarTone; onToggle: () => void }
   /** Eye view-options menu (Trace section only). Null → no Eye pill. */
   viewOptions?: EditorNavViewOptions | null
@@ -50,18 +51,72 @@ export function EditorNav({ activeSection, onSelectSection, theme, viewOptions =
   const [menuOpen, setMenuOpen] = useState(false)
 
   return (
-    <div className="absolute top-3 left-3 z-20 flex flex-col items-start gap-2">
-      {/* Home */}
-      <div className={pillClass(tone, "single")}>
-        <ToolbarIconButton label="Home" asChild>
-          <Link href="/dashboard">
-            <Home aria-hidden="true" className="size-6" />
-          </Link>
-        </ToolbarIconButton>
+    <>
+      {/* Top-left: Home, theme toggle, Eye (vertical pills). */}
+      <div className="absolute top-3 left-3 z-20 flex flex-col items-start gap-2">
+        <div className={pillClass(tone, "single")}>
+          <ToolbarIconButton label="Home" asChild>
+            <Link href="/dashboard">
+              <Home aria-hidden="true" className="size-6" />
+            </Link>
+          </ToolbarIconButton>
+        </div>
+
+        <div className={pillClass(tone, "single")}>
+          <ToolbarIconButton
+            label={theme.value === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+            onClick={theme.onToggle}
+          >
+            {theme.value === "dark" ? (
+              <Sun aria-hidden="true" className="size-6" />
+            ) : (
+              <Moon aria-hidden="true" className="size-6" />
+            )}
+          </ToolbarIconButton>
+        </div>
+
+        {/* Eye view-options (Trace section only). The menu stays open on toggle
+            via preventDefault (multi-toggle, not a picker). */}
+        {viewOptions ? (
+          <div className={pillClass(tone, "single")}>
+            <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+              <DropdownMenuTrigger asChild>
+                <ToolbarIconButton label="View options" active={menuOpen}>
+                  <Eye aria-hidden="true" className="size-6" />
+                </ToolbarIconButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuCheckboxItem
+                  checked={viewOptions.traceOverlayVisible}
+                  onCheckedChange={viewOptions.onTraceOverlayChange}
+                  onSelect={(e) => e.preventDefault()}
+                >
+                  Trace
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem
+                  checked={viewOptions.previewBitmapVisible}
+                  onCheckedChange={viewOptions.onPreviewBitmapChange}
+                  onSelect={(e) => e.preventDefault()}
+                >
+                  Preview
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem
+                  checked={viewOptions.numbersLayerVisible}
+                  onCheckedChange={viewOptions.onNumbersLayerChange}
+                  onSelect={(e) => e.preventDefault()}
+                >
+                  Numbers
+                </DropdownMenuCheckboxItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        ) : null}
       </div>
 
-      {/* Section switcher (vertical). `px-1` keeps it 40px wide (matches Home). */}
-      <div className={cn(pillClass(tone, "group"), "flex-col px-1")}>
+      {/* Bottom-centre: the section switcher (horizontal). */}
+      <div
+        className={cn(pillClass(tone, "group"), "absolute bottom-4 left-1/2 z-20 -translate-x-1/2")}
+      >
         {SECTION_ITEMS.map(({ key, label, Icon }) => (
           <ToolbarIconButton
             key={key}
@@ -73,57 +128,6 @@ export function EditorNav({ activeSection, onSelectSection, theme, viewOptions =
           </ToolbarIconButton>
         ))}
       </div>
-
-      {/* Dark/light toggle — beneath the nav drawer. */}
-      <div className={pillClass(tone, "single")}>
-        <ToolbarIconButton
-          label={theme.value === "dark" ? "Switch to light theme" : "Switch to dark theme"}
-          onClick={theme.onToggle}
-        >
-          {theme.value === "dark" ? (
-            <Sun aria-hidden="true" className="size-6" />
-          ) : (
-            <Moon aria-hidden="true" className="size-6" />
-          )}
-        </ToolbarIconButton>
-      </div>
-
-      {/* Eye view-options (Trace section only) — beneath the toggle. The menu
-          stays open on toggle via preventDefault (multi-toggle, not a picker). */}
-      {viewOptions ? (
-        <div className={pillClass(tone, "single")}>
-          <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-            <DropdownMenuTrigger asChild>
-              <ToolbarIconButton label="View options" active={menuOpen}>
-                <Eye aria-hidden="true" className="size-6" />
-              </ToolbarIconButton>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              <DropdownMenuCheckboxItem
-                checked={viewOptions.traceOverlayVisible}
-                onCheckedChange={viewOptions.onTraceOverlayChange}
-                onSelect={(e) => e.preventDefault()}
-              >
-                Trace
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem
-                checked={viewOptions.previewBitmapVisible}
-                onCheckedChange={viewOptions.onPreviewBitmapChange}
-                onSelect={(e) => e.preventDefault()}
-              >
-                Preview
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem
-                checked={viewOptions.numbersLayerVisible}
-                onCheckedChange={viewOptions.onNumbersLayerChange}
-                onSelect={(e) => e.preventDefault()}
-              >
-                Numbers
-              </DropdownMenuCheckboxItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      ) : null}
-    </div>
+    </>
   )
 }
