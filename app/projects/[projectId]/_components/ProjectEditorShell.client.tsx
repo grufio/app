@@ -8,7 +8,7 @@
  *
  * NOTE: In this first step, it preserves existing Image tab behavior.
  */
-import { useCallback, useEffect, useMemo, useRef } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import {
   EditorErrorBoundary,
@@ -63,7 +63,6 @@ import { ColorsSurfaceScope } from "./editor-shell/colors-surface-scope"
 import { TraceSurfaceScope } from "./editor-shell/trace-surface-scope"
 import { useDeleteMasterImageHandler } from "./editor-shell/use-delete-master-image-handler"
 import { usePanelUIState } from "./editor-shell/use-panel-ui-state"
-import { useUnlockDialog } from "./editor-shell/use-unlock-dialog"
 import { useImageActionRequests } from "./editor-shell/use-image-action-requests"
 
 export function ProjectDetailPageClient({
@@ -452,44 +451,37 @@ export function ProjectDetailPageClient({
     () => deriveSectionLocks({ hasFilter, hasTrace }),
     [hasFilter, hasTrace],
   )
-  const {
-    unlockRequest,
-    unlockBusy,
-    unlockError,
-    imageLockBannerMessage,
-    filterLockBannerMessage,
-    requestImageUnlock,
-    requestFilterUnlock,
-    cancelUnlock,
-    confirmUnlock,
-  } = useUnlockDialog({
-    sectionLocks,
-    hasFilter,
-    hasTrace,
-    filterStack,
-    handleClearTrace,
-    projectId,
-    refreshFilterImage,
-    refreshProjectImages,
-  })
+  // Deleting the filter cascades the trace away (server-authoritative). When a
+  // trace exists, confirm first; otherwise remove instantly.
+  const [filterDeleteId, setFilterDeleteId] = useState<string | null>(null)
+  const [filterDeleteBusy, setFilterDeleteBusy] = useState(false)
+  const [filterDeleteError, setFilterDeleteError] = useState<string | null>(null)
 
-  const imageLock = sectionLocks.imageLocked
-    ? {
-        message: imageLockBannerMessage,
-        toggleable: sectionLocks.imageToggleable,
-        busy: unlockBusy && unlockRequest?.scope === "image",
-        onUnlock: requestImageUnlock,
+  const handleRemoveFilter = useCallback(
+    (id: string) => {
+      if (hasTrace) {
+        setFilterDeleteError(null)
+        setFilterDeleteId(id)
+        return
       }
-    : null
+      void workflow.removeFilter(id)
+    },
+    [hasTrace, workflow],
+  )
 
-  const filterLock = sectionLocks.filterLocked
-    ? {
-        message: filterLockBannerMessage,
-        toggleable: sectionLocks.filterToggleable,
-        busy: unlockBusy && unlockRequest?.scope === "filter",
-        onUnlock: requestFilterUnlock,
-      }
-    : null
+  const confirmFilterDelete = useCallback(async () => {
+    if (!filterDeleteId || filterDeleteBusy) return
+    setFilterDeleteBusy(true)
+    setFilterDeleteError(null)
+    try {
+      await workflow.removeFilter(filterDeleteId)
+      setFilterDeleteId(null)
+    } catch (err) {
+      setFilterDeleteError(err instanceof Error ? err.message : "Delete failed")
+    } finally {
+      setFilterDeleteBusy(false)
+    }
+  }, [filterDeleteId, filterDeleteBusy, workflow])
 
   // Map each applied filter kind → the instance id to target for delete in the
   // top-left "+" menu. Later wins, so this is the last-applied instance of a
@@ -574,11 +566,9 @@ export function ProjectDetailPageClient({
           onDeleteTrace={handleClearTrace}
           activeFilterByKind={activeFilterByKind}
           onApplyFilterKind={(k) => handleApplyFilter({ filterType: k, filterParams: {} })}
-          onRemoveFilter={workflow.removeFilter}
+          onRemoveFilter={handleRemoveFilter}
           isAddFilterDisabled={isAddFilterDisabled}
-          filterLocked={filterLock != null}
-          onUnlockFilter={filterLock?.onUnlock}
-          unlockBusy={filterLock?.busy ?? false}
+          filterLocked={sectionLocks.filterLocked}
           hasGrid={hasGrid}
           hasMasterImage={Boolean(masterImage)}
           onCreateGrid={async () => {
@@ -586,9 +576,7 @@ export function ProjectDetailPageClient({
             setGridVisible(true)
           }}
           onOpenArtboard={(dialog) => setPendingArtboardDialog(dialog)}
-          imageLocked={imageLock != null}
-          onUnlockImage={imageLock?.onUnlock}
-          unlockImageBusy={imageLock?.busy ?? false}
+          imageLocked={sectionLocks.imageLocked}
         />
         {/* Always-visible top-right bar: the theme toggle on every section,
             plus the Eye (layer view-options) only on the Trace section. */}
@@ -633,7 +621,7 @@ export function ProjectDetailPageClient({
             workspaceUnit={workspaceUnit ?? "cm"}
             imagePanelReady={imagePanelReady}
             imagePanelEnabled={Boolean(masterImage) && workspaceReady && !sectionLocks.imageLocked}
-            imageLock={imageLock}
+            imageLocked={sectionLocks.imageLocked}
             masterImageLoading={masterImageLoading}
             deleteBusy={deleteBusy}
             restoreBusy={workflow.isRestoring}
@@ -667,19 +655,36 @@ export function ProjectDetailPageClient({
         </EditorToolbarToneProvider>
       </ProjectEditorLayout>
 
-      <Dialog open={unlockRequest !== null} onOpenChange={(o) => (!o ? cancelUnlock() : null)}>
+      <Dialog
+        open={filterDeleteId !== null}
+        onOpenChange={(o) => (!o && !filterDeleteBusy ? setFilterDeleteId(null) : null)}
+      >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{unlockRequest?.title ?? "Unlock?"}</DialogTitle>
-            <DialogDescription>{unlockRequest?.message ?? ""}</DialogDescription>
+            <DialogTitle>Delete filter?</DialogTitle>
+            <DialogDescription>
+              The trace is built on the filter, so it will be deleted too.
+            </DialogDescription>
           </DialogHeader>
-          {unlockError ? <div role="alert" className="text-sm text-destructive">{unlockError}</div> : null}
+          {filterDeleteError ? (
+            <div role="alert" className="text-sm text-destructive">{filterDeleteError}</div>
+          ) : null}
           <DialogFooter>
-            <AppButton type="button" variant="outline" onClick={cancelUnlock} disabled={unlockBusy}>
+            <AppButton
+              type="button"
+              variant="outline"
+              onClick={() => setFilterDeleteId(null)}
+              disabled={filterDeleteBusy}
+            >
               Cancel
             </AppButton>
-            <AppButton type="button" variant="destructive" onClick={confirmUnlock} disabled={unlockBusy}>
-              {unlockBusy ? "Unlocking…" : "Unlock"}
+            <AppButton
+              type="button"
+              variant="destructive"
+              onClick={confirmFilterDelete}
+              disabled={filterDeleteBusy}
+            >
+              {filterDeleteBusy ? "Deleting…" : "Delete filter + trace"}
             </AppButton>
           </DialogFooter>
         </DialogContent>

@@ -8,8 +8,8 @@
  *
  *   - Trace  → the three trace kinds (mutually exclusive; Edit + Delete on the
  *     active row)
- *   - Filter → the three filter kinds (parallel; instant apply; Unlock on the
- *     active row while the section is locked)
+ *   - Filter → the three filter kinds (parallel; instant apply; Delete on the
+ *     active row; applying is disabled while a trace depends on the filter)
  *   - Image/Artboard → the three frames (Artboard/Page, Grid, Image), each
  *     launching its standalone dialog; Grid quick-creates when empty
  *   - Colors → nothing (read-only palette)
@@ -29,7 +29,6 @@ import {
   Pencil,
   Spline,
   Sun,
-  Unlock,
   type LucideIcon,
 } from "lucide-react"
 
@@ -79,12 +78,9 @@ type Props = {
   onRemoveFilter?: (id: string) => void | Promise<void>
   /** Disables applying new filters (no source image / busy). */
   isAddFilterDisabled?: boolean
-  /** The Filter section is locked (a trace depends on the filter output). */
+  /** The Filter section is locked (a trace depends on the filter output) →
+   * applying a new filter is disabled until the trace is removed. */
   filterLocked?: boolean
-  /** Runs the unlock action (clears the dependency). */
-  onUnlockFilter?: () => void
-  /** Unlock is in flight (disables the Unlock circle). */
-  unlockBusy?: boolean
 
   /** A grid exists on the project (the Grid frame shows as active). */
   hasGrid?: boolean
@@ -95,12 +91,9 @@ type Props = {
   /** Opens one of the three standalone artboard dialogs (Artboard / Grid /
    * Image). The frame the user taps selects which dialog. */
   onOpenArtboard?: (dialog: ArtboardDialog) => void
-  /** The Image section is locked (a filter/trace depends on the master image). */
+  /** The Image section is locked (a filter/trace depends on the master image) →
+   * image functions (edit/resize/crop) are disabled until they are removed. */
   imageLocked?: boolean
-  /** Runs the image unlock action (clears the dependency). */
-  onUnlockImage?: () => void
-  /** Image unlock is in flight (disables the Unlock circle). */
-  unlockImageBusy?: boolean
 }
 
 export function EditorTopBar({
@@ -113,15 +106,11 @@ export function EditorTopBar({
   onRemoveFilter,
   isAddFilterDisabled = false,
   filterLocked = false,
-  onUnlockFilter,
-  unlockBusy = false,
   hasGrid = false,
   hasMasterImage = false,
   onCreateGrid,
   onOpenArtboard,
   imageLocked = false,
-  onUnlockImage,
-  unlockImageBusy = false,
 }: Props) {
   // Trace: mutually exclusive. The active kind is the indicator (Edit re-opens
   // its dialog, Delete clears it); the other two are disabled. No trace → all
@@ -151,26 +140,27 @@ export function EditorTopBar({
       active,
       disabled: isAddFilterDisabled || filterLocked,
       onSelect: () => onApplyFilterKind?.(key),
-      lead:
-        active && filterLocked
-          ? { icon: Unlock, label: "Unlock filters", onClick: onUnlockFilter, disabled: unlockBusy }
-          : undefined,
-      onDelete: active && !filterLocked && activeId ? () => onRemoveFilter?.(activeId) : undefined,
+      // Delete stays available on the active filter even when a trace exists —
+      // the server cascades the trace away and the shell confirms it first.
+      onDelete: active && activeId ? () => onRemoveFilter?.(activeId) : undefined,
     }
   })
 
-  // Image / artboard: the three frames are the section's tools.
-  const editOrUnlock = (editLabel: string, dialog: ArtboardDialog): FabMenuItem["lead"] =>
-    imageLocked
-      ? { icon: Unlock, label: "Unlock image", onClick: onUnlockImage, disabled: unlockImageBusy }
-      : { icon: Pencil, label: editLabel, onClick: () => onOpenArtboard?.(dialog) }
+  // Image / artboard: the three frames are the section's tools. Image functions
+  // are disabled while a filter/trace depends on the image (remove it to edit).
+  const editImage = (editLabel: string, dialog: ArtboardDialog): FabMenuItem["lead"] => ({
+    icon: Pencil,
+    label: editLabel,
+    onClick: () => onOpenArtboard?.(dialog),
+    disabled: imageLocked,
+  })
   const artboardItems: FabMenuItem[] = [
     {
       key: "page",
       label: "Artboard/Page",
       Icon: Frame,
-      active: true, // structural — always present, so the lead slot can host Unlock
-      lead: editOrUnlock("Edit artboard", "artboard"),
+      active: true, // structural — always present, so the lead slot hosts Edit
+      lead: editImage("Edit artboard", "artboard"),
     },
     {
       key: "grid",
@@ -186,7 +176,7 @@ export function EditorTopBar({
       Icon: ImageIcon,
       active: hasMasterImage,
       onSelect: hasMasterImage ? undefined : () => onOpenArtboard?.("image"),
-      lead: hasMasterImage ? editOrUnlock("Edit image", "image") : undefined,
+      lead: hasMasterImage ? editImage("Edit image", "image") : undefined,
     },
   ]
 
