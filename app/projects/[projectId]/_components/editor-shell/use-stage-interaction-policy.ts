@@ -56,6 +56,9 @@ export function useStageInteractionPolicy(args: {
   activeCanvasImageId: string | null
   isCropping: boolean
   onApplyCrop: (rect: { x: number; y: number; w: number; h: number }) => void
+  /** A filter/trace depends on the image → all image manipulation (object
+   * drag/resize, crop, rotate) is disabled; the stage falls back to Hand. */
+  imageLocked?: boolean
 }) {
   const {
     canvasRef,
@@ -66,6 +69,7 @@ export function useStageInteractionPolicy(args: {
     activeCanvasImageId,
     isCropping,
     onApplyCrop,
+    imageLocked = false,
   } = args
 
   const toolbar = useFloatingToolbarControls({
@@ -81,12 +85,19 @@ export function useStageInteractionPolicy(args: {
   // section. Hand is always available — it pans the artboard view and
   // never touches the image or trace.
   const showDirectSelect = activeSection === "trace"
-  const cropDisabled = activeSection !== "artboard"
-  const rotateDisabled = activeSection === "filter"
+  // imageLocked disables every image-manipulation tool (a filter/trace depends
+  // on the image; remove it to edit). Object/crop/rotate all gate on it.
+  const cropDisabled = activeSection !== "artboard" || imageLocked
+  const objectDisabled = imageLocked
+  const rotateDisabled = activeSection === "filter" || imageLocked
 
-  // If the current tool isn't valid on the active section, fall back to
-  // object so the user always lands in an image-movable state.
+  // If the current tool isn't valid on the active section, fall back. When the
+  // image is locked, object is disabled too → land on Hand (pan only).
   useEffect(() => {
+    if (imageLocked && toolbar.tool !== "hand") {
+      toolbar.setTool("hand")
+      return
+    }
     if (toolbar.tool === "direct" && !showDirectSelect) {
       toolbar.setTool("object")
       return
@@ -94,15 +105,16 @@ export function useStageInteractionPolicy(args: {
     if (toolbar.tool === "crop" && cropDisabled) {
       toolbar.setTool("object")
     }
-  }, [cropDisabled, showDirectSelect, toolbar])
+  }, [cropDisabled, showDirectSelect, toolbar, imageLocked])
 
   const handleToolbarToolChange = useCallback(
     (tool: EditorTool) => {
+      if (imageLocked && tool !== "hand") return
       if (tool === "direct" && !showDirectSelect) return
       if (tool === "crop" && cropDisabled) return
       toolbar.setTool(tool)
     },
-    [cropDisabled, showDirectSelect, toolbar]
+    [cropDisabled, showDirectSelect, toolbar, imageLocked]
   )
 
   useEditorInteractionController({
@@ -151,13 +163,13 @@ export function useStageInteractionPolicy(args: {
       ...toolbar,
       setTool: handleToolbarToolChange,
       showDirectSelect,
-      objectDisabled: false,
+      objectDisabled,
       directDisabled: !showDirectSelect,
       cropDisabled,
       rotateDisabled,
       cropEnabled: !cropDisabled && toolbar.tool === "crop",
       cropBusy: isCropping,
-      imageDraggable: toolbar.tool === "object",
+      imageDraggable: toolbar.tool === "object" && !imageLocked,
       panEnabled: toolbar.tool === "hand",
       directActive: toolbar.tool === "direct",
     }),

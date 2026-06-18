@@ -91,7 +91,7 @@ export function ArtboardSurfaceScope({
           workspaceUnit={props.workspaceUnit}
           imagePanelReady={props.imagePanelReady}
           imagePanelEnabled={props.imagePanelEnabled}
-          imageLock={props.imageLock}
+          imageLocked={props.imageLocked}
           canFit={props.canFit}
           onFitToArtboard={props.onFitToArtboard}
           masterImageLoading={props.masterImageLoading}

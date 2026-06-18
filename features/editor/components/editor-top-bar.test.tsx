@@ -124,22 +124,22 @@ describe("EditorTopBar", () => {
     expect(onRemoveFilter).toHaveBeenLastCalledWith("f1")
   })
 
-  it("when locked: shows Unlock, hides Delete, disables applies", () => {
-    const onUnlockFilter = vi.fn()
+  it("when filterLocked (trace exists): keeps Delete, disables applying, no Unlock", () => {
     const onApplyFilterKind = vi.fn()
+    const onRemoveFilter = vi.fn()
     const { getByLabelText, queryByLabelText } = render(
       <EditorTopBar
         activeSection="filter"
         activeFilterByKind={{ bw_hard: "f1" }}
         filterLocked
-        onUnlockFilter={onUnlockFilter}
         onApplyFilterKind={onApplyFilterKind}
+        onRemoveFilter={onRemoveFilter}
       />,
     )
-    expect(getByLabelText("Unlock filters")).not.toBeNull()
-    expect(queryByLabelText("Delete filter")).toBeNull()
-    fireEvent.click(getByLabelText("Unlock filters"))
-    expect(onUnlockFilter).toHaveBeenCalledTimes(1)
+    // No unlock affordance anymore; Delete stays (it cascades the trace).
+    expect(queryByLabelText("Unlock filters")).toBeNull()
+    expect(getByLabelText("Delete filter")).not.toBeNull()
+    // Applying a new filter is disabled while a trace depends on the filter.
     expect((getByLabelText("B&W Soft") as HTMLButtonElement).disabled).toBe(true)
     fireEvent.click(getByLabelText("B&W Soft"))
     expect(onApplyFilterKind).not.toHaveBeenCalled()
@@ -175,22 +175,15 @@ describe("EditorTopBar", () => {
     expect(onOpenArtboard).toHaveBeenCalledWith("image")
   })
 
-  it("when image-locked: Artboard/Page + Image show Unlock, Grid keeps Edit", () => {
-    const onUnlockImage = vi.fn()
-    const { getByLabelText, queryByLabelText, getAllByLabelText } = render(
-      <EditorTopBar
-        activeSection="artboard"
-        hasGrid
-        hasMasterImage
-        imageLocked
-        onUnlockImage={onUnlockImage}
-      />,
+  it("when image-locked: Artboard/Page + Image Edit are disabled, Grid keeps Edit", () => {
+    const { getByLabelText, queryByLabelText } = render(
+      <EditorTopBar activeSection="artboard" hasGrid hasMasterImage imageLocked />,
     )
-    expect(getAllByLabelText("Unlock image")).toHaveLength(2)
-    expect(queryByLabelText("Edit artboard")).toBeNull()
-    expect(queryByLabelText("Edit image")).toBeNull()
-    expect(getByLabelText("Edit grid")).not.toBeNull()
-    fireEvent.click(getAllByLabelText("Unlock image")[0])
-    expect(onUnlockImage).toHaveBeenCalledTimes(1)
+    // No unlock affordance; image-edit leads stay visible but disabled.
+    expect(queryByLabelText("Unlock image")).toBeNull()
+    expect((getByLabelText("Edit artboard") as HTMLButtonElement).disabled).toBe(true)
+    expect((getByLabelText("Edit image") as HTMLButtonElement).disabled).toBe(true)
+    // Grid is independent of the image lock.
+    expect((getByLabelText("Edit grid") as HTMLButtonElement).disabled).toBe(false)
   })
 })

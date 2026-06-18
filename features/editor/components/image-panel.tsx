@@ -28,7 +28,6 @@ import { ImageAlignmentControls } from "./image-panel/image-alignment-controls"
 import { ImagePositionInputs } from "./image-panel/image-position-inputs"
 import { ImageSizeInputs } from "./image-panel/image-size-inputs"
 import { RightPanelIconButton } from "./right-panel-controls"
-import { SectionLockToggle } from "./section-lock-toggle"
 
 type Props = {
   widthPxU?: bigint
@@ -42,17 +41,11 @@ type Props = {
    */
   ready?: boolean
   disabled?: boolean
-  /** Section-lock derived from downstream-data presence. When set,
-   * the panel renders the amber section tone and surfaces a header
-   * lock-toggle icon; inputs are also held disabled via the
-   * `disabled` prop (the shell ORs the lock state into it via
-   * `useImagePanelEnabled`). */
-  lock?: {
-    message: string
-    toggleable: boolean
-    busy?: boolean
-    onUnlock?: () => void
-  } | null
+  /** True when a filter/trace depends on the image → image functions are
+   * disabled and the section shows the locked tone. No unlock affordance:
+   * the user removes the filter/trace (which cascades) to edit again. The
+   * shell also ORs this into `disabled` via `useImagePanelEnabled`. */
+  locked?: boolean
   onCommit: (widthPxU: bigint, heightPxU: bigint) => void
   onCommitPosition: (opts: { xPxU?: bigint; yPxU?: bigint }) => void
   onAlign: (opts: { x?: "left" | "center" | "right"; y?: "top" | "center" | "bottom" }) => void
@@ -79,7 +72,7 @@ export function ImagePanel({
   unit,
   ready = true,
   disabled,
-  lock,
+  locked,
   onCommit,
   onCommitPosition,
   onAlign,
@@ -91,7 +84,7 @@ export function ImagePanel({
   onDelete,
 }: Props) {
   const controlsDisabled = Boolean(disabled) || !ready
-  const isLocked = lock != null
+  const isLocked = Boolean(locked)
 
   return (
     <EditorSidebarSection
@@ -115,7 +108,6 @@ export function ImagePanel({
           >
             <Maximize2 className="size-4" />
           </RightPanelIconButton>
-          <SectionLockToggle lock={lock ?? null} />
           <RightPanelIconButton
             type="button"
             aria-label="Delete image"
