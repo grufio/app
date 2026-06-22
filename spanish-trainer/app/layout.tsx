@@ -2,9 +2,9 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Spanisch-Trainer · Unidad 5",
+  title: "Trainer",
   description:
-    "Vokabeltrainer für Spanisch — ein Wort pro Seite, Aussprache, Hinweise und Multiple Choice.",
+    "Übungs-Trainer für Physik, Deutsch und Vokabeln — eine Frage pro Seite, mit Hinweisen und Multiple Choice.",
 };
 
 export const viewport: Viewport = {
