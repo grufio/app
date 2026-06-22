@@ -1,6 +1,26 @@
-import { describe, expect, it } from "vitest";
-import { learnerLastActive, runStats, testStats, type RunEntry } from "./stats";
-import type { SrsMap } from "./srs";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  appendRun,
+  learnerLastActive,
+  loadRuns,
+  resetAllStats,
+  runStats,
+  testStats,
+  type RunEntry,
+} from "./stats";
+import { loadSrs, recordResult, saveSrs, totalAnswered, type SrsMap } from "./srs";
+import { loadHighScore, saveHighScore } from "./scoring";
+
+/** Minimal in-memory localStorage so the persistence helpers work under node. */
+function localStorageMock() {
+  const store = new Map<string, string>();
+  return {
+    getItem: (k: string) => (store.has(k) ? store.get(k)! : null),
+    setItem: (k: string, v: string) => void store.set(k, String(v)),
+    removeItem: (k: string) => void store.delete(k),
+    clear: () => store.clear(),
+  };
+}
 
 describe("testStats", () => {
   const srs: SrsMap = {
@@ -41,5 +61,41 @@ describe("runStats / learnerLastActive", () => {
     expect(learnerLastActive(runs, "r")).toBe(300);
     expect(learnerLastActive(runs, "q")).toBe(150);
     expect(learnerLastActive(runs, "admin")).toBeNull();
+  });
+});
+
+describe("resetAllStats", () => {
+  beforeEach(() => {
+    vi.stubGlobal("window", { localStorage: localStorageMock() });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("clears each child's right/wrong (SRS), high scores and the run log", () => {
+    // Seed Q and R with answered questions, high scores and completed runs.
+    saveSrs(recordResult(loadSrs("q"), "unidad5-a", "correct"), "q");
+    saveSrs(recordResult(loadSrs("r"), "opt-licht-a", "wrong"), "r");
+    saveHighScore({ score: 120, level: 3 }, "q");
+    saveHighScore({ score: 90, level: 2 }, "r");
+    appendRun({ user: "q", testId: "unidad5", at: 1, score: 120, total: 20, outcome: "won" });
+    appendRun({ user: "r", testId: "opt-licht", at: 2, score: 90, total: 12, outcome: "gameover" });
+
+    // Precondition: the data is actually there.
+    expect(totalAnswered(loadSrs("q"))).toBe(1);
+    expect(totalAnswered(loadSrs("r"))).toBe(1);
+    expect(loadHighScore("q").score).toBe(120);
+    expect(loadRuns()).toHaveLength(2);
+
+    resetAllStats();
+
+    // Both children's right/wrong is gone and every counter reads empty.
+    expect(loadSrs("q")).toEqual({});
+    expect(loadSrs("r")).toEqual({});
+    expect(totalAnswered(loadSrs("q"))).toBe(0);
+    expect(totalAnswered(loadSrs("r"))).toBe(0);
+    expect(loadHighScore("q").score).toBe(0);
+    expect(loadHighScore("r").score).toBe(0);
+    expect(loadRuns()).toEqual([]);
   });
 });

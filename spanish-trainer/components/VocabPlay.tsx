@@ -209,7 +209,6 @@ export function VocabPlay({ test }: { test: Extract<TestDef, { kind: "vocab" }> 
                 canNext={state.status === "answered" || state.status === "levelup"}
                 onPrev={() => dispatch({ type: "PREV" })}
                 onNext={() => dispatch({ type: "NEXT" })}
-                onReset={() => dispatch({ type: "RESTART" })}
               />
             </div>
           )}

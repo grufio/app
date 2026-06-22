@@ -192,7 +192,6 @@ export function McPlay({ test }: { test: Extract<TestDef, { kind: "mc" }> }) {
                 onPrev={() => dispatch({ type: "PREV" })}
                 onNext={() => dispatch({ type: "NEXT" })}
                 onSkip={() => dispatch({ type: "SKIP" })}
-                onReset={() => dispatch({ type: "RESTART" })}
               />
             </div>
           )}
