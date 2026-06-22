@@ -7,6 +7,9 @@ import { AnimatePresence, motion } from "framer-motion";
  * VocabCard. Shows the topic pill and the question stem (no speaker, no
  * translation direction). Same card styling for visual consistency.
  */
+/** Whether this question was already answered in earlier sessions (from SRS). */
+export type PriorStatus = "correct" | "wrong" | null;
+
 export function StemCard({
   id,
   stem,
@@ -14,6 +17,7 @@ export function StemCard({
   answered,
   lastCorrect,
   lastGain,
+  priorStatus = null,
 }: {
   id: string;
   stem: string;
@@ -21,6 +25,7 @@ export function StemCard({
   answered: boolean;
   lastCorrect: boolean | null;
   lastGain: number;
+  priorStatus?: PriorStatus;
 }) {
   return (
     <motion.div
@@ -31,9 +36,21 @@ export function StemCard({
       transition={{ type: "spring", stiffness: 300, damping: 26 }}
       className="relative flex w-full flex-col items-center gap-4 rounded-3xl border border-line bg-surface px-6 py-6 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.06)]"
     >
-      <span className="rounded-full bg-canvas px-3 py-1 text-xs font-medium uppercase tracking-wide text-ink-soft">
-        {topic}
-      </span>
+      <div className="flex flex-wrap items-center justify-center gap-2">
+        <span className="rounded-full bg-canvas px-3 py-1 text-xs font-medium uppercase tracking-wide text-ink-soft">
+          {topic}
+        </span>
+        {priorStatus === "correct" && (
+          <span className="rounded-full border border-ok bg-ok/10 px-3 py-1 text-xs font-medium uppercase tracking-wide text-ok">
+            schon richtig
+          </span>
+        )}
+        {priorStatus === "wrong" && (
+          <span className="rounded-full border border-bad bg-bad/10 px-3 py-1 text-xs font-medium uppercase tracking-wide text-bad">
+            schon mal falsch
+          </span>
+        )}
+      </div>
 
       <h1 className="text-center font-semibold leading-tight tracking-tight text-ink text-[clamp(1.25rem,5vw,1.75rem)]">
         {stem}

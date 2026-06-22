@@ -7,7 +7,7 @@ import { AnimatePresence, MotionConfig } from "framer-motion";
 import type { TestDef } from "@/lib/tests";
 import { useMcTrainer } from "@/lib/useMcTrainer";
 import { loadHighScore, saveHighScore } from "@/lib/scoring";
-import { loadSrs, recordResult, saveSrs } from "@/lib/srs";
+import { loadSrs, recordResult, saveSrs, type SrsMap } from "@/lib/srs";
 import { appendRun } from "@/lib/stats";
 import { getActiveUser } from "@/lib/user";
 import { playCue, setMuted } from "@/lib/sfx";
@@ -16,7 +16,7 @@ import { ScoreBar } from "@/components/ScoreBar";
 import { Lives } from "@/components/Lives";
 import { ComboMeter } from "@/components/ComboMeter";
 import { SettingsToggle } from "@/components/SettingsToggle";
-import { StemCard } from "@/components/StemCard";
+import { StemCard, type PriorStatus } from "@/components/StemCard";
 import { AnswerOptions } from "@/components/AnswerOptions";
 import { NavControls } from "@/components/NavControls";
 import { LevelUpToast } from "@/components/LevelUpToast";
@@ -32,6 +32,10 @@ export function McPlay({ test }: { test: Extract<TestDef, { kind: "mc" }> }) {
   const [highScore, setHighScore] = useState(0);
   const [isNewBest, setIsNewBest] = useState(false);
   const [mounted, setMounted] = useState(false);
+  // Snapshot of the SRS history as of the run's start — drives the per-question
+  // "schon richtig / schon mal falsch" marker and the skip affordance. Frozen for
+  // the run (reloaded on RESTART) so in-run answers don't relabel the card.
+  const [srsSnapshot, setSrsSnapshot] = useState<SrsMap>({});
   // Indices whose answer we've already recorded (SRS + sound) — so paging back
   // and forth over a question doesn't replay the cue or double-count it.
   const recordedRef = useRef<Set<number>>(new Set());
@@ -41,11 +45,13 @@ export function McPlay({ test }: { test: Extract<TestDef, { kind: "mc" }> }) {
   useEffect(() => setHighScore(loadHighScore().score), []);
   useEffect(() => setMuted(!soundOn), [soundOn]);
 
-  // A fresh run (RESTART → new seed) clears the per-run guards.
+  // A fresh run (RESTART → new seed) clears the per-run guards and re-reads the
+  // SRS history (which the previous run may have updated).
   useEffect(() => {
     recordedRef.current = new Set();
     finishedRef.current = null;
     setIsNewBest(false);
+    setSrsSnapshot(loadSrs());
   }, [state.seed]);
 
   // Instant feedback side-effects: record the result + play the cue exactly once,
@@ -80,6 +86,17 @@ export function McPlay({ test }: { test: Extract<TestDef, { kind: "mc" }> }) {
 
   const { question } = state;
   const answered = state.status === "answered";
+
+  // Derive the question's history from the frozen snapshot: ever correct →
+  // "schon richtig" (skippable), seen but never right → "schon mal falsch".
+  const priorEntry = srsSnapshot[question.item.id];
+  const priorStatus: PriorStatus =
+    !priorEntry || priorEntry.seen === 0
+      ? null
+      : priorEntry.correct > 0
+        ? "correct"
+        : "wrong";
+  const canSkip = state.status === "playing" && priorStatus === "correct";
 
   if (!mounted) {
     return (
@@ -154,6 +171,7 @@ export function McPlay({ test }: { test: Extract<TestDef, { kind: "mc" }> }) {
                       answered={answered}
                       lastCorrect={state.lastCorrect}
                       lastGain={state.lastGain}
+                      priorStatus={priorStatus}
                     />
                   </AnimatePresence>
 
@@ -170,8 +188,10 @@ export function McPlay({ test }: { test: Extract<TestDef, { kind: "mc" }> }) {
               <NavControls
                 canPrev={state.index > 0}
                 canNext={state.status === "answered" || state.status === "levelup"}
+                canSkip={canSkip}
                 onPrev={() => dispatch({ type: "PREV" })}
                 onNext={() => dispatch({ type: "NEXT" })}
+                onSkip={() => dispatch({ type: "SKIP" })}
                 onReset={() => dispatch({ type: "RESTART" })}
               />
             </div>
