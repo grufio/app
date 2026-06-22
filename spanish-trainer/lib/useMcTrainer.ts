@@ -64,6 +64,7 @@ export interface McTrainerState {
 export type McTrainerAction =
   | { type: "ANSWER"; option: string }
   | { type: "REVEAL" }
+  | { type: "SKIP" }
   | { type: "NEXT" }
   | { type: "PREV" }
   | { type: "RESTART" };
@@ -136,6 +137,25 @@ function goToLevelGate(state: McTrainerState): McTrainerState {
   return { ...state, status: "levelup", selected: null, lastCorrect: null, lastGain: 0 };
 }
 
+/**
+ * Move forward from `index` to the next question — ending the run (won), parking
+ * on a level gate, or landing on the next question. Shared by NEXT (after an
+ * answer) and SKIP (leaving an unanswered question untouched).
+ */
+function advanceFrom(state: McTrainerState, index: number): McTrainerState {
+  const next = index + 1;
+  if (next >= state.deck.length) return { ...state, status: "won" };
+  if (isLevelBoundary(next)) {
+    return goToLevelGate({
+      ...state,
+      index: next,
+      question: questionAt(state.deck, next, state.seed),
+      level: levelOf(next),
+    });
+  }
+  return goToQuestion(state, next);
+}
+
 function applyAnswer(
   state: McTrainerState,
   correct: boolean,
@@ -190,23 +210,21 @@ export function mcTrainerReducer(
       return state.status === "explain" ? { ...state, status: "playing" } : state;
     }
 
+    case "SKIP": {
+      // Skip past an unanswered question without grading it (offered by the UI
+      // only for questions already mastered in earlier sessions). No score,
+      // streak or life change — just move on.
+      if (state.status !== "playing") return state;
+      return advanceFrom(state, state.index);
+    }
+
     case "NEXT": {
       // From the level-up interstitial, Weiter enters the level's first question.
       if (state.status === "levelup") return goToQuestion(state, state.index);
       // Only a graded question advances (the UI keeps Weiter disabled otherwise);
       // won / gameover are terminal.
       if (state.status !== "answered") return state;
-      const next = state.index + 1;
-      if (next >= state.deck.length) return { ...state, status: "won" };
-      if (isLevelBoundary(next)) {
-        return goToLevelGate({
-          ...state,
-          index: next,
-          question: questionAt(state.deck, next, state.seed),
-          level: levelOf(next),
-        });
-      }
-      return goToQuestion(state, next);
+      return advanceFrom(state, state.index);
     }
 
     case "PREV": {

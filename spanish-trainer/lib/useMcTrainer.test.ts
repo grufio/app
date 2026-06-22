@@ -168,6 +168,34 @@ describe("mcTrainerReducer", () => {
     expect(restarted.index).toBe(0);
   });
 
+  it("SKIP moves past an unanswered question without grading it", () => {
+    const s0 = createInitialState(items, 5);
+    const skipped = mcTrainerReducer(s0, { type: "SKIP" });
+    expect(skipped.index).toBe(1);
+    expect(skipped.status).toBe("playing");
+    expect(skipped.score).toBe(0);
+    expect(skipped.streak).toBe(0);
+    expect(skipped.mistakes).toBe(0);
+    expect(skipped.answers[0]).toBeUndefined(); // nothing recorded for the skipped one
+  });
+
+  it("SKIP is a no-op once a question has been answered", () => {
+    let s = createInitialState(items, 5);
+    s = mcTrainerReducer(s, { type: "ANSWER", option: s.question.answer });
+    expect(s.status).toBe("answered");
+    expect(mcTrainerReducer(s, { type: "SKIP" })).toBe(s);
+  });
+
+  it("SKIP across a level boundary parks on the level-up interstitial", () => {
+    let s = createInitialState(items, 99);
+    // Skip through the whole first level without answering.
+    for (let i = 0; i < LEVEL_SIZE - 1; i++) s = mcTrainerReducer(s, { type: "SKIP" });
+    expect(s.index).toBe(LEVEL_SIZE - 1);
+    s = mcTrainerReducer(s, { type: "SKIP" }); // crosses the boundary
+    expect(s.status).toBe("levelup");
+    expect(s.index).toBe(LEVEL_SIZE);
+  });
+
   it("opens a question that has an explanation on the explain page first", () => {
     const s0 = createInitialState(explained, 1);
     expect(s0.status).toBe("explain");

@@ -8,16 +8,24 @@
 export function NavControls({
   canPrev,
   canNext,
+  canSkip = false,
   onPrev,
   onNext,
+  onSkip,
   onReset,
 }: {
   canPrev: boolean;
   canNext: boolean;
+  /** Offer "Überspringen" on an unanswered, already-mastered question. */
+  canSkip?: boolean;
   onPrev: () => void;
   onNext: () => void;
+  onSkip?: () => void;
   onReset: () => void;
 }) {
+  // While a question is unanswered but skippable, the forward button skips it;
+  // once answered it advances as usual.
+  const skipping = !canNext && canSkip;
   return (
     <div className="flex w-full flex-col gap-2">
       <div className="flex w-full gap-2">
@@ -31,11 +39,11 @@ export function NavControls({
         </button>
         <button
           type="button"
-          onClick={onNext}
-          disabled={!canNext}
+          onClick={skipping ? onSkip : onNext}
+          disabled={!canNext && !skipping}
           className="flex-[2] rounded-full bg-brand px-4 py-2.5 text-[17px] font-medium text-white transition hover:bg-brand-hover active:scale-95 disabled:pointer-events-none disabled:opacity-40"
         >
-          Weiter ›
+          {skipping ? "Überspringen ›" : "Weiter ›"}
         </button>
       </div>
       <button
