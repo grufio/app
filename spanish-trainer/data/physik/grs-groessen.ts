@@ -5,6 +5,7 @@ export const grsGroessen: McItem[] = [
   {
     id: "grs-groesse",
     topic: "Größen",
+    explanation: "Eine physikalische Größe gibt man immer mit Zahlenwert und Einheit an, z. B. 2 m.",
     stem: "Woraus besteht die Angabe einer physikalischen Größe?",
     options: [
       "nur aus einer Zahl",
@@ -17,6 +18,7 @@ export const grsGroessen: McItem[] = [
   {
     id: "grs-laenge-einheit",
     topic: "Größen",
+    explanation: "Die Einheit der Länge ist das Meter (m).",
     stem: "Welche Einheit gehört zur Größe Länge?",
     options: ["Sekunde", "Meter", "Kilogramm", "Ampere"],
     correctIndex: 1,
@@ -24,6 +26,7 @@ export const grsGroessen: McItem[] = [
   {
     id: "grs-zeit-einheit",
     topic: "Größen",
+    explanation: "Die Einheit der Zeit ist die Sekunde (s).",
     stem: "Welche Einheit gehört zur Größe Zeit?",
     options: ["Meter", "Sekunde", "Gramm", "Volt"],
     correctIndex: 1,
@@ -31,6 +34,7 @@ export const grsGroessen: McItem[] = [
   {
     id: "grs-masse-einheit",
     topic: "Größen",
+    explanation: "Die Einheit der Masse ist das Kilogramm (kg).",
     stem: "Welche Einheit gehört zur Größe Masse?",
     options: ["Kilogramm", "Meter", "Sekunde", "Hertz"],
     correctIndex: 0,
@@ -38,6 +42,7 @@ export const grsGroessen: McItem[] = [
   {
     id: "grs-masse-bedeutung",
     topic: "Größen",
+    explanation: "Die Masse gibt an, wie viel Stoff in einem Körper steckt.",
     stem: "Was gibt die Masse eines Körpers an?",
     options: [
       "wie viel Stoff der Körper enthält",
@@ -50,6 +55,7 @@ export const grsGroessen: McItem[] = [
   {
     id: "grs-symbol-zeit",
     topic: "Größen",
+    explanation: "Das Formelzeichen für die Zeit ist der kleine Buchstabe t.",
     stem: "Welches Formelzeichen steht für die Zeit?",
     options: ["t", "m", "l", "v"],
     correctIndex: 0,
@@ -57,6 +63,7 @@ export const grsGroessen: McItem[] = [
   {
     id: "grs-symbol-masse",
     topic: "Größen",
+    explanation: "Das Formelzeichen für die Masse ist der kleine Buchstabe m.",
     stem: "Welches Formelzeichen steht für die Masse?",
     options: ["t", "m", "s", "F"],
     correctIndex: 1,
@@ -64,6 +71,7 @@ export const grsGroessen: McItem[] = [
   {
     id: "grs-volumen",
     topic: "Größen",
+    explanation: "Das Volumen ist der Rauminhalt eines Körpers, oft in Liter (l) oder cm³.",
     stem: "In welcher Einheit gibt man ein Volumen häufig an?",
     options: ["in Liter (l) oder cm³", "in Meter", "in Sekunden", "in Hertz"],
     correctIndex: 0,
@@ -71,6 +79,7 @@ export const grsGroessen: McItem[] = [
   {
     id: "grs-umrechnung-m-cm",
     topic: "Größen",
+    explanation: "1 Meter sind 100 Zentimeter (1 m = 100 cm).",
     stem: "Wie viele Zentimeter sind 1 Meter?",
     options: ["10 cm", "100 cm", "1000 cm", "1 cm"],
     correctIndex: 1,
@@ -78,6 +87,7 @@ export const grsGroessen: McItem[] = [
   {
     id: "grs-umrechnung-km-m",
     topic: "Größen",
+    explanation: "1 Kilometer sind 1000 Meter (1 km = 1000 m).",
     stem: "Wie viele Meter sind 1 Kilometer?",
     options: ["100 m", "1000 m", "10 m", "10000 m"],
     correctIndex: 1,
@@ -85,6 +95,7 @@ export const grsGroessen: McItem[] = [
   {
     id: "grs-umrechnung-kg-g",
     topic: "Größen",
+    explanation: "1 Kilogramm sind 1000 Gramm (1 kg = 1000 g).",
     stem: "Wie viele Gramm sind 1 Kilogramm?",
     options: ["100 g", "1000 g", "10 g", "1 g"],
     correctIndex: 1,
@@ -92,6 +103,7 @@ export const grsGroessen: McItem[] = [
   {
     id: "grs-umrechnung-min-s",
     topic: "Größen",
+    explanation: "1 Minute sind 60 Sekunden (1 min = 60 s).",
     stem: "Wie viele Sekunden sind 1 Minute?",
     options: ["60 s", "100 s", "10 s", "360 s"],
     correctIndex: 0,

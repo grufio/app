@@ -5,6 +5,8 @@ export const strSchaltungen: McItem[] = [
   {
     id: "str-reihenschaltung",
     topic: "Stromkreis",
+    explanation:
+      "In der Reihenschaltung hängen alle Bauteile hintereinander. Fehlt eines, fließt nirgends Strom.",
     stem: "Was passiert in einer Reihenschaltung, wenn eine von zwei Lampen herausgedreht wird?",
     options: [
       "die andere Lampe leuchtet weiter",
@@ -17,6 +19,7 @@ export const strSchaltungen: McItem[] = [
   {
     id: "str-reihe-lichterkette",
     topic: "Stromkreis",
+    explanation: "In einer Reihen-Lichterkette unterbricht eine einzige kaputte Lampe den ganzen Kreis.",
     stem: "Bei einer einfachen Reihen-Lichterkette geht eine Lampe kaputt. Was passiert?",
     options: [
       "nur diese eine Lampe bleibt dunkel",
@@ -29,6 +32,8 @@ export const strSchaltungen: McItem[] = [
   {
     id: "str-parallel",
     topic: "Stromkreis",
+    explanation:
+      "In der Parallelschaltung hat jede Lampe ihren eigenen Weg – die anderen leuchten weiter.",
     stem: "Was passiert in einer Parallelschaltung, wenn eine von zwei Lampen herausgedreht wird?",
     options: [
       "alle Lampen gehen aus",
@@ -41,6 +46,7 @@ export const strSchaltungen: McItem[] = [
   {
     id: "str-parallel-haushalt",
     topic: "Stromkreis",
+    explanation: "In der Wohnung sind Lampen parallel geschaltet, damit jede einzeln schaltbar ist.",
     stem: "Warum sind die Lampen in einer Wohnung parallel geschaltet?",
     options: [
       "damit jede Lampe einzeln an- und ausgehen kann",
@@ -53,6 +59,7 @@ export const strSchaltungen: McItem[] = [
   {
     id: "str-reihe-helligkeit",
     topic: "Stromkreis",
+    explanation: "Zwei Lampen in Reihe teilen sich die Spannung – sie leuchten dunkler als eine allein.",
     stem: "Zwei gleiche Lampen in Reihe an einer Batterie leuchten …",
     options: [
       "heller als eine einzelne Lampe",
@@ -65,6 +72,7 @@ export const strSchaltungen: McItem[] = [
   {
     id: "str-und-schaltung",
     topic: "Stromkreis",
+    explanation: "Bei der UND-Schaltung müssen beide Schalter geschlossen sein, damit die Lampe leuchtet.",
     stem: "Bei einer UND-Schaltung leuchtet die Lampe, wenn …",
     options: [
       "beide Schalter geschlossen sind",
@@ -77,6 +85,7 @@ export const strSchaltungen: McItem[] = [
   {
     id: "str-oder-schaltung",
     topic: "Stromkreis",
+    explanation: "Bei der ODER-Schaltung genügt ein geschlossener Schalter, damit die Lampe leuchtet.",
     stem: "Bei einer ODER-Schaltung leuchtet die Lampe, wenn …",
     options: [
       "beide Schalter geschlossen sein müssen",
@@ -89,6 +98,7 @@ export const strSchaltungen: McItem[] = [
   {
     id: "str-schaltzeichen",
     topic: "Stromkreis",
+    explanation: "Im Schaltplan stehen genormte Schaltzeichen für die einzelnen Bauteile.",
     stem: "Wofür stehen die Schaltzeichen in einem Schaltplan?",
     options: [
       "für Farben",
@@ -101,6 +111,8 @@ export const strSchaltungen: McItem[] = [
   {
     id: "str-schaltplan-vorteil",
     topic: "Stromkreis",
+    explanation:
+      "Ein Schaltplan mit Schaltzeichen stellt die Schaltung übersichtlich und für alle einheitlich dar.",
     stem: "Wozu zeichnet man eine Schaltung als Schaltplan mit Schaltzeichen?",
     options: [
       "um sie übersichtlich und einheitlich darzustellen",
