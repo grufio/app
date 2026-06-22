@@ -4,6 +4,7 @@ import { optLicht } from "@/data/physik/opt-licht";
 import { optSpiegel } from "@/data/physik/opt-spiegel";
 import { optLinsen } from "@/data/physik/opt-linsen";
 import { optFarben } from "@/data/physik/opt-farben";
+import { optKlassenarbeit } from "@/data/physik/opt-klassenarbeit";
 import { akuSchall } from "@/data/physik/aku-schall";
 import { akuTon } from "@/data/physik/aku-ton";
 import { akuHoeren } from "@/data/physik/aku-hoeren";
@@ -23,6 +24,7 @@ const BANKS: Record<string, { items: McItem[]; topic: PhysikTopic }> = {
   "opt-spiegel": { items: optSpiegel, topic: "Optik" },
   "opt-linsen": { items: optLinsen, topic: "Optik" },
   "opt-farben": { items: optFarben, topic: "Optik" },
+  "opt-klassenarbeit": { items: optKlassenarbeit, topic: "Optik" },
   "aku-schall": { items: akuSchall, topic: "Akustik" },
   "aku-ton": { items: akuTon, topic: "Akustik" },
   "aku-hoeren": { items: akuHoeren, topic: "Akustik" },

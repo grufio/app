@@ -12,6 +12,7 @@ import { optLicht } from "@/data/physik/opt-licht";
 import { optSpiegel } from "@/data/physik/opt-spiegel";
 import { optLinsen } from "@/data/physik/opt-linsen";
 import { optFarben } from "@/data/physik/opt-farben";
+import { optKlassenarbeit } from "@/data/physik/opt-klassenarbeit";
 import { akuSchall } from "@/data/physik/aku-schall";
 import { akuTon } from "@/data/physik/aku-ton";
 import { akuHoeren } from "@/data/physik/aku-hoeren";
@@ -61,6 +62,7 @@ export const TESTS: TestDef[] = [
   { kind: "mc", area: "Optik", id: "opt-spiegel", title: "Reflexion & Spiegel", subtitle: "Optik", users: PHYSIK, items: optSpiegel },
   { kind: "mc", area: "Optik", id: "opt-linsen", title: "Brechung & Linsen", subtitle: "Optik", users: PHYSIK, items: optLinsen },
   { kind: "mc", area: "Optik", id: "opt-farben", title: "Farben & Sehen", subtitle: "Optik", users: PHYSIK, items: optFarben },
+  { kind: "mc", area: "Optik", id: "opt-klassenarbeit", title: "Klassenarbeit Physik II", subtitle: "Optik", users: PHYSIK, items: optKlassenarbeit },
 
   // Akustik
   { kind: "mc", area: "Akustik", id: "aku-schall", title: "Schall & Ausbreitung", subtitle: "Akustik", users: PHYSIK, items: akuSchall },
