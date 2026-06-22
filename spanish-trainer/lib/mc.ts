@@ -36,6 +36,12 @@ export interface McItem {
   /** Index of the correct option within `options`. */
   correctIndex: number;
   topic: McTopic;
+  /**
+   * Optional age-appropriate explanation of the relevant content, shown on a
+   * page *before* this question (with a "Weiter" button). Used for the Physik
+   * questions; items without it go straight to the question.
+   */
+  explanation?: string;
 }
 
 export interface McQuestion {

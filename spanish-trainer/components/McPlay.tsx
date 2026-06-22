@@ -20,6 +20,7 @@ import { StemCard } from "@/components/StemCard";
 import { AnswerOptions } from "@/components/AnswerOptions";
 import { NavControls } from "@/components/NavControls";
 import { LevelUpToast } from "@/components/LevelUpToast";
+import { ExplainScreen } from "@/components/ExplainScreen";
 import { ResultScreen } from "@/components/ResultScreen";
 import { RestartScreen } from "@/components/RestartScreen";
 
@@ -127,6 +128,13 @@ export function McPlay({ test }: { test: Extract<TestDef, { kind: "mc" }> }) {
                 highScore={highScore}
                 isNewBest={isNewBest}
                 onRestart={() => dispatch({ type: "RESTART" })}
+              />
+            </div>
+          ) : state.status === "explain" ? (
+            <div className="flex flex-1 items-center justify-center">
+              <ExplainScreen
+                text={question.item.explanation ?? ""}
+                onReveal={() => dispatch({ type: "REVEAL" })}
               />
             </div>
           ) : (

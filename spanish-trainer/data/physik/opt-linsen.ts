@@ -5,6 +5,8 @@ export const optLinsen: McItem[] = [
   {
     id: "opt-brechung",
     topic: "Optik",
+    explanation:
+      "Tritt Licht schräg von Luft ins Wasser, ändert es seine Richtung – es wird zum Lot hin gebrochen.",
     stem: "Was passiert mit einem Lichtstrahl, der schräg von Luft ins Wasser tritt?",
     options: [
       "Er wird vom Lot weg gebrochen",
@@ -17,6 +19,8 @@ export const optLinsen: McItem[] = [
   {
     id: "opt-brechung-uebergang",
     topic: "Optik",
+    explanation:
+      "Trifft Licht senkrecht auf die Grenzfläche, wird es nicht gebrochen und läuft gerade weiter.",
     stem: "Wann wird ein Lichtstrahl an einer Grenzfläche gar nicht gebrochen?",
     options: [
       "wenn er ganz flach auftrifft",
@@ -29,6 +33,8 @@ export const optLinsen: McItem[] = [
   {
     id: "opt-strohhalm",
     topic: "Optik",
+    explanation:
+      "An der Wasseroberfläche wird das Licht gebrochen – deshalb wirkt der Strohhalm wie geknickt.",
     stem: "Warum erscheint ein Strohhalm im Wasserglas geknickt?",
     options: [
       "Wegen der Spiegelung am Glas",
@@ -41,6 +47,8 @@ export const optLinsen: McItem[] = [
   {
     id: "opt-wasser-tiefer",
     topic: "Optik",
+    explanation:
+      "Durch die Lichtbrechung an der Wasseroberfläche erscheint Wasser flacher, als es wirklich ist.",
     stem: "Warum erscheint ein Schwimmbecken flacher, als es wirklich ist?",
     options: [
       "wegen der Spiegelung",
@@ -53,6 +61,7 @@ export const optLinsen: McItem[] = [
   {
     id: "opt-sammellinse",
     topic: "Optik",
+    explanation: "Eine Sammellinse bündelt paralleles Licht in einem einzigen Punkt.",
     stem: "Was macht eine Sammellinse mit parallel einfallendem Licht?",
     options: [
       "Sie zerstreut es",
@@ -65,6 +74,7 @@ export const optLinsen: McItem[] = [
   {
     id: "opt-brennpunkt",
     topic: "Optik",
+    explanation: "Den Punkt, in dem eine Sammellinse das Licht bündelt, nennt man Brennpunkt.",
     stem: "Wie heißt der Punkt, in dem eine Sammellinse paralleles Licht bündelt?",
     options: ["Mittelpunkt", "Brennpunkt", "Scheitelpunkt", "Lichtpunkt"],
     correctIndex: 1,
@@ -72,6 +82,7 @@ export const optLinsen: McItem[] = [
   {
     id: "opt-zerstreuungslinse",
     topic: "Optik",
+    explanation: "Eine Zerstreuungslinse spreizt parallele Lichtstrahlen auseinander.",
     stem: "Was macht eine Zerstreuungslinse mit parallelem Licht?",
     options: [
       "sie bündelt es in einem Punkt",
@@ -84,6 +95,7 @@ export const optLinsen: McItem[] = [
   {
     id: "opt-lupe",
     topic: "Optik",
+    explanation: "Eine Sammellinse als Lupe lässt kleine Dinge vergrößert erscheinen.",
     stem: "Wofür wird eine Sammellinse als Lupe genutzt?",
     options: [
       "Um kleine Dinge vergrößert zu sehen",
@@ -96,6 +108,7 @@ export const optLinsen: McItem[] = [
   {
     id: "opt-auge-linse",
     topic: "Optik",
+    explanation: "Im Auge bündelt die Augenlinse das Licht scharf auf die Netzhaut.",
     stem: "Welches Bauteil im Auge bündelt das Licht auf die Netzhaut?",
     options: ["die Pupille allein", "die Augenlinse", "die Nasenwurzel", "das Trommelfell"],
     correctIndex: 1,
@@ -103,6 +116,8 @@ export const optLinsen: McItem[] = [
   {
     id: "opt-brille",
     topic: "Optik",
+    explanation:
+      "Eine Brille mit Sammellinsen hilft weitsichtigen Menschen, wieder scharf zu sehen.",
     stem: "Wozu dient eine Brille mit Sammellinsen?",
     options: [
       "um die Augen abzudunkeln",

@@ -24,6 +24,7 @@ export const MAX_MISTAKES = 5;
 export const LEVEL_SIZE = 8;
 
 export type McTrainerStatus =
+  | "explain"
   | "playing"
   | "answered"
   | "levelup"
@@ -62,6 +63,7 @@ export interface McTrainerState {
 
 export type McTrainerAction =
   | { type: "ANSWER"; option: string }
+  | { type: "REVEAL" }
   | { type: "NEXT" }
   | { type: "PREV" }
   | { type: "RESTART" };
@@ -79,6 +81,15 @@ function questionAt(deck: McItem[], index: number, seed: number): McQuestion {
   return buildMcQuestion(deck[index], mulberry32(seed + index * 2654435761));
 }
 
+/**
+ * A brand-new (unanswered) question opens on its explanation page when the
+ * item carries one ("explain"), otherwise straight on the question ("playing").
+ * Items without an explanation (e.g. Deutsch) therefore behave exactly as before.
+ */
+function freshStatus(deck: McItem[], index: number): McTrainerStatus {
+  return deck[index]?.explanation ? "explain" : "playing";
+}
+
 export function createInitialState(
   items: readonly McItem[],
   seed: number = randomSeed(),
@@ -90,7 +101,7 @@ export function createInitialState(
     deck,
     index: 0,
     question: questionAt(deck, 0, seed),
-    status: "playing",
+    status: freshStatus(deck, 0),
     answers: {},
     selected: null,
     lastCorrect: null,
@@ -112,7 +123,7 @@ function goToQuestion(state: McTrainerState, index: number): McTrainerState {
     ...state,
     index,
     question: questionAt(state.deck, index, state.seed),
-    status: record ? "answered" : "playing",
+    status: record ? "answered" : freshStatus(state.deck, index),
     level: levelOf(index),
     selected: record ? record.selected : null,
     lastCorrect: record ? record.correct : null,
@@ -172,6 +183,11 @@ export function mcTrainerReducer(
       const graded = applyAnswer(state, action.option === state.question.answer, action.option);
       // A 5th mistake raises the game-over dialog right away.
       return graded.mistakes >= MAX_MISTAKES ? { ...graded, status: "gameover" } : graded;
+    }
+
+    case "REVEAL": {
+      // Leave the explanation page and reveal the question itself.
+      return state.status === "explain" ? { ...state, status: "playing" } : state;
     }
 
     case "NEXT": {
