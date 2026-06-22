@@ -16,6 +16,9 @@ const items: McItem[] = Array.from({ length: 20 }, (_, i) => ({
   topic: "Optik",
 }));
 
+/** Same shape, but every item carries an explanation (Physik-style). */
+const explained: McItem[] = items.map((q) => ({ ...q, id: `e${q.id}`, explanation: `Erklärung ${q.id}` }));
+
 function wrongOption(state: McTrainerState): string {
   return state.question.options.find((o) => o !== state.question.answer)!;
 }
@@ -163,5 +166,35 @@ describe("mcTrainerReducer", () => {
     expect(restarted.lives).toBe(MAX_MISTAKES);
     expect(restarted.status).toBe("playing");
     expect(restarted.index).toBe(0);
+  });
+
+  it("opens a question that has an explanation on the explain page first", () => {
+    const s0 = createInitialState(explained, 1);
+    expect(s0.status).toBe("explain");
+    expect(s0.index).toBe(0);
+    // Answering is blocked until the question is revealed.
+    expect(mcTrainerReducer(s0, { type: "ANSWER", option: s0.question.answer })).toBe(s0);
+  });
+
+  it("REVEAL turns the explain page into the live question", () => {
+    const s0 = createInitialState(explained, 1);
+    const revealed = mcTrainerReducer(s0, { type: "REVEAL" });
+    expect(revealed.status).toBe("playing");
+    expect(revealed.index).toBe(0);
+  });
+
+  it("the next explained question opens on its own explain page again", () => {
+    let s = createInitialState(explained, 1);
+    s = mcTrainerReducer(s, { type: "REVEAL" });
+    s = mcTrainerReducer(s, { type: "ANSWER", option: s.question.answer });
+    s = mcTrainerReducer(s, { type: "NEXT" });
+    expect(s.index).toBe(1);
+    expect(s.status).toBe("explain");
+  });
+
+  it("items without an explanation skip the explain page (REVEAL is then a no-op)", () => {
+    const s0 = createInitialState(items, 1);
+    expect(s0.status).toBe("playing");
+    expect(mcTrainerReducer(s0, { type: "REVEAL" })).toBe(s0);
   });
 });
