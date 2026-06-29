@@ -496,9 +496,10 @@ export function ProjectDetailPageClient({
     return m
   }, [filterStack])
 
-  // The section-function bar (`EditorTopBar`) and the canvas toolbar
-  // (`FloatingToolbar`) are temporarily hidden — the toolbars are being
-  // re-integrated step by step. Flip this flag to re-enable both.
+  // The section-function bar (`EditorTopBar`) is still temporarily hidden —
+  // re-integrated step by step. The canvas toolbar (`FloatingToolbar`) is
+  // back (right side, below the artboard bar). Flip this flag to re-enable
+  // EditorTopBar too.
   const showLegacyToolbars = false as boolean
 
   return (
@@ -521,7 +522,7 @@ export function ProjectDetailPageClient({
               toolbar={stageToolbar}
               // Colors is a read-only palette view — hide the canvas
               // tools/zoom toolbar there (they don't belong on Colors).
-              showFloatingToolbar={showLegacyToolbars && editorSection !== "colors"}
+              showFloatingToolbar={editorSection !== "colors"}
               canvasRef={canvasRef}
               artboardWidthPx={artboardWidthPx ?? undefined}
               artboardHeightPx={artboardHeightPx ?? undefined}
