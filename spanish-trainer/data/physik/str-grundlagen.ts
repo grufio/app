@@ -5,6 +5,8 @@ export const strGrundlagen: McItem[] = [
   {
     id: "str-geschlossen",
     topic: "Stromkreis",
+    explanation:
+      "Strom fließt nur, wenn der Stromkreis geschlossen ist – es muss ein durchgehender Weg da sein.",
     stem: "Wann fließt in einem Stromkreis ein elektrischer Strom?",
     options: [
       "wenn der Stromkreis geschlossen ist",
@@ -17,6 +19,7 @@ export const strGrundlagen: McItem[] = [
   {
     id: "str-bestandteile",
     topic: "Stromkreis",
+    explanation: "Zu einem einfachen Stromkreis gehören eine Quelle, Leitungen und ein Verbraucher.",
     stem: "Was gehört zu einem einfachen Stromkreis?",
     options: [
       "Quelle, Leitung und Verbraucher",
@@ -29,6 +32,7 @@ export const strGrundlagen: McItem[] = [
   {
     id: "str-quelle",
     topic: "Stromkreis",
+    explanation: "Die Batterie ist eine Stromquelle – sie treibt den Strom durch den Kreis.",
     stem: "Welches Bauteil ist eine Stromquelle?",
     options: ["die Lampe", "der Schalter", "die Batterie", "der Draht"],
     correctIndex: 2,
@@ -36,6 +40,7 @@ export const strGrundlagen: McItem[] = [
   {
     id: "str-batterie-pole",
     topic: "Stromkreis",
+    explanation: "Eine Batterie hat zwei Anschlüsse: einen Pluspol und einen Minuspol.",
     stem: "Welche beiden Pole hat eine Batterie?",
     options: [
       "Pluspol und Minuspol",
@@ -48,6 +53,7 @@ export const strGrundlagen: McItem[] = [
   {
     id: "str-verbraucher",
     topic: "Stromkreis",
+    explanation: "Ein Verbraucher wie die Lampe wandelt den Strom in Licht oder Wärme um.",
     stem: "Welches Bauteil ist ein Verbraucher?",
     options: ["die Batterie", "die Lampe", "der Schalter", "die Leitung"],
     correctIndex: 1,
@@ -55,6 +61,7 @@ export const strGrundlagen: McItem[] = [
   {
     id: "str-gluehlampe",
     topic: "Stromkreis",
+    explanation: "In der Glühlampe glüht der dünne Glühdraht, weil ihn der Strom stark erhitzt.",
     stem: "Welcher Teil einer Glühlampe leuchtet, wenn Strom fließt?",
     options: ["das Glas", "der dünne Glühdraht (Glühwendel)", "der Metallsockel", "die Luft darin"],
     correctIndex: 1,
@@ -62,6 +69,7 @@ export const strGrundlagen: McItem[] = [
   {
     id: "str-schalter",
     topic: "Stromkreis",
+    explanation: "Mit einem Schalter kann man den Stromkreis öffnen und schließen.",
     stem: "Wozu dient ein Schalter?",
     options: [
       "den Stromkreis öffnen und schließen",
@@ -74,6 +82,7 @@ export const strGrundlagen: McItem[] = [
   {
     id: "str-leiter",
     topic: "Stromkreis",
+    explanation: "Metalle wie Kupfer leiten den elektrischen Strom gut.",
     stem: "Welcher Stoff leitet den elektrischen Strom gut?",
     options: ["Kupfer", "Glas", "Gummi", "trockenes Holz"],
     correctIndex: 0,
@@ -81,6 +90,7 @@ export const strGrundlagen: McItem[] = [
   {
     id: "str-metall-leiter",
     topic: "Stromkreis",
+    explanation: "Kabel sind innen aus Metall (z. B. Kupfer), weil Metall den Strom gut leitet.",
     stem: "Warum bestehen Stromkabel innen aus Metall (z. B. Kupfer)?",
     options: [
       "weil Metall den Strom gut leitet",
@@ -93,6 +103,7 @@ export const strGrundlagen: McItem[] = [
   {
     id: "str-nichtleiter",
     topic: "Stromkreis",
+    explanation: "Kunststoff leitet den Strom nicht – solche Stoffe nennt man Nichtleiter (Isolatoren).",
     stem: "Welcher Stoff ist ein Nichtleiter (Isolator)?",
     options: ["Eisen", "Silber", "Kunststoff", "Aluminium"],
     correctIndex: 2,

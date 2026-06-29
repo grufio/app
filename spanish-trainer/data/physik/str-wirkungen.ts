@@ -5,6 +5,7 @@ export const strWirkungen: McItem[] = [
   {
     id: "str-wirkung-waerme",
     topic: "Stromkreis",
+    explanation: "Toaster und Tauchsieder nutzen die Wärmewirkung des Stroms.",
     stem: "Welche Wirkung des Stroms nutzt ein Toaster oder Tauchsieder?",
     options: ["die Lichtwirkung", "die Wärmewirkung", "die magnetische Wirkung", "gar keine"],
     correctIndex: 1,
@@ -12,6 +13,7 @@ export const strWirkungen: McItem[] = [
   {
     id: "str-wirkung-licht",
     topic: "Stromkreis",
+    explanation: "Eine Glühlampe nutzt zwei Wirkungen: die Wärme- und die Lichtwirkung des Stroms.",
     stem: "Welche Wirkungen des Stroms nutzt eine Glühlampe?",
     options: [
       "nur die magnetische Wirkung",
@@ -24,6 +26,7 @@ export const strWirkungen: McItem[] = [
   {
     id: "str-wirkung-magnet",
     topic: "Stromkreis",
+    explanation: "Ein Elektromagnet nutzt die magnetische Wirkung des Stroms.",
     stem: "Welche Wirkung des Stroms nutzt ein Elektromagnet?",
     options: ["die Lichtwirkung", "die magnetische Wirkung", "die Wärmewirkung", "die Schallwirkung"],
     correctIndex: 1,
@@ -31,6 +34,7 @@ export const strWirkungen: McItem[] = [
   {
     id: "str-led",
     topic: "Stromkreis",
+    explanation: "Eine LED ist ein Bauteil, das aus Strom direkt Licht macht (und kaum warm wird).",
     stem: "Was ist eine LED?",
     options: [
       "ein Bauteil, das aus Strom Licht macht",
@@ -43,6 +47,7 @@ export const strWirkungen: McItem[] = [
   {
     id: "str-stromrichtung",
     topic: "Stromkreis",
+    explanation: "Die technische Stromrichtung zeigt vom Pluspol zum Minuspol.",
     stem: "In welche Richtung zeigt die technische Stromrichtung im Stromkreis?",
     options: [
       "vom Pluspol zum Minuspol",
@@ -55,6 +60,7 @@ export const strWirkungen: McItem[] = [
   {
     id: "str-kurzschluss",
     topic: "Stromkreis",
+    explanation: "Beim Kurzschluss fließt der Strom fast ohne Widerstand direkt von Plus nach Minus.",
     stem: "Was ist ein Kurzschluss?",
     options: [
       "Strom fließt fast ohne Widerstand direkt von Plus nach Minus",
@@ -67,6 +73,7 @@ export const strWirkungen: McItem[] = [
   {
     id: "str-kurzschluss-gefahr",
     topic: "Stromkreis",
+    explanation: "Beim Kurzschluss fließt ein sehr großer Strom – die Leitung wird heiß (Brandgefahr).",
     stem: "Warum ist ein Kurzschluss gefährlich?",
     options: [
       "es fließt ein sehr großer Strom, die Leitung wird heiß",
@@ -79,6 +86,7 @@ export const strWirkungen: McItem[] = [
   {
     id: "str-sicherung",
     topic: "Stromkreis",
+    explanation: "Eine Sicherung unterbricht den Stromkreis, sobald der Strom zu groß wird.",
     stem: "Wozu dient eine Sicherung?",
     options: [
       "sie unterbricht den Stromkreis bei zu großem Strom",
@@ -91,6 +99,7 @@ export const strWirkungen: McItem[] = [
   {
     id: "str-wasser-gefahr",
     topic: "Stromkreis",
+    explanation: "Wasser leitet den Strom – und der menschliche Körper ebenfalls. Darum ist es gefährlich.",
     stem: "Warum ist elektrischer Strom in Verbindung mit Wasser besonders gefährlich?",
     options: [
       "Wasser isoliert den Strom",
@@ -103,6 +112,7 @@ export const strWirkungen: McItem[] = [
   {
     id: "str-sicherheit",
     topic: "Stromkreis",
+    explanation: "Metall leitet den Strom in den Körper – darum nie mit Metall in eine Steckdose fassen.",
     stem: "Warum darf man nicht mit einem Metallgegenstand in eine Steckdose fassen?",
     options: [
       "weil Metall den Strom in den Körper leitet",

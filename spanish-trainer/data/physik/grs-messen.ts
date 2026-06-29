@@ -5,6 +5,7 @@ export const grsMessen: McItem[] = [
   {
     id: "grs-laenge-messen",
     topic: "Größen",
+    explanation: "Eine Länge misst man mit Lineal oder Maßband.",
     stem: "Womit misst man eine Länge?",
     options: ["mit der Stoppuhr", "mit dem Lineal oder Maßband", "mit der Waage", "mit dem Thermometer"],
     correctIndex: 1,
@@ -12,6 +13,7 @@ export const grsMessen: McItem[] = [
   {
     id: "grs-zeit-messen",
     topic: "Größen",
+    explanation: "Eine Zeitdauer misst man mit der Stoppuhr.",
     stem: "Womit misst man eine Zeitdauer?",
     options: ["mit der Stoppuhr", "mit dem Lineal", "mit der Waage", "mit dem Messbecher"],
     correctIndex: 0,
@@ -19,6 +21,7 @@ export const grsMessen: McItem[] = [
   {
     id: "grs-masse-messen",
     topic: "Größen",
+    explanation: "Die Masse eines Körpers misst man mit der Waage.",
     stem: "Womit misst man die Masse eines Körpers?",
     options: ["mit dem Lineal", "mit der Waage", "mit der Stoppuhr", "mit dem Thermometer"],
     correctIndex: 1,
@@ -26,6 +29,7 @@ export const grsMessen: McItem[] = [
   {
     id: "grs-temperatur",
     topic: "Größen",
+    explanation: "Die Temperatur misst man mit dem Thermometer in Grad Celsius (°C).",
     stem: "Womit misst man die Temperatur und in welcher Einheit?",
     options: [
       "mit dem Thermometer in Grad Celsius (°C)",
@@ -38,6 +42,7 @@ export const grsMessen: McItem[] = [
   {
     id: "grs-ablesen",
     topic: "Größen",
+    explanation: "Eine Skala liest man richtig ab, wenn man senkrecht von vorne darauf schaut.",
     stem: "Wie liest man eine Messskala richtig ab?",
     options: [
       "senkrecht von vorne auf die Skala schauen",
@@ -50,6 +55,7 @@ export const grsMessen: McItem[] = [
   {
     id: "grs-genau-messen",
     topic: "Größen",
+    explanation: "Sorgfältig messen heißt: genau ablesen und am besten mehrmals messen.",
     stem: "Was gehört zu sorgfältigem Messen?",
     options: [
       "schätzen reicht immer",
@@ -62,6 +68,7 @@ export const grsMessen: McItem[] = [
   {
     id: "grs-messfehler",
     topic: "Größen",
+    explanation: "Misst man mehrmals und bildet den Mittelwert, wird der Messfehler kleiner.",
     stem: "Wie kann man einen Messfehler verkleinern?",
     options: [
       "mehrmals messen und den Mittelwert bilden",
@@ -74,6 +81,7 @@ export const grsMessen: McItem[] = [
   {
     id: "grs-diagramm",
     topic: "Größen",
+    explanation: "Ein Diagramm zeigt anschaulich, wie sich eine Größe verändert.",
     stem: "Was kann man aus einem Messwerte-Diagramm ablesen?",
     options: [
       "die Farbe des Stoffs",
@@ -86,6 +94,7 @@ export const grsMessen: McItem[] = [
   {
     id: "grs-tabelle",
     topic: "Größen",
+    explanation: "In einer Tabelle hält man Messwerte geordnet und übersichtlich fest.",
     stem: "Wozu trägt man Messwerte in eine Tabelle ein?",
     options: [
       "um Strom zu sparen",
@@ -98,6 +107,7 @@ export const grsMessen: McItem[] = [
   {
     id: "grs-experiment",
     topic: "Größen",
+    explanation: "Bei einem Experiment stellt man erst eine Vermutung auf, misst dann und prüft das Ergebnis.",
     stem: "Wie geht man bei einem Experiment sinnvoll vor?",
     options: [
       "sofort die Lösung raten",

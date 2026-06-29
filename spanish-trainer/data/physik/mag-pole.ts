@@ -5,6 +5,7 @@ export const magPole: McItem[] = [
   {
     id: "mag-pole",
     topic: "Magnetismus",
+    explanation: "Jeder Magnet hat zwei Pole: einen Nordpol und einen Südpol.",
     stem: "Wie heißen die beiden Pole eines Magneten?",
     options: ["Plus- und Minuspol", "Nord- und Südpol", "oberer und unterer Pol", "warmer und kalter Pol"],
     correctIndex: 1,
@@ -12,6 +13,7 @@ export const magPole: McItem[] = [
   {
     id: "mag-anziehung",
     topic: "Magnetismus",
+    explanation: "Ungleiche Pole ziehen sich an – Nordpol und Südpol.",
     stem: "Welche Magnetpole ziehen sich an?",
     options: [
       "gleiche Pole",
@@ -24,6 +26,7 @@ export const magPole: McItem[] = [
   {
     id: "mag-abstossung",
     topic: "Magnetismus",
+    explanation: "Gleiche Pole stoßen sich ab – zwei Nordpole drücken sich voneinander weg.",
     stem: "Was passiert, wenn man zwei Nordpole zusammenbringt?",
     options: ["sie ziehen sich an", "sie stoßen sich ab", "es passiert nichts", "sie werden warm"],
     correctIndex: 1,
@@ -31,6 +34,7 @@ export const magPole: McItem[] = [
   {
     id: "mag-dauermagnet",
     topic: "Magnetismus",
+    explanation: "Ein Dauermagnet ist ständig magnetisch – ganz ohne Strom.",
     stem: "Was ist ein Dauermagnet?",
     options: [
       "ein Magnet, der ständig magnetisch ist",
@@ -43,6 +47,7 @@ export const magPole: McItem[] = [
   {
     id: "mag-stoffe",
     topic: "Magnetismus",
+    explanation: "Magnete ziehen Eisen an; Holz, Kupfer oder Glas dagegen nicht.",
     stem: "Welches Material wird von einem Magneten angezogen?",
     options: ["Holz", "Eisen", "Kupfer", "Glas"],
     correctIndex: 1,
@@ -50,6 +55,7 @@ export const magPole: McItem[] = [
   {
     id: "mag-ferromagnetisch",
     topic: "Magnetismus",
+    explanation: "Magnetisch (ferromagnetisch) sind nur Eisen, Nickel und Cobalt.",
     stem: "Welche Metalle sind magnetisch (ferromagnetisch)?",
     options: [
       "Eisen, Nickel und Cobalt",
@@ -62,6 +68,7 @@ export const magPole: McItem[] = [
   {
     id: "mag-nicht",
     topic: "Magnetismus",
+    explanation: "Aluminium ist nicht magnetisch – es wird vom Magneten nicht angezogen.",
     stem: "Welcher Stoff wird NICHT von einem Magneten angezogen?",
     options: ["Eisen", "Nickel", "Aluminium", "Cobalt"],
     correctIndex: 2,
@@ -69,6 +76,7 @@ export const magPole: McItem[] = [
   {
     id: "mag-staerkste",
     topic: "Magnetismus",
+    explanation: "An den Polen ist die magnetische Wirkung eines Stabmagneten am stärksten.",
     stem: "Wo ist die magnetische Wirkung eines Stabmagneten am stärksten?",
     options: ["in der Mitte", "an den Polen", "überall gleich", "nur am Nordpol"],
     correctIndex: 1,
@@ -76,6 +84,7 @@ export const magPole: McItem[] = [
   {
     id: "mag-teilen",
     topic: "Magnetismus",
+    explanation: "Zerbricht man einen Magneten, hat jedes Teilstück wieder einen Nord- und einen Südpol.",
     stem: "Was passiert, wenn man einen Stabmagneten in der Mitte zerbricht?",
     options: [
       "man erhält einen einzelnen Nord- und einen einzelnen Südpol",
@@ -88,6 +97,7 @@ export const magPole: McItem[] = [
   {
     id: "mag-anwendung",
     topic: "Magnetismus",
+    explanation: "Magnete nutzt man im Alltag z. B. als Verschluss an einer Schranktür.",
     stem: "Wo wird ein Magnet im Alltag genutzt?",
     options: [
       "als Lichtquelle",

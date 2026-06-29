@@ -5,6 +5,7 @@ export const akuTon: McItem[] = [
   {
     id: "aku-frequenz-tonhoehe",
     topic: "Akustik",
+    explanation: "Die Tonhöhe hängt von der Frequenz ab – also davon, wie schnell etwas schwingt.",
     stem: "Wovon hängt die Tonhöhe eines Schalls ab?",
     options: ["von der Amplitude", "von der Frequenz", "von der Lautstärke", "von der Farbe"],
     correctIndex: 1,
@@ -12,6 +13,7 @@ export const akuTon: McItem[] = [
   {
     id: "aku-hohe-frequenz",
     topic: "Akustik",
+    explanation: "Schwingt etwas schnell (hohe Frequenz), klingt der Ton hoch.",
     stem: "Ein Ton mit hoher Frequenz klingt …",
     options: ["tief", "hoch", "leise", "laut"],
     correctIndex: 1,
@@ -19,6 +21,7 @@ export const akuTon: McItem[] = [
   {
     id: "aku-tiefe-frequenz",
     topic: "Akustik",
+    explanation: "Schwingt etwas langsam (niedrige Frequenz), klingt der Ton tief.",
     stem: "Ein Ton mit niedriger Frequenz klingt …",
     options: ["hoch", "tief", "laut", "leise"],
     correctIndex: 1,
@@ -26,6 +29,7 @@ export const akuTon: McItem[] = [
   {
     id: "aku-amplitude-lautstaerke",
     topic: "Akustik",
+    explanation: "Die Lautstärke hängt von der Amplitude ab – also davon, wie weit etwas schwingt.",
     stem: "Wovon hängt die Lautstärke eines Tons ab?",
     options: [
       "von der Frequenz",
@@ -38,6 +42,7 @@ export const akuTon: McItem[] = [
   {
     id: "aku-amplitude-gross",
     topic: "Akustik",
+    explanation: "Eine große Amplitude (weite Schwingung) bedeutet einen lauten Ton.",
     stem: "Was bedeutet eine große Amplitude (Schwingungsweite)?",
     options: ["ein hoher Ton", "ein lauter Ton", "ein tiefer Ton", "gar kein Ton"],
     correctIndex: 1,
@@ -45,6 +50,7 @@ export const akuTon: McItem[] = [
   {
     id: "aku-saite",
     topic: "Akustik",
+    explanation: "Kürzer oder straffer gespannte Saiten schwingen schneller – der Ton wird höher.",
     stem: "Wie wird der Ton einer Gitarrensaite höher?",
     options: [
       "wenn die Saite kürzer oder straffer schwingt",
@@ -57,6 +63,7 @@ export const akuTon: McItem[] = [
   {
     id: "aku-frequenz-einheit",
     topic: "Akustik",
+    explanation: "Die Frequenz wird in Hertz (Hz) angegeben.",
     stem: "In welcher Einheit gibt man die Frequenz an?",
     options: ["Meter (m)", "Hertz (Hz)", "Sekunde (s)", "Dezibel (dB)"],
     correctIndex: 1,
@@ -64,6 +71,7 @@ export const akuTon: McItem[] = [
   {
     id: "aku-hertz-bedeutung",
     topic: "Akustik",
+    explanation: "50 Hz heißt: 50 Schwingungen in jeder Sekunde.",
     stem: "Was bedeutet eine Frequenz von 50 Hz?",
     options: [
       "50 Schwingungen pro Sekunde",
@@ -76,6 +84,7 @@ export const akuTon: McItem[] = [
   {
     id: "aku-lautstaerke-einheit",
     topic: "Akustik",
+    explanation: "Den Schallpegel (die Lautstärke) misst man in Dezibel (dB).",
     stem: "In welcher Einheit gibt man den Schallpegel (die Lautstärke) an?",
     options: ["Hertz", "Dezibel (dB)", "Meter", "Watt"],
     correctIndex: 1,

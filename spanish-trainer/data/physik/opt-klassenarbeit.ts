@@ -12,6 +12,7 @@ export const optKlassenarbeit: McItem[] = [
   {
     id: "optka-ausbreitung",
     topic: "Optik",
+    explanation: "Licht breitet sich geradlinig aus – immer in geraden Linien (Lichtstrahlen).",
     stem: "Welche wichtige Eigenschaft hat die Ausbreitung des Lichts?",
     options: [
       "Licht breitet sich in Kurven aus",
@@ -24,6 +25,7 @@ export const optKlassenarbeit: McItem[] = [
   {
     id: "optka-sehen",
     topic: "Optik",
+    explanation: "Wir sehen einen Gegenstand, weil er Licht in unser Auge zurückwirft.",
     stem: "Warum kannst du einen Gegenstand sehen, der selbst nicht leuchtet?",
     options: [
       "Dein Auge sendet Sehstrahlen aus",
@@ -36,6 +38,7 @@ export const optKlassenarbeit: McItem[] = [
   {
     id: "optka-mond-leuchtet",
     topic: "Optik",
+    explanation: "Der Mond leuchtet nicht selbst – er reflektiert das Licht der Sonne.",
     stem: "Warum können wir den Mond sehen, obwohl er nicht selbst leuchtet?",
     options: [
       "Er erzeugt eigenes Licht",
@@ -48,6 +51,7 @@ export const optKlassenarbeit: McItem[] = [
   {
     id: "optka-mond-flecken",
     topic: "Optik",
+    explanation: "Die dunklen Flecken auf dem Mond sind große, flache Tiefebenen, die „Mare“ heißen.",
     stem: "Was sind die dunklen „Flecken“, die man auf dem Mond sieht?",
     options: [
       "große, dunkle Tiefebenen (Mare)",
@@ -60,6 +64,7 @@ export const optKlassenarbeit: McItem[] = [
   {
     id: "optka-reflexionsgesetz",
     topic: "Optik",
+    explanation: "Reflexionsgesetz: Einfallswinkel = Ausfallswinkel (Reflexionswinkel).",
     stem: "Wie lautet das Reflexionsgesetz?",
     options: [
       "Einfallswinkel + Reflexionswinkel = 90°",
@@ -72,6 +77,7 @@ export const optKlassenarbeit: McItem[] = [
   {
     id: "optka-lot",
     topic: "Optik",
+    explanation: "Beide Winkel misst man vom Lot aus – der Linie senkrecht zur Spiegelfläche.",
     stem: "Von welcher Linie aus werden Einfalls- und Ausfallswinkel gemessen?",
     options: [
       "von der Spiegelfläche",
@@ -84,6 +90,7 @@ export const optKlassenarbeit: McItem[] = [
   {
     id: "optka-lot-definition",
     topic: "Optik",
+    explanation: "Das Lot ist die Senkrechte zur Spiegelfläche im Auftreffpunkt des Strahls.",
     stem: "Was ist das Lot in der Reflexionszeichnung (Lichtstrahl auf Spiegel)?",
     options: [
       "die Senkrechte zur Spiegelfläche im Auftreffpunkt",
@@ -96,6 +103,7 @@ export const optKlassenarbeit: McItem[] = [
   {
     id: "optka-einfallswinkel",
     topic: "Optik",
+    explanation: "Der Winkel zwischen einfallendem Strahl und Lot heißt Einfallswinkel.",
     stem: "Wie heißt im Schaubild der Winkel zwischen einfallendem Lichtstrahl und dem Lot?",
     options: ["Ausfallswinkel", "Einfallswinkel", "Spiegelwinkel", "Brennwinkel"],
     correctIndex: 1,
@@ -103,6 +111,7 @@ export const optKlassenarbeit: McItem[] = [
   {
     id: "optka-ausfallswinkel",
     topic: "Optik",
+    explanation: "Der Winkel zwischen reflektiertem Strahl und Lot heißt Ausfallswinkel (Reflexionswinkel).",
     stem: "Wie heißt im Schaubild der Winkel zwischen reflektiertem Lichtstrahl und dem Lot?",
     options: [
       "Brechungswinkel",
@@ -115,6 +124,7 @@ export const optKlassenarbeit: McItem[] = [
   {
     id: "optka-ausfallswinkel-wert",
     topic: "Optik",
+    explanation: "Weil Einfallswinkel = Ausfallswinkel gilt, ist der Ausfallswinkel genauso groß wie der Einfallswinkel.",
     stem: "Ein Lichtstrahl trifft mit 35° zum Lot auf einen ebenen Spiegel. Wie groß ist der Ausfallswinkel?",
     options: ["17,5°", "35°", "55°", "70°"],
     correctIndex: 1,
@@ -122,6 +132,7 @@ export const optKlassenarbeit: McItem[] = [
   {
     id: "optka-spiegelbild",
     topic: "Optik",
+    explanation: "Im ebenen Spiegel ist das Bild gleich groß, aufrecht und seitenverkehrt (links und rechts vertauscht).",
     stem: "Wie ist das Bild eines Gegenstands in einem ebenen Spiegel?",
     options: [
       "auf dem Kopf und kleiner",
@@ -134,6 +145,7 @@ export const optKlassenarbeit: McItem[] = [
   {
     id: "optka-brennpunkt",
     topic: "Optik",
+    explanation: "Eine Lupe ist eine Sammellinse: Sie bündelt das Sonnenlicht in einem Brennpunkt, dort wird es sehr heiß.",
     stem: "Warum kann man mit einer Lupe in der Sonne ein Streichholz entzünden?",
     options: [
       "Die Sammellinse bündelt das Sonnenlicht in einem Brennpunkt",
@@ -146,6 +158,7 @@ export const optKlassenarbeit: McItem[] = [
   {
     id: "optka-toter-winkel",
     topic: "Optik",
+    explanation: "Der tote Winkel ist der Bereich, den der Fahrer weder direkt noch im Spiegel sehen kann.",
     stem: "Was ist der „tote Winkel“ beim Autofahren?",
     options: [
       "die dunkelste Stelle der Straße",
@@ -158,6 +171,7 @@ export const optKlassenarbeit: McItem[] = [
   {
     id: "optka-toter-winkel-tipp",
     topic: "Optik",
+    explanation: "Den toten Winkel prüft man mit dem Schulterblick – vor dem Abbiegen kurz über die Schulter schauen.",
     stem: "Wie kannst du Unfälle durch den toten Winkel vermeiden?",
     options: [
       "nur in den Innenspiegel schauen",

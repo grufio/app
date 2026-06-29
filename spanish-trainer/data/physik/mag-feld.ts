@@ -5,6 +5,7 @@ export const magFeld: McItem[] = [
   {
     id: "mag-feld",
     topic: "Magnetismus",
+    explanation: "Den Bereich um einen Magneten, in dem er wirkt, nennt man Magnetfeld.",
     stem: "Wie nennt man den Bereich um einen Magneten, in dem er wirkt?",
     options: ["das Magnetfeld", "der Schatten", "das Schwerefeld", "der Stromkreis"],
     correctIndex: 0,
@@ -12,6 +13,7 @@ export const magFeld: McItem[] = [
   {
     id: "mag-feldlinien",
     topic: "Magnetismus",
+    explanation: "Mit Eisenspänen kann man ein Magnetfeld sichtbar machen.",
     stem: "Womit kann man ein Magnetfeld sichtbar machen?",
     options: ["mit Wasser", "mit Eisenspänen", "mit einer Lampe", "mit einem Spiegel"],
     correctIndex: 1,
@@ -19,6 +21,7 @@ export const magFeld: McItem[] = [
   {
     id: "mag-feldlinien-richtung",
     topic: "Magnetismus",
+    explanation: "Außerhalb des Magneten verlaufen die Feldlinien vom Nordpol zum Südpol.",
     stem: "Wie verlaufen die Feldlinien außerhalb eines Magneten?",
     options: [
       "vom Nordpol zum Südpol",
@@ -31,6 +34,7 @@ export const magFeld: McItem[] = [
   {
     id: "mag-feldlinien-dichte",
     topic: "Magnetismus",
+    explanation: "An den Polen liegen die Feldlinien am dichtesten – dort ist das Feld am stärksten.",
     stem: "Wo liegen die Feldlinien eines Magneten am dichtesten?",
     options: ["an den Polen", "in der Mitte", "weit weg vom Magneten", "überall gleich"],
     correctIndex: 0,
@@ -38,6 +42,7 @@ export const magFeld: McItem[] = [
   {
     id: "mag-kompass",
     topic: "Magnetismus",
+    explanation: "Eine Kompassnadel ist ein kleiner Magnet und reagiert auf das Magnetfeld der Erde.",
     stem: "Worauf reagiert eine Kompassnadel?",
     options: ["auf das Magnetfeld der Erde", "auf das Licht", "auf die Wärme", "auf den Schall"],
     correctIndex: 0,
@@ -45,6 +50,7 @@ export const magFeld: McItem[] = [
   {
     id: "mag-kompass-richtung",
     topic: "Magnetismus",
+    explanation: "Der Nordpol der Kompassnadel zeigt ungefähr zum geografischen Norden.",
     stem: "Wohin zeigt der Nordpol einer Kompassnadel?",
     options: ["nach Süden", "ungefähr zum geografischen Norden", "nach oben", "immer zur Sonne"],
     correctIndex: 1,
@@ -52,6 +58,7 @@ export const magFeld: McItem[] = [
   {
     id: "mag-kompass-nutzen",
     topic: "Magnetismus",
+    explanation: "Mit einem Kompass findet man die Himmelsrichtung.",
     stem: "Wozu benutzt man einen Kompass?",
     options: [
       "um die Zeit zu messen",
@@ -64,6 +71,7 @@ export const magFeld: McItem[] = [
   {
     id: "mag-erdmagnetfeld",
     topic: "Magnetismus",
+    explanation: "Die Erde wirkt wie ein riesiger Magnet mit Nord- und Südpol.",
     stem: "Die Erde wirkt wie …",
     options: ["ein riesiger Magnet", "eine große Lampe", "ein Spiegel", "eine Linse"],
     correctIndex: 0,
@@ -71,6 +79,7 @@ export const magFeld: McItem[] = [
   {
     id: "mag-erde-schutz",
     topic: "Magnetismus",
+    explanation: "Das Magnetfeld der Erde lenkt einen Teil der geladenen Teilchen von der Sonne ab.",
     stem: "Was lenkt einen Teil der geladenen Teilchen von der Sonne von der Erde ab?",
     options: ["das Magnetfeld der Erde", "das Schwerefeld", "der Mond", "die Wolken"],
     correctIndex: 0,
