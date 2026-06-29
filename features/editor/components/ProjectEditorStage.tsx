@@ -181,11 +181,13 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
 
       {/* Workspace */}
       <div className="relative min-h-0 flex-1" style={bgStyle}>
-        {/* Floating toolbar overlay (Figma-like), bottom-centre. Hidden on
-            sections (e.g. Colors) where the canvas-editing tools don't
-            belong. */}
+        {/* Floating toolbar overlay (Figma-like), right side, vertical.
+            Anchored below the top-right artboard bar (top-3 + 40px circle)
+            with a one-button-height (40px) gap → top = 12 + 40 + 40 = 92px.
+            Hidden on sections (e.g. Colors) where the canvas-editing tools
+            don't belong. */}
         {showFloatingToolbar ? (
-          <div className="absolute top-1/2 right-3 z-10 w-max -translate-y-1/2">
+          <div className="absolute top-[92px] right-3 z-10 w-max">
             <FloatingToolbar
               className="pointer-events-auto"
               tool={toolbar.tool}
