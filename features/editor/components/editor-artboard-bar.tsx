@@ -2,18 +2,15 @@
 
 /**
  * Artboard actions bar — floating, top-right. Shown while the Artboard
- * section is active: three 40px circle buttons (Artboard / Grid / Image),
- * horizontally arranged.
+ * section is active: two 40px circle buttons (Artboard / Grid), horizontally
+ * arranged.
  *
- * When no master image exists yet, Artboard and Grid are disabled and the
- * Image circle becomes an "add image" affordance (image-with-plus icon) — the
- * only available action is to bring an image in first.
+ * When no master image exists yet, both are disabled. The Image action moved
+ * to the canvas toolbar (bottom Image button); see `FloatingToolbar`.
  *
- * Tapping the Image circle (when an image exists) opens the image dialog
- * (width / height / x / y / align inputs). The Artboard, Grid and add-image
- * taps are not wired yet — re-integrating step by step.
+ * The Artboard and Grid taps are not wired yet — re-integrating step by step.
  */
-import { Frame, Grid3x3, Image as ImageIcon, ImagePlus, type LucideIcon } from "lucide-react"
+import { Frame, Grid3x3, type LucideIcon } from "lucide-react"
 
 import { useEditorToolbarTone } from "./editor-toolbar-tone"
 import { circleClass } from "./floating-bar-styles"
@@ -21,12 +18,9 @@ import { circleClass } from "./floating-bar-styles"
 type Props = {
   /** Whether a master image already exists on the project. */
   hasImage: boolean
-  /** Opens the image dialog (size/position/align). Wired to the Image circle
-   * while an image exists. */
-  onOpenImage?: () => void
 }
 
-export function EditorArtboardBar({ hasImage, onOpenImage }: Props) {
+export function EditorArtboardBar({ hasImage }: Props) {
   const tone = useEditorToolbarTone()
 
   const actions: {
@@ -38,15 +32,6 @@ export function EditorArtboardBar({ hasImage, onOpenImage }: Props) {
   }[] = [
     { key: "artboard", label: "Artboard", Icon: Frame, disabled: !hasImage },
     { key: "grid", label: "Grid", Icon: Grid3x3, disabled: !hasImage },
-    {
-      key: "image",
-      label: "Image",
-      // No image yet → the Image circle is the "add image" entry point.
-      Icon: hasImage ? ImageIcon : ImagePlus,
-      disabled: false,
-      // With an image, tapping opens the image dialog; add-image isn't wired yet.
-      onClick: hasImage ? onOpenImage : undefined,
-    },
   ]
 
   return (

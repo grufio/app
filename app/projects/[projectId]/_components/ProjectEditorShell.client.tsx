@@ -523,6 +523,10 @@ export function ProjectDetailPageClient({
               // Colors is a read-only palette view — hide the canvas
               // tools/zoom toolbar there (they don't belong on Colors).
               showFloatingToolbar={editorSection !== "colors"}
+              // The toolbar's Image button opens the image dialog. Wired only
+              // on the Artboard section (where the dialog host is mounted);
+              // undefined elsewhere so the Image button doesn't render.
+              onOpenImage={editorSection === "artboard" ? () => setPendingArtboardDialog("image") : undefined}
               canvasRef={canvasRef}
               artboardWidthPx={artboardWidthPx ?? undefined}
               artboardHeightPx={artboardHeightPx ?? undefined}
@@ -589,13 +593,11 @@ export function ProjectDetailPageClient({
           />
         ) : null}
 
-        {/* Re-integrated artboard actions (top-right, 3 × 40px circles) —
-            shown while the Artboard section is active. */}
+        {/* Re-integrated artboard actions (top-right, 2 × 40px circles:
+            Artboard / Grid) — shown while the Artboard section is active.
+            The Image action moved into the canvas toolbar (bottom). */}
         {editorSection === "artboard" ? (
-          <EditorArtboardBar
-            hasImage={Boolean(masterImage)}
-            onOpenImage={() => setPendingArtboardDialog("image")}
-          />
+          <EditorArtboardBar hasImage={Boolean(masterImage)} />
         ) : null}
         {editorSection === "artboard" ? (
           <ArtboardSurfaceScope
