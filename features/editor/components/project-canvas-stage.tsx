@@ -29,6 +29,7 @@ import type { CropRectWorld } from "./canvas-stage/crop-controller"
 import type { ResizeHandle } from "./canvas-stage/select-controller"
 import { ArtboardBorder } from "./canvas-stage/artboard-border"
 import { GridOverlay } from "./canvas-stage/grid-overlay"
+import { computePaddingStripes } from "./canvas-stage/padding-stripes"
 import { SelectionOverlay } from "./canvas-stage/selection-overlay"
 import { useWheelZoomGuard } from "./canvas-stage/stage-lifecycle-controller"
 import { createTransformController } from "./canvas-stage/transform-controller"
@@ -70,6 +71,9 @@ type Props = {
     lineWidthPx: number
     color: string
   } | null
+  /** Print-margin padding (px, artboard space) rendered as grey preview strips
+   * over the artboard. Null / all-zero → nothing rendered. */
+  paddingPx?: { top: number; bottom: number; left: number; right: number } | null
   onImageTransformChange?: (tx: { xPxU: bigint; yPxU: bigint; widthPxU: bigint; heightPxU: bigint } | null) => void
   initialImageTransform?: {
     imageId?: string
@@ -248,6 +252,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     traceInteractive = true,
     traceOverlayVisible = true,
     previewBitmapVisible = true,
+    paddingPx = null,
     numbersLayerVisible = true,
   },
   ref
@@ -403,6 +408,12 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     artH,
     view,
   })
+
+  // Print-margin padding preview: grey strips over the artboard (artboard px).
+  const paddingStripes = useMemo(() => {
+    if (!drawArtboard || !paddingPx) return []
+    return computePaddingStripes(artW, artH, paddingPx)
+  }, [drawArtboard, paddingPx, artW, artH])
 
   const { fitToView, zoomIn, zoomOut } = useViewController({
     hasArtboard,
@@ -791,6 +802,20 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
                 }}
               />
             ) : null}
+
+            {/* Print-margin padding preview: grey strips over the image, at the
+                page (artboard) edges. Non-interactive. */}
+            {paddingStripes.map((s) => (
+              <Rect
+                key={s.key}
+                x={s.x}
+                y={s.y}
+                width={s.width}
+                height={s.height}
+                fill="rgba(80, 80, 80, 0.35)"
+                listening={false}
+              />
+            ))}
 
             {/* Grid overlay (under selection frame). */}
             <GridOverlay snappedGridLines={snappedGridLines} />
