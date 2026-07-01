@@ -67,6 +67,14 @@ export function ArtboardSurfaceScope({
           onPageBgEnabledChange={props.onPageBgEnabledChange}
           onPageBgColorChange={props.onPageBgColorChange}
           onPageBgOpacityChange={props.onPageBgOpacityChange}
+          paddingTop={props.paddingTop}
+          paddingBottom={props.paddingBottom}
+          paddingLeft={props.paddingLeft}
+          paddingRight={props.paddingRight}
+          onPaddingTopChange={props.onPaddingTopChange}
+          onPaddingBottomChange={props.onPaddingBottomChange}
+          onPaddingLeftChange={props.onPaddingLeftChange}
+          onPaddingRightChange={props.onPaddingRightChange}
         />
       )
     case "grid":

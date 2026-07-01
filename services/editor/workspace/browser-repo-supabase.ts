@@ -10,7 +10,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { WorkspaceRow } from "./types"
 
 const SELECT_WORKSPACE =
-  "project_id,unit,width_value,height_value,width_px_u,height_px_u,width_px,height_px,page_bg_enabled,page_bg_color,page_bg_opacity"
+  "project_id,unit,width_value,height_value,width_px_u,height_px_u,width_px,height_px,page_bg_enabled,page_bg_color,page_bg_opacity,padding_top_px_u,padding_bottom_px_u,padding_left_px_u,padding_right_px_u"
 
 function hasOwn(o: unknown, key: string): boolean {
   return Boolean(o) && typeof o === "object" && Object.prototype.hasOwnProperty.call(o, key)
@@ -33,6 +33,9 @@ function mapWorkspaceDbError(message: string, stage: "select" | "insert" | "upda
   }
   if (lower.includes("requires width_px_u and height_px_u")) {
     return `[${stage}] workspace_missing_canonical_px_u: ${message}`
+  }
+  if (lower.includes("padding_") && lower.includes("_px_u_range")) {
+    return `[${stage}] workspace_padding_out_of_range: ${message}`
   }
   return `[${stage}] ${message}`
 }
@@ -116,6 +119,32 @@ export async function updateWorkspacePageBg(
       page_bg_enabled: enabled,
       page_bg_color: color,
       page_bg_opacity: opacity,
+    })
+    .eq("project_id", projectId)
+    .select(SELECT_WORKSPACE)
+    .single()
+  if (error) return { row: null, error: mapWorkspaceDbError(error.message, "update") }
+  return { row: (data as unknown as WorkspaceRow) ?? null, error: null }
+}
+
+export async function updateWorkspacePadding(
+  supabase: SupabaseClient,
+  args: {
+    projectId: string
+    topPxU: string
+    bottomPxU: string
+    leftPxU: string
+    rightPxU: string
+  }
+): Promise<{ row: WorkspaceRow | null; error: string | null }> {
+  const { projectId, topPxU, bottomPxU, leftPxU, rightPxU } = args
+  const { data, error } = await supabase
+    .from("project_workspace")
+    .update({
+      padding_top_px_u: topPxU,
+      padding_bottom_px_u: bottomPxU,
+      padding_left_px_u: leftPxU,
+      padding_right_px_u: rightPxU,
     })
     .eq("project_id", projectId)
     .select(SELECT_WORKSPACE)

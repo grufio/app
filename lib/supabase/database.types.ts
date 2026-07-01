@@ -316,6 +316,10 @@ export type Database = {
           height_px: number
           height_px_u: string
           height_value: number
+          padding_bottom_px_u: string
+          padding_left_px_u: string
+          padding_right_px_u: string
+          padding_top_px_u: string
           page_bg_color: string
           page_bg_enabled: boolean
           page_bg_opacity: number
@@ -331,6 +335,10 @@ export type Database = {
           height_px: number
           height_px_u: string
           height_value: number
+          padding_bottom_px_u?: string
+          padding_left_px_u?: string
+          padding_right_px_u?: string
+          padding_top_px_u?: string
           page_bg_color?: string
           page_bg_enabled?: boolean
           page_bg_opacity?: number
@@ -346,6 +354,10 @@ export type Database = {
           height_px?: number
           height_px_u?: string
           height_value?: number
+          padding_bottom_px_u?: string
+          padding_left_px_u?: string
+          padding_right_px_u?: string
+          padding_top_px_u?: string
           page_bg_color?: string
           page_bg_enabled?: boolean
           page_bg_opacity?: number
