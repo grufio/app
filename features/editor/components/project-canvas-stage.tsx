@@ -398,9 +398,12 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   const artH = world?.h ?? 0
   const borderColor = "#000000"
   const borderWidth = 1
-  // White veil shared by the print padding and the outside-artboard preview —
-  // lightens (never darkens) whatever it covers. Keep both in sync.
-  const veilFill = "rgba(255, 255, 255, 0.55)"
+  // Print padding preview: a white veil that *lightens* the trimmed print
+  // margin inside the artboard.
+  const paddingVeilFill = "rgba(255, 255, 255, 0.55)"
+  // Outside-artboard preview: a strong *dark* dim over everything outside the
+  // page, so the artboard stands out as the bright focus.
+  const outsideVeilFill = "rgba(0, 0, 0, 0.55)"
   const selectionColor = "#000000"
   const selectionDash: number[] | undefined = undefined
   const selectionHandlePx = 8
@@ -838,7 +841,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
                 y={s.y}
                 width={s.width}
                 height={s.height}
-                fill={veilFill}
+                fill={paddingVeilFill}
                 listening={false}
               />
             ))}
@@ -958,11 +961,11 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
             ) : null}
           </Group>
 
-          {/* Outside-artboard preview: white veil over everything outside the
+          {/* Outside-artboard preview: dark dim over everything outside the
               page (image overflow + pasteboard), above the un-clipped image and
               below the artboard border. Non-interactive. */}
           {outsideArtboardRects.map((r) => (
-            <Rect key={r.key} x={r.x} y={r.y} width={r.width} height={r.height} fill={veilFill} listening={false} />
+            <Rect key={r.key} x={r.x} y={r.y} width={r.width} height={r.height} fill={outsideVeilFill} listening={false} />
           ))}
 
           {drawArtboard ? (
