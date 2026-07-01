@@ -632,6 +632,7 @@ export function ProjectDetailPageClient({
             <EditorImageBar
               hasImage={Boolean(masterImage)}
               onOpen={() => setPendingArtboardDialog("image")}
+              onDelete={requestDeleteSelectedImage}
             />
           ) : (
             <EditorArtboardBar onOpenDialog={(kind) => setPendingArtboardDialog(kind)} />
