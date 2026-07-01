@@ -70,22 +70,9 @@ describe("EditorToolsBar", () => {
     expect((screen.getByRole("button", { name: "Object (Move Image)" }) as HTMLButtonElement).disabled).toBe(false)
   })
 
-  it("renders no Image button unless onOpenImage is provided", () => {
+  it("has no Image button (the Image action lives in the menu bar)", () => {
     renderToolbar()
     expect(screen.queryByRole("button", { name: "Image" })).toBeNull()
-  })
-
-  it("with onOpenImage + image: renders an enabled Image button that fires onOpenImage", () => {
-    const onOpenImage = vi.fn()
-    renderToolbar({ onOpenImage, hasImage: true })
-    const btn = screen.getByRole("button", { name: "Image" }) as HTMLButtonElement
-    expect(btn.disabled).toBe(false)
-    fireEvent.click(btn)
-    expect(onOpenImage).toHaveBeenCalledOnce()
-  })
-
-  it("with onOpenImage but no image: Image button is disabled (add-image not wired)", () => {
-    renderToolbar({ onOpenImage: vi.fn(), hasImage: false })
-    expect((screen.getByRole("button", { name: "Image" }) as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.queryByRole("button", { name: "Edit image" })).toBeNull()
   })
 })

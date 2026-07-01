@@ -47,4 +47,30 @@ describe("EditorMenuBar", () => {
     expect(getByLabelText("Trace").getAttribute("aria-pressed")).not.toBe("true")
     expect(getByLabelText("Color").getAttribute("aria-pressed")).not.toBe("true")
   })
+
+  it("renders no Image button unless onOpenImage is provided", () => {
+    const { queryByLabelText } = renderMenu()
+    expect(queryByLabelText("Edit image")).toBeNull()
+  })
+
+  it("renders the Image button right after the Artboard icon and fires onOpenImage", () => {
+    const onOpenImage = vi.fn()
+    const { getByLabelText, container } = render(
+      <EditorMenuBar activeSection="artboard" onSelectSection={() => {}} onOpenImage={onOpenImage} hasImage />,
+    )
+    const btn = getByLabelText("Edit image") as HTMLButtonElement
+    expect(btn.disabled).toBe(false)
+    fireEvent.click(btn)
+    expect(onOpenImage).toHaveBeenCalledOnce()
+    // Order: the Image button sits immediately after the Artboard ("Image") section.
+    const labels = Array.from(container.querySelectorAll("button")).map((b) => b.getAttribute("aria-label"))
+    expect(labels.slice(0, 2)).toEqual(["Image", "Edit image"])
+  })
+
+  it("disables the Image button when no master image exists", () => {
+    const { getByLabelText } = render(
+      <EditorMenuBar activeSection="artboard" onSelectSection={() => {}} onOpenImage={vi.fn()} hasImage={false} />,
+    )
+    expect((getByLabelText("Edit image") as HTMLButtonElement).disabled).toBe(true)
+  })
 })

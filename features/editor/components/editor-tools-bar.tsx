@@ -10,7 +10,7 @@
  *   hand   — pans the artboard view.
  *   crop   — crops the image. Only on Image tab.
  */
-import { Crop, Hand, Image as ImageIcon, ImagePlus, Maximize2, MousePointer2, RotateCw, ZoomIn, ZoomOut } from "lucide-react"
+import { Crop, Hand, Maximize2, MousePointer2, RotateCw, ZoomIn, ZoomOut } from "lucide-react"
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
@@ -36,12 +36,6 @@ type Props = {
   actionsDisabled?: boolean
   /** Disables rotate action specifically. */
   rotateDisabled?: boolean
-  /** Opens the image dialog (size/position/align). When provided, an Image
-   * button is rendered at the bottom of the toolbar. Disabled until an image
-   * exists (the add-image affordance isn't wired yet). */
-  onOpenImage?: () => void
-  /** Whether a master image exists — toggles the Image button's icon/enabled. */
-  hasImage?: boolean
   className?: string
 }
 
@@ -89,8 +83,6 @@ export function EditorToolsBar({
   onRotate,
   actionsDisabled = false,
   rotateDisabled = false,
-  onOpenImage,
-  hasImage = false,
   className,
 }: Props) {
   const tone = useEditorToolbarTone()
@@ -139,11 +131,6 @@ export function EditorToolsBar({
         <IconButton label="Rotate 90°" onClick={onRotate} disabled={actionsDisabled || rotateDisabled}>
           <RotateCw className="size-6" />
         </IconButton>
-        {onOpenImage ? (
-          <IconButton label="Image" onClick={onOpenImage} disabled={!hasImage}>
-            {hasImage ? <ImageIcon className="size-6" /> : <ImagePlus className="size-6" />}
-          </IconButton>
-        ) : null}
       </div>
     </TooltipProvider>
   )

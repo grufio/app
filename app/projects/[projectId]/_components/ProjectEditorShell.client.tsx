@@ -525,10 +525,6 @@ export function ProjectDetailPageClient({
               // Colors is a read-only palette view — hide the canvas
               // tools/zoom toolbar there (they don't belong on Colors).
               showToolsBar={editorSection !== "colors"}
-              // The toolbar's Image button opens the image dialog. Wired only
-              // on the Artboard section (where the dialog host is mounted);
-              // undefined elsewhere so the Image button doesn't render.
-              onOpenImage={editorSection === "artboard" ? () => setPendingArtboardDialog("image") : undefined}
               canvasRef={canvasRef}
               artboardWidthPx={artboardWidthPx ?? undefined}
               artboardHeightPx={artboardHeightPx ?? undefined}
@@ -674,8 +670,18 @@ export function ProjectDetailPageClient({
             }
           />
         </div>
-        {/* menu bar — bottom-centre section switcher. */}
-        <EditorMenuBar activeSection={editorSection} onSelectSection={handleSectionTap} />
+        {/* menu bar — bottom-centre section switcher + Image dialog opener. */}
+        <EditorMenuBar
+          activeSection={editorSection}
+          onSelectSection={handleSectionTap}
+          hasImage={Boolean(masterImage)}
+          // The Image button opens the image dialog. Since the dialog host
+          // mounts on the Artboard section, switch there first, then open.
+          onOpenImage={() => {
+            setEditorSection("artboard")
+            setPendingArtboardDialog("image")
+          }}
+        />
         </EditorToolbarToneProvider>
       </ProjectEditorLayout>
 
