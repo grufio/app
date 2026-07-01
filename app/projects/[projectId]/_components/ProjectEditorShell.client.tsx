@@ -595,7 +595,7 @@ export function ProjectDetailPageClient({
             Artboard / Grid) — shown while the Artboard section is active.
             The Image action moved into the canvas toolbar (bottom). */}
         {editorSection === "artboard" ? (
-          <EditorArtboardBar hasImage={Boolean(masterImage)} />
+          <EditorArtboardBar onOpenDialog={(kind) => setPendingArtboardDialog(kind)} />
         ) : null}
         {editorSection === "artboard" ? (
           <ArtboardSurfaceScope
