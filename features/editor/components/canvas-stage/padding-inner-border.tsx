@@ -10,8 +10,8 @@ import { Line } from "react-konva"
 import { getStaticLineRenderProps } from "./line-rendering"
 
 // Fine dotted pattern (device px — strokeScaleEnabled is off, so it stays
-// constant at any zoom): 2px dot, 2px gap.
-const DOTTED_DASH = [2, 2] as const
+// constant at any zoom): 1px dot, 2px gap.
+const DOTTED_DASH = [1, 2] as const
 
 export function PaddingInnerBorder({
   x,
