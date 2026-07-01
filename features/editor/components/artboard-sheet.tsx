@@ -73,7 +73,7 @@ export function ArtboardSheet(props: {
 
   return (
     <section aria-label="Artboard" className={sheetRootClass()}>
-      <SheetHeader title="Artboard" onClose={onClose} />
+      <SheetHeader title="Artboard" onClose={onClose} onConfirm={onClose} />
 
       <div className="flex-1 overflow-y-auto">
         <ArtboardPanel canFitToImage={canFit} onFitToImage={onFitArtboardToImage} />
