@@ -31,6 +31,7 @@ import { ArtboardBorder } from "./canvas-stage/artboard-border"
 import { PaddingInnerBorder } from "./canvas-stage/padding-inner-border"
 import { GridOverlay } from "./canvas-stage/grid-overlay"
 import { computePaddingContentRect, computePaddingStripes } from "./canvas-stage/padding-stripes"
+import { computeOutsideArtboardRects } from "./canvas-stage/outside-artboard-veil"
 import { SelectionOverlay } from "./canvas-stage/selection-overlay"
 import { useWheelZoomGuard } from "./canvas-stage/stage-lifecycle-controller"
 import { createTransformController } from "./canvas-stage/transform-controller"
@@ -397,6 +398,9 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   const artH = world?.h ?? 0
   const borderColor = "#000000"
   const borderWidth = 1
+  // White veil shared by the print padding and the outside-artboard preview —
+  // lightens (never darkens) whatever it covers. Keep both in sync.
+  const veilFill = "rgba(255, 255, 255, 0.55)"
   const selectionColor = "#000000"
   const selectionDash: number[] | undefined = undefined
   const selectionHandlePx = 8
@@ -420,6 +424,20 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     if (!drawArtboard || !paddingPx) return null
     return computePaddingContentRect(artW, artH, paddingPx)
   }, [drawArtboard, paddingPx, artW, artH])
+
+  // Outside-artboard preview: the same white veil over the visible area outside
+  // the page (image spilling over the edge + empty pasteboard). Bounds derived
+  // from the stage viewport mapped back into world space via the view transform.
+  const outsideArtboardRects = useMemo(() => {
+    if (!drawArtboard || !(view.scale > 0) || !(size.w > 0) || !(size.h > 0)) return []
+    const vis = {
+      left: -view.x / view.scale,
+      top: -view.y / view.scale,
+      right: (size.w - view.x) / view.scale,
+      bottom: (size.h - view.y) / view.scale,
+    }
+    return computeOutsideArtboardRects(vis, artW, artH)
+  }, [drawArtboard, view, size, artW, artH])
 
   const { fitToView, zoomIn, zoomOut } = useViewController({
     hasArtboard,
@@ -820,7 +838,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
                 y={s.y}
                 width={s.width}
                 height={s.height}
-                fill="rgba(255, 255, 255, 0.55)"
+                fill={veilFill}
                 listening={false}
               />
             ))}
@@ -939,6 +957,13 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
               </>
             ) : null}
           </Group>
+
+          {/* Outside-artboard preview: white veil over everything outside the
+              page (image overflow + pasteboard), above the un-clipped image and
+              below the artboard border. Non-interactive. */}
+          {outsideArtboardRects.map((r) => (
+            <Rect key={r.key} x={r.x} y={r.y} width={r.width} height={r.height} fill={veilFill} listening={false} />
+          ))}
 
           {drawArtboard ? (
             <ArtboardBorder
