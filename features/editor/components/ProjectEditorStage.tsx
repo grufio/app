@@ -103,6 +103,8 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
     lineWidthPx: number
     color: string
   } | null
+  /** Print-margin padding (px, artboard space) — grey preview strips. */
+  paddingPx?: { top: number; bottom: number; left: number; right: number } | null
   handleImageTransformChange: (tx: { xPxU: bigint; yPxU: bigint; widthPxU: bigint; heightPxU: bigint } | null) => void
   initialImageTransform: CanvasInitialImageTransform
   saveImageState?: CanvasTransformCommit
@@ -149,6 +151,7 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
     artboardWidthPx,
     artboardHeightPx,
     grid,
+    paddingPx,
     handleImageTransformChange,
     initialImageTransform,
     saveImageState,
@@ -248,6 +251,7 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
                 : undefined
             }
             grid={grid ?? null}
+            paddingPx={paddingPx ?? null}
             traceOverlaySvgUrl={traceOverlaySvgUrl ?? null}
             traceDisplayRect={traceDisplayRect ?? null}
             traceInteractive={traceInteractive}

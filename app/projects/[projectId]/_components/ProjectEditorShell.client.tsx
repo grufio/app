@@ -58,6 +58,8 @@ import { useProjectImages } from "@/lib/editor/hooks/use-project-images"
 import type { Project } from "@/lib/editor/hooks/use-project"
 import { useProject } from "@/lib/editor/hooks/use-project"
 import { computeRenderableGrid } from "@/services/editor/grid/validation"
+import { normalizeWorkspacePadding } from "@/services/editor/padding"
+import { pxUToPxNumber } from "@/lib/editor/units"
 import { useRightPanelModel } from "./editor-shell/use-right-panel-model"
 import { useStageInteractionPolicy } from "./editor-shell/use-stage-interaction-policy"
 import { useEditorWorkflowAdapter } from "./editor-shell/use-editor-workflow-adapter"
@@ -439,6 +441,17 @@ export function ProjectDetailPageClient({
     return computeRenderableGrid({ row: gridRow, spacingXPx, spacingYPx, lineWidthPx })
   }, [gridRow, gridVisible, lineWidthPx, spacingXPx, spacingYPx])
 
+  // Print-margin padding in artboard px, for the grey preview strips on canvas.
+  const paddingPx = useMemo(() => {
+    const p = normalizeWorkspacePadding(workspaceRow)
+    return {
+      top: pxUToPxNumber(BigInt(p.topPxU)),
+      bottom: pxUToPxNumber(BigInt(p.bottomPxU)),
+      left: pxUToPxNumber(BigInt(p.leftPxU)),
+      right: pxUToPxNumber(BigInt(p.rightPxU)),
+    }
+  }, [workspaceRow])
+
   const handleTitleUpdated = useCallback((nextTitle: string) => setProject({ id: projectId, name: nextTitle }), [projectId, setProject])
 
   // Section locks. The Image section is locked while *any* downstream
@@ -545,6 +558,7 @@ export function ProjectDetailPageClient({
               artboardWidthPx={artboardWidthPx ?? undefined}
               artboardHeightPx={artboardHeightPx ?? undefined}
               grid={grid}
+              paddingPx={paddingPx}
               traceOverlaySvgUrl={traceOverlaySvgUrl}
               traceDisplayRect={traceDisplayRect}
               traceInteractive={editorSection === "trace" && stageToolbar.tool === "direct"}
