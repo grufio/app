@@ -24,6 +24,7 @@ import { EditorViewBar } from "@/features/editor/components/editor-view-bar"
 import { EditorMenuBar } from "@/features/editor/components/editor-menu-bar"
 import { EditorFuncsBar } from "@/features/editor/components/editor-funcs-bar"
 import { EditorArtboardBar } from "@/features/editor/components/editor-artboard-bar"
+import { EditorImageBar } from "@/features/editor/components/editor-image-bar"
 import { EditorToolbarToneProvider } from "@/features/editor/components/editor-toolbar-tone"
 import {
   Dialog,
@@ -145,6 +146,8 @@ export function ProjectDetailPageClient({
     pendingArtboardDialog,
     setPendingArtboardDialog,
     consumePendingArtboardDialog,
+    imageBarActive,
+    setImageBarActive,
   } = usePanelUIState()
   const canvasRef = useRef<ProjectCanvasStageHandle | null>(null)
   const lastNoWorkingImageMetricRef = useRef("")
@@ -621,11 +624,18 @@ export function ProjectDetailPageClient({
           />
         ) : null}
 
-        {/* Re-integrated artboard actions (top-right, 2 × 40px circles:
-            Artboard / Grid) — shown while the Artboard section is active.
-            The Image action moved into the canvas toolbar (bottom). */}
+        {/* Artboard-section top-right submenu. Default: Artboard / Grid
+            (2 × 40px circles). When the Image action is the active context,
+            it swaps to a single Image icon (add / edit) instead. */}
         {editorSection === "artboard" ? (
-          <EditorArtboardBar onOpenDialog={(kind) => setPendingArtboardDialog(kind)} />
+          imageBarActive ? (
+            <EditorImageBar
+              hasImage={Boolean(masterImage)}
+              onOpen={() => setPendingArtboardDialog("image")}
+            />
+          ) : (
+            <EditorArtboardBar onOpenDialog={(kind) => setPendingArtboardDialog(kind)} />
+          )
         ) : null}
         {editorSection === "artboard" ? (
           <ArtboardSurfaceScope
@@ -713,11 +723,13 @@ export function ProjectDetailPageClient({
           activeSection={editorSection}
           onSelectSection={handleSectionTap}
           hasImage={Boolean(masterImage)}
-          // The Image button opens the image dialog. Since the dialog host
-          // mounts on the Artboard section, switch there first, then open.
+          imageActive={imageBarActive}
+          // The Image action activates its own context: switch to the artboard
+          // section (where the dialog host mounts) and show the top-right Image
+          // icon. Opening the dialog itself happens when that icon is tapped.
           onOpenImage={() => {
             setEditorSection("artboard")
-            setPendingArtboardDialog("image")
+            setImageBarActive(true)
           }}
         />
         </EditorToolbarToneProvider>

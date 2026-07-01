@@ -67,10 +67,26 @@ describe("EditorMenuBar", () => {
     expect(labels.slice(0, 2)).toEqual(["Image", "Edit image"])
   })
 
-  it("disables the Image button when no master image exists", () => {
+  it("shows an enabled 'Add image' button when no master image exists", () => {
+    // No image → the button is the entry point to add one, so it must stay
+    // enabled (it activates the image context, which then opens the picker).
+    const onOpenImage = vi.fn()
     const { getByLabelText } = render(
-      <EditorMenuBar activeSection="artboard" onSelectSection={() => {}} onOpenImage={vi.fn()} hasImage={false} />,
+      <EditorMenuBar activeSection="artboard" onSelectSection={() => {}} onOpenImage={onOpenImage} hasImage={false} />,
     )
-    expect((getByLabelText("Edit image") as HTMLButtonElement).disabled).toBe(true)
+    const btn = getByLabelText("Add image") as HTMLButtonElement
+    expect(btn.disabled).toBe(false)
+    fireEvent.click(btn)
+    expect(onOpenImage).toHaveBeenCalledOnce()
+  })
+
+  it("highlights the Image action (not the Image section) while the image context is active", () => {
+    const { getByLabelText } = render(
+      <EditorMenuBar activeSection="artboard" onSelectSection={() => {}} onOpenImage={vi.fn()} hasImage imageActive />,
+    )
+    expect(getByLabelText("Edit image").getAttribute("aria-pressed")).toBe("true")
+    // The artboard section (labelled "Image") yields the highlight to the
+    // Image action while its context is active.
+    expect(getByLabelText("Image").getAttribute("aria-pressed")).not.toBe("true")
   })
 })
