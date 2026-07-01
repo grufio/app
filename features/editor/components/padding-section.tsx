@@ -48,6 +48,7 @@ export function PaddingSection(props: {
 
   return (
     <EditorSidebarSection title="Padding">
+      <div className="space-y-4">
       <PanelTwoFieldRow>
         <FormField
           variant="numeric"
@@ -98,6 +99,7 @@ export function PaddingSection(props: {
         />
         <PanelIconSlot />
       </PanelTwoFieldRow>
+      </div>
     </EditorSidebarSection>
   )
 }
