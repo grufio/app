@@ -19,8 +19,10 @@ import {
   type ProjectCanvasStageHandle,
 } from "@/features/editor"
 import { deriveSectionLocks } from "@/lib/editor/section-locks"
-import { EditorNav } from "@/features/editor/components/editor-nav"
-import { EditorTopBar } from "@/features/editor/components/editor-top-bar"
+import { EditorHomeBar } from "@/features/editor/components/editor-home-bar"
+import { EditorViewBar } from "@/features/editor/components/editor-view-bar"
+import { EditorMenuBar } from "@/features/editor/components/editor-menu-bar"
+import { EditorFuncsBar } from "@/features/editor/components/editor-funcs-bar"
 import { EditorArtboardBar } from "@/features/editor/components/editor-artboard-bar"
 import { EditorToolbarToneProvider } from "@/features/editor/components/editor-toolbar-tone"
 import {
@@ -496,10 +498,10 @@ export function ProjectDetailPageClient({
     return m
   }, [filterStack])
 
-  // The section-function bar (`EditorTopBar`) is still temporarily hidden —
-  // re-integrated step by step. The canvas toolbar (`FloatingToolbar`) is
+  // The funcs bar (`EditorFuncsBar`) is still temporarily hidden —
+  // re-integrated step by step. The tools bar (`EditorToolsBar`) is
   // back (right side, below the artboard bar). Flip this flag to re-enable
-  // EditorTopBar too.
+  // the funcs bar too.
   const showLegacyToolbars = false as boolean
 
   return (
@@ -522,7 +524,7 @@ export function ProjectDetailPageClient({
               toolbar={stageToolbar}
               // Colors is a read-only palette view — hide the canvas
               // tools/zoom toolbar there (they don't belong on Colors).
-              showFloatingToolbar={editorSection !== "colors"}
+              showToolsBar={editorSection !== "colors"}
               // The toolbar's Image button opens the image dialog. Wired only
               // on the Artboard section (where the dialog host is mounted);
               // undefined elsewhere so the Image button doesn't render.
@@ -572,7 +574,7 @@ export function ProjectDetailPageClient({
               surface scope components (see the section mounts below). */}
         </EditorErrorBoundary>
         {showLegacyToolbars ? (
-          <EditorTopBar
+          <EditorFuncsBar
             activeSection={editorSection}
             onTraceKindTap={handleTraceKindTap}
             activeTraceKind={trace?.kind ?? null}
@@ -653,25 +655,27 @@ export function ProjectDetailPageClient({
         {editorSection === "colors" ? (
           <ColorsSurfaceScope trace={trace} />
         ) : null}
-        {/* Pure navigation (top-left, vertical): switches the active section.
-            The section's functions live in EditorTopBar (top-right). */}
-        <EditorNav
-          activeSection={editorSection}
-          onSelectSection={handleSectionTap}
-          theme={{ value: toolbarTone, onToggle: toggleToolbarTheme }}
-          viewOptions={
-            editorSection === "trace" && trace && (trace.kind === "pixelate" || trace.kind === "circulate")
-              ? {
-                  traceOverlayVisible,
-                  previewBitmapVisible,
-                  numbersLayerVisible,
-                  onTraceOverlayChange: setTraceOverlayVisible,
-                  onPreviewBitmapChange: setPreviewBitmapVisible,
-                  onNumbersLayerChange: setNumbersLayerVisible,
-                }
-              : null
-          }
-        />
+        {/* home + view bars — top-left vertical pill stack. */}
+        <div className="absolute top-3 left-3 z-20 flex flex-col items-start gap-2">
+          <EditorHomeBar />
+          <EditorViewBar
+            theme={{ value: toolbarTone, onToggle: toggleToolbarTheme }}
+            viewOptions={
+              editorSection === "trace" && trace && (trace.kind === "pixelate" || trace.kind === "circulate")
+                ? {
+                    traceOverlayVisible,
+                    previewBitmapVisible,
+                    numbersLayerVisible,
+                    onTraceOverlayChange: setTraceOverlayVisible,
+                    onPreviewBitmapChange: setPreviewBitmapVisible,
+                    onNumbersLayerChange: setNumbersLayerVisible,
+                  }
+                : null
+            }
+          />
+        </div>
+        {/* menu bar — bottom-centre section switcher. */}
+        <EditorMenuBar activeSection={editorSection} onSelectSection={handleSectionTap} />
         </EditorToolbarToneProvider>
       </ProjectEditorLayout>
 

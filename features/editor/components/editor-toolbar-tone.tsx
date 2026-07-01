@@ -1,13 +1,13 @@
 "use client"
 
 /**
- * Tone (dark | light) for the floating canvas bars — the navigation
- * (`EditorNav`, which also hosts the theme toggle + Eye), the top
- * functions bar (`EditorTopBar`) and the canvas toolbar
- * (`FloatingToolbar`).
+ * Tone (dark | light) for the floating canvas bars — the home / view / menu
+ * bars (`EditorHomeBar`, `EditorViewBar` which hosts the theme toggle + Eye,
+ * `EditorMenuBar`), the funcs bar (`EditorFuncsBar`) and the tools bar
+ * (`EditorToolsBar`).
  *
  * The shell holds the tone as a manual session setting (default `"dark"`,
- * flipped by the theme toggle in `EditorNav`) and provides it here so the bar
+ * flipped by the theme toggle in `EditorViewBar`) and provides it here so the bar
  * primitives (`ToolbarIconButton`, the pill/circle helpers) read it from
  * context instead of threading a `tone` prop through every surface scope
  * and the canvas stage. Default `"dark"` (no provider) keeps every

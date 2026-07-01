@@ -1,7 +1,7 @@
 "use client"
 
 /**
- * Floating toolbar overlay for the editor canvas.
+ * tools bar — the vertical canvas toolbar (right side).
  *
  * Tool roles (Illustrator-style):
  *   object — filled arrow. Whole-image drag/resize. Default on every tab.
@@ -14,17 +14,17 @@ import { Crop, Hand, Image as ImageIcon, ImagePlus, Maximize2, MousePointer2, Ro
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
-import type { EditorTool } from "@/lib/editor/floating-toolbar-controls"
+import type { EditorTool } from "@/lib/editor/editor-tools-bar-controls"
 import { useEditorToolbarTone } from "./editor-toolbar-tone"
 import { pillClass } from "./floating-bar-styles"
 import { ToolbarIconButton } from "./toolbar-icon-button"
 
-export type FloatingToolbarTool = EditorTool
+export type EditorToolsBarTool = EditorTool
 
 type Props = {
   leftSlot?: React.ReactNode
-  tool: FloatingToolbarTool
-  onToolChange: (tool: FloatingToolbarTool) => void
+  tool: EditorToolsBarTool
+  onToolChange: (tool: EditorToolsBarTool) => void
   /** Whether to render the Direct-Selection (outlined arrow) button. */
   showDirectSelect?: boolean
   cropDisabled?: boolean
@@ -77,7 +77,7 @@ function IconButton({
   )
 }
 
-export function FloatingToolbar({
+export function EditorToolsBar({
   leftSlot,
   tool,
   onToolChange,

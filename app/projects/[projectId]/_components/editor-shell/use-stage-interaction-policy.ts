@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, type RefObject } from "react"
 
 import type { ProjectCanvasStageHandle } from "@/features/editor"
 import { buildNavId, parseNavId } from "@/features/editor/navigation/nav-id"
-import { useFloatingToolbarControls, type EditorTool } from "@/lib/editor/floating-toolbar-controls"
+import { useEditorToolsBarControls, type EditorTool } from "@/lib/editor/editor-tools-bar-controls"
 
 function useEditorInteractionController(args: {
   tool: EditorTool
@@ -72,7 +72,7 @@ export function useStageInteractionPolicy(args: {
     imageLocked = false,
   } = args
 
-  const toolbar = useFloatingToolbarControls({
+  const toolbar = useEditorToolsBarControls({
     canvasRef,
     hasImage: sourceReady,
     masterImageLoading: !sourceReady,

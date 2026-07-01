@@ -6,7 +6,7 @@
  * arranged.
  *
  * When no master image exists yet, both are disabled. The Image action moved
- * to the canvas toolbar (bottom Image button); see `FloatingToolbar`.
+ * to the canvas toolbar (bottom Image button); see `EditorToolsBar`.
  *
  * The Artboard and Grid taps are not wired yet — re-integrating step by step.
  */

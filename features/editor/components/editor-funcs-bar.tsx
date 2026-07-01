@@ -1,9 +1,9 @@
 "use client"
 
 /**
- * Floating **functions** bar in the top-right corner of the editor canvas.
- * (The theme toggle and Eye view-options now live in `EditorNav`, top-left.)
- * It shows the
+ * funcs bar — the section-functions bar in the top-right corner of the editor
+ * canvas. (The theme toggle and Eye view-options live in `EditorViewBar`,
+ * top-left.) It shows the
  * active section's function frames as an always-visible vertical column —
  * no parent icon, no open/close trigger:
  *
@@ -15,7 +15,7 @@
  *     launching its standalone dialog; Grid quick-creates when empty
  *   - Colors → nothing (read-only palette)
  *
- * Section *switching* lives in `EditorNav` (top-left, vertical); this bar only
+ * Section *switching* lives in `EditorMenuBar` (bottom-centre); this bar only
  * exposes the active section's functions. Frames are right-aligned (under the
  * theme toggle) and the active row's Edit/Delete circles flank it on the left.
  */
@@ -97,7 +97,7 @@ type Props = {
   imageLocked?: boolean
 }
 
-export function EditorTopBar({
+export function EditorFuncsBar({
   activeSection,
   onTraceKindTap,
   activeTraceKind = null,

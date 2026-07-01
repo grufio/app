@@ -19,20 +19,20 @@ import type { ProjectCanvasStageHandle } from "@/features/editor"
 
 export type EditorTool = "object" | "direct" | "hand" | "crop"
 
-export type FloatingToolbarActions = {
+export type EditorToolsBarActions = {
   zoomIn: () => void
   zoomOut: () => void
   fit: () => void
   rotate: () => void
 }
 
-export type FloatingToolbarControls = {
+export type EditorToolsBarControls = {
   tool: EditorTool
   setTool: (tool: EditorTool) => void
   panEnabled: boolean
   imageDraggable: boolean
   actionsDisabled: boolean
-  actions: FloatingToolbarActions
+  actions: EditorToolsBarActions
 }
 
 function isTypingTarget(el: EventTarget | null): boolean {
@@ -43,12 +43,12 @@ function isTypingTarget(el: EventTarget | null): boolean {
   return Boolean(n.isContentEditable)
 }
 
-export function useFloatingToolbarControls(opts: {
+export function useEditorToolsBarControls(opts: {
   canvasRef: React.RefObject<ProjectCanvasStageHandle | null>
   hasImage: boolean
   masterImageLoading: boolean
   enableShortcuts?: boolean
-}): FloatingToolbarControls {
+}): EditorToolsBarControls {
   const { canvasRef, hasImage, masterImageLoading, enableShortcuts = false } = opts
 
   const [tool, setTool] = useState<EditorTool>("object")
@@ -116,7 +116,7 @@ export function useFloatingToolbarControls(opts: {
     return () => window.removeEventListener("keydown", onKeyDown)
   }, [actionsDisabled, enableShortcuts, fit, rotate, zoomIn, zoomOut])
 
-  const actions = useMemo<FloatingToolbarActions>(() => ({ zoomIn, zoomOut, fit, rotate }), [fit, rotate, zoomIn, zoomOut])
+  const actions = useMemo<EditorToolsBarActions>(() => ({ zoomIn, zoomOut, fit, rotate }), [fit, rotate, zoomIn, zoomOut])
 
   return useMemo(
     () => ({ tool, setTool, panEnabled, imageDraggable, actionsDisabled, actions }),

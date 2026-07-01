@@ -18,8 +18,8 @@ type ToolbarIconButtonProps = Omit<React.ComponentProps<"button">, "children"> &
 }
 
 /**
- * Square icon button for the Feather-look canvas bars (`floating-toolbar`,
- * `editor-top-right-bar`, `editor-top-left-bar`, the upload widget). The
+ * Square icon button for the Feather-look canvas bars (`editor-tools-bar`,
+ * `editor-funcs-bar`, the home/view/menu bars, the upload widget). The
  * sibling bar provides the surface; the button is transparent by default
  * and lights up on hover.
  *

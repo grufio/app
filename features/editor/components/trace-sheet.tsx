@@ -8,7 +8,7 @@
  * icon in the editor's bottom-nav.
  *
  * Layer-visibility toggles (Trace / Preview / Numbers) live in the
- * `EditorNav`'s Eye menu on the editor canvas, not in this
+ * `EditorViewBar`'s Eye menu on the editor canvas, not in this
  * sheet — that's a one-tap action surface for a frequently-toggled
  * control, instead of a sheet open + scroll.
  *
