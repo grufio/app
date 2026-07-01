@@ -537,7 +537,13 @@ export function ProjectDetailPageClient({
   const showLegacyToolbars = false as boolean
 
   return (
-    <div className="flex min-h-svh w-full flex-col">
+    // Fixed viewport height (not min-h): the editor is a full-screen app, so
+    // the root must never grow past the viewport. With `min-h-svh` some
+    // descendant could inflate the height at runtime, which pushed the bottom
+    // nav (anchored to the editor box) down without letting it come back up on
+    // shrink. `h-svh` + `overflow-hidden` clamps the box to the viewport in
+    // both directions so the nav always tracks the bottom edge.
+    <div className="flex h-svh w-full flex-col overflow-hidden">
       <ProjectEditorHeader
         projectId={projectId}
         initialTitle={project && project.id === projectId ? project.name : "Untitled"}
