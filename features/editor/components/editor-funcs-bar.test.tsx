@@ -4,9 +4,9 @@
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { EditorTopBar } from "./editor-top-bar"
+import { EditorFuncsBar } from "./editor-funcs-bar"
 
-describe("EditorTopBar", () => {
+describe("EditorFuncsBar", () => {
   afterEach(() => {
     cleanup()
   })
@@ -14,7 +14,7 @@ describe("EditorTopBar", () => {
   // ── Always-visible model: no parent icon, no open/close trigger ──
 
   it("shows the section's frames directly with no parent icon or toggle", () => {
-    const { queryByLabelText, getByLabelText } = render(<EditorTopBar activeSection="trace" />)
+    const { queryByLabelText, getByLabelText } = render(<EditorFuncsBar activeSection="trace" />)
     // The three trace kinds are visible immediately — no "Add"/"Close" trigger.
     expect(getByLabelText("Pixelate")).not.toBeNull()
     expect(getByLabelText("Circulate")).not.toBeNull()
@@ -25,11 +25,11 @@ describe("EditorTopBar", () => {
 
   it("renders nothing on the Colors section, and swaps frames per active section", () => {
     const { queryByLabelText, getByLabelText, rerender } = render(
-      <EditorTopBar activeSection="colors" />,
+      <EditorFuncsBar activeSection="colors" />,
     )
     expect(queryByLabelText("Pixelate")).toBeNull()
     expect(queryByLabelText("B&W Hard")).toBeNull()
-    rerender(<EditorTopBar activeSection="filter" />)
+    rerender(<EditorFuncsBar activeSection="filter" />)
     expect(getByLabelText("B&W Hard")).not.toBeNull()
     expect(queryByLabelText("Pixelate")).toBeNull()
   })
@@ -39,7 +39,7 @@ describe("EditorTopBar", () => {
   it("invokes onTraceKindTap with the picked kind when no trace is set", () => {
     const onTraceKindTap = vi.fn()
     const { getByLabelText } = render(
-      <EditorTopBar activeSection="trace" onTraceKindTap={onTraceKindTap} />,
+      <EditorFuncsBar activeSection="trace" onTraceKindTap={onTraceKindTap} />,
     )
     fireEvent.click(getByLabelText("Pixelate"))
     expect(onTraceKindTap).toHaveBeenLastCalledWith("pixelate")
@@ -47,7 +47,7 @@ describe("EditorTopBar", () => {
 
   it("with an active trace: the active kind is an indicator, the others are disabled", () => {
     const { getByLabelText } = render(
-      <EditorTopBar activeSection="trace" activeTraceKind="circulate" />,
+      <EditorFuncsBar activeSection="trace" activeTraceKind="circulate" />,
     )
     expect((getByLabelText("Pixelate") as HTMLButtonElement).disabled).toBe(true)
     expect((getByLabelText("Lineart") as HTMLButtonElement).disabled).toBe(true)
@@ -58,7 +58,7 @@ describe("EditorTopBar", () => {
     const onTraceKindTap = vi.fn()
     const onDeleteTrace = vi.fn()
     const { getByLabelText } = render(
-      <EditorTopBar
+      <EditorFuncsBar
         activeSection="trace"
         activeTraceKind="lineart"
         onTraceKindTap={onTraceKindTap}
@@ -79,7 +79,7 @@ describe("EditorTopBar", () => {
     let resolveDelete: () => void = () => {}
     const onDeleteTrace = vi.fn(() => new Promise<void>((r) => { resolveDelete = r }))
     const { getByLabelText } = render(
-      <EditorTopBar activeSection="trace" activeTraceKind="pixelate" onDeleteTrace={onDeleteTrace} />,
+      <EditorFuncsBar activeSection="trace" activeTraceKind="pixelate" onDeleteTrace={onDeleteTrace} />,
     )
     const del = getByLabelText("Delete trace") as HTMLButtonElement
     fireEvent.click(del)
@@ -98,7 +98,7 @@ describe("EditorTopBar", () => {
   it("applies a filter on tap; other kinds stay selectable (parallel)", () => {
     const onApplyFilterKind = vi.fn()
     const { getByLabelText } = render(
-      <EditorTopBar
+      <EditorFuncsBar
         activeSection="filter"
         activeFilterByKind={{ bw_hard: "f1" }}
         onApplyFilterKind={onApplyFilterKind}
@@ -113,7 +113,7 @@ describe("EditorTopBar", () => {
   it("shows a Delete circle per active kind and removes that instance", () => {
     const onRemoveFilter = vi.fn()
     const { getAllByLabelText } = render(
-      <EditorTopBar
+      <EditorFuncsBar
         activeSection="filter"
         activeFilterByKind={{ bw_hard: "f1", bw_warm: "f3" }}
         onRemoveFilter={onRemoveFilter}
@@ -128,7 +128,7 @@ describe("EditorTopBar", () => {
     const onApplyFilterKind = vi.fn()
     const onRemoveFilter = vi.fn()
     const { getByLabelText, queryByLabelText } = render(
-      <EditorTopBar
+      <EditorFuncsBar
         activeSection="filter"
         activeFilterByKind={{ bw_hard: "f1" }}
         filterLocked
@@ -150,7 +150,7 @@ describe("EditorTopBar", () => {
   it("opens the artboard sheet from the Artboard/Page Edit lead", () => {
     const onOpenArtboard = vi.fn()
     const { getByLabelText } = render(
-      <EditorTopBar activeSection="artboard" onOpenArtboard={onOpenArtboard} />,
+      <EditorFuncsBar activeSection="artboard" onOpenArtboard={onOpenArtboard} />,
     )
     expect(getByLabelText("Artboard/Page").tagName).not.toBe("BUTTON")
     fireEvent.click(getByLabelText("Edit artboard"))
@@ -160,7 +160,7 @@ describe("EditorTopBar", () => {
   it("quick-creates a grid when none exists", () => {
     const onCreateGrid = vi.fn()
     const { getByLabelText } = render(
-      <EditorTopBar activeSection="artboard" onCreateGrid={onCreateGrid} />,
+      <EditorFuncsBar activeSection="artboard" onCreateGrid={onCreateGrid} />,
     )
     fireEvent.click(getByLabelText("Grid"))
     expect(onCreateGrid).toHaveBeenCalledTimes(1)
@@ -169,7 +169,7 @@ describe("EditorTopBar", () => {
   it("opens the sheet to upload when no image exists (Image frame is selectable)", () => {
     const onOpenArtboard = vi.fn()
     const { getByLabelText } = render(
-      <EditorTopBar activeSection="artboard" onOpenArtboard={onOpenArtboard} />,
+      <EditorFuncsBar activeSection="artboard" onOpenArtboard={onOpenArtboard} />,
     )
     fireEvent.click(getByLabelText("Image"))
     expect(onOpenArtboard).toHaveBeenCalledWith("image")
@@ -177,7 +177,7 @@ describe("EditorTopBar", () => {
 
   it("when image-locked: Artboard/Page + Image Edit are disabled, Grid keeps Edit", () => {
     const { getByLabelText, queryByLabelText } = render(
-      <EditorTopBar activeSection="artboard" hasGrid hasMasterImage imageLocked />,
+      <EditorFuncsBar activeSection="artboard" hasGrid hasMasterImage imageLocked />,
     )
     // No unlock affordance; image-edit leads stay visible but disabled.
     expect(queryByLabelText("Unlock image")).toBeNull()

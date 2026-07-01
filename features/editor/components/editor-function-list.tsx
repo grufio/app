@@ -2,7 +2,7 @@
 
 /**
  * Always-visible vertical list of an editor section's function frames, used by
- * `EditorTopBar` (top-right, under the theme bar). Unlike the former
+ * `EditorFuncsBar` (top-right, under the theme bar). Unlike the former
  * collapsible "+" menu there is **no trigger and no parent icon** — every kind
  * frame is shown directly. Right-aligned so the frames sit under the theme
  * toggle; the active row's Edit/Delete circles flank it on the **left**

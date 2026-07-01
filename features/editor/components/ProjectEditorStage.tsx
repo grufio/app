@@ -28,9 +28,9 @@ import dynamic from "next/dynamic"
 
 import { computeRgbaBackgroundStyleFromHex } from "@/lib/editor/color"
 import {
-  FloatingToolbar,
-  type FloatingToolbarTool,
-} from "./floating-toolbar"
+  EditorToolsBar,
+  type EditorToolsBarTool,
+} from "./editor-tools-bar"
 import type { ProjectCanvasStageHandle } from "./project-canvas-stage"
 
 // Code-split Konva-heavy canvas stage (no UI change, improves editor TTI).
@@ -76,8 +76,8 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
   pageBgColor: string
   pageBgOpacity: number
   toolbar: {
-    tool: FloatingToolbarTool
-    setTool: (t: FloatingToolbarTool) => void
+    tool: EditorToolsBarTool
+    setTool: (t: EditorToolsBarTool) => void
     selectDisabled?: boolean
     showDirectSelect?: boolean
     cropDisabled?: boolean
@@ -135,7 +135,7 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
   /** Hides the bottom canvas toolbar (tools + zoom/fit/rotate) when
    * false. The Colors section is a read-only palette view, so the
    * canvas-editing toolbar doesn't belong there. Defaults to shown. */
-  showFloatingToolbar?: boolean
+  showToolsBar?: boolean
   /** Opens the image dialog from the toolbar's Image button. Provided only
    * on the Artboard section (where the dialog host is mounted); undefined
    * elsewhere so the Image button doesn't render. */
@@ -163,7 +163,7 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
     traceOverlayVisible = true,
     previewBitmapVisible = true,
     numbersLayerVisible = true,
-    showFloatingToolbar = true,
+    showToolsBar = true,
     onOpenImage,
   } = props
 
@@ -191,9 +191,9 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
             with a one-button-height (40px) gap → top = 12 + 40 + 40 = 92px.
             Hidden on sections (e.g. Colors) where the canvas-editing tools
             don't belong. */}
-        {showFloatingToolbar ? (
+        {showToolsBar ? (
           <div className="absolute top-[92px] right-3 z-10 w-max">
-            <FloatingToolbar
+            <EditorToolsBar
               className="pointer-events-auto"
               tool={toolbar.tool}
               onToolChange={toolbar.setTool}

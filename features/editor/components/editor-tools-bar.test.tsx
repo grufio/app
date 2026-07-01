@@ -4,11 +4,11 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { FloatingToolbar } from "./floating-toolbar"
+import { EditorToolsBar } from "./editor-tools-bar"
 
 afterEach(cleanup)
 
-function renderToolbar(overrides: Partial<React.ComponentProps<typeof FloatingToolbar>> = {}) {
+function renderToolbar(overrides: Partial<React.ComponentProps<typeof EditorToolsBar>> = {}) {
   const handlers = {
     onToolChange: vi.fn(),
     onZoomIn: vi.fn(),
@@ -16,11 +16,11 @@ function renderToolbar(overrides: Partial<React.ComponentProps<typeof FloatingTo
     onFit: vi.fn(),
     onRotate: vi.fn(),
   }
-  render(<FloatingToolbar tool="object" {...handlers} {...overrides} />)
+  render(<EditorToolsBar tool="object" {...handlers} {...overrides} />)
   return handlers
 }
 
-describe("FloatingToolbar", () => {
+describe("EditorToolsBar", () => {
   it("renders the default tools and actions", () => {
     renderToolbar()
     for (const name of ["Object (Move Image)", "Hand (Move Artboard)", "Crop", "Zoom in", "Zoom out", "Fit to screen", "Rotate 90°"]) {
