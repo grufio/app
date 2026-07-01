@@ -136,10 +136,6 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
    * false. The Colors section is a read-only palette view, so the
    * canvas-editing toolbar doesn't belong there. Defaults to shown. */
   showToolsBar?: boolean
-  /** Opens the image dialog from the toolbar's Image button. Provided only
-   * on the Artboard section (where the dialog host is mounted); undefined
-   * elsewhere so the Image button doesn't render. */
-  onOpenImage?: () => void
 }) {
   const {
     masterImage,
@@ -164,7 +160,6 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
     previewBitmapVisible = true,
     numbersLayerVisible = true,
     showToolsBar = true,
-    onOpenImage,
   } = props
 
   void _masterImageLoading
@@ -205,8 +200,6 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
               onRotate={toolbar.actions.rotate}
               actionsDisabled={toolbar.actionsDisabled}
               rotateDisabled={Boolean(toolbar.rotateDisabled)}
-              onOpenImage={onOpenImage}
-              hasImage={Boolean(masterImage)}
             />
           </div>
         ) : null}
