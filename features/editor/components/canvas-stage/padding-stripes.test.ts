@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { computePaddingStripes } from "./padding-stripes"
+import { computePaddingContentRect, computePaddingStripes } from "./padding-stripes"
 
 describe("computePaddingStripes", () => {
   it("returns no stripes when padding is zero", () => {
@@ -37,5 +37,37 @@ describe("computePaddingStripes", () => {
       expect(s.width).toBeGreaterThanOrEqual(0)
       expect(s.height).toBeGreaterThanOrEqual(0)
     }
+  })
+})
+
+describe("computePaddingContentRect", () => {
+  it("returns null when padding is zero (no inner frame)", () => {
+    expect(computePaddingContentRect(100, 200, { top: 0, bottom: 0, left: 0, right: 0 })).toBeNull()
+  })
+
+  it("returns null for a non-positive artboard", () => {
+    expect(computePaddingContentRect(0, 200, { top: 5, bottom: 5, left: 5, right: 5 })).toBeNull()
+  })
+
+  it("returns the printable rect = artboard minus padding", () => {
+    expect(computePaddingContentRect(100, 200, { top: 10, bottom: 20, left: 5, right: 8 })).toEqual({
+      x: 5,
+      y: 10,
+      width: 87,
+      height: 170,
+    })
+  })
+
+  it("returns a rect even when only one side has padding", () => {
+    expect(computePaddingContentRect(100, 100, { top: 10, bottom: 0, left: 0, right: 0 })).toEqual({
+      x: 0,
+      y: 10,
+      width: 100,
+      height: 90,
+    })
+  })
+
+  it("returns null when padding collapses the content to zero", () => {
+    expect(computePaddingContentRect(100, 100, { top: 60, bottom: 60, left: 0, right: 0 })).toBeNull()
   })
 })

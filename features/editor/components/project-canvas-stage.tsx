@@ -28,8 +28,9 @@ import { useRestoreImageController, type RestoreBaseSpec, type RestoreImageResul
 import type { CropRectWorld } from "./canvas-stage/crop-controller"
 import type { ResizeHandle } from "./canvas-stage/select-controller"
 import { ArtboardBorder } from "./canvas-stage/artboard-border"
+import { PaddingInnerBorder } from "./canvas-stage/padding-inner-border"
 import { GridOverlay } from "./canvas-stage/grid-overlay"
-import { computePaddingStripes } from "./canvas-stage/padding-stripes"
+import { computePaddingContentRect, computePaddingStripes } from "./canvas-stage/padding-stripes"
 import { SelectionOverlay } from "./canvas-stage/selection-overlay"
 import { useWheelZoomGuard } from "./canvas-stage/stage-lifecycle-controller"
 import { createTransformController } from "./canvas-stage/transform-controller"
@@ -413,6 +414,11 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   const paddingStripes = useMemo(() => {
     if (!drawArtboard || !paddingPx) return []
     return computePaddingStripes(artW, artH, paddingPx)
+  }, [drawArtboard, paddingPx, artW, artH])
+
+  const paddingContentRect = useMemo(() => {
+    if (!drawArtboard || !paddingPx) return null
+    return computePaddingContentRect(artW, artH, paddingPx)
   }, [drawArtboard, paddingPx, artW, artH])
 
   const { fitToView, zoomIn, zoomOut } = useViewController({
@@ -803,8 +809,10 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
               />
             ) : null}
 
-            {/* Print-margin padding preview: grey strips over the image, at the
-                page (artboard) edges. Non-interactive. */}
+            {/* Print-margin padding preview: a white veil over the image at the
+                page (artboard) edges — lightens (not darkens) the region the
+                later autocrop trims — plus a hairline black border along its
+                inner edge. Non-interactive. */}
             {paddingStripes.map((s) => (
               <Rect
                 key={s.key}
@@ -812,10 +820,21 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
                 y={s.y}
                 width={s.width}
                 height={s.height}
-                fill="rgba(80, 80, 80, 0.35)"
+                fill="rgba(255, 255, 255, 0.55)"
                 listening={false}
               />
             ))}
+            {paddingContentRect ? (
+              <PaddingInnerBorder
+                x={paddingContentRect.x}
+                y={paddingContentRect.y}
+                width={paddingContentRect.width}
+                height={paddingContentRect.height}
+                color={borderColor}
+                strokeWidth={borderWidth}
+                snapWorldToDeviceHalfPixel={snapWorldToDeviceHalfPixel}
+              />
+            ) : null}
 
             {/* Grid overlay (under selection frame). */}
             <GridOverlay snappedGridLines={snappedGridLines} />
