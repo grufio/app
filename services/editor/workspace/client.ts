@@ -11,6 +11,7 @@ import {
   insertWorkspace,
   selectWorkspace,
   updateWorkspaceGeometry,
+  updateWorkspacePadding,
   updateWorkspacePageBg,
 } from "./browser-repo-supabase"
 
@@ -46,5 +47,16 @@ export function updateWorkspacePageBgClient(args: {
 }) {
   const supabase = createSupabaseBrowserClient()
   return updateWorkspacePageBg(supabase, args)
+}
+
+export function updateWorkspacePaddingClient(args: {
+  projectId: string
+  topPxU: string
+  bottomPxU: string
+  leftPxU: string
+  rightPxU: string
+}) {
+  const supabase = createSupabaseBrowserClient()
+  return updateWorkspacePadding(supabase, args)
 }
 

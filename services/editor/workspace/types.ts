@@ -18,5 +18,11 @@ export type WorkspaceRow = {
   page_bg_enabled?: boolean
   page_bg_color?: string
   page_bg_opacity?: number
+  // Print-margin padding per side, canonical in µpx (BigInt-as-text). Distance
+  // from the image area to the page. `NOT NULL DEFAULT '0'` in the DB.
+  padding_top_px_u?: string
+  padding_bottom_px_u?: string
+  padding_left_px_u?: string
+  padding_right_px_u?: string
 }
 

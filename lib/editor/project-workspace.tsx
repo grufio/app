@@ -22,6 +22,7 @@ import {
   insertWorkspaceClient,
   selectWorkspaceClient,
   updateWorkspaceGeometryClient,
+  updateWorkspacePaddingClient,
   updateWorkspacePageBgClient,
 } from "@/services/editor/workspace/client"
 import { createSerialWriteChannel } from "@/lib/utils/serial-write-channel"
@@ -73,6 +74,12 @@ type WorkspaceContextValue = {
     heightPx: number
   }) => Promise<WorkspaceRow | null>
   updateWorkspacePageBg: (args: { enabled: boolean; color: string; opacity: number }) => Promise<WorkspaceRow | null>
+  updateWorkspacePadding: (args: {
+    topPxU: string
+    bottomPxU: string
+    leftPxU: string
+    rightPxU: string
+  }) => Promise<WorkspaceRow | null>
   // convenience
   unit: Unit | null
   widthPxU: bigint | null
@@ -240,6 +247,36 @@ export function ProjectWorkspaceProvider({
     [logPrefix]
   )
 
+  const updateWorkspacePadding = useCallback(
+    async (args: { topPxU: string; bottomPxU: string; leftPxU: string; rightPxU: string }): Promise<WorkspaceRow | null> => {
+      if (!rowRef.current?.project_id) return null
+      return writeChannelRef.current.enqueueLatestDropStale(async (isStale) => {
+        setSaving(true)
+        setError("")
+        try {
+          const { row: data, error: upErr } = await updateWorkspacePaddingClient({
+            projectId: rowRef.current!.project_id,
+            topPxU: args.topPxU,
+            bottomPxU: args.bottomPxU,
+            leftPxU: args.leftPxU,
+            rightPxU: args.rightPxU,
+          })
+          if (upErr || !data) {
+            if (!isStale()) console.warn(`${logPrefix} save failed`, { op: "padding", error: upErr })
+            if (!isStale()) setError(mapWorkspacePersistError(upErr))
+            return null
+          }
+          const normalized = normalizeWorkspaceRow(data)
+          if (!isStale()) setRow(normalized)
+          return normalized as unknown as WorkspaceRow
+        } finally {
+          setSaving(false)
+        }
+      })
+    },
+    [logPrefix]
+  )
+
   useEffect(() => {
     if (initialRow?.project_id === projectId) return
     queueMicrotask(() => {
@@ -262,13 +299,14 @@ export function ProjectWorkspaceProvider({
       refresh,
       updateWorkspaceGeometry,
       updateWorkspacePageBg,
+      updateWorkspacePadding,
       unit,
       widthPxU,
       heightPxU,
       widthPx,
       heightPx,
     }
-  }, [error, loading, projectId, refresh, row, saving, updateWorkspaceGeometry, updateWorkspacePageBg])
+  }, [error, loading, projectId, refresh, row, saving, updateWorkspaceGeometry, updateWorkspacePageBg, updateWorkspacePadding])
 
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>
 }

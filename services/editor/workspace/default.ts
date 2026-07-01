@@ -26,5 +26,9 @@ export function defaultWorkspace(projectId: string): WorkspaceRow {
     page_bg_enabled: false,
     page_bg_color: "#ffffff",
     page_bg_opacity: 50,
+    padding_top_px_u: "0",
+    padding_bottom_px_u: "0",
+    padding_left_px_u: "0",
+    padding_right_px_u: "0",
   }
 }
