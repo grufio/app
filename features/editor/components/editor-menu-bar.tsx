@@ -20,14 +20,18 @@ import { ToolbarIconButton } from "./toolbar-icon-button"
 type Props = {
   activeSection: EditorSection
   onSelectSection: (section: EditorSection) => void
-  /** Opens the image dialog (size / position / align). Rendered right of the
-   * Artboard icon. Disabled until a master image exists. */
+  /** Activates the Image context (top-right add/edit icon). Rendered right of
+   * the Artboard icon. */
   onOpenImage?: () => void
-  /** Whether a master image exists — toggles the Image button's icon/enabled. */
+  /** Whether a master image exists — toggles the Image button's icon. */
   hasImage?: boolean
+  /** Whether the Image context is the active one (highlights the Image button
+   * and, since it lives inside the artboard section, suppresses the Artboard
+   * section highlight). */
+  imageActive?: boolean
 }
 
-export function EditorMenuBar({ activeSection, onSelectSection, onOpenImage, hasImage = false }: Props) {
+export function EditorMenuBar({ activeSection, onSelectSection, onOpenImage, hasImage = false, imageActive = false }: Props) {
   const tone = useEditorToolbarTone()
   return (
     <div className={cn(pillClass(tone, "group"), "absolute bottom-4 left-1/2 z-20 -translate-x-1/2")}>
@@ -35,13 +39,13 @@ export function EditorMenuBar({ activeSection, onSelectSection, onOpenImage, has
         <Fragment key={key}>
           <ToolbarIconButton
             label={label}
-            active={key === activeSection}
+            active={key === activeSection && !imageActive}
             onClick={() => onSelectSection(key)}
           >
             <Icon aria-hidden="true" className="size-6" />
           </ToolbarIconButton>
           {key === "artboard" && onOpenImage ? (
-            <ToolbarIconButton label="Edit image" onClick={onOpenImage} disabled={!hasImage}>
+            <ToolbarIconButton label={hasImage ? "Edit image" : "Add image"} active={imageActive} onClick={onOpenImage}>
               {hasImage ? (
                 <ImageIcon aria-hidden="true" className="size-6" />
               ) : (
