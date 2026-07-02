@@ -548,9 +548,9 @@ export function ProjectDetailPageClient({
               masterImageLoading={editorImageSource.status === "loading"}
               masterImageError={editorImageSource.status === "error" ? editorImageSource.error : ""}
               toolbar={stageToolbar}
-              // Colors is a read-only palette view — hide the canvas
-              // tools/zoom toolbar there (they don't belong on Colors).
-              showToolsBar={editorSection !== "colors"}
+              // The canvas-editing tools (zoom / hand / crop) belong to the
+              // Image section only; every other section hides them.
+              showToolsBar={editorSection === "artboard"}
               canvasRef={canvasRef}
               artboardWidthPx={artboardWidthPx ?? undefined}
               artboardHeightPx={artboardHeightPx ?? undefined}
