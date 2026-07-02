@@ -9,7 +9,8 @@ import {
 } from "@/lib/editor/trace/pixelate-grid-math"
 import { callFilterService, startFilterProfiler, type FilterResult } from "@/services/editor/server/filters/_helpers"
 import { readTracePalette } from "@/lib/supabase/palette"
-import { resolveMasterState } from "@/services/editor/server/trace/master-state"
+import { compositeContentRegion } from "@/services/editor/server/trace/composite-content-region"
+import { resolveTraceContentRegion } from "@/services/editor/server/trace/content-region-resolve"
 import {
   buildCellsPayload,
   downloadSourceImageBuffer,
@@ -98,18 +99,24 @@ export async function pixelateImageAndActivate(args: {
   if (!sourceResult.ok) return sourceResult
   const { src, origWidth, origHeight } = sourceResult
 
-  // Resolve the image's displayed size + origin on the artboard.
-  // `project_image_state` is authoritative (anchored at working_copy.id,
-  // PR #257); the trace apply path in `handleApplyTrace` awaits any
-  // pending state save before calling /trace, so the DB row is
-  // guaranteed to be current when this handler runs.
-  const masterState = await resolveMasterState({ supabase, projectId })
-  if (!masterState.ok) {
-    return { ok: false, status: 400, stage: "validation", reason: masterState.reason }
+  // The trace only converts the printable content rect (artboard − padding).
+  // Resolve that region + its display size (mm) + the compositing plan (the
+  // image over a white content-rect canvas; uncovered areas stay white).
+  // `project_image_state` is authoritative (anchored at working_copy.id);
+  // `handleApplyTrace` awaits any pending state save before /trace, so the row
+  // is current here.
+  const region = await resolveTraceContentRegion({
+    supabase,
+    projectId,
+    intrinsicWPx: origWidth,
+    intrinsicHPx: origHeight,
+  })
+  if (!region.ok) {
+    return { ok: false, status: 400, stage: "validation", reason: region.reason }
   }
   profiler.mark("display_mm_resolve")
 
-  const grid = resolvePixelateGrid(masterState.displayMmW, masterState.displayMmH, parsed.data)
+  const grid = resolvePixelateGrid(region.displayMmW, region.displayMmH, parsed.data)
   if (!isPixelateGridValid(grid)) {
     return {
       ok: false,
@@ -119,31 +126,28 @@ export async function pixelateImageAndActivate(args: {
     }
   }
 
-  // Translate the mm-space crop back into source-pixel coordinates for
-  // the Python service. The source bitmap may have arbitrary dimensions;
-  // we only need the cropped-out area to render the cells from. Border
-  // pixels (the parts that don't make a whole superpixel) are dropped
-  // symmetrically on both axes. Shared helper keeps the math byte-
-  // identical to the client-side preview.
+  const downloadResult = await downloadSourceImageBuffer({ supabase, src })
+  if (!downloadResult.ok) return downloadResult
+  // Composite the source onto the content-rect canvas (white where the image
+  // doesn't cover). The trace runs on this content-region bitmap.
+  const contentBuffer = await compositeContentRegion({ sourceBuffer: downloadResult.buffer, plan: region.plan })
+  const contentW = region.plan.canvasPx.widthPx
+  const contentH = region.plan.canvasPx.heightPx
+  profiler.mark("source_download")
+
+  // Superpixel-fitting crop WITHIN the content region (drops border pixels that
+  // don't make a whole cell). Byte-identical to the client-side preview.
   const crop = centeredCropPixels({
-    pixelW: origWidth,
-    pixelH: origHeight,
-    displayMmW: masterState.displayMmW,
-    displayMmH: masterState.displayMmH,
+    pixelW: contentW,
+    pixelH: contentH,
+    displayMmW: region.displayMmW,
+    displayMmH: region.displayMmH,
     grid,
   })
 
-  const downloadResult = await downloadSourceImageBuffer({ supabase, src })
-  if (!downloadResult.ok) return downloadResult
-  const srcBuffer = downloadResult.buffer
-  profiler.mark("source_download")
-
   try {
-    // Single sharp pipeline, two outputs from the cropped region. Sending
-    // only the per-cell grid to Cloud Run (~22 KB for a 100×75 grid vs
-    // ~16 MB for a 12-MP base64 source) is what eliminates the
-    // empty-body 500s — Cloud Run's heavy decode + downsample go away.
-    const cells = await buildCellsPayload({ srcBuffer, origWidth, origHeight, crop, grid })
+    // Single sharp pipeline, two outputs from the cropped region.
+    const cells = await buildCellsPayload({ srcBuffer: contentBuffer, origWidth: contentW, origHeight: contentH, crop, grid })
     profiler.mark("sharp_crop")
     profiler.mark("cell_averages")
 
@@ -252,17 +256,9 @@ export async function pixelateImageAndActivate(args: {
       heightPx: cells.croppedHeight,
       baseId: writeResult.baseId,
       baseStoragePath: writeResult.baseObjectPath,
-      // Freeze the apply-time master/working_copy display rect onto the
-      // result. `masterState` is the same authoritative DB read that
-      // sized the grid above (`resolveMasterState`) — reusing it keeps
-      // the persisted geometry byte-consistent with what the user saw
-      // on the artboard at apply time.
-      displayRectPxU: {
-        xPxU: masterState.xPxU,
-        yPxU: masterState.yPxU,
-        widthPxU: masterState.widthPxU,
-        heightPxU: masterState.heightPxU,
-      },
+      // Freeze the content-rect display rect: the trace sits exactly in the
+      // printable content rect (artboard − padding).
+      displayRectPxU: region.displayRectPxU,
       paletteIndicesUsed,
     }
   } catch (e) {
