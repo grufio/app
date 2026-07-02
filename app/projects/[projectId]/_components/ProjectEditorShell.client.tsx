@@ -549,8 +549,10 @@ export function ProjectDetailPageClient({
               masterImageError={editorImageSource.status === "error" ? editorImageSource.error : ""}
               toolbar={stageToolbar}
               // The canvas-editing tools (zoom / hand / crop) belong to the
-              // Image section only; every other section hides them.
-              showToolsBar={editorSection === "artboard"}
+              // Image context only — i.e. the artboard section with the Image
+              // action active. The artboard/grid context and every other
+              // section hide them.
+              showToolsBar={editorSection === "artboard" && imageBarActive}
               canvasRef={canvasRef}
               artboardWidthPx={artboardWidthPx ?? undefined}
               artboardHeightPx={artboardHeightPx ?? undefined}
