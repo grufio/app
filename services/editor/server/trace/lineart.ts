@@ -7,6 +7,8 @@ import { lineartSchema, type LineartParams } from "@/lib/editor/trace/lineart"
 import { readTracePalette } from "@/lib/supabase/palette"
 import { callFilterService, toInt, type FilterResult } from "@/services/editor/server/filters/_helpers"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
+import { compositeContentRegion } from "@/services/editor/server/trace/composite-content-region"
+import { resolveTraceContentRegion } from "@/services/editor/server/trace/content-region-resolve"
 
 export type LineArtFilterSuccess = {
   ok: true
@@ -14,6 +16,9 @@ export type LineArtFilterSuccess = {
   storagePath: string
   widthPx: number
   heightPx: number
+  /** Content-rect display rect (artboard − padding), frozen onto the trace row
+   * so the overlay renders in the printable content rect. */
+  displayRectPxU: { xPxU: bigint; yPxU: bigint; widthPxU: bigint; heightPxU: bigint }
   /** Unique palette chip indices the snap step emitted in the
    * output (sorted ascending). Null when the filter-service didn't
    * return the field (older revision) or the response shape was
@@ -67,6 +72,19 @@ export async function lineArtImageAndActivate(args: {
     return { ok: false, status: 400, stage: "validation", reason: "Invalid source dimensions" }
   }
 
+  // The trace only converts the printable content rect (artboard − padding).
+  const region = await resolveTraceContentRegion({
+    supabase,
+    projectId,
+    intrinsicWPx: origWidth,
+    intrinsicHPx: origHeight,
+  })
+  if (!region.ok) {
+    return { ok: false, status: 400, stage: "validation", reason: region.reason }
+  }
+  const contentW = region.plan.canvasPx.widthPx
+  const contentH = region.plan.canvasPx.heightPx
+
   const { data: srcBlob, error: downloadErr } = await supabase.storage
     .from(String(src.storage_bucket ?? PROJECT_IMAGES_BUCKET))
     .download(String(src.storage_path))
@@ -76,9 +94,12 @@ export async function lineArtImageAndActivate(args: {
   }
 
   const srcBuffer = Buffer.from(await srcBlob.arrayBuffer())
+  // Composite onto the content-rect canvas (white where the image doesn't
+  // cover); line art traces this content region only.
+  const contentBuffer = await compositeContentRegion({ sourceBuffer: srcBuffer, plan: region.plan })
 
   try {
-    const imageBase64 = srcBuffer.toString("base64")
+    const imageBase64 = contentBuffer.toString("base64")
 
     // Same Munsell-palette contract as pixelate / circulate: snap
     // each vtracer region fill to the nearest chip so the resulting
@@ -158,8 +179,8 @@ export async function lineArtImageAndActivate(args: {
       kind: "trace_output",
       name: `${src.name.replace(/ \((?:filter working|pixelate|line art|numerate|B&W hard|B&W soft|B&W warm)\)/g, "")} (line art)`,
       format: "svg",
-      width_px: origWidth,
-      height_px: origHeight,
+      width_px: contentW,
+      height_px: contentH,
       storage_bucket: PROJECT_IMAGES_BUCKET,
       storage_path: objectPath,
       file_size_bytes: outputBuffer.byteLength,
@@ -179,8 +200,9 @@ export async function lineArtImageAndActivate(args: {
       ok: true,
       id: imageId,
       storagePath: objectPath,
-      widthPx: origWidth,
-      heightPx: origHeight,
+      widthPx: contentW,
+      heightPx: contentH,
+      displayRectPxU: region.displayRectPxU,
       paletteIndicesUsed,
     }
   } catch (e) {

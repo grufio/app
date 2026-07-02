@@ -11,7 +11,8 @@ import { centeredCropPixels } from "@/lib/editor/trace/pixelate-grid-math"
 import { resolveInnerFilter } from "@/lib/editor/trace/inner-color-filters"
 import { callFilterService, startFilterProfiler, type FilterResult } from "@/services/editor/server/filters/_helpers"
 import { readTracePalette } from "@/lib/supabase/palette"
-import { resolveMasterState } from "@/services/editor/server/trace/master-state"
+import { compositeContentRegion } from "@/services/editor/server/trace/composite-content-region"
+import { resolveTraceContentRegion } from "@/services/editor/server/trace/content-region-resolve"
 import {
   buildCellsPayload,
   downloadSourceImageBuffer,
@@ -88,15 +89,20 @@ export async function circulateImageAndActivate(args: {
   if (!sourceResult.ok) return sourceResult
   const { src, origWidth, origHeight } = sourceResult
 
-  // Resolve the image's displayed size + origin on the artboard (shared with
-  // pixelate); the grid is sized in display-mm.
-  const masterState = await resolveMasterState({ supabase, projectId })
-  if (!masterState.ok) {
-    return { ok: false, status: 400, stage: "validation", reason: masterState.reason }
+  // The trace only converts the printable content rect (artboard − padding):
+  // resolve that region + its display size (mm) + the compositing plan.
+  const region = await resolveTraceContentRegion({
+    supabase,
+    projectId,
+    intrinsicWPx: origWidth,
+    intrinsicHPx: origHeight,
+  })
+  if (!region.ok) {
+    return { ok: false, status: 400, stage: "validation", reason: region.reason }
   }
   profiler.mark("display_mm_resolve")
 
-  const grid = resolveCirculateGrid(masterState.displayMmW, masterState.displayMmH, p)
+  const grid = resolveCirculateGrid(region.displayMmW, region.displayMmH, p)
   if (!isCirculateGridValid(grid)) {
     return {
       ok: false,
@@ -106,13 +112,20 @@ export async function circulateImageAndActivate(args: {
     }
   }
 
-  // Same centred-crop math as pixelate (shared helper). Border pixels that
-  // don't make a whole cell are dropped symmetrically on both axes.
+  const downloadResult = await downloadSourceImageBuffer({ supabase, src })
+  if (!downloadResult.ok) return downloadResult
+  // Composite the source onto the content-rect canvas (white where uncovered).
+  const contentBuffer = await compositeContentRegion({ sourceBuffer: downloadResult.buffer, plan: region.plan })
+  const contentW = region.plan.canvasPx.widthPx
+  const contentH = region.plan.canvasPx.heightPx
+  profiler.mark("source_download")
+
+  // Superpixel-fitting crop WITHIN the content region (shared with pixelate).
   const crop = centeredCropPixels({
-    pixelW: origWidth,
-    pixelH: origHeight,
-    displayMmW: masterState.displayMmW,
-    displayMmH: masterState.displayMmH,
+    pixelW: contentW,
+    pixelH: contentH,
+    displayMmW: region.displayMmW,
+    displayMmH: region.displayMmH,
     grid,
   })
 
@@ -127,18 +140,9 @@ export async function circulateImageAndActivate(args: {
   // preset table is the single TS source); Python applies them generically.
   const innerAdj = resolveInnerFilter(p.inner_filter)
 
-  const downloadResult = await downloadSourceImageBuffer({ supabase, src })
-  if (!downloadResult.ok) return downloadResult
-  const srcBuffer = downloadResult.buffer
-  profiler.mark("source_download")
-
   try {
-    // Single sharp pipeline, two outputs from the cropped region (mirrors
-    // pixelate post-#323). Sending only the per-cell grid to Cloud Run
-    // (~22 KB for a 100×75 grid vs. multi-MB for a base64'd source)
-    // avoids the Cloud Run decode + crop + downsample that was causing
-    // /filters/circulate 500s on real photos.
-    const cells = await buildCellsPayload({ srcBuffer, origWidth, origHeight, crop, grid })
+    // Single sharp pipeline, two outputs from the cropped region.
+    const cells = await buildCellsPayload({ srcBuffer: contentBuffer, origWidth: contentW, origHeight: contentH, crop, grid })
     profiler.mark("sharp_crop")
     profiler.mark("cell_averages")
 
@@ -258,12 +262,7 @@ export async function circulateImageAndActivate(args: {
       baseStoragePath: writeResult.baseObjectPath,
       // Freeze the apply-time master/working_copy display rect — same
       // authoritative read that sized the grid above.
-      displayRectPxU: {
-        xPxU: masterState.xPxU,
-        yPxU: masterState.yPxU,
-        widthPxU: masterState.widthPxU,
-        heightPxU: masterState.heightPxU,
-      },
+      displayRectPxU: region.displayRectPxU,
       paletteIndicesUsed,
     }
   } catch (e) {

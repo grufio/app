@@ -63,6 +63,8 @@ import { useProject } from "@/lib/editor/hooks/use-project"
 import { computeRenderableGrid } from "@/services/editor/grid/validation"
 import { normalizeWorkspacePadding } from "@/services/editor/padding"
 import { pxUToPxNumber } from "@/lib/editor/units"
+import { computeContentRegionPlan } from "@/lib/editor/trace/content-region"
+import { TraceCoverageDialog } from "@/features/editor/components/trace-coverage-dialog"
 import { useRightPanelModel } from "./editor-shell/use-right-panel-model"
 import { useStageInteractionPolicy } from "./editor-shell/use-stage-interaction-policy"
 import { useEditorWorkflowAdapter } from "./editor-shell/use-editor-workflow-adapter"
@@ -449,6 +451,46 @@ export function ProjectDetailPageClient({
     }
   }, [workspaceRow])
 
+  // Coverage warning before a trace apply: the trace only converts the content
+  // rect (artboard − padding); if the image doesn't fully cover it, the missing
+  // area is rendered white — warn first (Attention / Cancel / Proceed).
+  const [coverageWarnOpen, setCoverageWarnOpen] = useState(false)
+  const coverageResolveRef = useRef<((v: boolean) => void) | null>(null)
+  const settleCoverage = useCallback((proceed: boolean) => {
+    setCoverageWarnOpen(false)
+    const resolve = coverageResolveRef.current
+    coverageResolveRef.current = null
+    resolve?.(proceed)
+  }, [])
+  const handleApplyTraceGuarded = useCallback(
+    async (args: { kind: RegisteredTraceId; params: Record<string, unknown> }) => {
+      if (displayTxU && masterImage?.width_px && masterImage?.height_px && artboardWidthPx && artboardHeightPx) {
+        const region = computeContentRegionPlan({
+          artboardWPx: artboardWidthPx,
+          artboardHPx: artboardHeightPx,
+          padding: { topPx: paddingPx.top, bottomPx: paddingPx.bottom, leftPx: paddingPx.left, rightPx: paddingPx.right },
+          image: {
+            leftPx: pxUToPxNumber(displayTxU.x) - pxUToPxNumber(displayTxU.w) / 2,
+            topPx: pxUToPxNumber(displayTxU.y) - pxUToPxNumber(displayTxU.h) / 2,
+            widthPx: pxUToPxNumber(displayTxU.w),
+            heightPx: pxUToPxNumber(displayTxU.h),
+          },
+          intrinsicWPx: masterImage.width_px,
+          intrinsicHPx: masterImage.height_px,
+        })
+        if (region.ok && region.coverage !== "full") {
+          const proceed = await new Promise<boolean>((resolve) => {
+            coverageResolveRef.current = resolve
+            setCoverageWarnOpen(true)
+          })
+          if (!proceed) return
+        }
+      }
+      await handleApplyTrace(args)
+    },
+    [displayTxU, masterImage, artboardWidthPx, artboardHeightPx, paddingPx, handleApplyTrace],
+  )
+
   const handleTitleUpdated = useCallback((nextTitle: string) => setProject({ id: projectId, name: nextTitle }), [projectId, setProject])
 
   // Section locks. The Image section is locked while *any* downstream
@@ -606,6 +648,11 @@ export function ProjectDetailPageClient({
             cascadeFilterCount={filterStack.length}
             cascadeHasTrace={Boolean(trace)}
           />
+          <TraceCoverageDialog
+            open={coverageWarnOpen}
+            onCancel={() => settleCoverage(false)}
+            onProceed={() => settleCoverage(true)}
+          />
           {/* Filter + Trace dialog hosts live inside their respective
               surface scope components (see the section mounts below). */}
         </EditorErrorBoundary>
@@ -717,7 +764,7 @@ export function ProjectDetailPageClient({
         {editorSection === "trace" ? (
           <TraceSurfaceScope
             traceSourceImage={traceSourceImage}
-            onApplyTrace={handleApplyTrace}
+            onApplyTrace={handleApplyTraceGuarded}
             isAddTraceDisabled={isAddTraceDisabled}
             isClearingTrace={isClearingTrace}
             isLoadingInitial={traceLoading}
