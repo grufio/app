@@ -1,5 +1,16 @@
 "use client"
 
+/**
+ * Page-background form state — the deliberate exception to the "self-contained
+ * section" rule the other workspace panels follow (ArtboardPanel/GridPanel read
+ * `row` directly and save on commit; see PaddingSection).
+ *
+ * page_bg is lifted to the shell because its value drives a LIVE canvas preview:
+ * the stage's `bgStyle` reads the in-progress draft (not the saved row), so the
+ * background colour/opacity updates while editing, before commit. That requires
+ * the draft to live in a shared ancestor. Padding does NOT need this (its canvas
+ * strips read the saved row), which is why padding was moved off this pattern.
+ */
 import { useCallback, useEffect, useRef, useState } from "react"
 
 import type { WorkspaceRow } from "@/lib/editor/project-workspace"

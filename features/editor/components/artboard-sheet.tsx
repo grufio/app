@@ -41,15 +41,6 @@ export function ArtboardSheet(props: {
   onPageBgEnabledChange: (v: boolean) => void
   onPageBgColorChange: (v: string) => void
   onPageBgOpacityChange: (v: number) => void
-  // Padding controls (mm)
-  paddingTop: string
-  paddingBottom: string
-  paddingLeft: string
-  paddingRight: string
-  onPaddingTopChange: (v: string) => void
-  onPaddingBottomChange: (v: string) => void
-  onPaddingLeftChange: (v: string) => void
-  onPaddingRightChange: (v: string) => void
 }) {
   const {
     onClose,
@@ -61,14 +52,6 @@ export function ArtboardSheet(props: {
     onPageBgEnabledChange,
     onPageBgColorChange,
     onPageBgOpacityChange,
-    paddingTop,
-    paddingBottom,
-    paddingLeft,
-    paddingRight,
-    onPaddingTopChange,
-    onPaddingBottomChange,
-    onPaddingLeftChange,
-    onPaddingRightChange,
   } = props
 
   return (
@@ -77,16 +60,7 @@ export function ArtboardSheet(props: {
 
       <div className="flex-1 overflow-y-auto">
         <ArtboardPanel canFitToImage={canFit} onFitToImage={onFitArtboardToImage} />
-        <PaddingSection
-          paddingTop={paddingTop}
-          paddingBottom={paddingBottom}
-          paddingLeft={paddingLeft}
-          paddingRight={paddingRight}
-          onPaddingTopChange={onPaddingTopChange}
-          onPaddingBottomChange={onPaddingBottomChange}
-          onPaddingLeftChange={onPaddingLeftChange}
-          onPaddingRightChange={onPaddingRightChange}
-        />
+        <PaddingSection />
         <PageBackgroundSection
           pageBgEnabled={pageBgEnabled}
           pageBgColor={pageBgColor}
