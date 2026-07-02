@@ -1,27 +1,40 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 
 import { testById } from "@/lib/tests";
 import { VocabPlay } from "@/components/VocabPlay";
 import { McPlay } from "@/components/McPlay";
 
-export default function Play() {
-  // The deck is fixed at mount; the query param picks which test to run.
-  const [test] = useState(() =>
-    testById(
-      typeof window !== "undefined"
-        ? new URLSearchParams(window.location.search).get("test")
-        : null,
-    ),
-  );
+function PlayView() {
+  // Read the test from the URL reactively via useSearchParams — NOT from
+  // window.location in a useState initializer. The latter runs undefined on the
+  // server (→ testById(null) → the first test, Unidad 5) and isn't reactive to
+  // App-Router navigation, so the wrong (Spanish) test stuck until a hard reload.
+  const params = useSearchParams();
+  const test = testById(params.get("test"));
 
   // Split by kind: the vocab and multiple-choice engines use different hooks,
-  // so they must live in separate components (hooks can't be called
-  // conditionally within one component).
+  // so they live in separate components. Keying on the test id gives each test
+  // a fresh deck when the selection changes.
   return test.kind === "mc" ? (
-    <McPlay test={test} />
+    <McPlay key={test.id} test={test} />
   ) : (
-    <VocabPlay test={test} />
+    <VocabPlay key={test.id} test={test} />
+  );
+}
+
+export default function Play() {
+  return (
+    <Suspense
+      fallback={
+        <main className="flex min-h-dvh items-center justify-center text-ink-soft">
+          Lädt…
+        </main>
+      }
+    >
+      <PlayView />
+    </Suspense>
   );
 }
