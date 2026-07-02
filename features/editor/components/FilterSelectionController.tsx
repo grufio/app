@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogStickyFooter,
   DialogTitle,
@@ -57,10 +56,9 @@ export function FilterSelectionController({
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && handleClose()}>
       {/* Fullscreen on every viewport (desktop matches mobile): sticky
           header, scrollable 2-col card grid, sticky footer. */}
-      <DialogContent variant="fullscreen">
+      <DialogContent variant="fullscreen" aria-describedby={undefined}>
         <DialogHeader className="shrink-0 border-b p-4 pr-12">
           <DialogTitle>Filter</DialogTitle>
-          <DialogDescription>Pick a black-and-white preset.</DialogDescription>
         </DialogHeader>
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
           <FilterTypeCards
