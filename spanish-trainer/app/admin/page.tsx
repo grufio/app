@@ -4,12 +4,13 @@ import { type FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 
 import { loadSrs, MAX_BOX, type SrsMap } from "@/lib/srs";
-import { TESTS, testById } from "@/lib/tests";
+import { areasForSubject, SUBJECTS, TESTS, testById, type TestDef } from "@/lib/tests";
 import { USERS, type UserId } from "@/lib/user";
 import {
   learnerLastActive,
   loadRuns,
   resetAllStats,
+  resetGroup,
   runStats,
   testStats,
   type RunEntry,
@@ -47,6 +48,97 @@ function masteredOf(srs: SrsMap): number {
   return Object.values(srs).filter((e) => e.box >= MAX_BOX).length;
 }
 
+function itemIdsOf(tests: TestDef[]): string[] {
+  return tests.flatMap((t) => (t.items as { id: string }[]).map((i) => i.id));
+}
+
+/**
+ * One resettable group in the admin view (an area, or a stand-alone vocab test).
+ * Shows its test cards and a "Zurücksetzen" that clears only this group's SRS +
+ * runs for this learner.
+ */
+function GroupBlock({
+  label,
+  tests,
+  srs,
+  runs,
+  learnerId,
+  groupKey,
+  pending,
+  setPending,
+  onDidReset,
+}: {
+  label: string;
+  tests: TestDef[];
+  srs: SrsMap;
+  runs: RunEntry[];
+  learnerId: UserId;
+  groupKey: string;
+  pending: string | null;
+  setPending: (key: string | null) => void;
+  onDidReset: () => void;
+}) {
+  const confirming = pending === groupKey;
+
+  function handleReset() {
+    resetGroup(learnerId, itemIdsOf(tests), tests.map((t) => t.id));
+    onDidReset();
+    setPending(null);
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center justify-between gap-3">
+        <h4 className="text-sm font-semibold text-ink">{label}</h4>
+        {confirming ? (
+          <div className="flex shrink-0 gap-2">
+            <button
+              type="button"
+              onClick={handleReset}
+              className="rounded-full bg-bad px-3 py-1 text-xs font-medium text-white transition active:scale-95"
+            >
+              Ja, löschen
+            </button>
+            <button
+              type="button"
+              onClick={() => setPending(null)}
+              className="rounded-full border border-line px-3 py-1 text-xs font-medium text-ink transition active:scale-95"
+            >
+              Abbrechen
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setPending(groupKey)}
+            className="shrink-0 text-xs font-medium text-ink-soft transition hover:text-bad active:scale-95"
+          >
+            Zurücksetzen
+          </button>
+        )}
+      </div>
+
+      {tests.map((t) => {
+        const ids = (t.items as { id: string }[]).map((i) => i.id);
+        const ts = testStats(ids, srs);
+        const rs = runStats(runs, learnerId, t.id);
+        return (
+          <div key={t.id} className="rounded-2xl border border-line bg-surface px-5 py-3 text-sm">
+            <p className="font-medium text-ink">{t.title}</p>
+            <p className="mt-0.5 text-ink-soft">
+              geübt {ts.practiced}/{ts.total} · gemeistert {ts.mastered}/{ts.total} · Quote{" "}
+              {pct(ts.accuracy)}
+            </p>
+            <p className="text-ink-soft">
+              Läufe {rs.runs} · Best {rs.bestScore} · zuletzt {fmt(rs.lastAt)}
+            </p>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const [unlocked, setUnlocked] = useState(false);
   const [pw, setPw] = useState("");
@@ -55,7 +147,8 @@ export default function AdminPage() {
   const [mounted, setMounted] = useState(false);
   const [runs, setRuns] = useState<RunEntry[]>([]);
   const [srsByUser, setSrsByUser] = useState<Record<string, SrsMap>>({});
-  const [confirmReset, setConfirmReset] = useState(false);
+  // Which group's reset is awaiting confirmation ("<user>:<slug>" or "all").
+  const [pending, setPending] = useState<string | null>(null);
 
   function refresh() {
     setRuns(loadRuns());
@@ -126,9 +219,17 @@ export default function AdminPage() {
         <>
           {LEARNERS.map((learner) => {
             const srs = srsByUser[learner.id] ?? {};
-            const tests = TESTS.filter((t) => t.users.includes(learner.id));
+            const learnerTests = TESTS.filter((t) => t.users.includes(learner.id));
+            const mcTests = learnerTests.filter(
+              (t): t is Extract<TestDef, { kind: "mc" }> => t.kind === "mc",
+            );
+            const vocabTests = learnerTests.filter((t) => t.kind === "vocab");
+            const subjects = SUBJECTS.filter((s) =>
+              areasForSubject(s.id).some((a) => mcTests.some((t) => t.area === a.topic)),
+            );
+
             return (
-              <section key={learner.id} className="flex flex-col gap-3">
+              <section key={learner.id} className="flex flex-col gap-4">
                 <h2 className="text-lg font-semibold text-ink">{learner.label}</h2>
                 <div className="rounded-2xl border border-line bg-surface px-5 py-4 text-sm text-ink-soft">
                   <p>
@@ -146,28 +247,47 @@ export default function AdminPage() {
                   </p>
                 </div>
 
-                <div className="flex flex-col gap-2">
-                  {tests.map((t) => {
-                    const ids = (t.items as { id: string }[]).map((i) => i.id);
-                    const ts = testStats(ids, srs);
-                    const rs = runStats(runs, learner.id, t.id);
-                    return (
-                      <div
-                        key={t.id}
-                        className="rounded-2xl border border-line bg-surface px-5 py-3 text-sm"
-                      >
-                        <p className="font-medium text-ink">{t.title}</p>
-                        <p className="mt-0.5 text-ink-soft">
-                          geübt {ts.practiced}/{ts.total} · gemeistert {ts.mastered}/{ts.total} ·
-                          Quote {pct(ts.accuracy)}
-                        </p>
-                        <p className="text-ink-soft">
-                          Läufe {rs.runs} · Best {rs.bestScore} · zuletzt {fmt(rs.lastAt)}
-                        </p>
-                      </div>
-                    );
-                  })}
-                </div>
+                {subjects.map((s) => {
+                  const areas = areasForSubject(s.id).filter((a) =>
+                    mcTests.some((t) => t.area === a.topic),
+                  );
+                  return (
+                    <div key={s.id} className="flex flex-col gap-3">
+                      <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-soft">
+                        {s.label}
+                      </h3>
+                      {areas.map((a) => (
+                        <GroupBlock
+                          key={a.slug}
+                          label={a.label}
+                          tests={mcTests.filter((t) => t.area === a.topic)}
+                          srs={srs}
+                          runs={runs}
+                          learnerId={learner.id}
+                          groupKey={`${learner.id}:${a.slug}`}
+                          pending={pending}
+                          setPending={setPending}
+                          onDidReset={refresh}
+                        />
+                      ))}
+                    </div>
+                  );
+                })}
+
+                {vocabTests.map((t) => (
+                  <GroupBlock
+                    key={t.id}
+                    label={t.title}
+                    tests={[t]}
+                    srs={srs}
+                    runs={runs}
+                    learnerId={learner.id}
+                    groupKey={`${learner.id}:${t.id}`}
+                    pending={pending}
+                    setPending={setPending}
+                    onDidReset={refresh}
+                  />
+                ))}
               </section>
             );
           })}
@@ -199,7 +319,7 @@ export default function AdminPage() {
           </section>
 
           <section className="flex flex-col gap-3 pb-4">
-            {confirmReset ? (
+            {pending === "all" ? (
               <div className="flex flex-col gap-2">
                 <p className="text-sm text-ink-soft">
                   Wirklich alle Statistiken (Verlauf + Zähler von Q und R) löschen?
@@ -210,15 +330,15 @@ export default function AdminPage() {
                     onClick={() => {
                       resetAllStats();
                       refresh();
-                      setConfirmReset(false);
+                      setPending(null);
                     }}
                     className="flex-1 rounded-full bg-bad px-4 py-3 text-sm font-medium text-white transition active:scale-95"
                   >
-                    Ja, zurücksetzen
+                    Ja, alles zurücksetzen
                   </button>
                   <button
                     type="button"
-                    onClick={() => setConfirmReset(false)}
+                    onClick={() => setPending(null)}
                     className="flex-1 rounded-full border border-line bg-surface px-4 py-3 text-sm font-medium text-ink transition active:scale-95"
                   >
                     Abbrechen
@@ -228,10 +348,10 @@ export default function AdminPage() {
             ) : (
               <button
                 type="button"
-                onClick={() => setConfirmReset(true)}
+                onClick={() => setPending("all")}
                 className="rounded-full border border-line bg-surface px-4 py-3 text-sm font-medium text-ink transition hover:border-bad active:scale-95"
               >
-                Statistiken zurücksetzen
+                Alle Statistiken zurücksetzen
               </button>
             )}
           </section>

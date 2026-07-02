@@ -1,4 +1,4 @@
-import { clearSrs, MAX_BOX, type SrsMap } from "./srs";
+import { clearSrs, clearSrsIds, MAX_BOX, type SrsMap } from "./srs";
 import { clearHighScore } from "./scoring";
 import type { UserId } from "./user";
 
@@ -62,6 +62,32 @@ export function resetAllStats(): void {
     clearSrs(user);
     clearHighScore(user);
   }
+}
+
+/** Remove one profile's runs for the given tests; other users/tests stay. */
+export function clearRunsForGroup(user: UserId, testIds: readonly string[]): void {
+  if (typeof window === "undefined" || testIds.length === 0) return;
+  const drop = new Set(testIds);
+  const kept = loadRuns().filter((run) => !(run.user === user && drop.has(run.testId)));
+  try {
+    window.localStorage.setItem(RUNS_KEY, JSON.stringify(kept.slice(-MAX_RUNS)));
+  } catch {
+    /* ignore quota / privacy-mode errors */
+  }
+}
+
+/**
+ * Reset one group (e.g. an area) for a learner: its questions' SRS entries and
+ * its tests' runs. The per-profile high score is intentionally left alone — it
+ * is a single value that can't be split per group (only `resetAllStats` clears it).
+ */
+export function resetGroup(
+  user: UserId,
+  itemIds: readonly string[],
+  testIds: readonly string[],
+): void {
+  clearSrsIds(user, itemIds);
+  clearRunsForGroup(user, testIds);
 }
 
 // ---- pure analytics (no DOM / localStorage) ----
