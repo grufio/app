@@ -1,6 +1,6 @@
 import type { McItem } from "@/lib/mc";
 
-/** Geschichte — Das Reich der Azteken (Hochkultur). Wende zur Neuzeit, Realschule. */
+/** Geschichte — Das Reich der Azteken (Hochkultur, S. 78). Wende zur Neuzeit. */
 export const kolAzteken: McItem[] = [
   {
     id: "kol-azt-hochkultur",
@@ -14,6 +14,19 @@ export const kolAzteken: McItem[] = [
       "ein Land ohne Schrift und Städte",
     ],
     correctIndex: 0,
+  },
+  {
+    id: "kol-azt-entstehung",
+    topic: "Kolonialismus",
+    explanation: "Die Azteken waren eine über Jahrhunderte entstandene Hochkultur und unterwarfen fast alle Nachbarvölker.",
+    stem: "Wie entstand das Reich der Azteken?",
+    options: [
+      "es wurde von den Spaniern gegründet",
+      "über Jahrhunderte, indem sie Nachbarvölker unterwarfen",
+      "durch einen einzigen Krieg an einem Tag",
+      "es war schon immer da",
+    ],
+    correctIndex: 1,
   },
   {
     id: "kol-azt-hauptstadt",
@@ -53,6 +66,19 @@ export const kolAzteken: McItem[] = [
     correctIndex: 1,
   },
   {
+    id: "kol-azt-groesse",
+    topic: "Kolonialismus",
+    explanation: "Mit fast 300.000 Einwohnern zählte Tenochtitlan zu den größten Städten der ganzen Erde.",
+    stem: "Welchen Rang hatte Tenochtitlan um 1519 unter den Städten?",
+    options: [
+      "es war ein kleines Dorf",
+      "es war nur ein Handelsposten",
+      "es zählte zu den größten Städten der Erde",
+      "es war unbewohnt",
+    ],
+    correctIndex: 2,
+  },
+  {
     id: "kol-azt-kanaele",
     topic: "Kolonialismus",
     explanation: "Kanäle und Brücken prägten das Stadtbild von Tenochtitlan.",
@@ -79,6 +105,32 @@ export const kolAzteken: McItem[] = [
     correctIndex: 2,
   },
   {
+    id: "kol-azt-zentrum",
+    topic: "Kolonialismus",
+    explanation: "Das Zentrum bildeten auf einem großen Platz die Paläste der Priester und das Schloss des Aztekenkönigs.",
+    stem: "Was bildete das Zentrum von Tenochtitlan?",
+    options: [
+      "ein Fußballstadion",
+      "die Paläste der Priester und das Schloss des Königs",
+      "ein Bahnhof",
+      "eine Fabrik",
+    ],
+    correctIndex: 1,
+  },
+  {
+    id: "kol-azt-pyramiden",
+    topic: "Kolonialismus",
+    explanation: "Die prächtigsten Bauten waren die stufenförmigen Pyramiden für den Kriegsgott Huitzilopochtli und den Regengott Tlaloc.",
+    stem: "Was waren die prächtigsten Bauwerke von Tenochtitlan?",
+    options: [
+      "gläserne Hochhäuser",
+      "runde Türme",
+      "stufenförmige Pyramiden für die Götter",
+      "unterirdische Höhlen",
+    ],
+    correctIndex: 2,
+  },
+  {
     id: "kol-azt-goetter",
     topic: "Kolonialismus",
     explanation: "Die Azteken verehrten viele Götter, unter anderem den Kriegsgott Huitzilopochtli und den Regengott Tlaloc.",
@@ -92,6 +144,27 @@ export const kolAzteken: McItem[] = [
     correctIndex: 1,
   },
   {
+    id: "kol-azt-markt",
+    topic: "Kolonialismus",
+    explanation: "Auf dem großen Markt von Tenochtitlan trafen sich täglich fast 60.000 Menschen.",
+    stem: "Wie viele Menschen trafen sich täglich auf dem Markt von Tenochtitlan?",
+    options: ["fast 60.000", "etwa 200", "genau 500", "niemand, es gab keinen Markt"],
+    correctIndex: 0,
+  },
+  {
+    id: "kol-azt-pracht",
+    topic: "Kolonialismus",
+    explanation: "Selbst die ersten Spanier, die die Stadt betraten, waren von ihrer Pracht beeindruckt.",
+    stem: "Wie reagierten die ersten Spanier auf Tenochtitlan?",
+    options: [
+      "sie lachten über die Stadt",
+      "sie fanden sie langweilig",
+      "sie bemerkten sie kaum",
+      "sie waren von ihrer Pracht beeindruckt",
+    ],
+    correctIndex: 3,
+  },
+  {
     id: "kol-azt-mexica",
     topic: "Kolonialismus",
     explanation: "Die Azteken nannten sich selbst „Mexica“ – daher stammt der Name Mexiko.",
@@ -100,11 +173,16 @@ export const kolAzteken: McItem[] = [
     correctIndex: 3,
   },
   {
-    id: "kol-azt-markt",
+    id: "kol-azt-hochkulturen",
     topic: "Kolonialismus",
-    explanation: "Auf dem großen Markt von Tenochtitlan trafen sich täglich fast 60.000 Menschen.",
-    stem: "Wie viele Menschen trafen sich täglich auf dem Markt von Tenochtitlan?",
-    options: ["fast 60.000", "etwa 200", "genau 500", "niemand, es gab keinen Markt"],
+    explanation: "Auch die Maya und die Inka bildeten in Mittel- und Südamerika große Hochkulturen.",
+    stem: "Welche anderen Völker bildeten in Amerika ebenfalls Hochkulturen?",
+    options: [
+      "die Maya und die Inka",
+      "die Wikinger und die Römer",
+      "die Ägypter und die Griechen",
+      "es gab keine anderen",
+    ],
     correctIndex: 0,
   },
 ];

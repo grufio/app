@@ -1,6 +1,6 @@
 import type { McItem } from "@/lib/mc";
 
-/** Geschichte — Spanischer Kolonialismus & Weltwirtschaft (Conquista, Vizekönigreiche, Seewege). */
+/** Geschichte — Spanischer Kolonialismus & Weltwirtschaft (S. 82/83). */
 export const kolWeltwirtschaft: McItem[] = [
   {
     id: "kol-wel-conquista",
@@ -9,6 +9,19 @@ export const kolWeltwirtschaft: McItem[] = [
     stem: "Wie nennt man die Eroberung Amerikas durch die Spanier?",
     options: ["die Conquista", "die Reformation", "die Renaissance", "die Mission"],
     correctIndex: 0,
+  },
+  {
+    id: "kol-wel-privat",
+    topic: "Kolonialismus",
+    explanation: "Die Eroberungen waren anfangs Privatunternehmungen: Ein Eroberer musste seine Truppen selbst anwerben.",
+    stem: "Was waren die Eroberungen anfangs?",
+    options: [
+      "Aufträge des Papstes",
+      "Privatunternehmungen einzelner Eroberer",
+      "Ausflüge von Forschern",
+      "Reisen von Händlern ohne Waffen",
+    ],
+    correctIndex: 1,
   },
   {
     id: "kol-wel-vertrag-koenig",
@@ -24,11 +37,37 @@ export const kolWeltwirtschaft: McItem[] = [
     correctIndex: 1,
   },
   {
+    id: "kol-wel-gewinn",
+    topic: "Kolonialismus",
+    explanation: "Den Eroberern winkten große Gewinne: Gold, Ländereien und Ämter in den eroberten Gebieten.",
+    stem: "Was winkte den Eroberern als Belohnung?",
+    options: [
+      "Gold, Ländereien und Ämter",
+      "eine kleine Rente",
+      "nur Ruhm, kein Besitz",
+      "ein Haus in Spanien",
+    ],
+    correctIndex: 0,
+  },
+  {
     id: "kol-wel-vizekoenig",
     topic: "Kolonialismus",
     explanation: "Der König konnte die Kolonien nicht selbst regieren und schuf Vizekönigreiche mit einem Vizekönig an der Spitze.",
     stem: "Wie hießen die von Stellvertretern des Königs regierten Gebiete?",
     options: ["Herzogtümer", "Vizekönigreiche", "Bistümer", "Fürstentümer"],
+    correctIndex: 1,
+  },
+  {
+    id: "kol-wel-vizekoenig-macht",
+    topic: "Kolonialismus",
+    explanation: "Der Vizekönig wurde vom König aus Spanien geschickt und mit großer Macht ausgestattet – seine Anordnungen galten wie die des Königs.",
+    stem: "Wie mächtig war ein Vizekönig?",
+    options: [
+      "er hatte gar keine Macht",
+      "seine Anordnungen galten wie die des Königs",
+      "er durfte nur beraten",
+      "er war nur ein Bote",
+    ],
     correctIndex: 1,
   },
   {
@@ -45,22 +84,9 @@ export const kolWeltwirtschaft: McItem[] = [
     correctIndex: 0,
   },
   {
-    id: "kol-wel-gold-silber",
-    topic: "Kolonialismus",
-    explanation: "Die wichtigste Einnahmequelle war die Einfuhr von Gold und Silber aus den Kolonien.",
-    stem: "Was war die wichtigste Einnahme aus den Kolonien?",
-    options: [
-      "der Verkauf von Büchern",
-      "die Einfuhr von Gold und Silber",
-      "der Handel mit Fisch",
-      "Eintrittsgelder",
-    ],
-    correctIndex: 1,
-  },
-  {
     id: "kol-wel-monopol",
     topic: "Kolonialismus",
-    explanation: "Nur die spanische Krone durfte mit Spanisch-Amerika Handel treiben – ein Handelsmonopol.",
+    explanation: "Nur die spanische Krone durfte mit Spanisch-Amerika Handel treiben – nur königliche Schiffe und wenige Häfen waren erlaubt.",
     stem: "Wer durfte mit den spanischen Kolonien Handel treiben?",
     options: [
       "jeder Kaufmann in Europa",
@@ -71,19 +97,68 @@ export const kolWeltwirtschaft: McItem[] = [
     correctIndex: 2,
   },
   {
-    id: "kol-wel-mittelmeer",
+    id: "kol-wel-gold-silber",
     topic: "Kolonialismus",
-    explanation: "Mit den neuen Seewegen über die Ozeane verlor das Mittelmeer als Handelsweg an Bedeutung.",
-    stem: "Welches Meer verlor durch die neuen Seewege an Bedeutung?",
-    options: ["die Nordsee", "die Ostsee", "das Schwarze Meer", "das Mittelmeer"],
-    correctIndex: 3,
+    explanation: "Die Einfuhr von Gold und Silber war die wichtigste Einnahmequelle und blieb das wichtigste Importgut.",
+    stem: "Was war das wichtigste Importgut aus den Kolonien?",
+    options: [
+      "Bücher",
+      "Gold und Silber",
+      "Fisch",
+      "Holz",
+    ],
+    correctIndex: 1,
   },
   {
-    id: "kol-wel-venedig",
+    id: "kol-wel-weitere-waren",
     topic: "Kolonialismus",
-    explanation: "Die Handelsstadt Venedig verlor mit den neuen Seewegen ihre Vormachtstellung im Handel.",
-    stem: "Welche Handelsstadt verlor ihre Vormachtstellung?",
-    options: ["Venedig", "Berlin", "London", "Wien"],
+    explanation: "Später kamen weitere Waren hinzu: Felle, Häute, Zucker, Tabak, Baumwolle, Kakaobohnen, Mais und Indigo.",
+    stem: "Welche Waren kamen später zu Gold und Silber hinzu?",
+    options: [
+      "Felle, Zucker, Tabak, Baumwolle und Mais",
+      "Autos und Maschinen",
+      "Kunststoff und Glas",
+      "nichts weiter",
+    ],
+    correctIndex: 0,
+  },
+  {
+    id: "kol-wel-seewege",
+    topic: "Kolonialismus",
+    explanation: "Mit der Entdeckung der Seewege verlagerte sich der Handel von der Alten Welt auf die Ozeane.",
+    stem: "Was veränderte die Entdeckung der neuen Seewege?",
+    options: [
+      "der Handel verlagerte sich auf die Ozeane",
+      "der Handel hörte ganz auf",
+      "nur der Landweg blieb wichtig",
+      "es änderte sich nichts",
+    ],
+    correctIndex: 0,
+  },
+  {
+    id: "kol-wel-mittelmeer",
+    topic: "Kolonialismus",
+    explanation: "Das Mittelmeer verlor seine Bedeutung als Handelsweg, und Venedig gab seine Vormachtstellung ab.",
+    stem: "Welches Meer und welche Stadt verloren an Bedeutung?",
+    options: [
+      "das Mittelmeer und Venedig",
+      "die Nordsee und Hamburg",
+      "die Ostsee und Lübeck",
+      "der Atlantik und Lissabon",
+    ],
+    correctIndex: 0,
+  },
+  {
+    id: "kol-wel-schiffbau",
+    topic: "Kolonialismus",
+    explanation: "Spanien festigte sein Monopol im Atlantik vor allem durch militärische Stärke und die Überlegenheit im Schiffbau.",
+    stem: "Wodurch festigte Spanien seine Macht im Atlantik?",
+    options: [
+      "durch militärische Stärke und Überlegenheit im Schiffbau",
+      "durch Geschenke an alle Länder",
+      "durch Verträge mit den Azteken",
+      "durch reinen Zufall",
+    ],
     correctIndex: 0,
   },
   {

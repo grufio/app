@@ -1,17 +1,56 @@
 import type { McItem } from "@/lib/mc";
 
-/** Geschichte — Der Ablasshandel (Krise der Kirche, 95 Thesen). */
+/** Geschichte — Der Ablasshandel (Krise der Kirche, 95 Thesen, S. 84/85). */
 export const refAblasshandel: McItem[] = [
+  {
+    id: "ref-abl-angst",
+    topic: "Reformation",
+    explanation: "Die Menschen des Mittelalters strebten aus Angst vor der Hölle nach einem gottgefälligen Leben.",
+    stem: "Wonach strebten die Menschen des Mittelalters aus Angst vor der Hölle?",
+    options: [
+      "nach viel Geld",
+      "nach einem gottgefälligen Leben",
+      "nach großen Reisen",
+      "nach mehr Land",
+    ],
+    correctIndex: 1,
+  },
   {
     id: "ref-abl-krise",
     topic: "Reformation",
-    explanation: "Am Ende des Mittelalters steckte die Kirche in einer Krise: Die Priester waren schlecht ausgebildet und viele Bischöfe lebten wie weltliche Fürsten.",
+    explanation: "Am Ende des Mittelalters steckte die Kirche in einer Krise: Die Priester waren schlecht ausgebildet.",
     stem: "In welcher Krise steckte die Kirche am Ende des Mittelalters?",
     options: [
-      "die Priester waren schlecht ausgebildet, Bischöfe lebten wie Fürsten",
+      "die Priester waren schlecht ausgebildet",
       "es gab zu viele Kirchen",
       "niemand wollte mehr beten",
       "die Kirchen waren zu klein",
+    ],
+    correctIndex: 0,
+  },
+  {
+    id: "ref-abl-bischoefe",
+    topic: "Reformation",
+    explanation: "Viele Bischöfe lebten wie weltliche Fürsten in großen Palästen und kümmerten sich kaum um die Gläubigen.",
+    stem: "Wie lebten viele Bischöfe am Ende des Mittelalters?",
+    options: [
+      "arm und bescheiden",
+      "wie weltliche Fürsten in großen Palästen",
+      "als einfache Bauern",
+      "weit weg in der Wüste",
+    ],
+    correctIndex: 1,
+  },
+  {
+    id: "ref-abl-amt-kaufen",
+    topic: "Reformation",
+    explanation: "Wer Bischof werden wollte, musste kein ausgebildeter Priester sein, sondern zahlte dem Papst viel Geld.",
+    stem: "Wie konnte man damals Bischof werden?",
+    options: [
+      "man musste dem Papst viel Geld zahlen",
+      "man musste eine Prüfung bestehen",
+      "man wurde vom Volk gewählt",
+      "man musste zehn Jahre Priester sein",
     ],
     correctIndex: 0,
   },
@@ -66,6 +105,19 @@ export const refAblasshandel: McItem[] = [
       "ein Ofen in der Kirche",
     ],
     correctIndex: 0,
+  },
+  {
+    id: "ref-abl-kasten",
+    topic: "Reformation",
+    explanation: "Die Ablassprediger warben mit dem Spruch: „Sobald das Geld im Kasten klingt, die Seele aus dem Fegefeuer springt.“",
+    stem: "Mit welchem Spruch warben die Ablassprediger?",
+    options: [
+      "„Wissen ist Macht.“",
+      "„Sobald das Geld im Kasten klingt, die Seele aus dem Fegefeuer springt.“",
+      "„Übung macht den Meister.“",
+      "„Ende gut, alles gut.“",
+    ],
+    correctIndex: 1,
   },
   {
     id: "ref-abl-luther-ort",

@@ -1,14 +1,14 @@
 import type { McItem } from "@/lib/mc";
 
 /**
- * Geschichte — Der Dreieckshandel (transatlantischer Sklavenhandel).
+ * Geschichte — Der Dreieckshandel (transatlantischer Sklavenhandel, S. 81).
  * Bewusst neutral formuliert („versklavte Menschen“, „Sklavenhandel“).
  */
 export const kolDreieckshandel: McItem[] = [
   {
     id: "kol-drh-grund",
     topic: "Kolonialismus",
-    explanation: "Weil die Zahl der Ureinwohner stark gesunken war, suchten die Kolonialherren nach neuen Arbeitskräften.",
+    explanation: "Weil die Zahl der Ureinwohner stark gesunken war, suchten die Plantagen- und Bergwerksbesitzer nach neuen Arbeitskräften.",
     stem: "Warum suchten die Kolonialherren neue Arbeitskräfte?",
     options: [
       "weil die Zahl der Ureinwohner stark gesunken war",
@@ -34,7 +34,7 @@ export const kolDreieckshandel: McItem[] = [
   {
     id: "kol-drh-ozean",
     topic: "Kolonialismus",
-    explanation: "Der Warenhandel des Dreieckshandels lief über den Atlantischen Ozean.",
+    explanation: "Der Warenhandel des Dreieckshandels lief über den Atlantischen Ozean in der Frühen Neuzeit.",
     stem: "Über welchen Ozean lief der Dreieckshandel?",
     options: ["den Pazifik", "den Indischen Ozean", "den Atlantik", "das Mittelmeer"],
     correctIndex: 2,
@@ -42,7 +42,7 @@ export const kolDreieckshandel: McItem[] = [
   {
     id: "kol-drh-waren-afrika",
     topic: "Kolonialismus",
-    explanation: "Nach Afrika brachten die Europäer minderwertige Waren wie Glasperlen, alte Waffen und Alkohol.",
+    explanation: "Afrikanische Sklavenhändler erhielten aus Europa meist minderwertige Waren wie Glasperlen, alte Schusswaffen und Alkohol.",
     stem: "Welche Waren brachten die Europäer nach Afrika?",
     options: [
       "Gold und Silber",
@@ -53,9 +53,22 @@ export const kolDreieckshandel: McItem[] = [
     correctIndex: 2,
   },
   {
+    id: "kol-drh-zehnfach",
+    topic: "Kolonialismus",
+    explanation: "Ein versklavter Mensch, den ein Händler in Afrika gegen fast wertlose Güter eintauschte, brachte in Amerika das Zehnfache des Preises.",
+    stem: "Wie viel brachte ein in Afrika eingetauschter Mensch in Amerika ein?",
+    options: [
+      "das Zehnfache des Preises",
+      "genau den gleichen Preis",
+      "die Hälfte",
+      "gar nichts",
+    ],
+    correctIndex: 0,
+  },
+  {
     id: "kol-drh-menschen",
     topic: "Kolonialismus",
-    explanation: "Von Afrika nach Amerika wurden versklavte Menschen verschleppt.",
+    explanation: "Von Afrika nach Amerika wurden versklavte Menschen verschleppt – der Mensch wurde zur Ware.",
     stem: "Was wurde von Afrika nach Amerika gebracht?",
     options: [
       "Werkzeuge",
@@ -81,13 +94,26 @@ export const kolDreieckshandel: McItem[] = [
   {
     id: "kol-drh-waren-europa",
     topic: "Kolonialismus",
-    explanation: "Von Amerika nach Europa gingen begehrte Rohstoffe wie Zucker, Baumwolle und Edelmetalle.",
+    explanation: "Von Amerika nach Europa gingen begehrte Rohstoffe und Plantagenprodukte wie Edelmetalle, Baumwolle und Zucker.",
     stem: "Welche Waren gingen von Amerika nach Europa?",
     options: [
       "Glasperlen und Alkohol",
-      "Rohstoffe wie Zucker, Baumwolle und Edelmetalle",
+      "Rohstoffe wie Edelmetalle, Baumwolle und Zucker",
       "alte Schusswaffen",
       "nichts",
+    ],
+    correctIndex: 1,
+  },
+  {
+    id: "kol-drh-plantage",
+    topic: "Kolonialismus",
+    explanation: "Eine Plantage ist ein landwirtschaftlicher Großbetrieb, der für den Weltmarkt produziert.",
+    stem: "Was ist eine Plantage?",
+    options: [
+      "ein kleiner Hausgarten",
+      "ein landwirtschaftlicher Großbetrieb für den Weltmarkt",
+      "eine Fabrik für Autos",
+      "ein Bergwerk",
     ],
     correctIndex: 1,
   },
@@ -116,6 +142,19 @@ export const kolDreieckshandel: McItem[] = [
       "in kleinen Booten hinterher",
     ],
     correctIndex: 2,
+  },
+  {
+    id: "kol-drh-folgen",
+    topic: "Kolonialismus",
+    explanation: "Der Sklavenhandel führte in Afrika zur Vernichtung von Kulturen und zur Entvölkerung ganzer Landstriche.",
+    stem: "Welche Folgen hatte der Sklavenhandel für Afrika?",
+    options: [
+      "Vernichtung von Kulturen und Entvölkerung ganzer Landstriche",
+      "einen großen Reichtum für alle",
+      "gar keine Folgen",
+      "mehr Einwohner",
+    ],
+    correctIndex: 0,
   },
   {
     id: "kol-drh-verbot",
