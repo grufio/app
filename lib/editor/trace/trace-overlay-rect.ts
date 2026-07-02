@@ -21,16 +21,19 @@
  * aspect equal the apply-time resize, regardless of how `imageTx` later
  * changes.
  *
- * Why position follows the image (the user-facing "trace must hang on the
- * image" requirement): the trace is conceptually locked to the base image —
- * moving/panning/zooming the image moves the trace with it. So POSITION =
- * the live base-image centre (`imageRender.x/y`), NOT a frozen origin.
- * (An earlier iteration froze the position too; that was wrong — only the
- * SIZE must stay frozen.) Pan/zoom is applied on top by the caller via the
- * stage `view` transform (in `TraceInlineSvg`). During an active image drag,
- * `imageRender` lags until drag-commit, so the caller patches the position
- * with a render-only world-px offset (fed from the bounds-controller's
- * `onDragFlush`) — never by mutating `imageTx`.
+ * Why position is FROZEN too (content-rect traces): a trace now converts only
+ * the printable content rect (artboard − padding), which is fixed on the
+ * ARTBOARD — not centred on the image. So the trace is locked to that content
+ * rect: POSITION = the frozen centre `display_x/y`, decoupled from the live
+ * image. Moving/resizing the base image does NOT move the trace (it stays in
+ * the content rect it converted). Pan/zoom is applied on top by the caller via
+ * the stage `view` transform (in `TraceInlineSvg`) — the whole canvas pans, so
+ * the trace pans with it. The image-drag position patch only applies to legacy
+ * "0" rects (which still follow the live image, below).
+ *
+ * (Earlier this layer followed the live image centre — correct only for the old
+ * image-centred crop. With the content-rect crop that reasoning inverts, so the
+ * frozen position is now the correct anchor.)
  *
  * Coordinate space: `display_*_px_u` is µpx (1px = 1e6 µpx), the SAME
  * space as the canvas `imageTx`. `pxUToPxNumber` (= Number/1e6) converts to
@@ -131,20 +134,22 @@ export function resolveTraceOverlayRect(
 ): TraceWorldRect | null {
   const size = resolveTraceWorldSize(displayRect)
   if (!size) {
-    // Legacy/lineart: no frozen rect → fall back to the live image rect
-    // (size AND position), exactly as before this layer existed.
+    // Legacy "0" rect (pre-content-rect rows): no frozen rect → fall back to
+    // the live image rect (size AND position), exactly as before this layer.
     return imageRender ?? null
   }
-  // Position follows the live base image; size stays frozen on display_w/h.
-  if (imageRender) {
-    return { x: imageRender.x, y: imageRender.y, width: size.width, height: size.height }
-  }
-  // No live image to anchor to → render at the frozen origin.
+  // Content-rect trace: the trace is anchored to the printable content rect on
+  // the ARTBOARD (artboard − padding), decoupled from the live image. Both
+  // POSITION (frozen centre `display_x/y`) and SIZE (frozen `display_w/h`) come
+  // from the frozen rect, so moving/resizing the base image does NOT move the
+  // trace — it stays in the content rect it converted. (Pan/zoom is applied
+  // downstream via the stage `view`, so the trace still pans/zooms with the
+  // whole canvas.)
   const xPxU = parsePxU(displayRect!.display_x_px_u)
   const yPxU = parsePxU(displayRect!.display_y_px_u)
   return {
-    x: xPxU != null ? pxUToPxNumber(xPxU) : 0,
-    y: yPxU != null ? pxUToPxNumber(yPxU) : 0,
+    x: xPxU != null ? pxUToPxNumber(xPxU) : (imageRender?.x ?? 0),
+    y: yPxU != null ? pxUToPxNumber(yPxU) : (imageRender?.y ?? 0),
     width: size.width,
     height: size.height,
   }
