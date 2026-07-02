@@ -33,6 +33,10 @@ export function usePanelUIState() {
   // mount and opens the matching configure dialog, then clears via the
   // consume cb.
   const [pendingTraceKindOpen, setPendingTraceKindOpen] = useState<RegisteredTraceId | null>(null)
+  // Cross-mount channel: the trace top-right bar's "+" asks TraceSurfaceScope to
+  // open the kind PICKER (selection). Boolean — unlike `pendingTraceKindOpen` it
+  // doesn't target a specific kind (that one skips the picker → configure).
+  const [pendingTraceSelectionOpen, setPendingTraceSelectionOpen] = useState(false)
   // Cross-mount channel: the EditorFuncsBar artboard sub-pill sets which of
   // the three standalone dialogs (Artboard / Grid / Image) to open — local to
   // ArtboardSurfaceScope's `activeDialog`. The scope reads it on render, opens
@@ -53,6 +57,10 @@ export function usePanelUIState() {
     setPendingTraceKindOpen(null)
   }, [])
 
+  const consumePendingTraceSelectionOpen = useCallback(() => {
+    setPendingTraceSelectionOpen(false)
+  }, [])
+
   const consumePendingArtboardDialog = useCallback(() => {
     setPendingArtboardDialog(null)
   }, [])
@@ -68,6 +76,9 @@ export function usePanelUIState() {
     pendingTraceKindOpen,
     setPendingTraceKindOpen,
     consumePendingTraceKindOpen,
+    pendingTraceSelectionOpen,
+    setPendingTraceSelectionOpen,
+    consumePendingTraceSelectionOpen,
     pendingArtboardDialog,
     setPendingArtboardDialog,
     consumePendingArtboardDialog,

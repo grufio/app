@@ -26,6 +26,7 @@ import { EditorFuncsBar } from "@/features/editor/components/editor-funcs-bar"
 import { EditorArtboardBar } from "@/features/editor/components/editor-artboard-bar"
 import { EditorImageBar } from "@/features/editor/components/editor-image-bar"
 import { EditorFilterBar } from "@/features/editor/components/editor-filter-bar"
+import { EditorTraceBar } from "@/features/editor/components/editor-trace-bar"
 import { FilterSelectionController } from "@/features/editor/components/FilterSelectionController"
 import { EditorToolbarToneProvider } from "@/features/editor/components/editor-toolbar-tone"
 import {
@@ -143,6 +144,9 @@ export function ProjectDetailPageClient({
     pendingTraceKindOpen,
     setPendingTraceKindOpen,
     consumePendingTraceKindOpen,
+    pendingTraceSelectionOpen,
+    setPendingTraceSelectionOpen,
+    consumePendingTraceSelectionOpen,
     pendingArtboardDialog,
     setPendingArtboardDialog,
     consumePendingArtboardDialog,
@@ -552,8 +556,8 @@ export function ProjectDetailPageClient({
               masterImage={canvasImage}
               masterImageLoading={editorImageSource.status === "loading"}
               masterImageError={editorImageSource.status === "error" ? editorImageSource.error : ""}
-              // Canvas "Processing..." overlay while a filter apply runs.
-              processing={workflow.isApplyingFilter}
+              // Canvas "Processing..." overlay while a filter or trace apply runs.
+              processing={workflow.isApplyingFilter || isApplyingTrace}
               toolbar={stageToolbar}
               // The canvas-editing tools (zoom / hand / crop) belong to the
               // Image context only — i.e. the artboard section with the Image
@@ -697,6 +701,19 @@ export function ProjectDetailPageClient({
             workingImageUrl={filterDisplayImage?.signedUrl ?? null}
           />
         ) : null}
+        {/* Trace-section top-right submenu: Plus (no trace) opens the kind
+            picker; Trash2 + Pencil (trace set) clear / re-open the configure
+            dialog. Mirrors the Filter/Image bars. */}
+        {editorSection === "trace" ? (
+          <EditorTraceBar
+            hasTrace={hasTrace}
+            onOpen={() => {
+              if (trace) setPendingTraceKindOpen(trace.kind)
+              else setPendingTraceSelectionOpen(true)
+            }}
+            onDelete={() => void handleClearTrace()}
+          />
+        ) : null}
         {editorSection === "trace" ? (
           <TraceSurfaceScope
             traceSourceImage={traceSourceImage}
@@ -708,6 +725,8 @@ export function ProjectDetailPageClient({
             onClearTrace={handleClearTrace}
             pendingKindOpen={pendingTraceKindOpen}
             onConsumePendingKindOpen={consumePendingTraceKindOpen}
+            pendingSelectionOpen={pendingTraceSelectionOpen}
+            onConsumePendingSelectionOpen={consumePendingTraceSelectionOpen}
             onConfigureCancelled={handleTraceConfigureCancelled}
           />
         ) : null}

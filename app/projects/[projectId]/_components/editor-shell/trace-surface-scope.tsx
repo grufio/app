@@ -36,6 +36,10 @@ export type TraceSurfaceScopeProps = {
    * configure dialog directly (skip the picker) and signal consume. */
   pendingKindOpen?: TraceKind | null
   onConsumePendingKindOpen?: () => void
+  /** Cross-mount channel from the trace top-right bar's "+": open the kind
+   * PICKER (selection). Distinct from `pendingKindOpen`, which skips it. */
+  pendingSelectionOpen?: boolean
+  onConsumePendingSelectionOpen?: () => void
   /** Fired when the user cancels the configure dialog (X / Cancel /
    * Escape / overlay click) — distinct from a successful Apply, which
    * unmounts via `reset` and never reaches the cancel handler. The
@@ -56,6 +60,14 @@ export function TraceSurfaceScope(props: TraceSurfaceScopeProps) {
     openTraceKind(pendingKindOpen)
     onConsumePendingKindOpen?.()
   }, [pendingKindOpen, openTraceKind, onConsumePendingKindOpen])
+
+  const { pendingSelectionOpen, onConsumePendingSelectionOpen } = props
+  const { beginSelection: beginTraceSelection } = traceDialog
+  useEffect(() => {
+    if (!pendingSelectionOpen) return
+    beginTraceSelection()
+    onConsumePendingSelectionOpen?.()
+  }, [pendingSelectionOpen, beginTraceSelection, onConsumePendingSelectionOpen])
 
   // Snapshot from `traceDialog.session` carries the stable identity
   // (sourceImageUrl + intrinsic px), but `displayMmW`/`displayMmH`
