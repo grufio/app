@@ -25,6 +25,7 @@
  */
 import * as React from "react"
 import dynamic from "next/dynamic"
+import { Loader2 } from "lucide-react"
 
 import { computeRgbaBackgroundStyleFromHex } from "@/lib/editor/color"
 import {
@@ -138,6 +139,9 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
    * false. The Colors section is a read-only palette view, so the
    * canvas-editing toolbar doesn't belong there. Defaults to shown. */
   showToolsBar?: boolean
+  /** Shows a "Processing..." overlay over the canvas while a long image
+   * operation (e.g. applying a filter) is running. */
+  processing?: boolean
 }) {
   const {
     masterImage,
@@ -163,6 +167,7 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
     previewBitmapVisible = true,
     numbersLayerVisible = true,
     showToolsBar = true,
+    processing = false,
   } = props
 
   void _masterImageLoading
@@ -184,6 +189,20 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
 
       {/* Workspace */}
       <div className="relative min-h-0 flex-1" style={bgStyle}>
+        {/* Processing overlay — visible feedback while a long image op
+            (e.g. a filter apply) runs. Blocks canvas interaction until done. */}
+        {processing ? (
+          <div className="absolute inset-0 z-30 flex items-center justify-center bg-background/50">
+            <div
+              role="status"
+              aria-live="polite"
+              className="flex items-center gap-2 rounded-md bg-background px-4 py-2 text-sm shadow-md"
+            >
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              <span>Processing...</span>
+            </div>
+          </div>
+        ) : null}
         {/* Floating toolbar overlay (Figma-like), right side, vertical,
             vertically centred on the canvas. Only shown on the Image section
             (the shell gates `showToolsBar`); other sections don't use the

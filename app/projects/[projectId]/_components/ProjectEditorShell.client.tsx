@@ -552,6 +552,8 @@ export function ProjectDetailPageClient({
               masterImage={canvasImage}
               masterImageLoading={editorImageSource.status === "loading"}
               masterImageError={editorImageSource.status === "error" ? editorImageSource.error : ""}
+              // Canvas "Processing..." overlay while a filter apply runs.
+              processing={workflow.isApplyingFilter}
               toolbar={stageToolbar}
               // The canvas-editing tools (zoom / hand / crop) belong to the
               // Image context only — i.e. the artboard section with the Image
