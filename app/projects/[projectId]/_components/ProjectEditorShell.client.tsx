@@ -25,6 +25,8 @@ import { EditorMenuBar } from "@/features/editor/components/editor-menu-bar"
 import { EditorFuncsBar } from "@/features/editor/components/editor-funcs-bar"
 import { EditorArtboardBar } from "@/features/editor/components/editor-artboard-bar"
 import { EditorImageBar } from "@/features/editor/components/editor-image-bar"
+import { EditorFilterBar } from "@/features/editor/components/editor-filter-bar"
+import { FilterSelectionController } from "@/features/editor/components/FilterSelectionController"
 import { EditorToolbarToneProvider } from "@/features/editor/components/editor-toolbar-tone"
 import {
   Dialog,
@@ -480,6 +482,9 @@ export function ProjectDetailPageClient({
   const [filterDeleteId, setFilterDeleteId] = useState<string | null>(null)
   const [filterDeleteBusy, setFilterDeleteBusy] = useState(false)
   const [filterDeleteError, setFilterDeleteError] = useState<string | null>(null)
+  // Filter picker (top-right "+" / edit) open state — the Filter section's
+  // sole dialog. Local, mounted only while the Filter section is active.
+  const [filterSelectionOpen, setFilterSelectionOpen] = useState(false)
 
   const handleRemoveFilter = useCallback(
     (id: string) => {
@@ -669,8 +674,27 @@ export function ProjectDetailPageClient({
             onRequestDelete={requestDeleteSelectedImage}
           />
         ) : null}
-        {/* The Filter section has no surface-scope mount: its top-left "+"
-            menu (apply kind / remove / unlock) is the sole filter UI. */}
+        {/* Filter-section top-right submenu: Plus (no filter) opens the
+            picker; Trash2 + Pencil (filter set) delete / re-open the picker.
+            The picker itself mounts here too, gated on the section. */}
+        {editorSection === "filter" ? (
+          <EditorFilterBar
+            hasFilter={hasFilter}
+            onOpen={() => setFilterSelectionOpen(true)}
+            onDelete={() => {
+              const id = filterStack[0]?.id
+              if (id) handleRemoveFilter(id)
+            }}
+          />
+        ) : null}
+        {editorSection === "filter" ? (
+          <FilterSelectionController
+            open={filterSelectionOpen}
+            onClose={() => setFilterSelectionOpen(false)}
+            onApply={(filterType) => handleApplyFilter({ filterType, filterParams: {} })}
+            workingImageUrl={filterDisplayImage?.signedUrl ?? null}
+          />
+        ) : null}
         {editorSection === "trace" ? (
           <TraceSurfaceScope
             traceSourceImage={traceSourceImage}
