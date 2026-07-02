@@ -403,7 +403,7 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   const paddingVeilFill = "rgba(255, 255, 255, 0.55)"
   // Outside-artboard preview: a strong *dark* dim over everything outside the
   // page, so the artboard stands out as the bright focus.
-  const outsideVeilFill = "rgba(0, 0, 0, 0.55)"
+  const outsideVeilFill = "rgba(0, 0, 0, 0.4)"
   const selectionColor = "#000000"
   const selectionDash: number[] | undefined = undefined
   const selectionHandlePx = 8
