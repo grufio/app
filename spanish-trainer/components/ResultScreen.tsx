@@ -10,11 +10,17 @@ export function ResultScreen({
   highScore,
   isNewBest,
   onRestart,
+  // Defaults fit the Spanish vocab trainer; the MC engine (Physik/Deutsch/
+  // Geschichte) overrides these so it doesn't celebrate "Vokabeln" in Spanish.
+  title = "¡Muy bien!",
+  subtitle = "Du hast alle Vokabeln geschafft.",
 }: {
   score: number;
   highScore: number;
   isNewBest: boolean;
   onRestart: () => void;
+  title?: string;
+  subtitle?: string;
 }) {
   useEffect(() => {
     const end = Date.now() + 900;
@@ -37,8 +43,8 @@ export function ResultScreen({
       className="flex max-h-[90dvh] flex-col items-center gap-4 overflow-y-auto rounded-3xl border border-line bg-surface px-8 py-10 text-center shadow-[0_10px_40px_rgba(0,0,0,0.12)]"
     >
       <Trophy className="h-16 w-16 text-ok" aria-hidden />
-      <h2 className="text-3xl font-semibold tracking-tight text-ink">¡Muy bien!</h2>
-      <p className="text-ink-soft">Du hast alle Vokabeln geschafft.</p>
+      <h2 className="text-3xl font-semibold tracking-tight text-ink">{title}</h2>
+      <p className="text-ink-soft">{subtitle}</p>
       <p className="text-5xl font-semibold tabular-nums text-ink">{score}</p>
       <p className="text-sm text-ink-soft">
         {isNewBest ? (

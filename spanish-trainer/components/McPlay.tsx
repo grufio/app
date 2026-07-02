@@ -145,6 +145,8 @@ export function McPlay({ test }: { test: Extract<TestDef, { kind: "mc" }> }) {
                 highScore={highScore}
                 isNewBest={isNewBest}
                 onRestart={() => dispatch({ type: "RESTART" })}
+                title="Geschafft!"
+                subtitle="Du hast alle Fragen geschafft."
               />
             </div>
           ) : state.status === "explain" ? (
