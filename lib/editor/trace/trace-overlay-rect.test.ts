@@ -63,10 +63,10 @@ describe("resolveTraceWorldSize", () => {
   })
 })
 
-describe("resolveTraceOverlayRect — POSITION follows the image, SIZE stays frozen", () => {
-  // Prod fixture (project 2d15eeeb): trace display_* = 283.46×566.93 px (2:1),
-  // frozen centre 297.5/421.0. The frozen ORIGIN is only used when there is no
-  // live image to anchor to.
+describe("resolveTraceOverlayRect — POSITION + SIZE frozen (content-rect anchor)", () => {
+  // Trace display_* = 283.46×566.93 px (2:1), frozen centre 297.5/421.0. A
+  // content-rect trace is anchored to the artboard content rect, decoupled from
+  // the live image (position AND size come from the frozen rect).
   const displayRect = {
     display_x_px_u: "297500000", // 297.5 px
     display_y_px_u: "421000000", // 421.0 px
@@ -74,14 +74,15 @@ describe("resolveTraceOverlayRect — POSITION follows the image, SIZE stays fro
     display_height_px_u: "566929134", // 566.93 px
   }
 
-  it("POSITION = the live base-image centre; SIZE = the frozen display rect", () => {
-    // User moved + enlarged the base image after applying the trace.
+  it("POSITION = the frozen content-rect centre (NOT the image); SIZE = frozen", () => {
+    // User moved + enlarged the base image after applying — the trace stays in
+    // the content rect it converted, it does not follow the image.
     const imageRender = { x: 600, y: 200, width: 800, height: 800 }
     const rect = resolveTraceOverlayRect(displayRect, imageRender)!
     expect(rect).not.toBeNull()
-    // Position HANGS ON the image (600/200), not the frozen origin (297.5/421).
-    expect(rect.x).toBe(600)
-    expect(rect.y).toBe(200)
+    // Position is the frozen content-rect centre (297.5/421), NOT the image (600/200).
+    expect(rect.x).toBeCloseTo(297.5, 4)
+    expect(rect.y).toBeCloseTo(421, 4)
     // Size stays the frozen 283×567 (2:1) — NOT the 800×800 image size.
     expect(rect.width).toBeCloseTo(283.464567, 4)
     expect(rect.height).toBeCloseTo(566.929134, 4)
@@ -90,17 +91,19 @@ describe("resolveTraceOverlayRect — POSITION follows the image, SIZE stays fro
 
   it("SIZE stays frozen even when the image is later resized to a square (Assert C-2 at unit level)", () => {
     // The ~30-PR aspect bug: a later square resize must NOT drag the overlay
-    // size/aspect toward 1:1. Position follows the (unchanged) centre.
-    const square = { x: 297.5, y: 421, width: 800, height: 800 }
+    // size/aspect toward 1:1. Position stays the frozen content-rect centre.
+    const square = { x: 900, y: 900, width: 800, height: 800 }
     const rect = resolveTraceOverlayRect(displayRect, square)!
+    expect(rect.x).toBeCloseTo(297.5, 4)
+    expect(rect.y).toBeCloseTo(421, 4)
     expect(rect.width).toBeCloseTo(283.464567, 4)
     expect(rect.height).toBeCloseTo(566.929134, 4)
     // Aspect is the frozen 1:2, never the square image's 1:1.
     expect(rect.width / rect.height).not.toBeCloseTo(1, 1)
   })
 
-  it("falls back to the frozen display_x/y when there is no live image", () => {
-    const rect = resolveTraceOverlayRect(displayRect, null)!
+  it("uses the frozen display_x/y even with a far-away live image", () => {
+    const rect = resolveTraceOverlayRect(displayRect, { x: 999, y: 999, width: 100, height: 100 })!
     expect(rect.x).toBeCloseTo(297.5, 4)
     expect(rect.y).toBeCloseTo(421, 4)
     expect(rect.width).toBeCloseTo(283.464567, 4)

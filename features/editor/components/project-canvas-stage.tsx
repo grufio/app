@@ -39,7 +39,7 @@ import type { BoundsRect, ViewState } from "./canvas-stage/types"
 import { useHtmlImage } from "./canvas-stage/use-html-image"
 import { useSvgText } from "./canvas-stage/use-svg-text"
 import { TraceInlineSvg } from "./canvas-stage/trace-inline-svg"
-import { resolveTraceOverlayRect } from "@/lib/editor/trace/trace-overlay-rect"
+import { resolveTraceOverlayRect, resolveTraceWorldSize } from "@/lib/editor/trace/trace-overlay-rect"
 import { computeWorldSize } from "@/services/editor"
 
 type Props = {
@@ -636,15 +636,15 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     setTraceDragOffset((o) => (o.x === 0 && o.y === 0 ? o : { x: 0, y: 0 }))
   }, [imageRender?.x, imageRender?.y])
 
-  // The trace overlay HANGS ON the base image for POSITION (follows
-  // `imageRender.x/y`) but keeps its FROZEN SIZE (`display_w/h`); legacy/
-  // lineart "0" rects fall back fully to `imageRender`. The render-only
-  // `traceDragOffset` patches the position mid-drag, where `imageRender`
-  // lags until commit — see the offset's declaration + `onDragFlush`.
+  // A content-rect trace is anchored to the artboard content rect (frozen
+  // position + size), decoupled from the base image. Legacy "0" rects still
+  // follow the live image; only those get the mid-drag position patch (where
+  // `imageRender` lags until commit — see `onDragFlush`).
   const traceRect = useMemo(() => {
     const rect = resolveTraceOverlayRect(traceDisplayRect, imageRender)
     if (!rect) return null
-    if (traceDragOffset.x === 0 && traceDragOffset.y === 0) return rect
+    const frozen = resolveTraceWorldSize(traceDisplayRect) !== null
+    if (frozen || (traceDragOffset.x === 0 && traceDragOffset.y === 0)) return rect
     return { ...rect, x: rect.x + traceDragOffset.x, y: rect.y + traceDragOffset.y }
   }, [traceDisplayRect, imageRender, traceDragOffset])
 
