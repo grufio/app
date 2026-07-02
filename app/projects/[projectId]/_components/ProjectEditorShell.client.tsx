@@ -48,7 +48,6 @@ import { useMutationLeaveGuard } from "@/lib/editor/hooks/use-mutation-leave-gua
 import { shouldWarnBeforeUnload } from "@/lib/editor/hooks/should-warn-before-unload"
 import { useEditorSessionState } from "@/lib/editor/hooks/use-editor-session-state"
 import { usePageBackgroundState } from "@/lib/editor/hooks/use-page-background-state"
-import { usePaddingState } from "@/lib/editor/hooks/use-padding-state"
 import { useProjectGrid } from "@/lib/editor/project-grid"
 import { useProjectWorkspace } from "@/lib/editor/project-workspace"
 import { reportError } from "@/lib/monitoring/error-reporting"
@@ -85,7 +84,6 @@ export function ProjectDetailPageClient({
   const {
     row: workspaceRow,
     updateWorkspacePageBg,
-    updateWorkspacePadding,
     unit: workspaceUnit,
     widthPx: artboardWidthPx,
     heightPx: artboardHeightPx,
@@ -354,19 +352,9 @@ export function ProjectDetailPageClient({
     updateWorkspacePageBg,
   })
 
-  const {
-    paddingTop,
-    paddingBottom,
-    paddingLeft,
-    paddingRight,
-    handlePaddingTopChange,
-    handlePaddingBottomChange,
-    handlePaddingLeftChange,
-    handlePaddingRightChange,
-  } = usePaddingState({
-    workspaceRow,
-    updateWorkspacePadding,
-  })
+  // Padding form is self-contained (reads the workspace row + saves directly,
+  // like ArtboardPanel/GridPanel) — no shell hook. The canvas still reads the
+  // saved padding via `paddingPx` below.
 
   const { panelImageTxU, workspaceReady, imagePanelReady } = useRightPanelModel({
     displayTxU,
@@ -655,14 +643,6 @@ export function ProjectDetailPageClient({
             onPageBgEnabledChange={handlePageBgEnabledChange}
             onPageBgColorChange={handlePageBgColorChange}
             onPageBgOpacityChange={handlePageBgOpacityChange}
-            paddingTop={paddingTop}
-            paddingBottom={paddingBottom}
-            paddingLeft={paddingLeft}
-            paddingRight={paddingRight}
-            onPaddingTopChange={handlePaddingTopChange}
-            onPaddingBottomChange={handlePaddingBottomChange}
-            onPaddingLeftChange={handlePaddingLeftChange}
-            onPaddingRightChange={handlePaddingRightChange}
             canFit={Boolean(masterImage) && !masterImageLoading && !deleteBusy}
             onFitToArtboard={() => canvasRef.current?.fitImageToArtboard()}
             hasGrid={hasGrid}
