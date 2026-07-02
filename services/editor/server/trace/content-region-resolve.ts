@@ -88,9 +88,12 @@ export async function resolveTraceContentRegion(args: {
     plan,
     displayMmW: pxToMm(c.widthPx),
     displayMmH: pxToMm(c.heightPx),
+    // The display rect's x/y is a CENTRE (matches Konva's centred node + the
+    // trace-overlay contract). The trace is anchored to the content rect on the
+    // artboard, so freeze its centre = content-rect centre.
     displayRectPxU: {
-      xPxU: toPxU(c.xPx),
-      yPxU: toPxU(c.yPx),
+      xPxU: toPxU(c.xPx + c.widthPx / 2),
+      yPxU: toPxU(c.yPx + c.heightPx / 2),
       widthPxU: toPxU(c.widthPx),
       heightPxU: toPxU(c.heightPx),
     },
