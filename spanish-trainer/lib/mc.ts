@@ -18,8 +18,11 @@ export type DeutschTopic =
   | "Attribute"
   | "Tempus";
 
+/** Topic buckets for the history ("Geschichte") multiple-choice tests. */
+export type GeschichteTopic = "Kolonialismus" | "Reformation";
+
 /** Every topic an mc question can carry, across all subjects. */
-export type McTopic = PhysikTopic | DeutschTopic;
+export type McTopic = PhysikTopic | DeutschTopic | GeschichteTopic;
 
 /**
  * A curated multiple-choice question. Unlike the vocabulary game, the answer

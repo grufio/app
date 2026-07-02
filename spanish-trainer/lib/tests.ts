@@ -24,6 +24,14 @@ import { magFeld } from "@/data/physik/mag-feld";
 import { magElektro } from "@/data/physik/mag-elektro";
 import { grsGroessen } from "@/data/physik/grs-groessen";
 import { grsMessen } from "@/data/physik/grs-messen";
+import { kolAzteken } from "@/data/geschichte/kol-azteken";
+import { kolUntergang } from "@/data/geschichte/kol-untergang";
+import { kolUreinwohner } from "@/data/geschichte/kol-ureinwohner";
+import { kolDreieckshandel } from "@/data/geschichte/kol-dreieckshandel";
+import { kolWeltwirtschaft } from "@/data/geschichte/kol-weltwirtschaft";
+import { refAblasshandel } from "@/data/geschichte/ref-ablasshandel";
+import { refLuther } from "@/data/geschichte/ref-luther";
+import { refAugsburg } from "@/data/geschichte/ref-augsburg";
 
 interface TestBase {
   id: string;
@@ -45,6 +53,7 @@ export type TestDef =
 
 const PHYSIK: UserId[] = ["r"];
 const DEUTSCH: UserId[] = ["r"];
+const GESCHICHTE: UserId[] = ["r"];
 
 /** Registry of available tests. Physics is grouped by `area` into sub-areas. */
 export const TESTS: TestDef[] = [
@@ -90,6 +99,18 @@ export const TESTS: TestDef[] = [
   { kind: "mc", area: "Tempus", id: "deu-tempus", title: "Tempus", subtitle: "Die Zeitformen", users: DEUTSCH, items: tempus },
   { kind: "mc", area: "Attribute", id: "deu-attribute", title: "Attribute", subtitle: "Beifügungen zum Nomen", users: DEUTSCH, items: attribute },
   { kind: "mc", area: "Feldermodell", id: "deu-feldermodell", title: "Feldermodell", subtitle: "Vorfeld, Satzklammer, Mittelfeld", users: DEUTSCH, items: feldermodell },
+
+  // Geschichte — Spanischer Kolonialismus
+  { kind: "mc", area: "Kolonialismus", id: "kol-azteken", title: "Das Reich der Azteken", subtitle: "Spanischer Kolonialismus", users: GESCHICHTE, items: kolAzteken },
+  { kind: "mc", area: "Kolonialismus", id: "kol-untergang", title: "Untergang der Azteken", subtitle: "Spanischer Kolonialismus", users: GESCHICHTE, items: kolUntergang },
+  { kind: "mc", area: "Kolonialismus", id: "kol-ureinwohner", title: "Unterdrückung der Ureinwohner", subtitle: "Spanischer Kolonialismus", users: GESCHICHTE, items: kolUreinwohner },
+  { kind: "mc", area: "Kolonialismus", id: "kol-dreieckshandel", title: "Der Dreieckshandel", subtitle: "Spanischer Kolonialismus", users: GESCHICHTE, items: kolDreieckshandel },
+  { kind: "mc", area: "Kolonialismus", id: "kol-weltwirtschaft", title: "Kolonialismus & Weltwirtschaft", subtitle: "Spanischer Kolonialismus", users: GESCHICHTE, items: kolWeltwirtschaft },
+
+  // Geschichte — Reformation
+  { kind: "mc", area: "Reformation", id: "ref-ablasshandel", title: "Der Ablasshandel", subtitle: "Reformation", users: GESCHICHTE, items: refAblasshandel },
+  { kind: "mc", area: "Reformation", id: "ref-luther", title: "Martin Luther & der Bauernkrieg", subtitle: "Reformation", users: GESCHICHTE, items: refLuther },
+  { kind: "mc", area: "Reformation", id: "ref-augsburg", title: "Religionsfrieden von Augsburg", subtitle: "Reformation", users: GESCHICHTE, items: refAugsburg },
 ];
 
 /** Resolve a test by id, falling back to the first test. */
@@ -98,7 +119,7 @@ export function testById(id: string | null | undefined): TestDef {
 }
 
 /** A subject groups several areas on the overview (e.g. Physik, Deutsch). */
-export type Subject = "physik" | "deutsch";
+export type Subject = "physik" | "deutsch" | "geschichte";
 
 export interface SubjectDef {
   id: Subject;
@@ -110,6 +131,7 @@ export interface SubjectDef {
 export const SUBJECTS: SubjectDef[] = [
   { id: "physik", slug: "physik", label: "Physik" },
   { id: "deutsch", slug: "deutsch", label: "Deutsch" },
+  { id: "geschichte", slug: "geschichte", label: "Geschichte" },
 ];
 
 export interface McArea {
@@ -136,6 +158,8 @@ export const MC_AREAS: McArea[] = [
   { subject: "deutsch", slug: "tempus", label: "Tempus", topic: "Tempus" },
   { subject: "deutsch", slug: "attribute", label: "Attribute", topic: "Attribute" },
   { subject: "deutsch", slug: "feldermodell", label: "Feldermodell", topic: "Feldermodell" },
+  { subject: "geschichte", slug: "kolonialismus", label: "Spanischer Kolonialismus", topic: "Kolonialismus" },
+  { subject: "geschichte", slug: "reformation", label: "Reformation", topic: "Reformation" },
 ];
 
 export function subjectBySlug(slug: string | null | undefined): SubjectDef | undefined {
