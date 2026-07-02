@@ -14,20 +14,11 @@
  * (`desktop`). The layout's parent has `position: relative` so the
  * sheet is bounded to the editor area.
  */
-import dynamic from "next/dynamic"
-
+import { ArtboardPanel } from "./artboard-panel"
 import { sheetRootClass } from "./sheet-shell"
 import { PaddingSection } from "./padding-section"
 import { PageBackgroundSection } from "./page-background-section"
 import { SheetHeader } from "./sheet-chrome"
-
-// Mirror the right panel's code-splitting so the bundle cost is paid
-// once, not twice. The dynamic chunk is shared with the desktop right
-// panel when both code paths eventually render.
-const ArtboardPanel = dynamic(() => import("./artboard-panel").then((m) => m.ArtboardPanel), {
-  ssr: false,
-  loading: () => null,
-})
 
 export function ArtboardSheet(props: {
   onClose: () => void
