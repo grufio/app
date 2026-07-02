@@ -1,6 +1,6 @@
 import type { McItem } from "@/lib/mc";
 
-/** Geschichte — Martin Luther & der Bauernkrieg (Worms 1521, Wartburg, Zwölf Artikel). */
+/** Geschichte — Martin Luther und seine Lehre (Worms 1521, Wartburg, S. 85). */
 export const refLuther: McItem[] = [
   {
     id: "ref-lut-widerruf",
@@ -14,6 +14,22 @@ export const refLuther: McItem[] = [
       "dass er mehr Ablassbriefe verkauft",
     ],
     correctIndex: 0,
+  },
+  {
+    id: "ref-lut-christus",
+    topic: "Reformation",
+    explanation: "Luther verschärfte seine Kritik: Nicht der Papst, sondern Christus sei das alleinige Haupt der Kirche.",
+    stem: "Wer war für Luther das alleinige Haupt der Kirche?",
+    options: ["der Papst", "der Kaiser", "Christus", "der Bischof"],
+    correctIndex: 2,
+  },
+  {
+    id: "ref-lut-bibel",
+    topic: "Reformation",
+    explanation: "Für Luther war allein die Bibel die einzige Quelle des Glaubens.",
+    stem: "Was war für Luther die einzige Quelle des Glaubens?",
+    options: ["der Papst", "das Geld", "die Bibel", "der Kaiser"],
+    correctIndex: 2,
   },
   {
     id: "ref-lut-worms",
@@ -42,12 +58,30 @@ export const refLuther: McItem[] = [
     correctIndex: 2,
   },
   {
-    id: "ref-lut-bibel",
+    id: "ref-lut-schreiben",
     topic: "Reformation",
-    explanation: "Für Luther war allein die Bibel die Quelle des Glaubens – nicht der Papst.",
-    stem: "Was war für Luther die einzige Quelle des Glaubens?",
-    options: ["der Papst", "der Kaiser", "die Bibel", "das Geld"],
-    correctIndex: 2,
+    explanation: "Luther verbrannte das päpstliche Schreiben öffentlich – das bedeutete den Bruch mit der Kirche.",
+    stem: "Was tat Luther mit dem päpstlichen Schreiben, das ihn zum Widerruf aufforderte?",
+    options: [
+      "er unterschrieb es",
+      "er verbrannte es öffentlich",
+      "er schickte es zurück nach Rom",
+      "er hängte es in der Kirche auf",
+    ],
+    correctIndex: 1,
+  },
+  {
+    id: "ref-lut-ausschluss",
+    topic: "Reformation",
+    explanation: "Der Papst schloss Martin Luther aus der Kirche aus, da er nicht widerrief.",
+    stem: "Wie reagierte der Papst, weil Luther nicht widerrief?",
+    options: [
+      "er schloss Luther aus der Kirche aus",
+      "er machte Luther zum Bischof",
+      "er gab Luther recht",
+      "er lud ihn nach Rom ein",
+    ],
+    correctIndex: 0,
   },
   {
     id: "ref-lut-reichsacht",
@@ -65,10 +99,18 @@ export const refLuther: McItem[] = [
   {
     id: "ref-lut-wartburg",
     topic: "Reformation",
-    explanation: "Luthers Anhänger brachten ihn auf die Wartburg, wo er sich zehn Monate versteckt hielt.",
+    explanation: "Luthers Anhänger brachten ihn auf die Wartburg, wo er sich versteckt hielt.",
     stem: "Wohin brachten Luthers Anhänger ihn in Sicherheit?",
     options: ["nach Rom", "auf die Wartburg", "nach Wittenberg", "nach Augsburg"],
     correctIndex: 1,
+  },
+  {
+    id: "ref-lut-wartburg-dauer",
+    topic: "Reformation",
+    explanation: "Auf der Wartburg hielt Luther sich rund zehn Monate versteckt.",
+    stem: "Wie lange hielt Luther sich auf der Wartburg versteckt?",
+    options: ["nur einen Tag", "eine Woche", "rund zehn Monate", "zehn Jahre"],
+    correctIndex: 2,
   },
   {
     id: "ref-lut-bibeluebersetzung",
@@ -84,55 +126,16 @@ export const refLuther: McItem[] = [
     correctIndex: 0,
   },
   {
-    id: "ref-lut-zwoelf-artikel",
+    id: "ref-lut-reformation",
     topic: "Reformation",
-    explanation: "1525 fassten die schwäbischen Bauern ihre Forderungen in der Schrift „Die Zwölf Artikel“ zusammen.",
-    stem: "In welcher Schrift fassten die Bauern 1525 ihre Forderungen zusammen?",
+    explanation: "Die Reformation war eine religiöse Erneuerungsbewegung, die zur Entstehung neuer Kirchen führte.",
+    stem: "Was war die Reformation?",
     options: [
-      "in den „95 Thesen“",
-      "im „Augsburger Bekenntnis“",
-      "in den „Zwölf Artikeln“",
-      "im „Vertrag von Tordesillas“",
+      "eine Handelsreise",
+      "ein Krieg gegen die Azteken",
+      "eine religiöse Erneuerungsbewegung, die zu neuen Kirchen führte",
+      "eine neue Steuer",
     ],
     correctIndex: 2,
-  },
-  {
-    id: "ref-lut-forderung",
-    topic: "Reformation",
-    explanation: "Die Bauern forderten unter anderem das Ende der Leibeigenschaft und dass die Gemeinde ihren Pfarrer selbst wählen darf.",
-    stem: "Was forderten die Bauern unter anderem?",
-    options: [
-      "höhere Abgaben",
-      "das Ende der Leibeigenschaft",
-      "einen eigenen König",
-      "die Abschaffung der Kirche",
-    ],
-    correctIndex: 1,
-  },
-  {
-    id: "ref-lut-gegen-bauern",
-    topic: "Reformation",
-    explanation: "Zuerst hatte Luther Verständnis, dann wandte er sich in „Wider die räuberischen Bauern“ scharf gegen die Aufständischen.",
-    stem: "Wie stellte sich Luther am Ende zu den aufständischen Bauern?",
-    options: [
-      "er führte sie selbst an",
-      "er blieb immer auf ihrer Seite",
-      "er wandte sich gegen sie",
-      "er floh mit ihnen",
-    ],
-    correctIndex: 2,
-  },
-  {
-    id: "ref-lut-ende",
-    topic: "Reformation",
-    explanation: "Die Bauernhaufen wurden von den kampferprobten Heeren der Fürsten in blutigen Schlachten geschlagen.",
-    stem: "Wie endete der Bauernkrieg?",
-    options: [
-      "die Bauern gewannen und wurden frei",
-      "die Bauern wurden von den Fürstenheeren blutig geschlagen",
-      "der Kaiser gab den Bauern recht",
-      "der Krieg wurde abgesagt",
-    ],
-    correctIndex: 1,
   },
 ];

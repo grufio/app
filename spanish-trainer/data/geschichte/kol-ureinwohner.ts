@@ -1,6 +1,6 @@
 import type { McItem } from "@/lib/mc";
 
-/** Geschichte — Unterdrückung der Ureinwohner (Missionierung, Zwangsarbeit). */
+/** Geschichte — Die Unterdrückung der Ureinwohner (Missionierung, Zwangsarbeit, S. 80). */
 export const kolUreinwohner: McItem[] = [
   {
     id: "kol-ure-unglaeubig",
@@ -13,9 +13,22 @@ export const kolUreinwohner: McItem[] = [
   {
     id: "kol-ure-papst",
     topic: "Kolonialismus",
-    explanation: "Vom Papst unterstützt meinten die Christen, sie dürften die Reiche der Ureinwohner erobern.",
+    explanation: "Vom Papst unterstützt meinten die Christen, sie hätten das Recht, die Reiche der Ureinwohner zu erobern.",
     stem: "Wer unterstützte die Eroberung der „Reiche der Ungläubigen“?",
     options: ["der Papst", "der Sultan", "der Aztekenkönig", "niemand"],
+    correctIndex: 0,
+  },
+  {
+    id: "kol-ure-untertanen",
+    topic: "Kolonialismus",
+    explanation: "Als Ungläubige konnten die Ureinwohner keine Untertanen eines christlichen Königs sein – deshalb sollten sie missioniert werden.",
+    stem: "Womit begründeten die Spanier die Missionierung?",
+    options: [
+      "Ungläubige könnten keine Untertanen eines christlichen Königs sein",
+      "die Ureinwohner wollten es selbst",
+      "der Papst verbot jede Taufe",
+      "es war reiner Zufall",
+    ],
     correctIndex: 0,
   },
   {
@@ -34,7 +47,7 @@ export const kolUreinwohner: McItem[] = [
   {
     id: "kol-ure-moenche",
     topic: "Kolonialismus",
-    explanation: "Mit den Eroberern kamen viele Mönche und Geistliche ins Land, um die Ureinwohner zu taufen.",
+    explanation: "Mit den Eroberern kamen viele Mönche und Geistliche ins Land, die die Ureinwohner oft gegen ihren Willen tauften.",
     stem: "Wer kam mit den Eroberern ins Land, um zu missionieren?",
     options: ["Ärzte", "Mönche und Geistliche", "Bauern", "Seeleute"],
     correctIndex: 1,
@@ -66,6 +79,19 @@ export const kolUreinwohner: McItem[] = [
     correctIndex: 0,
   },
   {
+    id: "kol-ure-gebaeude",
+    topic: "Kolonialismus",
+    explanation: "Die Ureinwohner mussten auch beim Bau christlicher Gebäude schwer arbeiten.",
+    stem: "Wobei mussten die Ureinwohner außer auf Plantagen und in Bergwerken noch arbeiten?",
+    options: [
+      "beim Bau christlicher Gebäude",
+      "beim Bau von Eisenbahnen",
+      "in Autofabriken",
+      "an Computern",
+    ],
+    correctIndex: 0,
+  },
+  {
     id: "kol-ure-bedingungen",
     topic: "Kolonialismus",
     explanation: "Die Ureinwohner mussten unter unmenschlichen Bedingungen arbeiten.",
@@ -90,6 +116,19 @@ export const kolUreinwohner: McItem[] = [
       "Martin Luther",
     ],
     correctIndex: 2,
+  },
+  {
+    id: "kol-ure-erschoepfung",
+    topic: "Kolonialismus",
+    explanation: "Durch Hunger und Strapazen waren viele Ureinwohner so erschöpft, dass sogar die Zahl der Geburten stark zurückging.",
+    stem: "Welche Folge hatten Hunger und Strapazen für die Ureinwohner?",
+    options: [
+      "sie wurden reicher",
+      "die Zahl der Geburten ging stark zurück",
+      "sie zogen in die Städte",
+      "es änderte sich nichts",
+    ],
+    correctIndex: 1,
   },
   {
     id: "kol-ure-rueckgang",

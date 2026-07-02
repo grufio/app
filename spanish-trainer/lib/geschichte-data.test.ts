@@ -7,6 +7,8 @@ import { kolDreieckshandel } from "@/data/geschichte/kol-dreieckshandel";
 import { kolWeltwirtschaft } from "@/data/geschichte/kol-weltwirtschaft";
 import { refAblasshandel } from "@/data/geschichte/ref-ablasshandel";
 import { refLuther } from "@/data/geschichte/ref-luther";
+import { refBuchdruck } from "@/data/geschichte/ref-buchdruck";
+import { refBauernkrieg } from "@/data/geschichte/ref-bauernkrieg";
 import { refAugsburg } from "@/data/geschichte/ref-augsburg";
 
 const TOPICS: GeschichteTopic[] = ["Kolonialismus", "Reformation"];
@@ -19,6 +21,8 @@ const BANKS: Record<string, { items: McItem[]; topic: GeschichteTopic }> = {
   "kol-weltwirtschaft": { items: kolWeltwirtschaft, topic: "Kolonialismus" },
   "ref-ablasshandel": { items: refAblasshandel, topic: "Reformation" },
   "ref-luther": { items: refLuther, topic: "Reformation" },
+  "ref-buchdruck": { items: refBuchdruck, topic: "Reformation" },
+  "ref-bauernkrieg": { items: refBauernkrieg, topic: "Reformation" },
   "ref-augsburg": { items: refAugsburg, topic: "Reformation" },
 };
 
@@ -29,7 +33,7 @@ describe("geschichte banks", () => {
     for (const [name, { items }] of Object.entries(BANKS)) {
       expect(items.length, name).toBeGreaterThanOrEqual(8);
     }
-    expect(ALL.length).toBeGreaterThanOrEqual(64);
+    expect(ALL.length).toBeGreaterThanOrEqual(120);
   });
 
   it("uses globally unique ids", () => {

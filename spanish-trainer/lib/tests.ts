@@ -31,6 +31,8 @@ import { kolDreieckshandel } from "@/data/geschichte/kol-dreieckshandel";
 import { kolWeltwirtschaft } from "@/data/geschichte/kol-weltwirtschaft";
 import { refAblasshandel } from "@/data/geschichte/ref-ablasshandel";
 import { refLuther } from "@/data/geschichte/ref-luther";
+import { refBuchdruck } from "@/data/geschichte/ref-buchdruck";
+import { refBauernkrieg } from "@/data/geschichte/ref-bauernkrieg";
 import { refAugsburg } from "@/data/geschichte/ref-augsburg";
 
 interface TestBase {
@@ -109,7 +111,9 @@ export const TESTS: TestDef[] = [
 
   // Geschichte — Reformation
   { kind: "mc", area: "Reformation", id: "ref-ablasshandel", title: "Der Ablasshandel", subtitle: "Reformation", users: GESCHICHTE, items: refAblasshandel },
-  { kind: "mc", area: "Reformation", id: "ref-luther", title: "Martin Luther & der Bauernkrieg", subtitle: "Reformation", users: GESCHICHTE, items: refLuther },
+  { kind: "mc", area: "Reformation", id: "ref-luther", title: "Martin Luther und seine Lehre", subtitle: "Reformation", users: GESCHICHTE, items: refLuther },
+  { kind: "mc", area: "Reformation", id: "ref-buchdruck", title: "Buchdruck & Flugblätter", subtitle: "Reformation", users: GESCHICHTE, items: refBuchdruck },
+  { kind: "mc", area: "Reformation", id: "ref-bauernkrieg", title: "Die Bauern kämpfen für ihre Rechte", subtitle: "Reformation", users: GESCHICHTE, items: refBauernkrieg },
   { kind: "mc", area: "Reformation", id: "ref-augsburg", title: "Religionsfrieden von Augsburg", subtitle: "Reformation", users: GESCHICHTE, items: refAugsburg },
 ];
 
