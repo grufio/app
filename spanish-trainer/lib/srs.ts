@@ -45,6 +45,23 @@ export function clearSrs(user: UserId): void {
   }
 }
 
+/**
+ * Remove only the given question ids from a profile's SRS map (used by the
+ * per-area admin reset). Ids that aren't present are ignored.
+ */
+export function clearSrsIds(user: UserId, ids: readonly string[]): void {
+  if (ids.length === 0) return;
+  const map = loadSrs(user);
+  let changed = false;
+  for (const id of ids) {
+    if (id in map) {
+      delete map[id];
+      changed = true;
+    }
+  }
+  if (changed) saveSrs(map, user);
+}
+
 /** Total questions answered (sum of `seen`) — drives the per-profile stat. */
 export function totalAnswered(map: SrsMap): number {
   return Object.values(map).reduce((sum, entry) => sum + entry.seen, 0);

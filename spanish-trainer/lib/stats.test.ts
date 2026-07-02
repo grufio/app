@@ -4,6 +4,7 @@ import {
   learnerLastActive,
   loadRuns,
   resetAllStats,
+  resetGroup,
   runStats,
   testStats,
   type RunEntry,
@@ -97,5 +98,39 @@ describe("resetAllStats", () => {
     expect(loadHighScore("q").score).toBe(0);
     expect(loadHighScore("r").score).toBe(0);
     expect(loadRuns()).toEqual([]);
+  });
+});
+
+describe("resetGroup", () => {
+  beforeEach(() => {
+    vi.stubGlobal("window", { localStorage: localStorageMock() });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("clears only the group's questions and runs, leaving the rest intact", () => {
+    // R has two areas seeded: Optik (opt-licht) and Akustik (aku-ton).
+    saveSrs(recordResult(loadSrs("r"), "opt-licht-1", "correct"), "r");
+    saveSrs(recordResult(loadSrs("r"), "aku-ton-1", "correct"), "r");
+    saveHighScore({ score: 90, level: 2 }, "r");
+    // Q has its own data that must stay untouched.
+    saveSrs(recordResult(loadSrs("q"), "unidad5-1", "correct"), "q");
+    appendRun({ user: "r", testId: "opt-licht", at: 1, score: 50, total: 12, outcome: "won" });
+    appendRun({ user: "r", testId: "aku-ton", at: 2, score: 40, total: 14, outcome: "won" });
+    appendRun({ user: "q", testId: "unidad5", at: 3, score: 30, total: 20, outcome: "won" });
+
+    // Reset only R's Optik area.
+    resetGroup("r", ["opt-licht-1"], ["opt-licht"]);
+
+    // Optik gone for R…
+    expect(loadSrs("r")["opt-licht-1"]).toBeUndefined();
+    expect(runStats(loadRuns(), "r", "opt-licht").runs).toBe(0);
+    // …but Akustik, Q and the high score are untouched.
+    expect(loadSrs("r")["aku-ton-1"]).toBeDefined();
+    expect(runStats(loadRuns(), "r", "aku-ton").runs).toBe(1);
+    expect(loadSrs("q")["unidad5-1"]).toBeDefined();
+    expect(runStats(loadRuns(), "q", "unidad5").runs).toBe(1);
+    expect(loadHighScore("r").score).toBe(90);
   });
 });
