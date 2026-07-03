@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { resolveTraceOverlayRect, resolveTraceWorldSize } from "./trace-overlay-rect"
+import { resolveTraceClipRect, resolveTraceOverlayRect, resolveTraceWorldSize } from "./trace-overlay-rect"
 
 describe("resolveTraceWorldSize", () => {
   it("converts the frozen display rect (µpx) to world px (÷1e6)", () => {
@@ -95,5 +95,39 @@ describe("resolveTraceOverlayRect — frozen content-rect anchor", () => {
       }),
     ).toBeNull()
     expect(resolveTraceOverlayRect(null)).toBeNull()
+  })
+})
+
+describe("resolveTraceClipRect — base-bitmap clip == overlay content rect", () => {
+  const displayRect = {
+    display_x_px_u: "297500000", // centre 297.5 px
+    display_y_px_u: "421000000", // centre 421.0 px
+    display_width_px_u: "283464567", // 283.46 px
+    display_height_px_u: "566929134", // 566.93 px
+  }
+
+  it("returns the SAME frozen rect as the overlay, corner-anchored (centre − extent/2)", () => {
+    const overlay = resolveTraceOverlayRect(displayRect)!
+    const clip = resolveTraceClipRect(displayRect)!
+    expect(clip).not.toBeNull()
+    // Size is identical to the overlay; position is the top-left corner.
+    expect(clip.width).toBeCloseTo(overlay.width, 4)
+    expect(clip.height).toBeCloseTo(overlay.height, 4)
+    expect(clip.x).toBeCloseTo(overlay.x - overlay.width / 2, 4)
+    expect(clip.y).toBeCloseTo(overlay.y - overlay.height / 2, 4)
+    expect(clip.x).toBeCloseTo(155.7677165, 4)
+    expect(clip.y).toBeCloseTo(137.535433, 4)
+  })
+
+  it("returns null when there is no trace (nothing to clip)", () => {
+    expect(resolveTraceClipRect(null)).toBeNull()
+    expect(
+      resolveTraceClipRect({
+        display_x_px_u: "0",
+        display_y_px_u: "0",
+        display_width_px_u: "0",
+        display_height_px_u: "0",
+      }),
+    ).toBeNull()
   })
 })

@@ -95,3 +95,27 @@ export function resolveTraceOverlayRect(
     height: size.height,
   }
 }
+
+/** A top-left world-px rect: `x/y` is the CORNER (not the centre). */
+export type TraceClipRect = { x: number; y: number; width: number; height: number }
+
+/**
+ * Resolve the trace's content rect as a TOP-LEFT world-px rect, for a Konva
+ * clip. Same frozen content rect as the overlay (`resolveTraceOverlayRect`),
+ * just corner-anchored (centre − extent/2) so the base bitmap can be clipped to
+ * exactly the region the overlay covers. Returns null when there is no trace
+ * (nothing to clip). Keyed on trace EXISTENCE, decoupled from image + overlay
+ * visibility.
+ */
+export function resolveTraceClipRect(
+  displayRect: TraceDisplayRectPxU | null | undefined,
+): TraceClipRect | null {
+  const rect = resolveTraceOverlayRect(displayRect)
+  if (!rect) return null
+  return {
+    x: rect.x - rect.width / 2,
+    y: rect.y - rect.height / 2,
+    width: rect.width,
+    height: rect.height,
+  }
+}

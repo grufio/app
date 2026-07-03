@@ -33,6 +33,28 @@ describe("computeContentRegionPlan", () => {
     })
   })
 
+  it("full coverage: image LARGER than the artboard → only the content-rect window is extracted (not the whole image)", () => {
+    // Regression for "traces the whole image": artboard 100, padding 10 →
+    // content 80×80 @ 10,10. Image 140×140 centred (leftPx/topPx = -20),
+    // extending past every artboard edge. Intrinsic 280 → density 2 → canvas
+    // 160×160. The extract must be the content-rect WINDOW of the source
+    // (skipping 60px source per side), NOT the full 280×280 image squeezed in.
+    const res = computeContentRegionPlan({
+      ...base,
+      padding: { topPx: 10, bottomPx: 10, leftPx: 10, rightPx: 10 },
+      image: { leftPx: -20, topPx: -20, widthPx: 140, heightPx: 140 },
+      intrinsicWPx: 280,
+      intrinsicHPx: 280,
+    })
+    expect(res).toEqual({
+      ok: true,
+      contentRectPx: { xPx: 10, yPx: 10, widthPx: 80, heightPx: 80 },
+      canvasPx: { widthPx: 160, heightPx: 160 },
+      composite: { extract: { left: 60, top: 60, width: 160, height: 160 }, placeAt: { left: 0, top: 0 } },
+      coverage: "full",
+    })
+  })
+
   it("partial coverage: image smaller than the content rect → white around it", () => {
     // content rect 100×100 (no padding). Image 50×50 centred, intrinsic 50 (density 1).
     const res = computeContentRegionPlan({

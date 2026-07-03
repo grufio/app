@@ -39,7 +39,7 @@ import type { BoundsRect, ViewState } from "./canvas-stage/types"
 import { useHtmlImage } from "./canvas-stage/use-html-image"
 import { useSvgText } from "./canvas-stage/use-svg-text"
 import { TraceInlineSvg } from "./canvas-stage/trace-inline-svg"
-import { resolveTraceOverlayRect } from "@/lib/editor/trace/trace-overlay-rect"
+import { resolveTraceClipRect, resolveTraceOverlayRect } from "@/lib/editor/trace/trace-overlay-rect"
 import { computeWorldSize } from "@/services/editor"
 
 type Props = {
@@ -621,6 +621,16 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   // is applied downstream via the stage `view`.
   const traceRect = useMemo(() => resolveTraceOverlayRect(traceDisplayRect), [traceDisplayRect])
 
+  // While a trace is applied, the base bitmap is clipped to the trace's frozen
+  // content rect (artboard − padding), so the image + filter appear cropped to
+  // the printable area — matching the SVG overlay — instead of bleeding past the
+  // inner border. Purely a render-time clip: it mutates nothing, so clearing the
+  // trace (rect → null) instantly restores the full image at its unchanged size.
+  // Keyed on trace EXISTENCE (the frozen display rect), not on SVG/overlay
+  // visibility. Same world-px space as `imageRender` (both via `pxUToPxNumber`),
+  // so it clips the image correctly regardless of its rotation.
+  const traceClipRect = useMemo(() => resolveTraceClipRect(traceDisplayRect), [traceDisplayRect])
+
   const imageFrame = useMemo<CropRectWorld | null>(() => {
     if (!imageRender) return null
     return {
@@ -763,45 +773,56 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
             clipWidth={shouldClipToArtboard ? artW : undefined}
             clipHeight={shouldClipToArtboard ? artH : undefined}
           >
-            {img && imageTx && imageRender && previewBitmapVisible ? (
-              <KonvaImage
-                ref={(n) => {
-                  imageNodeRef.current = n
-                }}
-                image={img}
-                listening={imageDraggable}
-                rotation={rotation}
-                width={imageRender.width}
-                height={imageRender.height}
-                scaleX={1}
-                scaleY={1}
-                offsetX={imageRender.width / 2}
-                offsetY={imageRender.height / 2}
-                x={imageRender.x}
-                y={imageRender.y}
-                draggable={imageDraggable}
-                onDragStart={() => {
-                  userInteractedRef.current = true
-                  // Mark as user-changed immediately, so a late `initialImageTransform`
-                  // cannot override state mid-drag.
-                  markUserChanged()
-                  const node = imageNodeRef.current
-                  dragPosRef.current = node ? { x: node.x(), y: node.y() } : null
-                  setIsDraggingImage(true)
-                  scheduleBoundsUpdate()
-                }}
-                onDragMove={() => {
-                  updateBoundsDuringDragMove()
-                }}
-                onDragEnd={() => {
-                  markUserChanged()
-                  scheduleCommitTransform(true, 0)
-                  dragPosRef.current = null
-                  setIsDraggingImage(false)
-                  scheduleBoundsUpdate()
-                }}
-              />
-            ) : null}
+            {/* Base bitmap wrapped in its own Group so it can be clipped to the
+                trace's content rect while a trace is applied (traceClipRect),
+                WITHOUT clipping the padding preview / selection siblings below.
+                Always mounted so the image node ref never resets on toggle. */}
+            <Group
+              clipX={traceClipRect ? traceClipRect.x : undefined}
+              clipY={traceClipRect ? traceClipRect.y : undefined}
+              clipWidth={traceClipRect ? traceClipRect.width : undefined}
+              clipHeight={traceClipRect ? traceClipRect.height : undefined}
+            >
+              {img && imageTx && imageRender && previewBitmapVisible ? (
+                <KonvaImage
+                  ref={(n) => {
+                    imageNodeRef.current = n
+                  }}
+                  image={img}
+                  listening={imageDraggable}
+                  rotation={rotation}
+                  width={imageRender.width}
+                  height={imageRender.height}
+                  scaleX={1}
+                  scaleY={1}
+                  offsetX={imageRender.width / 2}
+                  offsetY={imageRender.height / 2}
+                  x={imageRender.x}
+                  y={imageRender.y}
+                  draggable={imageDraggable}
+                  onDragStart={() => {
+                    userInteractedRef.current = true
+                    // Mark as user-changed immediately, so a late `initialImageTransform`
+                    // cannot override state mid-drag.
+                    markUserChanged()
+                    const node = imageNodeRef.current
+                    dragPosRef.current = node ? { x: node.x(), y: node.y() } : null
+                    setIsDraggingImage(true)
+                    scheduleBoundsUpdate()
+                  }}
+                  onDragMove={() => {
+                    updateBoundsDuringDragMove()
+                  }}
+                  onDragEnd={() => {
+                    markUserChanged()
+                    scheduleCommitTransform(true, 0)
+                    dragPosRef.current = null
+                    setIsDraggingImage(false)
+                    scheduleBoundsUpdate()
+                  }}
+                />
+              ) : null}
+            </Group>
 
             {/* Print-margin padding preview: a white veil over the image at the
                 page (artboard) edges — lightens (not darkens) the region the
