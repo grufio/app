@@ -820,16 +820,13 @@ export function ProjectDetailPageClient({
           onSelectSection={handleSectionTap}
           hasImage={hasMasterImage}
           imageActive={imageBarActive}
-          // No master image → "Add image": open the OS/mobile file picker
-          // directly (a single tap → native picker). Master present → "Edit
-          // image": activate the Image context (switch to the artboard section
-          // where the dialog host mounts + show the top-right Image icon;
-          // opening the edit dialog itself happens when that icon is tapped).
+          // The Image action activates its own context: switch to the artboard
+          // section (where the dialog host mounts) and show the top-right Image
+          // icon. The top-right icon is where "Add image" (→ file picker) and
+          // "Edit image" (→ dialog) actually fire — see EditorImageBar. The
+          // menu-bar icon only navigates; it must NOT open the picker itself
+          // (that dropped the navigation for the no-master case).
           onOpenImage={() => {
-            if (!hasMasterImage) {
-              imageUploader.openFilePicker()
-              return
-            }
             setEditorSection("artboard")
             setImageBarActive(true)
           }}
