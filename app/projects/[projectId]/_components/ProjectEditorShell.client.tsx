@@ -64,7 +64,7 @@ import { useProject } from "@/lib/editor/hooks/use-project"
 import { computeRenderableGrid } from "@/services/editor/grid/validation"
 import { normalizeWorkspacePadding } from "@/services/editor/padding"
 import { pxUToPxNumber } from "@/lib/editor/units"
-import { computeContentRegionPlan } from "@/lib/editor/trace/content-region"
+import { computeContentRegionPlan, type TraceContentRegion } from "@/lib/editor/trace/content-region"
 import { TraceCoverageDialog } from "@/features/editor/components/trace-coverage-dialog"
 import { useRightPanelModel } from "./editor-shell/use-right-panel-model"
 import { useStageInteractionPolicy } from "./editor-shell/use-stage-interaction-policy"
@@ -460,6 +460,39 @@ export function ProjectDetailPageClient({
     }
   }, [workspaceRow])
 
+  // Content-region plan for the trace configure PREVIEW (parity with the apply
+  // crop): the preview shows the SAME content-rect window (white where the image
+  // doesn't cover), on the content-rect mm. Same inputs as the apply-time
+  // coverage check below; mm from artboard px (GEOMETRY_PPI = 72).
+  const traceContentRegion = useMemo<TraceContentRegion | null>(() => {
+    if (!displayTxU || !masterImage || !artboardWidthPx || !artboardHeightPx) return null
+    const plan = computeContentRegionPlan({
+      artboardWPx: artboardWidthPx,
+      artboardHPx: artboardHeightPx,
+      padding: { topPx: paddingPx.top, bottomPx: paddingPx.bottom, leftPx: paddingPx.left, rightPx: paddingPx.right },
+      image: {
+        leftPx: pxUToPxNumber(displayTxU.x) - pxUToPxNumber(displayTxU.w) / 2,
+        topPx: pxUToPxNumber(displayTxU.y) - pxUToPxNumber(displayTxU.h) / 2,
+        widthPx: pxUToPxNumber(displayTxU.w),
+        heightPx: pxUToPxNumber(displayTxU.h),
+      },
+      intrinsicWPx: masterImage.width_px,
+      intrinsicHPx: masterImage.height_px,
+    })
+    if (!plan.ok) return null
+    return {
+      plan,
+      displayMmW: (plan.contentRectPx.widthPx / 72) * 25.4,
+      displayMmH: (plan.contentRectPx.heightPx / 72) * 25.4,
+    }
+  }, [displayTxU, masterImage, artboardWidthPx, artboardHeightPx, paddingPx])
+
+  // Trace dialog source + its content region (drives the configure preview).
+  const traceDialogSourceImage = useMemo(
+    () => (traceSourceImage ? { ...traceSourceImage, contentRegion: traceContentRegion } : null),
+    [traceSourceImage, traceContentRegion],
+  )
+
   // Coverage warning before a trace apply: the trace only converts the content
   // rect (artboard − padding); if the image doesn't fully cover it, the missing
   // area is rendered white — warn first (Attention / Cancel / Proceed).
@@ -775,7 +808,7 @@ export function ProjectDetailPageClient({
         ) : null}
         {editorSection === "trace" ? (
           <TraceSurfaceScope
-            traceSourceImage={traceSourceImage}
+            traceSourceImage={traceDialogSourceImage}
             onApplyTrace={handleApplyTraceGuarded}
             isAddTraceDisabled={isAddTraceDisabled}
             isClearingTrace={isClearingTrace}

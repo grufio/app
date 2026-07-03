@@ -6,6 +6,7 @@
  * configure step; the reducer keeps that flow testable in isolation.
  */
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
+import type { TraceContentRegion } from "@/lib/editor/trace/content-region"
 
 export type TraceKind = RegisteredTraceId
 
@@ -21,6 +22,11 @@ export type TraceDialogSourceImage = {
    * with a fresh-upload fallback via `computeImagePlacementPx`. */
   displayMmW: number
   displayMmH: number
+  /** Content-region plan + content-rect mm (artboard − padding), so the
+   * configure preview crops to the SAME printable window the apply path
+   * traces (white where uncovered). Null when the geometry isn't resolvable
+   * yet — the preview then falls back to the whole image. */
+  contentRegion?: TraceContentRegion | null
 }
 
 export type TraceDialogSession = {
@@ -30,6 +36,7 @@ export type TraceDialogSession = {
   sourceImageUrl: string
   displayMmW: number
   displayMmH: number
+  contentRegion: TraceContentRegion | null
 }
 
 export type TraceDialogState =
@@ -54,6 +61,7 @@ export function toTraceDialogSession(image: TraceDialogSourceImage): TraceDialog
     sourceImageUrl: image.signedUrl,
     displayMmW: image.displayMmW,
     displayMmH: image.displayMmH,
+    contentRegion: image.contentRegion ?? null,
   }
 }
 

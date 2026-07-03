@@ -38,6 +38,15 @@ export type ContentRegionPlan = {
 
 export type ContentRegionFailure = { ok: false; reason: string }
 
+/** A resolved content region for the configure PREVIEW: the successful plan +
+ * the content-rect display size in mm (drives the preview grid, parity with the
+ * server's `region.displayMmW/H`). */
+export type TraceContentRegion = {
+  plan: Extract<ContentRegionPlan, { ok: true }>
+  displayMmW: number
+  displayMmH: number
+}
+
 const r = Math.round
 
 export function computeContentRegionPlan(args: {

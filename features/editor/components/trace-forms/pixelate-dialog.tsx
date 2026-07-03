@@ -13,6 +13,7 @@ import {
   type PixelateGrid,
 } from "@/lib/editor/trace/pixelate-grid-math"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
+import type { TraceContentRegion } from "@/lib/editor/trace/content-region"
 
 import { CellTraceDialog } from "./cell-trace-dialog"
 import { PixelateForm } from "./pixelate-form"
@@ -23,6 +24,7 @@ type Props = {
   sourceImageUrl: string
   displayMmW: number
   displayMmH: number
+  contentRegion?: TraceContentRegion | null
   onClose: () => void
   onSuccess: () => void
   onApplyTrace: (args: {

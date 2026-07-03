@@ -14,6 +14,7 @@ const session: TraceDialogSession = {
   sourceImageUrl: "https://example.test/img.png",
   displayMmW: 80,
   displayMmH: 60,
+  contentRegion: null,
 }
 
 describe("toTraceDialogSession", () => {
