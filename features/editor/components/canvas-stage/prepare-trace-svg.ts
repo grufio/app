@@ -13,6 +13,14 @@
  *   highlight the region + every other region sharing the same
  *   fill color (paint-by-numbers grouping). The original fill stays
  *   intact — cells render with their detected RGB color at rest.
+ * - Make every `<line>` (the pixelate/circulate grid) render like an
+ *   Illustrator guide: `vector-effect="non-scaling-stroke"` keeps it a
+ *   constant ~1px DEVICE-pixel hairline regardless of the non-uniform
+ *   `preserveAspectRatio="none"` scaling + zoom, and
+ *   `shape-rendering="crispEdges"` disables antialiasing so the
+ *   axis-aligned lines stay razor-sharp (and never fatten enough to
+ *   swallow the paint-by-numbers digits). Lineart is `<path>` only, so
+ *   this is scoped to grids and leaves lineart strokes untouched.
  *
  * The opaque white background `<rect>` is no longer present in the
  * Python output (see `filter-service/app/vectorise.py`). The trace
@@ -31,6 +39,7 @@ export type PreparedTraceSvg = {
 const XML_DECL_RE = /<\?xml[^>]*\?>/
 const SVG_OPEN_RE = /<svg\b([^>]*)>/i
 const PATH_OPEN_RE = /<path\b([^/>]*?)\s*(\/?)>/gi
+const LINE_OPEN_RE = /<line\b([^/>]*?)\s*(\/?)>/gi
 const FILL_ATTR_RE = /\bfill\s*=\s*"([^"]*)"/i
 const WIDTH_ATTR_RE = /\bwidth\s*=\s*"[^"]*"/i
 const HEIGHT_ATTR_RE = /\bheight\s*=\s*"[^"]*"/i
@@ -55,6 +64,13 @@ export function prepareTraceSvg(svgText: string): PreparedTraceSvg | null {
     const fillMatch = FILL_ATTR_RE.exec(attrs)
     const fill = fillMatch ? fillMatch[1] : ""
     return `<path${attrs} data-trace-region="" data-fill="${fill}" ${slash}>`
+  })
+
+  // Grid lines → Illustrator-style guides: a constant, razor-sharp ~1px
+  // device-pixel hairline that never scales up with zoom / the non-uniform
+  // preserveAspectRatio, so it can't swallow the cell numbers.
+  svg = svg.replace(LINE_OPEN_RE, (_full, attrs: string, slash: string) => {
+    return `<line${attrs} vector-effect="non-scaling-stroke" shape-rendering="crispEdges" ${slash}>`
   })
 
   return { html: svg }
