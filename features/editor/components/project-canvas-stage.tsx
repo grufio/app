@@ -7,7 +7,7 @@
  * - Render the artboard, grid, selection overlay, and image node.
  * - Delegate RAF/bounds/transform persistence to controller modules.
  */
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react"
 import { Group, Image as KonvaImage, Layer, Rect, Stage } from "react-konva"
 import type Konva from "konva"
 
@@ -39,7 +39,7 @@ import type { BoundsRect, ViewState } from "./canvas-stage/types"
 import { useHtmlImage } from "./canvas-stage/use-html-image"
 import { useSvgText } from "./canvas-stage/use-svg-text"
 import { TraceInlineSvg } from "./canvas-stage/trace-inline-svg"
-import { resolveTraceOverlayRect, resolveTraceWorldSize } from "@/lib/editor/trace/trace-overlay-rect"
+import { resolveTraceOverlayRect } from "@/lib/editor/trace/trace-overlay-rect"
 import { computeWorldSize } from "@/services/editor"
 
 type Props = {
@@ -122,12 +122,12 @@ type Props = {
    * points to an SVG, the overlay still works). */
   traceOverlaySvgUrl?: string | null
   /** The trace's own frozen display rect (µpx, text-encoded), from
-   * `project_image_trace.display_*_px_u`. The overlay derives its
-   * SIZE/ASPECT from this rect — decoupled from `imageTx` — so the
-   * grid keeps the apply-time aspect even if the base image is later
-   * resized (Invariant 2/3). Its POSITION still follows the live
-   * image. "0" on width/height is the legacy/lineart signal → the
-   * overlay falls back to the live image rect (prior behaviour). */
+   * `project_image_trace.display_*_px_u` = the printable content rect
+   * (artboard − padding) at apply time. The overlay uses this rect for
+   * both POSITION (frozen centre) and SIZE — anchored to the artboard,
+   * decoupled from the base image (moving/resizing the image does not
+   * move the trace). Pan/zoom is applied downstream via the stage
+   * `view`. A rect with no valid size → the overlay renders nothing. */
   traceDisplayRect?: {
     display_x_px_u: string
     display_y_px_u: string
@@ -302,13 +302,6 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     heightPxU: bigint
   } | null>(null)
   const [imageBounds, setImageBounds] = useState<BoundsRect | null>(null)
-  // Render-only world-px offset that lets the trace overlay follow the base
-  // image DURING a drag. `imageTx`/`imageRender` only commit at drag-end, so
-  // mid-drag the overlay would lag; the bounds-controller's `onDragFlush`
-  // accumulates the live world delta here. Reset to 0 once `imageRender`
-  // catches up at commit (the useLayoutEffect below). This never touches
-  // `imageTx` — the drag does not leak into the authoritative transform.
-  const [traceDragOffset, setTraceDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
   const rotationRef = useRef(0)
   useEffect(() => {
     rotationRef.current = rotation
@@ -477,10 +470,6 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
       getLayer: () => layerRef.current,
       getImageNode: () => imageNodeRef.current,
       onBoundsChanged: (next) => setImageBounds(next as BoundsRect | null),
-      // Live-drag follow for the trace overlay POSITION only (render-only;
-      // never mutates `imageTx`). Accumulates the world-px frame delta; the
-      // overlay rect adds it on top of `imageRender` until drag-commit.
-      onDragFlush: (dx, dy) => setTraceDragOffset((o) => ({ x: o.x + dx, y: o.y + dy })),
       onBoundsRead: () => {
         const g = globalThis as unknown as { __gruf_editor?: { boundsReads?: number } }
         if (g.__gruf_editor) g.__gruf_editor.boundsReads = (g.__gruf_editor.boundsReads ?? 0) + 1
@@ -627,26 +616,10 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
     return { width, height, x, y }
   }, [img, imageTx])
 
-  // Reset the live-drag offset once `imageRender` catches up at drag-commit
-  // (and on any other transform change). useLayoutEffect runs before paint,
-  // so the one render where the new committed `imageRender` and the stale
-  // offset would briefly both apply is never painted (no end-of-drag jump).
-  // Returns the same object when already zero so React bails (no extra render).
-  useLayoutEffect(() => {
-    setTraceDragOffset((o) => (o.x === 0 && o.y === 0 ? o : { x: 0, y: 0 }))
-  }, [imageRender?.x, imageRender?.y])
-
-  // A content-rect trace is anchored to the artboard content rect (frozen
-  // position + size), decoupled from the base image. Legacy "0" rects still
-  // follow the live image; only those get the mid-drag position patch (where
-  // `imageRender` lags until commit — see `onDragFlush`).
-  const traceRect = useMemo(() => {
-    const rect = resolveTraceOverlayRect(traceDisplayRect, imageRender)
-    if (!rect) return null
-    const frozen = resolveTraceWorldSize(traceDisplayRect) !== null
-    if (frozen || (traceDragOffset.x === 0 && traceDragOffset.y === 0)) return rect
-    return { ...rect, x: rect.x + traceDragOffset.x, y: rect.y + traceDragOffset.y }
-  }, [traceDisplayRect, imageRender, traceDragOffset])
+  // A trace is anchored to the artboard content rect: the overlay uses the
+  // frozen rect (centre + size) — it does not follow the base image. Pan/zoom
+  // is applied downstream via the stage `view`.
+  const traceRect = useMemo(() => resolveTraceOverlayRect(traceDisplayRect), [traceDisplayRect])
 
   const imageFrame = useMemo<CropRectWorld | null>(() => {
     if (!imageRender) return null
