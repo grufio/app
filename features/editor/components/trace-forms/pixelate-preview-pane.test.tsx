@@ -3,10 +3,11 @@
  *
  * Component test for PixelatePreviewPane.
  *
- * jsdom can't render the canvas content, so we only assert the
- * React/JSX wiring: the canvas bitmap is sized to the source-crop
- * resolution (not cellsX × cellsY) and the canvas remounts (cleanly)
- * after the source image loads.
+ * The preview is one inline SVG (cells + grid). jsdom can't run the
+ * canvas pixel-read pipeline, so we only assert the React/JSX wiring:
+ * the SVG container renders (no canvas) and the spinner/zoom controls
+ * behave. The SVG markup itself is covered by the pure
+ * `buildPixelateCellsSvg` unit test.
  */
 import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -18,9 +19,7 @@ vi.mock("@/lib/editor/trace/pixelate-preview", () => ({
   snapAndDitherCells: () => null,
   applyTextureStep: () => null,
   applyTopNReduction: () => null,
-  paintCellsToCanvas: () => {
-    /* noop in jsdom */
-  },
+  buildPixelateCellsSvg: () => "<svg/>",
 }))
 
 // The pane snaps cells to the DB palette via `/api/palette`; jsdom has no
@@ -50,8 +49,8 @@ describe("PixelatePreviewPane", () => {
     vi.unstubAllGlobals()
   })
 
-  it("renders the mini canvas at source-crop resolution (not cellsX × cellsY)", async () => {
-    const { getByTestId } = render(
+  it("renders the SVG preview container, not a canvas", async () => {
+    const { getByTestId, queryByTestId } = render(
       <PixelatePreviewPane
         sourceImageUrl="https://example.test/a.png"
         displayMmW={100}
@@ -60,14 +59,12 @@ describe("PixelatePreviewPane", () => {
       />,
     )
 
-    // FakeImage is 100×75 naturalWidth/Height. usedMm 96×72 → crop in
-    // source px = 96 × (100/100) = 96, 72 × (75/75) = 72. Canvas
-    // bitmap mirrors that crop, not cellsX × cellsY (16 × 12).
+    // The preview is now one inline SVG (via dangerouslySetInnerHTML); the
+    // old `<canvas>` is gone. The container mounts once the source loads.
     await waitFor(() => {
-      const canvas = getByTestId("pixelate-preview-mini") as HTMLCanvasElement
-      expect(canvas.getAttribute("width")).toBe("96")
-      expect(canvas.getAttribute("height")).toBe("72")
+      expect(getByTestId("pixelate-preview-svg")).not.toBeNull()
     })
+    expect(queryByTestId("pixelate-preview-mini")).toBeNull()
   })
 
   it("keeps the loading spinner until the palette resolves, even after the source loads", async () => {
@@ -90,21 +87,6 @@ describe("PixelatePreviewPane", () => {
     // the spinner instead of painting the raw-means fallback — the vivid
     // preview that used to flash before the palette-snapped one.
     expect(getByText(/Loading preview/)).not.toBeNull()
-  })
-
-  it("falls back to 1×1 bitmap when grid would be invalid", () => {
-    // 4 mm image with 5 mm supercell → cellsX=0, invalid grid, crop=null.
-    const { getByTestId } = render(
-      <PixelatePreviewPane
-        sourceImageUrl="https://example.test/a.png"
-        displayMmW={4}
-        displayMmH={4}
-        params={{ ...defaults, supercell_width_mm: 5, supercell_height_mm: 5 }}
-      />,
-    )
-    const canvas = getByTestId("pixelate-preview-mini") as HTMLCanvasElement
-    expect(canvas.getAttribute("width")).toBe("1")
-    expect(canvas.getAttribute("height")).toBe("1")
   })
 
   it("zoom controls update the displayed zoom label and step ranges", async () => {

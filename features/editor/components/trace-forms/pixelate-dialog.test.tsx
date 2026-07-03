@@ -15,9 +15,7 @@ vi.mock("@/lib/editor/trace/pixelate-preview", () => ({
   snapAndDitherCells: () => null,
   applyTextureStep: () => null,
   applyTopNReduction: () => null,
-  paintCellsToCanvas: () => {
-    /* noop in jsdom */
-  },
+  buildPixelateCellsSvg: () => "<svg/>",
 }))
 
 vi.mock("sonner", () => ({
@@ -71,7 +69,7 @@ describe("PixelateDialog (smoke)", () => {
       expect(document.body.querySelector("#supercell_width_mm")).not.toBeNull()
     })
     expect(document.body.querySelector("#color_mode")).not.toBeNull()
-    expect(document.body.querySelector('[data-testid="pixelate-preview-mini"]')).toBeNull()
+    expect(document.body.querySelector('[data-testid="pixelate-preview-svg"]')).toBeNull()
 
     const buttons = Array.from(document.body.querySelectorAll("button"))
     expect(buttons.find((b) => b.textContent?.trim() === "Cancel")).toBeTruthy()
@@ -277,7 +275,7 @@ describe("PixelateDialog (smoke)", () => {
     await waitFor(() => {
       expect(document.body.querySelector("#supercell_width_mm")).not.toBeNull()
     })
-    expect(document.body.querySelector('[data-testid="pixelate-preview-mini"]')).toBeNull()
+    expect(document.body.querySelector('[data-testid="pixelate-preview-svg"]')).toBeNull()
 
     // "Preview" mounts the preview pane and collapses the overlay
     // WITHOUT firing the trace — apply is committed exclusively from
@@ -290,7 +288,7 @@ describe("PixelateDialog (smoke)", () => {
     await waitFor(() => {
       expect(document.body.querySelector("#supercell_width_mm")).toBeNull()
     })
-    expect(document.body.querySelector('[data-testid="pixelate-preview-mini"]')).not.toBeNull()
+    expect(document.body.querySelector('[data-testid="pixelate-preview-svg"]')).not.toBeNull()
     expect(onApplyTrace).not.toHaveBeenCalled()
 
     // The pencil re-opens the params from the preview.
@@ -435,7 +433,7 @@ describe("PixelateDialog (smoke)", () => {
     })
     expect(onClose).not.toHaveBeenCalled()
     expect(
-      document.body.querySelector('[data-testid="pixelate-preview-mini"]'),
+      document.body.querySelector('[data-testid="pixelate-preview-svg"]'),
     ).not.toBeNull()
   })
 

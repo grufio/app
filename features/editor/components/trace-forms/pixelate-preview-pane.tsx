@@ -1,8 +1,10 @@
 "use client"
 
 /**
- * Pixelate preview pane: a single canvas displaying the cropped pixelate
- * grid with each cell snapped to the nearest Munsell palette chip.
+ * Pixelate preview pane: a single inline SVG displaying the cropped pixelate
+ * grid with each cell snapped to the nearest Munsell palette chip. Cells
+ * (`<rect>`) AND the grid live in ONE cell-unit coordinate space, so the grid
+ * registers exactly with the cells — mirrors the applied trace, no drift.
  *
  * Sizing — explicit pixels, no CSS `aspect-ratio`. The pane fills the
  * dialog's body area via flex (`flex-1 min-h-0` inside `main`), so a PORTRAIT
@@ -29,10 +31,10 @@
  * editor's floating toolbar at the canvas viewport.
  *
  * Source: loaded `HTMLImageElement` flows through the staged preview
- * helpers (`readSourceCells` → snap/dither/texture/reduce → `paintCellsToCanvas`).
- * Inputs are reactive: when `params` changes, the mini canvas is redrawn
- * in-place (React owns its `width`/`height` attributes via JSX props, so
- * the bitmap clears + redraws cleanly).
+ * helpers (`readSourceCells` → snap/dither/texture/reduce → `buildPixelateCellsSvg`).
+ * Inputs are reactive: when `params` changes, a fresh SVG string is built and
+ * injected via `dangerouslySetInnerHTML` (one DOM re-parse, no React diff over
+ * the thousands of `<rect>`).
  */
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Loader2, Maximize2, ZoomIn, ZoomOut } from "lucide-react"
@@ -47,7 +49,7 @@ import { type PixelateParams } from "@/lib/editor/trace/pixelate"
 import type { TraceContentRegion } from "@/lib/editor/trace/content-region"
 import {
   applyTopNReduction,
-  paintCellsToCanvas,
+  buildPixelateCellsSvg,
   readSourceCells,
   restrictPaletteForCells,
   snapAndDitherCells,
@@ -120,7 +122,6 @@ export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
   const effSourceW = contentRegion ? (contentSource?.width ?? 0) : (source?.naturalWidth ?? 0)
   const effSourceH = contentRegion ? (contentSource?.height ?? 0) : (source?.naturalHeight ?? 0)
 
-  const miniCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const paneRef = useRef<HTMLDivElement | null>(null)
   const [pane, setPane] = useState<{ w: number; h: number }>({ w: 0, h: 0 })
   const [zoom, setZoom] = useState(1)
@@ -227,12 +228,17 @@ export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
     [snappedCells, activePalette, params.num_colors, params.distance_metric, params.palette_restriction],
   )
 
-  // Stage 4 (light): paint the resolved cells onto the visible target.
-  useEffect(() => {
-    const target = miniCanvasRef.current
-    if (!target || !reducedCells) return
-    paintCellsToCanvas({ target, cells: reducedCells, cellsX: grid.cellsX, cellsY: grid.cellsY })
-  }, [reducedCells, grid.cellsX, grid.cellsY])
+  // Stage 4 (light): build the preview as ONE SVG string — colour rects + grid
+  // in one cell-unit coordinate space, so the grid registers exactly with the
+  // cells (no bitmap/overlay drift). Injected below, mirroring the applied
+  // trace overlay.
+  const svgMarkup = useMemo(
+    () =>
+      reducedCells && valid
+        ? buildPixelateCellsSvg({ cells: reducedCells, cellsX: grid.cellsX, cellsY: grid.cellsY })
+        : null,
+    [reducedCells, valid, grid.cellsX, grid.cellsY],
+  )
 
   // Spinner covers both the image load and the palette fetch: a valid grid
   // with no palette yet would otherwise paint the raw-means preview.
@@ -257,19 +263,6 @@ export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
     }
   }, [valid, pane.w, pane.h, grid.usedMmW, grid.usedMmH, zoom])
 
-  // Grid as a single SVG path in cell-unit space (viewBox 0 0 cellsX cellsY):
-  // every cell boundary is one subpath. Rendered as a crisp, non-scaling
-  // hairline overlay (see the render), so it never fattens with zoom / the
-  // pixelated cell bitmap underneath.
-  const gridPath = useMemo(() => {
-    if (!valid) return ""
-    const { cellsX, cellsY } = grid
-    let d = ""
-    for (let i = 0; i <= cellsX; i += 1) d += `M${i} 0V${cellsY}`
-    for (let j = 0; j <= cellsY; j += 1) d += `M0 ${j}H${cellsX}`
-    return d
-  }, [valid, grid])
-
   return (
     <div
       ref={paneRef}
@@ -292,40 +285,17 @@ export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
             minHeight: "100%",
           }}
         >
-          <div className="relative block" style={{ width: display?.w ?? 0, height: display?.h ?? 0 }}>
-            <canvas
-              ref={miniCanvasRef}
-              // Canvas bitmap = full source-crop resolution. `paintCellsToCanvas`
-              // paints solid cell blocks at that size — no source→cells
-              // downsample touches the visible bitmap.
-              width={crop ? Math.max(1, Math.round(crop.w)) : 1}
-              height={crop ? Math.max(1, Math.round(crop.h)) : 1}
-              className="block h-full w-full"
-              style={{ imageRendering: "pixelated" }}
-              data-testid="pixelate-preview-mini"
-            />
-            {/* Grid overlay: an Illustrator-style guide — a razor-sharp,
-                non-scaling ~1px hairline at every cell boundary, decoupled from
-                the pixelated cell bitmap. Mirrors the applied trace's grid. */}
-            {valid && display ? (
-              <svg
-                className="pointer-events-none absolute inset-0 h-full w-full"
-                viewBox={`0 0 ${grid.cellsX} ${grid.cellsY}`}
-                preserveAspectRatio="none"
-                aria-hidden="true"
-                data-testid="pixelate-preview-grid"
-              >
-                <path
-                  d={gridPath}
-                  fill="none"
-                  stroke="black"
-                  strokeWidth={1}
-                  vectorEffect="non-scaling-stroke"
-                  shapeRendering="crispEdges"
-                />
-              </svg>
-            ) : null}
-          </div>
+          {/* The preview is ONE inline SVG (colour rects + grid in the same
+              cell-unit coordinate space) injected as a string — so the grid
+              sits exactly on the cell boundaries, and it mirrors the applied
+              trace overlay. `preserveAspectRatio="none"` (in the markup)
+              stretches it to this display box; zoom just grows the box. */}
+          <div
+            className="relative block"
+            style={{ width: display?.w ?? 0, height: display?.h ?? 0, lineHeight: 0 }}
+            data-testid="pixelate-preview-svg"
+            {...(svgMarkup && display ? { dangerouslySetInnerHTML: { __html: svgMarkup } } : {})}
+          />
         </div>
       </div>
 
