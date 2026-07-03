@@ -54,6 +54,22 @@ describe("prepareTraceSvg", () => {
     expect(out.html).toMatch(/stroke-width="2"/)
   })
 
+  it("makes grid <line>s razor-sharp, non-scaling hairlines (like Illustrator guides)", () => {
+    const out = prepareTraceSvg(NUMERATE_SVG)!
+    // The grid line keeps its coords + authored stroke but gains a
+    // constant device-px hairline + crisp edges.
+    expect(out.html).toMatch(/<line[^>]*vector-effect="non-scaling-stroke"/)
+    expect(out.html).toMatch(/<line[^>]*shape-rendering="crispEdges"/)
+    expect(out.html).toMatch(/<line[^>]*x1="0"[^>]*y2="914"/)
+  })
+
+  it("does NOT apply the hairline treatment to lineart <path> strokes", () => {
+    const out = prepareTraceSvg(LINEART_SVG)!
+    // Lineart is <path>-only — no <line>, so no non-scaling-stroke leaks in.
+    expect(out.html).not.toMatch(/vector-effect="non-scaling-stroke"/)
+    expect(out.html).not.toMatch(/shape-rendering="crispEdges"/)
+  })
+
   it("returns null when no <svg> root", () => {
     expect(prepareTraceSvg("<html><body/></html>")).toBeNull()
   })
