@@ -174,3 +174,25 @@
   --sidebar-ring: hsl(217.2 91.2% 59.8%);
 }
 
+/* Trace grid guide-lines — the pixelate applied-result `<line>` and the client
+   preview `<path>` both carry `class="trace-grid"`. Rendered as a real
+   1-HARDWARE-pixel hairline: a bare `stroke-width: 1` is 1 CSS px = 2 physical
+   px on a retina display (visibly thick). CSS media queries thin the stroke per
+   pixel density — desktop AND mobile, without `window.devicePixelRatio` (which
+   is SSR-/monitor-move-unsafe). One definition → preview == result. */
+.trace-grid {
+  vector-effect: non-scaling-stroke;
+  shape-rendering: geometricPrecision;
+  stroke-width: 1px;
+}
+@media (min-resolution: 2dppx), (-webkit-min-device-pixel-ratio: 2) {
+  .trace-grid {
+    stroke-width: 0.5px;
+  }
+}
+@media (min-resolution: 3dppx), (-webkit-min-device-pixel-ratio: 3) {
+  .trace-grid {
+    stroke-width: 0.34px;
+  }
+}
+

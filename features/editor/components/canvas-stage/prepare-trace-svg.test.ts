@@ -54,20 +54,18 @@ describe("prepareTraceSvg", () => {
     expect(out.html).toMatch(/stroke-width="2"/)
   })
 
-  it("makes grid <line>s razor-sharp, non-scaling hairlines (like Illustrator guides)", () => {
+  it("tags grid <line>s with class=trace-grid (hairline stroke lives in CSS)", () => {
     const out = prepareTraceSvg(NUMERATE_SVG)!
-    // The grid line keeps its coords + authored stroke but gains a
-    // constant device-px hairline + crisp edges.
-    expect(out.html).toMatch(/<line[^>]*vector-effect="non-scaling-stroke"/)
-    expect(out.html).toMatch(/<line[^>]*shape-rendering="crispEdges"/)
+    // The grid line keeps its coords; the 1-hardware-pixel hairline comes from
+    // the `.trace-grid` CSS rule (app/globals.css), not inline attributes.
+    expect(out.html).toMatch(/<line[^>]*class="trace-grid"/)
     expect(out.html).toMatch(/<line[^>]*x1="0"[^>]*y2="914"/)
   })
 
-  it("does NOT apply the hairline treatment to lineart <path> strokes", () => {
+  it("does NOT tag lineart <path> strokes as trace-grid", () => {
     const out = prepareTraceSvg(LINEART_SVG)!
-    // Lineart is <path>-only — no <line>, so no non-scaling-stroke leaks in.
-    expect(out.html).not.toMatch(/vector-effect="non-scaling-stroke"/)
-    expect(out.html).not.toMatch(/shape-rendering="crispEdges"/)
+    // Lineart is <path>-only — no <line>, so no grid class leaks in.
+    expect(out.html).not.toMatch(/class="trace-grid"/)
   })
 
   it("returns null when no <svg> root", () => {
