@@ -21,10 +21,15 @@ type Props = {
   onOpen: () => void
   /** Removes the current filter. Only used when `hasFilter`. */
   onDelete: () => void
+  /** Disable the "Add filter" action — a filter needs a source image, so
+   * without one (or while a filter/trace action is in flight) adding is not
+   * allowed. Only gates the ADD case; Edit/Delete (a filter exists) stay on. */
+  addDisabled?: boolean
 }
 
-export function EditorFilterBar({ hasFilter, onOpen, onDelete }: Props) {
+export function EditorFilterBar({ hasFilter, onOpen, onDelete, addDisabled = false }: Props) {
   const tone = useEditorToolbarTone()
+  const openDisabled = !hasFilter && addDisabled
 
   return (
     <div className="absolute top-3 right-3 z-20 flex flex-row gap-2">
@@ -37,7 +42,8 @@ export function EditorFilterBar({ hasFilter, onOpen, onDelete }: Props) {
         type="button"
         aria-label={hasFilter ? "Edit filter" : "Add filter"}
         onClick={onOpen}
-        className={circleClass(tone, "active")}
+        disabled={openDisabled}
+        className={`${circleClass(tone, "active")} disabled:pointer-events-none disabled:opacity-40`}
       >
         {hasFilter ? <Pencil aria-hidden="true" className="size-5" /> : <Plus aria-hidden="true" className="size-5" />}
       </button>

@@ -744,6 +744,7 @@ export function ProjectDetailPageClient({
         {editorSection === "filter" ? (
           <EditorFilterBar
             hasFilter={hasFilter}
+            addDisabled={isAddFilterDisabled}
             onOpen={() => setFilterSelectionOpen(true)}
             onDelete={() => {
               const id = filterStack[0]?.id
@@ -813,7 +814,7 @@ export function ProjectDetailPageClient({
         {/* Hidden master-image file input — one per shell; `openFilePicker`
             (below) clicks it. Lets "Add image" open the OS/mobile picker
             directly, no intermediate sheet. */}
-        <input {...imageUploader.getInputProps()} />
+        <input data-testid="master-image-file-input" {...imageUploader.getInputProps()} />
         {/* menu bar — bottom-centre section switcher + Image dialog opener. */}
         <EditorMenuBar
           activeSection={editorSection}

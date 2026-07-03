@@ -10,50 +10,41 @@ import { test, expect, type Request } from "@playwright/test"
 import { clampPx, pxUToPxNumber, unitToPxUFixed } from "../lib/editor/units"
 import { PROJECT_ID, setupMockRoutes } from "./_mocks"
 
-// Canvas-first model: the artboard section's three tools each open their own
-// standalone dialog (Artboard size + page-background / Grid / Image), launched
-// from the artboard section's "+" menu in the top functions bar. Switch to the
-// section first via the bottom nav (the "Image" section button), then open the
-// "+" menu and tap the frame's Edit lead.
-async function openArtboardMenu(page: import("@playwright/test").Page) {
-  await page.getByRole("button", { name: "Image", exact: true }).click()
-  await page.getByLabel("Add to artboard").click()
-}
+// Canvas-first model: the bottom nav (EditorMenuBar) switches sections; each
+// active section exposes a floating top-right bar with that section's actions.
+// Section labels come from SECTION_ITEMS ("Image" = the `artboard` section).
+// The Artboard section bar opens the Artboard / Grid dialogs; the bottom-menu
+// image icon activates the Image context, whose top-right bar opens the Image
+// edit dialog. (No image → the top-right "Add image" opens the OS file picker,
+// not a dialog — see the upload test, which drives the hidden input directly.)
 
-// Artboard dialog — artboard size, unit, raster DPI, page-background.
+// Artboard size / page-background dialog (ArtboardSheet). The Artboard section
+// is active on load; its top-right bar carries an "Artboard" button.
 async function openArtboardDialog(page: import("@playwright/test").Page) {
-  await openArtboardMenu(page)
-  await page.getByRole("button", { name: "Edit artboard" }).click()
+  await page.getByRole("button", { name: "Artboard", exact: true }).click()
 }
 
-// Grid dialog — visibility toggle + delete (only when a grid exists).
-async function openGridDialog(page: import("@playwright/test").Page) {
-  await openArtboardMenu(page)
-  await page.getByRole("button", { name: "Edit grid" }).click()
+// Image edit dialog (ImageSheet) — requires a master image. The bottom-menu
+// image icon ("Edit image") activates the Image context (revealing the
+// top-right image bar); the bar's "Edit image" opens the sheet. Once the
+// context is active two "Edit image" controls exist (menu + bar); the top-right
+// bar renders before the bottom menu in the DOM, so `.first()` targets the bar.
+async function openImageDialog(page: import("@playwright/test").Page) {
+  await page.getByRole("button", { name: "Edit image", exact: true }).click()
+  await page.getByRole("button", { name: "Edit image", exact: true }).first().click()
 }
 
-// Image dialog — size/position/align + fit/restore/delete when a master image
-// exists, else the upload Add-row. With no image the Image frame is itself the
-// launcher (scoped to the "+" menu to dodge the section-nav "Image" label).
-async function openImageDialog(
-  page: import("@playwright/test").Page,
-  { hasImage = true }: { hasImage?: boolean } = {},
-) {
-  await openArtboardMenu(page)
-  if (hasImage) {
-    await page.getByRole("button", { name: "Edit image" }).click()
-  } else {
-    const menu = page.getByLabel("Close artboard menu").locator("..")
-    await menu.getByRole("button", { name: "Image", exact: true }).click()
-  }
-}
-
-async function openFilterMenu(page: import("@playwright/test").Page) {
-  // The Filter section has no sheet: its "+" menu in the top functions bar
-  // (apply kind / remove / unlock) is the sole filter UI. Switch to the
-  // section via the bottom nav, then open the "+" menu so the B&W kind
-  // frames are mounted.
+// Switch to the Filter section via the bottom nav (reveals the top-right
+// EditorFilterBar with its "Add filter" / "Edit filter" action).
+async function gotoFilterSection(page: import("@playwright/test").Page) {
   await page.getByRole("button", { name: "Filter", exact: true }).click()
+}
+
+// Open the filter picker (FilterSelectionController). Requires an active image
+// source — without one the "Add filter" action is disabled and this cannot
+// proceed (see the disabled-gate regression test).
+async function openFilterMenu(page: import("@playwright/test").Page) {
+  await gotoFilterSection(page)
   await page.getByLabel("Add filter").click()
 }
 
@@ -178,29 +169,29 @@ test("smoke: upload/crop/filter/remove/restore flow keeps deterministic image so
   expect((workingJson?.stack ?? []).length).toBe(0)
 })
 
-test("regression: filter kinds stay disabled without active image source", async ({ page }) => {
+test("regression: adding a filter is disabled without an active image source", async ({ page }) => {
   await page.setExtraHTTPHeaders({ "x-e2e-test": "1", "x-e2e-user": "1" })
   await setupMockRoutes(page, { withImage: false })
 
   await gotoProject(page)
   await assertEditorSurfaceVisible(page)
-  await openFilterMenu(page)
+  await gotoFilterSection(page)
 
-  // No source image → the "+" menu's kind frames are disabled (can't apply).
-  await expect(page.getByLabel("B&W Hard")).toBeDisabled()
+  // No source image → a filter has nothing to run on, so "Add filter" is
+  // disabled (the picker cannot be opened).
+  await expect(page.getByLabel("Add filter")).toBeDisabled()
 })
 
-test("regression: filter kinds are enabled with an active image source", async ({ page }) => {
+test("regression: adding a filter is enabled with an active image source", async ({ page }) => {
   await page.setExtraHTTPHeaders({ "x-e2e-test": "1", "x-e2e-user": "1" })
   await setupMockRoutes(page, { withImage: true })
 
   await gotoProject(page)
   await assertEditorSurfaceVisible(page)
-  await openFilterMenu(page)
+  await gotoFilterSection(page)
 
-  // With a source image the kind frames are tappable (apply is instant —
-  // there is no selection dialog anymore).
-  await expect(page.getByLabel("B&W Hard")).toBeEnabled()
+  // With a source image "Add filter" is enabled (opens the picker).
+  await expect(page.getByLabel("Add filter")).toBeEnabled()
 })
 
 test("regression: upload makes image usable without page reload", async ({ page }) => {
@@ -209,10 +200,11 @@ test("regression: upload makes image usable without page reload", async ({ page 
 
   await gotoProject(page)
   await assertEditorSurfaceVisible(page)
-  await openFilterMenu(page)
-  await expect(page.getByLabel("B&W Hard")).toBeDisabled()
-  await openImageDialog(page, { hasImage: false })
-  const uploadInput = page.getByTestId("add-image-input")
+  await gotoFilterSection(page)
+  await expect(page.getByLabel("Add filter")).toBeDisabled()
+  // No image → "Add image" opens the OS file picker directly (no sheet). The
+  // hidden master-image input is always mounted at the shell, so drive it.
+  const uploadInput = page.getByTestId("master-image-file-input")
   await expect(uploadInput).toBeAttached()
   const waitUploadResponse = page.waitForResponse(
     (res) =>
@@ -232,8 +224,9 @@ test("regression: upload makes image usable without page reload", async ({ page 
   const workingCopyJson = (await workingCopyRes.json()) as { exists?: boolean }
   expect(workingCopyJson.exists).toBe(true)
 
-  await openFilterMenu(page)
-  await expect(page.getByLabel("B&W Hard")).toBeEnabled()
+  // After upload the source image exists → "Add filter" becomes enabled.
+  await gotoFilterSection(page)
+  await expect(page.getByLabel("Add filter")).toBeEnabled()
 })
 
 test("regression: filter error does not leak into restore dialog", async ({ page }) => {
@@ -252,9 +245,10 @@ test("regression: filter error does not leak into restore dialog", async ({ page
   await assertEditorSurfaceVisible(page)
   await openFilterMenu(page)
 
-  // Tapping a kind frame applies instantly (no selection dialog); the mocked
-  // 500 surfaces as a toast, not in any dialog.
+  // Pick a kind + Apply (the picker is select-then-Apply, not instant); the
+  // mocked 500 surfaces as a toast, not in any dialog.
   await page.getByLabel("B&W Hard").click()
+  await page.getByRole("button", { name: "Apply" }).click()
   await expect(page.getByText("forced filter failure")).toBeVisible()
 
   await openImageDialog(page)
