@@ -1,13 +1,10 @@
 "use client"
 
-import { useCallback, useState } from "react"
 import { Loader2, Plus } from "lucide-react"
-import { useDropzone } from "react-dropzone"
-import { toast } from "sonner"
 
 import { SidebarMenuAction } from "@/components/ui/sidebar"
-import { formatOperationErrorForToast, normalizeApiError } from "@/lib/api/error-normalizer"
-import { uploadMasterImageClient, type UploadedMasterSnapshot } from "@/lib/editor/upload-master-image"
+import { useMasterImageUploader } from "@/lib/editor/hooks/use-master-image-uploader"
+import type { UploadedMasterSnapshot } from "@/lib/editor/upload-master-image"
 
 export function AddImageMenuAction({
   projectId,
@@ -16,63 +13,18 @@ export function AddImageMenuAction({
   projectId: string
   onUploaded: (master: UploadedMasterSnapshot | null) => void | Promise<void>
 }) {
-  const [isUploading, setIsUploading] = useState(false)
-
-  const uploadFile = useCallback(
-    async (nextFile: File) => {
-      if (isUploading) return
-      setIsUploading(true)
-      try {
-        const out = await uploadMasterImageClient({ projectId, file: nextFile })
-        if (!out.ok) {
-          const formatted = formatOperationErrorForToast(normalizeApiError(out.error))
-          toast.error(formatted.title, formatted.detail ? { description: formatted.detail } : undefined)
-          return
-        }
-        await onUploaded(out.master)
-      } catch (error) {
-        const formatted = formatOperationErrorForToast(normalizeApiError(error))
-        toast.error(formatted.title, formatted.detail ? { description: formatted.detail } : undefined)
-      } finally {
-        setIsUploading(false)
-      }
-    },
-    [isUploading, onUploaded, projectId]
-  )
-
-  const onDrop = useCallback(
-    (accepted: File[]) => {
-      const f = accepted[0]
-      if (!f) return
-      void uploadFile(f)
-    },
-    [uploadFile]
-  )
-
-  const { getInputProps, open } = useDropzone({
-    onDrop,
-    accept: { "image/*": [] },
-    multiple: false,
-    maxFiles: 1,
-    disabled: isUploading,
-    noClick: true,
-    noKeyboard: true,
-  })
+  const { getInputProps, openFilePicker, isUploading } = useMasterImageUploader({ projectId, onUploaded })
 
   return (
     <>
       <input data-testid="add-image-input" {...getInputProps()} />
       <SidebarMenuAction
-        onClick={open}
+        onClick={openFilePicker}
         disabled={isUploading}
         aria-label={isUploading ? "Uploading image" : "Add Image"}
         aria-busy={isUploading}
       >
-        {isUploading ? (
-          <Loader2 className="animate-spin" />
-        ) : (
-          <Plus />
-        )}
+        {isUploading ? <Loader2 className="animate-spin" /> : <Plus />}
       </SidebarMenuAction>
     </>
   )

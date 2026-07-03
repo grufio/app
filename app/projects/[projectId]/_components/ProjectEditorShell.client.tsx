@@ -42,6 +42,7 @@ import { displayTxToMm } from "@/lib/editor/trace/display-tx-to-mm"
 import type { RegisteredFilterId } from "@/lib/editor/filters/registry"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
 import { useDisplaySize } from "@/lib/editor/hooks/use-display-size"
+import { useMasterImageUploader } from "@/lib/editor/hooks/use-master-image-uploader"
 import { useDedupingErrorToast } from "@/lib/editor/hooks/use-deduping-error-toast"
 import { useTraceHandlers } from "./editor-shell/use-trace-handlers"
 import { useCanvasDerivedState } from "./editor-shell/use-canvas-derived-state"
@@ -208,6 +209,14 @@ export function ProjectDetailPageClient({
     seedMasterImage,
     saveImageState,
   })
+
+  // Master-image uploader mounted once at the shell. Lets the "Add image"
+  // affordances (menu bar + image bar) open the OS / mobile file picker
+  // DIRECTLY on tap — no intermediate sheet. Only used when there is no
+  // master image yet; when one exists the same icon opens the edit dialog.
+  const imageUploader = useMasterImageUploader({ projectId, onUploaded: handleImageUploaded })
+  const hasMasterImage = Boolean(masterImage)
+
   // Each surface owns its own state inside a per-surface scope
   // component mounted only while that surface is active — the shell
   // composes them with conditional rendering on `editorSection`
@@ -684,8 +693,10 @@ export function ProjectDetailPageClient({
         {editorSection === "artboard" ? (
           imageBarActive ? (
             <EditorImageBar
-              hasImage={Boolean(masterImage)}
-              onOpen={() => setPendingArtboardDialog("image")}
+              hasImage={hasMasterImage}
+              onOpen={() =>
+                hasMasterImage ? setPendingArtboardDialog("image") : imageUploader.openFilePicker()
+              }
               onDelete={requestDeleteSelectedImage}
             />
           ) : (
@@ -799,16 +810,26 @@ export function ProjectDetailPageClient({
             }
           />
         </div>
+        {/* Hidden master-image file input — one per shell; `openFilePicker`
+            (below) clicks it. Lets "Add image" open the OS/mobile picker
+            directly, no intermediate sheet. */}
+        <input {...imageUploader.getInputProps()} />
         {/* menu bar — bottom-centre section switcher + Image dialog opener. */}
         <EditorMenuBar
           activeSection={editorSection}
           onSelectSection={handleSectionTap}
-          hasImage={Boolean(masterImage)}
+          hasImage={hasMasterImage}
           imageActive={imageBarActive}
-          // The Image action activates its own context: switch to the artboard
-          // section (where the dialog host mounts) and show the top-right Image
-          // icon. Opening the dialog itself happens when that icon is tapped.
+          // No master image → "Add image": open the OS/mobile file picker
+          // directly (a single tap → native picker). Master present → "Edit
+          // image": activate the Image context (switch to the artboard section
+          // where the dialog host mounts + show the top-right Image icon;
+          // opening the edit dialog itself happens when that icon is tapped).
           onOpenImage={() => {
+            if (!hasMasterImage) {
+              imageUploader.openFilePicker()
+              return
+            }
             setEditorSection("artboard")
             setImageBarActive(true)
           }}
