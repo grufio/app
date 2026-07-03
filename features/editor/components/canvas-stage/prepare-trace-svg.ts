@@ -13,13 +13,12 @@
  *   highlight the region + every other region sharing the same
  *   fill color (paint-by-numbers grouping). The original fill stays
  *   intact — cells render with their detected RGB color at rest.
- * - Give every `<line>` (the pixelate grid) `class="trace-grid"`. Its
- *   stroke-width + `non-scaling-stroke` live in CSS (`app/globals.css`), so a
- *   `@media (min-resolution: 2dppx)` rule renders it as a real
- *   1-HARDWARE-pixel hairline on HiDPI (a bare `stroke-width="1"` is 1 CSS px =
- *   2 physical px on retina — visibly thick). Identical rule → the client
- *   preview grid (also `class="trace-grid"`). Lineart is `<path>` only, so
- *   this is scoped to grids and leaves lineart strokes untouched.
+ * The pixelate grid `<line>`s are left untouched: they keep their inline
+ * `stroke-width="1"` (one pixel-unit) in the pixel-space viewBox, so the stroke
+ * SCALES DOWN with the crop → a sub-pixel hairline on any display, DPR-independent
+ * (no `non-scaling-stroke`, no `@media` — those pinned it to a full hardware pixel,
+ * which read too thick). The client preview mirrors this in the same pixel space
+ * (see `buildPixelateCellsSvg`).
  *
  * The opaque white background `<rect>` is no longer present in the
  * Python output (see `filter-service/app/vectorise.py`). The trace
@@ -38,7 +37,6 @@ export type PreparedTraceSvg = {
 const XML_DECL_RE = /<\?xml[^>]*\?>/
 const SVG_OPEN_RE = /<svg\b([^>]*)>/i
 const PATH_OPEN_RE = /<path\b([^/>]*?)\s*(\/?)>/gi
-const LINE_OPEN_RE = /<line\b([^/>]*?)\s*(\/?)>/gi
 const FILL_ATTR_RE = /\bfill\s*=\s*"([^"]*)"/i
 const WIDTH_ATTR_RE = /\bwidth\s*=\s*"[^"]*"/i
 const HEIGHT_ATTR_RE = /\bheight\s*=\s*"[^"]*"/i
@@ -63,13 +61,6 @@ export function prepareTraceSvg(svgText: string): PreparedTraceSvg | null {
     const fillMatch = FILL_ATTR_RE.exec(attrs)
     const fill = fillMatch ? fillMatch[1] : ""
     return `<path${attrs} data-trace-region="" data-fill="${fill}" ${slash}>`
-  })
-
-  // Grid lines → Illustrator-style guides: a constant, razor-sharp ~1px
-  // device-pixel hairline that never scales up with zoom / the non-uniform
-  // preserveAspectRatio, so it can't swallow the cell numbers.
-  svg = svg.replace(LINE_OPEN_RE, (_full, attrs: string, slash: string) => {
-    return `<line${attrs} class="trace-grid" ${slash}>`
   })
 
   return { html: svg }

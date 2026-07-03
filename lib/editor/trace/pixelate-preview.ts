@@ -168,19 +168,23 @@ function toHex2(n: number): string {
 
 /**
  * Stage 5 — build the pixelate preview as ONE inline SVG string: a `<rect>` per
- * cell (its snapped colour) PLUS the grid, in a single cell-unit coordinate
- * space (`viewBox="0 0 cellsX cellsY"`, each cell 1×1). Because cells and grid
- * share that space, the grid lines sit EXACTLY on the cell boundaries — no
- * bitmap/overlay rounding, no drift. Mirrors the applied trace's
- * `<g id="colors">` + `<g id="grid">` structure so preview == result.
+ * cell (its snapped colour) PLUS the grid, in a single PIXEL-space coordinate
+ * system (`viewBox="0 0 cropW cropH"`, the crop's source-pixel size). This
+ * mirrors the applied result exactly (Python emits `viewBox="0 0 cropped_w_px
+ * cropped_h_px"`): the cells live in a `<g transform="scale(sx sy)">` group of
+ * 1×1 rects, and the grid `<line>`/`<path>` sits in raw pixel space. Because
+ * cells and grid share that space the lines sit EXACTLY on the cell boundaries
+ * — no drift.
  *
- * Consumed via `dangerouslySetInnerHTML` (like the applied trace overlay);
- * `preserveAspectRatio="none"` stretches it to the display box. The grid
- * `<path>` carries `class="trace-grid"`; its stroke-width + `non-scaling-stroke`
- * live in CSS (`app/globals.css`) so a `@media (min-resolution: 2dppx)` rule
- * makes it a real 1-hardware-pixel hairline on HiDPI — identical to the applied
- * result. The colour rects carry no rendering hints (crispEdges on adjacent
- * rects risks hairline seams).
+ * The grid stroke is `stroke-width="1"` (ONE pixel-unit) INLINE and NOT inside
+ * the scale group — so it scales DOWN with the crop → display mapping into a
+ * sub-pixel hairline on any display, DPR-independent. (No CSS `.trace-grid`, no
+ * `non-scaling-stroke`, no `@media`: those pinned the stroke to a full hardware
+ * pixel, which read too thick. Same treatment as the applied result now.)
+ *
+ * Consumed via `dangerouslySetInnerHTML`; `preserveAspectRatio="none"` stretches
+ * it to the display box. The colour rects carry no rendering hints (crispEdges
+ * on adjacent rects risks hairline seams).
  *
  * No paint-by-numbers labels in the preview — quick visual reference only; the
  * apply path still emits the `<g id="numbers">` group in the saved SVG.
@@ -189,8 +193,11 @@ export function buildPixelateCellsSvg(args: {
   cells: CellColors
   cellsX: number
   cellsY: number
+  /** Crop size in source pixels (mirrors Python's cropped_w_px/h) — the viewBox. */
+  cropW: number
+  cropH: number
 }): string {
-  const { cells, cellsX, cellsY } = args
+  const { cells, cellsX, cellsY, cropW, cropH } = args
   const { r, g, b } = cells
   const rects: string[] = []
   for (let cy = 0; cy < cellsY; cy += 1) {
@@ -201,17 +208,22 @@ export function buildPixelateCellsSvg(args: {
       )
     }
   }
+  // Cell → pixel scale (same as the Python result's `<g id="colors">` transform).
+  const sx = cropW / cellsX
+  const sy = cropH / cellsY
+  // Grid in PIXEL coordinates (outside the scale group) so stroke-width="1"
+  // stays one pixel-unit and scales down sub-pixel — never fattened by the group.
+  const round = (n: number) => Number(n.toFixed(3))
   let d = ""
-  for (let i = 0; i <= cellsX; i += 1) d += `M${i} 0V${cellsY}`
-  for (let j = 0; j <= cellsY; j += 1) d += `M0 ${j}H${cellsX}`
+  for (let i = 0; i <= cellsX; i += 1) d += `M${round(i * sx)} 0V${round(cropH)}`
+  for (let j = 0; j <= cellsY; j += 1) d += `M0 ${round(j * sy)}H${round(cropW)}`
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" ` +
-    `viewBox="0 0 ${cellsX} ${cellsY}" preserveAspectRatio="none">` +
-    `<g>${rects.join("")}</g>` +
-    // Grid stroke width + non-scaling + rendering live in CSS (`.trace-grid`,
-    // app/globals.css) so it renders as a real 1-hardware-pixel hairline on
-    // HiDPI (via @media min-resolution) — identical to the applied result.
-    `<path class="trace-grid" d="${d}" fill="none" stroke="black"/>` +
+    `viewBox="0 0 ${cropW} ${cropH}" preserveAspectRatio="none">` +
+    `<g transform="scale(${round(sx)} ${round(sy)})">${rects.join("")}</g>` +
+    // One pixel-unit stroke, inline, in pixel space → scales to a sub-pixel
+    // hairline. Identical treatment to the applied result (pixelate.py).
+    `<path d="${d}" fill="none" stroke="black" stroke-width="1"/>` +
     `</svg>`
   )
 }

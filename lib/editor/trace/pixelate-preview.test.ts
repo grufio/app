@@ -11,7 +11,7 @@ describe("buildPixelateCellsSvg", () => {
   }
 
   it("emits one <rect> per cell at (cx,cy) with 2-digit hex fill", () => {
-    const svg = buildPixelateCellsSvg({ cells, cellsX: 2, cellsY: 2 })
+    const svg = buildPixelateCellsSvg({ cells, cellsX: 2, cellsY: 2, cropW: 100, cropH: 80 })
     expect(svg.match(/<rect /g) ?? []).toHaveLength(4)
     expect(svg).toContain('<rect x="0" y="0" width="1" height="1" fill="#ff0000"/>')
     expect(svg).toContain('<rect x="1" y="0" width="1" height="1" fill="#00ff00"/>')
@@ -20,33 +20,40 @@ describe("buildPixelateCellsSvg", () => {
     expect(svg).toContain('<rect x="1" y="1" width="1" height="1" fill="#050505"/>')
   })
 
-  it("uses cell-unit viewBox + preserveAspectRatio none (stretches to the display box)", () => {
-    const svg = buildPixelateCellsSvg({ cells, cellsX: 2, cellsY: 2 })
-    expect(svg).toContain('viewBox="0 0 2 2"')
+  it("uses a PIXEL-space viewBox (the crop px) + preserveAspectRatio none", () => {
+    const svg = buildPixelateCellsSvg({ cells, cellsX: 2, cellsY: 2, cropW: 100, cropH: 80 })
+    // Mirrors the applied result's `viewBox="0 0 cropped_w_px cropped_h_px"`.
+    expect(svg).toContain('viewBox="0 0 100 80"')
     expect(svg).toContain('preserveAspectRatio="none"')
   })
 
-  it("grid <path> carries class=trace-grid (stroke lives in CSS, not inline)", () => {
-    const svg = buildPixelateCellsSvg({ cells, cellsX: 2, cellsY: 2 })
-    expect(svg).toMatch(/<path [^>]*class="trace-grid"/)
-    // Stroke-width / non-scaling / rendering come from the `.trace-grid` CSS
-    // rule (app/globals.css) so HiDPI gets a real 1-hardware-pixel hairline —
-    // NOT hardcoded inline.
-    expect(svg).not.toMatch(/<path [^>]*stroke-width=/)
-    expect(svg).not.toMatch(/<path [^>]*vector-effect=/)
+  it("scales the 1×1 cell rects into pixel space via a <g transform> (like the result)", () => {
+    const svg = buildPixelateCellsSvg({ cells, cellsX: 2, cellsY: 2, cropW: 100, cropH: 80 })
+    // sx = cropW/cellsX = 50, sy = cropH/cellsY = 40.
+    expect(svg).toContain('<g transform="scale(50 40)">')
+  })
+
+  it("grid is a plain <path> with inline stroke-width=1 — no CSS class, no vector-effect", () => {
+    const svg = buildPixelateCellsSvg({ cells, cellsX: 2, cellsY: 2, cropW: 100, cropH: 80 })
+    // One pixel-unit stroke, inline, in pixel space → scales to a sub-pixel
+    // hairline. No `.trace-grid`, no non-scaling-stroke (those pinned it to a
+    // full hardware pixel = too thick).
+    expect(svg).toMatch(/<path [^>]*stroke-width="1"/)
+    expect(svg).not.toMatch(/class="trace-grid"/)
+    expect(svg).not.toMatch(/vector-effect/)
     // colour rects carry no rendering hints (crispEdges → hairline seams).
     expect(svg).not.toMatch(/<rect [^>]*shape-rendering/)
   })
 
-  it("cells + grid live in ONE coordinate space (grid line i sits on cell i's edge)", () => {
-    const svg = buildPixelateCellsSvg({ cells, cellsX: 2, cellsY: 2 })
-    // Cell cx=1's rect is at x="1"; the grid has a vertical exactly there.
-    expect(svg).toContain('x="1"')
-    expect(svg).toContain("M1 0V2")
-    // Full boundary set 0..cellsX (vertical) and 0..cellsY (horizontal).
-    expect(svg).toContain("M0 0V2")
-    expect(svg).toContain("M2 0V2")
-    expect(svg).toContain("M0 0H2")
-    expect(svg).toContain("M0 2H2")
+  it("cells + grid live in ONE pixel space (grid line i sits on cell i's scaled edge)", () => {
+    const svg = buildPixelateCellsSvg({ cells, cellsX: 2, cellsY: 2, cropW: 100, cropH: 80 })
+    // Verticals at x = i*sx = 0, 50, 100 spanning the full pixel height (80).
+    expect(svg).toContain("M0 0V80")
+    expect(svg).toContain("M50 0V80")
+    expect(svg).toContain("M100 0V80")
+    // Horizontals at y = j*sy = 0, 40, 80 spanning the full pixel width (100).
+    expect(svg).toContain("M0 0H100")
+    expect(svg).toContain("M0 40H100")
+    expect(svg).toContain("M0 80H100")
   })
 })
