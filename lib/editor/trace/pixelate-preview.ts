@@ -175,11 +175,12 @@ function toHex2(n: number): string {
  * `<g id="colors">` + `<g id="grid">` structure so preview == result.
  *
  * Consumed via `dangerouslySetInnerHTML` (like the applied trace overlay);
- * `preserveAspectRatio="none"` stretches it to the display box. The grid is a
- * razor-sharp non-scaling ~1px hairline (`vector-effect="non-scaling-stroke"` is
- * essential — without it `stroke-width="1"` would be a whole cell wide — plus
- * `shape-rendering="crispEdges"`). The colour rects carry NO `shape-rendering`:
- * 1:1 with the result, and `crispEdges` on adjacent rects risks hairline seams.
+ * `preserveAspectRatio="none"` stretches it to the display box. The grid
+ * `<path>` carries `class="trace-grid"`; its stroke-width + `non-scaling-stroke`
+ * live in CSS (`app/globals.css`) so a `@media (min-resolution: 2dppx)` rule
+ * makes it a real 1-hardware-pixel hairline on HiDPI — identical to the applied
+ * result. The colour rects carry no rendering hints (crispEdges on adjacent
+ * rects risks hairline seams).
  *
  * No paint-by-numbers labels in the preview — quick visual reference only; the
  * apply path still emits the `<g id="numbers">` group in the saved SVG.
@@ -207,8 +208,10 @@ export function buildPixelateCellsSvg(args: {
     `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" ` +
     `viewBox="0 0 ${cellsX} ${cellsY}" preserveAspectRatio="none">` +
     `<g>${rects.join("")}</g>` +
-    `<path d="${d}" fill="none" stroke="black" stroke-width="1" ` +
-    `vector-effect="non-scaling-stroke" shape-rendering="crispEdges"/>` +
+    // Grid stroke width + non-scaling + rendering live in CSS (`.trace-grid`,
+    // app/globals.css) so it renders as a real 1-hardware-pixel hairline on
+    // HiDPI (via @media min-resolution) — identical to the applied result.
+    `<path class="trace-grid" d="${d}" fill="none" stroke="black"/>` +
     `</svg>`
   )
 }

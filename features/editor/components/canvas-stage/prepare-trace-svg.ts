@@ -13,13 +13,12 @@
  *   highlight the region + every other region sharing the same
  *   fill color (paint-by-numbers grouping). The original fill stays
  *   intact — cells render with their detected RGB color at rest.
- * - Make every `<line>` (the pixelate/circulate grid) render like an
- *   Illustrator guide: `vector-effect="non-scaling-stroke"` keeps it a
- *   constant ~1px DEVICE-pixel hairline regardless of the non-uniform
- *   `preserveAspectRatio="none"` scaling + zoom, and
- *   `shape-rendering="crispEdges"` disables antialiasing so the
- *   axis-aligned lines stay razor-sharp (and never fatten enough to
- *   swallow the paint-by-numbers digits). Lineart is `<path>` only, so
+ * - Give every `<line>` (the pixelate grid) `class="trace-grid"`. Its
+ *   stroke-width + `non-scaling-stroke` live in CSS (`app/globals.css`), so a
+ *   `@media (min-resolution: 2dppx)` rule renders it as a real
+ *   1-HARDWARE-pixel hairline on HiDPI (a bare `stroke-width="1"` is 1 CSS px =
+ *   2 physical px on retina — visibly thick). Identical rule → the client
+ *   preview grid (also `class="trace-grid"`). Lineart is `<path>` only, so
  *   this is scoped to grids and leaves lineart strokes untouched.
  *
  * The opaque white background `<rect>` is no longer present in the
@@ -70,7 +69,7 @@ export function prepareTraceSvg(svgText: string): PreparedTraceSvg | null {
   // device-pixel hairline that never scales up with zoom / the non-uniform
   // preserveAspectRatio, so it can't swallow the cell numbers.
   svg = svg.replace(LINE_OPEN_RE, (_full, attrs: string, slash: string) => {
-    return `<line${attrs} vector-effect="non-scaling-stroke" shape-rendering="crispEdges" ${slash}>`
+    return `<line${attrs} class="trace-grid" ${slash}>`
   })
 
   return { html: svg }

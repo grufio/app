@@ -26,11 +26,15 @@ describe("buildPixelateCellsSvg", () => {
     expect(svg).toContain('preserveAspectRatio="none"')
   })
 
-  it("grid is a razor-sharp non-scaling hairline; colour rects carry no shape-rendering", () => {
+  it("grid <path> carries class=trace-grid (stroke lives in CSS, not inline)", () => {
     const svg = buildPixelateCellsSvg({ cells, cellsX: 2, cellsY: 2 })
-    expect(svg).toMatch(/<path [^>]*vector-effect="non-scaling-stroke"/)
-    expect(svg).toMatch(/<path [^>]*shape-rendering="crispEdges"/)
-    // crispEdges on adjacent rects would risk hairline seams → none on rects.
+    expect(svg).toMatch(/<path [^>]*class="trace-grid"/)
+    // Stroke-width / non-scaling / rendering come from the `.trace-grid` CSS
+    // rule (app/globals.css) so HiDPI gets a real 1-hardware-pixel hairline —
+    // NOT hardcoded inline.
+    expect(svg).not.toMatch(/<path [^>]*stroke-width=/)
+    expect(svg).not.toMatch(/<path [^>]*vector-effect=/)
+    // colour rects carry no rendering hints (crispEdges → hairline seams).
     expect(svg).not.toMatch(/<rect [^>]*shape-rendering/)
   })
 
