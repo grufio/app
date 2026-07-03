@@ -229,15 +229,21 @@ export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
   )
 
   // Stage 4 (light): build the preview as ONE SVG string — colour rects + grid
-  // in one cell-unit coordinate space, so the grid registers exactly with the
-  // cells (no bitmap/overlay drift). Injected below, mirroring the applied
-  // trace overlay.
+  // in one PIXEL-space coordinate system (the crop's source-pixel size), so the
+  // grid registers exactly with the cells (no drift) AND the stroke scales down
+  // to a sub-pixel hairline — mirroring the applied trace result exactly.
   const svgMarkup = useMemo(
     () =>
-      reducedCells && valid
-        ? buildPixelateCellsSvg({ cells: reducedCells, cellsX: grid.cellsX, cellsY: grid.cellsY })
+      reducedCells && valid && crop
+        ? buildPixelateCellsSvg({
+            cells: reducedCells,
+            cellsX: grid.cellsX,
+            cellsY: grid.cellsY,
+            cropW: Math.round(crop.w),
+            cropH: Math.round(crop.h),
+          })
         : null,
-    [reducedCells, valid, grid.cellsX, grid.cellsY],
+    [reducedCells, valid, crop, grid.cellsX, grid.cellsY],
   )
 
   // Spinner covers both the image load and the palette fetch: a valid grid

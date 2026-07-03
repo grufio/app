@@ -54,17 +54,14 @@ describe("prepareTraceSvg", () => {
     expect(out.html).toMatch(/stroke-width="2"/)
   })
 
-  it("tags grid <line>s with class=trace-grid (hairline stroke lives in CSS)", () => {
+  it("leaves grid <line>s untouched — inline stroke-width scales sub-pixel, no CSS class", () => {
     const out = prepareTraceSvg(NUMERATE_SVG)!
-    // The grid line keeps its coords; the 1-hardware-pixel hairline comes from
-    // the `.trace-grid` CSS rule (app/globals.css), not inline attributes.
-    expect(out.html).toMatch(/<line[^>]*class="trace-grid"/)
+    // The grid line keeps its coords AND its inline stroke-width (one pixel-unit
+    // in the pixel-space viewBox), so the stroke scales down to a sub-pixel
+    // hairline. No `.trace-grid` class, no non-scaling-stroke, no @media — those
+    // pinned it to a full hardware pixel (too thick).
+    expect(out.html).toMatch(/<line[^>]*stroke-width="2"/)
     expect(out.html).toMatch(/<line[^>]*x1="0"[^>]*y2="914"/)
-  })
-
-  it("does NOT tag lineart <path> strokes as trace-grid", () => {
-    const out = prepareTraceSvg(LINEART_SVG)!
-    // Lineart is <path>-only — no <line>, so no grid class leaks in.
     expect(out.html).not.toMatch(/class="trace-grid"/)
   })
 
