@@ -163,8 +163,13 @@ export function applyTopNReduction(args: {
 }
 
 /**
- * Stage 5 — paint the resolved cells onto the visible target canvas plus
- * per-cell frame outlines. Light: cell-count proportional canvas ops.
+ * Stage 5 — paint the resolved cells onto the visible target canvas as solid
+ * colour blocks. Light: cell-count proportional canvas ops.
+ *
+ * The grid is NOT drawn here: a bitmap-space `strokeRect` per cell fattened
+ * with the canvas's pixelated upscale into a dense black mesh. The grid is now
+ * a crisp, non-scaling SVG overlay in the preview pane (mirrors the applied
+ * trace's `<g id="grid">` guide-lines) so it stays a razor-sharp hairline.
  *
  * No paint-by-numbers labels in the preview — the preview's purpose is a
  * quick visual reference for "what will this look like after apply",
@@ -195,17 +200,6 @@ export function paintCellsToCanvas(args: {
         Math.ceil(cellW) + 1,
         Math.ceil(cellH) + 1,
       )
-    }
-  }
-  // Per-cell frame outline. Mirrors the server's `<g id="grid">` — always
-  // on, never toggled. Without this the preview shows raw colour blocks;
-  // the applied trace would surprise users with grid lines they didn't
-  // see in the dialog.
-  ctx.strokeStyle = "black"
-  ctx.lineWidth = 1
-  for (let cy = 0; cy < cellsY; cy += 1) {
-    for (let cx = 0; cx < cellsX; cx += 1) {
-      ctx.strokeRect(cx * cellW, cy * cellH, cellW, cellH)
     }
   }
 }

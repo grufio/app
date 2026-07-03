@@ -15,6 +15,7 @@ import { GenericTraceController } from "@/features/editor/components/trace-forms
 import { LineArtDialog } from "@/features/editor/components/trace-forms/lineart-dialog"
 import { PixelateDialog } from "@/features/editor/components/trace-forms/pixelate-dialog"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
+import type { TraceContentRegion } from "@/lib/editor/trace/content-region"
 
 export function EditorTraceDialogHost(props: {
   selectionOpen: boolean
@@ -25,6 +26,7 @@ export function EditorTraceDialogHost(props: {
     sourceImageHeight: number
     displayMmW: number
     displayMmH: number
+    contentRegion?: TraceContentRegion | null
   } | null
   onCloseSelection: () => void
   onSelectKind: (kind: RegisteredTraceId) => void
@@ -78,6 +80,7 @@ export function EditorTraceDialogHost(props: {
           sourceImageUrl={traceDialogSource.sourceImageUrl}
           displayMmW={traceDialogSource.displayMmW}
           displayMmH={traceDialogSource.displayMmH}
+          contentRegion={traceDialogSource.contentRegion ?? null}
           onClose={onCloseConfigure}
           onSuccess={onApplied}
           onApplyTrace={onApplyTrace}

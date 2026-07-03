@@ -81,6 +81,8 @@ export function TraceSurfaceScope(props: TraceSurfaceScopeProps) {
       ...traceDialog.session,
       displayMmW: props.traceSourceImage.displayMmW,
       displayMmH: props.traceSourceImage.displayMmH,
+      // Live too: contentRegion depends on the live placement/padding.
+      contentRegion: props.traceSourceImage.contentRegion ?? null,
     }
   }, [traceDialog.session, props.traceSourceImage])
 

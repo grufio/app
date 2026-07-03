@@ -44,6 +44,7 @@ import {
   resolvePixelateGrid,
 } from "@/lib/editor/trace/pixelate-grid-math"
 import { type PixelateParams } from "@/lib/editor/trace/pixelate"
+import type { TraceContentRegion } from "@/lib/editor/trace/content-region"
 import {
   applyTopNReduction,
   paintCellsToCanvas,
@@ -65,10 +66,18 @@ type Props = {
   displayMmW: number
   displayMmH: number
   params: PixelateParams
+  /** Content region (artboard − padding). When present the preview crops to the
+   * SAME printable window the apply path traces (white where uncovered), using
+   * the content-rect mm — parity with the result. Absent → whole image. */
+  contentRegion?: TraceContentRegion | null
 }
 
-export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, params }: Props) {
+export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, params, contentRegion }: Props) {
   const source = useSourceImage(sourceImageUrl)
+  // Effective geometry: content-rect mm + a composited (white + image window)
+  // source when a content region is present; else the raw image + image mm.
+  const effMmW = contentRegion?.displayMmW ?? displayMmW
+  const effMmH = contentRegion?.displayMmH ?? displayMmH
   // Snap cells to the same Munsell palette the server uses. Null until the
   // `/api/palette` fetch resolves; `snapAndDitherCells` falls back to raw
   // means when the palette is empty.
@@ -77,10 +86,39 @@ export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
   // skips the texture, snapped cells ship as-is until the LUT lands.
   const blueNoiseLut = useBlueNoiseLut()
   const grid = useMemo(
-    () => resolvePixelateGrid(displayMmW, displayMmH, params),
-    [displayMmW, displayMmH, params],
+    () => resolvePixelateGrid(effMmW, effMmH, params),
+    [effMmW, effMmH, params],
   )
   const valid = isPixelateGridValid(grid)
+
+  // Content-region composited source: a white canvas the size of the content
+  // rect (at source density) with the image window drawn in — byte-parity with
+  // the server's `compositeContentRegion`. Null → use the raw image.
+  const contentSource = useMemo(() => {
+    if (!source || !contentRegion) return null
+    const plan = contentRegion.plan
+    const c = document.createElement("canvas")
+    c.width = Math.max(1, Math.round(plan.canvasPx.widthPx))
+    c.height = Math.max(1, Math.round(plan.canvasPx.heightPx))
+    const ctx = c.getContext("2d")
+    if (!ctx) return null
+    ctx.imageSmoothingEnabled = false
+    ctx.fillStyle = "#ffffff"
+    ctx.fillRect(0, 0, c.width, c.height)
+    const comp = plan.composite
+    if (comp) {
+      ctx.drawImage(
+        source,
+        comp.extract.left, comp.extract.top, comp.extract.width, comp.extract.height,
+        comp.placeAt.left, comp.placeAt.top, comp.extract.width, comp.extract.height,
+      )
+    }
+    return c
+  }, [source, contentRegion])
+
+  const effSource: CanvasImageSource | null = contentRegion ? contentSource : source
+  const effSourceW = contentRegion ? (contentSource?.width ?? 0) : (source?.naturalWidth ?? 0)
+  const effSourceH = contentRegion ? (contentSource?.height ?? 0) : (source?.naturalHeight ?? 0)
 
   const miniCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const paneRef = useRef<HTMLDivElement | null>(null)
@@ -103,23 +141,23 @@ export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
   }, [])
 
   const crop = useMemo(() => {
-    if (!source || !valid || displayMmW <= 0 || displayMmH <= 0) return null
+    if (!effSource || !valid || effMmW <= 0 || effMmH <= 0 || effSourceW <= 0 || effSourceH <= 0) return null
     return centeredCropPixels({
-      pixelW: source.naturalWidth,
-      pixelH: source.naturalHeight,
-      displayMmW,
-      displayMmH,
+      pixelW: effSourceW,
+      pixelH: effSourceH,
+      displayMmW: effMmW,
+      displayMmH: effMmH,
       grid,
     })
-  }, [source, valid, displayMmW, displayMmH, grid])
+  }, [effSource, effSourceW, effSourceH, valid, effMmW, effMmH, grid])
 
   // Stage 1 (heavy): read the cropped source + per-cell area-average.
   // Only re-runs when the source bitmap, crop rect, or grid shape change —
   // unrelated param toggles (palette, dither, texture, distance, …) skip
   // the per-source-pixel loop entirely.
   const cellMeans = useMemo(
-    () => (source && crop && valid ? readSourceCells({ source, crop, cellsX: grid.cellsX, cellsY: grid.cellsY }) : null),
-    [source, crop, valid, grid.cellsX, grid.cellsY],
+    () => (effSource && crop && valid ? readSourceCells({ source: effSource, crop, cellsX: grid.cellsX, cellsY: grid.cellsY }) : null),
+    [effSource, crop, valid, grid.cellsX, grid.cellsY],
   )
 
   // Stage 2a: PR-I PAM pre-snap palette restriction. No-op for top_n.
@@ -219,6 +257,19 @@ export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
     }
   }, [valid, pane.w, pane.h, grid.usedMmW, grid.usedMmH, zoom])
 
+  // Grid as a single SVG path in cell-unit space (viewBox 0 0 cellsX cellsY):
+  // every cell boundary is one subpath. Rendered as a crisp, non-scaling
+  // hairline overlay (see the render), so it never fattens with zoom / the
+  // pixelated cell bitmap underneath.
+  const gridPath = useMemo(() => {
+    if (!valid) return ""
+    const { cellsX, cellsY } = grid
+    let d = ""
+    for (let i = 0; i <= cellsX; i += 1) d += `M${i} 0V${cellsY}`
+    for (let j = 0; j <= cellsY; j += 1) d += `M0 ${j}H${cellsX}`
+    return d
+  }, [valid, grid])
+
   return (
     <div
       ref={paneRef}
@@ -241,23 +292,40 @@ export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
             minHeight: "100%",
           }}
         >
-          <canvas
-            ref={miniCanvasRef}
-            // Canvas bitmap = full source-crop resolution. `paintCellsToCanvas`
-            // paints solid cell blocks at that size — no source→cells
-            // downsample touches the visible bitmap.
-            width={crop ? Math.max(1, Math.round(crop.w)) : 1}
-            height={crop ? Math.max(1, Math.round(crop.h)) : 1}
-            className="block"
-            style={{
-              // Explicit px box from the measured pane (no aspect-ratio).
-              // The near-square bitmap stretches to fill it.
-              width: display?.w ?? 0,
-              height: display?.h ?? 0,
-              imageRendering: "pixelated",
-            }}
-            data-testid="pixelate-preview-mini"
-          />
+          <div className="relative block" style={{ width: display?.w ?? 0, height: display?.h ?? 0 }}>
+            <canvas
+              ref={miniCanvasRef}
+              // Canvas bitmap = full source-crop resolution. `paintCellsToCanvas`
+              // paints solid cell blocks at that size — no source→cells
+              // downsample touches the visible bitmap.
+              width={crop ? Math.max(1, Math.round(crop.w)) : 1}
+              height={crop ? Math.max(1, Math.round(crop.h)) : 1}
+              className="block h-full w-full"
+              style={{ imageRendering: "pixelated" }}
+              data-testid="pixelate-preview-mini"
+            />
+            {/* Grid overlay: an Illustrator-style guide — a razor-sharp,
+                non-scaling ~1px hairline at every cell boundary, decoupled from
+                the pixelated cell bitmap. Mirrors the applied trace's grid. */}
+            {valid && display ? (
+              <svg
+                className="pointer-events-none absolute inset-0 h-full w-full"
+                viewBox={`0 0 ${grid.cellsX} ${grid.cellsY}`}
+                preserveAspectRatio="none"
+                aria-hidden="true"
+                data-testid="pixelate-preview-grid"
+              >
+                <path
+                  d={gridPath}
+                  fill="none"
+                  stroke="black"
+                  strokeWidth={1}
+                  vectorEffect="non-scaling-stroke"
+                  shapeRendering="crispEdges"
+                />
+              </svg>
+            ) : null}
+          </div>
         </div>
       </div>
 

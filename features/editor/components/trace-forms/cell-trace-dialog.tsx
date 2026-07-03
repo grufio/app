@@ -32,6 +32,7 @@ import type { z } from "zod"
 
 import { formatOperationErrorForToast, normalizeApiError } from "@/lib/api/error-normalizer"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
+import type { TraceContentRegion } from "@/lib/editor/trace/content-region"
 
 import { TraceDialogShell } from "./trace-dialog-shell"
 
@@ -56,6 +57,9 @@ export type CellTracePreviewProps<P> = {
   displayMmW: number
   displayMmH: number
   params: P
+  /** Optional content-region (artboard − padding) for preview parity with the
+   * apply crop. Consumed by the pixelate preview; other panes ignore it. */
+  contentRegion?: TraceContentRegion | null
 }
 
 export type CellTraceDialogProps<P, G extends CellGridMetadata> = {
@@ -82,6 +86,8 @@ export type CellTraceDialogProps<P, G extends CellGridMetadata> = {
   /** Saved params of the active trace; seeds the draft when editing
    * (instead of schema defaults). */
   initialParams?: Record<string, unknown>
+  /** Forwarded to the Preview for content-rect crop parity. */
+  contentRegion?: TraceContentRegion | null
 }
 
 function fmt1(n: number): string {
@@ -108,6 +114,7 @@ export function CellTraceDialog<P extends Record<string, unknown>, G extends Cel
     onApplyTrace,
     onDeleteTrace,
     initialParams,
+    contentRegion,
   } = props
 
   // Seed from the active trace's saved params when editing (parsing
@@ -120,9 +127,14 @@ export function CellTraceDialog<P extends Record<string, unknown>, G extends Cel
   const setField = <K extends keyof P>(key: K, value: P[K]) =>
     setDraft((prev) => ({ ...prev, [key]: value }))
 
+  // When a content region is present (pixelate content-rect crop), the whole
+  // dialog — grid math, metadata, preview — runs on the CONTENT-rect mm so it
+  // matches what the apply path traces (not the full image mm).
+  const effMmW = contentRegion?.displayMmW ?? displayMmW
+  const effMmH = contentRegion?.displayMmH ?? displayMmH
   const grid = useMemo(
-    () => resolveGrid(displayMmW, displayMmH, draft),
-    [resolveGrid, displayMmW, displayMmH, draft],
+    () => resolveGrid(effMmW, effMmH, draft),
+    [resolveGrid, effMmW, effMmH, draft],
   )
   const valid = isGridValid(grid)
 
@@ -156,9 +168,9 @@ export function CellTraceDialog<P extends Record<string, unknown>, G extends Cel
     <TraceDialogShell
       open={open}
       title={title}
-      description={`Image: ${fmt1(displayMmW)} × ${fmt1(displayMmH)} mm`}
+      description={`Image: ${fmt1(effMmW)} × ${fmt1(effMmH)} mm`}
       metadata={[
-        `Image: ${fmt1(displayMmW)} × ${fmt1(displayMmH)} mm`,
+        `Image: ${fmt1(effMmW)} × ${fmt1(effMmH)} mm`,
         `Grid: ${grid.cellsX} × ${grid.cellsY} cells`,
         `Used: ${fmt1(grid.usedMmW)} × ${fmt1(grid.usedMmH)} mm`,
         `Cut: ${fmt1(grid.borderMmX)} × ${fmt1(grid.borderMmY)} mm`,
@@ -169,6 +181,7 @@ export function CellTraceDialog<P extends Record<string, unknown>, G extends Cel
           displayMmW={displayMmW}
           displayMmH={displayMmH}
           params={draft}
+          contentRegion={contentRegion}
         />
       }
       form={<Form params={draft} onParamsChange={setField} disabled={busy} grid={grid} />}
