@@ -162,44 +162,53 @@ export function applyTopNReduction(args: {
   return reduceToTopN(cells, palette, numColors, distanceMetric ?? "oklab").cells
 }
 
+function toHex2(n: number): string {
+  return (n & 0xff).toString(16).padStart(2, "0")
+}
+
 /**
- * Stage 5 — paint the resolved cells onto the visible target canvas as solid
- * colour blocks. Light: cell-count proportional canvas ops.
+ * Stage 5 — build the pixelate preview as ONE inline SVG string: a `<rect>` per
+ * cell (its snapped colour) PLUS the grid, in a single cell-unit coordinate
+ * space (`viewBox="0 0 cellsX cellsY"`, each cell 1×1). Because cells and grid
+ * share that space, the grid lines sit EXACTLY on the cell boundaries — no
+ * bitmap/overlay rounding, no drift. Mirrors the applied trace's
+ * `<g id="colors">` + `<g id="grid">` structure so preview == result.
  *
- * The grid is NOT drawn here: a bitmap-space `strokeRect` per cell fattened
- * with the canvas's pixelated upscale into a dense black mesh. The grid is now
- * a crisp, non-scaling SVG overlay in the preview pane (mirrors the applied
- * trace's `<g id="grid">` guide-lines) so it stays a razor-sharp hairline.
+ * Consumed via `dangerouslySetInnerHTML` (like the applied trace overlay);
+ * `preserveAspectRatio="none"` stretches it to the display box. The grid is a
+ * razor-sharp non-scaling ~1px hairline (`vector-effect="non-scaling-stroke"` is
+ * essential — without it `stroke-width="1"` would be a whole cell wide — plus
+ * `shape-rendering="crispEdges"`). The colour rects carry NO `shape-rendering`:
+ * 1:1 with the result, and `crispEdges` on adjacent rects risks hairline seams.
  *
- * No paint-by-numbers labels in the preview — the preview's purpose is a
- * quick visual reference for "what will this look like after apply",
- * not a paint-by-numbers key. The Apply path still emits the
- * `<g id="numbers">` group in the saved SVG.
+ * No paint-by-numbers labels in the preview — quick visual reference only; the
+ * apply path still emits the `<g id="numbers">` group in the saved SVG.
  */
-export function paintCellsToCanvas(args: {
-  target: HTMLCanvasElement
+export function buildPixelateCellsSvg(args: {
   cells: CellColors
   cellsX: number
   cellsY: number
-}): void {
-  const { target, cells, cellsX, cellsY } = args
-  const ctx = target.getContext("2d", { willReadFrequently: true })
-  if (!ctx) throw new Error("paintCellsToCanvas: 2D context unavailable")
+}): string {
+  const { cells, cellsX, cellsY } = args
   const { r, g, b } = cells
-  ctx.imageSmoothingEnabled = false
-  const cellW = target.width / cellsX
-  const cellH = target.height / cellsY
+  const rects: string[] = []
   for (let cy = 0; cy < cellsY; cy += 1) {
     for (let cx = 0; cx < cellsX; cx += 1) {
       const i = cy * cellsX + cx
-      ctx.fillStyle = `rgb(${r[i]}, ${g[i]}, ${b[i]})`
-      // +1 px overdraw to avoid sub-pixel seams between adjacent cells.
-      ctx.fillRect(
-        Math.floor(cx * cellW),
-        Math.floor(cy * cellH),
-        Math.ceil(cellW) + 1,
-        Math.ceil(cellH) + 1,
+      rects.push(
+        `<rect x="${cx}" y="${cy}" width="1" height="1" fill="#${toHex2(r[i])}${toHex2(g[i])}${toHex2(b[i])}"/>`,
       )
     }
   }
+  let d = ""
+  for (let i = 0; i <= cellsX; i += 1) d += `M${i} 0V${cellsY}`
+  for (let j = 0; j <= cellsY; j += 1) d += `M0 ${j}H${cellsX}`
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" ` +
+    `viewBox="0 0 ${cellsX} ${cellsY}" preserveAspectRatio="none">` +
+    `<g>${rects.join("")}</g>` +
+    `<path d="${d}" fill="none" stroke="black" stroke-width="1" ` +
+    `vector-effect="non-scaling-stroke" shape-rendering="crispEdges"/>` +
+    `</svg>`
+  )
 }
