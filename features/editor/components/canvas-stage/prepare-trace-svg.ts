@@ -13,12 +13,11 @@
  *   highlight the region + every other region sharing the same
  *   fill color (paint-by-numbers grouping). The original fill stays
  *   intact — cells render with their detected RGB color at rest.
- * The pixelate grid `<line>`s are left untouched: they keep their inline
- * `stroke-width="1"` (one pixel-unit) in the pixel-space viewBox, so the stroke
- * SCALES DOWN with the crop → a sub-pixel hairline on any display, DPR-independent
- * (no `non-scaling-stroke`, no `@media` — those pinned it to a full hardware pixel,
- * which read too thick). The client preview mirrors this in the same pixel space
- * (see `buildPixelateCellsSvg`).
+ * For a PIXELATE trace (has `<g id="grid">`), the coloured cells (`<g id="colors">`)
+ * and the grid (`<g id="grid">`) are STRIPPED here — they render on the Konva canvas
+ * instead (crisp, device-pixel-snapped grid; see `pixelate-trace-overlay.tsx`), so
+ * the DOM overlay keeps only the `<g id="numbers">` labels (drawn on top). Lineart /
+ * circulate have no `<g id="grid">`, so nothing is stripped and they render fully here.
  *
  * The opaque white background `<rect>` is no longer present in the
  * Python output (see `filter-service/app/vectorise.py`). The trace
@@ -40,6 +39,8 @@ const PATH_OPEN_RE = /<path\b([^/>]*?)\s*(\/?)>/gi
 const FILL_ATTR_RE = /\bfill\s*=\s*"([^"]*)"/i
 const WIDTH_ATTR_RE = /\bwidth\s*=\s*"[^"]*"/i
 const HEIGHT_ATTR_RE = /\bheight\s*=\s*"[^"]*"/i
+const COLORS_GROUP_RE = /<g id="colors"[^>]*>[\s\S]*?<\/g>/i
+const GRID_GROUP_RE = /<g id="grid"[^>]*>[\s\S]*?<\/g>/i
 
 export function prepareTraceSvg(svgText: string): PreparedTraceSvg | null {
   if (!svgText) return null
@@ -54,6 +55,13 @@ export function prepareTraceSvg(svgText: string): PreparedTraceSvg | null {
     const cleaned = attrs.replace(WIDTH_ATTR_RE, "").replace(HEIGHT_ATTR_RE, "")
     return `<svg${cleaned} width="100%" height="100%" preserveAspectRatio="none">`
   })
+
+  // Pixelate (has a grid): drop the coloured cells + grid — they render on the
+  // Konva canvas (crisp, snapped). Keep the numbers group. Lineart/circulate have
+  // no grid, so this is a no-op for them and they render fully.
+  if (GRID_GROUP_RE.test(svg)) {
+    svg = svg.replace(COLORS_GROUP_RE, "").replace(GRID_GROUP_RE, "")
+  }
 
   // Annotate every <path>; keep its original fill so the cell still
   // shows the detected RGB color at rest.
