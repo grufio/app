@@ -43,6 +43,16 @@ result. It splits into three layers: pure-math canvas model
   (close) + **Delete** (remove image, cascade confirm) actions. Plus
   the form components for each filter (`pixelate-form.tsx`,
   `lineart-form.tsx`, `numerate-form.tsx`), navigation/section routing.
+- [features/editor/components/canvas-stage/](../../features/editor/components/canvas-stage/)
+  — trace rendering on the Konva stage: `pixelate-trace-overlay.tsx`
+  (pixelate cells as flat `Konva.Rect`s + snapped grid `Konva.Line`s),
+  `prepare-trace-svg.ts` (strips `<g id="colors">`+`<g id="grid">` for
+  pixelate, keeps numbers; annotates lineart regions), `trace-inline-svg.tsx`
+  (the DOM overlay — numbers for pixelate, full SVG for lineart/circulate),
+  and the shared crisp-line helpers `pixel-snap.ts`
+  (`snapWorldToDeviceHalfPixel`) + `line-rendering.ts`
+  (`getStaticLineRenderProps`). Geometry parser:
+  [lib/editor/trace/pixelate-trace-parse.ts](../../lib/editor/trace/pixelate-trace-parse.ts).
 - [services/editor/](../../services/editor/) — server-side ops:
   artboard display (`artboard-display.ts`), image sizing
   (`image-sizing.ts`, `image-sizing-operations.ts`), workspace
@@ -142,8 +152,15 @@ established. Update this section when those invariants change.
 The canvas always renders the working_copy (or its filter chain
 tip) via `filterDisplayImageWithoutTrace`; all three tabs use the
 same source and render at the same `project_image_state` rect. On
-the Trace tab the trace SVG overlays on top via `TraceInlineSvg`,
-positioned at that rect. Pixelate apply is **non-destructive**: it
+the Trace tab the trace renders on top of the raster, positioned at
+that rect. **Rendering split (post-#571):** for a **pixelate** trace the
+coloured **cells + grid render on the Konva stage** (`PixelateTraceOverlay`
+— one flat `Konva.Rect` per cell, mirroring the saved SVG's `<rect>` per
+cell (#573); grid as device-pixel-snapped `Konva.Line`s), while only the
+paint-by-numbers **numbers stay in the DOM overlay** (`TraceInlineSvg`) on
+top. Lineart/circulate have no grid, so they still render **fully** in the
+DOM SVG overlay. This is a DISPLAY split only — the saved vector output is
+unchanged. Pixelate apply is **non-destructive**: it
 does NOT mutate `project_image_state` — the SVG's viewBox is the
 source crop, and clear-trace simply removes the overlay (the
 `master_pre_*_px_u` restore columns were dropped, migration
@@ -160,7 +177,7 @@ anchor** for `project_image_state` is the working_copy (PR #257).
 |---|---|---|---|---|
 | **Image** | layers (`editor-nav-tree`) | `project_image_state` at working_copy.id | `project_image_state` at working_copy.id | working_copy / filter-tip raster |
 | **Filter** | "+" kind-menu (`EditorTopBar`) — apply / remove / unlock | `project_image_filters` + `filter_working_copy` rows; `project_image_state` at working_copy.id | `project_image_filters`, `project_images(kind='filter_working_copy')`, `project_image_state` at working_copy.id | filter chain tip raster |
-| **Trace** | trace section (`TraceSidebarSection`) | `project_image_trace`, `project_image_state` at working_copy.id | `project_image_trace` (single row), `project_images(kind='trace_output'/'trace_base')` — `project_image_state` is **not** mutated (non-destructive) | working_copy / filter-tip raster + inline-SVG overlay, positioned at `project_image_state` for working_copy.id |
+| **Trace** | trace section (`TraceSidebarSection`) | `project_image_trace`, `project_image_state` at working_copy.id | `project_image_trace` (single row), `project_images(kind='trace_output'/'trace_base')` — `project_image_state` is **not** mutated (non-destructive) | working_copy / filter-tip raster + trace render (pixelate: Konva cells+grid via `PixelateTraceOverlay` + DOM numbers; lineart/circulate: full DOM SVG), positioned at `project_image_state` for working_copy.id |
 | Colors / Output | — | — | — | removed 2026-05-11 (PR #89) |
 
 ### Section locks
@@ -266,13 +283,22 @@ covers the four rows. UI is verified manually.
 - **Trace source uses the same active-state resolver as Filter.** PR
   #83 unified the source picker. If you add a new operation that
   reads "the current image", route through the active-state resolver.
-- **Trace SVG sits as a DOM-overlay above the canvas.** PR #84 made
-  the trace SVG render as a DOM-overlay on top of the Konva.Image,
-  not as a replacement. PR #86 dropped the opaque white `<rect>`
-  from the Python source so the underlying bitmap shows through.
-  The bitmap below the SVG is the working_copy / filter chain tip
-  (PR #262 — `trace_base` is no longer the canvas source); the
-  overlay architecture is unchanged from #84/#86.
+- **Trace rendering: pixelate cells+grid on Konva, everything else a
+  DOM-overlay.** PR #84 made the trace SVG render as a DOM-overlay on top
+  of the Konva.Image; PR #86 dropped the opaque white `<rect>` so the
+  bitmap below (working_copy / filter chain tip, PR #262) shows through.
+  **PR #571 moved the PIXELATE cells + grid onto the Konva stage**
+  (`PixelateTraceOverlay`), because a 1px SVG `<line>` in a stretched
+  (`preserveAspectRatio="none"`) viewBox lands on fractional device pixels
+  and antialiases into a soft ~2px grey line — only a canvas can snap it to
+  the device grid (same `snapWorldToDeviceHalfPixel` + `strokeScaleEnabled
+  =false` mechanism as the artboard grid). `prepare-trace-svg.ts` now
+  STRIPS `<g id="colors">` + `<g id="grid">` for pixelate (so they aren't
+  drawn twice) and `parsePixelateTraceSvg` reads the cell/grid geometry
+  from the trace SVG; the DOM overlay keeps only `<g id="numbers">`.
+  Cells render as **one flat `Konva.Rect` per cell** (#573), NOT a bitmap —
+  the trace is a cell model (one flat colour per cell). Lineart/circulate
+  (no grid) still render fully in the DOM SVG overlay.
 - **Section-owned dialogs auto-dismiss when their surface goes
   inactive.** Trace dialogs (selection, Pixelate configure, Circulate
   configure, generic-trace configure) and Filter dialogs (the twin
@@ -290,9 +316,11 @@ covers the four rows. UI is verified manually.
   view-flag gates in `deriveDisplayLayers` (PR #357) — section-
   scoped behaviour colocates with what it scopes, not with consumers.
 - **Trace view toggles are Trace-section-scoped on effect, not on
-  storage.** Three flags — `traceOverlayVisible` (cells/colors),
-  `previewBitmapVisible` (Konva.Image underneath), `numbersLayerVisible`
-  (labels `<g id="numbers">`) — persist in `SessionState`
+  storage.** Three flags — `traceOverlayVisible` (cells/colors — for
+  pixelate the `Konva.Rect` cells in `PixelateTraceOverlay`; for
+  lineart/circulate the DOM SVG regions), `previewBitmapVisible`
+  (Konva.Image underneath), `numbersLayerVisible`
+  (labels `<g id="numbers">`, in the DOM overlay) — persist in `SessionState`
   ([lib/editor/hooks/use-editor-session-state.ts](../../lib/editor/hooks/use-editor-session-state.ts))
   so the user's last Trace view preference survives a tab trip. Their
   *canvas effect* is gated on the Trace section being active via
@@ -442,13 +470,15 @@ sequenceDiagram
   API->>FS: numerate_to_svg or lineart_to_svg
   Note over FS: post-#86: no white background rect
   FS-->>API: SVG text
-  API->>DB: upsert project_image_trace
-  API->>DB: insert project_images (kind=trace_output)
+  API->>DB: upload SVG to Storage + insert project_images (kind=trace_output)
+  API->>DB: upsert project_image_trace (output_image_id + display_*_px_u)
   API-->>Shell: 200 OK
   Shell->>Shell: refresh trace + filterImage
   Shell->>Stage: canvasImage = filterDisplayImageWithoutTrace
   Shell->>Stage: traceOverlaySvgUrl = SVG url (only on Trace tab)
-  Stage->>Stage: render raster + transparent SVG overlay
+  Note over Stage: prepare-trace-svg strips cells+grid for pixelate
+  Stage->>Stage: pixelate → Konva cells (Rect) + snapped grid; numbers via DOM SVG
+  Stage->>Stage: lineart/circulate → full DOM SVG overlay
 ```
 
 ### Persistence drain queue
@@ -471,13 +501,15 @@ flowchart TB
   subgraph Stage["Konva Stage"]
     Bg["Background / Artboard"]
     Img["Konva.Image — raster bitmap"]
+    Cells["PixelateTraceOverlay — flat Rect per cell + snapped grid Lines (pixelate only)"]
     Sel["Selection overlay"]
   end
   subgraph DOM["DOM (above Konva)"]
-    Svg["Inline SVG — trace outlines + grid"]
+    Svg["TraceInlineSvg — pixelate: numbers only; lineart/circulate: full SVG"]
   end
   Bg --> Img
-  Img --> Sel
+  Img --> Cells
+  Cells --> Sel
   Sel --> Svg
 ```
 
