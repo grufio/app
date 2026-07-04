@@ -2,75 +2,74 @@ import { describe, expect, it } from "vitest"
 
 import { prepareTraceSvg } from "./prepare-trace-svg"
 
-// Mirrors the new Python output: no opaque background <rect>.
-const NUMERATE_SVG = `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="1514" height="914" viewBox="0 0 1514 914">
-  <g id="colors" transform="scale(1.0093 1.0156)">
-    <path d="M 0 0 L 50 0 L 50 30 Z" fill="#ff0000"/>
-    <path d="M 50 0 L 100 0 L 100 30 Z" fill="#00ff00"/>
+// Pixelate: <rect> cells + <g id="grid"> + <g id="numbers">. Cells + grid render
+// on the Konva canvas, so prepareTraceSvg strips them and keeps only the numbers.
+const PIXELATE_SVG = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="80" viewBox="0 0 100 80">
+  <g id="colors" transform="scale(50 40)">
+    <rect x="0" y="0" width="1" height="1" fill="#ff0000"/>
+    <rect x="1" y="0" width="1" height="1" fill="#00ff00"/>
   </g>
   <g id="grid">
-    <line x1="0" y1="0" x2="0" y2="914" stroke="black" stroke-width="2" />
+    <line x1="50" y1="0" x2="50" y2="80" stroke="black" stroke-width="1.0" />
+  </g>
+  <g id="numbers">
+    <text x="25" y="20">7</text>
   </g>
 </svg>`
 
+// Lineart: <path> regions, no grid — nothing is stripped; paths get annotated.
 const LINEART_SVG = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="500" height="500" viewBox="0 0 500 500">
   <g id="regions">
     <path d="M 0 0 L 100 0 L 100 100 Z" fill="#abcdef" stroke="black" stroke-width="2"/>
+    <path d="M 100 0 L 200 0 L 200 100 Z" fill="#123456"/>
   </g>
 </svg>`
 
 describe("prepareTraceSvg", () => {
-  it("strips XML decl + width/height and adds 100% sizing", () => {
-    const out = prepareTraceSvg(NUMERATE_SVG)
+  it("strips XML decl + intrinsic width/height and adds 100% sizing", () => {
+    const out = prepareTraceSvg(PIXELATE_SVG)
     expect(out).not.toBeNull()
     expect(out!.html).not.toMatch(/<\?xml/)
-    expect(out!.html).not.toMatch(/<svg[^>]*\bwidth="1514"/)
-    expect(out!.html).toMatch(/<svg[^>]*\bwidth="100%"/)
-    expect(out!.html).toMatch(/<svg[^>]*\bheight="100%"/)
+    expect(out!.html).toMatch(/<svg[^>]*\bwidth="100%"[^>]*\bheight="100%"/)
     expect(out!.html).toMatch(/preserveAspectRatio="none"/)
   })
 
-  it("annotates every <path> with data-trace-region and data-fill", () => {
-    const out = prepareTraceSvg(NUMERATE_SVG)!
+  it("preserves the viewBox so the overlay maps the same coordinate space", () => {
+    const out = prepareTraceSvg(PIXELATE_SVG)!
+    expect(out.html).toMatch(/viewBox="0 0 100 80"/)
+  })
+
+  it("pixelate: strips cells + grid (rendered on Konva), keeps the numbers group", () => {
+    const out = prepareTraceSvg(PIXELATE_SVG)!
+    expect(out.html).not.toMatch(/<g id="colors"/)
+    expect(out.html).not.toMatch(/<g id="grid"/)
+    expect(out.html).not.toMatch(/<rect/)
+    expect(out.html).not.toMatch(/<line/)
+    expect(out.html).toMatch(/<g id="numbers"/)
+    expect(out.html).toMatch(/>7</)
+  })
+
+  it("lineart: annotates every <path> with data-trace-region + data-fill; strips nothing", () => {
+    const out = prepareTraceSvg(LINEART_SVG)!
     const matches = out.html.match(/data-trace-region=""/g) ?? []
     expect(matches).toHaveLength(2)
-    expect(out.html).toMatch(/data-fill="#ff0000"/)
-    expect(out.html).toMatch(/data-fill="#00ff00"/)
-  })
-
-  it("keeps the original RGB fill on every <path>", () => {
-    const out = prepareTraceSvg(NUMERATE_SVG)!
-    // The cell still renders its detected RGB color at rest —
-    // not transparent, not overridden.
-    expect(out.html).toMatch(/<path[^>]*fill="#ff0000"[^>]*data-trace-region/)
-    expect(out.html).toMatch(/<path[^>]*fill="#00ff00"[^>]*data-trace-region/)
-  })
-
-  it("preserves a lineart path's authored stroke + width", () => {
-    const out = prepareTraceSvg(LINEART_SVG)!
+    expect(out.html).toMatch(/data-fill="#abcdef"/)
+    expect(out.html).toMatch(/data-fill="#123456"/)
+    // no grid → nothing stripped; region group + authored stroke intact.
+    expect(out.html).toMatch(/<g id="regions"/)
     expect(out.html).toMatch(/stroke="black"/)
     expect(out.html).toMatch(/stroke-width="2"/)
   })
 
-  it("leaves grid <line>s untouched — inline stroke-width scales sub-pixel, no CSS class", () => {
-    const out = prepareTraceSvg(NUMERATE_SVG)!
-    // The grid line keeps its coords AND its inline stroke-width (one pixel-unit
-    // in the pixel-space viewBox), so the stroke scales down to a sub-pixel
-    // hairline. No `.trace-grid` class, no non-scaling-stroke, no @media — those
-    // pinned it to a full hardware pixel (too thick).
-    expect(out.html).toMatch(/<line[^>]*stroke-width="2"/)
-    expect(out.html).toMatch(/<line[^>]*x1="0"[^>]*y2="914"/)
-    expect(out.html).not.toMatch(/class="trace-grid"/)
+  it("keeps the original RGB fill on every lineart <path>", () => {
+    const out = prepareTraceSvg(LINEART_SVG)!
+    expect(out.html).toMatch(/<path[^>]*fill="#abcdef"[^>]*data-trace-region/)
+    expect(out.html).toMatch(/<path[^>]*fill="#123456"[^>]*data-trace-region/)
   })
 
   it("returns null when no <svg> root", () => {
     expect(prepareTraceSvg("<html><body/></html>")).toBeNull()
-  })
-
-  it("preserves the viewBox so the inline SVG maps the same coordinate space", () => {
-    const out = prepareTraceSvg(NUMERATE_SVG)!
-    expect(out.html).toMatch(/viewBox="0 0 1514 914"/)
   })
 })

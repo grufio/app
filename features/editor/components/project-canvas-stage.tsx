@@ -40,6 +40,8 @@ import { useHtmlImage } from "./canvas-stage/use-html-image"
 import { useSvgText } from "./canvas-stage/use-svg-text"
 import { TraceInlineSvg } from "./canvas-stage/trace-inline-svg"
 import { resolveTraceClipRect, resolveTraceOverlayRect } from "@/lib/editor/trace/trace-overlay-rect"
+import { parsePixelateTraceSvg } from "@/lib/editor/trace/pixelate-trace-parse"
+import { PixelateTraceOverlay } from "./canvas-stage/pixelate-trace-overlay"
 import { computeWorldSize } from "@/services/editor"
 
 type Props = {
@@ -621,6 +623,11 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   // is applied downstream via the stage `view`.
   const traceRect = useMemo(() => resolveTraceOverlayRect(traceDisplayRect), [traceDisplayRect])
 
+  // Pixelate traces carry a `<g id="grid">`; we render their cells + grid on the
+  // Konva canvas (crisp, device-pixel-snapped) instead of the SVG overlay. Returns
+  // null for lineart/circulate (no grid) → those stay fully in the SVG overlay.
+  const parsedPixelateTrace = useMemo(() => parsePixelateTraceSvg(svgText), [svgText])
+
   // While a trace is applied, the base bitmap is clipped to the trace's frozen
   // content rect (artboard − padding), so the image + filter appear cropped to
   // the printable area — matching the SVG overlay — instead of bleeding past the
@@ -823,6 +830,19 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
                 />
               ) : null}
             </Group>
+
+            {/* Pixelate trace: cells + grid on the Konva canvas so the grid is a
+                crisp, device-pixel-snapped 1px hairline at any zoom. The numbers
+                stay in the DOM overlay (TraceInlineSvg) on top. */}
+            {parsedPixelateTrace && traceRect ? (
+              <PixelateTraceOverlay
+                parsed={parsedPixelateTrace}
+                rect={traceRect}
+                rotation={rotation}
+                cellsVisible={traceOverlayVisible}
+                snapWorldToDeviceHalfPixel={snapWorldToDeviceHalfPixel}
+              />
+            ) : null}
 
             {/* Print-margin padding preview: a white veil over the image at the
                 page (artboard) edges — lightens (not darkens) the region the
