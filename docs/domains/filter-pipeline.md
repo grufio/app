@@ -36,6 +36,27 @@ Frontend forms collect parameters → API appends to
 (trace) → the Python filter-service does the actual pixel/vector
 work.
 
+## Colour authority: server decides, preview approximates
+
+The **server (Python `filter-service/app/pixelate.py`) is authoritative**
+for the final cell colours. The client sends only the RAW per-cell
+area-average means; Python does the palette **snap + dither + reduce** and
+bakes the final colours into the `trace_output` SVG — persisted as a
+**Storage object** plus a `project_images` (kind=`trace_output`) row and a
+`project_image_trace` row (`output_image_id` + frozen `display_*_px_u`).
+
+The config-dialog **preview is a fast, APPROXIMATE client-side mirror** of
+that pipeline (`lib/editor/trace/pixelate-preview.ts` →
+`pixelate-preview-canvas.ts`, drawn on a `<canvas>` since #572) so it needs
+**no server round-trip**. It is **not** byte-parity with the apply result
+and does **not** feed it — it exists only to show *roughly* how the trace
+will look, fast. (The blue-noise **texture** step above is the ONE exception
+that IS byte-parity between client and server, LUT-tested; the general
+cell-colour pipeline is preview-only.) The on-canvas trace render
+(`PixelateTraceOverlay`, one flat `Konva.Rect` per cell + snapped grid) is
+likewise DISPLAY-only — it never changes the stored vector SVG. See
+[domains/image-editor.md](image-editor.md).
+
 ## Where it lives
 
 - [features/editor/components/filter-forms/](../../features/editor/components/filter-forms/)
