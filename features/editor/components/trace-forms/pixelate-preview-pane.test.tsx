@@ -19,7 +19,6 @@ vi.mock("@/lib/editor/trace/pixelate-preview", () => ({
   snapAndDitherCells: () => null,
   applyTextureStep: () => null,
   applyTopNReduction: () => null,
-  buildPixelateCellsSvg: () => "<svg/>",
 }))
 
 // The pane snaps cells to the DB palette via `/api/palette`; jsdom has no

@@ -162,68 +162,7 @@ export function applyTopNReduction(args: {
   return reduceToTopN(cells, palette, numColors, distanceMetric ?? "oklab").cells
 }
 
-function toHex2(n: number): string {
-  return (n & 0xff).toString(16).padStart(2, "0")
-}
-
-/**
- * Stage 5 — build the pixelate preview as ONE inline SVG string: a `<rect>` per
- * cell (its snapped colour) PLUS the grid, in a single PIXEL-space coordinate
- * system (`viewBox="0 0 cropW cropH"`, the crop's source-pixel size). This
- * mirrors the applied result exactly (Python emits `viewBox="0 0 cropped_w_px
- * cropped_h_px"`): the cells live in a `<g transform="scale(sx sy)">` group of
- * 1×1 rects, and the grid `<line>`/`<path>` sits in raw pixel space. Because
- * cells and grid share that space the lines sit EXACTLY on the cell boundaries
- * — no drift.
- *
- * The grid stroke is `stroke-width="1"` (ONE pixel-unit) INLINE and NOT inside
- * the scale group — so it scales DOWN with the crop → display mapping into a
- * sub-pixel hairline on any display, DPR-independent. (No CSS `.trace-grid`, no
- * `non-scaling-stroke`, no `@media`: those pinned the stroke to a full hardware
- * pixel, which read too thick. Same treatment as the applied result now.)
- *
- * Consumed via `dangerouslySetInnerHTML`; `preserveAspectRatio="none"` stretches
- * it to the display box. The colour rects carry no rendering hints (crispEdges
- * on adjacent rects risks hairline seams).
- *
- * No paint-by-numbers labels in the preview — quick visual reference only; the
- * apply path still emits the `<g id="numbers">` group in the saved SVG.
- */
-export function buildPixelateCellsSvg(args: {
-  cells: CellColors
-  cellsX: number
-  cellsY: number
-  /** Crop size in source pixels (mirrors Python's cropped_w_px/h) — the viewBox. */
-  cropW: number
-  cropH: number
-}): string {
-  const { cells, cellsX, cellsY, cropW, cropH } = args
-  const { r, g, b } = cells
-  const rects: string[] = []
-  for (let cy = 0; cy < cellsY; cy += 1) {
-    for (let cx = 0; cx < cellsX; cx += 1) {
-      const i = cy * cellsX + cx
-      rects.push(
-        `<rect x="${cx}" y="${cy}" width="1" height="1" fill="#${toHex2(r[i])}${toHex2(g[i])}${toHex2(b[i])}"/>`,
-      )
-    }
-  }
-  // Cell → pixel scale (same as the Python result's `<g id="colors">` transform).
-  const sx = cropW / cellsX
-  const sy = cropH / cellsY
-  // Grid in PIXEL coordinates (outside the scale group) so stroke-width="1"
-  // stays one pixel-unit and scales down sub-pixel — never fattened by the group.
-  const round = (n: number) => Number(n.toFixed(3))
-  let d = ""
-  for (let i = 0; i <= cellsX; i += 1) d += `M${round(i * sx)} 0V${round(cropH)}`
-  for (let j = 0; j <= cellsY; j += 1) d += `M0 ${round(j * sy)}H${round(cropW)}`
-  return (
-    `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" ` +
-    `viewBox="0 0 ${cropW} ${cropH}" preserveAspectRatio="none">` +
-    `<g transform="scale(${round(sx)} ${round(sy)})">${rects.join("")}</g>` +
-    // One pixel-unit stroke, inline, in pixel space → scales to a sub-pixel
-    // hairline. Identical treatment to the applied result (pixelate.py).
-    `<path d="${d}" fill="none" stroke="black" stroke-width="1"/>` +
-    `</svg>`
-  )
-}
+// The pixelate config-dialog preview is drawn on a <canvas> now (crisp cells +
+// device-pixel-snapped grid) — see `pixelate-preview-canvas.ts` +
+// `pixelate-preview-pane.tsx`. The old `buildPixelateCellsSvg` string builder is
+// gone; the cell pipeline above (readSourceCells → snap/dither → reduce) stays.
