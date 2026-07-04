@@ -11,15 +11,20 @@
  * feature), so nothing here listens. Lineart/circulate have no `<g id="grid">`, so
  * `parsePixelateTraceSvg` returns null for them and this overlay never mounts.
  *
- * Geometry comes straight from the trace SVG (authoritative, drift-free): cells as
- * a tiny `cellsX×cellsY` offscreen canvas drawn as one `Konva.Image`
- * (`imageSmoothingEnabled=false` → crisp blocks), grid as snapped `Konva.Line`s.
- * The Group's `x/y/offset/rotation` place it at the frozen trace rect (centre +
- * rotation); at rotation 0 the transform is identity, so snapped world coords land
- * exactly on the device grid.
+ * Geometry comes straight from the trace SVG (authoritative, drift-free). The
+ * trace result is a CELL-BASED model — each cell is exactly ONE flat palette
+ * colour — so cells render as one `Konva.Rect` per cell (a flat fill, mirroring
+ * the saved SVG's `<rect>` per cell): resolution-independent, crisp flat blocks
+ * at any zoom, NO interpolation between cell colours. (An earlier `Konva.Image`
+ * bitmap upscaled a 1px-per-cell canvas and smoothed into continuous tones —
+ * wrong for a cell model.) The grid is snapped `Konva.Line`s. The Group's
+ * `x/y/offset/rotation` place it at the frozen trace rect (centre + rotation); at
+ * rotation 0 the transform is identity, so snapped world coords land exactly on
+ * the device grid. Any sub-pixel seam between adjacent cells sits on a boundary
+ * and is covered by the always-drawn grid line.
  */
 import { useMemo } from "react"
-import { Group, Image as KonvaImage, Line } from "react-konva"
+import { Group, Line, Rect } from "react-konva"
 
 import type { ParsedPixelateTrace } from "@/lib/editor/trace/pixelate-trace-parse"
 import type { TraceWorldRect } from "@/lib/editor/trace/trace-overlay-rect"
@@ -42,29 +47,27 @@ export function PixelateTraceOverlay({
 }) {
   const { viewBoxW, viewBoxH, cellsX, cellsY, cellRgb, gridXs, gridYs } = parsed
 
-  // One pixel per cell → Konva.Image stretches it to the trace rect with nearest-
-  // neighbour (imageSmoothingEnabled=false). One cheap node regardless of zoom.
-  const cellCanvas = useMemo(() => {
-    if (typeof document === "undefined") return null
-    const canvas = document.createElement("canvas")
-    canvas.width = cellsX
-    canvas.height = cellsY
-    const ctx = canvas.getContext("2d")
-    if (!ctx) return null
-    const img = ctx.createImageData(cellsX, cellsY)
-    for (let i = 0; i < cellRgb.length; i += 1) {
-      const rgb = cellRgb[i]
-      img.data[i * 4] = (rgb >> 16) & 0xff
-      img.data[i * 4 + 1] = (rgb >> 8) & 0xff
-      img.data[i * 4 + 2] = rgb & 0xff
-      img.data[i * 4 + 3] = 255
-    }
-    ctx.putImageData(img, 0, 0)
-    return canvas
-  }, [cellRgb, cellsX, cellsY])
-
   const cornerX = rect.x - rect.width / 2
   const cornerY = rect.y - rect.height / 2
+  const cellW = rect.width / cellsX
+  const cellH = rect.height / cellsY
+
+  // One Rect per cell — a flat fill, resolution-independent (the cell model).
+  const cellRects = useMemo(() => {
+    const out: Array<{ key: string; x: number; y: number; fill: string }> = []
+    for (let cy = 0; cy < cellsY; cy += 1) {
+      for (let cx = 0; cx < cellsX; cx += 1) {
+        const rgb = cellRgb[cy * cellsX + cx]
+        out.push({
+          key: `${cx}-${cy}`,
+          x: cornerX + cx * cellW,
+          y: cornerY + cy * cellH,
+          fill: `#${rgb.toString(16).padStart(6, "0")}`,
+        })
+      }
+    }
+    return out
+  }, [cellRgb, cellsX, cellsY, cornerX, cornerY, cellW, cellH])
 
   // Map each viewBox grid coordinate into world space over the trace rect, then
   // snap it to the device grid (re-runs when `view` changes → stays crisp on zoom).
@@ -89,17 +92,21 @@ export function PixelateTraceOverlay({
 
   return (
     <Group x={rect.x} y={rect.y} offsetX={rect.x} offsetY={rect.y} rotation={rotation} listening={false}>
-      {cellsVisible && cellCanvas ? (
-        <KonvaImage
-          image={cellCanvas}
-          x={cornerX}
-          y={cornerY}
-          width={rect.width}
-          height={rect.height}
-          imageSmoothingEnabled={false}
-          listening={false}
-        />
-      ) : null}
+      {cellsVisible
+        ? cellRects.map((c) => (
+            <Rect
+              key={c.key}
+              x={c.x}
+              y={c.y}
+              width={cellW}
+              height={cellH}
+              fill={c.fill}
+              listening={false}
+              perfectDrawEnabled={false}
+              strokeEnabled={false}
+            />
+          ))
+        : null}
       {gridLines.map((l) => (
         <Line key={l.key} points={l.points} stroke="black" {...lineProps} />
       ))}
