@@ -173,18 +173,34 @@ export function CirculatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, p
     [cellMeans, palette, params.inner_enabled, innerAdjustment, params.distance_metric],
   )
 
-  const ellipseFractions = useMemo(() => circulateEllipseFractions(grid, params), [grid, params])
-  const contourPx = useMemo(() => {
-    if (!crop || grid.usedMmW <= 0 || grid.usedMmH <= 0) return 0
-    const pxPerMmX = crop.w / grid.usedMmW
-    const pxPerMmY = crop.h / grid.usedMmH
-    return params.contour_width_mm * ((pxPerMmX + pxPerMmY) / 2)
-  }, [crop, grid.usedMmW, grid.usedMmH, params.contour_width_mm])
+  // Display box (CSS px): contain-fit + zoom. The canvas BACKING is display × dpr,
+  // so ellipses + the 1px frames render at DEVICE resolution → crisp at any zoom
+  // (replaces the old crop-res canvas + `imageRendering: pixelated`, which made the
+  // 1px frames thick blocks when zoomed in and soft when zoomed out).
+  const display = useMemo(() => {
+    if (!valid || pane.w <= 0 || pane.h <= 0 || grid.usedMmW <= 0 || grid.usedMmH <= 0) return null
+    const fitScale = Math.min(pane.w / grid.usedMmW, pane.h / grid.usedMmH)
+    return { w: grid.usedMmW * fitScale * zoom, h: grid.usedMmH * fitScale * zoom }
+  }, [valid, pane.w, pane.h, grid.usedMmW, grid.usedMmH, zoom])
+  const dpr = typeof window === "undefined" ? 1 : Math.max(1, window.devicePixelRatio || 1)
+  const wDev = display ? Math.max(1, Math.round(display.w * dpr)) : 0
+  const hDev = display ? Math.max(1, Math.round(display.h * dpr)) : 0
 
-  // Stage 6 (light): paint background + outer/inner ellipses + frames.
+  const ellipseFractions = useMemo(() => circulateEllipseFractions(grid, params), [grid, params])
+  // Contour width in the canvas' DEVICE-px space (physical mm → device px).
+  const contourPx = useMemo(() => {
+    if (wDev <= 0 || hDev <= 0 || grid.usedMmW <= 0 || grid.usedMmH <= 0) return 0
+    const pxPerMmX = wDev / grid.usedMmW
+    const pxPerMmY = hDev / grid.usedMmH
+    return params.contour_width_mm * ((pxPerMmX + pxPerMmY) / 2)
+  }, [wDev, hDev, grid.usedMmW, grid.usedMmH, params.contour_width_mm])
+
+  // Stage 6 (light): paint background + outer/inner ellipses + frames at device res.
+  // The canvas backing (width/height) is set on the element (JSX) to wDev/hDev; this
+  // reads target.width/height, so it re-paints whenever the device size changes.
   useEffect(() => {
     const target = miniCanvasRef.current
-    if (!target || !source || !crop || !outerReduced) return
+    if (!target || !source || !crop || !outerReduced || wDev <= 0 || hDev <= 0) return
     paintCirculateCells({
       target,
       source,
@@ -196,7 +212,7 @@ export function CirculatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, p
       ellipseFractions,
       contourPx,
     })
-  }, [source, crop, outerReduced, innerCells, ellipseFractions, contourPx, grid.cellsX, grid.cellsY])
+  }, [source, crop, outerReduced, innerCells, ellipseFractions, contourPx, grid.cellsX, grid.cellsY, wDev, hDev])
 
   // Spinner covers both the image load and the palette fetch: a valid grid
   // with no palette yet would otherwise paint the raw-means preview.
@@ -208,15 +224,6 @@ export function CirculatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, p
   const handleFit = () => setZoom(1)
   const zoomLabel = `${Math.round(zoom * 100)}%`
 
-  const display = useMemo(() => {
-    if (!valid || pane.w <= 0 || pane.h <= 0 || grid.usedMmW <= 0 || grid.usedMmH <= 0) return null
-    const fitScale = Math.min(pane.w / grid.usedMmW, pane.h / grid.usedMmH)
-    return {
-      w: grid.usedMmW * fitScale * zoom,
-      h: grid.usedMmH * fitScale * zoom,
-    }
-  }, [valid, pane.w, pane.h, grid.usedMmW, grid.usedMmH, zoom])
-
   return (
     <div ref={paneRef} className="relative w-full flex-1 min-h-0 bg-muted">
       <div className="absolute inset-0 overflow-auto">
@@ -226,14 +233,10 @@ export function CirculatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, p
         >
           <canvas
             ref={miniCanvasRef}
-            width={crop ? Math.max(1, Math.round(crop.w)) : 1}
-            height={crop ? Math.max(1, Math.round(crop.h)) : 1}
+            width={Math.max(1, wDev)}
+            height={Math.max(1, hDev)}
             className="block"
-            style={{
-              width: display?.w ?? 0,
-              height: display?.h ?? 0,
-              imageRendering: "pixelated",
-            }}
+            style={{ width: display?.w ?? 0, height: display?.h ?? 0 }}
             data-testid="circulate-preview-mini"
           />
         </div>

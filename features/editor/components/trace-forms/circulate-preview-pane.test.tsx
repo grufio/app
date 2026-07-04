@@ -1,10 +1,12 @@
 /**
  * @vitest-environment jsdom
  *
- * Component test for CirculatePreviewPane. jsdom can't render canvas content,
- * so we assert the React/JSX wiring: the canvas bitmap is sized to the
- * source-crop resolution and the zoom controls drive the zoom label. The
- * renderer + palette hook are stubbed (no canvas, no network in jsdom).
+ * Component test for CirculatePreviewPane. jsdom can't render canvas content and
+ * its ResizeObserver is a no-op, so the pane is never measured → `display` is null
+ * → the canvas backing falls back to 1×1. In the browser the backing is
+ * display × devicePixelRatio (device resolution, verified visually). Here we assert
+ * the React/JSX wiring: the canvas mounts and the zoom controls drive the label.
+ * The renderer + palette hook are stubbed (no canvas, no network in jsdom).
  */
 import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -48,7 +50,7 @@ describe("CirculatePreviewPane", () => {
     vi.unstubAllGlobals()
   })
 
-  it("renders the mini canvas at source-crop resolution (not cellsX × cellsY)", async () => {
+  it("renders the mini canvas with a device-resolution backing (not cellsX × cellsY)", async () => {
     const { getByTestId } = render(
       <CirculatePreviewPane
         sourceImageUrl="https://example.test/a.png"
@@ -57,12 +59,14 @@ describe("CirculatePreviewPane", () => {
         params={defaults}
       />,
     )
-    // FakeImage is 100×75. usedMm 96×72 (pitch 6 → 16×12 cells) → crop in
-    // source px = 96 × (100/100) = 96, 72 × (75/75) = 72.
+    // Browser: backing = display × devicePixelRatio. jsdom's no-op ResizeObserver
+    // leaves the pane unmeasured → a 1×1 fallback. Either way the backing is NOT the
+    // tiny cellsX×cellsY (16×12) — the past bug this guards against.
     await waitFor(() => {
       const canvas = getByTestId("circulate-preview-mini") as HTMLCanvasElement
-      expect(canvas.getAttribute("width")).toBe("96")
-      expect(canvas.getAttribute("height")).toBe("72")
+      const w = Number(canvas.getAttribute("width"))
+      expect(w).toBeGreaterThanOrEqual(1)
+      expect(w).not.toBe(16)
     })
   })
 

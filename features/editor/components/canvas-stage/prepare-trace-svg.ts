@@ -13,11 +13,16 @@
  *   highlight the region + every other region sharing the same
  *   fill color (paint-by-numbers grouping). The original fill stays
  *   intact — cells render with their detected RGB color at rest.
- * For a PIXELATE trace (has `<g id="grid">`), the coloured cells (`<g id="colors">`)
- * and the grid (`<g id="grid">`) are STRIPPED here — they render on the Konva canvas
- * instead (crisp, device-pixel-snapped grid; see `pixelate-trace-overlay.tsx`), so
- * the DOM overlay keeps only the `<g id="numbers">` labels (drawn on top). Lineart /
- * circulate have no `<g id="grid">`, so nothing is stripped and they render fully here.
+ * The trace cells + their outlines render on the Konva canvas (crisp, zoom-stable),
+ * so they are STRIPPED here and the DOM overlay keeps only the `<g id="numbers">`
+ * labels (drawn on top):
+ * - PIXELATE (has `<g id="grid">`): strip `<g id="colors">` + `<g id="grid">`
+ *   (see `pixelate-trace-overlay.tsx`).
+ * - CIRCULATE (has `<g id="frames">`): strip `<g id="cells">` + `<g id="frames">`
+ *   (see `circulate-trace-overlay.tsx`). The `<g id="cells">` group nests
+ *   `<g data-cell>` wrappers, so it's removed by a range strip up to the numbers
+ *   group / `</svg>` rather than a `</g>`-matching regex.
+ * Lineart has neither, so nothing is stripped and it renders fully here.
  *
  * The opaque white background `<rect>` is no longer present in the
  * Python output (see `filter-service/app/vectorise.py`). The trace
@@ -41,6 +46,10 @@ const WIDTH_ATTR_RE = /\bwidth\s*=\s*"[^"]*"/i
 const HEIGHT_ATTR_RE = /\bheight\s*=\s*"[^"]*"/i
 const COLORS_GROUP_RE = /<g id="colors"[^>]*>[\s\S]*?<\/g>/i
 const GRID_GROUP_RE = /<g id="grid"[^>]*>[\s\S]*?<\/g>/i
+const FRAMES_GROUP_RE = /<g id="frames"[^>]*>/i
+// Circulate `<g id="cells">` nests `<g data-cell>`, so a `</g>`-matching regex would
+// stop early. Strip the whole cells+frames range up to the numbers group (or `</svg>`).
+const CIRCULATE_STRIP_RE = /<g id="cells"[^>]*>[\s\S]*?(?=<g id="numbers"|<\/svg>)/i
 
 export function prepareTraceSvg(svgText: string): PreparedTraceSvg | null {
   if (!svgText) return null
@@ -56,11 +65,13 @@ export function prepareTraceSvg(svgText: string): PreparedTraceSvg | null {
     return `<svg${cleaned} width="100%" height="100%" preserveAspectRatio="none">`
   })
 
-  // Pixelate (has a grid): drop the coloured cells + grid — they render on the
-  // Konva canvas (crisp, snapped). Keep the numbers group. Lineart/circulate have
-  // no grid, so this is a no-op for them and they render fully.
+  // Pixelate/circulate: drop the cells + their outlines — they render on the Konva
+  // canvas (crisp, zoom-stable). Keep the numbers group. Lineart has neither, so both
+  // branches are a no-op for it and it renders fully.
   if (GRID_GROUP_RE.test(svg)) {
     svg = svg.replace(COLORS_GROUP_RE, "").replace(GRID_GROUP_RE, "")
+  } else if (FRAMES_GROUP_RE.test(svg)) {
+    svg = svg.replace(CIRCULATE_STRIP_RE, "")
   }
 
   // Annotate every <path>; keep its original fill so the cell still
