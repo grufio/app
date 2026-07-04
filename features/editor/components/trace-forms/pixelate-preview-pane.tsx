@@ -49,11 +49,14 @@ import { type PixelateParams } from "@/lib/editor/trace/pixelate"
 import type { TraceContentRegion } from "@/lib/editor/trace/content-region"
 import {
   applyTopNReduction,
-  buildPixelateCellsSvg,
   readSourceCells,
   restrictPaletteForCells,
   snapAndDitherCells,
 } from "@/lib/editor/trace/pixelate-preview"
+import {
+  buildPixelatePreviewImageData,
+  pixelatePreviewGridDevicePx,
+} from "@/lib/editor/trace/pixelate-preview-canvas"
 import { useBlueNoiseLut } from "@/lib/editor/trace/use-blue-noise-lut"
 import { useSourceImage } from "@/lib/editor/trace/use-source-image"
 import { useTracePalette } from "@/lib/editor/trace/use-trace-palette"
@@ -123,6 +126,7 @@ export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
   const effSourceH = contentRegion ? (contentSource?.height ?? 0) : (source?.naturalHeight ?? 0)
 
   const paneRef = useRef<HTMLDivElement | null>(null)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const [pane, setPane] = useState<{ w: number; h: number }>({ w: 0, h: 0 })
   const [zoom, setZoom] = useState(1)
 
@@ -228,24 +232,6 @@ export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
     [snappedCells, activePalette, params.num_colors, params.distance_metric, params.palette_restriction],
   )
 
-  // Stage 4 (light): build the preview as ONE SVG string — colour rects + grid
-  // in one PIXEL-space coordinate system (the crop's source-pixel size), so the
-  // grid registers exactly with the cells (no drift) AND the stroke scales down
-  // to a sub-pixel hairline — mirroring the applied trace result exactly.
-  const svgMarkup = useMemo(
-    () =>
-      reducedCells && valid && crop
-        ? buildPixelateCellsSvg({
-            cells: reducedCells,
-            cellsX: grid.cellsX,
-            cellsY: grid.cellsY,
-            cropW: Math.round(crop.w),
-            cropH: Math.round(crop.h),
-          })
-        : null,
-    [reducedCells, valid, crop, grid.cellsX, grid.cellsY],
-  )
-
   // Spinner covers both the image load and the palette fetch: a valid grid
   // with no palette yet would otherwise paint the raw-means preview.
   const showSpinner = !source || !palette
@@ -269,6 +255,48 @@ export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
     }
   }, [valid, pane.w, pane.h, grid.usedMmW, grid.usedMmH, zoom])
 
+  // Stage 4 (light): draw the preview on a <canvas> in DEVICE resolution — crisp
+  // nearest-neighbour cells + a device-pixel-snapped 1px grid (pure helpers).
+  // Replaces the old stretched-SVG preview whose 1px <line> straddled fractional
+  // device pixels and read as a soft ~2px grey line. Redraws per zoom / param.
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    if (!reducedCells || !valid || !display || display.w <= 0 || display.h <= 0) {
+      canvas.width = 0
+      canvas.height = 0
+      return
+    }
+    const dpr = typeof window === "undefined" ? 1 : Math.max(1, window.devicePixelRatio || 1)
+    const wDev = Math.max(1, Math.round(display.w * dpr))
+    const hDev = Math.max(1, Math.round(display.h * dpr))
+    canvas.width = wDev
+    canvas.height = hDev
+    const ctx = canvas.getContext("2d")
+    if (!ctx) return // jsdom / unsupported → no draw, no crash
+
+    const cellsX = grid.cellsX
+    const cellsY = grid.cellsY
+    // Cells: one pixel per cell on a tiny offscreen canvas, upscaled crisp.
+    const off = document.createElement("canvas")
+    off.width = cellsX
+    off.height = cellsY
+    const octx = off.getContext("2d")
+    if (!octx) return
+    const imgData = octx.createImageData(cellsX, cellsY)
+    imgData.data.set(buildPixelatePreviewImageData(reducedCells, cellsX, cellsY))
+    octx.putImageData(imgData, 0, 0)
+    ctx.imageSmoothingEnabled = false
+    ctx.clearRect(0, 0, wDev, hDev)
+    ctx.drawImage(off, 0, 0, cellsX, cellsY, 0, 0, wDev, hDev)
+
+    // Grid: crisp 1-device-pixel black lines on the cell boundaries.
+    const { xs, ys } = pixelatePreviewGridDevicePx(cellsX, cellsY, wDev, hDev)
+    ctx.fillStyle = "black"
+    for (const x of xs) ctx.fillRect(x, 0, 1, hDev)
+    for (const y of ys) ctx.fillRect(0, y, wDev, 1)
+  }, [reducedCells, valid, display, grid.cellsX, grid.cellsY])
+
   return (
     <div
       ref={paneRef}
@@ -291,16 +319,15 @@ export function PixelatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
             minHeight: "100%",
           }}
         >
-          {/* The preview is ONE inline SVG (colour rects + grid in the same
-              cell-unit coordinate space) injected as a string — so the grid
-              sits exactly on the cell boundaries, and it mirrors the applied
-              trace overlay. `preserveAspectRatio="none"` (in the markup)
-              stretches it to this display box; zoom just grows the box. */}
-          <div
+          {/* The preview is a <canvas> drawn in DEVICE resolution (see the draw
+              effect above): crisp nearest-neighbour cells + a device-pixel-snapped
+              1px grid. The backing-store size is set in the effect; this style is
+              the CSS size (display box). Zoom just grows the box → redraw. */}
+          <canvas
+            ref={canvasRef}
             className="relative block"
-            style={{ width: display?.w ?? 0, height: display?.h ?? 0, lineHeight: 0 }}
+            style={{ width: display?.w ?? 0, height: display?.h ?? 0 }}
             data-testid="pixelate-preview-svg"
-            {...(svgMarkup && display ? { dangerouslySetInnerHTML: { __html: svgMarkup } } : {})}
           />
         </div>
       </div>

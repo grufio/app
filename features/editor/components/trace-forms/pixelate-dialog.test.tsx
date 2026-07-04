@@ -15,7 +15,6 @@ vi.mock("@/lib/editor/trace/pixelate-preview", () => ({
   snapAndDitherCells: () => null,
   applyTextureStep: () => null,
   applyTopNReduction: () => null,
-  buildPixelateCellsSvg: () => "<svg/>",
 }))
 
 vi.mock("sonner", () => ({
