@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DeutschTopic, McItem } from "./mc";
+import { faelle } from "@/data/deutsch/faelle";
 import { wortarten } from "@/data/deutsch/wortarten";
 import { satzglieder } from "@/data/deutsch/satzglieder";
 import { aktivPassiv } from "@/data/deutsch/aktiv-passiv";
@@ -14,6 +15,7 @@ const TOPICS: DeutschTopic[] = [
   "Feldermodell",
   "Attribute",
   "Tempus",
+  "Fälle",
 ];
 
 const BANKS: Record<string, { items: McItem[]; topic: DeutschTopic }> = {
@@ -23,6 +25,7 @@ const BANKS: Record<string, { items: McItem[]; topic: DeutschTopic }> = {
   tempus: { items: tempus, topic: "Tempus" },
   attribute: { items: attribute, topic: "Attribute" },
   feldermodell: { items: feldermodell, topic: "Feldermodell" },
+  faelle: { items: faelle, topic: "Fälle" },
 };
 
 const ALL: McItem[] = Object.values(BANKS).flatMap((b) => b.items);

@@ -2,6 +2,7 @@ import type { VocabItem } from "./types";
 import type { McItem, McTopic } from "./mc";
 import type { UserId } from "./user";
 import { unidad5 } from "@/data/unidad5";
+import { faelle } from "@/data/deutsch/faelle";
 import { wortarten } from "@/data/deutsch/wortarten";
 import { satzglieder } from "@/data/deutsch/satzglieder";
 import { aktivPassiv } from "@/data/deutsch/aktiv-passiv";
@@ -95,6 +96,7 @@ export const TESTS: TestDef[] = [
   { kind: "mc", area: "Größen", id: "grs-messen", title: "Messen & Auswerten", subtitle: "Größen & Messen", users: PHYSIK, items: grsMessen },
 
   // Deutsch — Grammatikthemen (eine Fragenrunde je Thema)
+  { kind: "mc", area: "Fälle", id: "deu-faelle", title: "Die vier Fälle", subtitle: "Nominativ, Genitiv, Dativ, Akkusativ", users: DEUTSCH, items: faelle },
   { kind: "mc", area: "Wortarten", id: "deu-wortarten", title: "Wortarten", subtitle: "Nomen, Verben, Adjektive …", users: DEUTSCH, items: wortarten },
   { kind: "mc", area: "Satzglieder", id: "deu-satzglieder", title: "Satzglieder", subtitle: "Subjekt, Prädikat, Objekte", users: DEUTSCH, items: satzglieder },
   { kind: "mc", area: "Aktiv/Passiv", id: "deu-aktiv-passiv", title: "Aktiv / Passiv", subtitle: "Handlung vs. Vorgang", users: DEUTSCH, items: aktivPassiv },
@@ -156,6 +158,7 @@ export const MC_AREAS: McArea[] = [
   { subject: "physik", slug: "strom", label: "Elektrischer Stromkreis", topic: "Stromkreis" },
   { subject: "physik", slug: "magnetismus", label: "Magnetismus", topic: "Magnetismus" },
   { subject: "physik", slug: "groessen", label: "Größen & Messen", topic: "Größen" },
+  { subject: "deutsch", slug: "faelle", label: "Fälle", topic: "Fälle" },
   { subject: "deutsch", slug: "wortarten", label: "Wortarten", topic: "Wortarten" },
   { subject: "deutsch", slug: "satzglieder", label: "Satzglieder", topic: "Satzglieder" },
   { subject: "deutsch", slug: "aktiv-passiv", label: "Aktiv / Passiv", topic: "Aktiv/Passiv" },
