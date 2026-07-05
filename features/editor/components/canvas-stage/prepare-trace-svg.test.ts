@@ -18,6 +18,23 @@ const PIXELATE_SVG = `<?xml version="1.0" encoding="UTF-8"?>
   </g>
 </svg>`
 
+// Circulate: nested <g data-cell> filled ellipses + <g id="frames"> outlines +
+// <g id="numbers">. Cells + frames render on Konva, so prepareTraceSvg strips them
+// (nesting-safe range strip) and keeps only the numbers.
+const CIRCULATE_SVG = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="80" viewBox="0 0 100 80">
+  <g id="cells">
+    <g data-cell="0,0"><ellipse cx="10" cy="8" rx="8" ry="6" fill="#ff0000"/></g>
+    <g data-cell="1,0"><ellipse cx="30" cy="8" rx="8" ry="6" fill="#00ff00"/></g>
+  </g>
+  <g id="frames">
+    <ellipse cx="10" cy="8" rx="8" ry="6" fill="none" stroke="black" stroke-width="1"/>
+  </g>
+  <g id="numbers">
+    <text x="10" y="8">3</text>
+  </g>
+</svg>`
+
 // Lineart: <path> regions, no grid — nothing is stripped; paths get annotated.
 const LINEART_SVG = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="500" height="500" viewBox="0 0 500 500">
@@ -49,6 +66,26 @@ describe("prepareTraceSvg", () => {
     expect(out.html).not.toMatch(/<line/)
     expect(out.html).toMatch(/<g id="numbers"/)
     expect(out.html).toMatch(/>7</)
+  })
+
+  it("circulate: strips cells + frames (rendered on Konva), keeps the numbers group", () => {
+    const out = prepareTraceSvg(CIRCULATE_SVG)!
+    expect(out.html).not.toMatch(/<g id="cells"/)
+    expect(out.html).not.toMatch(/<g id="frames"/)
+    expect(out.html).not.toMatch(/<ellipse/)
+    expect(out.html).not.toMatch(/data-cell/)
+    expect(out.html).toMatch(/<g id="numbers"/)
+    expect(out.html).toMatch(/>3</)
+    expect(out.html).toMatch(/<\/svg>/)
+  })
+
+  it("circulate without a numbers group: strips cells + frames up to </svg>", () => {
+    const noNumbers = CIRCULATE_SVG.replace(/\s*<g id="numbers">[\s\S]*?<\/g>/, "")
+    const out = prepareTraceSvg(noNumbers)!
+    expect(out.html).not.toMatch(/<ellipse/)
+    expect(out.html).not.toMatch(/<g id="cells"/)
+    expect(out.html).not.toMatch(/<g id="frames"/)
+    expect(out.html).toMatch(/<\/svg>/)
   })
 
   it("lineart: annotates every <path> with data-trace-region + data-fill; strips nothing", () => {

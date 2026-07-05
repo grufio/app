@@ -42,6 +42,8 @@ import { TraceInlineSvg } from "./canvas-stage/trace-inline-svg"
 import { resolveTraceClipRect, resolveTraceOverlayRect } from "@/lib/editor/trace/trace-overlay-rect"
 import { parsePixelateTraceSvg } from "@/lib/editor/trace/pixelate-trace-parse"
 import { PixelateTraceOverlay } from "./canvas-stage/pixelate-trace-overlay"
+import { parseCirculateTraceSvg } from "@/lib/editor/trace/circulate-trace-parse"
+import { CirculateTraceOverlay } from "./canvas-stage/circulate-trace-overlay"
 import { computeWorldSize } from "@/services/editor"
 
 type Props = {
@@ -628,6 +630,11 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   // null for lineart/circulate (no grid) → those stay fully in the SVG overlay.
   const parsedPixelateTrace = useMemo(() => parsePixelateTraceSvg(svgText), [svgText])
 
+  // Circulate traces carry a `<g id="frames">` (exclusive vs pixelate's grid); we
+  // render their cells (ellipses) + frames (outlines) on Konva so the outlines are
+  // crisp + zoom-stable. Returns null for pixelate/lineart → those are unaffected.
+  const parsedCirculateTrace = useMemo(() => parseCirculateTraceSvg(svgText), [svgText])
+
   // While a trace is applied, the base bitmap is clipped to the trace's frozen
   // content rect (artboard − padding), so the image + filter appear cropped to
   // the printable area — matching the SVG overlay — instead of bleeding past the
@@ -841,6 +848,18 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
                 rotation={rotation}
                 cellsVisible={traceOverlayVisible}
                 snapWorldToDeviceHalfPixel={snapWorldToDeviceHalfPixel}
+              />
+            ) : null}
+
+            {/* Circulate trace: filled cell ellipses + thin frame outlines on the
+                Konva canvas so the outlines stay crisp + 1px at any zoom (no
+                zoom-scaling, no straddle). Numbers stay in the DOM overlay on top. */}
+            {parsedCirculateTrace && traceRect ? (
+              <CirculateTraceOverlay
+                parsed={parsedCirculateTrace}
+                rect={traceRect}
+                rotation={rotation}
+                cellsVisible={traceOverlayVisible}
               />
             ) : null}
 
