@@ -16,7 +16,8 @@ export type DeutschTopic =
   | "Satzglieder"
   | "Feldermodell"
   | "Attribute"
-  | "Tempus";
+  | "Tempus"
+  | "Fälle";
 
 /** Topic buckets for the history ("Geschichte") multiple-choice tests. */
 export type GeschichteTopic = "Kolonialismus" | "Reformation";
