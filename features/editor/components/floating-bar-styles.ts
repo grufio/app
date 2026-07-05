@@ -116,9 +116,10 @@ const NAV_PILL_SURFACE: Record<ToolbarTone, Record<NavPillShade, string>> = {
   light: { "900": "bg-neutral-100", "800": "bg-neutral-200" },
 }
 
-/** Flat nav pill: 40px tall, radius 8, 4px padding/gap. */
+/** Flat nav pill: 40px tall, radius 8px, 4px padding/gap. Exact px — `rounded-lg`
+ * would be `--radius` (10px here), not 8px. */
 export function navPillClass(tone: ToolbarTone, shade: NavPillShade = "900"): string {
-  return cn("inline-flex h-10 items-center gap-1 rounded-lg px-1", NAV_PILL_SURFACE[tone][shade])
+  return cn("inline-flex h-10 items-center gap-1 rounded-[8px] px-1", NAV_PILL_SURFACE[tone][shade])
 }
 
 /**
@@ -149,10 +150,11 @@ const NAV_MENU_TONE: Record<ToolbarTone, { content: string; item: string }> = {
   },
 }
 export function navMenuContentClass(tone: ToolbarTone): string {
-  return cn("w-28 min-w-0 gap-1 border-0 p-1", NAV_MENU_TONE[tone].content)
+  return cn("w-28 min-w-0 gap-1 rounded-[8px] border-0 p-1", NAV_MENU_TONE[tone].content)
 }
 export function navMenuItemClass(tone: ToolbarTone): string {
-  return cn("h-8 gap-2 rounded-md px-2 text-[14px]", NAV_MENU_TONE[tone].item)
+  // radius 6px exact (rounded-md would be 8px here).
+  return cn("h-8 gap-2 rounded-[6px] px-2 text-[14px]", NAV_MENU_TONE[tone].item)
 }
 
 /** Icon-button ink per tone (consumed by `ToolbarIconButton`). The light

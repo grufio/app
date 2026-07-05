@@ -10,8 +10,9 @@
  *
  * Built from the shared `ToolbarIconButton` (not a bespoke button): the chevrons
  * use its default `ink` active style; the middle trigger opts into
- * `activeStyle="chip"` for the filled active-section chip. `rounded-md` (6px)
- * overrides its default 4px radius to match the Figma chip.
+ * `activeStyle="chip"` for the filled active-section chip. `rounded-[6px]`
+ * overrides its default 4px radius to match the Figma chip (exact px — `rounded-md`
+ * would be 8px here because `--radius` is 10px).
  */
 import { ChevronLeft, ChevronRight } from "lucide-react"
 
@@ -50,7 +51,7 @@ export function EditorSectionStepper({ activeSection, onSelectSection }: Props) 
     <div className={cn(navPillClass(tone), "absolute top-3 left-1/2 z-20 -translate-x-1/2")}>
       <ToolbarIconButton
         label="Previous section"
-        className="rounded-md"
+        className="rounded-[6px]"
         disabled={activeIndex === 0}
         onClick={() => onSelectSection(SECTION_ITEMS[activeIndex - 1].key)}
       >
@@ -61,7 +62,7 @@ export function EditorSectionStepper({ activeSection, onSelectSection }: Props) 
         <DropdownMenuTrigger asChild>
           <ToolbarIconButton
             label={`Section: ${active.label}`}
-            className="rounded-md"
+            className="rounded-[6px]"
             active
             activeStyle="chip"
             data-testid="section-stepper-trigger"
@@ -81,7 +82,7 @@ export function EditorSectionStepper({ activeSection, onSelectSection }: Props) 
 
       <ToolbarIconButton
         label="Next section"
-        className="rounded-md"
+        className="rounded-[6px]"
         disabled={activeIndex === SECTION_ITEMS.length - 1}
         onClick={() => onSelectSection(SECTION_ITEMS[activeIndex + 1].key)}
       >
