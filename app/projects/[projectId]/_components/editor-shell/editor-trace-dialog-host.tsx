@@ -94,6 +94,7 @@ export function EditorTraceDialogHost(props: {
           sourceImageUrl={traceDialogSource.sourceImageUrl}
           displayMmW={traceDialogSource.displayMmW}
           displayMmH={traceDialogSource.displayMmH}
+          contentRegion={traceDialogSource.contentRegion ?? null}
           onClose={onCloseConfigure}
           onSuccess={onApplied}
           onApplyTrace={onApplyTrace}
