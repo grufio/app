@@ -23,10 +23,14 @@ result. It splits into three layers: pure-math canvas model
   [filters/](../../lib/editor/filters/) (filter registry).
 - [features/editor/](../../features/editor/) — React surface:
   `ProjectEditorStage`, the floating section model. Navigation and
-  functions are split into two floating-pill bars: `EditorNav`
-  (Home + the five section icons **Artboard · Image · Filter · Trace ·
-  Color** — pure navigation, switches `editorSection`) as a horizontal
-  row bottom-centre, and `EditorTopBar`
+  functions are split into floating-pill bars: the **`EditorSectionStepper`**
+  (top-centre) switches `editorSection` — `‹ [active-section icon] ›` where the
+  middle button shows the active of the five sections **Artboard · Image ·
+  Filter · Trace · Color** in a grey chip and opens a dropdown listing the
+  others; the chevrons step the pipeline order. It is built from reusable nav
+  primitives (`NavIconButton` = 32px icon button with an active chip;
+  `navPillClass` / `navMenu*Class` in `floating-bar-styles.ts`) on the `neutral`
+  scale per the Figma nav design — reused by the tools bar next. Then `EditorTopBar`
   (the active section's function frames — `EditorFunctionList`, always
   visible, driving apply/edit/delete) top-right, beneath the theme bar.
   The canvas `FloatingToolbar` (tools + zoom/fit/rotate) is a vertical

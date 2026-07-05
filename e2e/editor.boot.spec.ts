@@ -10,36 +10,44 @@ import { test, expect, type Request } from "@playwright/test"
 import { clampPx, pxUToPxNumber, unitToPxUFixed } from "../lib/editor/units"
 import { PROJECT_ID, setupMockRoutes } from "./_mocks"
 
-// Canvas-first model: the bottom nav (EditorMenuBar) switches sections; each
-// active section exposes a floating top-right bar with that section's actions.
-// Section labels come from SECTION_ITEMS — the five sections are
-// Artboard / Image / Filter / Trace / Color. The Artboard section bar opens the
-// Artboard / Grid dialogs; the Image section bar opens the Image edit dialog.
-// (No image → the Image section bar's "Add image" opens the OS file picker,
-// not a dialog — see the upload test, which drives the hidden input directly.)
+// Canvas-first model: the top-centre stepper (EditorSectionStepper) switches
+// sections via a dropdown; each active section exposes a floating top-right bar
+// with that section's actions. Section labels come from SECTION_ITEMS — the five
+// sections are Artboard / Image / Filter / Trace / Color. The Artboard section
+// bar opens the Artboard / Grid dialogs; the Image section bar opens the Image
+// edit dialog. (No image → the Image section bar's "Add image" opens the OS file
+// picker, not a dialog — see the upload test, which drives the hidden input.)
 
-// Artboard size / page-background dialog (ArtboardSheet). Navigate to the
-// Artboard section, then open its top-right "Artboard" bar button. The section
-// nav button and the top-right bar button share the label "Artboard"; the
-// top-right bar renders before the bottom nav in the DOM, so `.first()` is the
-// bar (the opener) and `.last()` is the nav (the section switch).
-async function openArtboardDialog(page: import("@playwright/test").Page) {
-  await page.getByRole("button", { name: "Artboard", exact: true }).last().click()
-  await page.getByRole("button", { name: "Artboard", exact: true }).first().click()
+// Switch section via the stepper dropdown: open it through the middle trigger,
+// then click the target section's menuitem. The active section is shown in the
+// trigger (aria-label "Section: <name>") and is absent from the dropdown, so
+// no-op when the target is already active.
+async function gotoSection(page: import("@playwright/test").Page, name: string) {
+  const trigger = page.getByTestId("section-stepper-trigger")
+  if ((await trigger.getAttribute("aria-label")) === `Section: ${name}`) return
+  await trigger.click()
+  await page.getByRole("menuitem", { name, exact: true }).click()
 }
 
-// Image edit dialog (ImageSheet) — requires a master image. Switch to the Image
-// section (bottom nav), then open its top-right bar's "Edit image" button (the
-// sole opener; there is no bottom-menu image sub-button anymore).
+// Artboard size / page-background dialog (ArtboardSheet): go to the Artboard
+// section, then open its top-right "Artboard" bar button (the stepper trigger
+// reads "Section: Artboard", so the only exact-"Artboard" button is the bar).
+async function openArtboardDialog(page: import("@playwright/test").Page) {
+  await gotoSection(page, "Artboard")
+  await page.getByRole("button", { name: "Artboard", exact: true }).click()
+}
+
+// Image edit dialog (ImageSheet) — requires a master image. Go to the Image
+// section, then open its top-right bar's "Edit image" button (the sole opener).
 async function openImageDialog(page: import("@playwright/test").Page) {
-  await page.getByRole("button", { name: "Image", exact: true }).click()
+  await gotoSection(page, "Image")
   await page.getByRole("button", { name: "Edit image", exact: true }).click()
 }
 
-// Switch to the Filter section via the bottom nav (reveals the top-right
-// EditorFilterBar with its "Add filter" / "Edit filter" action).
+// Switch to the Filter section (reveals the top-right EditorFilterBar with its
+// "Add filter" / "Edit filter" action).
 async function gotoFilterSection(page: import("@playwright/test").Page) {
-  await page.getByRole("button", { name: "Filter", exact: true }).click()
+  await gotoSection(page, "Filter")
 }
 
 // Open the filter picker (FilterSelectionController). Requires an active image

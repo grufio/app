@@ -101,6 +101,71 @@ export function fabTriggerClass(tone: ToolbarTone, open: boolean): string {
   )
 }
 
+/**
+ * New nav design (Figma node `1-2`) — a FLAT dark pill on the `neutral` scale
+ * (no ring/shadow/blur, unlike `pillClass`). Built as reusable helpers because
+ * the follow-up step (tools bar, top-right actions) reuses the same look.
+ * Only the NEW nav elements are on `neutral`; the existing bars stay on `zinc`.
+ */
+
+/** Which dark-tone surface a nav pill uses: the stepper is `neutral-900`, the
+ * (future) tools bar `neutral-800`. Emits exactly ONE `bg-` utility per pair. */
+export type NavPillShade = "900" | "800"
+const NAV_PILL_SURFACE: Record<ToolbarTone, Record<NavPillShade, string>> = {
+  dark: { "900": "bg-neutral-900", "800": "bg-neutral-800" },
+  light: { "900": "bg-neutral-100", "800": "bg-neutral-200" },
+}
+
+/** Flat nav pill: radius 10, 40px tall, 4px padding/gap. */
+export function navPillClass(tone: ToolbarTone, shade: NavPillShade = "900"): string {
+  return cn("inline-flex h-10 items-center gap-1 rounded-[10px] px-1", NAV_PILL_SURFACE[tone][shade])
+}
+
+/** Ink + active-chip + hover for `NavIconButton` (32×32, 20px icon). The active
+ * state is a filled grey CHIP (`neutral-700` dark) — unlike `ToolbarIconButton`
+ * which brightens the icon only. */
+export const NAV_ICON_TONE: Record<
+  ToolbarTone,
+  { ink: string; inkDim: string; chip: string; hover: string; disabled: string }
+> = {
+  dark: {
+    ink: "text-white",
+    inkDim: "text-white/70",
+    chip: "bg-neutral-700",
+    hover: "hover:bg-neutral-800",
+    disabled: "disabled:text-white/30",
+  },
+  light: {
+    ink: "text-neutral-900",
+    inkDim: "text-neutral-900/70",
+    chip: "bg-neutral-300",
+    hover: "hover:bg-neutral-200",
+    disabled: "disabled:text-neutral-900/30",
+  },
+}
+
+/** Figma dropdown surface + item styling, tone-aware, reusable across nav menus.
+ * Overrides the shadcn defaults: `min-w-0` beats the default `min-w-[8rem]` so
+ * `w-28` (112px) sticks; `border-0` kills the default border; the item's
+ * `focus:bg-*` beats the default `focus:bg-accent`. Icons carry their own
+ * `text-*` at the call site so the default `svg → muted-foreground` rule skips them. */
+const NAV_MENU_TONE: Record<ToolbarTone, { content: string; item: string }> = {
+  dark: {
+    content: "bg-neutral-900 text-white",
+    item: "bg-neutral-700 text-white focus:bg-neutral-500 focus:text-white",
+  },
+  light: {
+    content: "bg-neutral-100 text-neutral-900",
+    item: "bg-neutral-300 text-neutral-900 focus:bg-neutral-400 focus:text-neutral-900",
+  },
+}
+export function navMenuContentClass(tone: ToolbarTone): string {
+  return cn("w-28 min-w-0 gap-0.5 border-0 p-1", NAV_MENU_TONE[tone].content)
+}
+export function navMenuItemClass(tone: ToolbarTone): string {
+  return cn("h-8 gap-2 rounded-md px-2 text-[14px]", NAV_MENU_TONE[tone].item)
+}
+
 /** Icon-button ink per tone (consumed by `ToolbarIconButton`). The light
  * theme uses `zinc-900` — the same black as the dark theme's background. */
 export const ICON_TONE: Record<

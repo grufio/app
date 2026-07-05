@@ -21,7 +21,7 @@ import {
 import { deriveSectionLocks } from "@/lib/editor/section-locks"
 import { EditorHomeBar } from "@/features/editor/components/editor-home-bar"
 import { EditorViewBar } from "@/features/editor/components/editor-view-bar"
-import { EditorMenuBar } from "@/features/editor/components/editor-menu-bar"
+import { EditorSectionStepper } from "@/features/editor/components/editor-section-stepper"
 import { EditorFuncsBar } from "@/features/editor/components/editor-funcs-bar"
 import { EditorArtboardBar } from "@/features/editor/components/editor-artboard-bar"
 import { EditorImageBar } from "@/features/editor/components/editor-image-bar"
@@ -851,8 +851,8 @@ export function ProjectDetailPageClient({
             (below) clicks it. Lets "Add image" open the OS/mobile picker
             directly, no intermediate sheet. */}
         <input data-testid="master-image-file-input" {...imageUploader.getInputProps()} />
-        {/* menu bar — bottom-centre section switcher. */}
-        <EditorMenuBar activeSection={editorSection} onSelectSection={handleSectionTap} />
+        {/* section stepper — top-centre section switcher (‹ [active] › + dropdown). */}
+        <EditorSectionStepper activeSection={editorSection} onSelectSection={handleSectionTap} />
         </EditorToolbarToneProvider>
       </ProjectEditorLayout>
 
