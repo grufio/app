@@ -118,6 +118,16 @@ describe("deriveDisplayLayers — section gating is viewport-agnostic", () => {
     expect(result.traceOverlaySvgUrl).toBeNull()
   })
 
+  it("section=image + trace artefact → overlay null (image section never shows trace)", () => {
+    const result = deriveDisplayLayers({
+      ...base,
+      activeSection: "image",
+      filterDisplayImage: traceArtefact,
+      filterDisplayImageWithoutTrace: rasterTip,
+    })
+    expect(result.traceOverlaySvgUrl).toBeNull()
+  })
+
   it("section=trace still respects data invariants (IDs must differ)", () => {
     const result = deriveDisplayLayers({
       ...base,
@@ -143,6 +153,14 @@ describe("deriveDisplayLayers — showFilterChain", () => {
     const result = deriveDisplayLayers({
       ...base,
       activeSection: "artboard",
+    })
+    expect(result.showFilterChain).toBe(false)
+  })
+
+  it("Image section → showFilterChain is false", () => {
+    const result = deriveDisplayLayers({
+      ...base,
+      activeSection: "image",
     })
     expect(result.showFilterChain).toBe(false)
   })

@@ -43,14 +43,9 @@ export function usePanelUIState() {
   // the matching sheet, then clears it via consume so leaving/re-entering the
   // section doesn't re-pop it.
   const [pendingArtboardDialog, setPendingArtboardDialog] = useState<ArtboardDialog | null>(null)
-  // The Image action is its own context inside the artboard section: tapping it
-  // swaps the top-right bar from the Artboard/Grid submenu to a single Image
-  // icon (add / edit). Tapping any section resets it back to the artboard bar.
-  const [imageBarActive, setImageBarActive] = useState(false)
 
   const handleSectionTap = useCallback((section: EditorSection) => {
     setEditorSection(section)
-    setImageBarActive(false)
   }, [])
 
   const consumePendingTraceKindOpen = useCallback(() => {
@@ -82,7 +77,5 @@ export function usePanelUIState() {
     pendingArtboardDialog,
     setPendingArtboardDialog,
     consumePendingArtboardDialog,
-    imageBarActive,
-    setImageBarActive,
   }
 }

@@ -153,8 +153,6 @@ export function ProjectDetailPageClient({
     pendingArtboardDialog,
     setPendingArtboardDialog,
     consumePendingArtboardDialog,
-    imageBarActive,
-    setImageBarActive,
   } = usePanelUIState()
   const canvasRef = useRef<ProjectCanvasStageHandle | null>(null)
   const lastNoWorkingImageMetricRef = useRef("")
@@ -644,10 +642,8 @@ export function ProjectDetailPageClient({
               processing={workflow.isApplyingFilter || isApplyingTrace}
               toolbar={stageToolbar}
               // The canvas-editing tools (zoom / hand / crop) belong to the
-              // Image context only — i.e. the artboard section with the Image
-              // action active. The artboard/grid context and every other
-              // section hide them.
-              showToolsBar={editorSection === "artboard" && imageBarActive}
+              // Image section only. Every other section hides them.
+              showToolsBar={editorSection === "image"}
               canvasRef={canvasRef}
               artboardWidthPx={artboardWidthPx ?? undefined}
               artboardHeightPx={artboardHeightPx ?? undefined}
@@ -720,23 +716,30 @@ export function ProjectDetailPageClient({
           />
         ) : null}
 
-        {/* Artboard-section top-right submenu. Default: Artboard / Grid
-            (2 × 40px circles). When the Image action is the active context,
-            it swaps to a single Image icon (add / edit) instead. */}
+        {/* Artboard-section top-right submenu: Artboard / Grid (2 × 40px circles). */}
         {editorSection === "artboard" ? (
-          imageBarActive ? (
-            <EditorImageBar
-              hasImage={hasMasterImage}
-              onOpen={() =>
-                hasMasterImage ? setPendingArtboardDialog("image") : imageUploader.openFilePicker()
-              }
-              onDelete={requestDeleteSelectedImage}
-            />
-          ) : (
-            <EditorArtboardBar onOpenDialog={(kind) => setPendingArtboardDialog(kind)} />
-          )
+          <EditorArtboardBar onOpenDialog={(kind) => setPendingArtboardDialog(kind)} />
         ) : null}
-        {editorSection === "artboard" ? (
+        {/* Image-section top-right submenu: Add (no image) or Delete + Edit
+            (image set). This top-right bar is the SOLE opener of the image
+            dialog / picker — tapping the Image section only navigates, so the
+            navigation-preservation for the no-master case holds by construction. */}
+        {editorSection === "image" ? (
+          <EditorImageBar
+            hasImage={hasMasterImage}
+            onOpen={() =>
+              hasMasterImage ? setPendingArtboardDialog("image") : imageUploader.openFilePicker()
+            }
+            onDelete={requestDeleteSelectedImage}
+          />
+        ) : null}
+        {/* Image dialog host (ImageSheet) lives in ArtboardSurfaceScope. Mount it
+            for BOTH artboard and image sections — as a SINGLE conditional so the
+            scope instance (and its local activeDialog) is preserved across an
+            artboard↔image switch instead of remounting. Under "image" only the
+            "image" pendingDialog can fire (artboard/grid setters live only in the
+            artboard section), so no cross-leak. */}
+        {editorSection === "artboard" || editorSection === "image" ? (
           <ArtboardSurfaceScope
             pendingDialog={pendingArtboardDialog}
             onConsumePendingDialog={consumePendingArtboardDialog}
@@ -848,23 +851,8 @@ export function ProjectDetailPageClient({
             (below) clicks it. Lets "Add image" open the OS/mobile picker
             directly, no intermediate sheet. */}
         <input data-testid="master-image-file-input" {...imageUploader.getInputProps()} />
-        {/* menu bar — bottom-centre section switcher + Image dialog opener. */}
-        <EditorMenuBar
-          activeSection={editorSection}
-          onSelectSection={handleSectionTap}
-          hasImage={hasMasterImage}
-          imageActive={imageBarActive}
-          // The Image action activates its own context: switch to the artboard
-          // section (where the dialog host mounts) and show the top-right Image
-          // icon. The top-right icon is where "Add image" (→ file picker) and
-          // "Edit image" (→ dialog) actually fire — see EditorImageBar. The
-          // menu-bar icon only navigates; it must NOT open the picker itself
-          // (that dropped the navigation for the no-master case).
-          onOpenImage={() => {
-            setEditorSection("artboard")
-            setImageBarActive(true)
-          }}
-        />
+        {/* menu bar — bottom-centre section switcher. */}
+        <EditorMenuBar activeSection={editorSection} onSelectSection={handleSectionTap} />
         </EditorToolbarToneProvider>
       </ProjectEditorLayout>
 

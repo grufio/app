@@ -1,12 +1,12 @@
 "use client"
 
 /**
- * Image actions bar — floating, top-right. The image context's submenu.
+ * Image actions bar — floating, top-right. The Image section's submenu.
  *   - no master image → a single ImagePlus ("Add image") → opens the picker
  *   - master image present → Trash2 ("Delete image", left) + Pencil ("Edit
  *     image", right); delete opens the confirmation dialog, edit opens the
  *     image editor.
- * Shown while the Image action is the active context. Tone from
+ * Shown while the Image section is active. Tone from
  * `EditorToolbarTone`. Mirrors `EditorArtboardBar`.
  */
 import { ImagePlus, Pencil, Trash2 } from "lucide-react"

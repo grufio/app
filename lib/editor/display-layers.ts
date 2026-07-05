@@ -19,9 +19,9 @@
  *
  *  3. Layer surfacing is **section-gated** — identically on both
  *     viewports. The single `activeSection` input (the shell's
- *     `editorSection`: "artboard" / "filter" / "trace" / "colors")
- *     names the active surface. "artboard" is the old desktop "image"
- *     tab.
+ *     `editorSection`: "artboard" / "image" / "filter" / "trace" /
+ *     "colors") names the active surface. Only "filter" and "trace"
+ *     surface extra layers; "artboard" and "image" show neither.
  *
  *     - Filter section → `showFilterChain` true (Filter sidebar
  *       row-highlight switches on; canvas image source itself is
@@ -29,7 +29,7 @@
  *       in any section, but the filter UI accents differ).
  *     - Trace section → `traceOverlaySvgUrl` returns the URL when a
  *       real trace artefact exists.
- *     - Image/Artboard section → no filter chain highlight, no trace
+ *     - Artboard / Image section → no filter chain highlight, no trace
  *       overlay. The user did not ask to see those there.
  *
  *  5. **Trace view flags are Trace-section-scoped.** The three Trace
@@ -88,7 +88,7 @@ export type DisplayLayers = {
 
 export function deriveDisplayLayers(input: {
   /** The active editor section (the shell's `editorSection`), driving
-   * the canvas gating on both viewports. "artboard" → no filter
+   * the canvas gating on both viewports. "artboard"/"image" → no filter
    * chain, no trace overlay. */
   activeSection: EditorSection
   editorImageSourceReady: boolean
