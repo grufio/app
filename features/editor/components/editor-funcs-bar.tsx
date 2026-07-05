@@ -15,7 +15,7 @@
  *     launching its standalone dialog; Grid quick-creates when empty
  *   - Colors → nothing (read-only palette)
  *
- * Section *switching* lives in `EditorMenuBar` (bottom-centre); this bar only
+ * Section *switching* lives in `EditorSectionStepper` (top-centre); this bar only
  * exposes the active section's functions. Frames are right-aligned (under the
  * theme toggle) and the active row's Edit/Delete circles flank it on the left.
  */
