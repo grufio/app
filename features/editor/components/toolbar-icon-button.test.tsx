@@ -53,3 +53,52 @@ describe("ToolbarIconButton tone", () => {
     expect(getByLabelText("Img").className).toContain("text-white/70")
   })
 })
+
+describe("ToolbarIconButton active style", () => {
+  afterEach(() => cleanup())
+
+  it("default (ink) active adds no chip background", () => {
+    const { getByLabelText } = render(
+      <ToolbarIconButton label="Img" active>
+        <span>i</span>
+      </ToolbarIconButton>,
+    )
+    const cls = getByLabelText("Img").className
+    expect(cls).not.toContain("bg-neutral-")
+    expect(cls).toContain("hover:bg-transparent")
+  })
+
+  it("activeStyle=chip fills a grey chip and drops the transparent-hover", () => {
+    const { getByLabelText } = render(
+      <ToolbarIconButton label="Img" active activeStyle="chip">
+        <span>i</span>
+      </ToolbarIconButton>,
+    )
+    const cls = getByLabelText("Img").className
+    expect(cls).toContain("bg-neutral-700")
+    // chip keeps a filled (non-white, non-transparent) hover, not the ink-path transparent one.
+    expect(cls).toContain("hover:bg-neutral-600")
+  })
+
+  it("chipClassName overrides the chip surface", () => {
+    const { getByLabelText } = render(
+      <ToolbarIconButton label="Img" active activeStyle="chip" chipClassName="bg-neutral-600">
+        <span>i</span>
+      </ToolbarIconButton>,
+    )
+    const cls = getByLabelText("Img").className
+    expect(cls).toContain("bg-neutral-600")
+    expect(cls).not.toContain("bg-neutral-700")
+  })
+
+  it("suppresses AppButton's purple focus-visible ring", () => {
+    const { getByLabelText } = render(
+      <ToolbarIconButton label="Img">
+        <span>i</span>
+      </ToolbarIconButton>,
+    )
+    const cls = getByLabelText("Img").className
+    expect(cls).toContain("focus-visible:ring-0")
+    expect(cls).not.toContain("focus-visible:ring-[3px]")
+  })
+})

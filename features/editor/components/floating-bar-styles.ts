@@ -116,32 +116,21 @@ const NAV_PILL_SURFACE: Record<ToolbarTone, Record<NavPillShade, string>> = {
   light: { "900": "bg-neutral-100", "800": "bg-neutral-200" },
 }
 
-/** Flat nav pill: radius 10, 40px tall, 4px padding/gap. */
+/** Flat nav pill: 40px tall, radius 8, 4px padding/gap. */
 export function navPillClass(tone: ToolbarTone, shade: NavPillShade = "900"): string {
-  return cn("inline-flex h-10 items-center gap-1 rounded-[10px] px-1", NAV_PILL_SURFACE[tone][shade])
+  return cn("inline-flex h-10 items-center gap-1 rounded-lg px-1", NAV_PILL_SURFACE[tone][shade])
 }
 
-/** Ink + active-chip + hover for `NavIconButton` (32×32, 20px icon). The active
- * state is a filled grey CHIP (`neutral-700` dark) — unlike `ToolbarIconButton`
- * which brightens the icon only. */
-export const NAV_ICON_TONE: Record<
-  ToolbarTone,
-  { ink: string; inkDim: string; chip: string; hover: string; disabled: string }
-> = {
-  dark: {
-    ink: "text-white",
-    inkDim: "text-white/70",
-    chip: "bg-neutral-700",
-    hover: "hover:bg-neutral-800",
-    disabled: "disabled:text-white/30",
-  },
-  light: {
-    ink: "text-neutral-900",
-    inkDim: "text-neutral-900/70",
-    chip: "bg-neutral-300",
-    hover: "hover:bg-neutral-200",
-    disabled: "disabled:text-neutral-900/30",
-  },
+/**
+ * The active CHIP surface for `ToolbarIconButton activeStyle="chip"` (the new
+ * neutral nav design: the stepper's current section, the tools bar's active
+ * tool). Only the fill + its hover — ink/disabled come from `ICON_TONE`.
+ * Distinct from `CHIP_TONE`/`CHIP_INACTIVE_TONE` above, which are on the `zinc`
+ * scale for the round, ringed FAB chips.
+ */
+export const NAV_CHIP_TONE: Record<ToolbarTone, { bg: string; hover: string }> = {
+  dark: { bg: "bg-neutral-700", hover: "hover:bg-neutral-600" },
+  light: { bg: "bg-neutral-300", hover: "hover:bg-neutral-400" },
 }
 
 /** Figma dropdown surface + item styling, tone-aware, reusable across nav menus.
@@ -160,7 +149,7 @@ const NAV_MENU_TONE: Record<ToolbarTone, { content: string; item: string }> = {
   },
 }
 export function navMenuContentClass(tone: ToolbarTone): string {
-  return cn("w-28 min-w-0 gap-0.5 border-0 p-1", NAV_MENU_TONE[tone].content)
+  return cn("w-28 min-w-0 gap-1 border-0 p-1", NAV_MENU_TONE[tone].content)
 }
 export function navMenuItemClass(tone: ToolbarTone): string {
   return cn("h-8 gap-2 rounded-md px-2 text-[14px]", NAV_MENU_TONE[tone].item)

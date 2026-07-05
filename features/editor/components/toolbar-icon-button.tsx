@@ -4,11 +4,19 @@ import { AppButton } from "@/components/ui/form-controls"
 import { cn } from "@/lib/utils"
 
 import { useEditorToolbarTone, type ToolbarTone } from "./editor-toolbar-tone"
-import { ICON_TONE } from "./floating-bar-styles"
+import { ICON_TONE, NAV_CHIP_TONE } from "./floating-bar-styles"
 
 type ToolbarIconButtonProps = Omit<React.ComponentProps<"button">, "children"> & {
   label: string
   active?: boolean
+  /** How the active state renders. `"ink"` (default) brightens the icon only —
+   * the historical behaviour for every bar. `"chip"` fills a grey chip behind
+   * the icon (the new neutral nav design: the stepper's current section, the
+   * tools bar's active tool). */
+  activeStyle?: "ink" | "chip"
+  /** Override the active chip surface (e.g. the tools bar's lighter chip). Only
+   * used with `activeStyle="chip"`. */
+  chipClassName?: string
   /** When true, the button forwards its props to its single child via
    * Radix Slot (e.g. wrap a `<Link>` as the rendered element). */
   asChild?: boolean
@@ -29,16 +37,32 @@ type ToolbarIconButtonProps = Omit<React.ComponentProps<"button">, "children"> &
  * dark bar's background). The tone comes from the `EditorToolbarTone`
  * context unless overridden via the `tone` prop.
  */
-export function ToolbarIconButton({ label, active = false, asChild = false, tone, className, children, ...props }: ToolbarIconButtonProps) {
+export function ToolbarIconButton({
+  label,
+  active = false,
+  activeStyle = "ink",
+  chipClassName,
+  asChild = false,
+  tone,
+  className,
+  children,
+  ...props
+}: ToolbarIconButtonProps) {
   const ctxTone = useEditorToolbarTone()
-  const ink = ICON_TONE[tone ?? ctxTone]
+  const t = tone ?? ctxTone
+  const ink = ICON_TONE[t]
+  const chipActive = active && activeStyle === "chip"
   const buttonClassName = cn(
     "h-8 w-8 min-h-8 min-w-8 max-h-8 max-w-8 rounded aspect-square p-0 shrink-0",
     !active && ink.inactive,
     active && ink.active,
-    // Neutralize the ghost variant's default hover; we paint our own.
-    "hover:bg-transparent",
+    // Background: `chip` active fills a grey chip (kept on hover); otherwise no
+    // background ever — this also neutralizes the ghost variant's white hover.
+    chipActive ? cn(chipClassName ?? NAV_CHIP_TONE[t].bg, NAV_CHIP_TONE[t].hover) : "hover:bg-transparent",
     ink.hover,
+    // Kill AppButton's purple focus-visible ring — no editor nav/toolbar icon
+    // shows it (it appears in no Figma nav design).
+    "focus-visible:ring-0 focus-visible:ring-transparent focus-visible:border-transparent",
     "disabled:bg-transparent disabled:opacity-100 disabled:hover:bg-transparent",
     ink.disabled,
     className

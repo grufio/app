@@ -7,6 +7,11 @@
  * sections to jump to. Chevrons step prev/next through the pipeline order
  * (Artboard → Image → Filter → Trace → Color) and disable at the ends (no wrap).
  * Tone from the `EditorToolbarTone` context.
+ *
+ * Built from the shared `ToolbarIconButton` (not a bespoke button): the chevrons
+ * use its default `ink` active style; the middle trigger opts into
+ * `activeStyle="chip"` for the filled active-section chip. `rounded-md` (6px)
+ * overrides its default 4px radius to match the Figma chip.
  */
 import { ChevronLeft, ChevronRight } from "lucide-react"
 
@@ -22,7 +27,7 @@ import { cn } from "@/lib/utils"
 import { SECTION_ITEMS } from "./editor-section-items"
 import { useEditorToolbarTone } from "./editor-toolbar-tone"
 import { navMenuContentClass, navMenuItemClass, navPillClass } from "./floating-bar-styles"
-import { NavIconButton } from "./nav-icon-button"
+import { ToolbarIconButton } from "./toolbar-icon-button"
 
 type Props = {
   activeSection: EditorSection
@@ -43,21 +48,28 @@ export function EditorSectionStepper({ activeSection, onSelectSection }: Props) 
 
   return (
     <div className={cn(navPillClass(tone), "absolute top-3 left-1/2 z-20 -translate-x-1/2")}>
-      <NavIconButton
+      <ToolbarIconButton
         label="Previous section"
+        className="rounded-md"
         disabled={activeIndex === 0}
         onClick={() => onSelectSection(SECTION_ITEMS[activeIndex - 1].key)}
       >
         <ChevronLeft aria-hidden="true" className="size-5" />
-      </NavIconButton>
+      </ToolbarIconButton>
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <NavIconButton label={`Section: ${active.label}`} active data-testid="section-stepper-trigger">
+          <ToolbarIconButton
+            label={`Section: ${active.label}`}
+            className="rounded-md"
+            active
+            activeStyle="chip"
+            data-testid="section-stepper-trigger"
+          >
             <ActiveIcon aria-hidden="true" className="size-5" />
-          </NavIconButton>
+          </ToolbarIconButton>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="center" className={navMenuContentClass(tone)}>
+        <DropdownMenuContent align="center" sideOffset={4} className={navMenuContentClass(tone)}>
           {SECTION_ITEMS.filter((s) => s.key !== activeSection).map(({ key, label, Icon }) => (
             <DropdownMenuItem key={key} onClick={() => onSelectSection(key)} className={navMenuItemClass(tone)}>
               <Icon aria-hidden="true" className={cn("size-5", iconInk)} />
@@ -67,13 +79,14 @@ export function EditorSectionStepper({ activeSection, onSelectSection }: Props) 
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <NavIconButton
+      <ToolbarIconButton
         label="Next section"
+        className="rounded-md"
         disabled={activeIndex === SECTION_ITEMS.length - 1}
         onClick={() => onSelectSection(SECTION_ITEMS[activeIndex + 1].key)}
       >
         <ChevronRight aria-hidden="true" className="size-5" />
-      </NavIconButton>
+      </ToolbarIconButton>
     </div>
   )
 }
