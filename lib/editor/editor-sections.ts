@@ -1,14 +1,16 @@
 /**
  * Mobile editor sections — single source of truth.
  *
- * The four section names that drive the mobile bottom-nav, the
- * shell's `editorSection` state, and `deriveDisplayLayers`'
- * section-gating live here as a `const` tuple. Importing the type
- * from one place keeps the three consumers from drifting (Sprint 2
- * already trimmed "output" out — adding a new section is now a
- * one-edit affair).
+ * The section names that drive the mobile bottom-nav, the shell's
+ * `editorSection` state, and `deriveDisplayLayers`' section-gating
+ * live here as a `const` tuple, in pipeline order
+ * (Artboard → Image → Filter → Trace → Color). Importing the type
+ * from one place keeps the consumers from drifting (adding a new
+ * section is a one-edit affair). Note: the section literal `"image"`
+ * is unrelated to the selection nav-id `kind: "image"` (see
+ * `features/editor/navigation/nav-id.ts`) — different axes.
  */
-export const EDITOR_SECTIONS = ["artboard", "filter", "trace", "colors"] as const
+export const EDITOR_SECTIONS = ["artboard", "image", "filter", "trace", "colors"] as const
 
 export type EditorSection = (typeof EDITOR_SECTIONS)[number]
 

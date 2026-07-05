@@ -24,17 +24,20 @@ result. It splits into three layers: pure-math canvas model
 - [features/editor/](../../features/editor/) — React surface:
   `ProjectEditorStage`, the floating section model. Navigation and
   functions are split into two floating-pill bars: `EditorNav`
-  (Home + the four section icons — pure navigation, switches
-  `editorSection`) as a horizontal row bottom-centre, and `EditorTopBar`
+  (Home + the five section icons **Artboard · Image · Filter · Trace ·
+  Color** — pure navigation, switches `editorSection`) as a horizontal
+  row bottom-centre, and `EditorTopBar`
   (the active section's function frames — `EditorFunctionList`, always
   visible, driving apply/edit/delete) top-right, beneath the theme bar.
   The canvas `FloatingToolbar` (tools + zoom/fit/rotate) is a vertical
-  pill on the right edge. Per-surface scopes drive the trace
-  `TraceSheet` and the artboard section's three standalone
-  dialogs `ArtboardSheet` (artboard size + page-background) /
-  `GridSheet` / `ImageSheet`, each launched by its own
-  artboard "+" frame and routed through `ArtboardSurfaceScope`'s
-  `activeDialog`. `EditorNav` (top-left) also hosts the theme toggle
+  pill on the right edge (shown on the **Image** section). Per-surface
+  scopes drive the trace `TraceSheet` and the standalone sheets
+  `ArtboardSheet` (artboard size + page-background) / `GridSheet` (both
+  Artboard section) / `ImageSheet` (Image section). All three route
+  through `ArtboardSurfaceScope`'s `activeDialog`; that scope is mounted
+  for BOTH the `artboard` and `image` sections (a single conditional, so
+  the instance survives an artboard↔image switch). `Image` is its own
+  `EDITOR_SECTIONS` entry — not a sub-mode of `artboard`. `EditorNav` (top-left) also hosts the theme toggle
   and Trace's Eye (view-options). Most dialogs/sheets render fullscreen
   on every viewport. The **`ImageSheet`** is the Feather-3D exception:
   mobile fullscreen, desktop a centred rounded panel; tone-aware

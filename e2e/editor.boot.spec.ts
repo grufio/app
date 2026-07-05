@@ -12,26 +12,28 @@ import { PROJECT_ID, setupMockRoutes } from "./_mocks"
 
 // Canvas-first model: the bottom nav (EditorMenuBar) switches sections; each
 // active section exposes a floating top-right bar with that section's actions.
-// Section labels come from SECTION_ITEMS ("Image" = the `artboard` section).
-// The Artboard section bar opens the Artboard / Grid dialogs; the bottom-menu
-// image icon activates the Image context, whose top-right bar opens the Image
-// edit dialog. (No image → the top-right "Add image" opens the OS file picker,
+// Section labels come from SECTION_ITEMS — the five sections are
+// Artboard / Image / Filter / Trace / Color. The Artboard section bar opens the
+// Artboard / Grid dialogs; the Image section bar opens the Image edit dialog.
+// (No image → the Image section bar's "Add image" opens the OS file picker,
 // not a dialog — see the upload test, which drives the hidden input directly.)
 
-// Artboard size / page-background dialog (ArtboardSheet). The Artboard section
-// is active on load; its top-right bar carries an "Artboard" button.
+// Artboard size / page-background dialog (ArtboardSheet). Navigate to the
+// Artboard section, then open its top-right "Artboard" bar button. The section
+// nav button and the top-right bar button share the label "Artboard"; the
+// top-right bar renders before the bottom nav in the DOM, so `.first()` is the
+// bar (the opener) and `.last()` is the nav (the section switch).
 async function openArtboardDialog(page: import("@playwright/test").Page) {
-  await page.getByRole("button", { name: "Artboard", exact: true }).click()
+  await page.getByRole("button", { name: "Artboard", exact: true }).last().click()
+  await page.getByRole("button", { name: "Artboard", exact: true }).first().click()
 }
 
-// Image edit dialog (ImageSheet) — requires a master image. The bottom-menu
-// image icon ("Edit image") activates the Image context (revealing the
-// top-right image bar); the bar's "Edit image" opens the sheet. Once the
-// context is active two "Edit image" controls exist (menu + bar); the top-right
-// bar renders before the bottom menu in the DOM, so `.first()` targets the bar.
+// Image edit dialog (ImageSheet) — requires a master image. Switch to the Image
+// section (bottom nav), then open its top-right bar's "Edit image" button (the
+// sole opener; there is no bottom-menu image sub-button anymore).
 async function openImageDialog(page: import("@playwright/test").Page) {
+  await page.getByRole("button", { name: "Image", exact: true }).click()
   await page.getByRole("button", { name: "Edit image", exact: true }).click()
-  await page.getByRole("button", { name: "Edit image", exact: true }).first().click()
 }
 
 // Switch to the Filter section via the bottom nav (reveals the top-right

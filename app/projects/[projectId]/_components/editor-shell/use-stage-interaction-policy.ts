@@ -81,13 +81,13 @@ export function useStageInteractionPolicy(args: {
 
   // Per-section tool availability. Object is the default everywhere
   // (whole-image drag/resize). Direct only on the Trace section
-  // (clicks trace-overlay regions). Crop only on the Artboard
-  // section. Hand is always available — it pans the artboard view and
-  // never touches the image or trace.
+  // (clicks trace-overlay regions). Crop only on the Image section
+  // (that is where the tools bar lives). Hand is always available — it
+  // pans the artboard view and never touches the image or trace.
   const showDirectSelect = activeSection === "trace"
   // imageLocked disables every image-manipulation tool (a filter/trace depends
   // on the image; remove it to edit). Object/crop/rotate all gate on it.
-  const cropDisabled = activeSection !== "artboard" || imageLocked
+  const cropDisabled = activeSection !== "image" || imageLocked
   const objectDisabled = imageLocked
   const rotateDisabled = activeSection === "filter" || imageLocked
 
