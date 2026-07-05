@@ -1,9 +1,11 @@
 "use client"
 
 /**
- * Circulate preview pane: a single canvas showing the cropped source with one
- * ellipse (optionally two) painted per cell, each snapped to the Munsell
- * palette — the live mirror of the server's `/filters/circulate` output.
+ * Circulate preview pane: a single canvas showing one ellipse (optionally two)
+ * per cell, each snapped to the Munsell palette, on a transparent background — the
+ * live mirror of the server's `/filters/circulate` output. Like the pixelate
+ * preview, only the trace output is drawn (no source photo underneath); the crop
+ * follows the content region for parity with the apply path.
  *
  * Sizing/zoom/measurement are identical to `PixelatePreviewPane` (explicit-px
  * contain-fit, ResizeObserver, pinned zoom controls); see that file for the
@@ -22,6 +24,7 @@ import {
   resolveCirculateGrid,
 } from "@/lib/editor/trace/circulate-grid-math"
 import { centeredCropPixels } from "@/lib/editor/trace/pixelate-grid-math"
+import type { TraceContentRegion } from "@/lib/editor/trace/content-region"
 import { resolveInnerFilter } from "@/lib/editor/trace/inner-color-filters"
 import {
   applyTopNReductionOuter,
@@ -44,20 +47,57 @@ type Props = {
   sourceImageUrl: string
   displayMmW: number
   displayMmH: number
+  /** Content region (artboard − padding). When present the preview crops to the
+   * SAME printable window the apply path traces (white where uncovered) — parity
+   * with the pixelate preview. Absent → whole image. */
+  contentRegion?: TraceContentRegion | null
   params: CirculateParams
 }
 
-export function CirculatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, params }: Props) {
+export function CirculatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, contentRegion, params }: Props) {
   const source = useSourceImage(sourceImageUrl)
+  // Effective geometry: content-rect mm + a composited (white + image window)
+  // source when a content region is present; else the raw image + image mm —
+  // identical to PixelatePreviewPane.
+  const effMmW = contentRegion?.displayMmW ?? displayMmW
+  const effMmH = contentRegion?.displayMmH ?? displayMmH
   const palette = useTracePalette(params.color_mode)
   const blueNoiseLut = useBlueNoiseLut()
   const grid = useMemo(
-    () => resolveCirculateGrid(displayMmW, displayMmH, params),
-    [displayMmW, displayMmH, params],
+    () => resolveCirculateGrid(effMmW, effMmH, params),
+    [effMmW, effMmH, params],
   )
   const valid = isCirculateGridValid(grid)
 
-  const miniCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  // Content-region composited source (white canvas + image window), byte-parity
+  // with the server's compositeContentRegion. Null → use the raw image.
+  const contentSource = useMemo(() => {
+    if (!source || !contentRegion) return null
+    const plan = contentRegion.plan
+    const c = document.createElement("canvas")
+    c.width = Math.max(1, Math.round(plan.canvasPx.widthPx))
+    c.height = Math.max(1, Math.round(plan.canvasPx.heightPx))
+    const ctx = c.getContext("2d")
+    if (!ctx) return null
+    ctx.imageSmoothingEnabled = false
+    ctx.fillStyle = "#ffffff"
+    ctx.fillRect(0, 0, c.width, c.height)
+    const comp = plan.composite
+    if (comp) {
+      ctx.drawImage(
+        source,
+        comp.extract.left, comp.extract.top, comp.extract.width, comp.extract.height,
+        comp.placeAt.left, comp.placeAt.top, comp.extract.width, comp.extract.height,
+      )
+    }
+    return c
+  }, [source, contentRegion])
+
+  const effSource: CanvasImageSource | null = contentRegion ? contentSource : source
+  const effSourceW = contentRegion ? (contentSource?.width ?? 0) : (source?.naturalWidth ?? 0)
+  const effSourceH = contentRegion ? (contentSource?.height ?? 0) : (source?.naturalHeight ?? 0)
+
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const paneRef = useRef<HTMLDivElement | null>(null)
   const [pane, setPane] = useState<{ w: number; h: number }>({ w: 0, h: 0 })
   const [zoom, setZoom] = useState(1)
@@ -74,22 +114,22 @@ export function CirculatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, p
   }, [])
 
   const crop = useMemo(() => {
-    if (!source || !valid || displayMmW <= 0 || displayMmH <= 0) return null
+    if (!effSource || !valid || effMmW <= 0 || effMmH <= 0 || effSourceW <= 0 || effSourceH <= 0) return null
     return centeredCropPixels({
-      pixelW: source.naturalWidth,
-      pixelH: source.naturalHeight,
-      displayMmW,
-      displayMmH,
+      pixelW: effSourceW,
+      pixelH: effSourceH,
+      displayMmW: effMmW,
+      displayMmH: effMmH,
       grid,
     })
-  }, [source, valid, displayMmW, displayMmH, grid])
+  }, [effSource, effSourceW, effSourceH, valid, effMmW, effMmH, grid])
 
-  // Stage 1 (heavy): read the cropped source + per-cell area-average.
+  // Stage 1 (heavy): read the cropped (content-region) source + per-cell area-average.
   // Only re-runs when the source / crop / grid shape change, so unrelated
   // param toggles skip the per-source-pixel loop.
   const cellMeans = useMemo(
-    () => (source && crop && valid ? readSourceCells({ source, crop, cellsX: grid.cellsX, cellsY: grid.cellsY }) : null),
-    [source, crop, valid, grid.cellsX, grid.cellsY],
+    () => (effSource && crop && valid ? readSourceCells({ source: effSource, crop, cellsX: grid.cellsX, cellsY: grid.cellsY }) : null),
+    [effSource, crop, valid, grid.cellsX, grid.cellsY],
   )
 
   // Stage 2a: outer-palette PR-I PAM restriction (inner keeps the full palette).
@@ -157,7 +197,7 @@ export function CirculatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, p
     [outerSnapped, outerPalette, params.num_colors, params.distance_metric, params.palette_restriction],
   )
 
-  // Stage 5: inner ellipse colours (sub-colour filter, full palette).
+  // Stage 4: inner ellipse colours (sub-colour filter, full palette).
   const innerAdjustment = useMemo(() => resolveInnerFilter(params.inner_filter), [params.inner_filter])
   const innerCells = useMemo(
     () =>
@@ -195,16 +235,16 @@ export function CirculatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, p
     return params.contour_width_mm * ((pxPerMmX + pxPerMmY) / 2)
   }, [wDev, hDev, grid.usedMmW, grid.usedMmH, params.contour_width_mm])
 
-  // Stage 6 (light): paint background + outer/inner ellipses + frames at device res.
-  // The canvas backing (width/height) is set on the element (JSX) to wDev/hDev; this
-  // reads target.width/height, so it re-paints whenever the device size changes.
+  // Stage 5 (light): paint the outer/inner ellipses + frames at device resolution —
+  // no source photo, transparent background (only the trace output, like pixelate).
+  // Sets the canvas backing in the effect (device px), same mechanism as pixelate.
   useEffect(() => {
-    const target = miniCanvasRef.current
-    if (!target || !source || !crop || !outerReduced || wDev <= 0 || hDev <= 0) return
+    const target = canvasRef.current
+    if (!target || !outerReduced || wDev <= 0 || hDev <= 0) return
+    target.width = wDev
+    target.height = hDev
     paintCirculateCells({
       target,
-      source,
-      crop,
       cellsX: grid.cellsX,
       cellsY: grid.cellsY,
       outer: outerReduced,
@@ -212,7 +252,7 @@ export function CirculatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, p
       ellipseFractions,
       contourPx,
     })
-  }, [source, crop, outerReduced, innerCells, ellipseFractions, contourPx, grid.cellsX, grid.cellsY, wDev, hDev])
+  }, [outerReduced, innerCells, ellipseFractions, contourPx, grid.cellsX, grid.cellsY, wDev, hDev])
 
   // Spinner covers both the image load and the palette fetch: a valid grid
   // with no palette yet would otherwise paint the raw-means preview.
@@ -232,10 +272,8 @@ export function CirculatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, p
           style={{ width: "fit-content", minWidth: "100%", height: "fit-content", minHeight: "100%" }}
         >
           <canvas
-            ref={miniCanvasRef}
-            width={Math.max(1, wDev)}
-            height={Math.max(1, hDev)}
-            className="block"
+            ref={canvasRef}
+            className="relative block"
             style={{ width: display?.w ?? 0, height: display?.h ?? 0 }}
             data-testid="circulate-preview-mini"
           />

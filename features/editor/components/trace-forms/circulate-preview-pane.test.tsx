@@ -3,10 +3,10 @@
  *
  * Component test for CirculatePreviewPane. jsdom can't render canvas content and
  * its ResizeObserver is a no-op, so the pane is never measured → `display` is null
- * → the canvas backing falls back to 1×1. In the browser the backing is
- * display × devicePixelRatio (device resolution, verified visually). Here we assert
- * the React/JSX wiring: the canvas mounts and the zoom controls drive the label.
- * The renderer + palette hook are stubbed (no canvas, no network in jsdom).
+ * → the draw effect skips (the canvas keeps its default backing). In the browser the
+ * backing is set in the effect to display × devicePixelRatio (verified visually).
+ * Here we assert the React/JSX wiring: the canvas mounts and the zoom controls drive
+ * the label. The renderer + palette hook are stubbed (no canvas, no network in jsdom).
  */
 import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -50,7 +50,7 @@ describe("CirculatePreviewPane", () => {
     vi.unstubAllGlobals()
   })
 
-  it("renders the mini canvas with a device-resolution backing (not cellsX × cellsY)", async () => {
+  it("renders the mini canvas (device-resolution backing set in the draw effect)", async () => {
     const { getByTestId } = render(
       <CirculatePreviewPane
         sourceImageUrl="https://example.test/a.png"
@@ -59,18 +59,16 @@ describe("CirculatePreviewPane", () => {
         params={defaults}
       />,
     )
-    // Browser: backing = display × devicePixelRatio. jsdom's no-op ResizeObserver
-    // leaves the pane unmeasured → a 1×1 fallback. Either way the backing is NOT the
-    // tiny cellsX×cellsY (16×12) — the past bug this guards against.
+    // The canvas backing (width/height) is set INSIDE the draw effect to
+    // display × devicePixelRatio (like the pixelate preview). jsdom's no-op
+    // ResizeObserver leaves the pane unmeasured (display null → the effect skips),
+    // so we only assert the canvas mounts; the device sizing is browser-runtime.
     await waitFor(() => {
-      const canvas = getByTestId("circulate-preview-mini") as HTMLCanvasElement
-      const w = Number(canvas.getAttribute("width"))
-      expect(w).toBeGreaterThanOrEqual(1)
-      expect(w).not.toBe(16)
+      expect(getByTestId("circulate-preview-mini")).not.toBeNull()
     })
   })
 
-  it("falls back to a 1×1 bitmap when the grid would be invalid", () => {
+  it("still mounts the canvas when the grid would be invalid (no crash)", () => {
     const { getByTestId } = render(
       <CirculatePreviewPane
         sourceImageUrl="https://example.test/a.png"
@@ -79,9 +77,7 @@ describe("CirculatePreviewPane", () => {
         params={defaults}
       />,
     )
-    const canvas = getByTestId("circulate-preview-mini") as HTMLCanvasElement
-    expect(canvas.getAttribute("width")).toBe("1")
-    expect(canvas.getAttribute("height")).toBe("1")
+    expect(getByTestId("circulate-preview-mini")).not.toBeNull()
   })
 
   it("zoom controls update the displayed zoom label", async () => {

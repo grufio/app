@@ -1,10 +1,10 @@
 "use client"
 
 /**
- * Pixelate preview pane: a single inline SVG displaying the cropped pixelate
- * grid with each cell snapped to the nearest Munsell palette chip. Cells
- * (`<rect>`) AND the grid live in ONE cell-unit coordinate space, so the grid
- * registers exactly with the cells — mirrors the applied trace, no drift.
+ * Pixelate preview pane: a single `<canvas>` drawn at DEVICE resolution — one flat
+ * block per cell (snapped to the nearest Munsell palette chip) plus a
+ * device-pixel-snapped 1px grid, so the grid stays a crisp hairline at any zoom
+ * (#572, replacing the old stretched-SVG preview). Mirrors the applied trace.
  *
  * Sizing — explicit pixels, no CSS `aspect-ratio`. The pane fills the
  * dialog's body area via flex (`flex-1 min-h-0` inside `main`), so a PORTRAIT
@@ -16,10 +16,10 @@
  * a ResizeObserver (`pane.w`/`pane.h`); the canvas display size is
  * `min(paneW/usedMmW, paneH/usedMmH) × zoom` per axis — a plain contain-fit.
  * We size by display-mm, NOT the bitmap's cellsX × cellsY aspect, so
- * non-square supercells (e.g. 6 mm × 10 mm) don't distort; the near-square
- * bitmap is deliberately stretched to that px box. `image-rendering:
- * pixelated` keeps the per-cell upscale sharp; `bg-muted` shows wherever the
- * canvas doesn't reach.
+ * non-square supercells (e.g. 6 mm × 10 mm) don't distort. The canvas backing is
+ * `display × devicePixelRatio` and is drawn at device resolution (nearest-neighbour
+ * cells + snapped grid), so no `image-rendering` trick is needed; `bg-muted` shows
+ * wherever the canvas doesn't reach.
  *
  * No ResizeObserver loop: the pane's height is layout-driven (flex, from the
  * dialog's definite height) and the canvas lives in an absolutely-positioned

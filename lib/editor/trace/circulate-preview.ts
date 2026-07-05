@@ -8,10 +8,10 @@
  * (`mapCellsToPaletteAdjusted`, the chosen sub colour filter). One ellipse
  * (or two) is painted per cell at the cell centre, in the target's pixel space.
  *
- * The cropped source is drawn first as the background (matching the editor's
- * real composite: the bitmap layer under the SVG overlay; the user can hide
- * that layer later), then the ellipses on top. Caller (React) owns
- * `target.width`/`target.height` (= crop pixels), like the pixelate preview.
+ * Like the pixelate preview, ONLY the trace output is drawn — the ellipses on a
+ * transparent background, no source photo underneath (the applied result's bitmap
+ * layer is a separate, toggleable layer). Caller (React) owns the device-resolution
+ * `target.width`/`target.height`.
  *
  * Pipeline is exposed as separate stages (mirroring `pixelate-preview.ts`)
  * so React callers can memoize each step against its own subset of params.
@@ -138,8 +138,9 @@ export function snapInnerCells(args: {
 }
 
 /**
- * Stage 6 — paint the source background + outer/inner ellipses + per-cell
- * frame outlines. Light: cell-count proportional canvas ops.
+ * Stage 6 — paint outer/inner ellipses + per-cell frame outlines on a
+ * TRANSPARENT background (no source photo — like the pixelate preview, only the
+ * trace output). Light: cell-count proportional canvas ops.
  *
  * No paint-by-numbers labels in the preview — the preview's purpose is a
  * quick visual reference for the eventual Apply result, not a paint-by-
@@ -148,8 +149,6 @@ export function snapInnerCells(args: {
  */
 export function paintCirculateCells(args: {
   target: HTMLCanvasElement
-  source: CanvasImageSource
-  crop: { x: number; y: number; w: number; h: number }
   cellsX: number
   cellsY: number
   outer: CellColors
@@ -157,23 +156,12 @@ export function paintCirculateCells(args: {
   ellipseFractions: CirculateEllipseFractions
   contourPx: number
 }): void {
-  const {
-    target,
-    source,
-    crop,
-    cellsX,
-    cellsY,
-    outer,
-    inner,
-    ellipseFractions,
-    contourPx,
-  } = args
+  const { target, cellsX, cellsY, outer, inner, ellipseFractions, contourPx } = args
   const ctx = target.getContext("2d", { willReadFrequently: true })
   if (!ctx) throw new Error("paintCirculateCells: 2D context unavailable")
 
+  // Transparent background — only the ellipses/frames, like the pixelate preview.
   ctx.clearRect(0, 0, target.width, target.height)
-  ctx.imageSmoothingEnabled = false
-  ctx.drawImage(source, crop.x, crop.y, crop.w, crop.h, 0, 0, target.width, target.height)
 
   const cellW = target.width / cellsX
   const cellH = target.height / cellsY
