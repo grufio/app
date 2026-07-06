@@ -81,10 +81,16 @@ export function isCirculateGridValid(grid: CirculateGrid): boolean {
   return grid.cellsX >= 1 && grid.cellsY >= 1
 }
 
+/** The OUTER ellipse is capped BELOW 1.0 of the cell pitch so circles never
+ * fully fill their cell — a gap always remains between neighbours. Without this
+ * (spacing=0 → pitch=outer → fraction=1.0) the circles touch and read "fat".
+ * 0.85 leaves a clear gap; tune here. */
+export const OUTER_MAX_FRAC = 0.85
+
 /** Ellipse axes as a fraction of the cell pitch (0..1), what the Python
- * renderer expects. An ellipse can't exceed its cell, so each fraction is
- * clamped to ≤ 1 (the inner ellipse can be configured larger than the pitch;
- * clamping keeps the renderer's `(0, 1]` contract). */
+ * renderer expects. The inner ellipse can be configured larger than the pitch;
+ * clamping to ≤ 1 keeps the renderer's `(0, 1]` contract. The OUTER is capped
+ * at `OUTER_MAX_FRAC` so circles keep a gap (never touch). */
 export function circulateEllipseFractions(
   grid: Pick<CirculateGrid, "pitchWMm" | "pitchHMm">,
   params: {
@@ -97,8 +103,8 @@ export function circulateEllipseFractions(
   const fracW = (mm: number) => Math.min(1, mm / grid.pitchWMm)
   const fracH = (mm: number) => Math.min(1, mm / grid.pitchHMm)
   return {
-    outerWFrac: fracW(params.outer_width_mm),
-    outerHFrac: fracH(params.outer_height_mm),
+    outerWFrac: Math.min(OUTER_MAX_FRAC, fracW(params.outer_width_mm)),
+    outerHFrac: Math.min(OUTER_MAX_FRAC, fracH(params.outer_height_mm)),
     innerWFrac: fracW(params.inner_width_mm),
     innerHFrac: fracH(params.inner_height_mm),
   }

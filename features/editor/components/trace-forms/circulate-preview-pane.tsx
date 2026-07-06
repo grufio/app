@@ -28,11 +28,11 @@ import type { TraceContentRegion } from "@/lib/editor/trace/content-region"
 import { resolveInnerFilter } from "@/lib/editor/trace/inner-color-filters"
 import {
   applyTopNReductionOuter,
-  paintCirculateCells,
   restrictOuterPalette,
   snapAndDitherOuter,
   snapInnerCells,
 } from "@/lib/editor/trace/circulate-preview"
+import { buildCirculateSvg } from "@/lib/editor/trace/circulate-svg"
 import { readSourceCells } from "@/lib/editor/trace/pixelate-preview"
 import { useBlueNoiseLut } from "@/lib/editor/trace/use-blue-noise-lut"
 import { useSourceImage } from "@/lib/editor/trace/use-source-image"
@@ -97,7 +97,6 @@ export function CirculatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, c
   const effSourceW = contentRegion ? (contentSource?.width ?? 0) : (source?.naturalWidth ?? 0)
   const effSourceH = contentRegion ? (contentSource?.height ?? 0) : (source?.naturalHeight ?? 0)
 
-  const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const paneRef = useRef<HTMLDivElement | null>(null)
   const [pane, setPane] = useState<{ w: number; h: number }>({ w: 0, h: 0 })
   const [zoom, setZoom] = useState(1)
@@ -213,46 +212,29 @@ export function CirculatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, c
     [cellMeans, palette, params.inner_enabled, innerAdjustment, params.distance_metric],
   )
 
-  // Display box (CSS px): contain-fit + zoom. The canvas BACKING is display × dpr,
-  // so ellipses + the 1px frames render at DEVICE resolution → crisp at any zoom
-  // (replaces the old crop-res canvas + `imageRendering: pixelated`, which made the
-  // 1px frames thick blocks when zoomed in and soft when zoomed out).
+  // Display box (CSS px): contain-fit + zoom. The circles render as a vector SVG
+  // (viewBox per cell) that stretches to this box — crisp at ANY zoom, no raster
+  // upscale (replaces the old device-px canvas, which was still a raster).
   const display = useMemo(() => {
     if (!valid || pane.w <= 0 || pane.h <= 0 || grid.usedMmW <= 0 || grid.usedMmH <= 0) return null
     const fitScale = Math.min(pane.w / grid.usedMmW, pane.h / grid.usedMmH)
     return { w: grid.usedMmW * fitScale * zoom, h: grid.usedMmH * fitScale * zoom }
   }, [valid, pane.w, pane.h, grid.usedMmW, grid.usedMmH, zoom])
-  const dpr = typeof window === "undefined" ? 1 : Math.max(1, window.devicePixelRatio || 1)
-  const wDev = display ? Math.max(1, Math.round(display.w * dpr)) : 0
-  const hDev = display ? Math.max(1, Math.round(display.h * dpr)) : 0
 
   const ellipseFractions = useMemo(() => circulateEllipseFractions(grid, params), [grid, params])
-  // Contour width in the canvas' DEVICE-px space (physical mm → device px).
-  const contourPx = useMemo(() => {
-    if (wDev <= 0 || hDev <= 0 || grid.usedMmW <= 0 || grid.usedMmH <= 0) return 0
-    const pxPerMmX = wDev / grid.usedMmW
-    const pxPerMmY = hDev / grid.usedMmH
-    return params.contour_width_mm * ((pxPerMmX + pxPerMmY) / 2)
-  }, [wDev, hDev, grid.usedMmW, grid.usedMmH, params.contour_width_mm])
 
-  // Stage 5 (light): paint the outer/inner ellipses + frames at device resolution —
-  // no source photo, transparent background (only the trace output, like pixelate).
-  // Sets the canvas backing in the effect (device px), same mechanism as pixelate.
-  useEffect(() => {
-    const target = canvasRef.current
-    if (!target || !outerReduced || wDev <= 0 || hDev <= 0) return
-    target.width = wDev
-    target.height = hDev
-    paintCirculateCells({
-      target,
+  // Stage 5 (light): the outer/inner ellipses + frames as a vector SVG — no source
+  // photo, transparent background (only the trace output, like pixelate).
+  const svgHtml = useMemo(() => {
+    if (!outerReduced || !valid) return null
+    return buildCirculateSvg({
       cellsX: grid.cellsX,
       cellsY: grid.cellsY,
       outer: outerReduced,
       inner: innerCells,
       ellipseFractions,
-      contourPx,
     })
-  }, [outerReduced, innerCells, ellipseFractions, contourPx, grid.cellsX, grid.cellsY, wDev, hDev])
+  }, [outerReduced, innerCells, ellipseFractions, grid.cellsX, grid.cellsY, valid])
 
   // Spinner covers both the image load and the palette fetch: a valid grid
   // with no palette yet would otherwise paint the raw-means preview.
@@ -271,11 +253,11 @@ export function CirculatePreviewPane({ sourceImageUrl, displayMmW, displayMmH, c
           className="flex items-center justify-center"
           style={{ width: "fit-content", minWidth: "100%", height: "fit-content", minHeight: "100%" }}
         >
-          <canvas
-            ref={canvasRef}
+          <div
             className="relative block"
-            style={{ width: display?.w ?? 0, height: display?.h ?? 0 }}
+            style={{ width: display?.w ?? 0, height: display?.h ?? 0, lineHeight: 0 }}
             data-testid="circulate-preview-mini"
+            {...(svgHtml ? { dangerouslySetInnerHTML: { __html: svgHtml } } : {})}
           />
         </div>
       </div>
