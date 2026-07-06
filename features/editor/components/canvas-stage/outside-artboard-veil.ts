@@ -5,8 +5,8 @@
  * pasteboard) gets the same white veil as the print padding, so the artboard
  * "pops" and it's clear what lies outside the printable page.
  *
- * Returns the rects covering the visible viewport MINUS the artboard rect
- * `[0,0]…[artW,artH]`, in world coordinates. Corners are covered exactly once
+ * Returns the rects covering the visible viewport MINUS the given artboard
+ * rect, in world coordinates. Corners are covered exactly once
  * (top/bottom span the full visible width; left/right only the middle band) so
  * a semi-transparent fill stays uniform. The artboard edges are clamped into
  * the visible bounds, so any artboard position (partly or fully off-screen) is
@@ -16,17 +16,23 @@ export type VeilRect = { key: string; x: number; y: number; width: number; heigh
 
 export type VisibleBounds = { left: number; top: number; right: number; bottom: number }
 
-export function computeOutsideArtboardRects(vis: VisibleBounds, artW: number, artH: number): VeilRect[] {
-  if (!(artW > 0) || !(artH > 0)) return []
+/** Artboard rect in world coords. Passing an explicit rect (rather than just
+ * width/height) lets the caller device-pixel-snap the edges so the veil's
+ * semi-transparent boundary and the white artboard fill meet on the SAME
+ * device pixel — no faint partial-coverage hairline at the page edge. */
+export type ArtboardRect = { left: number; top: number; right: number; bottom: number }
+
+export function computeOutsideArtboardRects(vis: VisibleBounds, art: ArtboardRect): VeilRect[] {
+  if (!(art.right > art.left) || !(art.bottom > art.top)) return []
 
   const { left, top, right, bottom } = vis
   if (!(right > left) || !(bottom > top)) return []
 
   // Artboard edges clamped into the visible band.
-  const aTop = Math.min(Math.max(0, top), bottom)
-  const aBottom = Math.min(Math.max(artH, top), bottom)
-  const aLeft = Math.min(Math.max(0, left), right)
-  const aRight = Math.min(Math.max(artW, left), right)
+  const aTop = Math.min(Math.max(art.top, top), bottom)
+  const aBottom = Math.min(Math.max(art.bottom, top), bottom)
+  const aLeft = Math.min(Math.max(art.left, left), right)
+  const aRight = Math.min(Math.max(art.right, left), right)
 
   const rects: VeilRect[] = []
   const push = (key: string, x: number, y: number, w: number, h: number) => {
