@@ -28,21 +28,24 @@ result. It splits into three layers: pure-math canvas model
   middle button shows the active of the five sections **Artboard · Image ·
   Filter · Trace · Color** in a grey chip and opens a dropdown listing the
   others; the chevrons step the pipeline order. It is built from reusable nav
-  primitives (`NavIconButton` = 32px icon button with an active chip;
-  `navPillClass` / `navMenu*Class` in `floating-bar-styles.ts`) on the `neutral`
-  scale per the Figma nav design — reused by the tools bar next. Then `EditorTopBar`
-  (the active section's function frames — `EditorFunctionList`, always
-  visible, driving apply/edit/delete) top-right, beneath the theme bar.
-  The canvas `FloatingToolbar` (tools + zoom/fit/rotate) is a vertical
-  pill on the right edge (shown on the **Image** section). Per-surface
+  primitives (`ToolbarIconButton` with `activeStyle="chip"` = 32px icon button
+  with an active chip; `navPillClass` / `navMenu*Class` in `floating-bar-styles.ts`)
+  on the `neutral` scale per the Figma nav design. **Token note:** `--radius` is
+  10px, so the nav pins exact `rounded-[8px]`/`rounded-[6px]` (NOT `rounded-lg`/`md`,
+  which resolve to 10px/8px). Each section's actions live in a **per-section
+  top-right bar** (`EditorArtboardBar` / `EditorImageBar` / `EditorFilterBar` /
+  `EditorTraceBar` — add / edit / delete, beneath the theme bar).
+  The canvas tools bar (`EditorToolsBar`, tools + zoom/fit/rotate) is a
+  **horizontal** pill at **bottom-centre** (shown on the **Image** section). Per-surface
   scopes drive the trace `TraceSheet` and the standalone sheets
   `ArtboardSheet` (artboard size + page-background) / `GridSheet` (both
   Artboard section) / `ImageSheet` (Image section). All three route
   through `ArtboardSurfaceScope`'s `activeDialog`; that scope is mounted
   for BOTH the `artboard` and `image` sections (a single conditional, so
   the instance survives an artboard↔image switch). `Image` is its own
-  `EDITOR_SECTIONS` entry — not a sub-mode of `artboard`. `EditorNav` (top-left) also hosts the theme toggle
-  and Trace's Eye (view-options). Most dialogs/sheets render fullscreen
+  `EDITOR_SECTIONS` entry — not a sub-mode of `artboard`. Top-left, `EditorHomeBar`
+  + `EditorViewBar` host Home, the theme toggle and Trace's Eye (view-options).
+  Most dialogs/sheets render fullscreen
   on every viewport. The **`ImageSheet`** is the Feather-3D exception:
   mobile fullscreen, desktop a centred rounded panel; tone-aware
   (dark/light via a scoped `dark` class driven by `EditorToolbarTone`),
@@ -183,7 +186,7 @@ anchor** for `project_image_state` is the working_copy (PR #257).
 | Tab | Sidebar | State read | State written | Stage display |
 |---|---|---|---|---|
 | **Image** | layers (`editor-nav-tree`) | `project_image_state` at working_copy.id | `project_image_state` at working_copy.id | working_copy / filter-tip raster |
-| **Filter** | "+" kind-menu (`EditorTopBar`) — apply / remove / unlock | `project_image_filters` + `filter_working_copy` rows; `project_image_state` at working_copy.id | `project_image_filters`, `project_images(kind='filter_working_copy')`, `project_image_state` at working_copy.id | filter chain tip raster |
+| **Filter** | "+" kind-menu (`EditorFilterBar`) — apply / remove / unlock | `project_image_filters` + `filter_working_copy` rows; `project_image_state` at working_copy.id | `project_image_filters`, `project_images(kind='filter_working_copy')`, `project_image_state` at working_copy.id | filter chain tip raster |
 | **Trace** | trace section (`TraceSidebarSection`) | `project_image_trace`, `project_image_state` at working_copy.id | `project_image_trace` (single row), `project_images(kind='trace_output'/'trace_base')` — `project_image_state` is **not** mutated (non-destructive) | working_copy / filter-tip raster + trace render (pixelate: Konva cells+grid via `PixelateTraceOverlay` + DOM numbers; lineart/circulate: full DOM SVG), positioned at `project_image_state` for working_copy.id |
 | Colors / Output | — | — | — | removed 2026-05-11 (PR #89) |
 

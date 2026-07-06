@@ -31,8 +31,8 @@ export type TraceSurfaceScopeProps = {
   isLoadingInitial: boolean
   trace: { kind: TraceKind; params: Record<string, unknown> } | null
   onClearTrace: () => void | Promise<void>
-  /** Cross-mount channel from `EditorFuncsBar`: when a trace kind
-   * has been requested from outside this scope, open the matching
+  /** Cross-mount channel from the Trace top-right bar's Edit action: when a
+   * trace kind has been requested from outside this scope, open the matching
    * configure dialog directly (skip the picker) and signal consume. */
   pendingKindOpen?: TraceKind | null
   onConsumePendingKindOpen?: () => void
