@@ -32,6 +32,7 @@ import { PaddingInnerBorder } from "./canvas-stage/padding-inner-border"
 import { GridOverlay } from "./canvas-stage/grid-overlay"
 import { computePaddingContentRect, computePaddingStripes } from "./canvas-stage/padding-stripes"
 import { computeOutsideArtboardRects } from "./canvas-stage/outside-artboard-veil"
+import { snapWorldToWholeDevicePixel } from "./canvas-stage/pixel-snap"
 import { SelectionOverlay } from "./canvas-stage/selection-overlay"
 import { useWheelZoomGuard } from "./canvas-stage/stage-lifecycle-controller"
 import { createTransformController } from "./canvas-stage/transform-controller"
@@ -428,6 +429,16 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
   // Outside-artboard preview: the same white veil over the visible area outside
   // the page (image spilling over the edge + empty pasteboard). Bounds derived
   // from the stage viewport mapped back into world space via the view transform.
+  // Artboard rect with edges snapped to WHOLE device pixels. Both the white
+  // artboard fill and the semi-transparent veil use this rect, so their shared
+  // boundary lands on the same device pixel — a fractional (unsnapped) edge
+  // leaves a faint partial-coverage "light hairline" at the page edge.
+  const artRectDev = useMemo(() => {
+    if (!drawArtboard || !(view.scale > 0)) return { left: 0, top: 0, right: artW, bottom: artH }
+    const snap = (worldCoord: number, axis: "x" | "y") => snapWorldToWholeDevicePixel({ worldCoord, axis, view })
+    return { left: snap(0, "x"), top: snap(0, "y"), right: snap(artW, "x"), bottom: snap(artH, "y") }
+  }, [drawArtboard, view, artW, artH])
+
   const outsideArtboardRects = useMemo(() => {
     if (!drawArtboard || !(view.scale > 0) || !(size.w > 0) || !(size.h > 0)) return []
     const vis = {
@@ -436,8 +447,8 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
       right: (size.w - view.x) / view.scale,
       bottom: (size.h - view.y) / view.scale,
     }
-    return computeOutsideArtboardRects(vis, artW, artH)
-  }, [drawArtboard, view, size, artW, artH])
+    return computeOutsideArtboardRects(vis, artRectDev)
+  }, [drawArtboard, view, size, artRectDev])
 
   const { fitToView, zoomIn, zoomOut } = useViewController({
     hasArtboard,
@@ -779,7 +790,16 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
             layerRef.current = n
           }}
         >
-          {drawArtboard ? <Rect x={0} y={0} width={artW} height={artH} fill="#ffffff" listening={false} /> : null}
+          {drawArtboard ? (
+            <Rect
+              x={artRectDev.left}
+              y={artRectDev.top}
+              width={artRectDev.right - artRectDev.left}
+              height={artRectDev.bottom - artRectDev.top}
+              fill="#ffffff"
+              listening={false}
+            />
+          ) : null}
 
           <Group
             clipX={shouldClipToArtboard ? 0 : undefined}

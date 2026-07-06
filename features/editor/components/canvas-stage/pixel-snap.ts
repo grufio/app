@@ -24,3 +24,21 @@ export function snapWorldToDeviceHalfPixel(args: { worldCoord: number; axis: "x"
   return (snapped - offset) / scale
 }
 
+/**
+ * Snap a world coordinate so it lands on a WHOLE device-pixel boundary. Used
+ * for FILL edges (not stroke centers): a semi-transparent fill whose edge sits
+ * on a fractional device pixel leaves a partial-coverage (lighter) row — e.g.
+ * the artboard veil's faint hairline at the page edge. Rounding the edge to a
+ * whole device pixel removes that partial row. Shares the CSS↔device↔world
+ * conversion with the half-pixel snap; only the target (N vs N+0.5) differs.
+ */
+export function snapWorldToWholeDevicePixel(args: { worldCoord: number; axis: "x" | "y"; view: ViewState }): number {
+  const { worldCoord, axis, view } = args
+  const scale = view.scale || 1
+  const offset = axis === "x" ? view.x : view.y
+  const dpr = getDevicePixelRatio()
+  const screenDev = (offset + worldCoord * scale) * dpr
+  const snapped = Math.round(screenDev) / dpr
+  return (snapped - offset) / scale
+}
+
