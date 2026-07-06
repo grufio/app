@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
   backoffDelayMs,
@@ -153,25 +153,65 @@ describe("callFilterService", () => {
     expect(result.ok).toBe(true)
   })
 
-  it("returns service_unavailable when all attempts hit 502", async () => {
+  it("returns service_unavailable when all attempts hit 502 and logs one structured exhaustion record", async () => {
     let calls = 0
     const fetchImpl = (async () => {
       calls += 1
       return new Response("bad gateway", { status: 502 })
     }) as unknown as typeof fetch
-    const result = await callFilterService({
-      path: "/filters/bw_hard",
-      body: { x: 1 },
-      fetchImpl,
-      sleep: async () => {},
-      maxAttempts: 3,
+    const warnings: string[] = []
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation((msg) => {
+      warnings.push(String(msg))
     })
+    let result
+    try {
+      result = await callFilterService({
+        path: "/filters/bw_hard",
+        body: { x: 1 },
+        fetchImpl,
+        sleep: async () => {},
+        maxAttempts: 3,
+      })
+    } finally {
+      warnSpy.mockRestore()
+    }
     expect(calls).toBe(3)
     expect(result.ok).toBe(false)
     if (!result.ok) {
       expect(result.stage).toBe("service_unavailable")
       expect(result.status).toBe(502)
     }
+    expect(warnings).toHaveLength(1)
+    const record = JSON.parse(warnings[0])
+    expect(record).toMatchObject({
+      kind: "filter-service-retry-exhausted",
+      path: "/filters/bw_hard",
+      attempts: 3,
+      last_status: 502,
+    })
+    expect(typeof record.wall_clock_ms).toBe("number")
+  })
+
+  it("does not log an exhaustion record when a retry eventually succeeds", async () => {
+    let calls = 0
+    const fetchImpl = (async () => {
+      calls += 1
+      if (calls === 1) return new Response("cold start", { status: 503 })
+      return new Response(stubBytes, { status: 200 })
+    }) as unknown as typeof fetch
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      const result = await callFilterService({
+        path: "/filters/bw_hard",
+        body: { x: 1 },
+        fetchImpl,
+        sleep: async () => {},
+      })
+      expect(result.ok).toBe(true)
+    } finally {
+      warnSpy.mockRestore()
+    }
+    expect(warnSpy).not.toHaveBeenCalled()
   })
 
   it("does not retry terminal 400 (returns filter_failed immediately)", async () => {

@@ -212,6 +212,7 @@ export async function callFilterService<R extends "bytes" | "json" = "bytes">(op
   const url = `${FILTER_SERVICE_BASE_URL}${opts.path}`
   const headers = filterServiceHeaders()
   const bodyText = JSON.stringify(opts.body)
+  const startedAt = performance.now()
 
   let lastReason = ""
   let lastStatus = 0
@@ -282,6 +283,23 @@ export async function callFilterService<R extends "bytes" | "json" = "bytes">(op
       await sleep(backoffDelayMs(attempt))
     }
   }
+
+  // Retries exhausted on transient failures. Emit one structured record so
+  // operators can see how often (and how slowly) the filter service gives
+  // up — otherwise this path is invisible: the caller only sees a friendly
+  // `service_unavailable`. Kind-tagged like the filter-profile log above so
+  // it's greppable in Vercel/Cloud Run logs. Always on (unlike the profiler)
+  // because exhaustion is rare and always worth seeing.
+  console.warn(
+    JSON.stringify({
+      kind: "filter-service-retry-exhausted",
+      path: opts.path,
+      attempts: maxAttempts,
+      wall_clock_ms: Number((performance.now() - startedAt).toFixed(1)),
+      last_status: lastStatus || null,
+      last_reason: lastReason || null,
+    }),
+  )
 
   return {
     ok: false,
