@@ -150,7 +150,9 @@ const NAV_MENU_TONE: Record<ToolbarTone, { content: string; item: string }> = {
   },
 }
 export function navMenuContentClass(tone: ToolbarTone): string {
-  return cn("w-28 min-w-0 gap-1 rounded-[8px] border-0 p-1", NAV_MENU_TONE[tone].content)
+  // `flex flex-col` is required — DropdownMenuContent is a block by default, so
+  // `gap-1` (the 4px row gap) has no effect without it.
+  return cn("flex flex-col w-28 min-w-0 gap-1 rounded-[8px] border-0 p-1", NAV_MENU_TONE[tone].content)
 }
 export function navMenuItemClass(tone: ToolbarTone): string {
   // radius 6px exact (rounded-md would be 8px here).
