@@ -85,6 +85,7 @@ ALTER TYPE "storage"."buckettype" OWNER TO "supabase_storage_admin";
 
 CREATE OR REPLACE FUNCTION "public"."append_project_image_filter"("p_project_id" "uuid", "p_input_image_id" "uuid", "p_output_image_id" "uuid", "p_filter_type" "text", "p_filter_params" "jsonb" DEFAULT '{}'::"jsonb") RETURNS "uuid"
     LANGUAGE "plpgsql"
+    SET "search_path" TO 'public', 'pg_temp'
     AS $$
 declare
   v_inserted_id uuid;
@@ -287,6 +288,7 @@ ALTER FUNCTION "public"."delete_master_with_cascade"("p_project_id" "uuid") OWNE
 
 CREATE OR REPLACE FUNCTION "public"."delete_project"("p_project_id" "uuid") RETURNS "uuid"
     LANGUAGE "plpgsql"
+    SET "search_path" TO 'public', 'pg_temp'
     AS $$
 declare
   v_owner uuid;
@@ -416,6 +418,7 @@ ALTER FUNCTION "public"."project_workspace_sync_px_cache"() OWNER TO "postgres";
 
 CREATE OR REPLACE FUNCTION "public"."remove_project_image_filter"("p_project_id" "uuid", "p_filter_id" "uuid", "p_rewires" "jsonb" DEFAULT '[]'::"jsonb") RETURNS "void"
     LANGUAGE "plpgsql"
+    SET "search_path" TO 'public', 'pg_temp'
     AS $$
 declare
   v_target_project uuid;
