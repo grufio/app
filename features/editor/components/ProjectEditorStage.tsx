@@ -203,12 +203,11 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
             </div>
           </div>
         ) : null}
-        {/* Floating toolbar overlay (Figma-like), right side, vertical,
-            vertically centred on the canvas. Only shown on the Image section
-            (the shell gates `showToolsBar`); other sections don't use the
-            canvas-editing tools. */}
+        {/* Floating toolbar overlay (Figma-like), horizontal, bottom-centre.
+            Only shown on the Image section (the shell gates `showToolsBar`);
+            other sections don't use the canvas-editing tools. */}
         {showToolsBar ? (
-          <div className="absolute top-1/2 right-3 z-10 w-max -translate-y-1/2">
+          <div className="absolute bottom-4 left-1/2 z-10 w-max -translate-x-1/2">
             <EditorToolsBar
               className="pointer-events-auto"
               tool={toolbar.tool}
