@@ -1,7 +1,7 @@
 "use client"
 
 /**
- * tools bar — the vertical canvas toolbar (right side).
+ * tools bar — the horizontal canvas toolbar (bottom centre).
  *
  * Tool roles (Illustrator-style):
  *   object — filled arrow. Whole-image drag/resize. Default on every tab.
@@ -64,7 +64,7 @@ function IconButton({
           {children}
         </ToolbarIconButton>
       </TooltipTrigger>
-      <TooltipContent side="left" align="center">
+      <TooltipContent side="top" align="center">
         {label}
       </TooltipContent>
     </Tooltip>
@@ -91,9 +91,9 @@ export function EditorToolsBar({
       <div
         role="toolbar"
         aria-label="Canvas toolbar"
-        // `px-1` (not the group default `px-2`) keeps the vertical toolbar
-        // 40px wide — matching the nav pills — instead of 48px.
-        className={cn(pillClass(tone, "group"), "flex-col px-1", className)}
+        // `px-1` (not the group default `px-2`) keeps the horizontal toolbar
+        // 40px tall — matching the nav pills — instead of 48px.
+        className={cn(pillClass(tone, "group"), "flex-row px-1", className)}
       >
         {leftSlot}
         <IconButton
