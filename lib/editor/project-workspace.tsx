@@ -112,13 +112,13 @@ export function ProjectWorkspaceProvider({
 
   useEffect(() => {
     if (!row) return
-    const widthOk = parsePxUOrNull((row as unknown as { width_px_u?: unknown }).width_px_u)
-    const heightOk = parsePxUOrNull((row as unknown as { height_px_u?: unknown }).height_px_u)
+    const widthOk = parsePxUOrNull(row.width_px_u)
+    const heightOk = parsePxUOrNull(row.height_px_u)
     if (widthOk && heightOk) return
     console.error("[workspace] invalid canonical µpx detected", {
       projectId: row.project_id,
-      width_px_u: (row as unknown as { width_px_u?: unknown }).width_px_u,
-      height_px_u: (row as unknown as { height_px_u?: unknown }).height_px_u,
+      width_px_u: row.width_px_u,
+      height_px_u: row.height_px_u,
     })
     queueMicrotask(() => {
       setError((prev) => (prev === "Invalid canonical workspace size (µpx)." ? prev : "Invalid canonical workspace size (µpx)."))
@@ -209,7 +209,7 @@ export function ProjectWorkspaceProvider({
           }
           const normalized = normalizeWorkspaceRow(data)
           if (!isStale()) setRow(normalized)
-          return normalized as unknown as WorkspaceRow
+          return normalized
         } finally {
           setSaving(false)
         }
@@ -238,7 +238,7 @@ export function ProjectWorkspaceProvider({
           }
           const normalized = normalizeWorkspaceRow(data)
           if (!isStale()) setRow(normalized)
-          return normalized as unknown as WorkspaceRow
+          return normalized
         } finally {
           setSaving(false)
         }
@@ -268,7 +268,7 @@ export function ProjectWorkspaceProvider({
           }
           const normalized = normalizeWorkspaceRow(data)
           if (!isStale()) setRow(normalized)
-          return normalized as unknown as WorkspaceRow
+          return normalized
         } finally {
           setSaving(false)
         }
@@ -285,9 +285,9 @@ export function ProjectWorkspaceProvider({
   }, [initialRow?.project_id, projectId, refresh])
 
   const value = useMemo<WorkspaceContextValue>(() => {
-    const unit = row ? (row as unknown as { unit?: Unit }).unit ?? null : null
-    const widthPxU = row ? parsePxUOrNull((row as unknown as { width_px_u?: unknown }).width_px_u) : null
-    const heightPxU = row ? parsePxUOrNull((row as unknown as { height_px_u?: unknown }).height_px_u) : null
+    const unit = row ? row.unit ?? null : null
+    const widthPxU = row ? parsePxUOrNull(row.width_px_u) : null
+    const heightPxU = row ? parsePxUOrNull(row.height_px_u) : null
     const widthPx = row && Number.isFinite(Number(row.width_px)) ? Number(row.width_px) : null
     const heightPx = row && Number.isFinite(Number(row.height_px)) ? Number(row.height_px) : null
     return {

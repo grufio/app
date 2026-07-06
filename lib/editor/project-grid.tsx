@@ -127,7 +127,7 @@ export function ProjectGridProvider({
 
         const normalized = normalizeProjectGridRow(data)
         setRow(normalized)
-        return normalized as unknown as ProjectGridRow
+        return normalized
       } finally {
         setSaving(false)
       }
@@ -150,7 +150,7 @@ export function ProjectGridProvider({
       }
       const normalized = normalizeProjectGridRow(ins)
       setRow(normalized)
-      return normalized as unknown as ProjectGridRow
+      return normalized
     } finally {
       setSaving(false)
     }
@@ -204,7 +204,7 @@ export function ProjectGridProvider({
   }, [row?.unit, workspaceUnit])
 
   const value = useMemo<ProjectGridContextValue>(() => {
-    const unit = row ? normalizeGridUnit((row as unknown as { unit?: unknown })?.unit) : null
+    const unit = row ? normalizeGridUnit(row.unit) : null
     const spacingXPx =
       row && unit ? Number(unitToPxFixed(Number(row.spacing_x_value), unit as Unit)) : null
     const spacingYPx =

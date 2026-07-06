@@ -48,7 +48,7 @@ export const ArtboardPanel = memo(function ArtboardPanel({
   const { row, saving, updateWorkspaceGeometry, widthPxU, heightPxU } =
     useProjectWorkspace()
 
-  const computedUnit = row ? normalizeUnit((row as unknown as { unit?: unknown })?.unit) : "mm"
+  const computedUnit = row ? normalizeUnit(row.unit) : "mm"
   const computedWidth = row ? fmt2(Number(row.width_value)) : ""
   const computedHeight = row ? fmt2(Number(row.height_value)) : ""
 
