@@ -303,6 +303,19 @@ jobs:
       - name: Run integration tests against local Supabase
         run: npm run test:integration:ci
 
+      - name: Verify FK actions match db/schema.sql
+        # The prior step's `supabase start` leaves a freshly-migrated local
+        # DB up. Diff its FK ON DELETE/ON UPDATE actions against db/schema.sql
+        # — the migration-chain <-> schema check no other gate makes
+        # (schema_sync_check only asserts both files were touched;
+        # verify:schema-drift compares schema.sql <-> prod and needs --linked
+        # creds this job doesn't have). Closes the H1 drift class (#588).
+        # FK_ACTIONS_REQUIRE_DB=1 makes an unreachable stack a hard failure
+        # instead of a silent skip.
+        env:
+          FK_ACTIONS_REQUIRE_DB: "1"
+        run: npm run verify:fk-actions-synced
+
       - name: Save Docker images for next run
         if: steps.docker-cache.outputs.cache-hit != 'true'
         run: |
