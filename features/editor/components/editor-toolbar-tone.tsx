@@ -3,8 +3,8 @@
 /**
  * Tone (dark | light) for the floating canvas bars — the home / view bars
  * (`EditorHomeBar`, `EditorViewBar` which hosts the theme toggle + Eye), the
- * top-centre section stepper (`EditorSectionStepper`), the funcs bar
- * (`EditorFuncsBar`) and the tools bar (`EditorToolsBar`).
+ * top-centre section stepper (`EditorSectionStepper`), the per-section
+ * top-right bars and the tools bar (`EditorToolsBar`).
  *
  * The shell holds the tone as a manual session setting (default `"dark"`,
  * flipped by the theme toggle in `EditorViewBar`) and provides it here so the bar

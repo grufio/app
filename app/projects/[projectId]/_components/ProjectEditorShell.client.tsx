@@ -22,7 +22,6 @@ import { deriveSectionLocks } from "@/lib/editor/section-locks"
 import { EditorHomeBar } from "@/features/editor/components/editor-home-bar"
 import { EditorViewBar } from "@/features/editor/components/editor-view-bar"
 import { EditorSectionStepper } from "@/features/editor/components/editor-section-stepper"
-import { EditorFuncsBar } from "@/features/editor/components/editor-funcs-bar"
 import { EditorArtboardBar } from "@/features/editor/components/editor-artboard-bar"
 import { EditorImageBar } from "@/features/editor/components/editor-image-bar"
 import { EditorFilterBar } from "@/features/editor/components/editor-filter-bar"
@@ -39,7 +38,6 @@ import {
 } from "@/components/ui/dialog"
 import { AppButton } from "@/components/ui/form-controls"
 import { displayTxToMm } from "@/lib/editor/trace/display-tx-to-mm"
-import type { RegisteredFilterId } from "@/lib/editor/filters/registry"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
 import { useDisplaySize } from "@/lib/editor/hooks/use-display-size"
 import { useMasterImageUploader } from "@/lib/editor/hooks/use-master-image-uploader"
@@ -541,16 +539,6 @@ export function ProjectDetailPageClient({
   const hasFilter = filterStack.length > 0
   const hasTrace = Boolean(trace)
 
-  const handleTraceKindTap = useCallback(
-    (kind: RegisteredTraceId) => {
-      setPendingTraceKindOpen(kind)
-      // Ensure the trace surface scope (which hosts the configure dialog) is
-      // mounted — idempotent when already on the trace section.
-      setEditorSection("trace")
-    },
-    [setEditorSection, setPendingTraceKindOpen],
-  )
-
   // Closing the configure dialog returns to the trace section so the
   // user lands back on the current trace state, not the Image/artboard
   // tab. The dialog itself unmounts via closeConfigure, so no stale draft
@@ -598,22 +586,6 @@ export function ProjectDetailPageClient({
     }
   }, [filterDeleteId, filterDeleteBusy, workflow])
 
-  // Map each applied filter kind → the instance id to target for delete in the
-  // top-left "+" menu. Later wins, so this is the last-applied instance of a
-  // repeated kind. A kind is "active" in the menu iff it's a key here.
-  const activeFilterByKind = useMemo(() => {
-    const m: Partial<Record<RegisteredFilterId, string>> = {}
-    for (const f of filterStack) {
-      if (f.filterType !== "unknown") m[f.filterType] = f.id
-    }
-    return m
-  }, [filterStack])
-
-  // The funcs bar (`EditorFuncsBar`) is still temporarily hidden —
-  // re-integrated step by step. The tools bar (`EditorToolsBar`) is
-  // back (right side, below the artboard bar). Flip this flag to re-enable
-  // the funcs bar too.
-  const showLegacyToolbars = false as boolean
 
   return (
     // Fixed viewport height (not min-h): the editor is a full-screen app, so
@@ -694,28 +666,6 @@ export function ProjectDetailPageClient({
           {/* Filter + Trace dialog hosts live inside their respective
               surface scope components (see the section mounts below). */}
         </EditorErrorBoundary>
-        {showLegacyToolbars ? (
-          <EditorFuncsBar
-            activeSection={editorSection}
-            onTraceKindTap={handleTraceKindTap}
-            activeTraceKind={trace?.kind ?? null}
-            onDeleteTrace={handleClearTrace}
-            activeFilterByKind={activeFilterByKind}
-            onApplyFilterKind={(k) => handleApplyFilter({ filterType: k, filterParams: {} })}
-            onRemoveFilter={handleRemoveFilter}
-            isAddFilterDisabled={isAddFilterDisabled}
-            filterLocked={sectionLocks.filterLocked}
-            hasGrid={hasGrid}
-            hasMasterImage={Boolean(masterImage)}
-            onCreateGrid={async () => {
-              await createGrid()
-              setGridVisible(true)
-            }}
-            onOpenArtboard={(dialog) => setPendingArtboardDialog(dialog)}
-            imageLocked={sectionLocks.imageLocked}
-          />
-        ) : null}
-
         {/* Artboard-section top-right submenu: Artboard / Grid (2 × 40px circles). */}
         {editorSection === "artboard" ? (
           <EditorArtboardBar onOpenDialog={(kind) => setPendingArtboardDialog(kind)} />

@@ -75,32 +75,6 @@ export function circleClass(tone: ToolbarTone, variant: ChipVariant = "active"):
   return chipClass(tone, "rounded-full", variant)
 }
 
-/** Trace-kind frames: the same chip but rounded-rect, so the kind icons keep
- * their framed look (not circles). Standalone + stacked, one per kind. */
-export function frameClass(tone: ToolbarTone, variant: ChipVariant = "active"): string {
-  return chipClass(tone, "rounded-lg", variant)
-}
-
-/**
- * The section-menu trigger: a 20×40 stadium with an ellipsis when closed,
- * morphing to a 40×40 circle with an × when open. Reuses the shared pill
- * chrome + tone material but is composed directly (not via `chipClass`) so it
- * emits exactly ONE `transition-*` utility — `transition-all`, so the size and
- * shape animate. (Two competing `transition-*` utilities would resolve by
- * stylesheet source order, not class-string order — same caution as the `bg-`
- * note above.)
- */
-export function fabTriggerClass(tone: ToolbarTone, open: boolean): string {
-  return cn(
-    PILL_COMMON,
-    "flex shrink-0 items-center justify-center transition-all duration-200",
-    open ? "size-10" : "h-5 w-10",
-    "rounded-full",
-    PILL_MATERIAL[tone],
-    CHIP_TONE[tone],
-  )
-}
-
 /**
  * New nav design (Figma node `1-2`) — a FLAT dark pill on the `neutral` scale
  * (no ring/shadow/blur, unlike `pillClass`). Built as reusable helpers because
