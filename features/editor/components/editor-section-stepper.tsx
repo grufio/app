@@ -70,7 +70,10 @@ export function EditorSectionStepper({ activeSection, onSelectSection }: Props) 
             <ActiveIcon aria-hidden="true" className="size-5" />
           </ToolbarIconButton>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="center" sideOffset={4} className={navMenuContentClass(tone)}>
+        {/* sideOffset=8, not 4: it measures from the trigger (the 32px chip),
+            which sits 4px above the 40px pill's bottom edge — so 8 = 4px inset
+            + 4px gap → 4px between the pill and the dropdown. */}
+        <DropdownMenuContent align="center" sideOffset={8} className={navMenuContentClass(tone)}>
           {SECTION_ITEMS.filter((s) => s.key !== activeSection).map(({ key, label, Icon }) => (
             <DropdownMenuItem key={key} onClick={() => onSelectSection(key)} className={navMenuItemClass(tone)}>
               <Icon aria-hidden="true" className={cn("size-5", iconInk)} />
