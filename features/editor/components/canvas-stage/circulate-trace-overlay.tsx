@@ -27,6 +27,8 @@ import { Ellipse, Group } from "react-konva"
 import type { ParsedCirculateTrace } from "@/lib/editor/trace/circulate-trace-parse"
 import type { TraceWorldRect } from "@/lib/editor/trace/trace-overlay-rect"
 
+import { useDevicePixelRatio } from "./device-pixel-ratio"
+
 export function CirculateTraceOverlay({
   parsed,
   rect,
@@ -40,6 +42,12 @@ export function CirculateTraceOverlay({
   cellsVisible: boolean
 }) {
   const { viewBoxW, viewBoxH, cells, frames } = parsed
+
+  // 1 physical device pixel — same treatment as the pixelate grid: the layer
+  // renders at `dpr`, so strokeWidth 1/dpr is one device pixel, and
+  // strokeScaleEnabled:false keeps it constant at any zoom.
+  const dpr = useDevicePixelRatio()
+  const hairline = 1 / dpr
 
   const cornerX = rect.x - rect.width / 2
   const cornerY = rect.y - rect.height / 2
@@ -57,8 +65,9 @@ export function CirculateTraceOverlay({
         radiusX: c.rx * sx,
         radiusY: c.ry * sy,
         fill: c.fill,
-        // Optional per-cell contour: physical width (crop-px → world) that scales with zoom.
-        contour: c.contour > 0 ? c.contour * sx : 0,
+        // Optional per-cell contour — rendered as the same 1-device-pixel hairline
+        // as the frames/grid (constant on screen), not its crop-px width.
+        hasContour: c.contour > 0,
       })),
     [cells, cornerX, cornerY, sx, sy],
   )
@@ -86,7 +95,7 @@ export function CirculateTraceOverlay({
               radiusX={c.radiusX}
               radiusY={c.radiusY}
               fill={c.fill}
-              {...(c.contour > 0 ? { stroke: "black", strokeWidth: c.contour } : {})}
+              {...(c.hasContour ? { stroke: "black", strokeWidth: hairline, strokeScaleEnabled: false } : {})}
               listening={false}
               perfectDrawEnabled={false}
             />
@@ -101,7 +110,7 @@ export function CirculateTraceOverlay({
           radiusY={f.radiusY}
           fill="transparent"
           stroke="black"
-          strokeWidth={1}
+          strokeWidth={hairline}
           strokeScaleEnabled={false}
           listening={false}
           perfectDrawEnabled={false}

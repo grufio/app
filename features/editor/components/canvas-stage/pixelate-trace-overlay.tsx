@@ -29,6 +29,7 @@ import { Group, Line, Rect } from "react-konva"
 import type { ParsedPixelateTrace } from "@/lib/editor/trace/pixelate-trace-parse"
 import type { TraceWorldRect } from "@/lib/editor/trace/trace-overlay-rect"
 
+import { useDevicePixelRatio } from "./device-pixel-ratio"
 import { getStaticLineRenderProps } from "./line-rendering"
 
 export function PixelateTraceOverlay({
@@ -88,7 +89,11 @@ export function PixelateTraceOverlay({
     return lines
   }, [gridXs, gridYs, cornerX, cornerY, rect.width, rect.height, viewBoxW, viewBoxH, snapWorldToDeviceHalfPixel])
 
-  const lineProps = getStaticLineRenderProps(1)
+  // 1 physical device pixel: the layer renders at `dpr`, so strokeWidth 1/dpr
+  // is exactly one device pixel (the thinnest crisp hairline). strokeScaleEnabled
+  // is false, so it stays 1 device px at any zoom.
+  const dpr = useDevicePixelRatio()
+  const lineProps = getStaticLineRenderProps(1 / dpr)
 
   return (
     <Group x={rect.x} y={rect.y} offsetX={rect.x} offsetY={rect.y} rotation={rotation} listening={false}>
