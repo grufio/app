@@ -7,8 +7,443 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.1"
+  }
   public: {
     Tables: {
+      color_acryl_schmincke_primacryl: {
+        Row: {
+          code: string
+          created_at: string
+          density_g_per_ml: number | null
+          id: string
+          lightfastness: number | null
+          name: string
+          opacity: string | null
+          pigment_codes: string[] | null
+          swatch_storage_path: string | null
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          density_g_per_ml?: number | null
+          id?: string
+          lightfastness?: number | null
+          name: string
+          opacity?: string | null
+          pigment_codes?: string[] | null
+          swatch_storage_path?: string | null
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          density_g_per_ml?: number | null
+          id?: string
+          lightfastness?: number | null
+          name?: string
+          opacity?: string | null
+          pigment_codes?: string[] | null
+          swatch_storage_path?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      color_acryl_schmincke_primacryl_variants: {
+        Row: {
+          created_at: string
+          id: string
+          paint_id: string
+          price_eur: number | null
+          price_updated_at: string | null
+          size_ml: number
+          sku: string | null
+          stock_count: number
+          updated_at: string
+          weight_g: number | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          paint_id: string
+          price_eur?: number | null
+          price_updated_at?: string | null
+          size_ml: number
+          sku?: string | null
+          stock_count?: number
+          updated_at?: string
+          weight_g?: number | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          paint_id?: string
+          price_eur?: number | null
+          price_updated_at?: string | null
+          size_ml?: number
+          sku?: string | null
+          stock_count?: number
+          updated_at?: string
+          weight_g?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "color_acryl_schmincke_primacryl_variants_paint_id_fkey"
+            columns: ["paint_id"]
+            isOneToOne: false
+            referencedRelation: "color_acryl_schmincke_primacryl"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      color_oil_schmincke_norma: {
+        Row: {
+          code: string
+          created_at: string
+          density_g_per_ml: number | null
+          id: string
+          lightfastness: number | null
+          name: string
+          opacity: string | null
+          pigment_codes: string[] | null
+          swatch_storage_path: string | null
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          density_g_per_ml?: number | null
+          id?: string
+          lightfastness?: number | null
+          name: string
+          opacity?: string | null
+          pigment_codes?: string[] | null
+          swatch_storage_path?: string | null
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          density_g_per_ml?: number | null
+          id?: string
+          lightfastness?: number | null
+          name?: string
+          opacity?: string | null
+          pigment_codes?: string[] | null
+          swatch_storage_path?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      color_oil_schmincke_norma_variants: {
+        Row: {
+          created_at: string
+          id: string
+          paint_id: string
+          price_eur: number | null
+          price_updated_at: string | null
+          size_ml: number
+          sku: string | null
+          stock_count: number
+          updated_at: string
+          weight_g: number | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          paint_id: string
+          price_eur?: number | null
+          price_updated_at?: string | null
+          size_ml: number
+          sku?: string | null
+          stock_count?: number
+          updated_at?: string
+          weight_g?: number | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          paint_id?: string
+          price_eur?: number | null
+          price_updated_at?: string | null
+          size_ml?: number
+          sku?: string | null
+          stock_count?: number
+          updated_at?: string
+          weight_g?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "color_oil_schmincke_norma_variants_paint_id_fkey"
+            columns: ["paint_id"]
+            isOneToOne: false
+            referencedRelation: "color_oil_schmincke_norma"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lab_custom: {
+        Row: {
+          created_at: string
+          hex: string
+          id: string
+          name: string | null
+          oklab_a: number
+          oklab_b: number
+          oklab_l: number
+          rgb_b: number
+          rgb_g: number
+          rgb_r: number
+        }
+        Insert: {
+          created_at?: string
+          hex: string
+          id?: string
+          name?: string | null
+          oklab_a: number
+          oklab_b: number
+          oklab_l: number
+          rgb_b: number
+          rgb_g: number
+          rgb_r: number
+        }
+        Update: {
+          created_at?: string
+          hex?: string
+          id?: string
+          name?: string | null
+          oklab_a?: number
+          oklab_b?: number
+          oklab_l?: number
+          rgb_b?: number
+          rgb_g?: number
+          rgb_r?: number
+        }
+        Relationships: []
+      }
+      lab_custom_variants: {
+        Row: {
+          created_at: string
+          id: string
+          lab_custom_id: string
+          size_ml: number
+          stock_count: number
+          updated_at: string
+          weight_g: number | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lab_custom_id: string
+          size_ml: number
+          stock_count?: number
+          updated_at?: string
+          weight_g?: number | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lab_custom_id?: string
+          size_ml?: number
+          stock_count?: number
+          updated_at?: string
+          weight_g?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lab_custom_variants_lab_custom_id_fkey"
+            columns: ["lab_custom_id"]
+            isOneToOne: false
+            referencedRelation: "lab_custom"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lab_grays: {
+        Row: {
+          color_name: string
+          created_at: string
+          hex: string
+          id: string
+          notation: string
+          oklab_a: number
+          oklab_b: number
+          oklab_l: number
+          palette_index: number
+          rgb_b: number
+          rgb_g: number
+          rgb_r: number
+          value: number
+        }
+        Insert: {
+          color_name: string
+          created_at?: string
+          hex: string
+          id?: string
+          notation: string
+          oklab_a: number
+          oklab_b: number
+          oklab_l: number
+          palette_index: number
+          rgb_b: number
+          rgb_g: number
+          rgb_r: number
+          value: number
+        }
+        Update: {
+          color_name?: string
+          created_at?: string
+          hex?: string
+          id?: string
+          notation?: string
+          oklab_a?: number
+          oklab_b?: number
+          oklab_l?: number
+          palette_index?: number
+          rgb_b?: number
+          rgb_g?: number
+          rgb_r?: number
+          value?: number
+        }
+        Relationships: []
+      }
+      lab_grays_variants: {
+        Row: {
+          created_at: string
+          id: string
+          lab_grays_id: string
+          size_ml: number
+          stock_count: number
+          updated_at: string
+          weight_g: number | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lab_grays_id: string
+          size_ml: number
+          stock_count?: number
+          updated_at?: string
+          weight_g?: number | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lab_grays_id?: string
+          size_ml?: number
+          stock_count?: number
+          updated_at?: string
+          weight_g?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lab_grays_variants_lab_grays_id_fkey"
+            columns: ["lab_grays_id"]
+            isOneToOne: false
+            referencedRelation: "lab_grays"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lab_munsell: {
+        Row: {
+          chroma: number
+          color_name: string
+          created_at: string
+          hex: string
+          hue_family: string
+          hue_pct: number
+          id: string
+          notation: string
+          oklab_a: number
+          oklab_b: number
+          oklab_l: number
+          palette_index: number
+          rgb_b: number
+          rgb_g: number
+          rgb_r: number
+          value: number
+        }
+        Insert: {
+          chroma: number
+          color_name: string
+          created_at?: string
+          hex: string
+          hue_family: string
+          hue_pct: number
+          id?: string
+          notation: string
+          oklab_a: number
+          oklab_b: number
+          oklab_l: number
+          palette_index: number
+          rgb_b: number
+          rgb_g: number
+          rgb_r: number
+          value: number
+        }
+        Update: {
+          chroma?: number
+          color_name?: string
+          created_at?: string
+          hex?: string
+          hue_family?: string
+          hue_pct?: number
+          id?: string
+          notation?: string
+          oklab_a?: number
+          oklab_b?: number
+          oklab_l?: number
+          palette_index?: number
+          rgb_b?: number
+          rgb_g?: number
+          rgb_r?: number
+          value?: number
+        }
+        Relationships: []
+      }
+      lab_munsell_variants: {
+        Row: {
+          created_at: string
+          id: string
+          lab_munsell_id: string
+          size_ml: number
+          stock_count: number
+          updated_at: string
+          weight_g: number | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lab_munsell_id: string
+          size_ml: number
+          stock_count?: number
+          updated_at?: string
+          weight_g?: number | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lab_munsell_id?: string
+          size_ml?: number
+          stock_count?: number
+          updated_at?: string
+          weight_g?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lab_munsell_variants_lab_munsell_id_fkey"
+            columns: ["lab_munsell_id"]
+            isOneToOne: false
+            referencedRelation: "lab_munsell"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_grid: {
         Row: {
           color: string
@@ -99,7 +534,7 @@ export type Database = {
           {
             foreignKeyName: "project_image_filters_project_id_fkey"
             columns: ["project_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "projects"
             referencedColumns: ["id"]
           },
@@ -408,6 +843,390 @@ export type Database = {
         }
         Relationships: []
       }
+      recipes_colors_acryl_schmincke_primacryl: {
+        Row: {
+          created_at: string
+          id: string
+          lab_custom_id: string | null
+          lab_munsell_id: string | null
+          notes: string | null
+          preview_rgb_b: number
+          preview_rgb_g: number
+          preview_rgb_r: number
+          sequence: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lab_custom_id?: string | null
+          lab_munsell_id?: string | null
+          notes?: string | null
+          preview_rgb_b: number
+          preview_rgb_g: number
+          preview_rgb_r: number
+          sequence: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lab_custom_id?: string | null
+          lab_munsell_id?: string | null
+          notes?: string | null
+          preview_rgb_b?: number
+          preview_rgb_g?: number
+          preview_rgb_r?: number
+          sequence?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recipes_colors_acryl_schmincke_primacryl_lab_custom_id_fkey"
+            columns: ["lab_custom_id"]
+            isOneToOne: false
+            referencedRelation: "lab_custom"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recipes_colors_acryl_schmincke_primacryl_lab_munsell_id_fkey"
+            columns: ["lab_munsell_id"]
+            isOneToOne: false
+            referencedRelation: "lab_munsell"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recipes_colors_acryl_schmincke_primacryl_components: {
+        Row: {
+          created_at: string
+          id: string
+          paint_id: string
+          position: number
+          recipe_id: string
+          share_pct: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          paint_id: string
+          position: number
+          recipe_id: string
+          share_pct: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          paint_id?: string
+          position?: number
+          recipe_id?: string
+          share_pct?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recipes_colors_acryl_schmincke_primacryl_compone_recipe_id_fkey"
+            columns: ["recipe_id"]
+            isOneToOne: false
+            referencedRelation: "recipes_colors_acryl_schmincke_primacryl"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recipes_colors_acryl_schmincke_primacryl_componen_paint_id_fkey"
+            columns: ["paint_id"]
+            isOneToOne: false
+            referencedRelation: "color_acryl_schmincke_primacryl"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recipes_colors_oil_schmincke_norma: {
+        Row: {
+          created_at: string
+          id: string
+          lab_custom_id: string | null
+          lab_munsell_id: string | null
+          notes: string | null
+          preview_rgb_b: number
+          preview_rgb_g: number
+          preview_rgb_r: number
+          sequence: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lab_custom_id?: string | null
+          lab_munsell_id?: string | null
+          notes?: string | null
+          preview_rgb_b: number
+          preview_rgb_g: number
+          preview_rgb_r: number
+          sequence: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lab_custom_id?: string | null
+          lab_munsell_id?: string | null
+          notes?: string | null
+          preview_rgb_b?: number
+          preview_rgb_g?: number
+          preview_rgb_r?: number
+          sequence?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recipes_colors_oil_schmincke_norma_lab_custom_id_fkey"
+            columns: ["lab_custom_id"]
+            isOneToOne: false
+            referencedRelation: "lab_custom"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recipes_colors_oil_schmincke_norma_lab_munsell_id_fkey"
+            columns: ["lab_munsell_id"]
+            isOneToOne: false
+            referencedRelation: "lab_munsell"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recipes_colors_oil_schmincke_norma_components: {
+        Row: {
+          created_at: string
+          id: string
+          paint_id: string
+          position: number
+          recipe_id: string
+          share_pct: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          paint_id: string
+          position: number
+          recipe_id: string
+          share_pct: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          paint_id?: string
+          position?: number
+          recipe_id?: string
+          share_pct?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recipes_colors_oil_schmincke_norma_components_paint_id_fkey"
+            columns: ["paint_id"]
+            isOneToOne: false
+            referencedRelation: "color_oil_schmincke_norma"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recipes_colors_oil_schmincke_norma_components_recipe_id_fkey"
+            columns: ["recipe_id"]
+            isOneToOne: false
+            referencedRelation: "recipes_colors_oil_schmincke_norma"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recipes_grays_acryl_schmincke_primacryl: {
+        Row: {
+          created_at: string
+          id: string
+          lab_custom_id: string | null
+          lab_grays_id: string | null
+          notes: string | null
+          preview_rgb_b: number
+          preview_rgb_g: number
+          preview_rgb_r: number
+          sequence: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lab_custom_id?: string | null
+          lab_grays_id?: string | null
+          notes?: string | null
+          preview_rgb_b: number
+          preview_rgb_g: number
+          preview_rgb_r: number
+          sequence: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lab_custom_id?: string | null
+          lab_grays_id?: string | null
+          notes?: string | null
+          preview_rgb_b?: number
+          preview_rgb_g?: number
+          preview_rgb_r?: number
+          sequence?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recipes_grays_acryl_schmincke_primacryl_lab_custom_id_fkey"
+            columns: ["lab_custom_id"]
+            isOneToOne: false
+            referencedRelation: "lab_custom"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recipes_grays_acryl_schmincke_primacryl_lab_grays_id_fkey"
+            columns: ["lab_grays_id"]
+            isOneToOne: false
+            referencedRelation: "lab_grays"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recipes_grays_acryl_schmincke_primacryl_components: {
+        Row: {
+          created_at: string
+          id: string
+          paint_id: string
+          position: number
+          recipe_id: string
+          share_pct: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          paint_id: string
+          position: number
+          recipe_id: string
+          share_pct: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          paint_id?: string
+          position?: number
+          recipe_id?: string
+          share_pct?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recipes_grays_acryl_schmincke_primacryl_componen_recipe_id_fkey"
+            columns: ["recipe_id"]
+            isOneToOne: false
+            referencedRelation: "recipes_grays_acryl_schmincke_primacryl"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recipes_grays_acryl_schmincke_primacryl_component_paint_id_fkey"
+            columns: ["paint_id"]
+            isOneToOne: false
+            referencedRelation: "color_acryl_schmincke_primacryl"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recipes_grays_oil_schmincke_norma: {
+        Row: {
+          created_at: string
+          id: string
+          lab_custom_id: string | null
+          lab_grays_id: string | null
+          notes: string | null
+          preview_rgb_b: number
+          preview_rgb_g: number
+          preview_rgb_r: number
+          sequence: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lab_custom_id?: string | null
+          lab_grays_id?: string | null
+          notes?: string | null
+          preview_rgb_b: number
+          preview_rgb_g: number
+          preview_rgb_r: number
+          sequence: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lab_custom_id?: string | null
+          lab_grays_id?: string | null
+          notes?: string | null
+          preview_rgb_b?: number
+          preview_rgb_g?: number
+          preview_rgb_r?: number
+          sequence?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recipes_grays_oil_schmincke_norma_lab_custom_id_fkey"
+            columns: ["lab_custom_id"]
+            isOneToOne: false
+            referencedRelation: "lab_custom"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recipes_grays_oil_schmincke_norma_lab_grays_id_fkey"
+            columns: ["lab_grays_id"]
+            isOneToOne: false
+            referencedRelation: "lab_grays"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recipes_grays_oil_schmincke_norma_components: {
+        Row: {
+          created_at: string
+          id: string
+          paint_id: string
+          position: number
+          recipe_id: string
+          share_pct: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          paint_id: string
+          position: number
+          recipe_id: string
+          share_pct: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          paint_id?: string
+          position?: number
+          recipe_id?: string
+          share_pct?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recipes_grays_oil_schmincke_norma_components_paint_id_fkey"
+            columns: ["paint_id"]
+            isOneToOne: false
+            referencedRelation: "color_oil_schmincke_norma"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recipes_grays_oil_schmincke_norma_components_recipe_id_fkey"
+            columns: ["recipe_id"]
+            isOneToOne: false
+            referencedRelation: "recipes_grays_oil_schmincke_norma"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       schema_migrations: {
         Row: {
           applied_at: string
@@ -630,4 +1449,3 @@ export const Constants = {
     },
   },
 } as const
-
