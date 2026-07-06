@@ -18,27 +18,22 @@
  */
 import { NextResponse } from "next/server"
 
+import { createRateLimiter } from "@/lib/api/rate-limit-bucket"
 import { isUuid } from "@/lib/api/route-guards"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
-// Per-IP token bucket so a malicious caller can't flood Vercel function
-// logs. Module-scope is per-instance — Vercel may run many instances, but
-// each rate-limits its own share. Good enough for a noise floor.
-const BUCKET = new Map<string, { count: number; windowStart: number }>()
-const MAX_EVENTS_PER_MINUTE = 60
+// Per-IP fixed-window limiter so a malicious caller can't flood Vercel
+// function logs. Module-scope is per-instance — Vercel may run many
+// instances, but each rate-limits its own share. Good enough for a noise
+// floor. The limiter self-prunes (time sweep + hard cap) so a stream of
+// one-shot IPs can't grow the map without bound. `maxKeys` is a generous
+// backstop for a single-window unique-IP flood.
+const limiter = createRateLimiter({ maxPerWindow: 60, windowMs: 60_000, maxKeys: 10_000 })
 
 function rateLimited(ip: string): boolean {
-  const now = Date.now()
-  const entry = BUCKET.get(ip)
-  if (!entry || now - entry.windowStart > 60_000) {
-    BUCKET.set(ip, { count: 1, windowStart: now })
-    return false
-  }
-  entry.count += 1
-  if (entry.count > MAX_EVENTS_PER_MINUTE) return true
-  return false
+  return limiter.limited(ip)
 }
 
 function clientIp(req: Request): string {
