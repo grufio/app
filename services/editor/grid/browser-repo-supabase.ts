@@ -6,10 +6,33 @@
  * - Keep the select list centralized to avoid drift.
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { z } from "zod"
 
 import type { ProjectGridRow } from "./types"
 
 const SELECT_GRID = "project_id,color,unit,spacing_x_value,spacing_y_value,line_width_value"
+
+// All `project_grid` columns are NOT NULL; validate at the persistence boundary
+// so a schema drift fails LOUD here instead of coercing silently downstream.
+const gridRowShape = z.object({
+  project_id: z.string(),
+  color: z.string(),
+  unit: z.string(),
+  spacing_x_value: z.number(),
+  spacing_y_value: z.number(),
+  line_width_value: z.number(),
+})
+
+/** Parse a raw PostgREST row into a validated `ProjectGridRow`. Throws on shape
+ * drift; returns `null` for a null/absent row. Single DB→app bridge for grid. */
+function parseGridRow(data: unknown): ProjectGridRow | null {
+  if (data == null) return null
+  const check = gridRowShape.safeParse(data)
+  if (!check.success) {
+    throw new Error(`project_grid row shape drift: ${check.error.message}`)
+  }
+  return data as ProjectGridRow
+}
 
 export async function selectGrid(
   supabase: SupabaseClient,
@@ -17,7 +40,7 @@ export async function selectGrid(
 ): Promise<{ row: ProjectGridRow | null; error: string | null }> {
   const { data, error } = await supabase.from("project_grid").select(SELECT_GRID).eq("project_id", projectId).maybeSingle()
   if (error) return { row: null, error: error.message }
-  return { row: (data as unknown as ProjectGridRow) ?? null, error: null }
+  return { row: parseGridRow(data), error: null }
 }
 
 export async function insertGrid(
@@ -26,7 +49,7 @@ export async function insertGrid(
 ): Promise<{ row: ProjectGridRow | null; error: string | null }> {
   const { data, error } = await supabase.from("project_grid").insert(row).select(SELECT_GRID).single()
   if (error) return { row: null, error: error.message }
-  return { row: (data as unknown as ProjectGridRow) ?? null, error: null }
+  return { row: parseGridRow(data), error: null }
 }
 
 export async function upsertGrid(
@@ -35,7 +58,7 @@ export async function upsertGrid(
 ): Promise<{ row: ProjectGridRow | null; error: string | null }> {
   const { data, error } = await supabase.from("project_grid").upsert(row, { onConflict: "project_id" }).select(SELECT_GRID).single()
   if (error) return { row: null, error: error.message }
-  return { row: (data as unknown as ProjectGridRow) ?? null, error: null }
+  return { row: parseGridRow(data), error: null }
 }
 
 export async function deleteGrid(

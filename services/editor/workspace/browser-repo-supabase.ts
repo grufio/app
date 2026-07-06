@@ -7,6 +7,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
 
+import { parseWorkspaceRow } from "./normalize"
 import type { WorkspaceRow } from "./types"
 
 const SELECT_WORKSPACE =
@@ -50,7 +51,7 @@ export async function selectWorkspace(
     .eq("project_id", projectId)
     .maybeSingle()
   if (error) return { row: null, error: mapWorkspaceDbError(error.message, "select") }
-  return { row: (data as unknown as WorkspaceRow) ?? null, error: null }
+  return { row: parseWorkspaceRow(data), error: null }
 }
 
 export async function insertWorkspace(
@@ -59,7 +60,7 @@ export async function insertWorkspace(
 ): Promise<{ row: WorkspaceRow | null; error: string | null }> {
   const { data, error } = await supabase.from("project_workspace").insert(row).select(SELECT_WORKSPACE).single()
   if (error) return { row: null, error: mapWorkspaceDbError(error.message, "insert") }
-  return { row: (data as unknown as WorkspaceRow) ?? null, error: null }
+  return { row: parseWorkspaceRow(data), error: null }
 }
 
 export async function updateWorkspaceGeometry(
@@ -100,7 +101,7 @@ export async function updateWorkspaceGeometry(
     .select(SELECT_WORKSPACE)
     .single()
   if (error) return { row: null, error: mapWorkspaceDbError(error.message, "update") }
-  return { row: (data as unknown as WorkspaceRow) ?? null, error: null }
+  return { row: parseWorkspaceRow(data), error: null }
 }
 
 export async function updateWorkspacePageBg(
@@ -124,7 +125,7 @@ export async function updateWorkspacePageBg(
     .select(SELECT_WORKSPACE)
     .single()
   if (error) return { row: null, error: mapWorkspaceDbError(error.message, "update") }
-  return { row: (data as unknown as WorkspaceRow) ?? null, error: null }
+  return { row: parseWorkspaceRow(data), error: null }
 }
 
 export async function updateWorkspacePadding(
@@ -150,5 +151,5 @@ export async function updateWorkspacePadding(
     .select(SELECT_WORKSPACE)
     .single()
   if (error) return { row: null, error: mapWorkspaceDbError(error.message, "update") }
-  return { row: (data as unknown as WorkspaceRow) ?? null, error: null }
+  return { row: parseWorkspaceRow(data), error: null }
 }
