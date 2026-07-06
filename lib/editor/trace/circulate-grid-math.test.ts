@@ -81,10 +81,10 @@ describe("circulateEllipseFractions", () => {
       inner_width_mm: 4,
       inner_height_mm: 3,
     })
-    expect(fr.outerWFrac).toBeCloseTo(0.75) // 6/8
-    expect(fr.outerHFrac).toBeCloseTo(1) // 6/6
+    expect(fr.outerWFrac).toBeCloseTo(0.75) // 6/8 (< cap, unchanged)
+    expect(fr.outerHFrac).toBeCloseTo(0.85) // 6/6 = 1.0 → capped to OUTER_MAX_FRAC so circles keep a gap
     expect(fr.innerWFrac).toBeCloseTo(0.5) // 4/8
-    expect(fr.innerHFrac).toBeCloseTo(0.5) // 3/6
+    expect(fr.innerHFrac).toBeCloseTo(0.5) // 3/6 (inner not capped)
   })
 
   it("clamps an oversized inner ellipse to 1 (renderer's (0,1] contract)", () => {
