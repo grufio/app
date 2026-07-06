@@ -41,6 +41,11 @@ console.log("[integration] Capturing connection details…")
 const env = captureEnv()
 const url = env.API_URL || env.NEXT_PUBLIC_SUPABASE_URL
 const serviceKey = env.SERVICE_ROLE_KEY || env.SUPABASE_SERVICE_ROLE_KEY
+// Anon key + JWT secret let the RLS tests build user-scoped clients. Optional
+// (defaults in _setup.ts match the standard local demo values), but forward
+// the live ones so the suite tracks whatever `supabase start` handed out.
+const anonKey = env.ANON_KEY || env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+const jwtSecret = env.JWT_SECRET
 if (!url || !serviceKey) {
   console.error("[integration] Could not read URL / service-role key from `supabase status`.")
   console.error("[integration] Got keys:", Object.keys(env).join(", "))
@@ -59,5 +64,8 @@ run("npx", ["vitest", "run", "--config", "vitest.integration.config.ts"], {
     // Forwarding the same local URL + key keeps the call self-hosted.
     NEXT_PUBLIC_SUPABASE_URL: url,
     SUPABASE_SERVICE_ROLE_KEY: serviceKey,
+    // Namespaced so they can't leak into prod-side code paths.
+    ...(anonKey ? { SUPABASE_INTEGRATION_ANON_KEY: anonKey } : {}),
+    ...(jwtSecret ? { SUPABASE_INTEGRATION_JWT_SECRET: jwtSecret } : {}),
   },
 })

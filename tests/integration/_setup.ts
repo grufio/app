@@ -45,6 +45,15 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_INTEGRATION_SERVICE_KEY ?
 const SUPABASE_DB_URL =
   process.env.SUPABASE_INTEGRATION_DB_URL ??
   "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+// Anon key + JWT secret for user-scoped (RLS-enforcing) clients. Defaults are
+// the well-known local `supabase start` demo values (identical across every
+// CLI install; not prod secrets). CI forwards the live values from
+// `supabase status` via run-integration-tests.mjs.
+const SUPABASE_ANON_KEY =
+  process.env.SUPABASE_INTEGRATION_ANON_KEY ??
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0"
+const SUPABASE_JWT_SECRET =
+  process.env.SUPABASE_INTEGRATION_JWT_SECRET ?? "super-secret-jwt-token-with-at-least-32-characters-long"
 
 /**
  * Returns a service-role Supabase client that bypasses RLS. Suitable
@@ -64,6 +73,40 @@ export function getServiceClient(): SupabaseClient<Database> {
     // Node 20 doesn't ship native WebSocket; the realtime client crashes
     // on construction without an explicit transport. We don't use realtime
     // in integration tests, but supabase-js initialises it eagerly.
+    realtime: { transport: ws as unknown as never },
+  })
+}
+
+function base64url(input: string): string {
+  return Buffer.from(input).toString("base64url")
+}
+
+/**
+ * Mints a short-lived HS256 JWT the local GoTrue/PostgREST stack accepts as
+ * an authenticated user. Signed with the local JWT secret so `auth.uid()`
+ * resolves to `userId` and RLS policies apply. Hand-rolled (no jsonwebtoken
+ * dep) because the claim set is tiny and fixed.
+ */
+function mintUserJwt(userId: string): string {
+  const header = base64url(JSON.stringify({ alg: "HS256", typ: "JWT" }))
+  const nowS = Math.floor(Date.now() / 1000)
+  const payload = base64url(
+    JSON.stringify({ sub: userId, role: "authenticated", aud: "authenticated", iat: nowS, exp: nowS + 3600 }),
+  )
+  const signingInput = `${header}.${payload}`
+  const signature = crypto.createHmac("sha256", SUPABASE_JWT_SECRET).update(signingInput).digest("base64url")
+  return `${signingInput}.${signature}`
+}
+
+/**
+ * Returns a Supabase client scoped to `userId` — requests carry the user's
+ * JWT, so RLS is enforced exactly as it is for that user in production. Use
+ * this (never the service client) to assert cross-owner isolation.
+ */
+export function getUserClient(userId: string): SupabaseClient<Database> {
+  return createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: { headers: { Authorization: `Bearer ${mintUserJwt(userId)}` } },
     realtime: { transport: ws as unknown as never },
   })
 }
