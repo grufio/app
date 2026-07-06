@@ -267,7 +267,7 @@ test("regression: filter error does not leak into restore dialog", async ({ page
   await expect(page.getByText("forced filter failure")).toHaveCount(0)
 })
 
-test.skip("storage: upload → master returns signed URL → editor renders image", async ({ page }) => {
+test("smoke: storage upload → master returns signed URL → editor renders image", async ({ page }) => {
   await page.setExtraHTTPHeaders({ "x-e2e-test": "1", "x-e2e-user": "1" })
   await setupMockRoutes(page, { withImage: false })
 
