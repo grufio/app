@@ -2467,6 +2467,18 @@ CREATE INDEX "project_image_filters_output_image_idx" ON "public"."project_image
 
 
 
+CREATE INDEX "project_image_state_image_idx" ON "public"."project_image_state" USING "btree" ("image_id");
+
+
+
+CREATE INDEX "project_image_trace_base_image_idx" ON "public"."project_image_trace" USING "btree" ("base_image_id");
+
+
+
+CREATE INDEX "project_image_trace_output_image_idx" ON "public"."project_image_trace" USING "btree" ("output_image_id");
+
+
+
 CREATE UNIQUE INDEX "project_images_active_master_kind_uidx" ON "public"."project_images" USING "btree" ("project_id") WHERE (("is_active" IS TRUE) AND ("deleted_at" IS NULL) AND ("kind" = 'master'::"public"."image_kind"));
 
 
@@ -2484,6 +2496,10 @@ CREATE UNIQUE INDEX "project_images_one_active_image_idx" ON "public"."project_i
 
 
 CREATE INDEX "project_images_project_id_idx" ON "public"."project_images" USING "btree" ("project_id");
+
+
+
+CREATE INDEX "project_images_source_image_idx" ON "public"."project_images" USING "btree" ("source_image_id");
 
 
 
