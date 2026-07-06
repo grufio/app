@@ -63,14 +63,18 @@ export function buildCirculateSvg(args: {
       }
       if (outerRx > 0 && outerRy > 0) {
         frames.push(
-          `<ellipse cx="${n(centerX)}" cy="${n(centerY)}" rx="${n(outerRx)}" ry="${n(outerRy)}" fill="none" stroke="black" stroke-width="1" vector-effect="non-scaling-stroke"/>`,
+          `<ellipse cx="${n(centerX)}" cy="${n(centerY)}" rx="${n(outerRx)}" ry="${n(outerRy)}" fill="none" stroke="rgba(0,0,0,0.55)" stroke-width="1" vector-effect="non-scaling-stroke"/>`,
         )
       }
     }
   }
 
+  // White background: circles read as a clean paint-by-numbers on paper, not
+  // muddy dots over a photo/dark canvas. (Verified: white + a gap + thin frame
+  // is what makes the mosaic look good.)
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 ${cellsX} ${cellsY}" preserveAspectRatio="none">` +
+    `<rect x="0" y="0" width="${cellsX}" height="${cellsY}" fill="#ffffff"/>` +
     `<g id="cells">${cells.join("")}</g>` +
     `<g id="frames">${frames.join("")}</g>` +
     `</svg>`

@@ -47,7 +47,7 @@ describe("buildCirculateSvg", () => {
       inner: null,
       ellipseFractions: fractions,
     })
-    expect(svg).toContain('fill="none" stroke="black" stroke-width="1" vector-effect="non-scaling-stroke"')
+    expect(svg).toContain('fill="none" stroke="rgba(0,0,0,0.55)" stroke-width="1" vector-effect="non-scaling-stroke"')
   })
 
   it("adds the inner ellipse only when inner colors are provided", () => {
