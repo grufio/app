@@ -35,7 +35,10 @@ from .cell_labels import build_label_map
 # ---- segmentation ---------------------------------------------------------
 
 def _label_regions(rgb: np.ndarray) -> tuple[np.ndarray, int]:
-    """Connected components per distinct colour → globally-unique region ids."""
+    """Connected components per distinct colour → globally-unique region ids.
+    Vectorised: each colour's components are offset into the global id space in
+    one assignment (no per-component Python loop, which was O(components×pixels)
+    and blew up on noisy real images)."""
     h, w, _ = rgb.shape
     colors, inv = np.unique(rgb.reshape(-1, 3), axis=0, return_inverse=True)
     cidx = inv.reshape(h, w).astype(np.int32)
@@ -43,47 +46,104 @@ def _label_regions(rgb: np.ndarray) -> tuple[np.ndarray, int]:
     nxt = 0
     for c in range(len(colors)):
         ncc, cc = cv2.connectedComponents((cidx == c).astype(np.uint8), connectivity=4)
-        for k in range(1, ncc):
-            labels[cc == k] = nxt
-            nxt += 1
+        if ncc <= 1:
+            continue
+        sel = cc > 0  # cc==0 is background; 1..ncc-1 are this colour's components
+        labels[sel] = cc[sel] - 1 + nxt
+        nxt += ncc - 1
     return labels, nxt
 
 
-def _region_radius(mask: np.ndarray) -> float:
-    return float(cv2.distanceTransform(mask, cv2.DIST_L2, 5).max())
+def _region_radii(labels: np.ndarray, nreg: int) -> np.ndarray:
+    """Largest-inscribed-circle radius of EVERY region in one distanceTransform.
+    Boundary pixels (a 4-neighbour differs, or the image border) are zeroed; the
+    per-pixel distance-to-boundary's max over a region is its inscribed radius."""
+    h, w = labels.shape
+    bnd = np.zeros((h, w), bool)
+    bnd[:-1] |= labels[:-1] != labels[1:]
+    bnd[1:] |= labels[1:] != labels[:-1]
+    bnd[:, :-1] |= labels[:, :-1] != labels[:, 1:]
+    bnd[:, 1:] |= labels[:, 1:] != labels[:, :-1]
+    # The image border is NOT a boundary: an edge-touching region's radius is its
+    # distance to the nearest OTHER region (matches the per-mask distanceTransform
+    # used for number placement), so large regions that merely touch the edge are
+    # not spuriously "tiny".
+    if not bnd.any():
+        return np.full(nreg, float(max(h, w)))  # a single region fills the image
+    dt = cv2.distanceTransform((~bnd).astype(np.uint8), cv2.DIST_L2, 5)
+    radii = np.zeros(nreg, np.float64)
+    np.maximum.at(radii, labels.ravel(), dt.ravel())
+    return radii
+
+
+def _region_adjacency(labels: np.ndarray) -> np.ndarray:
+    """Unique unordered (labelA, labelB) pairs of 4-adjacent regions. Vectorised."""
+    pairs = []
+    a, b = labels[:-1].ravel(), labels[1:].ravel()
+    m = a != b
+    pairs.append(np.stack([a[m], b[m]], 1))
+    a, b = labels[:, :-1].ravel(), labels[:, 1:].ravel()
+    m = a != b
+    pairs.append(np.stack([a[m], b[m]], 1))
+    p = np.concatenate(pairs, 0)
+    p.sort(axis=1)
+    return np.unique(p, axis=0)
 
 
 def merge_small_regions(labels: np.ndarray, min_radius: float) -> np.ndarray:
-    """Relabel regions whose largest inscribed circle radius < `min_radius`
-    into their largest-area 4-neighbour. Pure raster op → gap-free by
-    construction (no Shapely geometry). Iterates until stable."""
+    """Relabel regions whose inscribed-circle radius < `min_radius` into their
+    largest-area neighbour. Fully raster + vectorised: one distanceTransform for
+    all radii, one pass for adjacency, batch union-find per iteration → ~O(pixels)
+    per round instead of the old O(regions² × distanceTransform) timeout."""
     if min_radius <= 0:
         return _compact(labels)
-    kernel = np.ones((3, 3), np.uint8)
-    while True:
-        merged = False
-        for rid in np.unique(labels):
-            mask = (labels == rid).astype(np.uint8)
-            if mask.sum() == 0 or _region_radius(mask) >= min_radius:
-                continue
-            ring = cv2.dilate(mask, kernel) - mask
-            nb = labels[ring > 0]
-            nb = nb[nb != rid]
-            if nb.size == 0:
-                continue
-            vals, cnts = np.unique(nb, return_counts=True)
-            labels[mask > 0] = int(vals[cnts.argmax()])
-            merged = True
+    for _ in range(64):  # safety cap; each round is cheap and strictly shrinks
+        nreg = int(labels.max()) + 1
+        radii = _region_radii(labels, nreg)
+        tiny = np.where(radii < min_radius)[0]
+        if tiny.size == 0:
             break
-        if not merged:
-            return _compact(labels)
+        area = np.bincount(labels.ravel(), minlength=nreg).astype(np.int64)
+        pairs = _region_adjacency(labels)
+        neigh: dict[int, list[int]] = {}
+        for x, y in pairs.tolist():
+            neigh.setdefault(x, []).append(y)
+            neigh.setdefault(y, []).append(x)
+
+        parent = list(range(nreg))
+
+        def find(i: int) -> int:
+            while parent[i] != i:
+                parent[i] = parent[parent[i]]
+                i = parent[i]
+            return i
+
+        merged_any = False
+        for t in tiny[np.argsort(radii[tiny])].tolist():
+            roots = {find(n) for n in neigh.get(t, [])}
+            roots.discard(find(t))
+            if not roots:
+                continue
+            best = max(roots, key=lambda r: area[r])
+            rt, rb = find(t), best
+            if rt == rb:
+                continue
+            if area[rt] > area[rb]:
+                rt, rb = rb, rt
+            parent[rt] = rb
+            area[rb] += area[rt]
+            merged_any = True
+        if not merged_any:
+            break
+        lut = np.array([find(i) for i in range(nreg)], np.int32)
+        labels = _compact(lut[labels])
+    return _compact(labels)
 
 
 def _compact(labels: np.ndarray) -> np.ndarray:
     ids = np.unique(labels)
     lut = np.zeros(int(ids.max()) + 1, np.int32)
-    for i, v in enumerate(ids):
-        lut[int(v)] = i
+    lut[ids] = np.arange(len(ids), dtype=np.int32)
     return lut[labels]
 
 
@@ -202,21 +262,36 @@ def smooth_arc(corners, eps: float, iters: int) -> list[np.ndarray]:
 
 
 def assemble_faces(arcs, region_arcs, label) -> list[list[np.ndarray]]:
-    """Walk `label`'s arcs into closed loops using the SHARED smoothed points."""
-    unused = set(region_arcs.get(label, []))
+    """Walk `label`'s arcs into closed loops using the SHARED smoothed points.
+    Uses a junction→arcs index so the next arc at a corner is an O(degree)
+    lookup, not an O(remaining-arcs) scan (which was O(arcs²) per region)."""
+    idxs = region_arcs.get(label, [])
+    ends: dict[tuple[int, int], list[int]] = {}
     loops = []
+    unused = set(idxs)
+    for i in idxs:
+        c = arcs[i]["corners"]
+        if c[0] == c[-1]:
+            continue  # pure closed loop, handled below
+        ends.setdefault(c[0], []).append(i)
+        ends.setdefault(c[-1], []).append(i)
+    # closed loops first
+    for i in idxs:
+        c = arcs[i]["corners"]
+        if c[0] == c[-1] and i in unused:
+            unused.discard(i)
+            loops.append(list(arcs[i]["smooth"]))
     while unused:
-        i = unused.pop()
-        arc = arcs[i]
-        if arc["corners"][0] == arc["corners"][-1]:
-            loops.append(list(arc["smooth"]))
-            continue
-        start = arc["corners"][0]
-        cur = arc["corners"][-1]
-        pts = list(arc["smooth"])
+        i = next(iter(unused))
+        unused.discard(i)
+        start = arcs[i]["corners"][0]
+        cur = arcs[i]["corners"][-1]
+        pts = list(arcs[i]["smooth"])
         while cur != start:
             nxt, rev = None, False
-            for j in unused:
+            for j in ends.get(cur, ()):
+                if j not in unused:
+                    continue
                 a = arcs[j]
                 if a["corners"][0] == cur:
                     nxt, rev = j, False
