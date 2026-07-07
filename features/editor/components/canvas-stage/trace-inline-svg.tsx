@@ -79,11 +79,12 @@ type Props = {
    * doesn't re-parse or regenerate the SVG, so toggling is O(1).
    * Old trace SVGs without the group silently no-op. */
   numbersLayerVisible?: boolean
-  /** Hide the colored-cells groups (`<g id="colors">` for pixelate,
-   * `<g id="cells">` for circulate). Pure CSS gate via
-   * `data-trace-cells-visible`; the frames/grid + numbers layers
-   * stay visible so the toggle's "Trace" semantics now means "the
-   * coloured fills only", not "the whole vector overlay". */
+  /** Hide the coloured fills. Pure CSS gate via `data-trace-cells-visible`;
+   * outlines + numbers stay, so "Trace" means "the coloured fills only", not
+   * the whole overlay. Pixelate/circulate cells render on Konva (stripped from
+   * this SVG), so here it only bites lineart: it drops the `<g id="regions">`
+   * path fills while keeping their black strokes (the paint-by-numbers
+   * template). The `#colors`/`#cells` rules cover any non-stripped cell group. */
   traceCellsVisible?: boolean
 }
 
@@ -242,6 +243,14 @@ export function TraceInlineSvg({
         [data-testid="trace-inline-svg"][data-trace-cells-visible="false"] svg #colors,
         [data-testid="trace-inline-svg"][data-trace-cells-visible="false"] svg #cells {
           display: none;
+        }
+        /* Lineart regions live in the DOM overlay (not stripped to Konva like
+           pixelate/circulate cells). Hiding the "colours" here means dropping
+           the region FILLS while keeping the black outlines + numbers — the
+           paint-by-numbers template view, mirroring pixelate keeping its grid
+           when the cells are hidden. CSS beats the inline fill attribute. */
+        [data-testid="trace-inline-svg"][data-trace-cells-visible="false"] svg #regions path {
+          fill: none;
         }
       `}</style>
       {/* The wrapper MUST fill the sized container so the inner SVG's
