@@ -86,7 +86,15 @@ export async function traceRgbaToSvg(args: {
   const cfg = new vt.TracerConfig()
   try {
     cfg.setColorMode(vt.ColorMode.Color)
-    cfg.setHierarchical(vt.Hierarchical.Cutout)
+    // Stacked, NOT the server's cutout. Cutout emits exact non-overlapping
+    // tiles: adjacent regions leave hairline seams and a speckle-filtered blob
+    // leaves an actual hole — invisible on the server (the trace renders over
+    // the source image) but, in this standalone preview, both show the pane's
+    // near-white background through. Stacked draws each region as a full shape
+    // back-to-front, so the layers below fill every seam/hole with the correct
+    // local colour → gapless. The visible regions + smooth spline outlines are
+    // the same; only the (hidden) overlap differs.
+    cfg.setHierarchical(vt.Hierarchical.Stacked)
     cfg.setPathSimplifyMode(vt.PathSimplifyMode.Spline)
     cfg.setColorPrecision(LINEART_VTRACER_CONFIG.colorPrecision)
     cfg.setLayerDifference(LINEART_VTRACER_CONFIG.layerDifference)

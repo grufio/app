@@ -36,8 +36,10 @@ export type LineartParams = z.infer<typeof lineartSchema>
  * `LINEART_VTRACER_PARAMS`). The client WASM preview
  * (`lineart-vtracer-wasm.ts`) traces with the SAME engine + params so the
  * preview geometry matches the Apply result. Keep in lockstep with the
- * Python constant (`colormode="color"`, `mode="spline"`,
- * `hierarchical="cutout"` are fixed on the WASM call site).
+ * Python constant. `colormode="color"` + `mode="spline"` are fixed on the
+ * WASM call site; the preview uses `hierarchical="stacked"` (not the
+ * server's `cutout`) so it renders gapless without a backing image — see
+ * `lineart-vtracer-wasm.ts`.
  */
 export const LINEART_VTRACER_CONFIG = {
   colorPrecision: 8,
