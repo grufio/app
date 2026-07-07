@@ -141,13 +141,19 @@ def test_merge_tiny_regions_with_translated_paths_uses_world_coords():
     assert maxx > 50.0
 
 
-def test_render_numbers_group_skips_below_min_radius():
-    # A 1×1 square has inscribed radius 0.5 — well below min_radius 4.
-    paths = [_make_path("M 0 0 L 1 0 L 1 1 L 0 1 Z")]
-    indices = np.array([5], dtype=np.int32)
-    label_map = {5: 1}
-    g = render_numbers_group(paths, indices, label_map, min_radius=4.0)
-    assert g.count("<text ") == 0
+def test_render_numbers_group_labels_every_region():
+    # Every region the merge kept gets a number — even a sub-threshold
+    # survivor (previously skipped, leaving a bare region). It shrinks its
+    # own label to fit rather than being dropped.
+    small = _make_path("M 0 0 L 1 0 L 1 1 L 0 1 Z")  # radius 0.5 < min_radius
+    big = _make_path("M 0 0 L 100 0 L 100 100 L 0 100 Z")
+    g = render_numbers_group(
+        [small, big], np.array([1, 2], dtype=np.int32), {1: 1, 2: 2}, min_radius=4.0
+    )
+    assert g.count("<text ") == 2
+    # The tiny region's font shrinks to fit (≤ 1.4 × its 0.5 radius).
+    small_font = float(re.findall(r'font-size="([\d.]+)"', g)[0])
+    assert small_font <= 0.7 + 1e-6
 
 
 def test_render_numbers_group_dedup_via_label_map():
@@ -163,16 +169,18 @@ def test_render_numbers_group_dedup_via_label_map():
     assert labels == ["1", "1"]
 
 
-def test_render_numbers_group_font_size_scales_with_radius():
+def test_render_numbers_group_uniform_font_across_regions():
+    # Font is uniform (min(1.4 × min_radius, max_font)), NOT per-region — a
+    # big and a small (but ≥ threshold) region get the SAME size.
     big_d = "M 0 0 L 100 0 L 100 100 L 0 100 Z"  # radius 50
-    small_d = "M 0 0 L 10 0 L 10 10 L 0 10 Z"  # radius 5
-    g_big = render_numbers_group(
-        [_make_path(big_d)], np.array([0], dtype=np.int32), {0: 1}, min_radius=2.0
-    )
-    g_small = render_numbers_group(
-        [_make_path(small_d)], np.array([0], dtype=np.int32), {0: 1}, min_radius=2.0
-    )
-    big_font = float(re.search(r'font-size="([\d.]+)"', g_big).group(1))
-    small_font = float(re.search(r'font-size="([\d.]+)"', g_small).group(1))
-    assert big_font > small_font
-    assert big_font <= 24.0  # capped at max_font
+    mid_d = "M 0 0 L 20 0 L 20 20 L 0 20 Z"  # radius 10 (≥ min_radius 8)
+    paths = [_make_path(big_d), _make_path(mid_d)]
+    g = render_numbers_group(paths, np.array([0, 1], dtype=np.int32), {0: 1, 1: 2}, min_radius=8.0)
+    fonts = [float(f) for f in re.findall(r'font-size="([\d.]+)"', g)]
+    assert len(fonts) == 2
+    assert fonts[0] == fonts[1]  # uniform
+    assert fonts[0] == min(1.4 * 8.0, 24.0)  # = 11.2
+
+    # Font caps at max_font when the threshold is large.
+    g2 = render_numbers_group([_make_path(big_d)], np.array([0], dtype=np.int32), {0: 1}, min_radius=100.0)
+    assert float(re.search(r'font-size="([\d.]+)"', g2).group(1)) == 24.0

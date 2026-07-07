@@ -178,9 +178,10 @@ def lineart_to_svg(
     # Map smoothness ∈ [0, 1] to:
     #   corner_threshold ∈ [180, 60]   (0=preserve sharp corners, 1=allow strong curves)
     #   length_threshold ∈ [0, 8]      (0=no simplification, 1=aggressive)
-    #   filter_speckle   ∈ [16, 32]    (always drop blobs < 16 px so the
-    #     paint-by-numbers merge pass doesn't have to mop up
-    #     unpaintable specks)
+    #   filter_speckle   ∈ [16, 32]    (mild de-speckle only; a bigger value
+    #     tied to min_radius was tried but vtracer's speckle filter collapses
+    #     real regions past a point — the paint-by-numbers sizing is enforced
+    #     precisely by `merge_tiny_regions`, not here).
     s = max(0.0, min(1.0, smoothness))
     corner_threshold = int(round(180 - s * 120))
     length_threshold = round(s * 8.0, 2)
