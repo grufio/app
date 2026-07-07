@@ -14,10 +14,12 @@ vi.mock("@/lib/editor/trace/lineart-preview", () => ({
   loadAndDownscale: () => ({ width: 32, height: 24, rgba: new Uint8ClampedArray(32 * 24 * 4) }),
   gaussianBlur: (img: unknown) => img,
   kMeansOklab: () => ({ centroids: [[0.5, 0, 0]], assignments: new Uint16Array(32 * 24) }),
-  snapCentroidsToPalette: () => [{ r: 128, g: 128, b: 128 }],
-  paintQuantizedToCanvas: () => {
-    /* noop in jsdom */
-  },
+  quantizedRgbaFromClusters: () => new Uint8ClampedArray(32 * 24 * 4),
+  buildLineartPreviewSvg: () => ({ svg: '<svg id="mock-preview"></svg>', indicesUsed: [] }),
+}))
+
+vi.mock("@/lib/editor/trace/lineart-vtracer-wasm", () => ({
+  traceRgbaToSvg: () => Promise.resolve('<svg><path d="M0 0" fill="#123456"/></svg>'),
 }))
 
 vi.mock("@/lib/editor/trace/use-trace-palette", () => ({
