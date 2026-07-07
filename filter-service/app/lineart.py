@@ -138,6 +138,7 @@ def lineart_to_svg(
     num_colors: int = 8,
     palette_oklab: list | None = None,
     palette_rgb: list | None = None,
+    min_radius: float = 8.0,
     on_phase: callable | None = None,
 ) -> tuple[str, int, list[int]]:
     """
@@ -221,12 +222,12 @@ def lineart_to_svg(
         # neighbour. Recompute `palette_indices_used` from the
         # post-merge indices so the Colors sheet only lists chips
         # that actually survive in the output.
-        snapped_paths, indices = merge_tiny_regions(snapped_paths, indices, min_radius=8.0)
+        snapped_paths, indices = merge_tiny_regions(snapped_paths, indices, min_radius=min_radius)
         raw_paths = snapped_paths
         palette_indices_used = sorted(int(i) for i in np.unique(indices).tolist())
         label_map = build_label_map(indices)
         numbers_group = render_numbers_group(
-            raw_paths, indices, label_map, min_radius=8.0, max_font=24.0
+            raw_paths, indices, label_map, min_radius=min_radius, max_font=24.0
         )
         phase("palette")
 

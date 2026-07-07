@@ -20,6 +20,13 @@ export const lineartSchema = z.object({
   // only controls how many distinct regions vtracer carves out,
   // NOT how many palette chips the output uses.
   num_colors: z.coerce.number().int().min(2).max(256).default(8),
+  // Smallest paintable gap between the black outlines, in mm on the
+  // printed page. Regions whose largest inscribed circle is narrower than
+  // this (plus the line width, added server-side) are merged into their
+  // neighbour so every surviving region stays paintable and can hold its
+  // number. 0 disables the merge. The server converts mm → source px via
+  // the content rect's px/mm scale (see services/editor/server/trace/lineart.ts).
+  min_paintable_mm: z.coerce.number().min(0).max(20).default(4),
   // Which Munsell palette to snap region fills against — same
   // contract as pixelate / circulate. "color" → lab_munsell (128
   // chips), "bw" → lab_grays (48). Default "color" keeps existing
@@ -84,6 +91,7 @@ export const lineartTrace = {
     blur_amount: { label: "Blur Amount", min: 0, max: 20, description: "Pre-trace blur to merge noisy speckle (0-20, 0=no blur)" },
     smoothness: { kind: "decimal", label: "Smoothness", min: 0, max: 1, step: 0.05, description: "Edge smoothness (0=follow quantised pixels exactly, 1=heavy curve smoothing)" },
     num_colors: { label: "Number of Colors", min: 2, max: 256, description: "Palette size (2-256). Fewer colors = bolder regions" },
+    min_paintable_mm: { kind: "decimal", label: "Min. Gap (mm)", min: 0, max: 20, step: 0.5, description: "Smallest paintable gap between outlines in mm (0=off). Thinner regions merge so each stays paintable + fits its number." },
     color_mode: { kind: "select", label: "Color mode", options: [{ value: "color", label: "Color" }, { value: "bw", label: "B/W" }], description: "Which Munsell palette to snap region fills against" },
   },
 } as const satisfies TraceDefinition<typeof lineartSchema>

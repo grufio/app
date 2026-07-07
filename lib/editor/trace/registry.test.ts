@@ -209,6 +209,7 @@ describe("lineartSchema", () => {
       blur_amount: 3,
       smoothness: 0.6,
       num_colors: 8,
+      min_paintable_mm: 4,
       color_mode: "color",
     })
   })

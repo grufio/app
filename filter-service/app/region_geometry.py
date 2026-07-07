@@ -31,23 +31,39 @@ from shapely.geometry import Polygon
 # coordinates to a neighbouring command.
 _CMD_RE = re.compile(r"([A-Za-z])([^A-Za-z]*)")
 _NUM_RE = re.compile(r"-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?")
-_TRANSFORM_RE = re.compile(
+_SCALE_RE = re.compile(
     r"scale\(\s*(-?\d+(?:\.\d+)?)(?:[,\s]+(-?\d+(?:\.\d+)?))?\s*\)"
+)
+_TRANSLATE_RE = re.compile(
+    r"translate\(\s*(-?\d+(?:\.\d+)?)(?:[,\s]+(-?\d+(?:\.\d+)?))?\s*\)"
 )
 
 
-def _parse_transform(transform_attr: str | None) -> tuple[float, float]:
-    """Parse a `transform="scale(sx sy)"` attribute. Returns `(sx, sy)`,
-    with `sy = sx` when only one factor was supplied. Defaults to (1, 1)
-    when transform_attr is None or unparseable."""
+def _parse_transform(transform_attr: str | None) -> tuple[float, float, float, float]:
+    """Parse a vtracer `transform` attribute into `(sx, sy, tx, ty)`.
+
+    vtracer emits `translate(x, y)` on EVERY path (each region's `d` is
+    written relative to its own bounding-box origin) — historically this
+    parser only handled `scale(...)`, so the translate was silently
+    dropped and every region collapsed onto the local origin (numbers
+    piled up top-left, neighbour detection saw phantom overlaps). Handle
+    both: `translate(tx, ty)` and `scale(sx, sy)`. Single-arg forms follow
+    SVG semantics — `scale(s)` → `sy = sx`, `translate(t)` → `ty = 0`.
+    Defaults to identity `(1, 1, 0, 0)` when absent/unparseable.
+    """
+    sx = sy = 1.0
+    tx = ty = 0.0
     if not transform_attr:
-        return 1.0, 1.0
-    m = _TRANSFORM_RE.search(transform_attr)
-    if not m:
-        return 1.0, 1.0
-    sx = float(m.group(1))
-    sy = float(m.group(2)) if m.group(2) is not None else sx
-    return sx, sy
+        return sx, sy, tx, ty
+    ms = _SCALE_RE.search(transform_attr)
+    if ms:
+        sx = float(ms.group(1))
+        sy = float(ms.group(2)) if ms.group(2) is not None else sx
+    mt = _TRANSLATE_RE.search(transform_attr)
+    if mt:
+        tx = float(mt.group(1))
+        ty = float(mt.group(2)) if mt.group(2) is not None else 0.0
+    return sx, sy, tx, ty
 
 
 def _flatten_cubic(
@@ -109,10 +125,12 @@ def path_to_polygon(d: str, transform_attr: str | None = None) -> Polygon | None
     parser bail out → returns None.
 
     `transform_attr` is the raw value of the path's `transform` attribute
-    (e.g. `"scale(0.5 0.5)"`); applied post-parse so the polygon ends up
-    in the same coordinate space as the surrounding SVG viewBox.
+    (vtracer emits `"translate(tx, ty)"`); applied post-parse so the
+    polygon ends up in the same coordinate space as the surrounding SVG
+    viewBox — without this the labels/merge run in each path's local
+    origin space (all regions stacked at 0,0).
     """
-    sx, sy = _parse_transform(transform_attr)
+    sx, sy, tx, ty = _parse_transform(transform_attr)
     points: list[tuple[float, float]] = []
     current = (0.0, 0.0)
     subpath_start: tuple[float, float] | None = None
@@ -177,7 +195,8 @@ def path_to_polygon(d: str, transform_attr: str | None = None) -> Polygon | None
     if len(points) < 4:
         return None
 
-    coords = [(x * sx, y * sy) for x, y in points]
+    # SVG order is translate ∘ scale: scale the local point, then offset.
+    coords = [(x * sx + tx, y * sy + ty) for x, y in points]
     try:
         poly = Polygon(coords)
     except Exception:

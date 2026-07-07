@@ -242,6 +242,14 @@ class LineArtRequest(BaseModel):
     # median-cut quantised RGB (legacy back-compat).
     palette_oklab: list | None = None
     palette_rgb: list | None = None
+    # Smallest inscribed-circle radius (source px) a region may keep;
+    # anything smaller is merged into its largest neighbour and skipped
+    # for label placement. The Node server derives this from the
+    # user's "min paintable gap (mm)" dial + the content's px/mm scale +
+    # the line width, so paint-by-numbers regions stay paintable and each
+    # fits its number. Default 8.0 = pre-feature behaviour (older clients
+    # that omit the field).
+    min_region_radius_px: float = 8.0
 
 
 class PixelateRequest(BaseModel):
@@ -524,6 +532,7 @@ async def lineart_filter(request: LineArtRequest):
             num_colors=request.num_colors,
             palette_oklab=request.palette_oklab,
             palette_rgb=request.palette_rgb,
+            min_radius=request.min_region_radius_px,
             on_phase=timer.mark,
         )
 

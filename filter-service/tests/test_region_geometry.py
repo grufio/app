@@ -25,6 +25,30 @@ def test_path_to_polygon_with_scale_transform():
     assert math.isclose(poly.area, 25.0, rel_tol=1e-6)
 
 
+def test_path_to_polygon_with_translate_transform():
+    # vtracer emits `translate(tx, ty)` on EVERY path (local `d` + bbox
+    # offset). Regression: this was silently dropped, collapsing every
+    # region onto the origin (numbers piled top-left). The polygon must
+    # land at the translated position.
+    poly = path_to_polygon("M 0 0 L 10 0 L 10 10 L 0 10 Z", "translate(100 50)")
+    assert poly is not None
+    minx, miny, maxx, maxy = poly.bounds
+    assert math.isclose(minx, 100.0, rel_tol=1e-6)
+    assert math.isclose(miny, 50.0, rel_tol=1e-6)
+    assert math.isclose(maxx, 110.0, rel_tol=1e-6)
+    assert math.isclose(maxy, 60.0, rel_tol=1e-6)
+    assert math.isclose(poly.area, 100.0, rel_tol=1e-6)
+
+
+def test_path_to_polygon_translate_single_arg_defaults_ty_zero():
+    # SVG `translate(t)` means ty = 0 (not ty = tx).
+    poly = path_to_polygon("M 0 0 L 4 0 L 4 4 L 0 4 Z", "translate(7)")
+    assert poly is not None
+    minx, miny, _, _ = poly.bounds
+    assert math.isclose(minx, 7.0, rel_tol=1e-6)
+    assert math.isclose(miny, 0.0, rel_tol=1e-6)
+
+
 def test_path_to_polygon_with_cubic_bezier():
     # Approximates a quadrant; the exact area depends on the curve
     # subdivision but is bounded between the chord and the bounding box.
