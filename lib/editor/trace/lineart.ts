@@ -31,6 +31,44 @@ export const lineartSchema = z.object({
 
 export type LineartParams = z.infer<typeof lineartSchema>
 
+/**
+ * vtracer config shared with the server (`filter-service/app/lineart.py`
+ * `LINEART_VTRACER_PARAMS`). The client WASM preview
+ * (`lineart-vtracer-wasm.ts`) traces with the SAME engine + params so the
+ * preview geometry matches the Apply result. Keep in lockstep with the
+ * Python constant (`colormode="color"`, `mode="spline"`,
+ * `hierarchical="cutout"` are fixed on the WASM call site).
+ */
+export const LINEART_VTRACER_CONFIG = {
+  colorPrecision: 8,
+  layerDifference: 0,
+  pathPrecision: 2,
+  spliceThreshold: 45,
+} as const
+
+/**
+ * Map `smoothness` ∈ [0, 1] to vtracer's corner/length/speckle thresholds —
+ * the same three lines the server runs in `lineart_to_svg`:
+ *   corner_threshold = round(180 - s*120)   (0=sharp corners, 1=strong curves)
+ *   length_threshold = round(s*8, 2)         (path simplification)
+ *   filter_speckle   = max(16, round(s*32))  (drop small blobs)
+ * The WASM binding clamps `length_threshold` to its documented [3.5, 10]
+ * range (same clamp the native vtracer core applies), so the server's sub-3.5
+ * values and the WASM values resolve identically — both feed vtracer 0.6.
+ */
+export function smoothnessToVtracerParams(smoothness: number): {
+  cornerThreshold: number
+  lengthThreshold: number
+  filterSpeckle: number
+} {
+  const s = Math.max(0, Math.min(1, smoothness))
+  return {
+    cornerThreshold: Math.round(180 - s * 120),
+    lengthThreshold: Math.round(s * 8 * 100) / 100,
+    filterSpeckle: Math.max(16, Math.round(s * 32)),
+  }
+}
+
 export const lineartTrace = {
   id: "lineart",
   label: "Line Art",

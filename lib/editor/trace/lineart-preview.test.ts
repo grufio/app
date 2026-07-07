@@ -1,12 +1,22 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  addStrokeToPath,
+  buildLineartPreviewSvg,
+  extractPathElements,
   gaussianBlur,
   kMeansOklab,
+  quantizedRgbaFromClusters,
   snapCentroidsToPalette,
+  snapPathFillsToPalette,
   type PreviewImage,
 } from "./lineart-preview"
+import { rgb255ToOklab } from "@/lib/color/oklab"
+
 import type { PaletteChip } from "./trace-cell-colors"
+
+const rgb255ToOklabTuple = (r: number, g: number, b: number) =>
+  rgb255ToOklab(r, g, b) as [number, number, number]
 
 function makeSolidImage(width: number, height: number, r: number, g: number, b: number): PreviewImage {
   const rgba = new Uint8ClampedArray(width * height * 4)
@@ -134,5 +144,110 @@ describe("snapCentroidsToPalette", () => {
     // L=0.5 should land in the middle grey-ish.
     expect(result[1].r).toBe(result[1].g)
     expect(result[1].g).toBe(result[1].b)
+  })
+})
+
+describe("quantizedRgbaFromClusters", () => {
+  it("paints each pixel with its cluster's mean source colour", () => {
+    // 2x1: pixel 0 = red (cluster 0), pixel 1 = blue (cluster 1).
+    const image: PreviewImage = {
+      width: 2,
+      height: 1,
+      rgba: Uint8ClampedArray.from([255, 0, 0, 255, 0, 0, 255, 255]),
+    }
+    const assignments = Uint16Array.from([0, 1])
+    const out = quantizedRgbaFromClusters({ image, assignments, clusterCount: 2 })
+    expect(Array.from(out.slice(0, 4))).toEqual([255, 0, 0, 255])
+    expect(Array.from(out.slice(4, 8))).toEqual([0, 0, 255, 255])
+  })
+
+  it("averages pixels sharing a cluster", () => {
+    // both pixels in cluster 0: means of (100,0,0) and (200,0,0) → 150.
+    const image: PreviewImage = {
+      width: 2,
+      height: 1,
+      rgba: Uint8ClampedArray.from([100, 0, 0, 255, 200, 0, 0, 255]),
+    }
+    const out = quantizedRgbaFromClusters({
+      image,
+      assignments: Uint16Array.from([0, 0]),
+      clusterCount: 1,
+    })
+    expect(out[0]).toBe(150)
+    expect(out[4]).toBe(150)
+    expect(out[3]).toBe(255)
+  })
+})
+
+describe("extractPathElements", () => {
+  it("pulls every self-closing <path> out of a vtracer envelope", () => {
+    const svg =
+      '<svg><path d="M0 0 C1 1 2 2 3 3" fill="#112233" transform="translate(1,2)"/>' +
+      '<path d="M9 9" fill="#445566"/></svg>'
+    const paths = extractPathElements(svg)
+    expect(paths).toHaveLength(2)
+    expect(paths[0]).toContain('fill="#112233"')
+    expect(paths[1]).toContain('fill="#445566"')
+  })
+})
+
+describe("snapPathFillsToPalette", () => {
+  const palette: PaletteChip[] = [
+    { oklab: rgb255ToOklabTuple(200, 50, 50), rgb: [200, 50, 50], notation: "r", color_name: "Red" },
+    { oklab: rgb255ToOklabTuple(50, 50, 200), rgb: [50, 50, 200], notation: "b", color_name: "Blue" },
+  ]
+
+  it("snaps each path fill to the nearest chip and reports used indices", () => {
+    const paths = [
+      '<path d="M0 0" fill="#c8322f"/>', // ≈ red
+      '<path d="M1 1" fill="#3134c6" transform="translate(2,3)"/>', // ≈ blue
+    ]
+    const { paths: out, indicesUsed } = snapPathFillsToPalette(paths, palette)
+    expect(out[0]).toContain('fill="#c83232"') // palette red 200,50,50
+    expect(out[0]).toContain('d="M0 0"')
+    expect(out[1]).toContain('fill="#3232c8"') // palette blue 50,50,200
+    expect(out[1]).toContain('transform="translate(2,3)"') // untouched
+    expect(indicesUsed).toEqual([0, 1])
+  })
+
+  it("leaves paths untouched for an empty palette", () => {
+    const paths = ['<path d="M0 0" fill="#abcdef"/>']
+    const { paths: out, indicesUsed } = snapPathFillsToPalette(paths, [])
+    expect(out).toEqual(paths)
+    expect(indicesUsed).toEqual([])
+  })
+})
+
+describe("addStrokeToPath", () => {
+  it("splices a stroke before the closing />", () => {
+    const out = addStrokeToPath('<path d="M0 0" fill="#fff"/>', "black", 2)
+    expect(out).toBe('<path d="M0 0" fill="#fff" stroke="black" stroke-width="2"/>')
+  })
+  it("is idempotent when a stroke already exists", () => {
+    const already = '<path d="M0 0" stroke="red" stroke-width="1"/>'
+    expect(addStrokeToPath(already, "black", 2)).toBe(already)
+  })
+})
+
+describe("buildLineartPreviewSvg", () => {
+  const palette: PaletteChip[] = [
+    { oklab: rgb255ToOklabTuple(200, 50, 50), rgb: [200, 50, 50], notation: "r", color_name: "Red" },
+  ]
+
+  it("wraps snapped + stroked regions in a viewBox'd <g id=regions>", () => {
+    const vtracerSvg = '<svg><path d="M0 0 C1 1 2 2 3 3" fill="#c8322f"/></svg>'
+    const { svg, indicesUsed } = buildLineartPreviewSvg({
+      vtracerSvg,
+      width: 40,
+      height: 30,
+      palette,
+      strokeWidth: 0.5,
+    })
+    expect(svg).toContain('viewBox="0 0 40 30"')
+    expect(svg).toContain('preserveAspectRatio="none"')
+    expect(svg).toContain('<g id="regions">')
+    expect(svg).toContain('fill="#c83232"') // snapped to palette red
+    expect(svg).toContain('stroke="black" stroke-width="0.5"')
+    expect(indicesUsed).toEqual([0])
   })
 })

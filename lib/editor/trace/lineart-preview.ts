@@ -1,20 +1,25 @@
 /**
- * Client-side render helpers for the Line Art preview dialog.
+ * Client-side pipeline helpers for the Line Art preview dialog.
  *
- * Approximates the server's vtracer + palette-snap output: posterize the
- * source into `num_colors` clusters via K-means in OKLab, then snap each
- * cluster's centroid to the nearest Munsell chip and paint a flat
- * region. Sobel-style outline pass is optional (`line_thickness > 0`).
+ * The preview runs the SAME vtracer engine as the server (via WASM —
+ * `lineart-vtracer-wasm.ts`), so it produces smooth spline region outlines
+ * that match the Apply result, not the old jagged K-means raster.
  *
- * Not pixel-perfect to vtracer (which traces vector paths after its own
- * median-cut quantisation). Good enough for "see what the colours and
- * region shapes will look like" — the authoritative SVG comes from the
- * server on Apply.
+ * Pipeline (mirrors `filter-service/app/lineart.py::lineart_to_svg`):
+ *   downscale → blur → K-means quantise to `num_colors` → paint the flat
+ *   quantised RGBA (`quantizedRgbaFromClusters`) → WASM vtracer (color/
+ *   spline/cutout) → snap each region's fill to the nearest Munsell chip
+ *   (`snapPathFillsToPalette`, same OKLab-nearest as the server) → add a
+ *   black stroke per region → compose `<g id="regions">` SVG
+ *   (`buildLineartPreviewSvg`).
  *
- * Pipeline is decomposed so React callers can memoize each stage against
- * its own deps — Gaussian blur re-runs on `blur_amount`, K-means on
- * `num_colors` and the blurred buffer, palette-snap on `color_mode`, the
- * paint step on `line_thickness`.
+ * Divergence from the server (documented, acceptable for a preview): K-means
+ * vs. PIL median-cut for the pre-vtracer quantise, and a downscaled buffer, so
+ * the preview is ≈ (same smooth style) not byte-identical to Apply. The
+ * `merge_tiny_regions` + numbers passes are server-only (skipped here).
+ *
+ * The downscale / blur / K-means stages are decomposed so React callers can
+ * memoize each against its own deps.
  */
 import { nearestPaletteIndex, rgb255ToOklab, type Oklab } from "@/lib/color/oklab"
 
@@ -262,57 +267,146 @@ export function snapCentroidsToPalette(
 }
 
 /**
- * Paint the quantised image onto `target`: every pixel is the snapped
- * centroid colour of its cluster. When `lineThickness > 0`, cluster
- * boundaries get a black 1-px overlay (no-op for sub-pixel thickness —
- * the canvas is downscaled, so the boundary stays a clean 1px line).
+ * Build a flat RGBA buffer where every pixel carries its cluster's mean
+ * source colour — the colour-reduced image fed to vtracer. Mirrors the
+ * server feeding vtracer its median-cut-quantised image: distinct-per-cluster
+ * flat colours so vtracer carves out a few clean regions, not thousands.
  *
- * Caller owns `target.width` / `target.height` via JSX props; this
- * function only paints into the existing 2D context.
+ * Mean RGB is computed from the (blurred) source pixels, so a region's fill
+ * is representative of its cluster and lands on a sensible Munsell chip when
+ * the path fills are snapped after tracing.
  */
-export function paintQuantizedToCanvas(args: {
-  target: HTMLCanvasElement
+export function quantizedRgbaFromClusters(args: {
+  image: PreviewImage
+  assignments: Uint16Array
+  clusterCount: number
+}): Uint8ClampedArray {
+  const { image, assignments, clusterCount } = args
+  const { width, height, rgba } = image
+  const n = width * height
+  const sumR = new Float64Array(clusterCount)
+  const sumG = new Float64Array(clusterCount)
+  const sumB = new Float64Array(clusterCount)
+  const count = new Uint32Array(clusterCount)
+  for (let i = 0; i < n; i += 1) {
+    const c = assignments[i]
+    const o = i * 4
+    sumR[c] += rgba[o]
+    sumG[c] += rgba[o + 1]
+    sumB[c] += rgba[o + 2]
+    count[c] += 1
+  }
+  const meanR = new Uint8ClampedArray(clusterCount)
+  const meanG = new Uint8ClampedArray(clusterCount)
+  const meanB = new Uint8ClampedArray(clusterCount)
+  for (let c = 0; c < clusterCount; c += 1) {
+    const k = count[c] || 1
+    meanR[c] = Math.round(sumR[c] / k)
+    meanG[c] = Math.round(sumG[c] / k)
+    meanB[c] = Math.round(sumB[c] / k)
+  }
+  const out = new Uint8ClampedArray(n * 4)
+  for (let i = 0; i < n; i += 1) {
+    const c = assignments[i]
+    const o = i * 4
+    out[o] = meanR[c]
+    out[o + 1] = meanG[c]
+    out[o + 2] = meanB[c]
+    out[o + 3] = 255
+  }
+  return out
+}
+
+// vtracer emits self-closing `<path d="..." fill="#RRGGBB" transform="..."/>`
+// elements. Match the whole element (path data + fill carry no `>`); parse the
+// fill; splice a stroke in before the closing `/>` — mirrors the server's
+// `extract_path_elements` / `add_stroke_to_path` / `snap_path_fills_to_palette`
+// in `filter-service/app/lineart.py`.
+const PATH_ELEMENT_RE = /<path\b[^>]*\/>/gi
+const PATH_FILL_RE = /\bfill="(#[0-9A-Fa-f]{6})"/i
+
+/** Every `<path .../>` element from a vtracer SVG envelope, raw markup. */
+export function extractPathElements(svg: string): string[] {
+  return svg.match(PATH_ELEMENT_RE) ?? []
+}
+
+function hexToRgb(hex: string): [number, number, number] {
+  return [
+    parseInt(hex.slice(1, 3), 16),
+    parseInt(hex.slice(3, 5), 16),
+    parseInt(hex.slice(5, 7), 16),
+  ]
+}
+
+function rgbToHex(r: number, g: number, b: number): string {
+  const h = (v: number) => v.toString(16).padStart(2, "0")
+  return `#${h(r)}${h(g)}${h(b)}`
+}
+
+/**
+ * Snap every path's vtracer fill to the nearest palette chip — the same
+ * single-step OKLab-nearest match the server runs in
+ * `snap_path_fills_to_palette`. Returns the rewritten paths plus the sorted
+ * set of palette indices actually used. An empty palette leaves the paths
+ * untouched (raw vtracer fills), matching the server's no-palette branch.
+ */
+export function snapPathFillsToPalette(
+  paths: ReadonlyArray<string>,
+  palette: ReadonlyArray<PaletteChip>,
+): { paths: string[]; indicesUsed: number[] } {
+  if (palette.length === 0) return { paths: [...paths], indicesUsed: [] }
+  const paletteOklab = palette.map((c) => c.oklab)
+  const used = new Set<number>()
+  const snapped = paths.map((path) => {
+    const m = PATH_FILL_RE.exec(path)
+    if (!m) return path
+    const [r, g, b] = hexToRgb(m[1])
+    const idx = nearestPaletteIndex(rgb255ToOklab(r, g, b), paletteOklab)
+    used.add(idx)
+    const [pr, pg, pb] = palette[idx].rgb
+    return path.slice(0, m.index) + `fill="${rgbToHex(pr, pg, pb)}"` + path.slice(m.index + m[0].length)
+  })
+  return { paths: snapped, indicesUsed: [...used].sort((a, b) => a - b) }
+}
+
+/** Splice a `stroke` + `stroke-width` into a vtracer `<path .../>`. Idempotent
+ * (leaves an already-stroked path alone), mirroring `add_stroke_to_path`. */
+export function addStrokeToPath(path: string, color: string, width: number): string {
+  if (path.includes('stroke="')) return path
+  return path.replace("/>", ` stroke="${color}" stroke-width="${width}"/>`)
+}
+
+/**
+ * Compose the final preview SVG: snap fills → add a black stroke per region →
+ * wrap in `<g id="regions">`. The root SVG uses `width/height="100%"` +
+ * `preserveAspectRatio="none"` so it fills its (pixel-sized) pane wrapper and
+ * stretches to the display rect — the same display contract as the server
+ * result via `prepareTraceSvg`. Structure matches
+ * `filter-service/app/lineart.py` (minus the server-only numbers group).
+ *
+ * `strokeWidth` is in viewBox units. The pane passes
+ * `line_thickness × (previewWidth / sourceFullWidth)` so the stroke's on-screen
+ * thickness matches the full-resolution Apply result at the same zoom (the
+ * downscaled preview viewBox is smaller, so an unscaled `line_thickness` would
+ * render several times too fat).
+ */
+export function buildLineartPreviewSvg(args: {
+  vtracerSvg: string
   width: number
   height: number
-  assignments: Uint16Array
-  snappedCentroids: ReadonlyArray<SnappedCentroid>
-  lineThickness: number
-}): void {
-  const { target, width, height, assignments, snappedCentroids, lineThickness } = args
-  if (width <= 0 || height <= 0 || snappedCentroids.length === 0) return
-  const ctx = target.getContext("2d")
-  if (!ctx) return
-
-  const out = ctx.createImageData(width, height)
-  for (let i = 0; i < assignments.length; i += 1) {
-    const chip = snappedCentroids[assignments[i]]
-    const o = i * 4
-    out.data[o] = chip.r
-    out.data[o + 1] = chip.g
-    out.data[o + 2] = chip.b
-    out.data[o + 3] = 255
-  }
-
-  if (lineThickness > 0) {
-    // Mark every pixel whose right or down neighbour belongs to a different
-    // cluster — that's a boundary. Black overlay.
-    for (let y = 0; y < height; y += 1) {
-      for (let x = 0; x < width; x += 1) {
-        const idx = y * width + x
-        const here = assignments[idx]
-        const right = x + 1 < width ? assignments[idx + 1] : here
-        const down = y + 1 < height ? assignments[idx + width] : here
-        if (here !== right || here !== down) {
-          const o = idx * 4
-          out.data[o] = 0
-          out.data[o + 1] = 0
-          out.data[o + 2] = 0
-        }
-      }
-    }
-  }
-
-  ctx.putImageData(out, 0, 0)
+  palette: ReadonlyArray<PaletteChip>
+  strokeWidth: number
+}): { svg: string; indicesUsed: number[] } {
+  const { vtracerSvg, width, height, palette, strokeWidth } = args
+  const raw = extractPathElements(vtracerSvg)
+  const { paths, indicesUsed } = snapPathFillsToPalette(raw, palette)
+  const stroked = paths.map((p) => addStrokeToPath(p, "black", strokeWidth))
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" ` +
+    `viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">` +
+    `<g id="regions">${stroked.join("")}</g>` +
+    `</svg>`
+  return { svg, indicesUsed }
 }
 
 /** mulberry32 PRNG — small, fast, deterministic. Same seed → same sequence. */
