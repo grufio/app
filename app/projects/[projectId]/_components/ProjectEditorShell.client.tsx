@@ -784,7 +784,9 @@ export function ProjectDetailPageClient({
           <EditorViewBar
             theme={{ value: toolbarTone, onToggle: toggleToolbarTheme }}
             viewOptions={
-              editorSection === "trace" && trace && (trace.kind === "pixelate" || trace.kind === "circulate")
+              editorSection === "trace" &&
+              trace &&
+              (trace.kind === "pixelate" || trace.kind === "circulate" || trace.kind === "lineart")
                 ? {
                     traceOverlayVisible,
                     previewBitmapVisible,
