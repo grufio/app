@@ -1,0 +1,118 @@
+"use client"
+
+/**
+ * Form fields for the Linerate trace dialog — same layout + primitives as
+ * `LineArtForm` (its sibling): a "Shape" section (line thickness, pre-trace
+ * blur, smoothness, min paintable gap) + a shared "Colors" section. Stateless;
+ * the parent owns the draft.
+ */
+import { Brush, CircleDashed, Ruler, Waves } from "lucide-react"
+
+import { FormField } from "@/components/ui/form-controls"
+import { linerateSchema, type LinerateParams } from "@/lib/editor/trace/linerate"
+import { extractNumberInputProps, parseFormNumber } from "@/lib/forms/zod-input-props"
+
+import { PanelIconSlot, PanelTwoFieldRow } from "../panel-layout"
+import { EditorSidebarSection } from "../sidebar/editor-sidebar-section"
+import { TraceColorsFields } from "./trace-colors-fields"
+
+type Props = {
+  params: LinerateParams
+  onParamsChange: <K extends keyof LinerateParams>(key: K, value: LinerateParams[K]) => void
+  disabled: boolean
+}
+
+const LINE_THICKNESS_INPUT_PROPS = extractNumberInputProps(linerateSchema.shape.line_thickness)
+const BLUR_AMOUNT_INPUT_PROPS = extractNumberInputProps(linerateSchema.shape.blur_amount)
+const SMOOTHNESS_INPUT_PROPS = extractNumberInputProps(linerateSchema.shape.smoothness)
+const MIN_PAINTABLE_INPUT_PROPS = extractNumberInputProps(linerateSchema.shape.min_paintable_mm)
+
+export function LinerateForm({ params, onParamsChange, disabled }: Props) {
+  return (
+    <>
+      <EditorSidebarSection title="Shape">
+        <div className="space-y-3">
+          <PanelTwoFieldRow>
+            <FormField
+              variant="numeric"
+              numericMode="decimal"
+              label="Line thickness"
+              labelVisuallyHidden
+              iconStart={<Brush aria-hidden="true" />}
+              unit="px"
+              id="line_thickness"
+              value={String(params.line_thickness)}
+              onCommit={(raw) => {
+                const res = parseFormNumber(linerateSchema.shape.line_thickness, raw)
+                if (res.ok) onParamsChange("line_thickness", res.value)
+              }}
+              disabled={disabled}
+              inputProps={LINE_THICKNESS_INPUT_PROPS}
+            />
+            <FormField
+              variant="numeric"
+              numericMode="int"
+              label="Blur amount"
+              labelVisuallyHidden
+              iconStart={<CircleDashed aria-hidden="true" />}
+              id="blur_amount"
+              value={String(params.blur_amount)}
+              onCommit={(raw) => {
+                const res = parseFormNumber(linerateSchema.shape.blur_amount, raw)
+                if (res.ok) onParamsChange("blur_amount", res.value)
+              }}
+              disabled={disabled}
+              inputProps={BLUR_AMOUNT_INPUT_PROPS}
+            />
+            <PanelIconSlot />
+          </PanelTwoFieldRow>
+
+          <PanelTwoFieldRow>
+            <FormField
+              variant="numeric"
+              numericMode="decimal"
+              label="Smoothness"
+              labelVisuallyHidden
+              iconStart={<Waves aria-hidden="true" />}
+              id="smoothness"
+              value={String(params.smoothness)}
+              onCommit={(raw) => {
+                const res = parseFormNumber(linerateSchema.shape.smoothness, raw)
+                if (res.ok) onParamsChange("smoothness", res.value)
+              }}
+              disabled={disabled}
+              inputProps={SMOOTHNESS_INPUT_PROPS}
+            />
+            <FormField
+              variant="numeric"
+              numericMode="decimal"
+              label="Min. paintable gap"
+              labelVisuallyHidden
+              iconStart={<Ruler aria-hidden="true" />}
+              unit="mm"
+              id="min_paintable_mm"
+              value={String(params.min_paintable_mm)}
+              onCommit={(raw) => {
+                const res = parseFormNumber(linerateSchema.shape.min_paintable_mm, raw)
+                if (res.ok) onParamsChange("min_paintable_mm", res.value)
+              }}
+              disabled={disabled}
+              inputProps={MIN_PAINTABLE_INPUT_PROPS}
+            />
+            <PanelIconSlot />
+          </PanelTwoFieldRow>
+        </div>
+      </EditorSidebarSection>
+
+      <EditorSidebarSection title="Colors">
+        <TraceColorsFields
+          colorMode={params.color_mode}
+          numColors={params.num_colors}
+          onColorModeChange={(v) => onParamsChange("color_mode", v)}
+          onNumColorsChange={(v) => onParamsChange("num_colors", v)}
+          disabled={disabled}
+        />
+      </EditorSidebarSection>
+    </>
+  )
+}
