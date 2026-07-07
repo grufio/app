@@ -8,12 +8,14 @@
  */
 import { circulateTrace } from "./circulate"
 import { lineartTrace } from "./lineart"
+import { linerateTrace } from "./linerate"
 import { pixelateTrace } from "./pixelate"
 
 export const TRACE_REGISTRY = {
   pixelate: pixelateTrace,
   circulate: circulateTrace,
   lineart: lineartTrace,
+  linerate: linerateTrace,
 } as const
 
 export type RegisteredTraceId = keyof typeof TRACE_REGISTRY

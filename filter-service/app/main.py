@@ -16,6 +16,7 @@ import base64
 
 from app.circulate import circulate_cells_to_svg
 from app.lineart import lineart_to_svg
+from app.linerate import linerate_to_svg
 from app.pixelate import pixelate_cells_to_svg
 
 
@@ -249,6 +250,24 @@ class LineArtRequest(BaseModel):
     # the line width, so paint-by-numbers regions stay paintable and each
     # fits its number. Default 8.0 = pre-feature behaviour (older clients
     # that omit the field).
+    min_region_radius_px: float = 8.0
+
+
+class LinerateRequest(BaseModel):
+    image_base64: str
+    line_thickness: float = 1.0
+    blur_amount: int = 2
+    # Smoothness ∈ [0, 1] → RDP epsilon + Chaikin iterations on the shared
+    # boundary arcs (0 = closer to the quantised pixels, 1 = very smooth).
+    smoothness: float = 0.6
+    num_colors: int = 12
+    # Optional Munsell palette pair; each region's mean colour snaps to the
+    # nearest chip (same OKLab-nearest contract as lineart/pixelate).
+    palette_oklab: list | None = None
+    palette_rgb: list | None = None
+    # Smallest inscribed-circle radius (source px) a region may keep; smaller
+    # regions are raster-merged into their largest neighbour before smoothing.
+    # The Node bridge derives it from the "min paintable gap (mm)" dial.
     min_region_radius_px: float = 8.0
 
 
@@ -533,6 +552,60 @@ async def lineart_filter(request: LineArtRequest):
             palette_oklab=request.palette_oklab,
             palette_rgb=request.palette_rgb,
             min_radius=request.min_region_radius_px,
+            on_phase=timer.mark,
+        )
+
+        return JSONResponse(
+            content={
+                "svg": svg_content,
+                "region_count": region_count,
+                "palette_indices_used": palette_indices_used,
+            },
+            headers={
+                "X-Profile-Phases": timer.header(),
+                "X-Region-Count": str(region_count),
+            },
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Image processing failed: {str(e)}")
+
+
+@app.post("/filters/linerate")
+async def linerate_filter(request: LinerateRequest):
+    """
+    Linerate: segmentation-based paint-by-numbers (connected components →
+    raster-merge → shared-arc RDP+Chaikin smoothing → distance-transform
+    numbers). Watertight by construction; the sibling to `lineart` (which is
+    vtracer-based). Same SVG contract + palette snap as lineart.
+    """
+    if request.line_thickness < 0.1 or request.line_thickness > 10:
+        raise HTTPException(status_code=400, detail="line_thickness must be between 0.1 and 10")
+    if request.blur_amount < 0 or request.blur_amount > 20:
+        raise HTTPException(status_code=400, detail="blur_amount must be between 0 and 20")
+    if request.smoothness < 0 or request.smoothness > 1:
+        raise HTTPException(status_code=400, detail="smoothness must be between 0 and 1")
+    if request.num_colors < 2 or request.num_colors > 256:
+        raise HTTPException(status_code=400, detail="num_colors must be between 2 and 256")
+
+    timer = PhaseTimer()
+    try:
+        img_bytes = base64.b64decode(request.image_base64)
+        img = Image.open(io.BytesIO(img_bytes))
+        if img.mode not in ("RGB", "L"):
+            img = img.convert("RGB")
+        timer.mark("decode")
+
+        svg_content, region_count, palette_indices_used = linerate_to_svg(
+            img,
+            line_thickness=request.line_thickness,
+            blur_amount=request.blur_amount,
+            smoothness=request.smoothness,
+            num_colors=request.num_colors,
+            min_radius=request.min_region_radius_px,
+            palette_oklab=request.palette_oklab,
+            palette_rgb=request.palette_rgb,
             on_phase=timer.mark,
         )
 
