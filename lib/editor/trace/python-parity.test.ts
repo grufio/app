@@ -11,6 +11,7 @@ import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 
 import { lineartSchema } from "./lineart"
+import { linerateSchema } from "./linerate"
 import { pixelateSchema } from "./pixelate"
 
 const PYTHON_PATH = join(__dirname, "../../../filter-service/app/main.py")
@@ -54,6 +55,18 @@ describe("Python parity: TS trace schema defaults vs Pydantic", () => {
     // is computed from the TS `min_paintable_mm` dial + the content rect's
     // px/mm scale + the line width (services/editor/server/trace/lineart.ts),
     // so it has no matching TS default — exclude it from the pass-through check.
+    const SERVER_COMPUTED = new Set(["min_region_radius_px"])
+    for (const key of Object.keys(py)) {
+      if (SERVER_COMPUTED.has(key)) continue
+      expect(ts[key as keyof typeof ts]).toEqual(py[key])
+    }
+  })
+
+  it("LinerateRequest", () => {
+    const py = extractPydanticDefaults("LinerateRequest")
+    const ts = linerateSchema.parse({})
+    // Same as lineart: `min_region_radius_px` is derived server-side from the
+    // `min_paintable_mm` dial, not a pass-through TS param.
     const SERVER_COMPUTED = new Set(["min_region_radius_px"])
     for (const key of Object.keys(py)) {
       if (SERVER_COMPUTED.has(key)) continue
