@@ -872,31 +872,15 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
             ) : null}
 
             {/* Circulate trace: filled cell ellipses + thin frame outlines on the
-                Konva canvas so the outlines stay crisp + 1px at any zoom (no
-                zoom-scaling, no straddle). Numbers stay in the DOM overlay on top.
-                A WHITE background fills the trace rect behind the circles so the
-                gaps between circles read as clean paper (not the muddy upscaled
-                filter-tip photo) — the paint-by-numbers look. */}
+                Konva canvas. The base image stays visible/toggleable underneath
+                (previewBitmapVisible) — the circles do NOT get a white backdrop. */}
             {parsedCirculateTrace && traceRect ? (
-              <>
-                <Rect
-                  x={traceRect.x}
-                  y={traceRect.y}
-                  offsetX={traceRect.width / 2}
-                  offsetY={traceRect.height / 2}
-                  width={traceRect.width}
-                  height={traceRect.height}
-                  rotation={rotation}
-                  fill="#ffffff"
-                  listening={false}
-                />
-                <CirculateTraceOverlay
-                  parsed={parsedCirculateTrace}
-                  rect={traceRect}
-                  rotation={rotation}
-                  cellsVisible={traceOverlayVisible}
-                />
-              </>
+              <CirculateTraceOverlay
+                parsed={parsedCirculateTrace}
+                rect={traceRect}
+                rotation={rotation}
+                cellsVisible={traceOverlayVisible}
+              />
             ) : null}
 
             {/* Print-margin padding preview: a white veil over the image at the
