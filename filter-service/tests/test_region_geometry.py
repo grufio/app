@@ -57,6 +57,18 @@ def test_path_to_polygon_with_cubic_bezier():
     assert 0 < poly.area < 100
 
 
+def test_path_to_polygon_parses_holes_as_interiors():
+    # A merged region (or a holey vtracer region) has multiple subpaths:
+    # the largest ring is the exterior, the rest are holes. Flattening them
+    # into one ring self-intersects and mis-measures the region (→ the label
+    # step then drops it: "region has no number"). Outer 100×100, inner 40×40.
+    d = "M 0 0 L 100 0 L 100 100 L 0 100 Z M 30 30 L 70 30 L 70 70 L 30 70 Z"
+    poly = path_to_polygon(d)
+    assert poly is not None
+    assert len(poly.interiors) == 1
+    assert math.isclose(poly.area, 100 * 100 - 40 * 40, rel_tol=1e-6)
+
+
 def test_path_to_polygon_rejects_too_few_points():
     assert path_to_polygon("M 0 0 L 5 5") is None
 

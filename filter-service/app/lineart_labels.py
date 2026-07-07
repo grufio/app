@@ -22,14 +22,15 @@ together" — both manifest as a small largest-inscribed-circle.
 """
 from __future__ import annotations
 
+import heapq
 import re
 
 import numpy as np
+from shapely import STRtree
 from shapely.geometry import Polygon
 from shapely.ops import polylabel, unary_union
 
 from .region_geometry import (
-    find_largest_neighbor,
     path_to_polygon,
     polygon_to_path_d,
 )
@@ -105,89 +106,126 @@ def merge_tiny_regions(
     paths: list[str],
     indices: np.ndarray,
     min_radius: float = 8.0,
-    max_iter: int | None = None,
+    max_iter: int | None = None,  # kept for API compat; unused (single-pass)
 ) -> tuple[list[str], np.ndarray]:
-    """Iteratively merge regions whose largest inscribed circle has radius
-    `< min_radius` into their largest-area neighbour (Shapely union), so
-    every surviving region stays wide enough to paint + hold its number.
+    """Merge regions whose largest inscribed circle has radius `< min_radius`
+    into their largest-area neighbour, so every surviving region stays wide
+    enough to paint + hold its number.
 
-    Output is a new (paths, indices) pair: the tiny path is removed and the
-    target's `d` is rewritten to the merged (absolute) outline with its
-    now-stale `transform` stripped. The target's fill (colour) stays, so the
-    tiny inherits it and the shared black boundary disappears topologically.
+    Output is a new (paths, indices) pair: absorbed paths are dropped and the
+    surviving representative's `d` is rewritten to the merged (absolute)
+    outline with its now-stale `transform` stripped. The representative is the
+    largest-area member, so its fill (colour) + palette index carry the group.
 
-    Robust to vtracer's `cutout` gaps: neighbours are matched within
-    `_MERGE_GAP_EPS`, and if a plain union yields a MultiPolygon (hairline
-    gap) the tiny is dilated by the same tolerance to bridge it. Inscribed
-    radii are cached and recomputed only for a region that actually changed,
-    so the pass stays ~O(n) polylabel calls even when many regions merge.
+    Performance: a detailed trace has ~10³ raw regions, most of them tiny.
+    Merging them one-by-one into a *growing* blob is O(Σ vertices) per absorb —
+    an 18s timeout on real images. Instead this is two cheap phases:
+      1. Grouping — union-find over the regions, no geometry ops. Smallest-
+         first, each tiny joins its largest-area neighbour's group. STRtree
+         gives adjacency in O(n log n).
+      2. Realise — ONE bulk `unary_union` per group (Shapely fuses a whole
+         cluster far faster than N incremental unions). Total ~O(n log n).
 
-    Halts when nothing is below `min_radius` (or after `max_iter`, default =
-    the region count — each successful merge removes exactly one region, so
-    that is a can't-loop-forever bound, not a coverage cap).
+    Robust to vtracer's `cutout` gaps: adjacency is matched within
+    `_MERGE_GAP_EPS`, and a group whose plain union leaves a MultiPolygon
+    (hairline gaps) is dilated by that tolerance to bridge them. Order is
+    preserved — a survivor stays at its original position, absorbed rows drop.
     """
     polys = _parse_all(paths)
-    work_paths = list(paths)
-    work_indices = [int(i) for i in indices]
-    # Cache each region's inscribed radius; None mirrors an unparsed/dropped
-    # polygon so it is never picked as a tiny.
-    radii: list[float | None] = [
-        None if p is None else _polylabel_radius(p)[2] for p in polys
-    ]
-    if max_iter is None:
-        max_iter = len(paths)
+    n = len(polys)
+    if n == 0:
+        return [], np.asarray([], dtype=np.int32)
 
-    for _ in range(max_iter):
-        # Smallest below-threshold region by cached radius. None → stable.
-        tiny_idx: int | None = None
-        tiny_radius = float("inf")
-        for i, r in enumerate(radii):
-            if r is None:
+    radii = [None if p is None else _polylabel_radius(p)[2] for p in polys]
+
+    # Union-find keyed by area: the root is always the largest-area member, so
+    # the group keeps the dominant region's colour + index.
+    parent = list(range(n))
+    group_area = [0.0 if p is None else p.area for p in polys]
+
+    def find(x: int) -> int:
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(a: int, b: int) -> None:
+        ra, rb = find(a), find(b)
+        if ra == rb:
+            return
+        if group_area[ra] < group_area[rb]:
+            ra, rb = rb, ra
+        parent[rb] = ra
+        group_area[ra] += group_area[rb]
+
+    # Adjacency (within tolerance) via one STRtree over the parsed polygons.
+    tree_idx = [i for i in range(n) if polys[i] is not None]
+    tree = STRtree([polys[i] for i in tree_idx]) if tree_idx else None
+    neighbors: list[list[int]] = [[] for _ in range(n)]
+    if tree is not None:
+        for i in tree_idx:
+            buf = polys[i].buffer(_MERGE_GAP_EPS)
+            for pos in tree.query(buf):
+                j = tree_idx[int(pos)]
+                if j != i and polys[j] is not None and buf.intersects(polys[j]):
+                    neighbors[i].append(j)
+
+    # Phase 1 — grouping (geometry-free). Smallest tiny first; join it to the
+    # largest-area neighbouring GROUP (resolved live through union-find).
+    heap = [(r, i) for i, r in enumerate(radii) if r is not None and r < min_radius]
+    heapq.heapify(heap)
+    while heap:
+        _, i = heapq.heappop(heap)
+        ri = find(i)
+        best_root: int | None = None
+        best_area = -1.0
+        for j in neighbors[i]:
+            rj = find(j)
+            if rj == ri:
                 continue
-            if r < min_radius and r < tiny_radius:
-                tiny_radius = r
-                tiny_idx = i
-        if tiny_idx is None:
-            break
+            if group_area[rj] > best_area:
+                best_area = group_area[rj]
+                best_root = rj
+        if best_root is None:
+            continue  # isolated within tolerance — kept as-is, unlabelled-safe
+        union(ri, best_root)
 
-        neighbor_idx = find_largest_neighbor(tiny_idx, polys, eps=_MERGE_GAP_EPS)
-        tiny_poly = polys[tiny_idx]
-        target_poly = polys[neighbor_idx] if neighbor_idx is not None else None
-        if target_poly is None or tiny_poly is None:
-            # Genuinely isolated (no neighbour within tolerance). Keep the
-            # path in the output but stop re-picking it as a tiny.
-            radii[tiny_idx] = None
+    # Phase 2 — realise. Collect members per surviving root, in original order.
+    members: dict[int, list[int]] = {}
+    for i in range(n):
+        if polys[i] is None:
             continue
+        members.setdefault(find(i), []).append(i)
 
-        try:
-            merged = unary_union([target_poly, tiny_poly])
-            if not isinstance(merged, Polygon) or merged.is_empty:
-                # Hairline gap → MultiPolygon. Dilate the tiny to bridge it.
-                merged = unary_union([target_poly, tiny_poly.buffer(_MERGE_GAP_EPS)])
-        except Exception:
-            radii[tiny_idx] = None
+    out_paths: list[str] = []
+    out_indices: list[int] = []
+    for i in range(n):
+        if polys[i] is None:
+            # Unparsed geometry: carry through untouched (never merged).
+            out_paths.append(paths[i])
+            out_indices.append(int(indices[i]))
             continue
-        if not isinstance(merged, Polygon) or merged.is_empty:
-            radii[tiny_idx] = None
-            continue
+        if find(i) != i:
+            continue  # absorbed into another region → dropped
+        grp = members[i]
+        if len(grp) == 1:
+            out_paths.append(paths[i])
+        else:
+            member_polys = [polys[m] for m in grp]
+            try:
+                merged = unary_union(member_polys)
+                if not isinstance(merged, Polygon) or merged.is_empty:
+                    # Hairline gaps → MultiPolygon. Dilate to bridge, union again.
+                    merged = unary_union([mp.buffer(_MERGE_GAP_EPS) for mp in member_polys])
+            except Exception:
+                merged = None
+            if isinstance(merged, Polygon) and not merged.is_empty:
+                out_paths.append(_remove_transform(_set_d(paths[i], polygon_to_path_d(merged))))
+            else:
+                out_paths.append(paths[i])  # fallback: keep representative as-is
+        out_indices.append(int(indices[i]))
 
-        # `merged` is in world coordinates (path_to_polygon applied each
-        # path's translate), so the rewritten `d` is absolute — drop the
-        # target's now-stale `transform` to avoid a double offset. Update the
-        # target's cached radius; the merged region is larger, so it may now
-        # clear the threshold.
-        new_d = polygon_to_path_d(merged)
-        work_paths[neighbor_idx] = _remove_transform(_set_d(work_paths[neighbor_idx], new_d))
-        polys[neighbor_idx] = merged
-        radii[neighbor_idx] = _polylabel_radius(merged)[2]
-
-        # Drop the tiny row from every parallel list (kept in lock-step).
-        del work_paths[tiny_idx]
-        del work_indices[tiny_idx]
-        del polys[tiny_idx]
-        del radii[tiny_idx]
-
-    return work_paths, np.asarray(work_indices, dtype=np.int32)
+    return out_paths, np.asarray(out_indices, dtype=np.int32)
 
 
 def render_numbers_group(
@@ -197,15 +235,19 @@ def render_numbers_group(
     min_radius: float = 8.0,
     max_font: float = 24.0,
 ) -> str:
-    """Emit a `<g id="numbers">` group with one `<text>` per region whose
-    inscribed-circle radius `≥ min_radius`. Each `<text>` sits at the
-    polylabel point with font-size `min(1.4 × radius, max_font)`.
+    """Emit a `<g id="numbers">` group with one `<text>` per region.
 
-    Regions that fall below `min_radius` here (despite the prior merge
-    pass) are skipped — that's the no-neighbour edge case from
-    `merge_tiny_regions`. In practice this almost never fires because
-    `merge_tiny_regions` already merged everything it could.
+    Every region the merge kept gets a number — the merge already removed
+    everything below `min_radius`, so labelling all survivors means no bare
+    regions (previously a below-threshold survivor was silently skipped).
+
+    Font size is UNIFORM across the trace: `min(1.4 × min_radius, max_font)`,
+    so the labels read as one consistent size instead of scaling per region.
+    A region that (rarely) still sits below the threshold shrinks its own
+    label just enough to fit (`min(uniform, 1.4 × radius)`) so it never
+    overflows; the common case is every label at the same `uniform` size.
     """
+    uniform_font = min(1.4 * min_radius, max_font)
     items: list[str] = []
     for path, idx in zip(paths, indices):
         d = _extract_d(path)
@@ -215,9 +257,10 @@ def render_numbers_group(
         if polygon is None:
             continue
         cx, cy, radius = _polylabel_radius(polygon)
-        if radius < min_radius:
-            continue
-        font_size = min(1.4 * radius, max_font)
+        if radius <= 0:
+            continue  # degenerate geometry only
+        # Uniform for real regions; only a sub-threshold sliver shrinks to fit.
+        font_size = min(uniform_font, 1.4 * radius)
         label = label_map[int(idx)]
         items.append(
             f'<text x="{cx:.4f}" y="{cy:.4f}" '

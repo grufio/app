@@ -124,6 +124,12 @@ def path_to_polygon(d: str, transform_attr: str | None = None) -> Polygon | None
     to polylines via de Casteljau. Any unsupported command makes the
     parser bail out → returns None.
 
+    Multiple subpaths (each `M … Z`) are handled: the largest-area ring is
+    the exterior and any smaller ring is a HOLE. vtracer emits holey regions
+    (and `merge_tiny_regions` re-emits merged polygons with interior rings),
+    so flattening every subpath into one ring would self-intersect and lose
+    the label / mis-measure the region — the "region has no number" symptom.
+
     `transform_attr` is the raw value of the path's `transform` attribute
     (vtracer emits `"translate(tx, ty)"`); applied post-parse so the
     polygon ends up in the same coordinate space as the surrounding SVG
@@ -131,7 +137,8 @@ def path_to_polygon(d: str, transform_attr: str | None = None) -> Polygon | None
     origin space (all regions stacked at 0,0).
     """
     sx, sy, tx, ty = _parse_transform(transform_attr)
-    points: list[tuple[float, float]] = []
+    rings: list[list[tuple[float, float]]] = []
+    ring: list[tuple[float, float]] = []
     current = (0.0, 0.0)
     subpath_start: tuple[float, float] | None = None
 
@@ -144,13 +151,17 @@ def path_to_polygon(d: str, transform_attr: str | None = None) -> Polygon | None
         if upper == "M":
             if len(args) < 2:
                 return None
+            # A new subpath begins → close off the ring in progress.
+            if ring:
+                rings.append(ring)
+                ring = []
             x, y = args[0], args[1]
             if relative:
                 x += current[0]
                 y += current[1]
             current = (x, y)
             subpath_start = current
-            points.append(current)
+            ring.append(current)
             # Extra coord pairs after M are implicit L commands.
             i = 2
             while i + 1 < len(args):
@@ -159,7 +170,7 @@ def path_to_polygon(d: str, transform_attr: str | None = None) -> Polygon | None
                     x += current[0]
                     y += current[1]
                 current = (x, y)
-                points.append(current)
+                ring.append(current)
                 i += 2
         elif upper == "L":
             i = 0
@@ -169,7 +180,7 @@ def path_to_polygon(d: str, transform_attr: str | None = None) -> Polygon | None
                     x += current[0]
                     y += current[1]
                 current = (x, y)
-                points.append(current)
+                ring.append(current)
                 i += 2
         elif upper == "C":
             i = 0
@@ -181,26 +192,49 @@ def path_to_polygon(d: str, transform_attr: str | None = None) -> Polygon | None
                     x1 += current[0]; y1 += current[1]
                     x2 += current[0]; y2 += current[1]
                     x3 += current[0]; y3 += current[1]
-                _flatten_cubic(current, (x1, y1), (x2, y2), (x3, y3), points)
+                _flatten_cubic(current, (x1, y1), (x2, y2), (x3, y3), ring)
                 current = (x3, y3)
                 i += 6
         elif upper == "Z":
             if subpath_start is not None:
-                points.append(subpath_start)
+                ring.append(subpath_start)
                 current = subpath_start
         else:
             # Unsupported command (Q, A, S, T, H, V) → bail.
             return None
 
-    if len(points) < 4:
-        return None
+    if ring:
+        rings.append(ring)
 
-    # SVG order is translate ∘ scale: scale the local point, then offset.
-    coords = [(x * sx + tx, y * sy + ty) for x, y in points]
-    try:
-        poly = Polygon(coords)
-    except Exception:
+    # SVG order is translate ∘ scale: scale each local point, then offset.
+    # Build a candidate polygon per ring; the largest-area ring is the
+    # exterior, the rest are holes nested inside it.
+    candidates: list[tuple[float, list[tuple[float, float]]]] = []
+    for r in rings:
+        if len(r) < 4:
+            continue
+        pts = [(x * sx + tx, y * sy + ty) for x, y in r]
+        try:
+            rp = Polygon(pts)
+        except Exception:
+            continue
+        if not rp.is_valid:
+            rp = rp.buffer(0)
+        if isinstance(rp, Polygon) and not rp.is_empty and rp.area > 0:
+            candidates.append((rp.area, pts))
+    if not candidates:
         return None
+    candidates.sort(key=lambda c: c[0], reverse=True)
+    exterior = candidates[0][1]
+    holes = [pts for _, pts in candidates[1:]]
+
+    try:
+        poly = Polygon(exterior, holes)
+    except Exception:
+        try:
+            poly = Polygon(exterior)
+        except Exception:
+            return None
     if not poly.is_valid:
         poly = poly.buffer(0)  # fix self-intersection if vtracer emitted one
         if not isinstance(poly, Polygon) or poly.is_empty:
