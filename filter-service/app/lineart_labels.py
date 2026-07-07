@@ -59,6 +59,14 @@ def _set_d(path: str, new_d: str) -> str:
     return _PATH_D_RE.sub(f'd="{new_d}"', path, count=1)
 
 
+def _remove_transform(path: str) -> str:
+    """Strip the `transform="..."` attribute. Used after a merge rewrites a
+    path's `d` in absolute (world) coordinates — the vtracer `translate`
+    that positioned the original local `d` must go, or it would be applied
+    a second time on top of the already-absolute merged geometry."""
+    return _PATH_TRANSFORM_RE.sub("", path, count=1)
+
+
 def _polylabel_radius(polygon: Polygon) -> tuple[float, float, float]:
     """Return `(cx, cy, radius)` for the largest inscribed circle. The
     tolerance for polylabel scales with the polygon's perimeter so big
@@ -85,74 +93,99 @@ def _parse_all(
     return out
 
 
+# vtracer's `cutout` output leaves sub-pixel-to-~1.5px gaps between adjacent
+# regions (no shared edge). Merging must see across those gaps: find a
+# neighbour within this tolerance, and dilate the tiny region by the same
+# amount so the union closes into a single polygon instead of a MultiPolygon.
+# (Measured on real output: hairline gaps cluster ≤ 1.4px.)
+_MERGE_GAP_EPS = 1.5
+
+
 def merge_tiny_regions(
     paths: list[str],
     indices: np.ndarray,
     min_radius: float = 8.0,
-    max_iter: int = 5,
+    max_iter: int | None = None,
 ) -> tuple[list[str], np.ndarray]:
-    """Iteratively merge regions with inscribed-circle radius
-    `< min_radius` into their largest area neighbour, via Shapely union.
+    """Iteratively merge regions whose largest inscribed circle has radius
+    `< min_radius` into their largest-area neighbour (Shapely union), so
+    every surviving region stays wide enough to paint + hold its number.
 
-    Output is a new (paths, indices) pair: the tiny path is removed, the
-    target's `d` attribute is rewritten to the merged polygon's
-    (polygonal) outline. Target's fill (= colour) stays put — the tiny
-    inherits it via the union, no spurious black line between the
-    merged regions because the shared boundary is gone topologically.
+    Output is a new (paths, indices) pair: the tiny path is removed and the
+    target's `d` is rewritten to the merged (absolute) outline with its
+    now-stale `transform` stripped. The target's fill (colour) stays, so the
+    tiny inherits it and the shared black boundary disappears topologically.
 
-    Halts when no region needs merging OR `max_iter` runs are reached.
+    Robust to vtracer's `cutout` gaps: neighbours are matched within
+    `_MERGE_GAP_EPS`, and if a plain union yields a MultiPolygon (hairline
+    gap) the tiny is dilated by the same tolerance to bridge it. Inscribed
+    radii are cached and recomputed only for a region that actually changed,
+    so the pass stays ~O(n) polylabel calls even when many regions merge.
+
+    Halts when nothing is below `min_radius` (or after `max_iter`, default =
+    the region count — each successful merge removes exactly one region, so
+    that is a can't-loop-forever bound, not a coverage cap).
     """
     polys = _parse_all(paths)
     work_paths = list(paths)
-    work_indices = list(int(i) for i in indices)
+    work_indices = [int(i) for i in indices]
+    # Cache each region's inscribed radius; None mirrors an unparsed/dropped
+    # polygon so it is never picked as a tiny.
+    radii: list[float | None] = [
+        None if p is None else _polylabel_radius(p)[2] for p in polys
+    ]
+    if max_iter is None:
+        max_iter = len(paths)
 
     for _ in range(max_iter):
-        # Find the smallest tiny-radius region. None means stable.
+        # Smallest below-threshold region by cached radius. None → stable.
         tiny_idx: int | None = None
         tiny_radius = float("inf")
-        for i, poly in enumerate(polys):
-            if poly is None:
+        for i, r in enumerate(radii):
+            if r is None:
                 continue
-            _, _, r = _polylabel_radius(poly)
             if r < min_radius and r < tiny_radius:
                 tiny_radius = r
                 tiny_idx = i
         if tiny_idx is None:
             break
 
-        neighbor_idx = find_largest_neighbor(tiny_idx, polys)
-        if neighbor_idx is None:
-            # Defensive: isolated speckle with no neighbour. Mark it
-            # parsed-but-unmergeable so the loop doesn't re-pick it.
-            polys[tiny_idx] = None
+        neighbor_idx = find_largest_neighbor(tiny_idx, polys, eps=_MERGE_GAP_EPS)
+        tiny_poly = polys[tiny_idx]
+        target_poly = polys[neighbor_idx] if neighbor_idx is not None else None
+        if target_poly is None or tiny_poly is None:
+            # Genuinely isolated (no neighbour within tolerance). Keep the
+            # path in the output but stop re-picking it as a tiny.
+            radii[tiny_idx] = None
             continue
 
-        target_poly = polys[neighbor_idx]
-        tiny_poly = polys[tiny_idx]
-        if target_poly is None or tiny_poly is None:
-            polys[tiny_idx] = None
-            continue
         try:
             merged = unary_union([target_poly, tiny_poly])
+            if not isinstance(merged, Polygon) or merged.is_empty:
+                # Hairline gap → MultiPolygon. Dilate the tiny to bridge it.
+                merged = unary_union([target_poly, tiny_poly.buffer(_MERGE_GAP_EPS)])
         except Exception:
-            polys[tiny_idx] = None
+            radii[tiny_idx] = None
             continue
         if not isinstance(merged, Polygon) or merged.is_empty:
-            # Union produced a MultiPolygon (tiny + neighbour not
-            # actually adjacent at the buffer eps) — skip the merge.
-            polys[tiny_idx] = None
+            radii[tiny_idx] = None
             continue
 
+        # `merged` is in world coordinates (path_to_polygon applied each
+        # path's translate), so the rewritten `d` is absolute — drop the
+        # target's now-stale `transform` to avoid a double offset. Update the
+        # target's cached radius; the merged region is larger, so it may now
+        # clear the threshold.
         new_d = polygon_to_path_d(merged)
-        work_paths[neighbor_idx] = _set_d(work_paths[neighbor_idx], new_d)
+        work_paths[neighbor_idx] = _remove_transform(_set_d(work_paths[neighbor_idx], new_d))
         polys[neighbor_idx] = merged
+        radii[neighbor_idx] = _polylabel_radius(merged)[2]
 
-        # Drop the tiny: remove from paths, indices, polys lists.
-        # We modify in reverse-popping fashion to keep indices stable
-        # for the remainder of this iteration.
+        # Drop the tiny row from every parallel list (kept in lock-step).
         del work_paths[tiny_idx]
         del work_indices[tiny_idx]
         del polys[tiny_idx]
+        del radii[tiny_idx]
 
     return work_paths, np.asarray(work_indices, dtype=np.int32)
 

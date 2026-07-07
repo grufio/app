@@ -49,7 +49,14 @@ describe("Python parity: TS trace schema defaults vs Pydantic", () => {
   it("LineArtRequest", () => {
     const py = extractPydanticDefaults("LineArtRequest")
     const ts = lineartSchema.parse({})
+    // Server-computed fields the Node bridge derives rather than passing a TS
+    // param through 1:1 (like Pixelate's cells_x/crop_*). `min_region_radius_px`
+    // is computed from the TS `min_paintable_mm` dial + the content rect's
+    // px/mm scale + the line width (services/editor/server/trace/lineart.ts),
+    // so it has no matching TS default — exclude it from the pass-through check.
+    const SERVER_COMPUTED = new Set(["min_region_radius_px"])
     for (const key of Object.keys(py)) {
+      if (SERVER_COMPUTED.has(key)) continue
       expect(ts[key as keyof typeof ts]).toEqual(py[key])
     }
   })

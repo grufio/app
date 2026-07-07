@@ -24,7 +24,7 @@ describe("lineArtImageAndActivate validation contract", () => {
       supabase: mockSupabase,
       projectId,
       sourceImageId,
-      params: { line_thickness: 11, blur_amount: 3, smoothness: 0.6, num_colors: 8, color_mode: "color" as const },
+      params: { line_thickness: 11, blur_amount: 3, smoothness: 0.6, num_colors: 8, color_mode: "color" as const, min_paintable_mm: 4 },
     })
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.stage).toBe("validation")
@@ -35,7 +35,7 @@ describe("lineArtImageAndActivate validation contract", () => {
       supabase: mockSupabase,
       projectId,
       sourceImageId,
-      params: { line_thickness: 0, blur_amount: 3, smoothness: 0.6, num_colors: 8, color_mode: "color" as const },
+      params: { line_thickness: 0, blur_amount: 3, smoothness: 0.6, num_colors: 8, color_mode: "color" as const, min_paintable_mm: 4 },
     })
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.stage).toBe("validation")
@@ -46,7 +46,7 @@ describe("lineArtImageAndActivate validation contract", () => {
       supabase: mockSupabase,
       projectId,
       sourceImageId,
-      params: { line_thickness: 2, blur_amount: 21, smoothness: 0.6, num_colors: 8, color_mode: "color" as const },
+      params: { line_thickness: 2, blur_amount: 21, smoothness: 0.6, num_colors: 8, color_mode: "color" as const, min_paintable_mm: 4 },
     })
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.stage).toBe("validation")
@@ -57,7 +57,7 @@ describe("lineArtImageAndActivate validation contract", () => {
       supabase: mockSupabase,
       projectId,
       sourceImageId,
-      params: { line_thickness: 2, blur_amount: 3, smoothness: 1.5, num_colors: 8, color_mode: "color" as const },
+      params: { line_thickness: 2, blur_amount: 3, smoothness: 1.5, num_colors: 8, color_mode: "color" as const, min_paintable_mm: 4 },
     })
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.stage).toBe("validation")
@@ -68,7 +68,7 @@ describe("lineArtImageAndActivate validation contract", () => {
       supabase: mockSupabase,
       projectId,
       sourceImageId,
-      params: { line_thickness: 2, blur_amount: 3, smoothness: 0.6, num_colors: 1, color_mode: "color" as const },
+      params: { line_thickness: 2, blur_amount: 3, smoothness: 0.6, num_colors: 1, color_mode: "color" as const, min_paintable_mm: 4 },
     })
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.stage).toBe("validation")
@@ -79,7 +79,7 @@ describe("lineArtImageAndActivate validation contract", () => {
       supabase: mockSupabase,
       projectId,
       sourceImageId,
-      params: { line_thickness: 1, blur_amount: 0, smoothness: 0, num_colors: 2, color_mode: "color" as const },
+      params: { line_thickness: 1, blur_amount: 0, smoothness: 0, num_colors: 2, color_mode: "color" as const, min_paintable_mm: 4 },
     })
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.stage).toBe("source_lookup")

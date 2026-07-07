@@ -52,6 +52,7 @@ export async function lineArtImageAndActivate(args: {
     smoothness,
     num_colors: numColors,
     color_mode: colorMode,
+    min_paintable_mm: minPaintableMm,
   } = parsed.data
 
   const { data: src, error: srcErr } = await supabase
@@ -84,6 +85,15 @@ export async function lineArtImageAndActivate(args: {
   }
   const contentW = region.plan.canvasPx.widthPx
   const contentH = region.plan.canvasPx.heightPx
+
+  // Convert the user's "min paintable gap (mm)" into vtracer's inscribed-circle
+  // radius threshold in source px. The gap is the CLEAR space between the black
+  // outlines; the stroke (line_thickness px) eats line_thickness/2 into the
+  // region on each side, so the region must be geometrically
+  // (gap + line_thickness) wide → radius = (gap_px + line_thickness) / 2.
+  // px/mm comes from the content rect's own pixel size vs its physical mm.
+  const pxPerMm = region.displayMmW > 0 ? contentW / region.displayMmW : 0
+  const minRadiusPx = Math.max(0, (minPaintableMm * pxPerMm + lineThickness) / 2)
 
   const { data: srcBlob, error: downloadErr } = await supabase.storage
     .from(String(src.storage_bucket ?? PROJECT_IMAGES_BUCKET))
@@ -119,6 +129,7 @@ export async function lineArtImageAndActivate(args: {
         num_colors: numColors,
         palette_oklab: palette.map((c) => c.oklab),
         palette_rgb: palette.map((c) => c.rgb),
+        min_region_radius_px: minRadiusPx,
       },
     })
 

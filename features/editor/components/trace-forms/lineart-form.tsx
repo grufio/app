@@ -11,7 +11,7 @@
  *
  * Stateless: parent owns the draft and reacts to `onParamsChange`.
  */
-import { Brush, CircleDashed, Waves } from "lucide-react"
+import { Brush, CircleDashed, Ruler, Waves } from "lucide-react"
 
 import { FormField } from "@/components/ui/form-controls"
 import { lineartSchema, type LineartParams } from "@/lib/editor/trace/lineart"
@@ -30,6 +30,7 @@ type Props = {
 const LINE_THICKNESS_INPUT_PROPS = extractNumberInputProps(lineartSchema.shape.line_thickness)
 const BLUR_AMOUNT_INPUT_PROPS = extractNumberInputProps(lineartSchema.shape.blur_amount)
 const SMOOTHNESS_INPUT_PROPS = extractNumberInputProps(lineartSchema.shape.smoothness)
+const MIN_PAINTABLE_INPUT_PROPS = extractNumberInputProps(lineartSchema.shape.min_paintable_mm)
 
 export function LineArtForm({ params, onParamsChange, disabled }: Props) {
   return (
@@ -87,7 +88,22 @@ export function LineArtForm({ params, onParamsChange, disabled }: Props) {
               disabled={disabled}
               inputProps={SMOOTHNESS_INPUT_PROPS}
             />
-            <div aria-hidden="true" />
+            <FormField
+              variant="numeric"
+              numericMode="decimal"
+              label="Min. paintable gap"
+              labelVisuallyHidden
+              iconStart={<Ruler aria-hidden="true" />}
+              unit="mm"
+              id="min_paintable_mm"
+              value={String(params.min_paintable_mm)}
+              onCommit={(raw) => {
+                const res = parseFormNumber(lineartSchema.shape.min_paintable_mm, raw)
+                if (res.ok) onParamsChange("min_paintable_mm", res.value)
+              }}
+              disabled={disabled}
+              inputProps={MIN_PAINTABLE_INPUT_PROPS}
+            />
             <PanelIconSlot />
           </PanelTwoFieldRow>
         </div>
