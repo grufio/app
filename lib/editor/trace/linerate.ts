@@ -16,16 +16,16 @@ export const linerateSchema = z.object({
   line_thickness: z.coerce.number().min(0.1).max(10).default(1),
   // Flatten ∈ [0, 1] → L0 edge-preserving smoothing strength. Higher = flatter,
   // more painterly (texture/noise removed, strong edges kept crisp).
-  flatten: z.coerce.number().min(0).max(1).default(0.4),
+  flatten: z.coerce.number().min(0).max(1).default(0.25),
   // Detail ∈ [0, 1] → region granularity. Higher = more, finer regions; lower =
   // fewer, larger regions. Maps to the Potts regularisation λ in the service.
-  detail: z.coerce.number().min(0).max(1).default(0.5),
+  detail: z.coerce.number().min(0).max(1).default(0.75),
   // Smoothness ∈ [0, 1]. 0 = close to the working pixel boundary, 1 = very
   // smooth curves. Maps to RDP epsilon + Chaikin iterations on the shared
   // boundary arcs inside the Python service.
   smoothness: z.coerce.number().min(0).max(1).default(0.6),
   // Maximum number of distinct REAL paints selected from the fixed palette.
-  num_colors: z.coerce.number().int().min(2).max(48).default(16),
+  num_colors: z.coerce.number().int().min(2).max(48).default(28),
   // Smallest paintable gap between the outlines, in mm on the printed page.
   // Regions narrower than this dissolve into their neighbour so every surviving
   // region stays paintable + holds its number. 0 = off.

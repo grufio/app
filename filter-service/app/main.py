@@ -258,15 +258,15 @@ class LinerateRequest(BaseModel):
     line_thickness: float = 1.0
     # Flatten ∈ [0, 1] → L0 edge-preserving smoothing strength. Higher = flatter,
     # more painterly (texture/noise removed, strong edges kept crisp).
-    flatten: float = 0.4
+    flatten: float = 0.25
     # Detail ∈ [0, 1] → Potts region granularity. Higher = more, finer regions;
     # lower = fewer, larger regions.
-    detail: float = 0.5
+    detail: float = 0.75
     # Smoothness ∈ [0, 1] → RDP epsilon + Chaikin iterations on the shared
     # boundary arcs (0 = closer to the working pixels, 1 = very smooth).
     smoothness: float = 0.6
     # Max distinct REAL paints to select from the fixed palette.
-    num_colors: int = 16
+    num_colors: int = 28
     # Optional Munsell palette pair; ≤num_colors chips are selected and each
     # pixel is assigned one (same OKLab contract as lineart/pixelate).
     palette_oklab: list | None = None
