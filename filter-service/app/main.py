@@ -256,17 +256,23 @@ class LineArtRequest(BaseModel):
 class LinerateRequest(BaseModel):
     image_base64: str
     line_thickness: float = 1.0
-    blur_amount: int = 2
+    # Flatten ∈ [0, 1] → L0 edge-preserving smoothing strength. Higher = flatter,
+    # more painterly (texture/noise removed, strong edges kept crisp).
+    flatten: float = 0.4
+    # Detail ∈ [0, 1] → Potts region granularity. Higher = more, finer regions;
+    # lower = fewer, larger regions.
+    detail: float = 0.5
     # Smoothness ∈ [0, 1] → RDP epsilon + Chaikin iterations on the shared
-    # boundary arcs (0 = closer to the quantised pixels, 1 = very smooth).
+    # boundary arcs (0 = closer to the working pixels, 1 = very smooth).
     smoothness: float = 0.6
-    num_colors: int = 12
-    # Optional Munsell palette pair; each region's mean colour snaps to the
-    # nearest chip (same OKLab-nearest contract as lineart/pixelate).
+    # Max distinct REAL paints to select from the fixed palette.
+    num_colors: int = 16
+    # Optional Munsell palette pair; ≤num_colors chips are selected and each
+    # pixel is assigned one (same OKLab contract as lineart/pixelate).
     palette_oklab: list | None = None
     palette_rgb: list | None = None
     # Smallest inscribed-circle radius (source px) a region may keep; smaller
-    # regions are raster-merged into their largest neighbour before smoothing.
+    # regions dissolve into their majority-neighbour paint before vectorising.
     # The Node bridge derives it from the "min paintable gap (mm)" dial.
     min_region_radius_px: float = 8.0
 
@@ -575,19 +581,23 @@ async def lineart_filter(request: LineArtRequest):
 @app.post("/filters/linerate")
 async def linerate_filter(request: LinerateRequest):
     """
-    Linerate: segmentation-based paint-by-numbers (connected components →
-    raster-merge → shared-arc RDP+Chaikin smoothing → distance-transform
-    numbers). Watertight by construction; the sibling to `lineart` (which is
-    vtracer-based). Same SVG contract + palette snap as lineart.
+    Linerate: perceptual paint-by-numbers (P³). L0 edge-preserving flatten →
+    select ≤num_colors REAL paints from the fixed palette → per-pixel paint
+    assignment via a convex Potts relaxation → paintability dissolve →
+    shared-arc RDP+Chaikin smoothing → distance-transform numbers. Colour ==
+    region, so adjacent regions always differ in colour; watertight by
+    construction. Same SVG contract as lineart.
     """
     if request.line_thickness < 0.1 or request.line_thickness > 10:
         raise HTTPException(status_code=400, detail="line_thickness must be between 0.1 and 10")
-    if request.blur_amount < 0 or request.blur_amount > 20:
-        raise HTTPException(status_code=400, detail="blur_amount must be between 0 and 20")
+    if request.flatten < 0 or request.flatten > 1:
+        raise HTTPException(status_code=400, detail="flatten must be between 0 and 1")
+    if request.detail < 0 or request.detail > 1:
+        raise HTTPException(status_code=400, detail="detail must be between 0 and 1")
     if request.smoothness < 0 or request.smoothness > 1:
         raise HTTPException(status_code=400, detail="smoothness must be between 0 and 1")
-    if request.num_colors < 2 or request.num_colors > 256:
-        raise HTTPException(status_code=400, detail="num_colors must be between 2 and 256")
+    if request.num_colors < 2 or request.num_colors > 48:
+        raise HTTPException(status_code=400, detail="num_colors must be between 2 and 48")
 
     timer = PhaseTimer()
     try:
@@ -600,7 +610,8 @@ async def linerate_filter(request: LinerateRequest):
         svg_content, region_count, palette_indices_used = linerate_to_svg(
             img,
             line_thickness=request.line_thickness,
-            blur_amount=request.blur_amount,
+            flatten=request.flatten,
+            detail=request.detail,
             smoothness=request.smoothness,
             num_colors=request.num_colors,
             min_radius=request.min_region_radius_px,
