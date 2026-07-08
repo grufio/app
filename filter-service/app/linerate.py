@@ -7,19 +7,24 @@ we make **colour == region** in one step, which makes the classic defects
 (same-colour neighbours, same-colour nesting, noise splinters, duplicate
 numbers) structurally impossible:
 
-  L0 edge-preserving flatten → CSF saliency → select ≤K REAL paints from the
-  fixed palette (perceptually weighted, no colours invented) → per-pixel paint
-  assignment via a convex Potts relaxation (Chambolle-Pock, dependency-free) →
-  paintability dissolve (inscribed-radius floor) → shared pixel-CRACK boundary
-  graph → smooth each boundary ARC once (RDP + Chaikin, junction endpoints
-  fixed) → assemble each region's face from the shared arcs → distance-transform
+  L0 edge-preserving flatten → select ≤K REAL paints from the fixed palette
+  (coverage-based, shared with pixelate/circulate, no colours invented) → snap
+  each pixel to its nearest selected paint → connected-component FACETS →
+  merge every facet below the min area into its most similar-coloured neighbour
+  (drake7707-style, iterate to convergence) → re-label the merged paint map →
+  shared pixel-CRACK boundary graph → smooth each boundary ARC once (RDP +
+  Chaikin, junction endpoints fixed) → assemble faces → distance-transform
   number → SVG.
 
-Because the label IS the palette index, two adjacent regions always differ in
-colour by construction. The heavy front end runs at a capped WORKING resolution
-and the vector coordinates are scaled back to the content pixels; the watertight
-back half (`build_arcs` → `smooth_arc` → `assemble_faces`) is unchanged and
-shared with the previous linerate.
+The facet merge replaced an earlier convex Potts relaxation, which was clean but
+timed out on Cloud Run (numpy heavy). The merge is a specialised segmentation
+step: ~10-80× faster and just as clean, no dependency, no optimiser.
+
+Because the label IS the palette index (guaranteed by the final re-labelling of
+the merged paint map), two adjacent regions always differ in colour by
+construction. The front end runs at a capped WORKING resolution and the vector
+coordinates are scaled back to the content pixels; the watertight back half
+(`build_arcs` → `smooth_arc` → `assemble_faces`) is unchanged.
 
 Emits the same SVG contract as lineart (`<g id="regions">` with
 `<path fill stroke d/>` + `<g id="numbers">`), so the editor's
@@ -38,18 +43,14 @@ from .palette_reduction import reduce_to_top_n, restrict_palette_pam
 
 # ---- tuning ---------------------------------------------------------------
 
-_WORK_MAX_EDGE = 480     # cap the resolution the (heavy) labelling runs at
-# Chambolle-Pock iterations are budget-scaled: iters = clip(BUDGET / (pixels ×
-# labels), MIN, MAX). This bounds wall time on large images / high colour counts
-# (the relaxation, not the dissolve, is the cost driver) while keeping the
-# label argmax well-converged — halving the iterations barely moves the region
-# count, so it costs time, not quality.
-_RELAX_MAX_ITERS = 70    # fewer iters barely move the region count → detail-safe
-_RELAX_MIN_ITERS = 40
-_RELAX_BUDGET = 2.5e8    # tighter compute budget (belt + braces under the CPU cap)
-_CSF_ALPHA = 6.0         # saliency weight on the data term (detail concentration)
+_WORK_MAX_EDGE = 480     # cap the resolution the labelling runs at
 _KMEANS_ITERS = 15
 _KMEANS_SAMPLE = 12000   # subsample pixels for the palette-selection reduction
+_FACET_MERGE_ROUNDS = 40  # safety cap; area-merge converges in a few rounds
+# `detail` ∈ [0,1] widens the facet min-area above the paintability floor:
+# high detail → floor (many small facets), low detail → coarse (few big facets).
+_DETAIL_MIN_FRAC = 0.00025  # min facet area as fraction of the image at detail=1
+_DETAIL_MAX_FRAC = 0.003    # ... at detail=0
 
 
 # ---- perceptual segmentation (P³) -----------------------------------------
@@ -60,11 +61,14 @@ def _flatten_to_lam(flatten: float) -> float:
     return 0.002 + f * 0.045            # ~0.002 .. 0.047
 
 
-def _detail_to_lam(detail: float) -> float:
-    """Map detail ∈ [0,1] → Potts regularisation λ. LOW detail = strong
-    smoothing = fewer/larger regions; HIGH detail = weaker = more regions."""
+def _detail_to_min_area(detail: float, work_px: int, min_radius_work: float) -> float:
+    """Map detail ∈ [0,1] → facet min-area. HIGH detail = small area = more, finer
+    facets; LOW detail = large area = fewer, bolder facets. Never below the
+    paintability floor (the inscribed circle of `min_radius_work`)."""
     d = max(0.0, min(1.0, detail))
-    return 0.25 + (1.0 - d) * 2.75      # λ ~0.25 (fine) .. 3.0 (coarse)
+    frac = _DETAIL_MIN_FRAC + (1.0 - d) * (_DETAIL_MAX_FRAC - _DETAIL_MIN_FRAC)
+    floor = np.pi * float(min_radius_work) ** 2
+    return max(floor, frac * work_px)
 
 
 def _l0_smooth(img_u8: np.ndarray, lam: float, kappa: float = 2.0) -> np.ndarray:
@@ -100,14 +104,6 @@ def _l0_smooth(img_u8: np.ndarray, lam: float, kappa: float = 2.0) -> np.ndarray
         S = np.real(np.fft.ifft2(FS, axes=(0, 1)))
         beta *= kappa
     return np.clip(S, 0.0, 1.0) * 255.0
-
-
-def _saliency(okf: np.ndarray) -> np.ndarray:
-    """CSF proxy: gradient magnitude of the blurred lightness — where the eye
-    perceives detail. Normalised to [0, 1]."""
-    Lb = cv2.GaussianBlur(okf[..., 0].astype(np.float32), (0, 0), 1.2)
-    g = np.hypot(cv2.Sobel(Lb, cv2.CV_32F, 1, 0, 3), cv2.Sobel(Lb, cv2.CV_32F, 0, 1, 3))
-    return (g / (g.max() + 1e-9)).astype(np.float32)
 
 
 def _select_paints(okf_flat, rgb_flat, num_colors, pal_ok, pal_rgb, restriction, seed):
@@ -159,79 +155,77 @@ def _select_paints(okf_flat, rgb_flat, num_colors, pal_ok, pal_rgb, restriction,
     return C.astype(np.float64), sel_rgb, np.full(len(C), -1, np.int32)
 
 
-def _project_simplex(V: np.ndarray) -> np.ndarray:
-    """Project each row of V (N, L) onto the probability simplex (sum=1, ≥0)."""
-    N, L = V.shape
-    U = np.sort(V, axis=1)[:, ::-1]
-    css = np.cumsum(U, axis=1) - 1.0
-    ind = np.arange(1, L + 1)
-    rho = ((U - css / ind) > 0).sum(1)
-    theta = css[np.arange(N), rho - 1] / rho
-    return np.maximum(V - theta[:, None], 0.0)
+def _facet_adjacency(labels: np.ndarray, nreg: int):
+    """Unique unordered adjacent facet-label pairs (vectorised)."""
+    keys = []
+    for A, B in ((labels[:, :-1], labels[:, 1:]), (labels[:-1, :], labels[1:, :])):
+        m = A != B
+        a = A[m].astype(np.int64)
+        b = B[m].astype(np.int64)
+        lo = np.minimum(a, b)
+        hi = np.maximum(a, b)
+        keys.append(lo * nreg + hi)
+    if not keys:
+        return np.empty(0, np.int32), np.empty(0, np.int32)
+    u = np.unique(np.concatenate(keys))
+    return (u // nreg).astype(np.int32), (u % nreg).astype(np.int32)
 
 
-def _solve_potts(unary: np.ndarray, lam: float, iters: int) -> np.ndarray:
-    """Per-pixel paint assignment as a convex Potts / piecewise-constant labelling,
-    solved by Chambolle-Pock primal-dual (anisotropic-TV relaxation) in pure numpy.
-    Returns the per-pixel argmax label. The 'adjacent regions differ in colour'
-    guarantee holds for ANY rounding — it follows from label == palette index,
-    not from optimality — so the relaxation needs no exact solver."""
-    H, W, L = unary.shape
-    f = unary.astype(np.float64)
-    f = f / (f.std() + 1e-9)
-    u = _project_simplex((-f).reshape(-1, L)).reshape(H, W, L)
-    ub = u.copy()
-    px = np.zeros((H, W, L))
-    py = np.zeros((H, W, L))
-    tau = sig = 1.0 / np.sqrt(8.0)
-    for _ in range(iters):
-        gx = np.zeros_like(ub)
-        gy = np.zeros_like(ub)
-        gx[:, :-1] = ub[:, 1:] - ub[:, :-1]
-        gy[:-1, :] = ub[1:, :] - ub[:-1, :]
-        px = np.clip(px + sig * gx, -lam, lam)
-        py = np.clip(py + sig * gy, -lam, lam)
-        dtx = np.zeros_like(px)
-        dty = np.zeros_like(py)
-        dtx[:, 0] = -px[:, 0]
-        dtx[:, 1:-1] = px[:, :-2] - px[:, 1:-1]
-        dtx[:, -1] = px[:, -2]
-        dty[0, :] = -py[0, :]
-        dty[1:-1, :] = py[:-2, :] - py[1:-1, :]
-        dty[-1, :] = py[-2, :]
-        un = _project_simplex((u - tau * (dtx + dty) - tau * f).reshape(-1, L)).reshape(H, W, L)
-        ub = 2 * un - u
-        u = un
-    return u.argmax(2).astype(np.int32)
-
-
-def _dissolve(P: np.ndarray, nsel: int, min_radius: float) -> np.ndarray:
-    """Paintability: any connected region whose inscribed-circle radius <
-    min_radius is absorbed into its majority-neighbour paint. Operates on the
-    paint-index map so label == paint stays consistent; a dissolved region merges
-    INTO a neighbour, so it never creates a same-colour boundary."""
-    if min_radius <= 0:
-        return P
-    ring_k = np.ones((3, 3), np.uint8)
-    for _ in range(8):  # safety cap; each round strictly shrinks region count
-        changed = False
-        newP = P.copy()
-        for k in range(nsel):
-            ncc, cc = cv2.connectedComponents((P == k).astype(np.uint8), connectivity=4)
-            for c in range(1, ncc):
-                mask = cc == c
-                if cv2.distanceTransform(mask.astype(np.uint8), cv2.DIST_L2, 3).max() >= min_radius:
-                    continue
-                ring = cv2.dilate(mask.astype(np.uint8), ring_k) - mask.astype(np.uint8)
-                nb = P[ring > 0]
-                nb = nb[nb != k]
-                if nb.size:
-                    newP[mask] = np.bincount(nb).argmax()
-                    changed = True
-        P = newP
-        if not changed:
+def _facet_merge(P: np.ndarray, nsel: int, sel_ok: np.ndarray, min_area: float):
+    """drake7707-style region cleanup. Connected-component facets of the paint
+    map, then merge every facet below `min_area` into its most similar-coloured
+    neighbour (OKLab), iterating to convergence — clean regions without an
+    optimiser. A final re-labelling of the merged paint map coalesces any
+    now-adjacent same-paint facets, so 'adjacent regions differ in colour' holds
+    by construction. Returns (labels, nreg, reg_sel) like `_labels_from_paint_map`.
+    The per-round work is O(#facets) Python (adjacency + union-find); the facet
+    count collapses after the first round, so it stays fast (unlike the convex
+    relaxation it replaces, which timed out on Cloud Run)."""
+    labels, nreg, facet_sel = _labels_from_paint_map(P, nsel)
+    for _ in range(_FACET_MERGE_ROUNDS):
+        area = np.bincount(labels.ravel(), minlength=nreg)
+        small = np.where(area < min_area)[0]
+        if small.size == 0:
             break
-    return P
+        pa, pb = _facet_adjacency(labels, nreg)
+        neigh: dict[int, list[int]] = {}
+        for a, b in zip(pa.tolist(), pb.tolist()):
+            neigh.setdefault(a, []).append(b)
+            neigh.setdefault(b, []).append(a)
+        parent = np.arange(nreg)
+
+        def find(i: int) -> int:
+            while parent[i] != i:
+                parent[i] = parent[parent[i]]
+                i = parent[i]
+            return int(i)
+
+        fok = sel_ok[facet_sel]
+        for f in small[np.argsort(area[small])].tolist():
+            rf = find(f)
+            best, bestd = -1, np.inf
+            for n in neigh.get(f, ()):
+                rn = find(n)
+                if rn == rf:
+                    continue
+                d = float(((fok[rf] - fok[rn]) ** 2).sum())
+                if d < bestd:
+                    bestd, best = d, rn
+            if best < 0:
+                continue
+            ra, rb = (best, rf) if area[best] >= area[rf] else (rf, best)
+            parent[rb] = ra
+            area[ra] += area[rb]
+        lut = np.array([find(i) for i in range(nreg)], np.int32)
+        labels = lut[labels]
+        ids = np.unique(labels)
+        remap = np.zeros(int(ids.max()) + 1, np.int32)
+        remap[ids] = np.arange(len(ids))
+        labels = remap[labels]
+        facet_sel = facet_sel[ids]
+        nreg = len(ids)
+    # final re-CC on the merged paint map → adjacent facets always differ in paint
+    return _labels_from_paint_map(facet_sel[labels], nsel)
 
 
 def _labels_from_paint_map(P: np.ndarray, nsel: int) -> tuple[np.ndarray, int, np.ndarray]:
@@ -470,8 +464,6 @@ def linerate_to_svg(
     phase("flatten")
 
     okf = rgb255_to_oklab(flat)                       # (hh, ww, 3)
-    sal = _saliency(okf)
-    weights = (1.0 + _CSF_ALPHA * sal.reshape(-1)).astype(np.float64)
     X = okf.reshape(-1, 3)
     rgb_flat = work.reshape(-1, 3)
 
@@ -479,18 +471,19 @@ def linerate_to_svg(
     pal_ok = np.asarray(palette_oklab, np.float64) if have_palette else None
     pal_rgb = np.asarray(palette_rgb, np.uint8) if have_palette else None
     seed = int(work.astype(np.int64).sum() % (2 ** 32))   # deterministic per image
-    # Paint SELECTION is coverage-based (shared with pixelate/circulate), no CSF
-    # bias. The saliency `weights` stays only in the spatial unary term below.
+    # Paint SELECTION is coverage-based (shared with pixelate/circulate).
     sel_ok, sel_rgb, sel_pal_index = _select_paints(
         X, rgb_flat, num_colors, pal_ok, pal_rgb, palette_restriction, seed
     )
 
-    unary = ((((X[:, None, :] - sel_ok[None, :, :]) ** 2).sum(2)) * weights[:, None]).reshape(hh, ww, len(sel_ok))
-    iters = int(np.clip(_RELAX_BUDGET / max(1, hh * ww * len(sel_ok)), _RELAX_MIN_ITERS, _RELAX_MAX_ITERS))
-    P = _solve_potts(unary, _detail_to_lam(detail), iters)
+    # Snap each pixel to its nearest selected paint, then merge tiny facets into
+    # their most similar-coloured neighbour (drake7707-style) — clean regions
+    # without an optimiser, and fast enough for Cloud Run (the convex relaxation
+    # timed out there). min_area = the paintability floor, widened by `detail`.
     min_radius_work = min_radius * (ww / width)
-    P = _dissolve(P, len(sel_ok), min_radius_work)
-    labels, nreg, reg_sel = _labels_from_paint_map(P, len(sel_ok))
+    min_area = _detail_to_min_area(detail, hh * ww, min_radius_work)
+    P = nearest_palette_indices(X, sel_ok).reshape(hh, ww).astype(np.int32)
+    labels, nreg, reg_sel = _facet_merge(P, len(sel_ok), sel_ok, min_area)
     phase("segment")
 
     # --- watertight shared-arc vectorisation (unchanged back half) ---

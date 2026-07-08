@@ -11,7 +11,7 @@ from app.linerate import (
     build_arcs,
     smooth_arc,
     linerate_to_svg,
-    _dissolve,
+    _facet_merge,
     _labels_from_paint_map,
 )
 from app.oklab import rgb255_to_oklab
@@ -66,15 +66,31 @@ def test_colour_equals_region_adjacent_paints_differ():
         assert np.all(reg_sel[A[m]] != reg_sel[B[m]]), "adjacent regions must differ in paint"
 
 
-def test_dissolve_removes_subminimum_region():
-    # A 1px-wide sliver of paint 2 between two big halves is below the radius
-    # floor and must be absorbed into a neighbour paint.
-    P = np.zeros((12, 13), np.int32)
-    P[:, 6] = 2          # 1px sliver
-    P[:, 7:] = 1
-    out = _dissolve(P.copy(), nsel=3, min_radius=3.0)
-    assert 2 not in np.unique(out), "sub-minimum sliver must be dissolved away"
-    assert set(np.unique(out).tolist()) <= {0, 1}
+def test_facet_merge_absorbs_small_facets():
+    # A small sliver of paint 2 between two big halves is below min_area and must
+    # be merged into a neighbour; the two big paints survive.
+    P = np.zeros((14, 15), np.int32)
+    P[:, 7] = 2          # thin sliver
+    P[:, 8:] = 1
+    sel_ok = np.array([[0.2, 0, 0], [0.8, 0, 0], [0.21, 0, 0]], float)  # 2 is near 0
+    labels, nreg, reg_sel = _facet_merge(P.copy(), 3, sel_ok, min_area=40)
+    assert 2 not in reg_sel.tolist(), "sub-min facet must be merged away"
+
+
+def test_facet_merge_keeps_zero_same_colour_adjacency():
+    # Merging can create adjacent same-paint facets (paint 0 separates two paint-1
+    # areas). The final re-CC MUST coalesce them → no two adjacent facets share a
+    # paint. Guards against the same-colour-nesting defect returning.
+    P = np.array(
+        [[1, 1, 0, 1, 1],
+         [1, 1, 0, 1, 1],
+         [1, 1, 0, 1, 1]], np.int32,   # a thin paint-0 column splitting paint 1
+    )
+    sel_ok = np.array([[0.5, 0, 0], [0.5, 0, 0]], float)  # 0 and 1 similar → 0 merges into 1
+    labels, nreg, reg_sel = _facet_merge(P.copy(), 2, sel_ok, min_area=10)
+    for A, B in ((labels[:, :-1], labels[:, 1:]), (labels[:-1, :], labels[1:, :])):
+        m = A != B
+        assert np.all(reg_sel[A[m]] != reg_sel[B[m]]), "adjacent facets must differ in paint"
 
 
 def test_linerate_to_svg_labels_every_region():
