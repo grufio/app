@@ -37,10 +37,18 @@ from .cell_labels import build_label_map
 
 # ---- tuning ---------------------------------------------------------------
 
-_WORK_MAX_EDGE = 560     # cap the resolution the (heavy) labelling runs at
-_RELAX_ITERS = 160       # Chambolle-Pock iterations
+_WORK_MAX_EDGE = 480     # cap the resolution the (heavy) labelling runs at
+# Chambolle-Pock iterations are budget-scaled: iters = clip(BUDGET / (pixels ×
+# labels), MIN, MAX). This bounds wall time on large images / high colour counts
+# (the relaxation, not the dissolve, is the cost driver) while keeping the
+# label argmax well-converged — halving the iterations barely moves the region
+# count, so it costs time, not quality.
+_RELAX_MAX_ITERS = 90
+_RELAX_MIN_ITERS = 45
+_RELAX_BUDGET = 4.0e8
 _CSF_ALPHA = 6.0         # saliency weight on the data term (detail concentration)
-_KMEANS_ITERS = 20
+_KMEANS_ITERS = 15
+_KMEANS_SAMPLE = 20000   # subsample pixels for the k-means centroid iterations
 
 
 # ---- perceptual segmentation (P³) -----------------------------------------
@@ -110,15 +118,23 @@ def _select_paints(okf_flat, rgb_flat, weights, num_colors, pal_ok, pal_rgb, see
     K = max(2, int(num_colors))
     X = okf_flat.astype(np.float32)
     rng = np.random.default_rng(seed)
-    p = weights / weights.sum()
-    C = X[rng.choice(len(X), min(K, len(X)), replace=False, p=p)].copy()
-    a = np.zeros(len(X), np.int64)
+    # k-means only needs a representative subset to place the centroids; running
+    # the Lloyd iterations over a capped sample keeps selection cheap on large
+    # images (the full (N, K, 3) distance tensor per iter was the second hotspot).
+    if len(X) > _KMEANS_SAMPLE:
+        idx = rng.choice(len(X), _KMEANS_SAMPLE, replace=False, p=weights / weights.sum())
+        Xs, ws, rgbs = X[idx], weights[idx], rgb_flat[idx]
+    else:
+        Xs, ws, rgbs = X, weights, rgb_flat
+    p = ws / ws.sum()
+    C = Xs[rng.choice(len(Xs), min(K, len(Xs)), replace=False, p=p)].copy()
+    a = np.zeros(len(Xs), np.int64)
     for _ in range(_KMEANS_ITERS):
-        a = (((X[:, None, :] - C[None, :, :]) ** 2).sum(2)).argmin(1)
+        a = (((Xs[:, None, :] - C[None, :, :]) ** 2).sum(2)).argmin(1)
         for k in range(len(C)):
             m = a == k
             if m.any():
-                C[k] = (X[m] * weights[m, None]).sum(0) / weights[m].sum()
+                C[k] = (Xs[m] * ws[m, None]).sum(0) / ws[m].sum()
     if pal_ok is not None and pal_rgb is not None:
         snap = np.array(sorted(set(int(s) for s in nearest_palette_indices(C, pal_ok))), np.int32)
         return pal_ok[snap], pal_rgb[snap], snap
@@ -127,7 +143,7 @@ def _select_paints(okf_flat, rgb_flat, weights, num_colors, pal_ok, pal_rgb, see
     for k in range(len(C)):
         m = a == k
         if m.any():
-            sel_rgb[k] = rgb_flat[m].mean(0)
+            sel_rgb[k] = rgbs[m].mean(0)
     return C.astype(np.float64), sel_rgb, np.full(len(C), -1, np.int32)
 
 
@@ -455,7 +471,8 @@ def linerate_to_svg(
     )
 
     unary = ((((X[:, None, :] - sel_ok[None, :, :]) ** 2).sum(2)) * weights[:, None]).reshape(hh, ww, len(sel_ok))
-    P = _solve_potts(unary, _detail_to_lam(detail), _RELAX_ITERS)
+    iters = int(np.clip(_RELAX_BUDGET / max(1, hh * ww * len(sel_ok)), _RELAX_MIN_ITERS, _RELAX_MAX_ITERS))
+    P = _solve_potts(unary, _detail_to_lam(detail), iters)
     min_radius_work = min_radius * (ww / width)
     P = _dissolve(P, len(sel_ok), min_radius_work)
     labels, nreg, reg_sel = _labels_from_paint_map(P, len(sel_ok))
