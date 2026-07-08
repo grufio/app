@@ -44,12 +44,12 @@ _WORK_MAX_EDGE = 480     # cap the resolution the (heavy) labelling runs at
 # (the relaxation, not the dissolve, is the cost driver) while keeping the
 # label argmax well-converged — halving the iterations barely moves the region
 # count, so it costs time, not quality.
-_RELAX_MAX_ITERS = 90
-_RELAX_MIN_ITERS = 45
-_RELAX_BUDGET = 4.0e8
+_RELAX_MAX_ITERS = 70    # fewer iters barely move the region count → detail-safe
+_RELAX_MIN_ITERS = 40
+_RELAX_BUDGET = 2.5e8    # tighter compute budget (belt + braces under the CPU cap)
 _CSF_ALPHA = 6.0         # saliency weight on the data term (detail concentration)
 _KMEANS_ITERS = 15
-_KMEANS_SAMPLE = 20000   # subsample pixels for the k-means centroid iterations
+_KMEANS_SAMPLE = 12000   # subsample pixels for the palette-selection reduction
 
 
 # ---- perceptual segmentation (P³) -----------------------------------------
