@@ -4,6 +4,7 @@ from __future__ import annotations
 import re
 
 import numpy as np
+import pytest
 from PIL import Image
 
 from app.linerate import (
@@ -139,3 +140,24 @@ def test_linerate_paints_used_within_num_colors():
     assert len(used) <= 5
     fills = set(re.findall(r'fill="(#[0-9a-f]{6})"', svg))
     assert len(fills) <= 5
+
+
+@pytest.mark.parametrize("restriction", ["top_n", "pam"])
+def test_selection_both_paths_use_only_real_paints(restriction):
+    # Both shared reductions (top_n / pam) must select ONLY real palette chips
+    # and never exceed num_colors — same contract as pixelate/circulate.
+    arr = np.zeros((48, 48, 3), np.uint8)
+    arr[:, :16] = (200, 60, 60)
+    arr[:, 16:32] = (60, 200, 60)
+    arr[:, 32:] = (60, 60, 200)
+    img = Image.fromarray(arr, "RGB")
+    rgbs = [(r, g, b) for r in (30, 120, 210) for g in (30, 120, 210) for b in (30, 210)]
+    pal_ok, pal_rgb = _mini_palette(rgbs)
+    svg, _, used = linerate_to_svg(
+        img, flatten=0.2, detail=0.6, num_colors=6, min_radius=2.0,
+        palette_oklab=pal_ok, palette_rgb=pal_rgb, palette_restriction=restriction,
+    )
+    fills = set(re.findall(r'fill="(#[0-9a-f]{6})"', svg))
+    palette_hex = {f"#{r:02x}{g:02x}{b:02x}" for r, g, b in pal_rgb}
+    assert fills and fills <= palette_hex, "only real palette chips"
+    assert len(used) <= 6 and all(0 <= u < len(pal_rgb) for u in used)

@@ -1,5 +1,6 @@
 import { z } from "zod"
 
+import { paletteRestrictionSchema } from "./palette-restriction-schema"
 import type { TraceDefinition } from "./types"
 
 /**
@@ -26,6 +27,9 @@ export const linerateSchema = z.object({
   smoothness: z.coerce.number().min(0).max(1).default(0.6),
   // Maximum number of distinct REAL paints selected from the fixed palette.
   num_colors: z.coerce.number().int().min(2).max(48).default(28),
+  // How those ≤num_colors paints are chosen — same shared reduction as
+  // pixelate/circulate: "top_n" (most-used chips) or "pam" (k-medoids).
+  palette_restriction: paletteRestrictionSchema,
   // Smallest paintable gap between the outlines, in mm on the printed page.
   // Regions narrower than this dissolve into their neighbour so every surviving
   // region stays paintable + holds its number. 0 = off.
@@ -52,6 +56,7 @@ export const linerateTrace = {
     detail: { kind: "decimal", label: "Detail", min: 0, max: 1, step: 0.05, description: "Region granularity (0=few large regions, 1=many fine regions)" },
     smoothness: { kind: "decimal", label: "Smoothness", min: 0, max: 1, step: 0.05, description: "Edge smoothness (0=follow working pixels, 1=heavy curve smoothing)" },
     num_colors: { label: "Number of Colors", min: 2, max: 48, description: "Max distinct paints selected from the palette (2-48)" },
+    palette_restriction: { kind: "select", label: "Palette selection", options: [{ value: "top_n", label: "Top-N" }, { value: "pam", label: "PAM" }], description: "How paints are chosen: Top-N (most-used chips) or PAM (k-medoids). Coverage-based." },
     min_paintable_mm: { kind: "decimal", label: "Min. Gap (mm)", min: 0, max: 20, step: 0.5, description: "Smallest paintable gap between outlines in mm (0=off). Thinner regions merge so each stays paintable + fits its number." },
     color_mode: { kind: "select", label: "Color mode", options: [{ value: "color", label: "Color" }, { value: "bw", label: "B/W" }], description: "Which Munsell palette to select paints from" },
   },
