@@ -41,8 +41,14 @@ def _srgb_to_linear(c: np.ndarray) -> np.ndarray:
 def rgb_to_oklab(rgb01: np.ndarray) -> np.ndarray:
     """sRGB (gamma-encoded, 0..1, shape (..., 3)) → OKLab (..., 3)."""
     lin = _srgb_to_linear(np.asarray(rgb01, dtype=np.float64))
-    lms_ = np.cbrt(lin @ _OKLAB_M1.T)
-    return lms_ @ _OKLAB_M2.T
+    # NumPy's SIMD matmul path spuriously reports a stale FP-error flag on
+    # large operands ("divide by zero in matmul" — impossible, matmul only
+    # multiply-adds). Inputs here are finite and in-gamut, so the warnings are
+    # pure noise that spams Cloud Run's stderr. Silencing them leaves the
+    # output bit-identical (OKLab parity with the TS mirror is unaffected).
+    with np.errstate(divide="ignore", over="ignore", invalid="ignore"):
+        lms_ = np.cbrt(lin @ _OKLAB_M1.T)
+        return lms_ @ _OKLAB_M2.T
 
 
 def rgb255_to_oklab(rgb255: np.ndarray) -> np.ndarray:

@@ -4,6 +4,8 @@ the client mirror `lib/color/oklab.test.ts` — if client and server diverge,
 one side fails here. Expected OKLab values are Ottosson reference values,
 inherited from color-lab's `colour`-validated transform.
 """
+import warnings
+
 import numpy as np
 
 from app.oklab import adjust_oklab, nearest_palette_indices, rgb255_to_oklab
@@ -32,6 +34,19 @@ def test_oklab_reference_vectors():
 def test_black_exact_white_within_epsilon():
     np.testing.assert_allclose(rgb255_to_oklab(np.array([0, 0, 0])), [0.0, 0.0, 0.0], atol=1e-12)
     np.testing.assert_allclose(rgb255_to_oklab(np.array([255, 255, 255])), [1.0, 0.0, 0.0], atol=1e-6)
+
+
+def test_large_array_emits_no_runtime_warning():
+    # NumPy's SIMD matmul path spuriously trips a stale FP-error flag on large
+    # operands ("divide by zero in matmul" — impossible for a multiply-add),
+    # spamming Cloud Run stderr. rgb_to_oklab silences these via np.errstate;
+    # the output stays bit-identical. A small array never trips it, so assert
+    # the large path is clean.
+    rng = np.random.default_rng(0)
+    big = rng.integers(0, 256, (4000, 3)).astype(np.uint8)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        rgb255_to_oklab(big)  # must not raise
 
 
 def test_nearest_palette_indices_match_client():

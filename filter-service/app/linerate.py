@@ -128,8 +128,13 @@ def _select_paints(okf_flat, rgb_flat, num_colors, pal_ok, pal_rgb, restriction,
 
     if pal_ok is not None and pal_rgb is not None:
         if restriction == "pam":
+            # Snap to the palette FIRST → the PAM histogram sees ≤len(palette)
+            # unique colours (not ~12k raw pixel colours), so weighted k-medoids
+            # runs over the used chips and is instant. (Feeding raw pixels made
+            # PAM ~36s — the "PAM stays stuck" report.)
+            snapped = pal_rgb[nearest_palette_indices(Xs, pal_ok)].reshape(-1, 1, 3)
             sel_ok, sel_rgb, kept = restrict_palette_pam(
-                rgbs.reshape(-1, 1, 3), pal_ok, pal_rgb, K, distance_metric="oklab"
+                snapped, pal_ok, pal_rgb, K, distance_metric="oklab"
             )
             return np.asarray(sel_ok, np.float64), np.asarray(sel_rgb, np.uint8), np.asarray(kept, np.int32)
         # top_n: snap the subsample to the full palette, keep the top-K used chips
@@ -178,46 +183,45 @@ def _facet_merge(P: np.ndarray, nsel: int, sel_ok: np.ndarray, min_area: float):
     optimiser. A final re-labelling of the merged paint map coalesces any
     now-adjacent same-paint facets, so 'adjacent regions differ in colour' holds
     by construction. Returns (labels, nreg, reg_sel) like `_labels_from_paint_map`.
-    The per-round work is O(#facets) Python (adjacency + union-find); the facet
-    count collapses after the first round, so it stays fast (unlike the convex
-    relaxation it replaces, which timed out on Cloud Run)."""
+    Fully VECTORISED per round (no per-facet Python loop — that was the Cloud-Run
+    hotspot): each small facet's most-similar neighbour is found by a segment-
+    argmin over the adjacency pair arrays; merges are oriented strictly into the
+    LARGER facet (tie: smaller id) so the target graph is a forest (acyclic) and
+    chains resolve by vectorised pointer-jumping — no 2-cycle oscillation."""
     labels, nreg, facet_sel = _labels_from_paint_map(P, nsel)
     for _ in range(_FACET_MERGE_ROUNDS):
-        area = np.bincount(labels.ravel(), minlength=nreg)
-        small = np.where(area < min_area)[0]
-        if small.size == 0:
+        area = np.bincount(labels.ravel(), minlength=nreg).astype(np.int64)
+        if not (area < min_area).any():
             break
         pa, pb = _facet_adjacency(labels, nreg)
-        neigh: dict[int, list[int]] = {}
-        for a, b in zip(pa.tolist(), pb.tolist()):
-            neigh.setdefault(a, []).append(b)
-            neigh.setdefault(b, []).append(a)
-        parent = np.arange(nreg)
-
-        def find(i: int) -> int:
-            while parent[i] != i:
-                parent[i] = parent[parent[i]]
-                i = parent[i]
-            return int(i)
-
+        if pa.size == 0:
+            break
+        # directed edges both ways; distance = OKLab² between the two paints
+        src = np.concatenate([pa, pb])
+        dst = np.concatenate([pb, pa])
         fok = sel_ok[facet_sel]
-        for f in small[np.argsort(area[small])].tolist():
-            rf = find(f)
-            best, bestd = -1, np.inf
-            for n in neigh.get(f, ()):
-                rn = find(n)
-                if rn == rf:
-                    continue
-                d = float(((fok[rf] - fok[rn]) ** 2).sum())
-                if d < bestd:
-                    bestd, best = d, rn
-            if best < 0:
-                continue
-            ra, rb = (best, rf) if area[best] >= area[rf] else (rf, best)
-            parent[rb] = ra
-            area[ra] += area[rb]
-        lut = np.array([find(i) for i in range(nreg)], np.int32)
-        labels = lut[labels]
+        dist = ((fok[src] - fok[dst]) ** 2).sum(1)
+        # keep only: source is a small facet AND target is strictly "larger"
+        # (area, tie → smaller id) → every merge points to a strictly-greater
+        # node → forest → acyclic → pointer-jumping converges.
+        larger = (area[dst] > area[src]) | ((area[dst] == area[src]) & (dst < src))
+        keep = (area[src] < min_area) & larger
+        if not keep.any():
+            break
+        s = src[keep]
+        t = dst[keep]
+        dd = dist[keep]
+        # best (min-distance) target per source facet
+        order = np.lexsort((dd, s))
+        s_o, t_o = s[order], t[order]
+        first = np.empty(s_o.size, bool)
+        first[0] = True
+        first[1:] = s_o[1:] != s_o[:-1]
+        tgt = np.arange(nreg)
+        tgt[s_o[first]] = t_o[first]
+        for _ in range(int(np.ceil(np.log2(max(2, nreg)))) + 1):  # resolve chains
+            tgt = tgt[tgt]
+        labels = tgt[labels]
         ids = np.unique(labels)
         remap = np.zeros(int(ids.max()) + 1, np.int32)
         remap[ids] = np.arange(len(ids))
@@ -320,45 +324,57 @@ def build_arcs(labels: np.ndarray):
 # ---- arc smoothing (shared) ----------------------------------------------
 
 def _rdp(pts: list[np.ndarray], eps: float) -> list[np.ndarray]:
+    """Ramer-Douglas-Peucker — the max-distance search over interior points is
+    ONE numpy op per recursion level (was a per-point Python loop). Same result."""
     if len(pts) < 3:
         return pts
-    a, b = pts[0], pts[-1]
+    P = np.asarray(pts, float)
+    a, b = P[0], P[-1]
     ab = b - a
     l2 = float(ab @ ab)
-    dmax, idx = -1.0, -1
-    for i in range(1, len(pts) - 1):
-        ap = pts[i] - a
-        d = np.hypot(*ap) if l2 == 0 else np.hypot(*(ap - np.clip(ap @ ab / l2, 0, 1) * ab))
-        if d > dmax:
-            dmax, idx = d, i
-    if dmax <= eps:
+    ap = P[1:-1] - a
+    if l2 == 0.0:
+        d = np.hypot(ap[:, 0], ap[:, 1])
+    else:
+        r = ap - np.clip((ap @ ab) / l2, 0.0, 1.0)[:, None] * ab
+        d = np.hypot(r[:, 0], r[:, 1])
+    idx = int(d.argmax()) + 1
+    if d[idx - 1] <= eps:
         return [a, b]
     return _rdp(pts[: idx + 1], eps)[:-1] + _rdp(pts[idx:], eps)
 
 
-def smooth_arc(corners, eps: float, iters: int) -> list[np.ndarray]:
-    """RDP + Chaikin. Endpoints (junctions) fixed for open arcs; both the RDP
-    (direction-independent) and Chaikin (direction-symmetric) steps yield an
-    IDENTICAL polyline for the two regions sharing the arc → watertight."""
-    pts = [np.asarray(c, float) for c in corners]
-    if len(corners) >= 2 and corners[0] == corners[-1]:  # closed loop
-        pts = pts[:-1]
-        for _ in range(iters):
-            out = []
-            for i in range(len(pts)):
-                p, nxt = pts[i], pts[(i + 1) % len(pts)]
-                out += [0.75 * p + 0.25 * nxt, 0.25 * p + 0.75 * nxt]
-            pts = out
-        return pts + [pts[0]]
-    pts = _rdp(pts, eps)
+def _chaikin_open(p: np.ndarray, iters: int) -> np.ndarray:
     for _ in range(iters):
-        out = [pts[0]]
-        for i in range(len(pts) - 1):
-            p, q = pts[i], pts[i + 1]
-            out += [0.75 * p + 0.25 * q, 0.25 * p + 0.75 * q]
-        out.append(pts[-1])
-        pts = out
-    return pts
+        q1 = 0.75 * p[:-1] + 0.25 * p[1:]
+        q2 = 0.25 * p[:-1] + 0.75 * p[1:]
+        inner = np.empty((2 * (len(p) - 1), 2))
+        inner[0::2] = q1
+        inner[1::2] = q2
+        p = np.vstack([p[:1], inner, p[-1:]])
+    return p
+
+
+def smooth_arc(corners, eps: float, iters: int) -> list[np.ndarray]:
+    """RDP + Chaikin, vectorised (numpy per arc, no per-point Python loop — that
+    was a Cloud-Run hotspot). Endpoints (junctions) fixed for open arcs; the
+    direction-independent RDP and direction-symmetric Chaikin yield an IDENTICAL
+    polyline for the two regions sharing the arc → watertight. Same output points
+    as before. Returns a list of (x, y) points."""
+    P = np.asarray(corners, float)
+    if len(corners) >= 2 and corners[0] == corners[-1]:  # closed loop
+        p = P[:-1]
+        for _ in range(iters):
+            nxt = np.roll(p, -1, axis=0)
+            q1 = 0.75 * p + 0.25 * nxt
+            q2 = 0.25 * p + 0.75 * nxt
+            out = np.empty((2 * len(p), 2))
+            out[0::2] = q1
+            out[1::2] = q2
+            p = out
+        return list(p) + [p[0]]
+    p = np.asarray(_rdp(list(P), eps), float)
+    return list(_chaikin_open(p, iters))
 
 
 def assemble_faces(arcs, region_arcs, label) -> list[list[np.ndarray]]:
