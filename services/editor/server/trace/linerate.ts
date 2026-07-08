@@ -58,6 +58,7 @@ export async function linerateImageAndActivate(args: {
     num_colors: numColors,
     color_mode: colorMode,
     min_paintable_mm: minPaintableMm,
+    palette_restriction: paletteRestriction,
   } = parsed.data
 
   const { data: src, error: srcErr } = await supabase
@@ -124,6 +125,7 @@ export async function linerateImageAndActivate(args: {
         num_colors: numColors,
         palette_oklab: palette.map((c) => c.oklab),
         palette_rgb: palette.map((c) => c.rgb),
+        palette_restriction: paletteRestriction,
         min_region_radius_px: minRadiusPx,
       },
     })

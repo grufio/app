@@ -32,7 +32,8 @@ import cv2
 from PIL import Image
 
 from .oklab import nearest_palette_indices, rgb255_to_oklab
-from .cell_labels import build_label_map
+from .cell_labels import build_label_map, reconstruct_palette_indices
+from .palette_reduction import reduce_to_top_n, restrict_palette_pam
 
 
 # ---- tuning ---------------------------------------------------------------
@@ -109,36 +110,47 @@ def _saliency(okf: np.ndarray) -> np.ndarray:
     return (g / (g.max() + 1e-9)).astype(np.float32)
 
 
-def _select_paints(okf_flat, rgb_flat, weights, num_colors, pal_ok, pal_rgb, seed):
-    """Choose ≤num_colors colours by CSF-weighted k-means. With a fixed palette,
-    each centroid is SNAPPED to its nearest real paint chip and deduped (no
-    colours are invented); without one, the centroids' mean RGB are used.
-    Deterministic (fixed seed). Returns (sel_ok, sel_rgb, pal_index) where
-    pal_index[i] is the full-palette index of paint i (−1 if no palette)."""
+def _select_paints(okf_flat, rgb_flat, num_colors, pal_ok, pal_rgb, restriction, seed):
+    """Choose ≤num_colors REAL paints from the fixed palette using the SAME shared,
+    coverage/frequency-based reduction that pixelate/circulate use (no saliency
+    bias — that bias under-represented smooth areas):
+      - `pam`   → weighted k-medoids over the palette (`restrict_palette_pam`).
+      - `top_n` → snap to the full palette, keep the most-used chips
+                  (`reduce_to_top_n`), extract the distinct kept chips.
+    Returns (sel_ok, sel_rgb, pal_index); pal_index[i] = full-palette index of
+    paint i (−1 if no palette). Deterministic (top_n/PAM have no RNG). Without a
+    palette (tests) falls back to plain unweighted k-means centroids."""
     K = max(2, int(num_colors))
     X = okf_flat.astype(np.float32)
     rng = np.random.default_rng(seed)
-    # k-means only needs a representative subset to place the centroids; running
-    # the Lloyd iterations over a capped sample keeps selection cheap on large
-    # images (the full (N, K, 3) distance tensor per iter was the second hotspot).
+    # the reduction only needs a representative subset of pixels
     if len(X) > _KMEANS_SAMPLE:
-        idx = rng.choice(len(X), _KMEANS_SAMPLE, replace=False, p=weights / weights.sum())
-        Xs, ws, rgbs = X[idx], weights[idx], rgb_flat[idx]
+        idx = rng.choice(len(X), _KMEANS_SAMPLE, replace=False)
+        Xs, rgbs = X[idx], rgb_flat[idx]
     else:
-        Xs, ws, rgbs = X, weights, rgb_flat
-    p = ws / ws.sum()
-    C = Xs[rng.choice(len(Xs), min(K, len(Xs)), replace=False, p=p)].copy()
+        Xs, rgbs = X, rgb_flat
+
+    if pal_ok is not None and pal_rgb is not None:
+        if restriction == "pam":
+            sel_ok, sel_rgb, kept = restrict_palette_pam(
+                rgbs.reshape(-1, 1, 3), pal_ok, pal_rgb, K, distance_metric="oklab"
+            )
+            return np.asarray(sel_ok, np.float64), np.asarray(sel_rgb, np.uint8), np.asarray(kept, np.int32)
+        # top_n: snap the subsample to the full palette, keep the top-K used chips
+        snapped = pal_rgb[nearest_palette_indices(Xs, pal_ok)].reshape(-1, 1, 3)
+        reduced, _ = reduce_to_top_n(snapped, pal_ok, pal_rgb, K, distance_metric="oklab")
+        sel = np.unique(reconstruct_palette_indices(reduced, pal_rgb)).astype(np.int32)
+        return pal_ok[sel], pal_rgb[sel], sel
+
+    # no palette (tests only): plain k-means centroids as their own paints
+    C = Xs[rng.choice(len(Xs), min(K, len(Xs)), replace=False)].copy()
     a = np.zeros(len(Xs), np.int64)
     for _ in range(_KMEANS_ITERS):
         a = (((Xs[:, None, :] - C[None, :, :]) ** 2).sum(2)).argmin(1)
         for k in range(len(C)):
             m = a == k
             if m.any():
-                C[k] = (Xs[m] * ws[m, None]).sum(0) / ws[m].sum()
-    if pal_ok is not None and pal_rgb is not None:
-        snap = np.array(sorted(set(int(s) for s in nearest_palette_indices(C, pal_ok))), np.int32)
-        return pal_ok[snap], pal_rgb[snap], snap
-    # no palette: centroids ARE the paints; fill = mean source RGB per cluster
+                C[k] = Xs[m].mean(0)
     sel_rgb = np.zeros((len(C), 3), np.uint8)
     for k in range(len(C)):
         m = a == k
@@ -431,6 +443,7 @@ def linerate_to_svg(
     min_radius: float = 8.0,
     palette_oklab: list | None = None,
     palette_rgb: list | None = None,
+    palette_restriction: str = "top_n",
     on_phase: callable | None = None,
 ) -> tuple[str, int, list[int]]:
     def phase(name):
@@ -466,8 +479,10 @@ def linerate_to_svg(
     pal_ok = np.asarray(palette_oklab, np.float64) if have_palette else None
     pal_rgb = np.asarray(palette_rgb, np.uint8) if have_palette else None
     seed = int(work.astype(np.int64).sum() % (2 ** 32))   # deterministic per image
+    # Paint SELECTION is coverage-based (shared with pixelate/circulate), no CSF
+    # bias. The saliency `weights` stays only in the spatial unary term below.
     sel_ok, sel_rgb, sel_pal_index = _select_paints(
-        X, rgb_flat, weights, num_colors, pal_ok, pal_rgb, seed
+        X, rgb_flat, num_colors, pal_ok, pal_rgb, palette_restriction, seed
     )
 
     unary = ((((X[:, None, :] - sel_ok[None, :, :]) ** 2).sum(2)) * weights[:, None]).reshape(hh, ww, len(sel_ok))

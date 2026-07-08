@@ -271,6 +271,10 @@ class LinerateRequest(BaseModel):
     # pixel is assigned one (same OKLab contract as lineart/pixelate).
     palette_oklab: list | None = None
     palette_rgb: list | None = None
+    # How the ≤num_colors paints are chosen from the palette — SAME shared
+    # reduction as pixelate/circulate: "top_n" (most-used chips) or "pam"
+    # (weighted k-medoids). Coverage-based, no saliency bias.
+    palette_restriction: str = "top_n"
     # Smallest inscribed-circle radius (source px) a region may keep; smaller
     # regions dissolve into their majority-neighbour paint before vectorising.
     # The Node bridge derives it from the "min paintable gap (mm)" dial.
@@ -598,6 +602,8 @@ async def linerate_filter(request: LinerateRequest):
         raise HTTPException(status_code=400, detail="smoothness must be between 0 and 1")
     if request.num_colors < 2 or request.num_colors > 48:
         raise HTTPException(status_code=400, detail="num_colors must be between 2 and 48")
+    if request.palette_restriction not in ("top_n", "pam"):
+        raise HTTPException(status_code=400, detail="palette_restriction must be 'top_n' or 'pam'")
 
     timer = PhaseTimer()
     try:
@@ -617,6 +623,7 @@ async def linerate_filter(request: LinerateRequest):
             min_radius=request.min_region_radius_px,
             palette_oklab=request.palette_oklab,
             palette_rgb=request.palette_rgb,
+            palette_restriction=request.palette_restriction,
             on_phase=timer.mark,
         )
 
