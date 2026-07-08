@@ -2,11 +2,11 @@
 
 /**
  * Form fields for the Linerate trace dialog — same layout + primitives as
- * `LineArtForm` (its sibling): a "Shape" section (line thickness, pre-trace
- * blur, smoothness, min paintable gap) + a shared "Colors" section. Stateless;
- * the parent owns the draft.
+ * `LineArtForm` (its sibling): a "Shape" section (line thickness, flatten,
+ * detail, smoothness, min paintable gap) + a shared "Colors" section.
+ * Stateless; the parent owns the draft.
  */
-import { Brush, CircleDashed, Ruler, Waves } from "lucide-react"
+import { Brush, Droplets, Grid2x2, Ruler, Waves } from "lucide-react"
 
 import { FormField } from "@/components/ui/form-controls"
 import { linerateSchema, type LinerateParams } from "@/lib/editor/trace/linerate"
@@ -23,7 +23,8 @@ type Props = {
 }
 
 const LINE_THICKNESS_INPUT_PROPS = extractNumberInputProps(linerateSchema.shape.line_thickness)
-const BLUR_AMOUNT_INPUT_PROPS = extractNumberInputProps(linerateSchema.shape.blur_amount)
+const FLATTEN_INPUT_PROPS = extractNumberInputProps(linerateSchema.shape.flatten)
+const DETAIL_INPUT_PROPS = extractNumberInputProps(linerateSchema.shape.detail)
 const SMOOTHNESS_INPUT_PROPS = extractNumberInputProps(linerateSchema.shape.smoothness)
 const MIN_PAINTABLE_INPUT_PROPS = extractNumberInputProps(linerateSchema.shape.min_paintable_mm)
 
@@ -51,23 +52,38 @@ export function LinerateForm({ params, onParamsChange, disabled }: Props) {
             />
             <FormField
               variant="numeric"
-              numericMode="int"
-              label="Blur amount"
+              numericMode="decimal"
+              label="Flatten"
               labelVisuallyHidden
-              iconStart={<CircleDashed aria-hidden="true" />}
-              id="blur_amount"
-              value={String(params.blur_amount)}
+              iconStart={<Droplets aria-hidden="true" />}
+              id="flatten"
+              value={String(params.flatten)}
               onCommit={(raw) => {
-                const res = parseFormNumber(linerateSchema.shape.blur_amount, raw)
-                if (res.ok) onParamsChange("blur_amount", res.value)
+                const res = parseFormNumber(linerateSchema.shape.flatten, raw)
+                if (res.ok) onParamsChange("flatten", res.value)
               }}
               disabled={disabled}
-              inputProps={BLUR_AMOUNT_INPUT_PROPS}
+              inputProps={FLATTEN_INPUT_PROPS}
             />
             <PanelIconSlot />
           </PanelTwoFieldRow>
 
           <PanelTwoFieldRow>
+            <FormField
+              variant="numeric"
+              numericMode="decimal"
+              label="Detail"
+              labelVisuallyHidden
+              iconStart={<Grid2x2 aria-hidden="true" />}
+              id="detail"
+              value={String(params.detail)}
+              onCommit={(raw) => {
+                const res = parseFormNumber(linerateSchema.shape.detail, raw)
+                if (res.ok) onParamsChange("detail", res.value)
+              }}
+              disabled={disabled}
+              inputProps={DETAIL_INPUT_PROPS}
+            />
             <FormField
               variant="numeric"
               numericMode="decimal"
@@ -83,6 +99,10 @@ export function LinerateForm({ params, onParamsChange, disabled }: Props) {
               disabled={disabled}
               inputProps={SMOOTHNESS_INPUT_PROPS}
             />
+            <PanelIconSlot />
+          </PanelTwoFieldRow>
+
+          <PanelTwoFieldRow>
             <FormField
               variant="numeric"
               numericMode="decimal"

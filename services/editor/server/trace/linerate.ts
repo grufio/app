@@ -52,7 +52,8 @@ export async function linerateImageAndActivate(args: {
   }
   const {
     line_thickness: lineThickness,
-    blur_amount: blurAmount,
+    flatten,
+    detail,
     smoothness,
     num_colors: numColors,
     color_mode: colorMode,
@@ -117,7 +118,8 @@ export async function linerateImageAndActivate(args: {
       body: {
         image_base64: imageBase64,
         line_thickness: lineThickness,
-        blur_amount: blurAmount,
+        flatten,
+        detail,
         smoothness,
         num_colors: numColors,
         palette_oklab: palette.map((c) => c.oklab),

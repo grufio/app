@@ -71,10 +71,13 @@ export function LineratePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
     })
   }, [source])
 
+  // Approximate the server's L0 edge-preserving flatten with a plain Gaussian
+  // blur (the preview is a fast colour approximation, not the exact result):
+  // flatten ∈ [0,1] → blur radius ~0..8. `detail` has no preview effect.
   const blurred = useMemo(() => {
     if (!downscaled) return null
-    return gaussianBlur(downscaled, params.blur_amount)
-  }, [downscaled, params.blur_amount])
+    return gaussianBlur(downscaled, Math.round(params.flatten * 8))
+  }, [downscaled, params.flatten])
 
   const quantized = useMemo(() => {
     if (!blurred) return null

@@ -1,21 +1,25 @@
 """
-Linerate filter pipeline — segmentation-based paint-by-numbers.
+Linerate filter pipeline — perceptual paint-by-numbers (P³).
 
-Unlike `lineart` (which bends the general-purpose vtracer raster→vector
-tracer to the task and then fights its output), linerate treats
-paint-by-numbers as what it is: a SEGMENTATION problem.
+Paint-by-numbers is a labelling problem, not a tracing one: the painted result
+is a piecewise-constant image over a FIXED palette (the user's real paints). So
+we make **colour == region** in one step, which makes the classic defects
+(same-colour neighbours, same-colour nesting, noise splinters, duplicate
+numbers) structurally impossible:
 
-  quantise → connected-components label → raster-merge tiny regions →
-  build the shared pixel-CRACK boundary graph → smooth each boundary ARC
-  exactly once (RDP + Chaikin, junction endpoints fixed) → assemble each
-  region's face from the shared smoothed arcs → snap fills to the palette →
-  distance-transform for the number position → compose SVG.
+  L0 edge-preserving flatten → CSF saliency → select ≤K REAL paints from the
+  fixed palette (perceptually weighted, no colours invented) → per-pixel paint
+  assignment via a convex Potts relaxation (Chambolle-Pock, dependency-free) →
+  paintability dissolve (inscribed-radius floor) → shared pixel-CRACK boundary
+  graph → smooth each boundary ARC once (RDP + Chaikin, junction endpoints
+  fixed) → assemble each region's face from the shared arcs → distance-transform
+  number → SVG.
 
-Because every boundary arc is smoothed ONCE and both adjacent regions reuse
-the identical polyline, the output is WATERTIGHT — no cutout gaps, no holes,
-no per-region divergence at junctions (the failure modes that dogged lineart).
-The largest-inscribed-circle radius (paintability + number placement) comes
-for free from `cv2.distanceTransform`.
+Because the label IS the palette index, two adjacent regions always differ in
+colour by construction. The heavy front end runs at a capped WORKING resolution
+and the vector coordinates are scaled back to the content pixels; the watertight
+back half (`build_arcs` → `smooth_arc` → `assemble_faces`) is unchanged and
+shared with the previous linerate.
 
 Emits the same SVG contract as lineart (`<g id="regions">` with
 `<path fill stroke d/>` + `<g id="numbers">`), so the editor's
@@ -25,126 +29,200 @@ from __future__ import annotations
 
 import numpy as np
 import cv2
-from PIL import Image, ImageFilter
+from PIL import Image
 
-from .lineart import quantise_image
 from .oklab import nearest_palette_indices, rgb255_to_oklab
 from .cell_labels import build_label_map
 
 
-# ---- segmentation ---------------------------------------------------------
+# ---- tuning ---------------------------------------------------------------
 
-def _label_regions(rgb: np.ndarray) -> tuple[np.ndarray, int]:
-    """Connected components per distinct colour → globally-unique region ids.
-    Vectorised: each colour's components are offset into the global id space in
-    one assignment (no per-component Python loop, which was O(components×pixels)
-    and blew up on noisy real images)."""
-    h, w, _ = rgb.shape
-    colors, inv = np.unique(rgb.reshape(-1, 3), axis=0, return_inverse=True)
-    cidx = inv.reshape(h, w).astype(np.int32)
+_WORK_MAX_EDGE = 560     # cap the resolution the (heavy) labelling runs at
+_RELAX_ITERS = 160       # Chambolle-Pock iterations
+_CSF_ALPHA = 6.0         # saliency weight on the data term (detail concentration)
+_KMEANS_ITERS = 20
+
+
+# ---- perceptual segmentation (P³) -----------------------------------------
+
+def _flatten_to_lam(flatten: float) -> float:
+    """Map flatten ∈ [0,1] → L0 smoothing strength (larger = flatter/painterly)."""
+    f = max(0.0, min(1.0, flatten))
+    return 0.002 + f * 0.045            # ~0.002 .. 0.047
+
+
+def _detail_to_lam(detail: float) -> float:
+    """Map detail ∈ [0,1] → Potts regularisation λ. LOW detail = strong
+    smoothing = fewer/larger regions; HIGH detail = weaker = more regions."""
+    d = max(0.0, min(1.0, detail))
+    return 0.25 + (1.0 - d) * 2.75      # λ ~0.25 (fine) .. 3.0 (coarse)
+
+
+def _l0_smooth(img_u8: np.ndarray, lam: float, kappa: float = 2.0) -> np.ndarray:
+    """L0 gradient minimisation (Xu et al. 2011) — edge-preserving flattening.
+    Pure numpy FFT (no dependency). Removes texture/noise while keeping strong
+    edges crisp so region boundaries land on real contours, not on noise."""
+    S = img_u8.astype(np.float64) / 255.0
+    N, M, _ = S.shape
+
+    def psf2otf(psf, shape):
+        kh, kw = psf.shape
+        pad = np.zeros(shape)
+        pad[:kh, :kw] = psf
+        pad = np.roll(pad, -(kh // 2), 0)
+        pad = np.roll(pad, -(kw // 2), 1)
+        return np.fft.fft2(pad)
+
+    otfx = psf2otf(np.array([[1, -1]]), (N, M))
+    otfy = psf2otf(np.array([[1], [-1]]), (N, M))
+    Normin1 = np.fft.fft2(S, axes=(0, 1))
+    Den2 = (np.abs(otfx) ** 2 + np.abs(otfy) ** 2)[:, :, None]
+    beta = 2 * lam
+    while beta < 1e5:
+        Den = 1 + beta * Den2
+        h = np.concatenate([np.diff(S, 1, 1), S[:, :1, :] - S[:, -1:, :]], 1)
+        v = np.concatenate([np.diff(S, 1, 0), S[:1, :, :] - S[-1:, :, :]], 0)
+        idx = (h ** 2 + v ** 2).sum(2) < (lam / beta)
+        h[idx] = 0
+        v[idx] = 0
+        hd = np.concatenate([h[:, -1:, :] - h[:, :1, :], -np.diff(h, 1, 1)], 1)
+        vd = np.concatenate([v[-1:, :, :] - v[:1, :, :], -np.diff(v, 1, 0)], 0)
+        FS = (Normin1 + beta * np.fft.fft2(hd + vd, axes=(0, 1))) / Den
+        S = np.real(np.fft.ifft2(FS, axes=(0, 1)))
+        beta *= kappa
+    return np.clip(S, 0.0, 1.0) * 255.0
+
+
+def _saliency(okf: np.ndarray) -> np.ndarray:
+    """CSF proxy: gradient magnitude of the blurred lightness — where the eye
+    perceives detail. Normalised to [0, 1]."""
+    Lb = cv2.GaussianBlur(okf[..., 0].astype(np.float32), (0, 0), 1.2)
+    g = np.hypot(cv2.Sobel(Lb, cv2.CV_32F, 1, 0, 3), cv2.Sobel(Lb, cv2.CV_32F, 0, 1, 3))
+    return (g / (g.max() + 1e-9)).astype(np.float32)
+
+
+def _select_paints(okf_flat, rgb_flat, weights, num_colors, pal_ok, pal_rgb, seed):
+    """Choose ≤num_colors colours by CSF-weighted k-means. With a fixed palette,
+    each centroid is SNAPPED to its nearest real paint chip and deduped (no
+    colours are invented); without one, the centroids' mean RGB are used.
+    Deterministic (fixed seed). Returns (sel_ok, sel_rgb, pal_index) where
+    pal_index[i] is the full-palette index of paint i (−1 if no palette)."""
+    K = max(2, int(num_colors))
+    X = okf_flat.astype(np.float32)
+    rng = np.random.default_rng(seed)
+    p = weights / weights.sum()
+    C = X[rng.choice(len(X), min(K, len(X)), replace=False, p=p)].copy()
+    a = np.zeros(len(X), np.int64)
+    for _ in range(_KMEANS_ITERS):
+        a = (((X[:, None, :] - C[None, :, :]) ** 2).sum(2)).argmin(1)
+        for k in range(len(C)):
+            m = a == k
+            if m.any():
+                C[k] = (X[m] * weights[m, None]).sum(0) / weights[m].sum()
+    if pal_ok is not None and pal_rgb is not None:
+        snap = np.array(sorted(set(int(s) for s in nearest_palette_indices(C, pal_ok))), np.int32)
+        return pal_ok[snap], pal_rgb[snap], snap
+    # no palette: centroids ARE the paints; fill = mean source RGB per cluster
+    sel_rgb = np.zeros((len(C), 3), np.uint8)
+    for k in range(len(C)):
+        m = a == k
+        if m.any():
+            sel_rgb[k] = rgb_flat[m].mean(0)
+    return C.astype(np.float64), sel_rgb, np.full(len(C), -1, np.int32)
+
+
+def _project_simplex(V: np.ndarray) -> np.ndarray:
+    """Project each row of V (N, L) onto the probability simplex (sum=1, ≥0)."""
+    N, L = V.shape
+    U = np.sort(V, axis=1)[:, ::-1]
+    css = np.cumsum(U, axis=1) - 1.0
+    ind = np.arange(1, L + 1)
+    rho = ((U - css / ind) > 0).sum(1)
+    theta = css[np.arange(N), rho - 1] / rho
+    return np.maximum(V - theta[:, None], 0.0)
+
+
+def _solve_potts(unary: np.ndarray, lam: float, iters: int) -> np.ndarray:
+    """Per-pixel paint assignment as a convex Potts / piecewise-constant labelling,
+    solved by Chambolle-Pock primal-dual (anisotropic-TV relaxation) in pure numpy.
+    Returns the per-pixel argmax label. The 'adjacent regions differ in colour'
+    guarantee holds for ANY rounding — it follows from label == palette index,
+    not from optimality — so the relaxation needs no exact solver."""
+    H, W, L = unary.shape
+    f = unary.astype(np.float64)
+    f = f / (f.std() + 1e-9)
+    u = _project_simplex((-f).reshape(-1, L)).reshape(H, W, L)
+    ub = u.copy()
+    px = np.zeros((H, W, L))
+    py = np.zeros((H, W, L))
+    tau = sig = 1.0 / np.sqrt(8.0)
+    for _ in range(iters):
+        gx = np.zeros_like(ub)
+        gy = np.zeros_like(ub)
+        gx[:, :-1] = ub[:, 1:] - ub[:, :-1]
+        gy[:-1, :] = ub[1:, :] - ub[:-1, :]
+        px = np.clip(px + sig * gx, -lam, lam)
+        py = np.clip(py + sig * gy, -lam, lam)
+        dtx = np.zeros_like(px)
+        dty = np.zeros_like(py)
+        dtx[:, 0] = -px[:, 0]
+        dtx[:, 1:-1] = px[:, :-2] - px[:, 1:-1]
+        dtx[:, -1] = px[:, -2]
+        dty[0, :] = -py[0, :]
+        dty[1:-1, :] = py[:-2, :] - py[1:-1, :]
+        dty[-1, :] = py[-2, :]
+        un = _project_simplex((u - tau * (dtx + dty) - tau * f).reshape(-1, L)).reshape(H, W, L)
+        ub = 2 * un - u
+        u = un
+    return u.argmax(2).astype(np.int32)
+
+
+def _dissolve(P: np.ndarray, nsel: int, min_radius: float) -> np.ndarray:
+    """Paintability: any connected region whose inscribed-circle radius <
+    min_radius is absorbed into its majority-neighbour paint. Operates on the
+    paint-index map so label == paint stays consistent; a dissolved region merges
+    INTO a neighbour, so it never creates a same-colour boundary."""
+    if min_radius <= 0:
+        return P
+    ring_k = np.ones((3, 3), np.uint8)
+    for _ in range(8):  # safety cap; each round strictly shrinks region count
+        changed = False
+        newP = P.copy()
+        for k in range(nsel):
+            ncc, cc = cv2.connectedComponents((P == k).astype(np.uint8), connectivity=4)
+            for c in range(1, ncc):
+                mask = cc == c
+                if cv2.distanceTransform(mask.astype(np.uint8), cv2.DIST_L2, 3).max() >= min_radius:
+                    continue
+                ring = cv2.dilate(mask.astype(np.uint8), ring_k) - mask.astype(np.uint8)
+                nb = P[ring > 0]
+                nb = nb[nb != k]
+                if nb.size:
+                    newP[mask] = np.bincount(nb).argmax()
+                    changed = True
+        P = newP
+        if not changed:
+            break
+    return P
+
+
+def _labels_from_paint_map(P: np.ndarray, nsel: int) -> tuple[np.ndarray, int, np.ndarray]:
+    """Connected components of the paint-index map → globally-unique region ids,
+    plus the paint (sel) index of every region. Because each region is a connected
+    same-paint area, its paint index is well defined."""
+    h, w = P.shape
     labels = np.full((h, w), -1, np.int32)
+    reg_sel: list[int] = []
     nxt = 0
-    for c in range(len(colors)):
-        ncc, cc = cv2.connectedComponents((cidx == c).astype(np.uint8), connectivity=4)
+    for k in range(nsel):
+        ncc, cc = cv2.connectedComponents((P == k).astype(np.uint8), connectivity=4)
         if ncc <= 1:
             continue
-        sel = cc > 0  # cc==0 is background; 1..ncc-1 are this colour's components
-        labels[sel] = cc[sel] - 1 + nxt
+        m = cc > 0
+        labels[m] = cc[m] - 1 + nxt
+        reg_sel.extend([k] * (ncc - 1))
         nxt += ncc - 1
-    return labels, nxt
-
-
-def _region_radii(labels: np.ndarray, nreg: int) -> np.ndarray:
-    """Largest-inscribed-circle radius of EVERY region in one distanceTransform.
-    Boundary pixels (a 4-neighbour differs, or the image border) are zeroed; the
-    per-pixel distance-to-boundary's max over a region is its inscribed radius."""
-    h, w = labels.shape
-    bnd = np.zeros((h, w), bool)
-    bnd[:-1] |= labels[:-1] != labels[1:]
-    bnd[1:] |= labels[1:] != labels[:-1]
-    bnd[:, :-1] |= labels[:, :-1] != labels[:, 1:]
-    bnd[:, 1:] |= labels[:, 1:] != labels[:, :-1]
-    # The image border is NOT a boundary: an edge-touching region's radius is its
-    # distance to the nearest OTHER region (matches the per-mask distanceTransform
-    # used for number placement), so large regions that merely touch the edge are
-    # not spuriously "tiny".
-    if not bnd.any():
-        return np.full(nreg, float(max(h, w)))  # a single region fills the image
-    dt = cv2.distanceTransform((~bnd).astype(np.uint8), cv2.DIST_L2, 5)
-    radii = np.zeros(nreg, np.float64)
-    np.maximum.at(radii, labels.ravel(), dt.ravel())
-    return radii
-
-
-def _region_adjacency(labels: np.ndarray) -> np.ndarray:
-    """Unique unordered (labelA, labelB) pairs of 4-adjacent regions. Vectorised."""
-    pairs = []
-    a, b = labels[:-1].ravel(), labels[1:].ravel()
-    m = a != b
-    pairs.append(np.stack([a[m], b[m]], 1))
-    a, b = labels[:, :-1].ravel(), labels[:, 1:].ravel()
-    m = a != b
-    pairs.append(np.stack([a[m], b[m]], 1))
-    p = np.concatenate(pairs, 0)
-    p.sort(axis=1)
-    return np.unique(p, axis=0)
-
-
-def merge_small_regions(labels: np.ndarray, min_radius: float) -> np.ndarray:
-    """Relabel regions whose inscribed-circle radius < `min_radius` into their
-    largest-area neighbour. Fully raster + vectorised: one distanceTransform for
-    all radii, one pass for adjacency, batch union-find per iteration → ~O(pixels)
-    per round instead of the old O(regions² × distanceTransform) timeout."""
-    if min_radius <= 0:
-        return _compact(labels)
-    for _ in range(64):  # safety cap; each round is cheap and strictly shrinks
-        nreg = int(labels.max()) + 1
-        radii = _region_radii(labels, nreg)
-        tiny = np.where(radii < min_radius)[0]
-        if tiny.size == 0:
-            break
-        area = np.bincount(labels.ravel(), minlength=nreg).astype(np.int64)
-        pairs = _region_adjacency(labels)
-        neigh: dict[int, list[int]] = {}
-        for x, y in pairs.tolist():
-            neigh.setdefault(x, []).append(y)
-            neigh.setdefault(y, []).append(x)
-
-        parent = list(range(nreg))
-
-        def find(i: int) -> int:
-            while parent[i] != i:
-                parent[i] = parent[parent[i]]
-                i = parent[i]
-            return i
-
-        merged_any = False
-        for t in tiny[np.argsort(radii[tiny])].tolist():
-            roots = {find(n) for n in neigh.get(t, [])}
-            roots.discard(find(t))
-            if not roots:
-                continue
-            best = max(roots, key=lambda r: area[r])
-            rt, rb = find(t), best
-            if rt == rb:
-                continue
-            if area[rt] > area[rb]:
-                rt, rb = rb, rt
-            parent[rt] = rb
-            area[rb] += area[rt]
-            merged_any = True
-        if not merged_any:
-            break
-        lut = np.array([find(i) for i in range(nreg)], np.int32)
-        labels = _compact(lut[labels])
-    return _compact(labels)
-
-
-def _compact(labels: np.ndarray) -> np.ndarray:
-    ids = np.unique(labels)
-    lut = np.zeros(int(ids.max()) + 1, np.int32)
-    lut[ids] = np.arange(len(ids), dtype=np.int32)
-    return lut[labels]
+    return labels, nxt, np.array(reg_sel, np.int32)
 
 
 # ---- shared-crack boundary graph -----------------------------------------
@@ -318,9 +396,11 @@ def smoothness_to_params(smoothness: float) -> tuple[float, int]:
     return 0.5 + s * 2.0, 2 + int(round(s * 2))  # eps 0.5..2.5, iters 2..4
 
 
-def _face_path_d(loops) -> str:
+def _face_path_d(loops, sx: float = 1.0, sy: float = 1.0) -> str:
+    """SVG path `d` for a region's loops. `sx`/`sy` scale the working-resolution
+    coordinates back to the content pixel space."""
     return " ".join(
-        "M " + " L ".join(f"{p[0]:.2f} {p[1]:.2f}" for p in loop) + " Z"
+        "M " + " L ".join(f"{p[0] * sx:.2f} {p[1] * sy:.2f}" for p in loop) + " Z"
         for loop in loops if len(loop) >= 3
     )
 
@@ -328,9 +408,10 @@ def _face_path_d(loops) -> str:
 def linerate_to_svg(
     img: Image.Image,
     line_thickness: float = 1.0,
-    blur_amount: int = 2,
+    flatten: float = 0.4,
+    detail: float = 0.5,
+    num_colors: int = 16,
     smoothness: float = 0.6,
-    num_colors: int = 12,
     min_radius: float = 8.0,
     palette_oklab: list | None = None,
     palette_rgb: list | None = None,
@@ -341,44 +422,70 @@ def linerate_to_svg(
             on_phase(name)
 
     width, height = img.size
-    prepared = quantise_image(img.filter(ImageFilter.GaussianBlur(blur_amount)) if blur_amount else img, num_colors)
-    rgb = np.asarray(prepared)
-    phase("quantise")
+    rgb_full = img.convert("RGB")
 
-    labels, _ = _label_regions(rgb)
-    labels = merge_small_regions(labels, min_radius)
+    # --- working resolution: run the heavy labelling capped, scale vectors back ---
+    scale = min(1.0, _WORK_MAX_EDGE / max(width, height))
+    if scale < 1.0:
+        ww = max(1, round(width * scale))
+        hh = max(1, round(height * scale))
+        work = np.asarray(rgb_full.resize((ww, hh), Image.LANCZOS))
+    else:
+        work = np.asarray(rgb_full)
+        hh, ww = work.shape[:2]
+    sx = width / ww
+    sy = height / hh
+
+    # --- P³ front end (colour == region) ---
+    flat = _l0_smooth(work, _flatten_to_lam(flatten))
+    phase("flatten")
+
+    okf = rgb255_to_oklab(flat)                       # (hh, ww, 3)
+    sal = _saliency(okf)
+    weights = (1.0 + _CSF_ALPHA * sal.reshape(-1)).astype(np.float64)
+    X = okf.reshape(-1, 3)
+    rgb_flat = work.reshape(-1, 3)
+
+    have_palette = palette_oklab is not None and palette_rgb is not None
+    pal_ok = np.asarray(palette_oklab, np.float64) if have_palette else None
+    pal_rgb = np.asarray(palette_rgb, np.uint8) if have_palette else None
+    seed = int(work.astype(np.int64).sum() % (2 ** 32))   # deterministic per image
+    sel_ok, sel_rgb, sel_pal_index = _select_paints(
+        X, rgb_flat, weights, num_colors, pal_ok, pal_rgb, seed
+    )
+
+    unary = ((((X[:, None, :] - sel_ok[None, :, :]) ** 2).sum(2)) * weights[:, None]).reshape(hh, ww, len(sel_ok))
+    P = _solve_potts(unary, _detail_to_lam(detail), _RELAX_ITERS)
+    min_radius_work = min_radius * (ww / width)
+    P = _dissolve(P, len(sel_ok), min_radius_work)
+    labels, nreg, reg_sel = _labels_from_paint_map(P, len(sel_ok))
     phase("segment")
 
+    # --- watertight shared-arc vectorisation (unchanged back half) ---
     arcs, region_arcs = build_arcs(labels)
     eps, iters = smoothness_to_params(smoothness)
     for arc in arcs:
         arc["smooth"] = smooth_arc(arc["corners"], eps, iters)
     phase("smooth")
 
-    # per-region mean colour → palette snap (same OKLab-nearest as lineart)
     ids = sorted(region_arcs)
-    means = np.array([rgb[labels == rid].mean(0) for rid in ids], np.uint8)
-    if palette_oklab is not None and palette_rgb is not None and len(ids):
-        pal_ok = np.asarray(palette_oklab, np.float32)
-        pal_rgb = np.asarray(palette_rgb, np.uint8)
-        snap = nearest_palette_indices(rgb255_to_oklab(means), pal_ok)
-        fills_rgb = pal_rgb[snap]
-        pal_index = {rid: int(snap[i]) for i, rid in enumerate(ids)}
-        palette_indices_used = sorted({int(v) for v in snap})
-        label_map = build_label_map(np.asarray([pal_index[r] for r in ids], np.int32))
-        number_of = {rid: label_map[pal_index[rid]] for rid in ids}
+    if have_palette and len(ids):
+        region_palidx = sel_pal_index[reg_sel]                 # region → full palette index
+        used = np.asarray([region_palidx[r] for r in ids], np.int32)
+        label_map = build_label_map(used)
+        palette_indices_used = sorted({int(v) for v in used})
+        number_of = {rid: label_map[int(region_palidx[rid])] for rid in ids}
     else:
-        fills_rgb = means
         palette_indices_used = []
         number_of = {rid: (i % 99) + 1 for i, rid in enumerate(ids)}
 
     regions, numbers = [], []
-    for i, rid in enumerate(ids):
+    for rid in ids:
         loops = assemble_faces(arcs, region_arcs, rid)
-        d = _face_path_d(loops)
+        d = _face_path_d(loops, sx, sy)
         if not d:
             continue
-        r, g, b = (int(v) for v in fills_rgb[i])
+        r, g, b = (int(v) for v in sel_rgb[reg_sel[rid]])
         regions.append(
             f'<path d="{d}" fill="#{r:02x}{g:02x}{b:02x}" stroke="black" '
             f'stroke-width="{line_thickness}" fill-rule="evenodd"/>'
@@ -387,10 +494,11 @@ def linerate_to_svg(
         dt = cv2.distanceTransform(mask, cv2.DIST_L2, 5)
         _, radius, _, (nx, ny) = cv2.minMaxLoc(dt)
         if radius > 0:
-            fs = min(1.4 * min_radius, 24.0) if min_radius > 0 else min(1.4 * radius, 24.0)
-            fs = min(fs, 1.4 * radius)
+            rc = radius * sx                                   # work radius → content px
+            fs = min(1.4 * min_radius, 24.0) if min_radius > 0 else min(1.4 * rc, 24.0)
+            fs = min(fs, 1.4 * rc)
             numbers.append(
-                f'<text x="{nx:.1f}" y="{ny:.1f}" font-size="{fs:.2f}" font-family="sans-serif" '
+                f'<text x="{nx * sx:.1f}" y="{ny * sy:.1f}" font-size="{fs:.2f}" font-family="sans-serif" '
                 f'text-anchor="middle" dominant-baseline="central" fill="black" '
                 f'pointer-events="none">{number_of[rid]}</text>'
             )
