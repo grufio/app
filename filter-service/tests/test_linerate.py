@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+import warnings
 
 import numpy as np
 import pytest
@@ -14,6 +15,7 @@ from app.linerate import (
     _detail_to_min_area,
     _facet_merge,
     _labels_from_paint_map,
+    _rdp,
 )
 from app.oklab import rgb255_to_oklab
 
@@ -37,6 +39,19 @@ def test_build_arcs_shares_boundary_between_neighbours():
     assert shared, "adjacent regions must share a boundary arc"
     a, b = arcs[shared[0]]["labels"]
     assert {a, b} == {0, 1}
+
+
+def test_rdp_large_arc_emits_no_runtime_warning():
+    # NumPy's SIMD matmul spuriously trips a stale FP-error flag on the large
+    # `ap @ ab` operand inside _rdp (same quirk as rgb_to_oklab). The span is
+    # non-degenerate (l2 != 0) so the division is real and fine; _rdp silences
+    # the noise via np.errstate. Assert a long arc stays clean.
+    n = 6000
+    xs = np.linspace(0, 500, n)
+    pts = [np.array([x, np.sin(x / 7.0) * 3 + x * 0.6], float) for x in xs]
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        _rdp(pts, eps=0.5)  # must not raise
 
 
 def test_smooth_arc_pins_endpoints():
