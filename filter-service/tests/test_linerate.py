@@ -11,6 +11,7 @@ from app.linerate import (
     build_arcs,
     smooth_arc,
     linerate_to_svg,
+    _detail_to_min_area,
     _facet_merge,
     _labels_from_paint_map,
 )
@@ -64,6 +65,25 @@ def test_colour_equals_region_adjacent_paints_differ():
     for A, B in ((labels[:, :-1], labels[:, 1:]), (labels[:-1, :], labels[1:, :])):
         m = A != B
         assert np.all(reg_sel[A[m]] != reg_sel[B[m]]), "adjacent regions must differ in paint"
+
+
+def test_detail_slider_maps_geometrically_to_min_area():
+    # The Detail dialog slider steers the region count via min-area. Region count
+    # scales ~1/frac, so frac is interpolated GEOMETRICALLY: min-area must shrink
+    # strictly and by a ~constant ratio per equal detail step. Guards the "slider
+    # felt dead until detail≈1" regression (a linear map bunched all growth at 1).
+    work_px = 480 * 384
+    areas = [_detail_to_min_area(d, work_px, 1.0) for d in (0.0, 0.25, 0.5, 0.75, 1.0)]
+    assert all(a > b for a, b in zip(areas, areas[1:])), "min-area must shrink as detail rises"
+    ratios = [areas[i] / areas[i + 1] for i in range(len(areas) - 1)]
+    assert max(ratios) / min(ratios) < 1.05, "equal detail steps must scale min-area ~equally"
+
+
+def test_detail_to_min_area_never_below_paintability_floor():
+    # Even at max detail the min-area cannot drop below the inscribed-circle floor
+    # of min_radius_work — tiny unpaintable slivers stay merged away.
+    floor = np.pi * 6.0 ** 2
+    assert _detail_to_min_area(1.0, 100, 6.0) == floor  # frac*work_px tiny -> floor wins
 
 
 def test_facet_merge_absorbs_small_facets():
