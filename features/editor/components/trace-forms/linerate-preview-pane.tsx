@@ -1,30 +1,33 @@
 "use client"
 
 /**
- * Linerate preview pane — a fast client-side APPROXIMATION of the colour /
- * region layout: downscale → blur → K-means quantise → snap each cluster to
- * the active Munsell palette → paint flat regions. It reuses the same
- * `lineart-preview.ts` helpers.
+ * Linerate preview pane — a fast client-side APPROXIMATION of the paint-by-
+ * numbers layout: downscale → blur → K-means quantise → snap clusters to the
+ * active Munsell palette → connected-component facets → merge facets below the
+ * `detail`-derived min-area into their most-similar neighbour → flat fill + 1px
+ * outlines. It reuses the `lineart-preview.ts` colour helpers and the linerate
+ * facet helpers in `linerate-preview.ts`.
  *
  * NOT the authoritative output: linerate's smooth, watertight outlines +
- * per-region numbers are computed server-side on Apply (segmentation + shared-
- * arc smoothing). This pane only answers "which colours / regions will I get".
- * (A full live-parity preview running the same algorithm in the browser is a
- * planned follow-up.)
+ * per-region numbers are computed server-side on Apply. This pane answers
+ * "roughly which colours AND how many regions will I get" — the region
+ * granularity tracks the Detail and Min-paintable-gap dials (approximate, not
+ * server-parity: Gaussian blur vs L0, K-means vs coverage selection).
  *
  * Pane sizing + zoom controls mirror the sibling trace preview panes.
  */
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react"
 import { Loader2, Maximize2, ZoomIn, ZoomOut } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import type { LinerateParams } from "@/lib/editor/trace/linerate"
+import { gaussianBlur, kMeansOklab, loadAndDownscale } from "@/lib/editor/trace/lineart-preview"
 import {
-  gaussianBlur,
-  kMeansOklab,
-  loadAndDownscale,
-  snapCentroidsToPalette,
-} from "@/lib/editor/trace/lineart-preview"
+  chipPerCluster,
+  detailToMinArea,
+  renderRegionsRgba,
+  segmentRegions,
+} from "@/lib/editor/trace/linerate-preview"
 import { useSourceImage } from "@/lib/editor/trace/use-source-image"
 import { useTracePalette } from "@/lib/editor/trace/use-trace-palette"
 
@@ -72,8 +75,8 @@ export function LineratePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
   }, [source])
 
   // Approximate the server's L0 edge-preserving flatten with a plain Gaussian
-  // blur (the preview is a fast colour approximation, not the exact result):
-  // flatten ∈ [0,1] → blur radius ~0..8. `detail` has no preview effect.
+  // blur (the preview is a fast approximation, not the exact result):
+  // flatten ∈ [0,1] → blur radius ~0..8.
   const blurred = useMemo(() => {
     if (!downscaled) return null
     return gaussianBlur(downscaled, Math.round(params.flatten * 8))
@@ -84,29 +87,62 @@ export function LineratePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
     return kMeansOklab(blurred, params.num_colors, KMEANS_MAX_ITER)
   }, [blurred, params.num_colors])
 
-  const snapped = useMemo(() => {
+  // Chip index per cluster — CC runs on the palette chip, not the raw cluster
+  // (two clusters can snap to the same chip).
+  const clusterChip = useMemo(() => {
     if (!quantized || !palette) return null
-    return snapCentroidsToPalette(quantized.centroids, palette)
+    return chipPerCluster(quantized.centroids, palette)
   }, [quantized, palette])
 
-  // Paint flat palette-snapped regions.
+  // `detail` + `min_paintable_mm` drive region granularity; defer them so the
+  // (heavier) segmentation stays interruptible while the user drags a slider.
+  const deferredDetail = useDeferredValue(params.detail)
+  const deferredGapMm = useDeferredValue(params.min_paintable_mm)
+
+  // Facet segmentation: paint map → connected components → min-area merge.
+  const regions = useMemo(() => {
+    if (!blurred || !quantized || !clusterChip || !palette || palette.length === 0) return null
+    const w = blurred.width
+    const h = blurred.height
+    const paintMap = new Int32Array(w * h)
+    const assignments = quantized.assignments
+    for (let i = 0; i < paintMap.length; i += 1) paintMap[i] = clusterChip[assignments[i]]
+
+    // Min-radius floor in preview px — mirrors the server mm→px chain
+    // (services/editor/server/trace/linerate.ts + linerate.py min_radius_work):
+    // (min_paintable_mm·(previewW/displayMmW) + line_thickness·(previewW/contentW))/2.
+    const contentW = source?.naturalWidth ?? w
+    const mmTerm = displayMmW > 0 ? deferredGapMm * (w / displayMmW) : 0
+    const ltTerm = contentW > 0 ? params.line_thickness * (w / contentW) : 0
+    const minRadiusPx = Math.max(0, (mmTerm + ltTerm) / 2)
+    const minArea = detailToMinArea(deferredDetail, w * h, minRadiusPx)
+
+    const chipOklab = palette.map((c) => c.oklab)
+    return segmentRegions(paintMap, w, h, chipOklab, minArea)
+  }, [
+    blurred,
+    quantized,
+    clusterChip,
+    palette,
+    source,
+    displayMmW,
+    deferredDetail,
+    deferredGapMm,
+    params.line_thickness,
+  ])
+
+  // Paint flat regions with 1px black outlines.
   useEffect(() => {
     const target = canvasRef.current
-    if (!target || !blurred || !quantized || !snapped || snapped.length === 0) return
+    if (!target || !blurred || !regions || !palette || palette.length === 0) return
     const ctx = target.getContext("2d")
     if (!ctx) return
-    const { width, height, assignments } = { ...blurred, assignments: quantized.assignments }
-    const out = ctx.createImageData(width, height)
-    for (let i = 0; i < assignments.length; i += 1) {
-      const chip = snapped[assignments[i]]
-      const o = i * 4
-      out.data[o] = chip.r
-      out.data[o + 1] = chip.g
-      out.data[o + 2] = chip.b
-      out.data[o + 3] = 255
-    }
+    const chipRgb = palette.map((c) => c.rgb)
+    const rgba = renderRegionsRgba(regions.labels, regions.regionChip, chipRgb, blurred.width, blurred.height)
+    const out = ctx.createImageData(blurred.width, blurred.height)
+    out.data.set(rgba)
     ctx.putImageData(out, 0, 0)
-  }, [blurred, quantized, snapped])
+  }, [blurred, regions, palette])
 
   const valid = displayMmW > 0 && displayMmH > 0
   const showSpinner = !source || !palette

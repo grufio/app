@@ -12,6 +12,11 @@ import { describe, expect, it } from "vitest"
 
 import { lineartSchema } from "./lineart"
 import { linerateSchema } from "./linerate"
+import {
+  LINERATE_DETAIL_MAX_FRAC,
+  LINERATE_DETAIL_MIN_FRAC,
+  detailToMinArea,
+} from "./linerate-preview"
 import { pixelateSchema } from "./pixelate"
 
 const PYTHON_PATH = join(__dirname, "../../../filter-service/app/main.py")
@@ -154,5 +159,36 @@ describe("Python parity: TS trace schema defaults vs Pydantic", () => {
       expect.arrayContaining(["line_thickness", "blur_amount", "smoothness", "num_colors"]),
     )
     expect(Object.keys(extractPydanticDefaults("PixelateRequest"))).toContain("num_colors")
+  })
+})
+
+// The linerate PREVIEW ports the server's `detail`→facet-min-area mapping so the
+// dialog's Detail slider shows an approximate region count. The port must stay in
+// lockstep with the Python source: if a server-side PR changes the constants or the
+// interpolation shape, this fails the client build (not silently diverge).
+describe("Python parity: linerate detail→min-area preview port", () => {
+  const LINERATE_PATH = join(__dirname, "../../../filter-service/app/linerate.py")
+  const LINERATE_SOURCE = readFileSync(LINERATE_PATH, "utf-8")
+
+  const readConst = (name: string): number => {
+    const m = new RegExp(`${name}\\s*=\\s*([0-9.]+)`).exec(LINERATE_SOURCE)
+    if (!m) throw new Error(`${name} not found in ${LINERATE_PATH}`)
+    return Number.parseFloat(m[1])
+  }
+
+  it("constants match the TS port", () => {
+    expect(readConst("_DETAIL_MIN_FRAC")).toBe(LINERATE_DETAIL_MIN_FRAC)
+    expect(readConst("_DETAIL_MAX_FRAC")).toBe(LINERATE_DETAIL_MAX_FRAC)
+  })
+
+  it("interpolation is GEOMETRIC on both sides", () => {
+    // Server: frac = _DETAIL_MAX_FRAC * (_DETAIL_MIN_FRAC / _DETAIL_MAX_FRAC) ** d
+    expect(LINERATE_SOURCE).toMatch(
+      /frac\s*=\s*_DETAIL_MAX_FRAC\s*\*\s*\(_DETAIL_MIN_FRAC\s*\/\s*_DETAIL_MAX_FRAC\)\s*\*\*\s*d/,
+    )
+    // TS mirrors it: at the endpoints min-area = frac_max·px (d=0) and frac_min·px (d=1).
+    const px = 1_000_000
+    expect(detailToMinArea(0, px, 0)).toBeCloseTo(LINERATE_DETAIL_MAX_FRAC * px, 3)
+    expect(detailToMinArea(1, px, 0)).toBeCloseTo(LINERATE_DETAIL_MIN_FRAC * px, 3)
   })
 })
