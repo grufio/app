@@ -1,18 +1,18 @@
 "use client"
 
 /**
- * Linerate preview pane — a fast client-side APPROXIMATION of the paint-by-
- * numbers layout: downscale → blur → K-means quantise → snap clusters to the
- * active Munsell palette → connected-component facets → merge facets below the
- * `detail`-derived min-area into their most-similar neighbour → flat fill + 1px
- * outlines. It reuses the `lineart-preview.ts` colour helpers and the linerate
- * facet helpers in `linerate-preview.ts`.
+ * Linerate preview pane — a client mirror of the server paint-by-numbers front
+ * half: downscale → L0 edge-preserving flatten (Web Worker) → coverage paint
+ * selection → connected-component facets → merge facets below the `detail`-derived
+ * min-area into their most-similar neighbour → flat fill + 1px outlines. Uses the
+ * same L0 (`l0-smooth.ts`) and coverage (`coverage-select.ts`) the server runs,
+ * plus the facet helpers in `linerate-preview.ts`.
  *
- * NOT the authoritative output: linerate's smooth, watertight outlines +
- * per-region numbers are computed server-side on Apply. This pane answers
- * "roughly which colours AND how many regions will I get" — the region
- * granularity tracks the Detail and Min-paintable-gap dials (approximate, not
- * server-parity: Gaussian blur vs L0, K-means vs coverage selection).
+ * NOT bit-identical to Apply (JS FFT ≠ numpy, ~256px work res, no per-region
+ * numbers), but the region density matches the result — an earlier Gaussian-blur
+ * approximation left texture standing and the segmentation over-split it into
+ * speckle. L0 is the one heavy stage and depends only on `flatten`, so it runs in
+ * a worker off the main thread; Detail/Min-gap only re-run the fast CC + merge.
  *
  * Pane sizing + zoom controls mirror the sibling trace preview panes.
  */
@@ -20,19 +20,17 @@ import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react"
 import { Loader2, Maximize2, ZoomIn, ZoomOut } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { coverageSelectPaintMap } from "@/lib/editor/trace/coverage-select"
 import type { LinerateParams } from "@/lib/editor/trace/linerate"
-import { gaussianBlur, kMeansOklab, loadAndDownscale } from "@/lib/editor/trace/lineart-preview"
-import {
-  chipPerCluster,
-  detailToMinArea,
-  renderRegionsRgba,
-  segmentRegions,
-} from "@/lib/editor/trace/linerate-preview"
+import { loadAndDownscale, type PreviewImage } from "@/lib/editor/trace/lineart-preview"
+import { detailToMinArea, renderRegionsRgba, segmentRegions } from "@/lib/editor/trace/linerate-preview"
 import { useSourceImage } from "@/lib/editor/trace/use-source-image"
 import { useTracePalette } from "@/lib/editor/trace/use-trace-palette"
 
-const MAX_PREVIEW_EDGE_PX = 384
-const KMEANS_MAX_ITER = 10
+// Work resolution for the segmentation. Region count is fraction-based (thus
+// ~scale-invariant), so 256px matches the server's density while keeping the L0
+// FFT tractable in the worker.
+const MAX_PREVIEW_EDGE_PX = 256
 const ZOOM_STEP = 1.5
 const ZOOM_MIN = 1
 const ZOOM_MAX = 8
@@ -74,39 +72,65 @@ export function LineratePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
     })
   }, [source])
 
-  // Approximate the server's L0 edge-preserving flatten with a plain Gaussian
-  // blur (the preview is a fast approximation, not the exact result):
-  // flatten ∈ [0,1] → blur radius ~0..8.
-  const blurred = useMemo(() => {
-    if (!downscaled) return null
-    return gaussianBlur(downscaled, Math.round(params.flatten * 8))
+  // L0 edge-preserving flatten runs in a Web Worker (heavy: several 2D FFTs; it
+  // would freeze the tab on the main thread). Depends only on `flatten`.
+  const workerRef = useRef<Worker | null>(null)
+  const reqIdRef = useRef(0)
+  const [flattened, setFlattened] = useState<PreviewImage | null>(null)
+  const [flattening, setFlattening] = useState(false)
+
+  useEffect(() => {
+    const worker = new Worker(
+      new URL("../../../../lib/editor/trace/linerate-preview.worker.ts", import.meta.url),
+      { type: "module" },
+    )
+    workerRef.current = worker
+    return () => {
+      worker.terminate()
+      workerRef.current = null
+    }
+  }, [])
+
+  useEffect(() => {
+    const worker = workerRef.current
+    if (!downscaled || !worker) {
+      setFlattened(null)
+      return
+    }
+    const id = (reqIdRef.current += 1)
+    setFlattening(true)
+    const onMessage = (e: MessageEvent<{ id: number; rgba: ArrayBuffer; width: number; height: number }>) => {
+      if (e.data.id !== reqIdRef.current) return // ignore stale results
+      setFlattened({ width: e.data.width, height: e.data.height, rgba: new Uint8ClampedArray(e.data.rgba) })
+      setFlattening(false)
+    }
+    worker.addEventListener("message", onMessage)
+    worker.postMessage({
+      id,
+      rgba: downscaled.rgba,
+      width: downscaled.width,
+      height: downscaled.height,
+      flatten: params.flatten,
+    })
+    return () => worker.removeEventListener("message", onMessage)
   }, [downscaled, params.flatten])
 
-  const quantized = useMemo(() => {
-    if (!blurred) return null
-    return kMeansOklab(blurred, params.num_colors, KMEANS_MAX_ITER)
-  }, [blurred, params.num_colors])
-
-  // Chip index per cluster — CC runs on the palette chip, not the raw cluster
-  // (two clusters can snap to the same chip).
-  const clusterChip = useMemo(() => {
-    if (!quantized || !palette) return null
-    return chipPerCluster(quantized.centroids, palette)
-  }, [quantized, palette])
+  // Coverage paint selection (top-K most-used chips) → per-pixel paint map.
+  const paintMap = useMemo(() => {
+    if (!flattened || !palette || palette.length === 0) return null
+    return coverageSelectPaintMap(flattened, palette, params.num_colors)
+  }, [flattened, palette, params.num_colors])
 
   // `detail` + `min_paintable_mm` drive region granularity; defer them so the
-  // (heavier) segmentation stays interruptible while the user drags a slider.
+  // segmentation stays interruptible while the user drags a slider.
   const deferredDetail = useDeferredValue(params.detail)
   const deferredGapMm = useDeferredValue(params.min_paintable_mm)
 
   // Facet segmentation: paint map → connected components → min-area merge.
   const regions = useMemo(() => {
-    if (!blurred || !quantized || !clusterChip || !palette || palette.length === 0) return null
-    const w = blurred.width
-    const h = blurred.height
-    const paintMap = new Int32Array(w * h)
-    const assignments = quantized.assignments
-    for (let i = 0; i < paintMap.length; i += 1) paintMap[i] = clusterChip[assignments[i]]
+    if (!flattened || !paintMap || !palette || palette.length === 0) return null
+    const w = flattened.width
+    const h = flattened.height
 
     // Min-radius floor in preview px — mirrors the server mm→px chain
     // (services/editor/server/trace/linerate.ts + linerate.py min_radius_work):
@@ -120,9 +144,8 @@ export function LineratePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
     const chipOklab = palette.map((c) => c.oklab)
     return segmentRegions(paintMap, w, h, chipOklab, minArea)
   }, [
-    blurred,
-    quantized,
-    clusterChip,
+    flattened,
+    paintMap,
     palette,
     source,
     displayMmW,
@@ -134,18 +157,18 @@ export function LineratePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
   // Paint flat regions with 1px black outlines.
   useEffect(() => {
     const target = canvasRef.current
-    if (!target || !blurred || !regions || !palette || palette.length === 0) return
+    if (!target || !flattened || !regions || !palette || palette.length === 0) return
     const ctx = target.getContext("2d")
     if (!ctx) return
     const chipRgb = palette.map((c) => c.rgb)
-    const rgba = renderRegionsRgba(regions.labels, regions.regionChip, chipRgb, blurred.width, blurred.height)
-    const out = ctx.createImageData(blurred.width, blurred.height)
+    const rgba = renderRegionsRgba(regions.labels, regions.regionChip, chipRgb, flattened.width, flattened.height)
+    const out = ctx.createImageData(flattened.width, flattened.height)
     out.data.set(rgba)
     ctx.putImageData(out, 0, 0)
-  }, [blurred, regions, palette])
+  }, [flattened, regions, palette])
 
   const valid = displayMmW > 0 && displayMmH > 0
-  const showSpinner = !source || !palette
+  const showSpinner = !source || !palette || flattening || !flattened
   const showInvalid = source !== null && palette !== null && !valid
 
   const handleZoomIn = () => setZoom((z) => Math.min(ZOOM_MAX, z * ZOOM_STEP))
@@ -168,8 +191,8 @@ export function LineratePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
         >
           <canvas
             ref={canvasRef}
-            width={blurred ? blurred.width : 1}
-            height={blurred ? blurred.height : 1}
+            width={flattened ? flattened.width : 1}
+            height={flattened ? flattened.height : 1}
             className="block"
             style={{ width: display?.w ?? 0, height: display?.h ?? 0, imageRendering: "pixelated" }}
             data-testid="linerate-preview-mini"
