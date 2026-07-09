@@ -49,7 +49,7 @@ _KMEANS_SAMPLE = 12000   # subsample pixels for the palette-selection reduction
 _FACET_MERGE_ROUNDS = 40  # safety cap; area-merge converges in a few rounds
 # `detail` ∈ [0,1] widens the facet min-area above the paintability floor:
 # high detail → floor (many small facets), low detail → coarse (few big facets).
-_DETAIL_MIN_FRAC = 0.00025  # min facet area as fraction of the image at detail=1
+_DETAIL_MIN_FRAC = 0.0001   # min facet area as fraction of the image at detail=1
 _DETAIL_MAX_FRAC = 0.003    # ... at detail=0
 
 
@@ -64,9 +64,14 @@ def _flatten_to_lam(flatten: float) -> float:
 def _detail_to_min_area(detail: float, work_px: int, min_radius_work: float) -> float:
     """Map detail ∈ [0,1] → facet min-area. HIGH detail = small area = more, finer
     facets; LOW detail = large area = fewer, bolder facets. Never below the
-    paintability floor (the inscribed circle of `min_radius_work`)."""
+    paintability floor (the inscribed circle of `min_radius_work`).
+
+    Region count scales like 1/frac, so `frac` is interpolated GEOMETRICALLY
+    (not linearly) across the slider — each equal step of `detail` changes the
+    count by a roughly constant ratio. A linear frac made the slider feel dead
+    until detail≈1 (all the region growth bunched at the very top)."""
     d = max(0.0, min(1.0, detail))
-    frac = _DETAIL_MIN_FRAC + (1.0 - d) * (_DETAIL_MAX_FRAC - _DETAIL_MIN_FRAC)
+    frac = _DETAIL_MAX_FRAC * (_DETAIL_MIN_FRAC / _DETAIL_MAX_FRAC) ** d
     floor = np.pi * float(min_radius_work) ** 2
     return max(floor, frac * work_px)
 
