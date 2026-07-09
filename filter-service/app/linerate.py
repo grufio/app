@@ -336,7 +336,13 @@ def _rdp(pts: list[np.ndarray], eps: float) -> list[np.ndarray]:
     if l2 == 0.0:
         d = np.hypot(ap[:, 0], ap[:, 1])
     else:
-        r = ap - np.clip((ap @ ab) / l2, 0.0, 1.0)[:, None] * ab
+        # np.errstate: the `ap @ ab` matmul spuriously trips a stale FP-error
+        # flag on large point arrays (same NumPy quirk as rgb_to_oklab — "divide
+        # by zero in matmul" is impossible for a multiply-add). Inputs are finite
+        # and l2 != 0 here, so the warnings are pure Cloud Run stderr noise;
+        # silencing them leaves the output unchanged.
+        with np.errstate(divide="ignore", over="ignore", invalid="ignore"):
+            r = ap - np.clip((ap @ ab) / l2, 0.0, 1.0)[:, None] * ab
         d = np.hypot(r[:, 0], r[:, 1])
     idx = int(d.argmax()) + 1
     if d[idx - 1] <= eps:
