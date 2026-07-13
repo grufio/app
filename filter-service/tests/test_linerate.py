@@ -145,6 +145,30 @@ def test_linerate_to_svg_labels_every_region():
     assert svg.count("<text ") == region_count       # every region gets a number
 
 
+def test_labels_are_not_clipped_by_the_image_edge():
+    # Vertical stripes touch the top/bottom edges; the label pole must inset from
+    # the frame (padded distance transform) so the number isn't cut off.
+    cols = [(200, 60, 60), (60, 200, 60), (60, 60, 200), (220, 220, 60)]
+    arr = np.zeros((20, 40, 3), np.uint8)
+    for k, c in enumerate(cols):
+        arr[:, k * 10:(k + 1) * 10] = c
+    img = Image.fromarray(arr, "RGB")
+    pal_ok, pal_rgb = _mini_palette(cols)
+    svg, _, _ = linerate_to_svg(
+        img, flatten=0.1, detail=0.8, num_colors=6, min_radius=2.0,
+        palette_oklab=pal_ok, palette_rgb=pal_rgb,
+    )
+    W, H = 40, 20
+    found = False
+    for m in re.finditer(r'<text x="([\d.]+)" y="([\d.]+)" font-size="([\d.]+)"[^>]*>(\d+)</text>', svg):
+        found = True
+        x, y, fs, num = float(m[1]), float(m[2]), float(m[3]), m[4]
+        hw, hh = 0.3 * fs * len(num), 0.5 * fs
+        assert x - hw >= -0.01 and x + hw <= W + 0.01, f"label {num} clipped horizontally at x={x}"
+        assert y - hh >= -0.01 and y + hh <= H + 0.01, f"label {num} clipped vertically at y={y}"
+    assert found, "expected at least one label"
+
+
 def test_label_font_shrinks_for_more_digits_and_fits_the_inscribed_circle():
     # 2-digit labels were spilling over the region edge. The font must shrink with
     # digit count so the digit box stays inside the region's inscribed circle.
