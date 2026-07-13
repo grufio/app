@@ -71,10 +71,75 @@ export function traceRegionContours(labels: Int32Array, w: number, h: number, re
   return out
 }
 
+function perpDist(p: number[], a: number[], b: number[]): number {
+  const dx = b[0] - a[0]
+  const dy = b[1] - a[1]
+  const l2 = dx * dx + dy * dy
+  if (l2 === 0) return Math.hypot(p[0] - a[0], p[1] - a[1])
+  let t = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2
+  t = Math.max(0, Math.min(1, t))
+  return Math.hypot(p[0] - (a[0] + t * dx), p[1] - (a[1] + t * dy))
+}
+
+/** Ramer–Douglas–Peucker on an OPEN polyline. */
+function rdpOpen(pts: number[][], eps: number): number[][] {
+  if (pts.length < 3) return pts.slice()
+  const a = pts[0]
+  const b = pts[pts.length - 1]
+  let idx = -1
+  let max = 0
+  for (let i = 1; i < pts.length - 1; i += 1) {
+    const d = perpDist(pts[i], a, b)
+    if (d > max) {
+      max = d
+      idx = i
+    }
+  }
+  if (max > eps) {
+    const left = rdpOpen(pts.slice(0, idx + 1), eps)
+    const right = rdpOpen(pts.slice(idx), eps)
+    return left.slice(0, -1).concat(right)
+  }
+  return [a, b]
+}
+
 /**
- * Chaikin corner-cutting on a CLOSED loop — rounds the pixel staircase into a
- * smooth curve. Each iteration replaces every vertex with two points at 1/4 and
- * 3/4 along each edge (wrapping), same scheme the server uses for its arcs.
+ * Simplify a CLOSED loop with RDP — collapses the pixel staircase into straight
+ * segments BEFORE Chaikin (Chaikin alone only rounds each 1px step, leaving the
+ * boundary visibly stepped). Mirrors the server's `smooth_arc` = RDP then Chaikin.
+ * The loop is split at the point farthest from its start so both arcs simplify
+ * as open polylines while staying closed.
+ */
+export function simplifyClosed(loop: number[][], eps: number): number[][] {
+  const n = loop.length
+  if (n < 4) return loop.slice()
+  // Rotate to start at an extreme point (min y, then min x) — always a genuine
+  // corner, so RDP won't pin a redundant mid-edge start vertex.
+  let ext = 0
+  for (let i = 1; i < n; i += 1) {
+    if (loop[i][1] < loop[ext][1] || (loop[i][1] === loop[ext][1] && loop[i][0] < loop[ext][0])) ext = i
+  }
+  const rot = ext === 0 ? loop : loop.slice(ext).concat(loop.slice(0, ext))
+  let far = 0
+  let fd = -1
+  for (let i = 1; i < n; i += 1) {
+    const d = Math.hypot(rot[i][0] - rot[0][0], rot[i][1] - rot[0][1])
+    if (d > fd) {
+      fd = d
+      far = i
+    }
+  }
+  const arc1 = rot.slice(0, far + 1)
+  const arc2 = rot.slice(far).concat([rot[0]])
+  const s1 = rdpOpen(arc1, eps)
+  const s2 = rdpOpen(arc2, eps)
+  return s1.slice(0, -1).concat(s2.slice(0, -1))
+}
+
+/**
+ * Chaikin corner-cutting on a CLOSED loop — rounds the (RDP-simplified) corners
+ * into a smooth curve. Each iteration replaces every vertex with two points at
+ * 1/4 and 3/4 along each edge (wrapping), same scheme the server uses for its arcs.
  */
 export function chaikinClosed(loop: number[][], iters: number): number[][] {
   let pts = loop

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { chaikinClosed, traceRegionContours } from "./contour-trace"
+import { chaikinClosed, simplifyClosed, traceRegionContours } from "./contour-trace"
 
 // bounding box of a loop
 function bbox(loop: number[][]) {
@@ -68,6 +68,32 @@ describe("traceRegionContours", () => {
     const cs = traceRegionContours(labels, 2, 2, 2)
     expect(cs.length).toBe(1)
     expect(cs[0].region).toBe(0)
+  })
+})
+
+describe("simplifyClosed", () => {
+  it("collapses a rectangle's per-edge corners down to its 4 corners", () => {
+    // 3×3 block boundary = 12 lattice points; RDP should keep just the 4 corners.
+    const labels = new Int32Array(9)
+    const [c] = traceRegionContours(labels, 3, 3, 1)
+    const simp = simplifyClosed(c.loop, 0.5)
+    expect(simp.length).toBe(4)
+    expect(new Set(simp.map((p) => `${p[0]},${p[1]}`))).toEqual(
+      new Set(["0,0", "3,0", "3,3", "0,3"]),
+    )
+  })
+
+  it("collapses a pixel staircase into a near-straight diagonal", () => {
+    // a 45° staircase of unit steps deviates < 1px from its chord → RDP with
+    // eps=1 removes the intermediate steps, leaving essentially the endpoints.
+    const loop: number[][] = []
+    for (let k = 0; k < 8; k += 1) {
+      loop.push([k, k])
+      loop.push([k + 1, k])
+    }
+    for (let k = 8; k > 0; k -= 1) loop.push([k, k + 1])
+    const simp = simplifyClosed(loop, 1.0)
+    expect(simp.length).toBeLessThan(loop.length / 2)
   })
 })
 
