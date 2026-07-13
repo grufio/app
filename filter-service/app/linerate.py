@@ -445,6 +445,17 @@ def smoothness_to_params(smoothness: float) -> tuple[float, int]:
     return 0.5 + s * 2.0, 2 + int(round(s * 2))  # eps 0.5..2.5, iters 2..4
 
 
+def _label_font_size(min_radius: float, rc: float, ndigits: int) -> float:
+    """Font size (content px) for a region label with `ndigits` digits sitting in
+    an inscribed circle of radius `rc`. Beyond the radius/`min_radius` caps, the
+    number's DIGIT BOX (≈0.6·fs per digit wide) must fit inside the circle, or a
+    2-digit label spills over the region edge (the main cause of labels landing
+    outside / under the outline)."""
+    fs = min(1.4 * min_radius, 24.0) if min_radius > 0 else min(1.4 * rc, 24.0)
+    fit = 1.8 * rc / float(np.hypot(0.6 * max(1, ndigits), 1.0))
+    return min(fs, 1.4 * rc, fit)
+
+
 def _face_path_d(loops, sx: float = 1.0, sy: float = 1.0) -> str:
     """SVG path `d` for a region's loops. `sx`/`sy` scale the working-resolution
     coordinates back to the content pixel space."""
@@ -542,13 +553,22 @@ def linerate_to_svg(
             f'<path d="{d}" fill="#{r:02x}{g:02x}{b:02x}" stroke="black" '
             f'stroke-width="{line_thickness}" fill-rule="evenodd"/>'
         )
-        mask = (labels == rid).astype(np.uint8)
-        dt = cv2.distanceTransform(mask, cv2.DIST_L2, 5)
+        # Place the label at the pole of inaccessibility of the RENDERED (smoothed)
+        # face, not the raster label mask — smoothing shifts the boundary, so the
+        # mask pole landed outside / under the drawn region. Even-odd rasterise
+        # (XOR per loop) so a face with a hole is excluded correctly.
+        fmask = np.zeros((hh, ww), np.uint8)
+        for lp in loops:
+            if len(lp) < 3:
+                continue
+            one = np.zeros((hh, ww), np.uint8)
+            cv2.fillPoly(one, [np.round(np.asarray(lp)).astype(np.int32)], 1)
+            fmask ^= one
+        dt = cv2.distanceTransform(fmask, cv2.DIST_L2, 5)
         _, radius, _, (nx, ny) = cv2.minMaxLoc(dt)
         if radius > 0:
             rc = radius * sx                                   # work radius → content px
-            fs = min(1.4 * min_radius, 24.0) if min_radius > 0 else min(1.4 * rc, 24.0)
-            fs = min(fs, 1.4 * rc)
+            fs = _label_font_size(min_radius, rc, len(str(number_of[rid])))
             numbers.append(
                 f'<text x="{nx * sx:.1f}" y="{ny * sy:.1f}" font-size="{fs:.2f}" font-family="sans-serif" '
                 f'text-anchor="middle" dominant-baseline="central" fill="black" '
