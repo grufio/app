@@ -12,6 +12,7 @@ import { describe, expect, it } from "vitest"
 
 import { lineartSchema } from "./lineart"
 import { linerateSchema } from "./linerate"
+import { flattenToLam } from "./l0-smooth"
 import {
   LINERATE_DETAIL_MAX_FRAC,
   LINERATE_DETAIL_MIN_FRAC,
@@ -190,5 +191,18 @@ describe("Python parity: linerate detail→min-area preview port", () => {
     const px = 1_000_000
     expect(detailToMinArea(0, px, 0)).toBeCloseTo(LINERATE_DETAIL_MAX_FRAC * px, 3)
     expect(detailToMinArea(1, px, 0)).toBeCloseTo(LINERATE_DETAIL_MIN_FRAC * px, 3)
+  })
+
+  it("L0 flatten mapping + β schedule match the client port", () => {
+    // The preview's client L0 (`l0-smooth.ts`) must track the server `_l0_smooth`
+    // / `_flatten_to_lam`. Parse the server constants and assert the TS port agrees.
+    const lamMatch = /return\s+0\.002\s*\+\s*f\s*\*\s*0\.045/.exec(LINERATE_SOURCE)
+    expect(lamMatch, "server _flatten_to_lam formula changed").not.toBeNull()
+    expect(flattenToLam(0)).toBeCloseTo(0.002, 9)
+    expect(flattenToLam(1)).toBeCloseTo(0.047, 9)
+    // β schedule: start 2·lam, ×kappa=2.0, stop at 1e5 (kept in sync in l0-smooth.ts).
+    expect(LINERATE_SOURCE).toMatch(/beta\s*=\s*2\s*\*\s*lam/)
+    expect(LINERATE_SOURCE).toMatch(/kappa:\s*float\s*=\s*2\.0/)
+    expect(LINERATE_SOURCE).toMatch(/while\s+beta\s*<\s*1e5/)
   })
 })
