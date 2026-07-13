@@ -14,6 +14,7 @@ from app.linerate import (
     linerate_to_svg,
     _detail_to_min_area,
     _facet_merge,
+    _label_font_size,
     _labels_from_paint_map,
     _rdp,
 )
@@ -142,6 +143,18 @@ def test_linerate_to_svg_labels_every_region():
     assert '<g id="regions">' in svg and '<g id="numbers">' in svg
     assert region_count >= 3
     assert svg.count("<text ") == region_count       # every region gets a number
+
+
+def test_label_font_shrinks_for_more_digits_and_fits_the_inscribed_circle():
+    # 2-digit labels were spilling over the region edge. The font must shrink with
+    # digit count so the digit box stays inside the region's inscribed circle.
+    rc = 10.0
+    one = _label_font_size(0.0, rc, 1)
+    two = _label_font_size(0.0, rc, 2)
+    assert two < one, "a 2-digit label must be smaller than a 1-digit one at equal radius"
+    for ndig, fs in ((1, one), (2, two)):
+        half_diag = np.hypot(0.3 * fs * ndig, 0.5 * fs)  # digit-box corner from centre
+        assert half_diag <= rc + 1e-9, "label must fit inside the inscribed circle"
 
 
 def test_linerate_to_svg_uniform_font():
