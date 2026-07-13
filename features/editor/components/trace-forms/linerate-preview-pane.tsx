@@ -20,7 +20,7 @@ import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react"
 import { Loader2, Maximize2, ZoomIn, ZoomOut } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { chaikinClosed, traceRegionContours } from "@/lib/editor/trace/contour-trace"
+import { chaikinClosed, simplifyClosed, traceRegionContours } from "@/lib/editor/trace/contour-trace"
 import { coverageSelectPaintMap } from "@/lib/editor/trace/coverage-select"
 import type { LinerateParams } from "@/lib/editor/trace/linerate"
 import { loadAndDownscale, type PreviewImage } from "@/lib/editor/trace/lineart-preview"
@@ -36,7 +36,10 @@ const MAX_PREVIEW_EDGE_PX = 256
 // baked pixels) so they render thin + curved like the Apply result, not thick +
 // staircase. SS raises the draw resolution; Chaikin rounds the pixel corners.
 const OUTLINE_SUPERSAMPLE = 4
-const OUTLINE_CHAIKIN_ITERS = 2
+// RDP simplify (collapse the pixel staircase) THEN Chaikin (round the corners) —
+// Chaikin alone only rounds each 1px step and leaves the boundary looking stepped.
+const OUTLINE_SIMPLIFY_EPS = 1.0
+const OUTLINE_CHAIKIN_ITERS = 3
 const OUTLINE_STROKE_PX = 2
 const ZOOM_STEP = 1.5
 const ZOOM_MIN = 1
@@ -168,7 +171,7 @@ export function LineratePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
     const traced = traceRegionContours(regions.labels, flattened.width, flattened.height, regions.regionCount)
     return traced.map((c) => ({
       region: c.region,
-      path: chaikinClosed(c.loop, OUTLINE_CHAIKIN_ITERS),
+      path: chaikinClosed(simplifyClosed(c.loop, OUTLINE_SIMPLIFY_EPS), OUTLINE_CHAIKIN_ITERS),
     }))
   }, [regions, flattened])
 
