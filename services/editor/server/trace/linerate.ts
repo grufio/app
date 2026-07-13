@@ -3,7 +3,7 @@ import crypto from "node:crypto"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/lib/supabase/database.types"
-import { linerateSchema, type LinerateParams } from "@/lib/editor/trace/linerate"
+import { LINERATE_RESOLUTION_EDGE, linerateSchema, type LinerateParams } from "@/lib/editor/trace/linerate"
 import { readTracePalette } from "@/lib/supabase/palette"
 import { callFilterService, toInt, type FilterResult } from "@/services/editor/server/filters/_helpers"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
@@ -59,7 +59,9 @@ export async function linerateImageAndActivate(args: {
     color_mode: colorMode,
     min_paintable_mm: minPaintableMm,
     palette_restriction: paletteRestriction,
+    resolution,
   } = parsed.data
+  const workEdge = LINERATE_RESOLUTION_EDGE[resolution]
 
   const { data: src, error: srcErr } = await supabase
     .from("project_images")
@@ -116,6 +118,9 @@ export async function linerateImageAndActivate(args: {
     const callResult = await callFilterService({
       path: "/filters/linerate",
       responseKind: "json",
+      // Higher work resolutions legitimately take longer; give the trace the full
+      // Cloud-Run budget (90 s) instead of the default 30 s so "High" doesn't abort.
+      timeoutMs: 90_000,
       body: {
         image_base64: imageBase64,
         line_thickness: lineThickness,
@@ -127,6 +132,7 @@ export async function linerateImageAndActivate(args: {
         palette_rgb: palette.map((c) => c.rgb),
         palette_restriction: paletteRestriction,
         min_region_radius_px: minRadiusPx,
+        work_edge: workEdge,
       },
     })
 

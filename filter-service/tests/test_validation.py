@@ -207,3 +207,12 @@ def test_linerate_rejects_out_of_range_num_colors(client, make_png_b64, value):
     res = client.post("/filters/linerate", json=_linerate_body(make_png_b64(), num_colors=value))
     assert res.status_code == 400
     assert "num_colors must be between 2 and 96" in res.json()["detail"]
+
+
+@pytest.mark.parametrize("value", [0, 255, 1281, 5000])
+def test_linerate_rejects_out_of_range_work_edge(client, make_png_b64, value):
+    # work_edge is the Resolution dial mapped by the bridge (640/720/960); the
+    # server clamps the accepted range so a bad value can't blow up memory/time.
+    res = client.post("/filters/linerate", json=_linerate_body(make_png_b64(), work_edge=value))
+    assert res.status_code == 400
+    assert "work_edge must be between 256 and 1280" in res.json()["detail"]

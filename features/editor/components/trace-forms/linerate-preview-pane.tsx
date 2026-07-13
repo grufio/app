@@ -23,7 +23,7 @@ import { Button } from "@/components/ui/button"
 import { assembleFaces, buildArcs, smoothArc } from "@/lib/editor/trace/boundary-arcs"
 import { smoothnessToParams } from "@/lib/editor/trace/contour-trace"
 import { coverageSelectPaintMap } from "@/lib/editor/trace/coverage-select"
-import type { LinerateParams } from "@/lib/editor/trace/linerate"
+import { LINERATE_RESOLUTION_EDGE, type LinerateParams } from "@/lib/editor/trace/linerate"
 import { loadAndDownscale, type PreviewImage } from "@/lib/editor/trace/lineart-preview"
 import { detailToMinArea, segmentRegions } from "@/lib/editor/trace/linerate-preview"
 import { useSourceImage } from "@/lib/editor/trace/use-source-image"
@@ -38,9 +38,8 @@ const MAX_PREVIEW_EDGE_PX = 256
 // from the server): each shared boundary is smoothed ONCE and used by both
 // neighbours → no holes; image-border arcs stay straight → straight frame.
 // Smoothing amount follows the Smoothness dial (smoothnessToParams), eps scaled
-// from the server's 480px work space to the preview resolution.
+// from the server's work-edge (now the Resolution dial) to the preview resolution.
 const OUTLINE_SUPERSAMPLE = 4
-const SERVER_WORK_EDGE = 480
 const OUTLINE_STROKE_PX = 2
 const ZOOM_STEP = 1.5
 const ZOOM_MIN = 1
@@ -171,7 +170,8 @@ export function LineratePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
     if (!regions || !flattened) return null
     // Smoothing amount from the Smoothness dial, eps scaled 480px → preview res.
     const { eps, iters } = smoothnessToParams(params.smoothness)
-    const scaledEps = (eps * Math.max(flattened.width, flattened.height)) / SERVER_WORK_EDGE
+    const serverWorkEdge = LINERATE_RESOLUTION_EDGE[params.resolution]
+    const scaledEps = (eps * Math.max(flattened.width, flattened.height)) / serverWorkEdge
     const g = buildArcs(regions.labels, flattened.width, flattened.height)
     for (const arc of g.arcs) arc.smooth = smoothArc(arc.corners, g.cornerStride, scaledEps, iters)
     return g

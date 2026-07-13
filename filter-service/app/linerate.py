@@ -476,6 +476,7 @@ def linerate_to_svg(
     palette_oklab: list | None = None,
     palette_rgb: list | None = None,
     palette_restriction: str = "top_n",
+    work_edge: int = _WORK_MAX_EDGE,
     on_phase: callable | None = None,
 ) -> tuple[str, int, list[int]]:
     def phase(name):
@@ -486,7 +487,7 @@ def linerate_to_svg(
     rgb_full = img.convert("RGB")
 
     # --- working resolution: run the heavy labelling capped, scale vectors back ---
-    scale = min(1.0, _WORK_MAX_EDGE / max(width, height))
+    scale = min(1.0, max(1, int(work_edge)) / max(width, height))
     if scale < 1.0:
         ww = max(1, round(width * scale))
         hh = max(1, round(height * scale))

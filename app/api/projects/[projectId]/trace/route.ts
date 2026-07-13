@@ -24,6 +24,10 @@ import {
 } from "@/services/editor/server/trace"
 
 export const dynamic = "force-dynamic"
+// A high-resolution linerate trace can run ~tens of seconds on Cloud Run; give
+// the function room so it doesn't get killed before the service responds (the
+// Node caller waits up to 90 s, matching Cloud Run's own timeout).
+export const maxDuration = 90
 
 type ApplyTraceRequest = {
   kind?: string
