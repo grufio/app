@@ -214,4 +214,13 @@ describe("Python parity: linerate detail→min-area preview port", () => {
     expect(smoothnessToParams(0)).toEqual({ eps: 0.5, iters: 2 })
     expect(smoothnessToParams(1)).toEqual({ eps: 2.5, iters: 4 })
   })
+
+  it("watertight back-half functions the preview ports still exist server-side", () => {
+    // boundary-arcs.ts is a client port of these; a server rewrite should flag the
+    // port for review (we intentionally do NOT assert stroke parity — the preview
+    // strokes internal arcs once + skips the frame, unlike the server face paths).
+    expect(LINERATE_SOURCE).toMatch(/def build_arcs\(/)
+    expect(LINERATE_SOURCE).toMatch(/def smooth_arc\(/)
+    expect(LINERATE_SOURCE).toMatch(/def assemble_faces\(/)
+  })
 })
