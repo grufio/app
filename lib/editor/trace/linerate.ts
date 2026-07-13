@@ -37,9 +37,17 @@ export const linerateSchema = z.object({
   // Which Munsell palette to select paints from — same contract as
   // lineart / pixelate / circulate. "color" → lab_munsell, "bw" → lab_grays.
   color_mode: z.enum(["color", "bw"]).default("color"),
+  // Work resolution the server labels at (form fidelity vs latency). The bridge
+  // maps this to the `work_edge` px the service uses; higher = finer region
+  // boundaries but slower. Default "medium".
+  resolution: z.enum(["low", "medium", "high"]).default("medium"),
 })
 
 export type LinerateParams = z.infer<typeof linerateSchema>
+
+/** Resolution preset → server work-edge (px). Higher = finer form, slower. */
+export const LINERATE_RESOLUTION_EDGE = { low: 640, medium: 720, high: 960 } as const
+export type LinerateResolution = keyof typeof LINERATE_RESOLUTION_EDGE
 
 export const linerateTrace = {
   id: "linerate",
@@ -59,5 +67,6 @@ export const linerateTrace = {
     palette_restriction: { kind: "select", label: "Palette selection", options: [{ value: "top_n", label: "Top-N" }, { value: "pam", label: "PAM" }], description: "How paints are chosen: Top-N (most-used chips) or PAM (k-medoids). Coverage-based." },
     min_paintable_mm: { kind: "decimal", label: "Min. Gap (mm)", min: 0, max: 20, step: 0.5, description: "Smallest paintable gap between outlines in mm (0=off). Thinner regions merge so each stays paintable + fits its number." },
     color_mode: { kind: "select", label: "Color mode", options: [{ value: "color", label: "Color" }, { value: "bw", label: "B/W" }], description: "Which Munsell palette to select paints from" },
+    resolution: { kind: "select", label: "Resolution", options: [{ value: "low", label: "Low (640)" }, { value: "medium", label: "Medium (720)" }, { value: "high", label: "High (960)" }], description: "Work resolution: higher = finer region shapes but a slower trace" },
   },
 } as const satisfies TraceDefinition<typeof linerateSchema>

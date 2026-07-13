@@ -6,9 +6,9 @@
  * detail, smoothness, min paintable gap) + a shared "Colors" section.
  * Stateless; the parent owns the draft.
  */
-import { Brush, Droplets, Grid2x2, Ruler, Waves } from "lucide-react"
+import { Brush, Droplets, Grid2x2, Maximize2, Ruler, Waves } from "lucide-react"
 
-import { FormField } from "@/components/ui/form-controls"
+import { FormField, type SelectFieldOption } from "@/components/ui/form-controls"
 import { linerateSchema, type LinerateParams } from "@/lib/editor/trace/linerate"
 import { extractNumberInputProps, parseFormNumber } from "@/lib/forms/zod-input-props"
 
@@ -28,6 +28,12 @@ const FLATTEN_INPUT_PROPS = extractNumberInputProps(linerateSchema.shape.flatten
 const DETAIL_INPUT_PROPS = extractNumberInputProps(linerateSchema.shape.detail)
 const SMOOTHNESS_INPUT_PROPS = extractNumberInputProps(linerateSchema.shape.smoothness)
 const MIN_PAINTABLE_INPUT_PROPS = extractNumberInputProps(linerateSchema.shape.min_paintable_mm)
+
+const RESOLUTION_OPTIONS: SelectFieldOption[] = [
+  { value: "low", label: "Low (640)" },
+  { value: "medium", label: "Medium (720)" },
+  { value: "high", label: "High (960)" },
+]
 
 export function LinerateForm({ params, onParamsChange, disabled }: Props) {
   return (
@@ -141,6 +147,24 @@ export function LinerateForm({ params, onParamsChange, disabled }: Props) {
           onRestrictionChange={(v) => onParamsChange("palette_restriction", v)}
           disabled={disabled}
         />
+      </EditorSidebarSection>
+
+      <EditorSidebarSection title="Resolution">
+        <PanelTwoFieldRow>
+          <div className="col-span-2">
+            <FormField
+              variant="select"
+              label="Resolution"
+              labelVisuallyHidden
+              iconStart={<Maximize2 aria-hidden="true" />}
+              id="resolution"
+              value={params.resolution}
+              options={RESOLUTION_OPTIONS}
+              onCommit={(v) => onParamsChange("resolution", v as LinerateParams["resolution"])}
+              disabled={disabled}
+            />
+          </div>
+        </PanelTwoFieldRow>
       </EditorSidebarSection>
     </>
   )

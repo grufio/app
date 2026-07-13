@@ -279,6 +279,9 @@ class LinerateRequest(BaseModel):
     # regions dissolve into their majority-neighbour paint before vectorising.
     # The Node bridge derives it from the "min paintable gap (mm)" dial.
     min_region_radius_px: float = 8.0
+    # Work resolution (max edge px) the labelling runs at — form fidelity vs
+    # latency. Node bridge maps the "Resolution" dial (low/medium/high) → 640/720/960.
+    work_edge: int = 720
 
 
 class PixelateRequest(BaseModel):
@@ -604,6 +607,8 @@ async def linerate_filter(request: LinerateRequest):
         raise HTTPException(status_code=400, detail="num_colors must be between 2 and 96")
     if request.palette_restriction not in ("top_n", "pam"):
         raise HTTPException(status_code=400, detail="palette_restriction must be 'top_n' or 'pam'")
+    if request.work_edge < 256 or request.work_edge > 1280:
+        raise HTTPException(status_code=400, detail="work_edge must be between 256 and 1280")
 
     timer = PhaseTimer()
     try:
@@ -624,6 +629,7 @@ async def linerate_filter(request: LinerateRequest):
             palette_oklab=request.palette_oklab,
             palette_rgb=request.palette_rgb,
             palette_restriction=request.palette_restriction,
+            work_edge=request.work_edge,
             on_phase=timer.mark,
         )
 

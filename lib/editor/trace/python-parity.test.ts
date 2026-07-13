@@ -72,9 +72,10 @@ describe("Python parity: TS trace schema defaults vs Pydantic", () => {
   it("LinerateRequest", () => {
     const py = extractPydanticDefaults("LinerateRequest")
     const ts = linerateSchema.parse({})
-    // Same as lineart: `min_region_radius_px` is derived server-side from the
-    // `min_paintable_mm` dial, not a pass-through TS param.
-    const SERVER_COMPUTED = new Set(["min_region_radius_px"])
+    // Server-computed / bridge-derived fields, not 1:1 TS pass-throughs:
+    // `min_region_radius_px` ← `min_paintable_mm` dial; `work_edge` ← the
+    // `resolution` dial (low/medium/high → 640/720/960 in the Node bridge).
+    const SERVER_COMPUTED = new Set(["min_region_radius_px", "work_edge"])
     for (const key of Object.keys(py)) {
       if (SERVER_COMPUTED.has(key)) continue
       expect(ts[key as keyof typeof ts]).toEqual(py[key])
