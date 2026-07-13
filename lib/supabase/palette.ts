@@ -20,8 +20,10 @@ import type { Database } from "./database.types"
 export type TraceColorMode = "color" | "bw"
 
 /** Default active colour tier when `PALETTE_TIER` is unset/invalid.
- *  Raised 128 → 256 once the 512-chip palette was live (all 512 seeded). */
-const DEFAULT_COLOR_TIER = 256
+ *  128 → 256 once the 512-chip palette was live; 256 → 512 to use the full
+ *  palette (measured: a colour image maps to ~29% more distinct chips at 512,
+ *  so trace colours track the source more accurately). All 512 seeded. */
+const DEFAULT_COLOR_TIER = 512
 
 /**
  * Active colour-palette tier: how many of the 512 `lab_munsell` chips the app

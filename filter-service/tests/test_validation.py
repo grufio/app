@@ -46,6 +46,19 @@ def _lineart_body(png: str, **overrides) -> dict:
     return body
 
 
+def _linerate_body(png: str, **overrides) -> dict:
+    body = {
+        "image_base64": png,
+        "line_thickness": 1.0,
+        "flatten": 0.25,
+        "detail": 0.75,
+        "smoothness": 0.6,
+        "num_colors": 28,
+    }
+    body.update(overrides)
+    return body
+
+
 # --- pixelate bounds -----------------------------------------------------
 
 
@@ -186,3 +199,11 @@ def test_lineart_rejects_out_of_range_num_colors(client, make_png_b64, value):
     res = client.post("/filters/lineart", json=_lineart_body(make_png_b64(), num_colors=value))
     assert res.status_code == 400
     assert "num_colors must be between 2 and 256" in res.json()["detail"]
+
+
+@pytest.mark.parametrize("value", [1, 0, 97, 1000])
+def test_linerate_rejects_out_of_range_num_colors(client, make_png_b64, value):
+    # linerate caps at 96 (raised from 48 for colour fidelity); 97 must 400.
+    res = client.post("/filters/linerate", json=_linerate_body(make_png_b64(), num_colors=value))
+    assert res.status_code == 400
+    assert "num_colors must be between 2 and 96" in res.json()["detail"]
