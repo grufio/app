@@ -564,8 +564,12 @@ def linerate_to_svg(
             one = np.zeros((hh, ww), np.uint8)
             cv2.fillPoly(one, [np.round(np.asarray(lp)).astype(np.int32)], 1)
             fmask ^= one
-        dt = cv2.distanceTransform(fmask, cv2.DIST_L2, 5)
-        _, radius, _, (nx, ny) = cv2.minMaxLoc(dt)
+        # Pad a zero border so the IMAGE EDGE counts as a boundary too — the pole
+        # then insets from the frame and a border-hugging label can't be clipped.
+        padded = cv2.copyMakeBorder(fmask, 1, 1, 1, 1, cv2.BORDER_CONSTANT, value=0)
+        dt = cv2.distanceTransform(padded, cv2.DIST_L2, 5)
+        _, radius, _, (px, py) = cv2.minMaxLoc(dt)
+        nx, ny = px - 1, py - 1
         if radius > 0:
             rc = radius * sx                                   # work radius → content px
             fs = _label_font_size(min_radius, rc, len(str(number_of[rid])))
