@@ -49,6 +49,17 @@ def test_large_array_emits_no_runtime_warning():
         rgb255_to_oklab(big)  # must not raise
 
 
+def test_nearest_palette_indices_chunking_is_exact_across_block_boundaries():
+    # nearest_palette_indices chunks over rows to bound memory (OOM fix). The
+    # chunked result must equal a one-shot argmin, incl. rows spanning boundaries.
+    rng = np.random.default_rng(3)
+    cells = rng.normal(size=(20000, 3))
+    palette = rng.normal(size=(600, 3))  # large M → small block → many boundaries
+    got = nearest_palette_indices(cells, palette)
+    ref = (((cells[:, None, :] - palette[None, :, :]) ** 2).sum(2)).argmin(1)
+    assert np.array_equal(got, ref)
+
+
 def test_nearest_palette_indices_match_client():
     palette = rgb255_to_oklab(np.array(CHIP_RGB))
     probes = rgb255_to_oklab(np.array([p[0] for p in PROBES]))

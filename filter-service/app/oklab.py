@@ -89,11 +89,20 @@ def nearest_palette_indices(cell_oklab: np.ndarray, palette_oklab: np.ndarray) -
     """For each cell OKLab (N, 3), the index of the nearest palette chip
     (M, 3) by squared euclidean OKLab distance. Returns (N,) int indices.
 
-    Plain numpy broadcasting — no scipy/cKDTree dependency. M ≤ 128 and N is
-    the cell count, so the (N, M) distance matrix is small and fast.
+    Plain numpy broadcasting — no scipy/cKDTree dependency. The (block, M, 3)
+    intermediate is CHUNKED over N so its size is bounded regardless of the
+    image resolution × palette size: N=work pixels (up to ~1M at high res) × a
+    512-chip palette would otherwise be a multi-GB transient and OOM on Cloud Run.
     """
     cells = np.asarray(cell_oklab, dtype=np.float64).reshape(-1, 3)
     palette = np.asarray(palette_oklab, dtype=np.float64).reshape(-1, 3)
-    # (N, 1, 3) - (1, M, 3) → (N, M, 3) → sum sq over axis 2 → (N, M)
-    d2 = ((cells[:, None, :] - palette[None, :, :]) ** 2).sum(axis=2)
-    return d2.argmin(axis=1)
+    n = cells.shape[0]
+    m = max(1, palette.shape[0])
+    # cap the (block, M, 3) float64 intermediate to ~64 MB independent of N and M
+    block = max(1, 8_000_000 // (m * 3))
+    out = np.empty(n, dtype=np.int64)
+    for i in range(0, n, block):
+        c = cells[i:i + block]
+        d2 = ((c[:, None, :] - palette[None, :, :]) ** 2).sum(axis=2)
+        out[i:i + block] = d2.argmin(axis=1)
+    return out

@@ -600,8 +600,8 @@ async def linerate_filter(request: LinerateRequest):
         raise HTTPException(status_code=400, detail="detail must be between 0 and 1")
     if request.smoothness < 0 or request.smoothness > 1:
         raise HTTPException(status_code=400, detail="smoothness must be between 0 and 1")
-    if request.num_colors < 2 or request.num_colors > 48:
-        raise HTTPException(status_code=400, detail="num_colors must be between 2 and 48")
+    if request.num_colors < 2 or request.num_colors > 96:
+        raise HTTPException(status_code=400, detail="num_colors must be between 2 and 96")
     if request.palette_restriction not in ("top_n", "pam"):
         raise HTTPException(status_code=400, detail="palette_restriction must be 'top_n' or 'pam'")
 
