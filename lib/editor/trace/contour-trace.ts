@@ -71,6 +71,19 @@ export function traceRegionContours(labels: Int32Array, w: number, h: number, re
   return out
 }
 
+/**
+ * Mirror of the server `smoothness_to_params` (filter-service/app/linerate.py):
+ * smoothness ∈ [0,1] → (rdp_eps, chaikin_iters). `eps` is in the server's 480px
+ * work-pixel space; scale it to the preview's resolution at the call site so the
+ * preview smooths the SAME amount the Apply result does. Driving this from the
+ * Smoothness dial (instead of a hardcoded value) lets the user dial the outlines
+ * sharper/smoother, and keeps preview ⇄ Apply consistent.
+ */
+export function smoothnessToParams(smoothness: number): { eps: number; iters: number } {
+  const s = Math.max(0, Math.min(1, smoothness))
+  return { eps: 0.5 + s * 2.0, iters: 2 + Math.round(s * 2) }
+}
+
 function perpDist(p: number[], a: number[], b: number[]): number {
   const dx = b[0] - a[0]
   const dy = b[1] - a[1]

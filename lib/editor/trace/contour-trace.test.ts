@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { chaikinClosed, simplifyClosed, traceRegionContours } from "./contour-trace"
+import { chaikinClosed, simplifyClosed, smoothnessToParams, traceRegionContours } from "./contour-trace"
 
 // bounding box of a loop
 function bbox(loop: number[][]) {
@@ -68,6 +68,20 @@ describe("traceRegionContours", () => {
     const cs = traceRegionContours(labels, 2, 2, 2)
     expect(cs.length).toBe(1)
     expect(cs[0].region).toBe(0)
+  })
+})
+
+describe("smoothnessToParams", () => {
+  it("mirrors the server mapping (eps 0.5..2.5, iters 2..4)", () => {
+    expect(smoothnessToParams(0)).toEqual({ eps: 0.5, iters: 2 })
+    expect(smoothnessToParams(1)).toEqual({ eps: 2.5, iters: 4 })
+    // default smoothness 0.6 → eps 1.7, iters 2 + round(1.2) = 3
+    expect(smoothnessToParams(0.6)).toEqual({ eps: 1.7, iters: 3 })
+  })
+
+  it("clamps out-of-range input", () => {
+    expect(smoothnessToParams(-1)).toEqual({ eps: 0.5, iters: 2 })
+    expect(smoothnessToParams(2)).toEqual({ eps: 2.5, iters: 4 })
   })
 })
 

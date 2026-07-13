@@ -20,7 +20,12 @@ import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react"
 import { Loader2, Maximize2, ZoomIn, ZoomOut } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { chaikinClosed, simplifyClosed, traceRegionContours } from "@/lib/editor/trace/contour-trace"
+import {
+  chaikinClosed,
+  simplifyClosed,
+  smoothnessToParams,
+  traceRegionContours,
+} from "@/lib/editor/trace/contour-trace"
 import { coverageSelectPaintMap } from "@/lib/editor/trace/coverage-select"
 import type { LinerateParams } from "@/lib/editor/trace/linerate"
 import { loadAndDownscale, type PreviewImage } from "@/lib/editor/trace/lineart-preview"
@@ -34,12 +39,11 @@ import { useTracePalette } from "@/lib/editor/trace/use-trace-palette"
 const MAX_PREVIEW_EDGE_PX = 256
 // The outlines are drawn as smooth vector paths on a supersampled canvas (not
 // baked pixels) so they render thin + curved like the Apply result, not thick +
-// staircase. SS raises the draw resolution; Chaikin rounds the pixel corners.
+// staircase. RDP-simplify (collapse the staircase) THEN Chaikin (round corners),
+// both driven by the Smoothness dial via `smoothnessToParams` — same amount the
+// server applies. `eps` is scaled from the server's 480px space to the preview's.
 const OUTLINE_SUPERSAMPLE = 4
-// RDP simplify (collapse the pixel staircase) THEN Chaikin (round the corners) —
-// Chaikin alone only rounds each 1px step and leaves the boundary looking stepped.
-const OUTLINE_SIMPLIFY_EPS = 1.0
-const OUTLINE_CHAIKIN_ITERS = 3
+const SERVER_WORK_EDGE = 480
 const OUTLINE_STROKE_PX = 2
 const ZOOM_STEP = 1.5
 const ZOOM_MIN = 1
@@ -168,12 +172,16 @@ export function LineratePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
   // on the segmentation, not zoom — recompute with `regions`.
   const contours = useMemo(() => {
     if (!regions || !flattened) return null
+    // Match the server's smoothing amount (driven by the Smoothness dial), with
+    // eps scaled from 480px work space to the preview's resolution.
+    const { eps, iters } = smoothnessToParams(params.smoothness)
+    const scaledEps = (eps * Math.max(flattened.width, flattened.height)) / SERVER_WORK_EDGE
     const traced = traceRegionContours(regions.labels, flattened.width, flattened.height, regions.regionCount)
     return traced.map((c) => ({
       region: c.region,
-      path: chaikinClosed(simplifyClosed(c.loop, OUTLINE_SIMPLIFY_EPS), OUTLINE_CHAIKIN_ITERS),
+      path: chaikinClosed(simplifyClosed(c.loop, scaledEps), iters),
     }))
-  }, [regions, flattened])
+  }, [regions, flattened, params.smoothness])
 
   // Draw: smoothed region fills (painter's order, largest-first) + thin vector
   // outlines on a supersampled canvas so the lines are thin and curved.
