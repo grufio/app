@@ -20,10 +20,11 @@ import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react"
 import { Loader2, Maximize2, ZoomIn, ZoomOut } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { chaikinClosed, traceRegionContours } from "@/lib/editor/trace/contour-trace"
 import { coverageSelectPaintMap } from "@/lib/editor/trace/coverage-select"
 import type { LinerateParams } from "@/lib/editor/trace/linerate"
 import { loadAndDownscale, type PreviewImage } from "@/lib/editor/trace/lineart-preview"
-import { detailToMinArea, renderRegionsRgba, segmentRegions } from "@/lib/editor/trace/linerate-preview"
+import { detailToMinArea, segmentRegions } from "@/lib/editor/trace/linerate-preview"
 import { useSourceImage } from "@/lib/editor/trace/use-source-image"
 import { useTracePalette } from "@/lib/editor/trace/use-trace-palette"
 
@@ -31,6 +32,12 @@ import { useTracePalette } from "@/lib/editor/trace/use-trace-palette"
 // ~scale-invariant), so 256px matches the server's density while keeping the L0
 // FFT tractable in the worker.
 const MAX_PREVIEW_EDGE_PX = 256
+// The outlines are drawn as smooth vector paths on a supersampled canvas (not
+// baked pixels) so they render thin + curved like the Apply result, not thick +
+// staircase. SS raises the draw resolution; Chaikin rounds the pixel corners.
+const OUTLINE_SUPERSAMPLE = 4
+const OUTLINE_CHAIKIN_ITERS = 2
+const OUTLINE_STROKE_PX = 2
 const ZOOM_STEP = 1.5
 const ZOOM_MIN = 1
 const ZOOM_MAX = 8
@@ -154,18 +161,46 @@ export function LineratePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
     params.line_thickness,
   ])
 
-  // Paint flat regions with 1px black outlines.
+  // Region boundary contours (smoothed), traced from the label map. Depends only
+  // on the segmentation, not zoom — recompute with `regions`.
+  const contours = useMemo(() => {
+    if (!regions || !flattened) return null
+    const traced = traceRegionContours(regions.labels, flattened.width, flattened.height, regions.regionCount)
+    return traced.map((c) => ({
+      region: c.region,
+      path: chaikinClosed(c.loop, OUTLINE_CHAIKIN_ITERS),
+    }))
+  }, [regions, flattened])
+
+  // Draw: smoothed region fills (painter's order, largest-first) + thin vector
+  // outlines on a supersampled canvas so the lines are thin and curved.
   useEffect(() => {
     const target = canvasRef.current
-    if (!target || !flattened || !regions || !palette || palette.length === 0) return
+    if (!target || !flattened || !regions || !contours || !palette || palette.length === 0) return
     const ctx = target.getContext("2d")
     if (!ctx) return
-    const chipRgb = palette.map((c) => c.rgb)
-    const rgba = renderRegionsRgba(regions.labels, regions.regionChip, chipRgb, flattened.width, flattened.height)
-    const out = ctx.createImageData(flattened.width, flattened.height)
-    out.data.set(rgba)
-    ctx.putImageData(out, 0, 0)
-  }, [flattened, regions, palette])
+    const ss = OUTLINE_SUPERSAMPLE
+    ctx.clearRect(0, 0, target.width, target.height)
+
+    const paths = contours.map((c) => {
+      const p = new Path2D()
+      const pts = c.path
+      p.moveTo(pts[0][0] * ss, pts[0][1] * ss)
+      for (let i = 1; i < pts.length; i += 1) p.lineTo(pts[i][0] * ss, pts[i][1] * ss)
+      p.closePath()
+      return { region: c.region, path: p }
+    })
+
+    for (const { region, path } of paths) {
+      const [r, g, b] = palette[regions.regionChip[region]].rgb
+      ctx.fillStyle = `rgb(${r},${g},${b})`
+      ctx.fill(path)
+    }
+    ctx.lineJoin = "round"
+    ctx.lineWidth = OUTLINE_STROKE_PX
+    ctx.strokeStyle = "black"
+    for (const { path } of paths) ctx.stroke(path)
+  }, [flattened, regions, contours, palette])
 
   const valid = displayMmW > 0 && displayMmH > 0
   const showSpinner = !source || !palette || flattening || !flattened
@@ -191,10 +226,10 @@ export function LineratePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
         >
           <canvas
             ref={canvasRef}
-            width={flattened ? flattened.width : 1}
-            height={flattened ? flattened.height : 1}
+            width={flattened ? flattened.width * OUTLINE_SUPERSAMPLE : 1}
+            height={flattened ? flattened.height * OUTLINE_SUPERSAMPLE : 1}
             className="block"
-            style={{ width: display?.w ?? 0, height: display?.h ?? 0, imageRendering: "pixelated" }}
+            style={{ width: display?.w ?? 0, height: display?.h ?? 0 }}
             data-testid="linerate-preview-mini"
           />
         </div>
