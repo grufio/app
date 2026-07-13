@@ -542,6 +542,9 @@ def linerate_to_svg(
             f'<path d="{d}" fill="#{r:02x}{g:02x}{b:02x}" stroke="black" '
             f'stroke-width="{line_thickness}" fill-rule="evenodd"/>'
         )
+        # Adaptive number colour: black text vanishes on dark paints (hair, dress),
+        # so use white on dark regions, black on light (perceived brightness).
+        text_fill = "white" if (r * 299 + g * 587 + b * 114) / 1000 < 140 else "black"
         mask = (labels == rid).astype(np.uint8)
         dt = cv2.distanceTransform(mask, cv2.DIST_L2, 5)
         _, radius, _, (nx, ny) = cv2.minMaxLoc(dt)
@@ -551,7 +554,7 @@ def linerate_to_svg(
             fs = min(fs, 1.4 * rc)
             numbers.append(
                 f'<text x="{nx * sx:.1f}" y="{ny * sy:.1f}" font-size="{fs:.2f}" font-family="sans-serif" '
-                f'text-anchor="middle" dominant-baseline="central" fill="black" '
+                f'text-anchor="middle" dominant-baseline="central" fill="{text_fill}" '
                 f'pointer-events="none">{number_of[rid]}</text>'
             )
     phase("compose")

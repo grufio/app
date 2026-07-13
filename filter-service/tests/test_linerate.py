@@ -144,6 +144,23 @@ def test_linerate_to_svg_labels_every_region():
     assert svg.count("<text ") == region_count       # every region gets a number
 
 
+def test_linerate_number_colour_adapts_to_region_brightness():
+    # Black number text vanishes on dark paints. The label colour must flip to
+    # white on dark regions and stay black on light ones.
+    arr = np.zeros((40, 40, 3), np.uint8)
+    arr[:20] = (20, 20, 20)     # dark region  → white number
+    arr[20:] = (230, 230, 230)  # light region → black number
+    img = Image.fromarray(arr, "RGB")
+    pal_ok, pal_rgb = _mini_palette([(20, 20, 20), (230, 230, 230)])
+    svg, _, _ = linerate_to_svg(
+        img, flatten=0.2, detail=0.5, num_colors=4, min_radius=3.0,
+        palette_oklab=pal_ok, palette_rgb=pal_rgb,
+    )
+    text_fills = set(re.findall(r"<text[^>]*fill=\"(\w+)\"", svg))
+    assert "white" in text_fills, "dark region must get a white number"
+    assert "black" in text_fills, "light region must keep a black number"
+
+
 def test_linerate_to_svg_uniform_font():
     arr = np.zeros((80, 80, 3), np.uint8)
     arr[:40] = (200, 60, 60)
