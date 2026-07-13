@@ -12,6 +12,7 @@ import { describe, expect, it } from "vitest"
 
 import { lineartSchema } from "./lineart"
 import { linerateSchema } from "./linerate"
+import { smoothnessToParams } from "./contour-trace"
 import { flattenToLam } from "./l0-smooth"
 import {
   LINERATE_DETAIL_MAX_FRAC,
@@ -204,5 +205,13 @@ describe("Python parity: linerate detail→min-area preview port", () => {
     expect(LINERATE_SOURCE).toMatch(/beta\s*=\s*2\s*\*\s*lam/)
     expect(LINERATE_SOURCE).toMatch(/kappa:\s*float\s*=\s*2\.0/)
     expect(LINERATE_SOURCE).toMatch(/while\s+beta\s*<\s*1e5/)
+  })
+
+  it("smoothness→(eps,iters) mapping matches the client port", () => {
+    // The preview outlines use the same smoothness_to_params the server applies
+    // to its arcs, so preview ⇄ Apply smoothing stays consistent.
+    expect(LINERATE_SOURCE).toMatch(/return\s+0\.5\s*\+\s*s\s*\*\s*2\.0\s*,\s*2\s*\+\s*int\(round\(s\s*\*\s*2\)\)/)
+    expect(smoothnessToParams(0)).toEqual({ eps: 0.5, iters: 2 })
+    expect(smoothnessToParams(1)).toEqual({ eps: 2.5, iters: 4 })
   })
 })
