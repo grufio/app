@@ -20,12 +20,8 @@ import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react"
 import { Loader2, Maximize2, ZoomIn, ZoomOut } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import {
-  chaikinClosed,
-  simplifyClosed,
-  smoothnessToParams,
-  traceRegionContours,
-} from "@/lib/editor/trace/contour-trace"
+import { assembleFaces, buildArcs, smoothArc } from "@/lib/editor/trace/boundary-arcs"
+import { smoothnessToParams } from "@/lib/editor/trace/contour-trace"
 import { coverageSelectPaintMap } from "@/lib/editor/trace/coverage-select"
 import type { LinerateParams } from "@/lib/editor/trace/linerate"
 import { loadAndDownscale, type PreviewImage } from "@/lib/editor/trace/lineart-preview"
@@ -37,11 +33,12 @@ import { useTracePalette } from "@/lib/editor/trace/use-trace-palette"
 // ~scale-invariant), so 256px matches the server's density while keeping the L0
 // FFT tractable in the worker.
 const MAX_PREVIEW_EDGE_PX = 256
-// The outlines are drawn as smooth vector paths on a supersampled canvas (not
-// baked pixels) so they render thin + curved like the Apply result, not thick +
-// staircase. RDP-simplify (collapse the staircase) THEN Chaikin (round corners),
-// both driven by the Smoothness dial via `smoothnessToParams` — same amount the
-// server applies. `eps` is scaled from the server's 480px space to the preview's.
+// Outlines are drawn as smooth vector paths on a supersampled canvas via the
+// WATERTIGHT shared-arc method (buildArcs → smoothArc → assembleFaces, ported
+// from the server): each shared boundary is smoothed ONCE and used by both
+// neighbours → no holes; image-border arcs stay straight → straight frame.
+// Smoothing amount follows the Smoothness dial (smoothnessToParams), eps scaled
+// from the server's 480px work space to the preview resolution.
 const OUTLINE_SUPERSAMPLE = 4
 const SERVER_WORK_EDGE = 480
 const OUTLINE_STROKE_PX = 2
@@ -168,50 +165,58 @@ export function LineratePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
     params.line_thickness,
   ])
 
-  // Region boundary contours (smoothed), traced from the label map. Depends only
-  // on the segmentation, not zoom — recompute with `regions`.
-  const contours = useMemo(() => {
+  // Watertight boundary arc graph (shared arcs smoothed once). Depends only on
+  // the segmentation + smoothness, not zoom.
+  const graph = useMemo(() => {
     if (!regions || !flattened) return null
-    // Match the server's smoothing amount (driven by the Smoothness dial), with
-    // eps scaled from 480px work space to the preview's resolution.
+    // Smoothing amount from the Smoothness dial, eps scaled 480px → preview res.
     const { eps, iters } = smoothnessToParams(params.smoothness)
     const scaledEps = (eps * Math.max(flattened.width, flattened.height)) / SERVER_WORK_EDGE
-    const traced = traceRegionContours(regions.labels, flattened.width, flattened.height, regions.regionCount)
-    return traced.map((c) => ({
-      region: c.region,
-      path: chaikinClosed(simplifyClosed(c.loop, scaledEps), iters),
-    }))
+    const g = buildArcs(regions.labels, flattened.width, flattened.height)
+    for (const arc of g.arcs) arc.smooth = smoothArc(arc.corners, g.cornerStride, scaledEps, iters)
+    return g
   }, [regions, flattened, params.smoothness])
 
-  // Draw: smoothed region fills (painter's order, largest-first) + thin vector
-  // outlines on a supersampled canvas so the lines are thin and curved.
+  // Draw: watertight region fills (evenodd for holes) + one thin stroke per shared
+  // INTERNAL arc. Border arcs (label -1) are never stroked → straight, clean frame.
   useEffect(() => {
     const target = canvasRef.current
-    if (!target || !flattened || !regions || !contours || !palette || palette.length === 0) return
+    if (!target || !flattened || !regions || !graph || !palette || palette.length === 0) return
     const ctx = target.getContext("2d")
     if (!ctx) return
     const ss = OUTLINE_SUPERSAMPLE
     ctx.clearRect(0, 0, target.width, target.height)
 
-    const paths = contours.map((c) => {
-      const p = new Path2D()
-      const pts = c.path
-      p.moveTo(pts[0][0] * ss, pts[0][1] * ss)
-      for (let i = 1; i < pts.length; i += 1) p.lineTo(pts[i][0] * ss, pts[i][1] * ss)
-      p.closePath()
-      return { region: c.region, path: p }
-    })
-
-    for (const { region, path } of paths) {
+    // Fill each region's face (all loops as subpaths, evenodd carves holes).
+    for (const [region, arcIdxs] of graph.regionArcs) {
+      if (arcIdxs.length === 0) continue
+      const loops = assembleFaces(graph.arcs, graph.regionArcs, region)
+      const path = new Path2D()
+      for (const loop of loops) {
+        if (loop.length === 0) continue
+        path.moveTo(loop[0][0] * ss, loop[0][1] * ss)
+        for (let i = 1; i < loop.length; i += 1) path.lineTo(loop[i][0] * ss, loop[i][1] * ss)
+        path.closePath()
+      }
       const [r, g, b] = palette[regions.regionChip[region]].rgb
       ctx.fillStyle = `rgb(${r},${g},${b})`
-      ctx.fill(path)
+      ctx.fill(path, "evenodd")
     }
+
+    // Stroke each internal shared arc once; skip image-border arcs (-1 label).
     ctx.lineJoin = "round"
     ctx.lineWidth = OUTLINE_STROKE_PX
     ctx.strokeStyle = "black"
-    for (const { path } of paths) ctx.stroke(path)
-  }, [flattened, regions, contours, palette])
+    for (const arc of graph.arcs) {
+      if (arc.labels[0] < 0 || arc.labels[1] < 0) continue
+      const s = arc.smooth
+      if (s.length < 2) continue
+      const path = new Path2D()
+      path.moveTo(s[0][0] * ss, s[0][1] * ss)
+      for (let i = 1; i < s.length; i += 1) path.lineTo(s[i][0] * ss, s[i][1] * ss)
+      ctx.stroke(path)
+    }
+  }, [flattened, regions, graph, palette])
 
   const valid = displayMmW > 0 && displayMmH > 0
   const showSpinner = !source || !palette || flattening || !flattened

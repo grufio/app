@@ -95,7 +95,7 @@ function perpDist(p: number[], a: number[], b: number[]): number {
 }
 
 /** Ramer–Douglas–Peucker on an OPEN polyline. */
-function rdpOpen(pts: number[][], eps: number): number[][] {
+export function rdpOpen(pts: number[][], eps: number): number[][] {
   if (pts.length < 3) return pts.slice()
   const a = pts[0]
   const b = pts[pts.length - 1]
@@ -147,6 +147,26 @@ export function simplifyClosed(loop: number[][], eps: number): number[][] {
   const s1 = rdpOpen(arc1, eps)
   const s2 = rdpOpen(arc2, eps)
   return s1.slice(0, -1).concat(s2.slice(0, -1))
+}
+
+/** Chaikin on an OPEN polyline — endpoints are PINNED (unchanged), so a boundary
+ * arc stays anchored at its junctions. Same 1/4–3/4 corner cut as the server. */
+export function chaikinOpen(pts: number[][], iters: number): number[][] {
+  let p = pts
+  for (let it = 0; it < iters; it += 1) {
+    const n = p.length
+    if (n < 3) break
+    const out: number[][] = [p[0]]
+    for (let i = 0; i < n - 1; i += 1) {
+      const a = p[i]
+      const b = p[i + 1]
+      out.push([a[0] * 0.75 + b[0] * 0.25, a[1] * 0.75 + b[1] * 0.25])
+      out.push([a[0] * 0.25 + b[0] * 0.75, a[1] * 0.25 + b[1] * 0.75])
+    }
+    out.push(p[n - 1])
+    p = out
+  }
+  return p
 }
 
 /**
