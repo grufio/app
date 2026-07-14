@@ -26,7 +26,7 @@ export const linerateSchema = z.object({
   // boundary arcs inside the Python service.
   smoothness: z.coerce.number().min(0).max(1).default(0.6),
   // Maximum number of distinct REAL paints selected from the fixed palette.
-  num_colors: z.coerce.number().int().min(2).max(96).default(28),
+  num_colors: z.coerce.number().int().min(2).max(560).default(28),
   // How those ≤num_colors paints are chosen — same shared reduction as
   // pixelate/circulate: "top_n" (most-used chips) or "pam" (k-medoids).
   palette_restriction: paletteRestrictionSchema,
@@ -63,7 +63,7 @@ export const linerateTrace = {
     flatten: { kind: "decimal", label: "Flatten", min: 0, max: 1, step: 0.05, description: "Painterly flattening (0=raw detail, 1=very flat). Removes texture/noise, keeps edges crisp." },
     detail: { kind: "decimal", label: "Detail", min: 0, max: 1, step: 0.05, description: "Region granularity (0=few large regions, 1=many fine regions)" },
     smoothness: { kind: "decimal", label: "Smoothness", min: 0, max: 1, step: 0.05, description: "Edge smoothness (0=follow working pixels, 1=heavy curve smoothing)" },
-    num_colors: { label: "Number of Colors", min: 2, max: 96, description: "Max distinct paints selected from the palette (2-96)" },
+    num_colors: { label: "Number of Colors", min: 2, max: 64, description: "Selection budget: max distinct paints picked from the palette (2-64 in the dialog)" },
     palette_restriction: { kind: "select", label: "Palette selection", options: [{ value: "top_n", label: "Top-N" }, { value: "pam", label: "PAM" }], description: "How paints are chosen: Top-N (most-used chips) or PAM (k-medoids). Coverage-based." },
     min_paintable_mm: { kind: "decimal", label: "Min. Gap (mm)", min: 0, max: 20, step: 0.5, description: "Smallest paintable gap between outlines in mm (0=off). Thinner regions merge so each stays paintable + fits its number." },
     color_mode: { kind: "select", label: "Color mode", options: [{ value: "color", label: "Color" }, { value: "bw", label: "B/W" }], description: "Which Munsell palette to select paints from" },

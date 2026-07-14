@@ -94,11 +94,11 @@ describe("circulateSchema", () => {
   it("rejects unknown color_mode / out-of-range num_colors values", () => {
     expect(circulateSchema.safeParse({ color_mode: "grayscale" }).success).toBe(false)
     expect(circulateSchema.safeParse({ num_colors: 1 }).success).toBe(false)
-    expect(circulateSchema.safeParse({ num_colors: 129 }).success).toBe(false)
+    expect(circulateSchema.safeParse({ num_colors: 561 }).success).toBe(false)
   })
 
-  it("accepts num_colors up to the raised cap of 128", () => {
-    expect(circulateSchema.parse({ num_colors: 128 })).toMatchObject({ num_colors: 128 })
+  it("accepts num_colors up to the full-palette budget of 560", () => {
+    expect(circulateSchema.parse({ num_colors: 560 })).toMatchObject({ num_colors: 560 })
   })
 
   it("accepts and clamps pre_snap_chroma_scale to [1.0, 1.5]", () => {

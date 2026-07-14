@@ -25,7 +25,7 @@
 import { Layers, Palette } from "lucide-react"
 
 import { FormField, type SelectFieldOption } from "@/components/ui/form-controls"
-import { numColorsSchema } from "@/lib/editor/trace/num-colors-schema"
+import { numColorsDialogSchema } from "@/lib/editor/trace/num-colors-schema"
 import { extractNumberInputProps, parseFormNumber } from "@/lib/forms/zod-input-props"
 
 import { PanelIconSlot, PanelTwoFieldRow } from "../panel-layout"
@@ -39,7 +39,11 @@ const COLOR_MODE_OPTIONS: SelectFieldOption[] = [
   { value: "bw", label: "B/W" },
 ]
 
-const NUM_COLORS_INPUT_PROPS = extractNumberInputProps(numColorsSchema)
+// Bind the dialog control to the dialog schema (max = NUM_COLORS_DIALOG_MAX):
+// the input props AND the commit-time clamp both cap at the dialog max, so the
+// dialog can't emit a budget above it — the wider validation cap only applies
+// to non-dialog paths.
+const NUM_COLORS_INPUT_PROPS = extractNumberInputProps(numColorsDialogSchema)
 
 export function TraceColorsFields(props: {
   colorMode: TraceColorMode
@@ -70,7 +74,7 @@ export function TraceColorsFields(props: {
         iconStart={<Layers aria-hidden="true" />}
         id="num_colors"
         value={String(numColors)}
-        onCommit={(raw) => onNumColorsChange(parseFormNumber(numColorsSchema, raw).value)}
+        onCommit={(raw) => onNumColorsChange(parseFormNumber(numColorsDialogSchema, raw).value)}
         inputProps={NUM_COLORS_INPUT_PROPS}
         disabled={disabled}
       />
