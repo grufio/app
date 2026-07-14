@@ -129,6 +129,96 @@ def test_facet_merge_keeps_zero_same_colour_adjacency():
         assert np.all(reg_sel[A[m]] != reg_sel[B[m]]), "adjacent facets must differ in paint"
 
 
+def _crown_paint_map(period=12, thick=3, H=96, W=96, seed=0):
+    """A crown-like paint map: a fine field of BRIGHT paints (1..3, similar high
+    OKLab-L) fragmented by a THICK, CONNECTED DARK lattice (paint 0). Mirrors the
+    'blossoms against branches' structure that made the unaware merge percolate
+    the connected dark net over the bright islands. Bright cells (period−thick)²
+    sit above the paintability floor but are split into several bright-paint
+    facets, so only the lightness-aware coalesce (M2) can grow them back to a
+    paintable region before the dark absorbs them."""
+    rng = np.random.default_rng(seed)
+    P = rng.integers(1, 4, (H, W)).astype(np.int32)
+    for i in range(0, H, period):
+        P[i:i + thick, :] = 0
+    for j in range(0, W, period):
+        P[:, j:j + thick] = 0
+    P[0, :] = 0; P[-1, :] = 0; P[:, 0] = 0; P[:, -1] = 0
+    return P
+
+
+# paint 0 = dark; paints 1..3 = bright (ΔL among them ≤ 0.08 ≤ threshold → "like";
+# ΔL bright↔dark ≈ 0.6 > threshold → "unlike").
+_CROWN_SEL_OK = np.array(
+    [[0.20, 0.0, 0.0], [0.86, 0.02, 0.01], [0.82, -0.02, 0.03], [0.78, 0.01, -0.02]],
+    float,
+)
+
+
+def _partition_ok(labels, nreg, reg_sel):
+    ok = labels.min() >= 0 and labels.max() == nreg - 1 and len(np.unique(labels)) == nreg
+    for A, B in ((labels[:, :-1], labels[:, 1:]), (labels[:-1, :], labels[1:, :])):
+        m = A != B
+        if np.any(reg_sel[A[m]] == reg_sel[B[m]]):
+            return False   # same-paint neighbours = not a clean P³ partition
+    return bool(ok)
+
+
+def test_facet_merge_saves_bright_islands_from_dark_percolation():
+    # THE crown-collapse gate. The old (lightness-unaware) merge lets a connected
+    # dark network percolate over the rounds and swallow the bright islands → the
+    # crown collapses to one near-black blob. The lightness-aware merge coalesces
+    # like-L bright facets FIRST (M2) so the blossoms survive as paintable regions.
+    P = _crown_paint_map()
+    npx = P.size
+    min_area = 40.0
+    snap_bright = float((_CROWN_SEL_OK[P.ravel(), 0] > 0.673).sum()) / npx
+
+    def bright_frac(labels, nreg, reg_sel):
+        area = np.bincount(labels.ravel(), minlength=nreg)
+        return float(area[_CROWN_SEL_OK[reg_sel, 0] > 0.673].sum()) / npx, area
+
+    # baseline = the fix switched OFF (threshold so large every merge is "like" →
+    # pure most-similar-neighbour merge, i.e. the pre-fix behaviour).
+    lb, nb, rb = _facet_merge(P.copy(), 4, _CROWN_SEL_OK, min_area, l_threshold=1e9)
+    lf, nf, rf = _facet_merge(P.copy(), 4, _CROWN_SEL_OK, min_area)
+    base_bright, _ = bright_frac(lb, nb, rb)
+    fix_bright, fix_area = bright_frac(lf, nf, rf)
+
+    # 1. the unaware merge really collapses the crown (bright almost gone)…
+    assert base_bright < 0.15, f"baseline should collapse bright, got {base_bright:.3f}"
+    assert base_bright < snap_bright - 0.3, "there must be a real collapse to fix"
+    # 2. …and the lightness-aware merge recovers it close to the post-snap level.
+    assert fix_bright > base_bright + 0.3, f"fix must recover bright ({base_bright:.3f}→{fix_bright:.3f})"
+    assert fix_bright >= 0.9 * snap_bright, f"fix should restore ~all bright ({fix_bright:.3f} vs snap {snap_bright:.3f})"
+    # 3. the rescued regions are PAINTABLE — no sub-min_area splinters survive.
+    assert (fix_area >= min_area).all(), "no region may stay below the paintability floor"
+    bright_areas = fix_area[_CROWN_SEL_OK[rf, 0] > 0.673]
+    assert bright_areas.size and np.median(bright_areas) >= min_area, "rescued bright regions must be paintable"
+    # 4. output stays a clean watertight partition (no same-paint adjacency).
+    assert _partition_ok(lf, nf, rf), "fix output must be a watertight P³ partition"
+
+
+def test_facet_merge_no_regression_on_isolated_unpaintable_speck():
+    # Guard the other side: an ISOLATED bright speck below the floor, surrounded
+    # only by a large dark region, has no like-L neighbour to grow into — it must
+    # still merge away exactly like the baseline (the fix preserves paintable
+    # clusters, NOT unpaintable single specks). fix ≡ baseline here.
+    P = np.zeros((48, 48), np.int32)     # paint 0 = dark everywhere
+    P[:, :24] = 1                        # left half = bright paint 1 (large)
+    P[2:6, 40:44] = 2                    # a 16px bright speck marooned in the dark
+    min_area = 40.0
+    lb, nb, rb = _facet_merge(P.copy(), 3, _CROWN_SEL_OK[:3], min_area, l_threshold=1e9)
+    lf, nf, rf = _facet_merge(P.copy(), 3, _CROWN_SEL_OK[:3], min_area)
+
+    def bright_frac(labels, nreg, reg_sel):
+        area = np.bincount(labels.ravel(), minlength=nreg)
+        return float(area[_CROWN_SEL_OK[:3][reg_sel, 0] > 0.673].sum()) / P.size
+
+    assert abs(bright_frac(lb, nb, rb) - bright_frac(lf, nf, rf)) < 1e-9, "fix must be a no-op on a coarse image"
+    assert 2 not in rf.tolist(), "the isolated unpaintable speck must still merge away"
+
+
 def test_linerate_to_svg_labels_every_region():
     arr = np.zeros((60, 60, 3), np.uint8)
     arr[:20] = (200, 60, 60)
