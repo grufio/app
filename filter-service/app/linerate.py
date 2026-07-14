@@ -51,6 +51,13 @@ _FACET_MERGE_ROUNDS = 40  # safety cap; area-merge converges in a few rounds
 # high detail → floor (many small facets), low detail → coarse (few big facets).
 _DETAIL_MIN_FRAC = 0.0001   # min facet area as fraction of the image at detail=1
 _DETAIL_MAX_FRAC = 0.003    # ... at detail=0
+# Lightness-aware facet merge (crown-collapse fix). A sub-min_area facet first
+# tries to coalesce with a like-lightness larger neighbour (M2) and only merges
+# into an unlike-lightness neighbour as a penalised last resort (M1). Stops the
+# connected dark structure (branches) from percolating over the merge rounds and
+# swallowing paintable bright islands (blossoms) into one near-black blob.
+_MERGE_L_THRESHOLD = 0.20   # OKLab-L gap separating "like" from "unlike" lightness
+_MERGE_L_PENALTY = 10.0     # distance added to an unlike-L target (≫ OKLab² spread)
 
 
 # ---- perceptual segmentation (P³) -----------------------------------------
@@ -181,19 +188,65 @@ def _facet_adjacency(labels: np.ndarray, nreg: int):
     return (u // nreg).astype(np.int32), (u % nreg).astype(np.int32)
 
 
-def _facet_merge(P: np.ndarray, nsel: int, sel_ok: np.ndarray, min_area: float):
+def _facet_merge(
+    P: np.ndarray,
+    nsel: int,
+    sel_ok: np.ndarray,
+    min_area: float,
+    l_threshold: float = _MERGE_L_THRESHOLD,
+    l_penalty: float = _MERGE_L_PENALTY,
+):
     """drake7707-style region cleanup. Connected-component facets of the paint
-    map, then merge every facet below `min_area` into its most similar-coloured
-    neighbour (OKLab), iterating to convergence — clean regions without an
-    optimiser. A final re-labelling of the merged paint map coalesces any
-    now-adjacent same-paint facets, so 'adjacent regions differ in colour' holds
-    by construction. Returns (labels, nreg, reg_sel) like `_labels_from_paint_map`.
+    map, then merge every facet below `min_area` into a neighbour, iterating to
+    convergence — clean regions without an optimiser.
+
+    Merge admissibility is LIGHTNESS-AWARE, to stop a connected dark structure
+    from percolating over the rounds and swallowing paintable bright islands (the
+    "blossoms against branches" crown-collapse — bright halved 32 %→15 % in the
+    unaware merge, measured):
+      - M2 (coalesce first): a sub-`min_area` facet whose OKLab-L is close
+        (≤`l_threshold`) to a strictly-larger neighbour merges into it FIRST, so
+        like-lightness clusters (a patch of blossoms) grow toward `min_area`
+        before ever being offered to an unlike-lightness target.
+      - M1 (soft penalty): any remaining sub-`min_area` facet still merges into
+        its most-similar strictly-larger neighbour, but an unlike-L target
+        (gap > `l_threshold`) is penalised by `l_penalty` (≫ the OKLab² spread),
+        so a bright facet is absorbed by dark branches only as a last resort —
+        never leaving an un-paintable sub-`min_area` splinter behind.
+
+    A final re-labelling of the merged paint map coalesces any now-adjacent
+    same-paint facets, so 'adjacent regions differ in colour' holds by
+    construction. Returns (labels, nreg, reg_sel) like `_labels_from_paint_map`.
     Fully VECTORISED per round (no per-facet Python loop — that was the Cloud-Run
-    hotspot): each small facet's most-similar neighbour is found by a segment-
-    argmin over the adjacency pair arrays; merges are oriented strictly into the
-    LARGER facet (tie: smaller id) so the target graph is a forest (acyclic) and
-    chains resolve by vectorised pointer-jumping — no 2-cycle oscillation."""
+    hotspot): merges are oriented strictly into the LARGER facet (tie: smaller id)
+    so the target graph is a forest (acyclic) and chains resolve by vectorised
+    pointer-jumping — no 2-cycle oscillation."""
+    sel_L = sel_ok[:, 0]  # OKLab-L per paint
     labels, nreg, facet_sel = _labels_from_paint_map(P, nsel)
+
+    def _resolve_and_apply(tgt: np.ndarray) -> None:
+        nonlocal labels, facet_sel, nreg
+        for _ in range(int(np.ceil(np.log2(max(2, nreg)))) + 1):  # resolve chains
+            tgt = tgt[tgt]
+        labels = tgt[labels]
+        ids = np.unique(labels)
+        remap = np.zeros(int(ids.max()) + 1, np.int32)
+        remap[ids] = np.arange(len(ids))
+        labels = remap[labels]
+        facet_sel = facet_sel[ids]
+        nreg = len(ids)
+
+    def _best_target(s: np.ndarray, t: np.ndarray, dd: np.ndarray) -> np.ndarray:
+        """min-distance strictly-larger target per source facet → tgt map."""
+        order = np.lexsort((dd, s))
+        s_o, t_o = s[order], t[order]
+        first = np.empty(s_o.size, bool)
+        first[0] = True
+        first[1:] = s_o[1:] != s_o[:-1]
+        tgt = np.arange(nreg)
+        tgt[s_o[first]] = t_o[first]
+        return tgt
+
     for _ in range(_FACET_MERGE_ROUNDS):
         area = np.bincount(labels.ravel(), minlength=nreg).astype(np.int64)
         if not (area < min_area).any():
@@ -206,33 +259,28 @@ def _facet_merge(P: np.ndarray, nsel: int, sel_ok: np.ndarray, min_area: float):
         dst = np.concatenate([pb, pa])
         fok = sel_ok[facet_sel]
         dist = ((fok[src] - fok[dst]) ** 2).sum(1)
-        # keep only: source is a small facet AND target is strictly "larger"
-        # (area, tie → smaller id) → every merge points to a strictly-greater
-        # node → forest → acyclic → pointer-jumping converges.
+        dL = np.abs(sel_L[facet_sel[src]] - sel_L[facet_sel[dst]])
+        # every merge points to a strictly-larger node (tie → smaller id) →
+        # forest → acyclic → pointer-jumping converges.
         larger = (area[dst] > area[src]) | ((area[dst] == area[src]) & (dst < src))
-        keep = (area[src] < min_area) & larger
+        small = area[src] < min_area
+
+        # M2 — coalesce like-lightness small facets first (one growth generation
+        # per round, adjacency recomputed after). Bright clusters reach min_area
+        # before M1 can hand them to a dark neighbour.
+        like = small & larger & (dL <= l_threshold)
+        if like.any():
+            _resolve_and_apply(_best_target(src[like], dst[like], dist[like]))
+            continue
+
+        # M1 — remaining small facets merge into the most-similar larger neighbour;
+        # an unlike-L target is penalised so dark branches absorb a bright facet
+        # only as a last resort (still guarantees no sub-min_area facet survives).
+        keep = small & larger
         if not keep.any():
             break
-        s = src[keep]
-        t = dst[keep]
-        dd = dist[keep]
-        # best (min-distance) target per source facet
-        order = np.lexsort((dd, s))
-        s_o, t_o = s[order], t[order]
-        first = np.empty(s_o.size, bool)
-        first[0] = True
-        first[1:] = s_o[1:] != s_o[:-1]
-        tgt = np.arange(nreg)
-        tgt[s_o[first]] = t_o[first]
-        for _ in range(int(np.ceil(np.log2(max(2, nreg)))) + 1):  # resolve chains
-            tgt = tgt[tgt]
-        labels = tgt[labels]
-        ids = np.unique(labels)
-        remap = np.zeros(int(ids.max()) + 1, np.int32)
-        remap[ids] = np.arange(len(ids))
-        labels = remap[labels]
-        facet_sel = facet_sel[ids]
-        nreg = len(ids)
+        pdist = dist + l_penalty * (dL > l_threshold).astype(dist.dtype)
+        _resolve_and_apply(_best_target(src[keep], dst[keep], pdist[keep]))
     # final re-CC on the merged paint map → adjacent facets always differ in paint
     return _labels_from_paint_map(facet_sel[labels], nsel)
 
