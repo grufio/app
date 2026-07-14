@@ -37,15 +37,13 @@ import cv2
 from PIL import Image
 
 from .oklab import nearest_palette_indices, rgb255_to_oklab
-from .cell_labels import build_label_map, reconstruct_palette_indices
-from .palette_reduction import reduce_to_top_n, restrict_palette_pam
+from .cell_labels import build_label_map
+from .palette_reduction import select_paints
 
 
 # ---- tuning ---------------------------------------------------------------
 
 _WORK_MAX_EDGE = 480     # cap the resolution the labelling runs at
-_KMEANS_ITERS = 15
-_KMEANS_SAMPLE = 12000   # subsample pixels for the palette-selection reduction
 _FACET_MERGE_ROUNDS = 40  # safety cap; area-merge converges in a few rounds
 # `detail` ∈ [0,1] widens the facet min-area above the paintability floor:
 # high detail → floor (many small facets), low detail → coarse (few big facets).
@@ -116,60 +114,6 @@ def _l0_smooth(img_u8: np.ndarray, lam: float, kappa: float = 2.0) -> np.ndarray
         S = np.real(np.fft.ifft2(FS, axes=(0, 1)))
         beta *= kappa
     return np.clip(S, 0.0, 1.0) * 255.0
-
-
-def _select_paints(okf_flat, rgb_flat, num_colors, pal_ok, pal_rgb, restriction, seed):
-    """Choose ≤num_colors REAL paints from the fixed palette using the SAME shared,
-    coverage/frequency-based reduction that pixelate/circulate use (no saliency
-    bias — that bias under-represented smooth areas):
-      - `pam`   → weighted k-medoids over the palette (`restrict_palette_pam`).
-      - `top_n` → snap to the full palette, keep the most-used chips
-                  (`reduce_to_top_n`), extract the distinct kept chips.
-    Returns (sel_ok, sel_rgb, pal_index); pal_index[i] = full-palette index of
-    paint i (−1 if no palette). Deterministic (top_n/PAM have no RNG). Without a
-    palette (tests) falls back to plain unweighted k-means centroids."""
-    K = max(2, int(num_colors))
-    X = okf_flat.astype(np.float32)
-    rng = np.random.default_rng(seed)
-    # the reduction only needs a representative subset of pixels
-    if len(X) > _KMEANS_SAMPLE:
-        idx = rng.choice(len(X), _KMEANS_SAMPLE, replace=False)
-        Xs, rgbs = X[idx], rgb_flat[idx]
-    else:
-        Xs, rgbs = X, rgb_flat
-
-    if pal_ok is not None and pal_rgb is not None:
-        if restriction == "pam":
-            # Snap to the palette FIRST → the PAM histogram sees ≤len(palette)
-            # unique colours (not ~12k raw pixel colours), so weighted k-medoids
-            # runs over the used chips and is instant. (Feeding raw pixels made
-            # PAM ~36s — the "PAM stays stuck" report.)
-            snapped = pal_rgb[nearest_palette_indices(Xs, pal_ok)].reshape(-1, 1, 3)
-            sel_ok, sel_rgb, kept = restrict_palette_pam(
-                snapped, pal_ok, pal_rgb, K, distance_metric="oklab"
-            )
-            return np.asarray(sel_ok, np.float64), np.asarray(sel_rgb, np.uint8), np.asarray(kept, np.int32)
-        # top_n: snap the subsample to the full palette, keep the top-K used chips
-        snapped = pal_rgb[nearest_palette_indices(Xs, pal_ok)].reshape(-1, 1, 3)
-        reduced, _ = reduce_to_top_n(snapped, pal_ok, pal_rgb, K, distance_metric="oklab")
-        sel = np.unique(reconstruct_palette_indices(reduced, pal_rgb)).astype(np.int32)
-        return pal_ok[sel], pal_rgb[sel], sel
-
-    # no palette (tests only): plain k-means centroids as their own paints
-    C = Xs[rng.choice(len(Xs), min(K, len(Xs)), replace=False)].copy()
-    a = np.zeros(len(Xs), np.int64)
-    for _ in range(_KMEANS_ITERS):
-        a = (((Xs[:, None, :] - C[None, :, :]) ** 2).sum(2)).argmin(1)
-        for k in range(len(C)):
-            m = a == k
-            if m.any():
-                C[k] = Xs[m].mean(0)
-    sel_rgb = np.zeros((len(C), 3), np.uint8)
-    for k in range(len(C)):
-        m = a == k
-        if m.any():
-            sel_rgb[k] = rgbs[m].mean(0)
-    return C.astype(np.float64), sel_rgb, np.full(len(C), -1, np.int32)
 
 
 def _facet_adjacency(labels: np.ndarray, nreg: int):
@@ -559,7 +503,7 @@ def linerate_to_svg(
     pal_rgb = np.asarray(palette_rgb, np.uint8) if have_palette else None
     seed = int(work.astype(np.int64).sum() % (2 ** 32))   # deterministic per image
     # Paint SELECTION is coverage-based (shared with pixelate/circulate).
-    sel_ok, sel_rgb, sel_pal_index = _select_paints(
+    sel_ok, sel_rgb, sel_pal_index = select_paints(
         X, rgb_flat, num_colors, pal_ok, pal_rgb, palette_restriction, seed
     )
 

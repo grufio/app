@@ -51,6 +51,7 @@ export async function lineArtImageAndActivate(args: {
     blur_amount: blurAmount,
     smoothness,
     num_colors: numColors,
+    palette_restriction: paletteRestriction,
     color_mode: colorMode,
     min_paintable_mm: minPaintableMm,
   } = parsed.data
@@ -111,10 +112,10 @@ export async function lineArtImageAndActivate(args: {
   try {
     const imageBase64 = contentBuffer.toString("base64")
 
-    // Same Munsell-palette contract as pixelate / circulate: snap
-    // each vtracer region fill to the nearest chip so the resulting
-    // SVG references real palette colors instead of arbitrary
-    // median-cut bins. The set of indices used flows back so the
+    // Palette-direct, same contract as linerate/pixelate/circulate: the service
+    // selects ≤num_colors real paints from this palette and snaps every pixel to
+    // the nearest selected paint before vtracer, so the SVG references real chips
+    // (not arbitrary median-cut bins). The set of indices used flows back so the
     // mobile Colors sheet can list them.
     const palette = await readTracePalette(supabase, colorMode)
 
@@ -129,6 +130,7 @@ export async function lineArtImageAndActivate(args: {
         num_colors: numColors,
         palette_oklab: palette.map((c) => c.oklab),
         palette_rgb: palette.map((c) => c.rgb),
+        palette_restriction: paletteRestriction,
         min_region_radius_px: minRadiusPx,
       },
     })

@@ -235,14 +235,19 @@ class LineArtRequest(BaseModel):
     line_thickness: float = 1.0
     blur_amount: int = 3
     smoothness: float = 0.6
+    # Selection budget: max distinct REAL paints picked from the palette (2..560,
+    # the full colour palette) — an upper bound, the actual colour count emerges
+    # from the image. NOT a PIL median-cut count anymore.
     num_colors: int = 8
-    # Optional palette pair (lab_munsell for "color" mode, lab_grays
-    # for "bw"). When both are provided, every vtracer fill is
-    # snapped to the nearest chip — same single-step contract as
-    # pixelate / circulate. When omitted, fills stay at the
-    # median-cut quantised RGB (legacy back-compat).
+    # Optional palette pair (lab_munsell for "color" mode, lab_grays for "bw").
+    # When both are provided, ≤num_colors paints are selected from it and every
+    # pixel is snapped to the nearest selected paint BEFORE vtracer. When omitted
+    # (tests / legacy), the raw image is traced (no palette snap).
     palette_oklab: list | None = None
     palette_rgb: list | None = None
+    # How the ≤num_colors paints are chosen — same shared reduction as
+    # pixelate/circulate/linerate: "top_n" (most-used chips) or "pam" (k-medoids).
+    palette_restriction: str = "top_n"
     # Smallest inscribed-circle radius (source px) a region may keep;
     # anything smaller is merged into its largest neighbour and skipped
     # for label placement. The Node server derives this from the
@@ -545,8 +550,10 @@ async def lineart_filter(request: LineArtRequest):
         raise HTTPException(status_code=400, detail="blur_amount must be between 0 and 20")
     if request.smoothness < 0 or request.smoothness > 1:
         raise HTTPException(status_code=400, detail="smoothness must be between 0 and 1")
-    if request.num_colors < 2 or request.num_colors > 256:
-        raise HTTPException(status_code=400, detail="num_colors must be between 2 and 256")
+    if request.num_colors < 2 or request.num_colors > 560:
+        raise HTTPException(status_code=400, detail="num_colors must be between 2 and 560")
+    if request.palette_restriction not in ("top_n", "pam"):
+        raise HTTPException(status_code=400, detail="palette_restriction must be 'top_n' or 'pam'")
 
     timer = PhaseTimer()
     try:
@@ -564,6 +571,7 @@ async def lineart_filter(request: LineArtRequest):
             num_colors=request.num_colors,
             palette_oklab=request.palette_oklab,
             palette_rgb=request.palette_rgb,
+            palette_restriction=request.palette_restriction,
             min_radius=request.min_region_radius_px,
             on_phase=timer.mark,
         )

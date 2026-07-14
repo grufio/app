@@ -1,12 +1,14 @@
 import { z } from "zod"
 
+import { NUM_COLORS_FULL_PALETTE } from "./num-colors-schema"
+import { paletteRestrictionSchema } from "./palette-restriction-schema"
 import type { TraceDefinition } from "./types"
 
 export const lineartSchema = z.object({
   // Black stroke width around each colored region.
   line_thickness: z.coerce.number().min(0.1).max(10).default(1),
-  // Pre-vtracer Gaussian blur radius. Smooths sensor noise before
-  // palette quantisation so the resulting regions track real subject
+  // Pre-vtracer Gaussian blur radius. Smooths sensor noise before the
+  // palette selection so the resulting regions track real subject
   // boundaries instead of speckle.
   blur_amount: z.coerce.number().int().min(0).max(20).default(3),
   // Smoothness ∈ [0, 1]. 0 = sharp corners (close to the
@@ -14,12 +16,17 @@ export const lineartSchema = z.object({
   // to vtracer's corner_threshold + length_threshold +
   // filter_speckle inside the Python service.
   smoothness: z.coerce.number().min(0).max(1).default(0.6),
-  // Median-cut pre-quantisation for vtracer's region detection. The
-  // post-vtracer step snaps each region's fill to the nearest
-  // Munsell chip (selected by `color_mode` below), so this value
-  // only controls how many distinct regions vtracer carves out,
-  // NOT how many palette chips the output uses.
-  num_colors: z.coerce.number().int().min(2).max(256).default(8),
+  // Selection budget: max distinct REAL paints picked from the fixed palette —
+  // an upper bound; the actual colour count emerges from the image. lineart is
+  // now palette-direct (like linerate/pixelate/circulate): ≤num_colors paints
+  // are selected and every pixel is snapped to the nearest selected paint BEFORE
+  // vtracer, so this is a true palette budget (not a PIL median-cut count).
+  // Default 8 kept for continuity; dialog caps at 64, validation at the full
+  // palette (560).
+  num_colors: z.coerce.number().int().min(2).max(NUM_COLORS_FULL_PALETTE).default(8),
+  // How those ≤num_colors paints are chosen — same shared reduction as
+  // pixelate/circulate/linerate: "top_n" (most-used chips) or "pam" (k-medoids).
+  palette_restriction: paletteRestrictionSchema,
   // Smallest paintable gap between the black outlines, in mm on the
   // printed page. Regions whose largest inscribed circle is narrower than
   // this (plus the line width, added server-side) are merged into their
@@ -27,12 +34,8 @@ export const lineartSchema = z.object({
   // number. 0 disables the merge. The server converts mm → source px via
   // the content rect's px/mm scale (see services/editor/server/trace/lineart.ts).
   min_paintable_mm: z.coerce.number().min(0).max(20).default(4),
-  // Which Munsell palette to snap region fills against — same
-  // contract as pixelate / circulate. "color" → lab_munsell (128
-  // chips), "bw" → lab_grays (48). Default "color" keeps existing
-  // traces visually equivalent to their pre-snap median-cut output
-  // when the upstream median-cut bins happen to already land near
-  // palette chips.
+  // Which Munsell palette the paints are selected from — same contract as
+  // pixelate / circulate / linerate. "color" → lab_munsell, "bw" → lab_grays.
   color_mode: z.enum(["color", "bw"]).default("color"),
 })
 
@@ -90,8 +93,9 @@ export const lineartTrace = {
     line_thickness: { kind: "decimal", label: "Line Thickness", min: 0.1, max: 10, step: 0.1, description: "Stroke width in pixels (0.1-10)" },
     blur_amount: { label: "Blur Amount", min: 0, max: 20, description: "Pre-trace blur to merge noisy speckle (0-20, 0=no blur)" },
     smoothness: { kind: "decimal", label: "Smoothness", min: 0, max: 1, step: 0.05, description: "Edge smoothness (0=follow quantised pixels exactly, 1=heavy curve smoothing)" },
-    num_colors: { label: "Number of Colors", min: 2, max: 256, description: "Palette size (2-256). Fewer colors = bolder regions" },
+    num_colors: { label: "Number of Colors", min: 2, max: 64, description: "Selection budget: max distinct paints picked from the palette (2-64 in the dialog). Fewer = bolder regions" },
+    palette_restriction: { kind: "select", label: "Palette selection", options: [{ value: "top_n", label: "Top-N" }, { value: "pam", label: "PAM" }], description: "How paints are chosen: Top-N (most-used chips) or PAM (k-medoids). Coverage-based." },
     min_paintable_mm: { kind: "decimal", label: "Min. Gap (mm)", min: 0, max: 20, step: 0.5, description: "Smallest paintable gap between outlines in mm (0=off). Thinner regions merge so each stays paintable + fits its number." },
-    color_mode: { kind: "select", label: "Color mode", options: [{ value: "color", label: "Color" }, { value: "bw", label: "B/W" }], description: "Which Munsell palette to snap region fills against" },
+    color_mode: { kind: "select", label: "Color mode", options: [{ value: "color", label: "Color" }, { value: "bw", label: "B/W" }], description: "Which Munsell palette the paints are selected from" },
   },
 } as const satisfies TraceDefinition<typeof lineartSchema>

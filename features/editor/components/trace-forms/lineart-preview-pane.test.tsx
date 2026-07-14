@@ -13,12 +13,15 @@ import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("@/lib/editor/trace/lineart-preview", () => ({
-  // Lightweight stand-ins for the canvas/K-means stages (no DOM/wasm in jsdom).
+  // Lightweight stand-ins for the canvas/selection stages (no DOM/wasm in jsdom).
   loadAndDownscale: () => ({ width: 64, height: 48, rgba: new Uint8ClampedArray(64 * 48 * 4) }),
   gaussianBlur: (img: unknown) => img,
-  kMeansOklab: () => ({ centroids: [[0.5, 0, 0]], assignments: new Uint16Array(64 * 48) }),
-  quantizedRgbaFromClusters: () => new Uint8ClampedArray(64 * 48 * 4),
+  rgbaFromPaintMap: () => new Uint8ClampedArray(64 * 48 * 4),
   buildLineartPreviewSvg: () => ({ svg: '<svg id="mock-preview"></svg>', indicesUsed: [] }),
+}))
+
+vi.mock("@/lib/editor/trace/coverage-select", () => ({
+  coverageSelectPaintMap: () => new Int32Array(64 * 48),
 }))
 
 vi.mock("@/lib/editor/trace/lineart-vtracer-wasm", () => ({

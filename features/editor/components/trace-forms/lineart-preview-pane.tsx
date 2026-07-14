@@ -3,41 +3,43 @@
 /**
  * Line Art preview pane: a downscaled, client-side render of the vtracer
  * pipeline. It runs the SAME vtracer engine as the server (WebAssembly, via
- * `lineart-vtracer-wasm.ts`), so the preview shows smooth spline region
- * outlines that match the Apply result — the classic paint-by-numbers look —
- * instead of the old jagged K-means raster.
+ * `lineart-vtracer-wasm.ts`), so the preview shows smooth spline region outlines
+ * that match the Apply result — the classic paint-by-numbers look.
  *
- * Pipeline (mirrors `filter-service/app/lineart.py`):
+ * Pipeline (mirrors `filter-service/app/lineart.py`, now palette-direct):
  *   1. Downscale source to ≤384px edge (`loadAndDownscale`)
  *   2. Gaussian blur with `blur_amount`
- *   3. K-means OKLab quantise to `num_colors` → flat quantised RGBA
- *      (`quantizedRgbaFromClusters`)
- *   4. WASM vtracer (color / spline / cutout, `smoothness`-derived params)
+ *   3. Coverage paint selection over the palette (`coverageSelectPaintMap`, the
+ *      `top_n` port of `select_paints`) → flat real-paint RGBA
+ *      (`rgbaFromPaintMap`)
+ *   4. WASM vtracer (color / spline / stacked, `smoothness`-derived params)
  *      → region SVG  [async, debounced, spinner]
- *   5. Snap each region's fill to the active Munsell palette + add a black
- *      stroke → `<g id="regions">` SVG (`buildLineartPreviewSvg`)
+ *   5. Snap each region's fill to the palette (idempotent guard — fills are
+ *      already real paints) + add a black stroke → `<g id="regions">` SVG
+ *      (`buildLineartPreviewSvg`)
  *   6. Render as an inline DOM SVG (stretches to the display rect via
  *      `preserveAspectRatio="none"`)
  *
- * The expensive step (4, the trace) re-runs only on `blur_amount` /
- * `num_colors` / `smoothness`; `line_thickness` + `color_mode` only re-run the
- * cheap fill-snap + stroke step (5), so they update instantly.
+ * The expensive step (4, the trace) re-runs on `blur_amount` / `num_colors` /
+ * `smoothness` AND `color_mode` (the selected paint set depends on the palette);
+ * `line_thickness` only re-runs the cheap fill-snap + stroke step (5).
  *
  * Pane sizing + zoom controls mirror `pixelate-preview-pane.tsx`. NOT
- * pixel-perfect to the server (K-means vs. median-cut quantise, downscaled),
- * but the same smooth style; Apply uses the authoritative server pipeline.
+ * pixel-perfect to the server (top_n approximation of PAM, all-pixel histogram
+ * vs. the server's ~12k subsample, downscaled), but the same palette + smooth
+ * style; Apply uses the authoritative server pipeline.
  */
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Loader2, Maximize2, ZoomIn, ZoomOut } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { coverageSelectPaintMap } from "@/lib/editor/trace/coverage-select"
 import type { LineartParams } from "@/lib/editor/trace/lineart"
 import {
   buildLineartPreviewSvg,
   gaussianBlur,
-  kMeansOklab,
   loadAndDownscale,
-  quantizedRgbaFromClusters,
+  rgbaFromPaintMap,
 } from "@/lib/editor/trace/lineart-preview"
 import { traceRgbaToSvg } from "@/lib/editor/trace/lineart-vtracer-wasm"
 import { useSourceImage } from "@/lib/editor/trace/use-source-image"
@@ -46,7 +48,6 @@ import { useTracePalette } from "@/lib/editor/trace/use-trace-palette"
 // 384px working buffer: a good trade between vtracer curve fidelity and the
 // ~30-100ms trace time (kept off the critical path via debounce + spinner).
 const MAX_PREVIEW_EDGE_PX = 384
-const KMEANS_MAX_ITER = 10
 // Debounce the trace so dragging a slider doesn't fire a trace per tick.
 const TRACE_DEBOUNCE_MS = 180
 
@@ -97,18 +98,22 @@ export function LineArtPreviewPane({ sourceImageUrl, displayMmW, displayMmH, par
     return gaussianBlur(downscaled, params.blur_amount)
   }, [downscaled, params.blur_amount])
 
-  // Stage 3: K-means quantise → flat colour-reduced RGBA for vtracer.
+  // Stage 3: palette-direct paint selection → flat real-paint RGBA for vtracer
+  // (the `top_n` coverage port of the server's `select_paints`; PAM is
+  // approximated as top_n in the preview). Depends on `palette` now, so a
+  // color_mode switch re-runs selection + re-traces (the selected paint set
+  // genuinely differs between the colour and grey palettes).
   const quantizedRgba = useMemo(() => {
-    if (!blurred) return null
-    const { centroids, assignments } = kMeansOklab(blurred, params.num_colors, KMEANS_MAX_ITER)
-    if (centroids.length === 0) return null
-    const rgba = quantizedRgbaFromClusters({
-      image: blurred,
-      assignments,
-      clusterCount: centroids.length,
+    if (!blurred || !palette || palette.length === 0) return null
+    const paintMap = coverageSelectPaintMap(blurred, palette, params.num_colors)
+    const rgba = rgbaFromPaintMap({
+      paintMap,
+      palette,
+      width: blurred.width,
+      height: blurred.height,
     })
     return { rgba, width: blurred.width, height: blurred.height }
-  }, [blurred, params.num_colors])
+  }, [blurred, palette, params.num_colors])
 
   // Stage 4: WASM vtracer — async, debounced. Re-runs only on the quantised
   // buffer (blur / num_colors) or smoothness. A sequence guard drops stale

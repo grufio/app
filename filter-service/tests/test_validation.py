@@ -194,13 +194,19 @@ def test_lineart_rejects_out_of_range_smoothness(client, make_png_b64, value):
     assert "smoothness must be between 0 and 1" in res.json()["detail"]
 
 
-@pytest.mark.parametrize("value", [1, 0, 257, 1000])
+@pytest.mark.parametrize("value", [1, 0, 561, 1000])
 def test_lineart_rejects_out_of_range_num_colors(client, make_png_b64, value):
-    # lineart's num_colors is the PIL pre-quantise count (8-bit → capped at 256);
-    # unchanged until lineart moves to the palette-direct model. 257 must 400.
+    # lineart is now palette-direct: num_colors is the selection budget, capped at
+    # the full palette (560 = 512 lab_munsell + 48 lab_grays). 561 must 400.
     res = client.post("/filters/lineart", json=_lineart_body(make_png_b64(), num_colors=value))
     assert res.status_code == 400
-    assert "num_colors must be between 2 and 256" in res.json()["detail"]
+    assert "num_colors must be between 2 and 560" in res.json()["detail"]
+
+
+def test_lineart_rejects_invalid_palette_restriction(client, make_png_b64):
+    res = client.post("/filters/lineart", json=_lineart_body(make_png_b64(), palette_restriction="bogus"))
+    assert res.status_code == 400
+    assert "palette_restriction must be 'top_n' or 'pam'" in res.json()["detail"]
 
 
 @pytest.mark.parametrize("value", [1, 0, 561, 1000])

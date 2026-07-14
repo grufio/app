@@ -2,26 +2,30 @@
  * Client-side pipeline helpers for the Line Art preview dialog.
  *
  * The preview runs the SAME vtracer engine as the server (via WASM —
- * `lineart-vtracer-wasm.ts`), so it produces smooth spline region outlines
- * that match the Apply result, not the old jagged K-means raster.
+ * `lineart-vtracer-wasm.ts`), so it produces smooth spline region outlines that
+ * match the Apply result.
  *
- * Pipeline (mirrors `filter-service/app/lineart.py::lineart_to_svg`):
- *   downscale → blur → K-means quantise to `num_colors` → paint the flat
- *   quantised RGBA (`quantizedRgbaFromClusters`) → WASM vtracer (color/
- *   spline/cutout) → snap each region's fill to the nearest Munsell chip
- *   (`snapPathFillsToPalette`, same OKLab-nearest as the server) → add a
+ * Pipeline (mirrors `filter-service/app/lineart.py::lineart_to_svg`, now
+ * palette-direct):
+ *   downscale → blur → coverage paint-map (`coverageSelectPaintMap`, the
+ *   `top_n` port of the server's `select_paints`) → paint the flat real-paint
+ *   RGBA (`rgbaFromPaintMap`) → WASM vtracer (color/spline/stacked) → snap each
+ *   region's fill to the nearest palette chip (`snapPathFillsToPalette`, an
+ *   idempotent guard now that the fills are already palette colours) → add a
  *   black stroke per region → compose `<g id="regions">` SVG
  *   (`buildLineartPreviewSvg`).
  *
- * Divergence from the server (documented, acceptable for a preview): K-means
- * vs. PIL median-cut for the pre-vtracer quantise, and a downscaled buffer, so
- * the preview is ≈ (same smooth style) not byte-identical to Apply. The
- * `merge_tiny_regions` + numbers passes are server-only (skipped here).
+ * Divergence from the server (documented, acceptable for a preview): the
+ * selection is the `top_n` coverage port and does NOT branch on
+ * `palette_restriction` — PAM is approximated as top_n here (v1). Also a
+ * downscaled buffer, and `coverage-select` histograms ALL preview pixels while
+ * the server subsamples ~12k. So the preview is ≈ (same palette + smooth style)
+ * not byte-identical to Apply. The `merge_tiny_regions` + numbers passes are
+ * server-only (skipped here).
  *
- * The downscale / blur / K-means stages are decomposed so React callers can
- * memoize each against its own deps.
+ * The stages are decomposed so React callers can memoize each against its deps.
  */
-import { nearestPaletteIndex, rgb255ToOklab, type Oklab } from "@/lib/color/oklab"
+import { nearestPaletteIndex, rgb255ToOklab } from "@/lib/color/oklab"
 
 import type { PaletteChip } from "./trace-cell-colors"
 
@@ -120,198 +124,33 @@ export function gaussianBlur(image: PreviewImage, radius: number): PreviewImage 
   return { width: w, height: h, rgba: pass2 }
 }
 
-export type KMeansResult = {
-  centroids: Oklab[]
-  /** Cluster index per pixel, row-major (`y * width + x`). */
-  assignments: Uint16Array
-}
-
 /**
- * K-means in OKLab space. Seeded by K-means++ with a deterministic
- * mulberry32 PRNG (same input → same output, stable for tests). Up to
- * `maxIter` Lloyd iterations; converges early if assignments stop
- * changing. Empty clusters re-seed to a random pixel.
- */
-export function kMeansOklab(image: PreviewImage, k: number, maxIter: number): KMeansResult {
-  const { width, height, rgba } = image
-  const n = width * height
-  if (n === 0 || k <= 0) {
-    return { centroids: [], assignments: new Uint16Array(0) }
-  }
-
-  // Precompute OKLab for every pixel — K-means runs entirely in OKLab.
-  const labL = new Float32Array(n)
-  const labA = new Float32Array(n)
-  const labB = new Float32Array(n)
-  for (let i = 0; i < n; i += 1) {
-    const o = i * 4
-    const lab = rgb255ToOklab(rgba[o], rgba[o + 1], rgba[o + 2])
-    labL[i] = lab[0]
-    labA[i] = lab[1]
-    labB[i] = lab[2]
-  }
-
-  const kk = Math.min(k, n)
-  const centroids: number[][] = []
-  const rng = mulberry32(0xc0ffee ^ n)
-
-  // K-means++ seeding: first centroid uniformly at random; each next picked
-  // with probability proportional to squared distance to nearest existing.
-  const firstIdx = Math.floor(rng() * n)
-  centroids.push([labL[firstIdx], labA[firstIdx], labB[firstIdx]])
-  const minDist = new Float32Array(n)
-  for (let i = 0; i < n; i += 1) {
-    const dl = labL[i] - centroids[0][0]
-    const da = labA[i] - centroids[0][1]
-    const db = labB[i] - centroids[0][2]
-    minDist[i] = dl * dl + da * da + db * db
-  }
-  for (let c = 1; c < kk; c += 1) {
-    let total = 0
-    for (let i = 0; i < n; i += 1) total += minDist[i]
-    const target = rng() * total
-    let acc = 0
-    let pick = n - 1
-    for (let i = 0; i < n; i += 1) {
-      acc += minDist[i]
-      if (acc >= target) { pick = i; break }
-    }
-    centroids.push([labL[pick], labA[pick], labB[pick]])
-    // Update minDist with the new centroid.
-    for (let i = 0; i < n; i += 1) {
-      const dl = labL[i] - centroids[c][0]
-      const da = labA[i] - centroids[c][1]
-      const db = labB[i] - centroids[c][2]
-      const d = dl * dl + da * da + db * db
-      if (d < minDist[i]) minDist[i] = d
-    }
-  }
-
-  const assignments = new Uint16Array(n)
-  for (let iter = 0; iter < maxIter; iter += 1) {
-    // Assignment step.
-    let changed = false
-    for (let i = 0; i < n; i += 1) {
-      let best = 0
-      let bestD = Infinity
-      for (let c = 0; c < centroids.length; c += 1) {
-        const dl = labL[i] - centroids[c][0]
-        const da = labA[i] - centroids[c][1]
-        const db = labB[i] - centroids[c][2]
-        const d = dl * dl + da * da + db * db
-        if (d < bestD) { bestD = d; best = c }
-      }
-      if (assignments[i] !== best) {
-        changed = true
-        assignments[i] = best
-      }
-    }
-    if (!changed && iter > 0) break
-
-    // Update step: arithmetic mean per cluster.
-    const sumsL = new Float64Array(centroids.length)
-    const sumsA = new Float64Array(centroids.length)
-    const sumsB = new Float64Array(centroids.length)
-    const counts = new Uint32Array(centroids.length)
-    for (let i = 0; i < n; i += 1) {
-      const c = assignments[i]
-      sumsL[c] += labL[i]
-      sumsA[c] += labA[i]
-      sumsB[c] += labB[i]
-      counts[c] += 1
-    }
-    for (let c = 0; c < centroids.length; c += 1) {
-      if (counts[c] > 0) {
-        centroids[c][0] = sumsL[c] / counts[c]
-        centroids[c][1] = sumsA[c] / counts[c]
-        centroids[c][2] = sumsB[c] / counts[c]
-      } else {
-        // Re-seed an empty cluster to a random pixel — deterministic via the
-        // same PRNG so tests stay stable.
-        const reseed = Math.floor(rng() * n)
-        centroids[c][0] = labL[reseed]
-        centroids[c][1] = labA[reseed]
-        centroids[c][2] = labB[reseed]
-      }
-    }
-  }
-
-  return {
-    centroids: centroids.map((c) => [c[0], c[1], c[2]] as Oklab),
-    assignments,
-  }
-}
-
-export type SnappedCentroid = { r: number; g: number; b: number }
-
-/**
- * Snap each centroid (OKLab) to the nearest palette chip's RGB. Empty
- * palette returns a fallback grey ramp so the canvas is still visible.
- */
-export function snapCentroidsToPalette(
-  centroids: ReadonlyArray<Oklab>,
-  palette: ReadonlyArray<PaletteChip>,
-): SnappedCentroid[] {
-  if (palette.length === 0) {
-    return centroids.map((c) => {
-      const v = Math.max(0, Math.min(255, Math.round(c[0] * 255)))
-      return { r: v, g: v, b: v }
-    })
-  }
-  const paletteOklab = palette.map((c) => c.oklab)
-  return centroids.map((c) => {
-    const idx = nearestPaletteIndex(c, paletteOklab)
-    const [r, g, b] = palette[idx].rgb
-    return { r, g, b }
-  })
-}
-
-/**
- * Build a flat RGBA buffer where every pixel carries its cluster's mean
- * source colour — the colour-reduced image fed to vtracer. Mirrors the
- * server feeding vtracer its median-cut-quantised image: distinct-per-cluster
- * flat colours so vtracer carves out a few clean regions, not thousands.
+ * Paint a flat real-paint RGBA buffer from a per-pixel paint map (full-palette
+ * chip indices, e.g. from `coverageSelectPaintMap`). Every pixel carries its
+ * selected paint's EXACT chip RGB — the colour-reduced image fed to vtracer, so
+ * vtracer traces a handful of clean real-paint regions (not thousands). Replaces
+ * the old K-means cluster-mean quantise: the fills are already palette-true, so
+ * the post-trace snap is only an idempotent guard.
  *
- * Mean RGB is computed from the (blurred) source pixels, so a region's fill
- * is representative of its cluster and lands on a sensible Munsell chip when
- * the path fills are snapped after tracing.
+ * Empty palette → a zero buffer (the pane gates on a loaded palette before
+ * calling this, so that path is only hit in degenerate cases).
  */
-export function quantizedRgbaFromClusters(args: {
-  image: PreviewImage
-  assignments: Uint16Array
-  clusterCount: number
+export function rgbaFromPaintMap(args: {
+  paintMap: Int32Array
+  palette: ReadonlyArray<PaletteChip>
+  width: number
+  height: number
 }): Uint8ClampedArray {
-  const { image, assignments, clusterCount } = args
-  const { width, height, rgba } = image
+  const { paintMap, palette, width, height } = args
   const n = width * height
-  const sumR = new Float64Array(clusterCount)
-  const sumG = new Float64Array(clusterCount)
-  const sumB = new Float64Array(clusterCount)
-  const count = new Uint32Array(clusterCount)
-  for (let i = 0; i < n; i += 1) {
-    const c = assignments[i]
-    const o = i * 4
-    sumR[c] += rgba[o]
-    sumG[c] += rgba[o + 1]
-    sumB[c] += rgba[o + 2]
-    count[c] += 1
-  }
-  const meanR = new Uint8ClampedArray(clusterCount)
-  const meanG = new Uint8ClampedArray(clusterCount)
-  const meanB = new Uint8ClampedArray(clusterCount)
-  for (let c = 0; c < clusterCount; c += 1) {
-    const k = count[c] || 1
-    meanR[c] = Math.round(sumR[c] / k)
-    meanG[c] = Math.round(sumG[c] / k)
-    meanB[c] = Math.round(sumB[c] / k)
-  }
   const out = new Uint8ClampedArray(n * 4)
+  if (palette.length === 0) return out
   for (let i = 0; i < n; i += 1) {
-    const c = assignments[i]
+    const chip = palette[paintMap[i]]?.rgb ?? [0, 0, 0]
     const o = i * 4
-    out[o] = meanR[c]
-    out[o + 1] = meanG[c]
-    out[o + 2] = meanB[c]
+    out[o] = chip[0]
+    out[o + 1] = chip[1]
+    out[o + 2] = chip[2]
     out[o + 3] = 255
   }
   return out
@@ -407,16 +246,4 @@ export function buildLineartPreviewSvg(args: {
     `<g id="regions">${stroked.join("")}</g>` +
     `</svg>`
   return { svg, indicesUsed }
-}
-
-/** mulberry32 PRNG — small, fast, deterministic. Same seed → same sequence. */
-function mulberry32(seed: number): () => number {
-  let a = seed >>> 0
-  return function next(): number {
-    a = (a + 0x6d2b79f5) >>> 0
-    let t = a
-    t = Math.imul(t ^ (t >>> 15), t | 1)
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-  }
 }
