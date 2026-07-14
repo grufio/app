@@ -179,3 +179,67 @@ def translate_palette_indices(
     return np.asarray(kept_indices, dtype=np.int64)[
         np.asarray(indices_in_restricted, dtype=np.int64)
     ]
+
+
+# --- paint selection (shared by linerate + lineart) ------------------------
+
+_SELECT_SAMPLE = 12000   # subsample pixels for the palette-selection reduction
+_SELECT_KMEANS_ITERS = 15
+
+
+def select_paints(okf_flat, rgb_flat, num_colors, pal_ok, pal_rgb, restriction, seed):
+    """Choose ≤num_colors REAL paints from the fixed palette using the SAME shared,
+    coverage/frequency-based reduction that pixelate/circulate use (no saliency
+    bias — that bias under-represented smooth areas):
+      - `pam`   → weighted k-medoids over the palette (`restrict_palette_pam`).
+      - `top_n` → snap to the full palette, keep the most-used chips
+                  (`reduce_to_top_n`), extract the distinct kept chips.
+    Returns (sel_ok, sel_rgb, pal_index); pal_index[i] = full-palette index of
+    paint i (−1 if no palette). Deterministic (top_n/PAM have no RNG). Without a
+    palette (tests) falls back to plain unweighted k-means centroids.
+
+    Shared by linerate (per-pixel snap → facets) and lineart (per-pixel snap →
+    vtracer). Lives here, not in linerate, so lineart doesn't pull in cv2/the
+    segmentation machinery."""
+    K = max(2, int(num_colors))
+    X = okf_flat.astype(np.float32)
+    rng = np.random.default_rng(seed)
+    # the reduction only needs a representative subset of pixels
+    if len(X) > _SELECT_SAMPLE:
+        idx = rng.choice(len(X), _SELECT_SAMPLE, replace=False)
+        Xs, rgbs = X[idx], rgb_flat[idx]
+    else:
+        Xs, rgbs = X, rgb_flat
+
+    if pal_ok is not None and pal_rgb is not None:
+        if restriction == "pam":
+            # Snap to the palette FIRST → the PAM histogram sees ≤len(palette)
+            # unique colours (not ~12k raw pixel colours), so weighted k-medoids
+            # runs over the used chips and is instant. (Feeding raw pixels made
+            # PAM ~36s — the "PAM stays stuck" report.)
+            snapped = pal_rgb[nearest_palette_indices(Xs, pal_ok)].reshape(-1, 1, 3)
+            sel_ok, sel_rgb, kept = restrict_palette_pam(
+                snapped, pal_ok, pal_rgb, K, distance_metric="oklab"
+            )
+            return np.asarray(sel_ok, np.float64), np.asarray(sel_rgb, np.uint8), np.asarray(kept, np.int32)
+        # top_n: snap the subsample to the full palette, keep the top-K used chips
+        snapped = pal_rgb[nearest_palette_indices(Xs, pal_ok)].reshape(-1, 1, 3)
+        reduced, _ = reduce_to_top_n(snapped, pal_ok, pal_rgb, K, distance_metric="oklab")
+        sel = np.unique(reconstruct_palette_indices(reduced, pal_rgb)).astype(np.int32)
+        return pal_ok[sel], pal_rgb[sel], sel
+
+    # no palette (tests only): plain k-means centroids as their own paints
+    C = Xs[rng.choice(len(Xs), min(K, len(Xs)), replace=False)].copy()
+    a = np.zeros(len(Xs), np.int64)
+    for _ in range(_SELECT_KMEANS_ITERS):
+        a = (((Xs[:, None, :] - C[None, :, :]) ** 2).sum(2)).argmin(1)
+        for k in range(len(C)):
+            m = a == k
+            if m.any():
+                C[k] = Xs[m].mean(0)
+    sel_rgb = np.zeros((len(C), 3), np.uint8)
+    for k in range(len(C)):
+        m = a == k
+        if m.any():
+            sel_rgb[k] = rgbs[m].mean(0)
+    return C.astype(np.float64), sel_rgb, np.full(len(C), -1, np.int32)

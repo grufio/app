@@ -134,3 +134,78 @@ def test_lineart_no_numbers_group_without_palette(client):
     assert res.status_code == 200
     svg = res.json()["svg"]
     assert '<g id="numbers">' not in svg
+
+
+# --- palette-direct budget (the property median-cut could never guarantee) ----
+
+_PALETTE_RGB = [[255, 0, 0], [0, 255, 0], [0, 0, 255], [255, 255, 0]]
+_PALETTE_OKLAB = [
+    [0.628, 0.225, 0.126],   # red
+    [0.866, -0.234, 0.179],  # green
+    [0.452, -0.032, -0.312], # blue
+    [0.968, -0.071, 0.198],  # yellow
+]
+
+
+def _lineart_fills(svg: str) -> list[str]:
+    import re as _re
+    return [h.lower() for h in _re.findall(r'fill="(#[0-9a-fA-F]{6})"', svg)]
+
+
+def test_lineart_num_colors_is_a_real_palette_budget(client):
+    """Palette-direct: with num_colors BELOW the palette size, the distinct fills
+    must be ≤ num_colors AND all real palette chips. The paints are SELECTED from
+    the palette before vtracer, so the budget is honoured — the old median-cut
+    pre-quantise never gave this (its bins were arbitrary RGB, snapped post-hoc)."""
+    res = client.post(
+        "/filters/lineart",
+        json={
+            "image_base64": _noise_png_b64(48, 48),
+            "line_thickness": 1.0, "blur_amount": 1, "smoothness": 0.6,
+            "num_colors": 2,
+            "palette_oklab": _PALETTE_OKLAB, "palette_rgb": _PALETTE_RGB,
+        },
+    )
+    assert res.status_code == 200
+    fills = _lineart_fills(res.json()["svg"])
+    palette_hex = {f"#{r:02x}{g:02x}{b:02x}" for r, g, b in _PALETTE_RGB}
+    assert fills, "expected filled paths"
+    assert set(fills) <= palette_hex, "every fill must be a real palette chip"
+    assert len(set(fills)) <= 2, f"budget of 2 exceeded: {set(fills)}"
+
+
+def test_lineart_accepts_full_palette_budget(client):
+    """A budget at/above the palette size is valid (no PIL 8-bit ceiling anymore)
+    and just uses whatever chips the image needs — no crash, fills stay real."""
+    res = client.post(
+        "/filters/lineart",
+        json={
+            "image_base64": _noise_png_b64(48, 48),
+            "line_thickness": 1.0, "blur_amount": 1, "smoothness": 0.6,
+            "num_colors": 560,
+            "palette_oklab": _PALETTE_OKLAB, "palette_rgb": _PALETTE_RGB,
+        },
+    )
+    assert res.status_code == 200
+    fills = _lineart_fills(res.json()["svg"])
+    palette_hex = {f"#{r:02x}{g:02x}{b:02x}" for r, g, b in _PALETTE_RGB}
+    assert fills and set(fills) <= palette_hex
+
+
+def test_lineart_pam_selects_only_real_paints_and_is_deterministic(client):
+    """The PAM restriction path selects real chips too, and the whole pipeline is
+    deterministic (top_n/PAM have no RNG; the seed only drives subsampling, which
+    is a no-op below the sample cap) → identical SVG on repeat."""
+    body = {
+        "image_base64": _noise_png_b64(48, 48),
+        "line_thickness": 1.0, "blur_amount": 1, "smoothness": 0.6,
+        "num_colors": 3, "palette_restriction": "pam",
+        "palette_oklab": _PALETTE_OKLAB, "palette_rgb": _PALETTE_RGB,
+    }
+    r1 = client.post("/filters/lineart", json=body)
+    r2 = client.post("/filters/lineart", json=body)
+    assert r1.status_code == 200 and r2.status_code == 200
+    palette_hex = {f"#{r:02x}{g:02x}{b:02x}" for r, g, b in _PALETTE_RGB}
+    fills = _lineart_fills(r1.json()["svg"])
+    assert fills and set(fills) <= palette_hex
+    assert r1.json()["svg"] == r2.json()["svg"], "pipeline must be deterministic"

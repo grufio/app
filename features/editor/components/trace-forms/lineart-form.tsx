@@ -4,10 +4,12 @@
  * Form fields for the Line Art trace dialog, laid out with the
  * detail-panel-right primitives (`EditorSidebarSection`,
  * `PanelTwoFieldRow`, `PanelIconSlot`) used by Pixelate / Circulate.
- * Two sections:
+ * Sections:
  *   - "Shape" — line thickness + pre-trace blur + edge smoothness
- *   - "Colors" — palette mode (B/W vs Color) + region cap
+ *   - "Colors" — palette mode (B/W vs Color) + selection budget
  *     (shared `TraceColorsFields`)
+ *   - "Palette cap" — how the paints are selected (Top-N / PAM,
+ *     shared `TracePaletteRestrictionFields`)
  *
  * Stateless: parent owns the draft and reacts to `onParamsChange`.
  */
@@ -20,6 +22,7 @@ import { extractNumberInputProps, parseFormNumber } from "@/lib/forms/zod-input-
 import { PanelIconSlot, PanelTwoFieldRow } from "../panel-layout"
 import { EditorSidebarSection } from "../sidebar/editor-sidebar-section"
 import { TraceColorsFields } from "./trace-colors-fields"
+import { TracePaletteRestrictionFields } from "./trace-palette-restriction-fields"
 
 type Props = {
   params: LineartParams
@@ -115,6 +118,14 @@ export function LineArtForm({ params, onParamsChange, disabled }: Props) {
           numColors={params.num_colors}
           onColorModeChange={(v) => onParamsChange("color_mode", v)}
           onNumColorsChange={(v) => onParamsChange("num_colors", v)}
+          disabled={disabled}
+        />
+      </EditorSidebarSection>
+
+      <EditorSidebarSection title="Palette cap">
+        <TracePaletteRestrictionFields
+          restriction={params.palette_restriction}
+          onRestrictionChange={(v) => onParamsChange("palette_restriction", v)}
           disabled={disabled}
         />
       </EditorSidebarSection>

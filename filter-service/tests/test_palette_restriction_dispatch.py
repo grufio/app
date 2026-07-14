@@ -13,6 +13,7 @@ from app.oklab import rgb255_to_oklab
 from app.palette_reduction import (
     reduce_to_top_n,
     restrict_palette_pam,
+    select_paints,
     translate_palette_indices,
 )
 
@@ -20,6 +21,46 @@ from app.palette_reduction import (
 def _palette(rgbs: list[list[int]]):
     rgb = np.array(rgbs, dtype=np.uint8)
     return rgb255_to_oklab(rgb), rgb
+
+
+# --- select_paints (shared by linerate + lineart) --------------------------
+
+
+def _pixels(rgbs: list[list[int]]):
+    """(okf_flat, rgb_flat) for a flat list of pixel RGBs."""
+    rgb = np.array(rgbs, dtype=np.uint8)
+    return rgb255_to_oklab(rgb), rgb
+
+
+def test_select_paints_returns_full_palette_indices_top_n():
+    # An image using only 3 of the 5 chips, budget 2 → keep the 2 most-used;
+    # sel_pal_index must be positions in the FULL palette (not 0..k-1).
+    palette_oklab, palette_rgb = _palette(
+        [[0, 0, 0], [255, 255, 255], [255, 0, 0], [0, 255, 0], [0, 0, 255]]
+    )
+    okf, rgb = _pixels([[255, 0, 0]] * 5 + [[0, 255, 0]] * 3 + [[0, 0, 255]] * 1)
+    sel_ok, sel_rgb, sel_pal_index = select_paints(
+        okf, rgb, 2, palette_oklab, palette_rgb, "top_n", seed=0
+    )
+    assert len(sel_ok) <= 2 and len(sel_rgb) == len(sel_ok) == len(sel_pal_index)
+    assert set(int(i) for i in sel_pal_index) <= {2, 3, 4}  # red/green/blue chip indices
+    # the sel arrays are real palette rows at those indices
+    for i, full in enumerate(sel_pal_index):
+        np.testing.assert_array_equal(sel_rgb[i], palette_rgb[int(full)])
+
+
+def test_select_paints_pam_returns_full_palette_indices():
+    palette_oklab, palette_rgb = _palette(
+        [[0, 0, 0], [255, 255, 255], [255, 0, 0], [0, 255, 0], [0, 0, 255]]
+    )
+    okf, rgb = _pixels([[255, 0, 0]] * 4 + [[0, 0, 255]] * 4)
+    sel_ok, sel_rgb, sel_pal_index = select_paints(
+        okf, rgb, 2, palette_oklab, palette_rgb, "pam", seed=0
+    )
+    assert len(sel_pal_index) == 2
+    assert all(0 <= int(i) < len(palette_rgb) for i in sel_pal_index)
+    for i, full in enumerate(sel_pal_index):
+        np.testing.assert_array_equal(sel_rgb[i], palette_rgb[int(full)])
 
 
 def test_top_n_default_is_byte_identical_to_pre_feature():

@@ -13,9 +13,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 vi.mock("@/lib/editor/trace/lineart-preview", () => ({
   loadAndDownscale: () => ({ width: 32, height: 24, rgba: new Uint8ClampedArray(32 * 24 * 4) }),
   gaussianBlur: (img: unknown) => img,
-  kMeansOklab: () => ({ centroids: [[0.5, 0, 0]], assignments: new Uint16Array(32 * 24) }),
-  quantizedRgbaFromClusters: () => new Uint8ClampedArray(32 * 24 * 4),
+  rgbaFromPaintMap: () => new Uint8ClampedArray(32 * 24 * 4),
   buildLineartPreviewSvg: () => ({ svg: '<svg id="mock-preview"></svg>', indicesUsed: [] }),
+}))
+
+vi.mock("@/lib/editor/trace/coverage-select", () => ({
+  coverageSelectPaintMap: () => new Int32Array(32 * 24),
 }))
 
 vi.mock("@/lib/editor/trace/lineart-vtracer-wasm", () => ({

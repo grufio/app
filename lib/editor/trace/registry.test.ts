@@ -209,6 +209,7 @@ describe("lineartSchema", () => {
       blur_amount: 3,
       smoothness: 0.6,
       num_colors: 8,
+      palette_restriction: "top_n",
       min_paintable_mm: 4,
       color_mode: "color",
     })
@@ -253,8 +254,15 @@ describe("lineartSchema", () => {
     expect(lineartSchema.safeParse({ smoothness: 1 }).success).toBe(true)
   })
 
-  it("rejects num_colors out of [2, 256]", () => {
+  it("rejects num_colors out of [2, 560] (palette-direct budget)", () => {
     expect(lineartSchema.safeParse({ num_colors: 1 }).success).toBe(false)
-    expect(lineartSchema.safeParse({ num_colors: 257 }).success).toBe(false)
+    expect(lineartSchema.safeParse({ num_colors: 561 }).success).toBe(false)
+    expect(lineartSchema.safeParse({ num_colors: 560 }).success).toBe(true)
+  })
+
+  it("defaults palette_restriction to top_n and accepts pam", () => {
+    expect(lineartSchema.parse({}).palette_restriction).toBe("top_n")
+    expect(lineartSchema.parse({ palette_restriction: "pam" }).palette_restriction).toBe("pam")
+    expect(lineartSchema.safeParse({ palette_restriction: "bogus" }).success).toBe(false)
   })
 })
