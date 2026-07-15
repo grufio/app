@@ -13,6 +13,7 @@ from app.linerate import (
     smooth_arc,
     linerate_to_svg,
     _detail_to_min_area,
+    _facet_has_width,
     _facet_merge,
     _label_font_size,
     _labels_from_paint_map,
@@ -111,6 +112,39 @@ def test_facet_merge_absorbs_small_facets():
     sel_ok = np.array([[0.2, 0, 0], [0.8, 0, 0], [0.21, 0, 0]], float)  # 2 is near 0
     labels, nreg, reg_sel = _facet_merge(P.copy(), 3, sel_ok, min_area=40)
     assert 2 not in reg_sel.tolist(), "sub-min facet must be merged away"
+
+
+def test_facet_has_width_flags_thin_but_large_slivers():
+    # Area does not imply width. A 1px-tall strip has a LARGE area (40) but a tiny
+    # inscribed radius (~0.5) → it must fail the width test; a fat block passes.
+    strip = np.zeros((20, 40), np.int32)
+    strip[10, :] = 1
+    has = _facet_has_width(strip, 2, min_radius_work=3.0)
+    assert has[0] and not has[1], "a thin high-area strip must fail the width test"
+
+    block = np.zeros((30, 30), np.int32)
+    block[10:20, 10:20] = 1                       # 10x10 → inscribed radius ~5
+    has = _facet_has_width(block, 2, min_radius_work=3.0)
+    assert has[0] and has[1], "a fat block must pass the width test"
+
+
+def test_facet_merge_enforces_min_width_gate():
+    # A 1px-tall strip (paint 1, area 40) sits ABOVE the area floor, so without the
+    # width gate it survives — the exact bug: a thin, un-paintable sliver. With the
+    # gate it merges into its colour-nearest larger neighbour.
+    P = np.zeros((20, 40), np.int32)
+    P[10, :] = 1
+    sel_ok = np.array([[0.2, 0, 0], [0.8, 0, 0]], float)
+    _, _, off = _facet_merge(P.copy(), 2, sel_ok, min_area=5.0, min_radius_work=0.0)
+    assert 1 in off.tolist(), "without the width gate a thin high-area strip survives"
+    _, _, on = _facet_merge(P.copy(), 2, sel_ok, min_area=5.0, min_radius_work=3.0)
+    assert 1 not in on.tolist(), "the width gate must merge the un-paintable strip away"
+
+    # A paintable block (inscribed radius ~5 ≥ 3) must be KEPT by the width gate.
+    P2 = np.zeros((30, 30), np.int32)
+    P2[10:20, 10:20] = 1
+    _, _, kept = _facet_merge(P2.copy(), 2, sel_ok, min_area=5.0, min_radius_work=3.0)
+    assert 1 in kept.tolist(), "the width gate must keep a paintable block"
 
 
 def test_facet_merge_keeps_zero_same_colour_adjacency():

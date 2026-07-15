@@ -112,6 +112,24 @@ describe("segmentRegions", () => {
     expect(chipsUsed.has(2)).toBe(false) // sliver's paint is gone
   })
 
+  it("merges a thin high-area sliver only when the width gate (minRadiusPx) is set", () => {
+    // 1px-tall strip of chip 1 (area 40) between two big chip-0 halves. Its area
+    // clears the floor, but it is too narrow to paint — the exact bug the width
+    // gate fixes (mirror of the server `_facet_merge` width test).
+    const w = 40
+    const h = 20
+    const paint = new Int32Array(w * h) // all chip 0
+    for (let x = 0; x < w; x += 1) paint[10 * w + x] = 1 // row 10 = chip 1
+    // width gate OFF (minRadiusPx=0): area 40 ≥ minArea 5 → strip survives
+    expect(new Set([...segmentRegions(paint.slice(), w, h, CHIP_OKLAB, 5, 0).regionChip]).has(1)).toBe(true)
+    // width gate ON (radius 3): inscribed radius ~0.5 < 3 → merged away
+    expect(new Set([...segmentRegions(paint.slice(), w, h, CHIP_OKLAB, 5, 3).regionChip]).has(1)).toBe(false)
+    // a fat block (inscribed radius ~5 ≥ 3) must be KEPT
+    const block = new Int32Array(30 * 30)
+    for (let y = 10; y < 20; y += 1) for (let x = 10; x < 20; x += 1) block[y * 30 + x] = 1
+    expect(new Set([...segmentRegions(block, 30, 30, CHIP_OKLAB, 5, 3).regionChip]).has(1)).toBe(true)
+  })
+
   it("guarantees zero same-chip adjacency after the final re-CC", () => {
     // Random noisy paint map (deterministic) → many tiny facets → heavy merging.
     const w = 40
