@@ -17,7 +17,7 @@
  *
  * We render cells + grid on the Konva canvas (crisp, zoom-stable) and leave the
  * numbers group in the DOM overlay on top. Only pixelate carries `<g id="grid">`;
- * lineart/circulate return `null` here so the Konva overlay stays inert for them.
+ * linerate/circulate return `null` here so the Konva overlay stays inert for them.
  *
  * Regex-based on purpose (mirrors `prepare-trace-svg.ts`): the SVG comes from a
  * deterministic Python pipeline, and this must run in vitest without a DOM.
@@ -50,7 +50,7 @@ export function parsePixelateTraceSvg(svgText: string | null | undefined): Parse
   if (!svgText) return null
 
   const gridGroup = GROUP_RE("grid").exec(svgText)
-  if (!gridGroup) return null // not a pixelate grid (lineart/circulate)
+  if (!gridGroup) return null // not a pixelate grid (linerate/circulate)
 
   const vb = VIEWBOX_RE.exec(svgText)
   if (!vb) return null

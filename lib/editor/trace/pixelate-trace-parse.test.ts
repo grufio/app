@@ -26,15 +26,15 @@ const PIXELATE_SVG = `<?xml version="1.0" encoding="UTF-8"?>
   </g>
 </svg>`
 
-// Lineart: no <g id="grid"> — the Konva overlay must stay inert.
-const LINEART_SVG = `<?xml version="1.0" encoding="UTF-8"?>
+// Linerate: no <g id="grid"> — the Konva overlay must stay inert.
+const LINERATE_SVG = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="500" height="500" viewBox="0 0 500 500">
   <g id="regions"><path d="M 0 0 L 100 0 L 100 100 Z" fill="#abcdef"/></g>
 </svg>`
 
 describe("parsePixelateTraceSvg", () => {
   it("returns null for non-pixelate SVG (no <g id=grid>)", () => {
-    expect(parsePixelateTraceSvg(LINEART_SVG)).toBeNull()
+    expect(parsePixelateTraceSvg(LINERATE_SVG)).toBeNull()
     expect(parsePixelateTraceSvg("")).toBeNull()
     expect(parsePixelateTraceSvg(null)).toBeNull()
   })

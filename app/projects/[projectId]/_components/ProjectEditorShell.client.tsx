@@ -425,7 +425,7 @@ export function ProjectDetailPageClient({
   // renders its SIZE/ASPECT from this rect — decoupled from the live
   // `imageTx` — so a 6×6 grid on a 200×100 resize stays square instead of
   // stretching to the master-intrinsic aspect (Invariant 2/3, stage 3).
-  // "0" on all four is the legacy/lineart signal; the canvas then keeps
+  // "0" on all four is the legacy/linerate signal; the canvas then keeps
   // the prior behaviour (size from the live image rect).
   const traceDisplayRect = useMemo(
     () =>
@@ -786,7 +786,7 @@ export function ProjectDetailPageClient({
             viewOptions={
               editorSection === "trace" &&
               trace &&
-              (trace.kind === "pixelate" || trace.kind === "circulate" || trace.kind === "lineart")
+              (trace.kind === "pixelate" || trace.kind === "circulate")
                 ? {
                     traceOverlayVisible,
                     previewBitmapVisible,

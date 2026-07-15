@@ -1,9 +1,9 @@
 "use client"
 
 /**
- * Form fields for the Linerate trace dialog — same layout + primitives as
- * `LineArtForm` (its sibling): a "Shape" section (line thickness, flatten,
- * detail, smoothness, min paintable gap) + a shared "Colors" section.
+ * Form fields for the Linerate trace dialog — a "Shape" section (line
+ * thickness, flatten, detail, smoothness, min paintable gap) + a shared
+ * "Colors" section.
  * Stateless; the parent owns the draft.
  */
 import { Brush, Droplets, Grid2x2, Maximize2, Ruler, Waves } from "lucide-react"

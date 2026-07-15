@@ -16,7 +16,7 @@ DB tables, and UI surfaces:
   `app/api/projects/[id]/filters/*`, `project_image_filters` DB
   table, "Filter" sidepanel tab.
 - **trace** — bitmap-in / vector-out (SVG). Mutually exclusive
-  (single active per project). `numerate`, `lineart`. Lives under
+  (single active per project). `numerate`. Lives under
   `lib/editor/trace/*`, `services/editor/server/trace/*`,
   `app/api/projects/[id]/trace/*`, `project_image_trace` DB table,
   "Trace" sidepanel tab.
@@ -28,23 +28,23 @@ mixing was the single biggest source of edge-case complexity).
 ## Scope
 
 **UI-Layer** (`features/editor/components/`):
-- `lineart-form.tsx` (163), `pixelate-form.tsx` (152),
-  `numerate-form.tsx` (95) — 410 LOC
-- `LineArtFilterController.tsx` (45), `PixelateFilterController.tsx` (51),
-  `NumerateFilterController.tsx` (55) — 151 LOC
+- `pixelate-form.tsx` (152),
+  `numerate-form.tsx` (95) — 247 LOC
+- `PixelateFilterController.tsx` (51),
+  `NumerateFilterController.tsx` (55) — 106 LOC
 - `BaseFilterController.tsx` (135), `FilterSelectionController.tsx` (79)
 - `filter-sidebar-section.tsx` (109)
 - `filter-forms/filter-form-footer.tsx` (36) — only shared UI atom
 
 **Registry-Layer** (`lib/editor/filters/`):
-- `lineart.ts` (34), `pixelate.ts` (23), `numerate.ts` (23)
+- `pixelate.ts` (23), `numerate.ts` (23)
 - `registry.ts` (11), `types.ts` (25)
 - Tests: `registry.test.ts` (208), `python-parity.test.ts` (89)
 
 **Server-Layer** (`services/editor/server/filters/`):
-- `lineart.ts` (197), `pixelate.ts` (185), `numerate.ts` (186) — 568 LOC
+- `pixelate.ts` (185), `numerate.ts` (186) — 371 LOC
 - `_helpers.ts` (187) — `callFilterService()`, retry, backoff
-- Tests: `lineart.test.ts` (161), `pixelate.test.ts` (192),
+- Tests: `pixelate.test.ts` (192),
   `numerate.test.ts` (91)
 
 **Orchestration** (`services/editor/server/`):
@@ -53,7 +53,7 @@ mixing was the single biggest source of edge-case complexity).
 - `filter-working-copy.ts` (576) — preview/working-set
 
 **API-Routes** (`app/api/projects/[projectId]/`):
-- `filters/{lineart,pixelate,numerate}/route.ts` — per-filter POST
+- `filters/{pixelate,numerate}/route.ts` — per-filter POST
 - `images/filters/route.ts` — generic POST + GET stack
 - `images/filter-working-copy/route.ts`
 
@@ -75,7 +75,7 @@ env-driven.
 | F18 | Numerate-Performance-Profiling (User-Pain) | S | ✓ done | PR P |
 | F19 | Shrink Numerate SVG payload (per-rect structure preserved) | M | superseded by F20 | — |
 | F21 | Split Filter vs Trace: new sidepanel tab, mutually-exclusive Trace, separate registry/DB/API | L | open / **next, blocks F20** | TBD |
-| F20 | Replace bespoke rect-loop with vtracer (numerate + lineart) | L | ✓ done (numerate + lineart both on vtracer) | F20 PRs |
+| F20 | Replace bespoke rect-loop with vtracer (numerate) | L | ✓ done (numerate on vtracer) | F20 PRs |
 | F11 | E2E-Filter-Chain-Roundtrip-Test | M | ✓ done | PR 2 |
 | F5 | Inkonsistente Registry-Metadata in Forms | M | ✓ done | PR 3 |
 | F7 | Generic `<FilterForm>` aus 3 Form-Files | L | ✓ done | PR 4 |
@@ -91,7 +91,6 @@ env-driven.
 
 ### F1 — Hardcoded UI-Meta aus Controllern in Registry
 Title und Description leben heute in jeder `*FilterController.tsx`:
-- `LineArtFilterController.tsx:28` — Title „Line Art"
 - `PixelateFilterController.tsx:32` — Description
 - `NumerateFilterController.tsx:32` — Description
 
@@ -117,8 +116,8 @@ Zwei Stellen mit identischer Struktur:
   identischer Result-Verarbeitung ⇒ Handler-Map.
 
 ```ts
-const SCHEMAS = { pixelate: pixelateSchema, lineart: lineartSchema, numerate: numerateSchema }
-const HANDLERS = { pixelate: pixelateImageAndActivate, lineart: lineArtImageAndActivate, numerate: numerateImageAndActivate }
+const SCHEMAS = { pixelate: pixelateSchema, numerate: numerateSchema }
+const HANDLERS = { pixelate: pixelateImageAndActivate, numerate: numerateImageAndActivate }
 ```
 
 **Files:** `services/editor/server/filter-variants.ts`,
@@ -130,8 +129,7 @@ Funktion das Schema separat. Konsolidierung passiert als Teil von
 F9; kein eigenständiger PR.
 
 ### F5 — Inkonsistente Registry-Metadata-Nutzung in Forms
-`lineart-form.tsx` liest `.ui.threshold1.description` etc. — viele
-Felder. `pixelate-form.tsx` liest nur `.ui.num_colors` (Line 145).
+`pixelate-form.tsx` liest nur `.ui.num_colors` (Line 145).
 `numerate-form.tsx` liest nur `.ui.stroke_width` (Line 76). Andere
 Felder hardcoded.
 
@@ -177,7 +175,7 @@ params, schema, servicePath, ...})` in `_helpers.ts`; per-filter
 files become thin adapters. Absorbs F4 (schema parsed multiple
 times).
 
-**Status update (2026-05-10):** F21 moves numerate + lineart out of
+**Status update (2026-05-10):** F21 moves numerate out of
 the bitmap filter family into the Trace domain (`vtracer`-driven,
 F20). After F21 the bitmap-filter side has only `pixelate`, so
 generic-pipeline-from-N=3 has nothing left to abstract.
@@ -267,11 +265,11 @@ Today the sidepanel "Filter" tab mixes two operationally different
 concepts:
 - **Filter** — bitmap-in / bitmap-out (pixelate today; RGB→BW,
   insta-style filters tomorrow). Stackable in any order.
-- **Trace** — bitmap-in / vector-out (numerate, lineart). Produces
+- **Trace** — bitmap-in / vector-out (numerate). Produces
   the SVG that the rest of the product (paint-by-numbers labels,
   print export, palette legend) is built around. **Only one Trace
-  result is ever active per project** — picking lineart replaces a
-  prior numerate, not stacks on top.
+  result is ever active per project** — a new Trace result replaces a
+  prior one, not stacks on top.
 
 Mixing them in one stack is the source of the F7-F8-F9 edge cases
 ("special-case for numerate's superpixel injection", "filter-chain
@@ -282,18 +280,18 @@ landing cleanly.
 
 1. **UI** — new sidepanel tab "Trace" between "Filter" and
    "Colors". Filter-tab keeps the stackable bitmap operations;
-   Trace-tab houses Numerate + LineArt as mutually-exclusive
-   choices (radio-style picker, single-active state).
+   Trace-tab houses Numerate as a mutually-exclusive
+   choice (radio-style picker, single-active state).
 2. **Registry split** — `lib/editor/filters/registry.ts` keeps
    `pixelate` (and future bitmap filters). New
-   `lib/editor/trace/registry.ts` (or similar) holds `numerate`,
-   `lineart`. Each has its own `FilterDefinition` analogue; F7's
+   `lib/editor/trace/registry.ts` (or similar) holds `numerate`.
+   Each has its own `FilterDefinition` analogue; F7's
    GenericFilterForm pattern can be reused for Trace if the schema
    shapes line up.
 3. **DB** — `project_image_filters` (the stack) stops carrying
-   numerate/lineart rows. Trace gets its own model:
+   numerate rows. Trace gets its own model:
    - Option A: `project_image_trace` table, single row per project
-     with `(kind: "numerate"|"lineart", params jsonb,
+     with `(kind: "numerate", params jsonb,
      output_image_id, created_at)`. Replacing rebinds the row.
    - Option B: column on `projects` (single Trace per project,
      denormalised).
@@ -301,18 +299,18 @@ landing cleanly.
    history / undo" ever lands.
 4. **API** — `POST /projects/:id/trace` (apply / replace),
    `DELETE /projects/:id/trace` (clear). The current
-   `/filters/{numerate,lineart}` and `/images/filters` paths stop
+   `/filters/{numerate}` and `/images/filters` paths stop
    accepting those types.
 5. **Migration** — verified 2026-05-10 against the linked prod
    project (`rfaykmiydsvdhrqngjue`):
    `SELECT count(*) FROM public.project_image_filters` → **0 rows**.
    The whole filter-stack table is empty in prod, so F21 can drop /
-   re-model `project_image_filters` (or its numerate / lineart
+   re-model `project_image_filters` (or its numerate
    semantics) without any port code. Schema-only migration, no data
    touched.
 6. **Server-side filter pipeline** — `services/editor/server/
    filter-variants.ts` currently dispatches to all three.
-   Numerate + lineart routes move to a new
+   The Numerate route moves to a new
    `services/editor/server/trace.ts` (mutually-exclusive apply,
    no chain rebuild on replace because there is no chain).
 
@@ -324,35 +322,26 @@ single Trace surface that already speaks vector-output as its
 native shape.
 
 **Files (rough):**
-- new `lib/editor/trace/registry.ts`, `lib/editor/trace/{numerate,lineart}.ts`
+- new `lib/editor/trace/registry.ts`, `lib/editor/trace/numerate.ts`
 - new `services/editor/server/trace.ts`,
   `services/editor/server/trace-image.ts`
 - new `app/api/projects/[projectId]/trace/route.ts`
 - new sidepanel `Trace` tab component (mirrors existing Filter tab
   structure)
 - migration: new `project_image_trace` table + drop / port of
-  numerate/lineart rows in `project_image_filters`
+  numerate rows in `project_image_filters`
 - changes to `editor-dialog-host.tsx` to wire the Trace dialog
   separately from Filter dialogs
 
-### F20 — Replace bespoke rect-loop with vtracer for numerate + lineart *(✓ done)*
+### F20 — Replace bespoke rect-loop with vtracer for numerate *(✓ done)*
 
-One vectorisation engine for both Trace modes — both numerate and
-lineart now flow through `filter-service/app/vectorise.py`.
+One vectorisation engine for the Trace mode — numerate now flows
+through `filter-service/app/vectorise.py`.
 
 - **Numerate** — polygon / cutout mode, `corner_threshold=180`
   (preserve 90° cell corners), `filter_speckle=0` (don't merge
   across superpixel cells). Output: per-cell-connected-component
   colored polygons + grid-line overlay.
-- **Lineart** — spline / cutout mode, smoothness ∈ [0, 1] mapped
-  to `corner_threshold` (180→60), `length_threshold` (0→8), and
-  `filter_speckle` (0→32). Optional pre-vtracer Gaussian blur.
-  Each vtracer path gets a black `stroke` so the result is the
-  paint-by-numbers visual most people picture: organic colored
-  regions with visible black outlines. Old Canny-based fields
-  (`threshold1`, `threshold2`, `invert`, `min_contour_area`)
-  retired; new schema is `line_thickness`, `blur_amount`,
-  `smoothness`, `num_colors` (default 8).
 
 **Real-world numbers (post-rewrite, 2026-05-11):** profiled against
 the F18 baseline fixture (1920×1080, default superpixel 10×10).
@@ -416,7 +405,7 @@ per colour with multiple subpaths plus a background-fill layer —
 also workable, but cutout makes number-placement trivial because a
 region == a path == one centroid.
 
-**Pipeline shape (one engine, two modes):**
+**Pipeline shape (one engine):**
 1. Quantise palette in NumPy/sklearn KMeans (already in the
    codebase for pixelate/numerate).
 2. `vtracer.convert_pixels_to_svg(..., hierarchical="cutout")`.
@@ -429,10 +418,6 @@ region == a path == one centroid.
   `corner_threshold=180`, `length_threshold=0` (no smoothing). Cell
   boundaries stay 90°. Connected same-colour cells correctly merge
   into one numbered region.
-- *lineart (currently outlines-only; future numbering)* — feed the
-  smoothed/quantised photo with default `corner_threshold` and
-  `mode="spline"` (or `polygon` with non-zero `length_threshold`).
-  Same labelling code attaches numbers to the polygon centroids.
 
 **Why not the alternatives:**
 - *potrace + pypotrace* — mature but **GPL** (infects the server),
@@ -467,19 +452,11 @@ region == a path == one centroid.
    hint so the new param surfaces in the dialog form. Schema +
    Pydantic parity test stays green.
 
-**Lineart side — deferred:**
-3. Replace the body of `/filters/lineart` once the paint-by-numbers
-   labelling feature lands. The old
-   rect-loop and `rects` phase are deleted in the same PR.
-4. Profile-script comparison against
-   `scripts/profile-fixtures/profile-1920x1080.png` to confirm
-   total-ms drop and region-count parity. F19 auto-resolves.
-
 **Files:**
 - `filter-service/app/vectorise.py` (new)
 - `filter-service/requirements.txt` (additions)
-- `filter-service/app/main.py` (numerate / lineart endpoint
-  bodies replaced)
+- `filter-service/app/main.py` (numerate endpoint
+  body replaced)
 - the new Trace pipeline on the Node side (introduced in F21) is
   the only consumer.
 

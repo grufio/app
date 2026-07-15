@@ -2,7 +2,7 @@
  * Client-side API wrappers for the Trace surface (F21).
  *
  * Trace is mutually exclusive — a project carries at most one
- * trace artefact at a time (pixelate xor lineart). Applying
+ * trace artefact at a time (pixelate xor linerate). Applying
  * replaces; clearing falls the canvas back to the master image.
  */
 import { invalidateProjectMutationCaches } from "@/lib/api/cache-invalidation"
@@ -19,19 +19,19 @@ export type ProjectTrace = {
   output_image_id: string
   /** Bitmap (kind=trace_base) holding the source image cropped to
    * the trace cell grid. Null for trace kinds that cover the full
-   * source (lineart). */
+   * source (linerate). */
   base_image_id: string | null
   /** Unique palette chip indices the filter-service snap step emitted —
    * positions in the `readTracePalette(mode)` array sent to the service
    * (colour = munsell tier ++ lab_grays appended; bw = lab_grays), NOT the DB
    * `palette_index` column. Sorted ascending. Null for legacy traces
-   * pre-migration and for lineart (no palette). */
+   * pre-migration and for linerate (no palette). */
   palette_indices_used: number[] | null
   /** The trace's own frozen display rect (µpx, text-encoded). The
    * master/working_copy display rect that was authoritative when the
    * trace was applied; the overlay renders from this rect decoupled
    * from the live canvas transform (Invariant 2, consumed in stage 3).
-   * "0" is the legacy/lineart signal — no fixed rect, render via the
+   * "0" is the legacy/linerate signal — no fixed rect, render via the
    * master-state path. Wrap with BigInt() on read. */
   display_x_px_u: string
   display_y_px_u: string
@@ -44,7 +44,7 @@ export type ProjectTrace = {
 /** Signed-URL view of the trace's `base_image_id` row, resolved
  * server-side by the trace route so the editor can render the
  * cropped bitmap as the canvas background without a second
- * round-trip. Null when the trace has no `base_image_id` (lineart)
+ * round-trip. Null when the trace has no `base_image_id` (linerate)
  * or the underlying row vanished. */
 export type TraceBaseImage = {
   id: string

@@ -58,10 +58,7 @@ export function GenericTraceController({
   const traceDef = TRACE_REGISTRY[kind] as FilterDefinition<z.ZodType, TraceRenderContext>
   const title = traceDef.meta?.title ?? traceDef.label
   const description = traceDef.meta?.description ?? ""
-  // Lineart's apply step shows "Processing..." while pixelate uses
-  // the default "Apply"; preserve from the legacy per-filter
-  // controller.
-  const applyingLabel = kind === "lineart" ? "Processing..." : undefined
+  const applyingLabel = undefined
 
   // Delete spinner (mirrors the Apply busy state): keep the dialog up
   // with a Loader2 on the Delete button until the async clear resolves

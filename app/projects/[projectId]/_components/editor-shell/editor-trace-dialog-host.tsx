@@ -6,13 +6,11 @@
  * appropriate configure surface:
  *   - pixelate    → `PixelateDialog`
  *   - circulate   → `CirculateDialog`
- *   - lineart     → `LineArtDialog` (preview-pane shell, all viewports)
  *   - other kinds → `GenericTraceController`
  */
 import { TraceSelectionController } from "@/features/editor/components/TraceSelectionController"
 import { CirculateDialog } from "@/features/editor/components/trace-forms/circulate-dialog"
 import { GenericTraceController } from "@/features/editor/components/trace-forms/generic-trace-controller"
-import { LineArtDialog } from "@/features/editor/components/trace-forms/lineart-dialog"
 import { LinerateDialog } from "@/features/editor/components/trace-forms/linerate-dialog"
 import { PixelateDialog } from "@/features/editor/components/trace-forms/pixelate-dialog"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
@@ -103,19 +101,6 @@ export function EditorTraceDialogHost(props: {
           initialParams={initialParams}
         />
       ) : null}
-      {configureOpen && traceDialogSource && activeKind === "lineart" ? (
-        <LineArtDialog
-          open
-          sourceImageUrl={traceDialogSource.sourceImageUrl}
-          displayMmW={traceDialogSource.displayMmW}
-          displayMmH={traceDialogSource.displayMmH}
-          onClose={onCloseConfigure}
-          onSuccess={onApplied}
-          onApplyTrace={onApplyTrace}
-          onDeleteTrace={onDeleteTrace}
-          initialParams={initialParams}
-        />
-      ) : null}
       {configureOpen && traceDialogSource && activeKind === "linerate" ? (
         <LinerateDialog
           open
@@ -134,7 +119,6 @@ export function EditorTraceDialogHost(props: {
       && activeKind
       && activeKind !== "pixelate"
       && activeKind !== "circulate"
-      && activeKind !== "lineart"
       && activeKind !== "linerate" ? (
         <GenericTraceController
           kind={activeKind}

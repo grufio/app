@@ -2,7 +2,7 @@
 
 /**
  * Trace picker dialog (F21 PR2). Sister to FilterSelectionController
- * but for the Trace surface — Numerate xor LineArt, mutually
+ * but for the Trace surface — Numerate xor Linerate, mutually
  * exclusive. Re-uses the same FilterTypeCards visual to keep both
  * pickers consistent.
  */

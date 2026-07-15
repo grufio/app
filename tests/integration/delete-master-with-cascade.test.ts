@@ -111,7 +111,7 @@ describe("delete_master_with_cascade()", () => {
       })
     expect(stateErr).toBeNull()
 
-    // lineart: a trace with no base_image_id (M15 exempts lineart from the
+    // linerate: a trace with no base_image_id (M15 exempts linerate from the
     // base-required CHECK). This case deliberately omits a trace_base — the
     // base_image_id RESTRICT path is covered by the dedicated test below.
     const { error: traceErr } = await supabase
@@ -119,7 +119,7 @@ describe("delete_master_with_cascade()", () => {
       .insert({
         project_id: projectId,
         output_image_id: traceOutput.imageId,
-        kind: "lineart",
+        kind: "linerate",
         params: {},
       })
     expect(traceErr).toBeNull()

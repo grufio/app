@@ -82,7 +82,7 @@ type Props = {
   /** Hide the coloured fills. Pure CSS gate via `data-trace-cells-visible`;
    * outlines + numbers stay, so "Trace" means "the coloured fills only", not
    * the whole overlay. Pixelate/circulate cells render on Konva (stripped from
-   * this SVG), so here it only bites lineart: it drops the `<g id="regions">`
+   * this SVG), so here it only bites linerate: it drops the `<g id="regions">`
    * path fills while keeping their black strokes (the paint-by-numbers
    * template). The `#colors`/`#cells` rules cover any non-stripped cell group. */
   traceCellsVisible?: boolean
@@ -244,7 +244,7 @@ export function TraceInlineSvg({
         [data-testid="trace-inline-svg"][data-trace-cells-visible="false"] svg #cells {
           display: none;
         }
-        /* Lineart regions live in the DOM overlay (not stripped to Konva like
+        /* Linerate regions live in the DOM overlay (not stripped to Konva like
            pixelate/circulate cells). Hiding the "colours" here means dropping
            the region FILLS while keeping the black outlines + numbers — the
            paint-by-numbers template view, mirroring pixelate keeping its grid

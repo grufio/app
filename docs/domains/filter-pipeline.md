@@ -9,12 +9,12 @@ processed variants. Two distinct output families:
   `filter_working_copy` rows inside the chain. Stack order is
   preserved in `project_image_filters` so the chain is deterministic
   on re-render.
-- **Trace outputs** (pixelate, circulate, lineart) — produce SVG sinks
+- **Trace outputs** (pixelate, circulate, linerate) — produce SVG sinks
   with `kind='trace_output'` (PR #119) referenced by
   `project_image_trace.output_image_id`. These sit outside the
   filter chain; the trace is mutually exclusive (one per project).
   Registered in `lib/editor/trace/registry.ts`; pixelate + circulate use
-  bespoke dialogs with a live palette preview, lineart the generic form.
+  bespoke dialogs with a live palette preview, linerate the generic form.
 
 Pixelate + circulate share an optional **texture filter** that runs
 right after the palette snap: a blue-noise neighbour-invasion step
@@ -60,7 +60,7 @@ likewise DISPLAY-only — it never changes the stored vector SVG. See
 ## Where it lives
 
 - [features/editor/components/filter-forms/](../../features/editor/components/filter-forms/)
-  — generic FilterForm + per-filter forms (pixelate, lineart, numerate).
+  — generic FilterForm + per-filter forms (pixelate, numerate).
 - [lib/editor/filters/](../../lib/editor/filters/) — filter registry
   + parameter types. Forms read 100% from registry post-#42.
 - [services/editor/server/filter-variants.ts](../../services/editor/server/filter-variants.ts)
@@ -74,7 +74,7 @@ likewise DISPLAY-only — it never changes the stored vector SVG. See
   from the master via `storage.copy()`.
 - [filter-service/](../../filter-service/) — Python FastAPI that
   executes filters (vectorised pixelate, etc).
-- API routes: `app/api/projects/[id]/filters/{lineart,pixelate,numerate}/route.ts`
+- API routes: `app/api/projects/[id]/filters/{pixelate,numerate}/route.ts`
   + `app/api/projects/[id]/images/filters/route.ts`.
 
 ## Quick orientation

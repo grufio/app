@@ -94,14 +94,14 @@ features/editor/components/fields/  ← Editor-spezifische Kompositionen (bleibe
    - `canvas-tool-sidebar.tsx` ToolButton  
    - `grid-panel.tsx` Eye-Toggle (header)  
    - `floating-toolbar.tsx` ToolbarIconButton (das wrapped schon Button mit eigener className, ggf. unverändert)
-   - alle bare `<Input>` in `pixelate-form.tsx`, `lineart-form.tsx`, `numerate-form.tsx` — **Entscheidung pro Form**: sind das Editor-Dialoge (Custom) oder Modal-Dialoge (Default)?
+   - alle bare `<Input>` in `pixelate-form.tsx`, `numerate-form.tsx` — **Entscheidung pro Form**: sind das Editor-Dialoge (Custom) oder Modal-Dialoge (Default)?
    
    Audit-Befehl:
    ```bash
    grep -rn "from \"@/components/ui/input\"\|from \"@/components/ui/button\"\|from \"@/components/ui/select\"" features/editor/
    ```
 
-5. **Grenzfall: Filter-Dialoge** (Pixelate/Lineart/Numerate-Forms)  
+5. **Grenzfall: Filter-Dialoge** (Pixelate/Numerate-Forms)  
    Die laufen im Editor, sind aber Modale mit größeren Action-Buttons. Aktuell nutzen sie bare `Input` + `Button`. Vorschlag: **Default Forms** (h-9), weil's modale Dialoge sind, nicht inline Sidebar-Felder.
 
 6. **Verify**  

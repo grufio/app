@@ -23,7 +23,7 @@ def _palette(rgbs: list[list[int]]):
     return rgb255_to_oklab(rgb), rgb
 
 
-# --- select_paints (shared by linerate + lineart) --------------------------
+# --- select_paints (shared by pixelate/circulate/linerate) --------------------------
 
 
 def _pixels(rgbs: list[list[int]]):

@@ -60,9 +60,9 @@ describe("traceDialogReducer", () => {
     expect(
       traceDialogReducer(
         { phase: "selecting", session },
-        { type: "selectKind", kind: "lineart" },
+        { type: "selectKind", kind: "linerate" },
       ),
-    ).toEqual({ phase: "configuring", session, kind: "lineart" })
+    ).toEqual({ phase: "configuring", session, kind: "linerate" })
   })
 
   it("selectKind is a no-op outside the selecting phase", () => {

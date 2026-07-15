@@ -19,7 +19,7 @@ describe("resolveTraceWorldSize", () => {
     expect(size!.width / size!.height).toBeCloseTo(2, 5)
   })
 
-  it("returns null for the legacy/lineart '0' signal (width = 0)", () => {
+  it("returns null for the legacy/linerate '0' signal (width = 0)", () => {
     expect(
       resolveTraceWorldSize({
         display_x_px_u: "0",

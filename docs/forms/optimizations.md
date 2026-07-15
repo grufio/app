@@ -121,7 +121,7 @@ In `pixelate-form.tsx` werden beide importiert (`Field` + `FieldGroup` aus `fiel
 
 ## 7. Filter-Dialoge — App* trotz Modal-Kontext
 
-User hat sich für App* entschieden für Pixelate/Lineart/Numerate-Forms. Sind aber Modale, kein Inline-Panel. UX-Hinweise:
+User hat sich für App* entschieden für Pixelate/Numerate-Forms. Sind aber Modale, kein Inline-Panel. UX-Hinweise:
 - Modale haben mehr Platz → kompakte 24px-Inputs wirken klein
 - Tastatureingabe in 12px-Inputs ist auf manchen Bildschirmen anstrengend
 - Standard-Modal-Pattern ist h-9 (siehe Restore/Delete-Confirm im selben Editor)

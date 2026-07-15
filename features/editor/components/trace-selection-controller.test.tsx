@@ -53,7 +53,7 @@ describe("TraceSelectionController (smoke)", () => {
     const onSelect = renderPicker()
 
     await waitFor(() => {
-      expect(document.body.querySelectorAll("button[aria-pressed]").length).toBe(4)
+      expect(document.body.querySelectorAll("button[aria-pressed]").length).toBe(3)
     })
 
     expect(findButton("Select")?.disabled).toBe(true)
@@ -70,7 +70,7 @@ describe("TraceSelectionController (smoke)", () => {
     const onSelect = renderPicker()
 
     await waitFor(() => {
-      expect(document.body.querySelectorAll("button[aria-pressed]").length).toBe(4)
+      expect(document.body.querySelectorAll("button[aria-pressed]").length).toBe(3)
     })
     expect(findButton("Cancel")).toBeTruthy()
     expect(findButton("Select")?.disabled).toBe(true)

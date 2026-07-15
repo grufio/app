@@ -638,12 +638,12 @@ export const ProjectCanvasStage = forwardRef<ProjectCanvasStageHandle, Props>(fu
 
   // Pixelate traces carry a `<g id="grid">`; we render their cells + grid on the
   // Konva canvas (crisp, device-pixel-snapped) instead of the SVG overlay. Returns
-  // null for lineart/circulate (no grid) → those stay fully in the SVG overlay.
+  // null for linerate/circulate (no grid) → those stay fully in the SVG overlay.
   const parsedPixelateTrace = useMemo(() => parsePixelateTraceSvg(svgText), [svgText])
 
   // Circulate traces carry a `<g id="frames">` (exclusive vs pixelate's grid); we
   // render their cells (ellipses) + frames (outlines) on Konva so the outlines are
-  // crisp + zoom-stable. Returns null for pixelate/lineart → those are unaffected.
+  // crisp + zoom-stable. Returns null for pixelate/linerate → those are unaffected.
   const parsedCirculateTrace = useMemo(() => parseCirculateTraceSvg(svgText), [svgText])
 
   // While a trace is applied, the base bitmap is clipped to the trace's frozen

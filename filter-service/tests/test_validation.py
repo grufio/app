@@ -3,7 +3,7 @@
 These bounds live in `app/main.py` and run *before* any heavy work, so
 they exercise the validation path only. Pixelate's wire shape ships a
 raw cell grid (`cells_b64`) — the Vercel server has already cropped +
-area-averaged the source. Lineart still takes the full `image_base64`.
+area-averaged the source. Linerate still takes the full `image_base64`.
 """
 from __future__ import annotations
 
@@ -29,17 +29,6 @@ def _pixelate_body(**overrides) -> dict:
         "cells_x": 4,
         "cells_y": 4,
         "num_colors": 16,
-    }
-    body.update(overrides)
-    return body
-
-
-def _lineart_body(png: str, **overrides) -> dict:
-    body = {
-        "image_base64": png,
-        "line_thickness": 1.0,
-        "blur_amount": 3,
-        "smoothness": 0.6,
     }
     body.update(overrides)
     return body
@@ -167,45 +156,6 @@ def test_circulate_cells_b64_length_mismatch_is_400(client):
     res = client.post("/filters/circulate", json=body)
     assert res.status_code == 400
     assert "cells_b64 length mismatch" in res.json()["detail"]
-
-
-# --- lineart bounds ------------------------------------------------------
-
-
-@pytest.mark.parametrize("value", [0.0, 0.05, 10.1, 100])
-def test_lineart_rejects_out_of_range_thickness(client, make_png_b64, value):
-    res = client.post("/filters/lineart", json=_lineart_body(make_png_b64(), line_thickness=value))
-    assert res.status_code == 400
-    assert "line_thickness must be between 0.1 and 10" in res.json()["detail"]
-
-
-@pytest.mark.parametrize("value", [-1, 21, 100])
-def test_lineart_rejects_out_of_range_blur(client, make_png_b64, value):
-    res = client.post("/filters/lineart", json=_lineart_body(make_png_b64(), blur_amount=value))
-    assert res.status_code == 400
-    assert "blur_amount must be between 0 and 20" in res.json()["detail"]
-
-
-@pytest.mark.parametrize("value", [-0.1, 1.1, 2])
-def test_lineart_rejects_out_of_range_smoothness(client, make_png_b64, value):
-    res = client.post("/filters/lineart", json=_lineart_body(make_png_b64(), smoothness=value))
-    assert res.status_code == 400
-    assert "smoothness must be between 0 and 1" in res.json()["detail"]
-
-
-@pytest.mark.parametrize("value", [0, 255, 2049, 5000])
-def test_lineart_rejects_out_of_range_work_edge(client, make_png_b64, value):
-    # lineart runs the segmentation at `work_edge`; the server clamps the range so
-    # a bad value can't blow up memory/time (960 = default detail ceiling).
-    res = client.post("/filters/lineart", json=_lineart_body(make_png_b64(), work_edge=value))
-    assert res.status_code == 400
-    assert "work_edge must be between 256 and 2048" in res.json()["detail"]
-
-
-def test_lineart_rejects_negative_min_region_radius(client, make_png_b64):
-    res = client.post("/filters/lineart", json=_lineart_body(make_png_b64(), min_region_radius_px=-1.0))
-    assert res.status_code == 400
-    assert "min_region_radius_px must be >= 0" in res.json()["detail"]
 
 
 @pytest.mark.parametrize("value", [1, 0, 561, 1000])

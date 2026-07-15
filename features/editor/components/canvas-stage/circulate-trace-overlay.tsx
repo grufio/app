@@ -9,7 +9,7 @@
  *
  * Sibling of `PixelateTraceOverlay`. Circulate is identified by `<g id="frames">`
  * (exclusive vs pixelate's `<g id="grid">`); `parseCirculateTraceSvg` returns null
- * otherwise, so this overlay never mounts for pixelate/lineart. Non-interactive
+ * otherwise, so this overlay never mounts for pixelate/linerate. Non-interactive
  * (circulate cells carry no `data-trace-region`).
  *
  * No pixel-snapping here (unlike the pixelate grid): ellipse curves cannot snap to

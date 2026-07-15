@@ -26,10 +26,9 @@ export type LinerateFilterSuccess = {
 export type LinerateFilterResult = LinerateFilterSuccess | Extract<FilterResult<"linerate_process">, { ok: false }>
 
 /**
- * Linerate trace: segmentation-based paint-by-numbers (the sibling to
- * lineart). Mirrors `lineArtImageAndActivate` for source lookup, content-rect
- * compositing, palette snap and activation; only the filter-service endpoint
- * + params differ.
+ * Linerate trace: segmentation-based paint-by-numbers. Mirrors the other trace
+ * handlers for source lookup, content-rect compositing, palette snap and
+ * activation; only the filter-service endpoint + params differ.
  */
 export async function linerateImageAndActivate(args: {
   supabase: SupabaseClient<Database>
@@ -95,7 +94,7 @@ export async function linerateImageAndActivate(args: {
   const contentH = region.plan.canvasPx.heightPx
 
   // "min paintable gap (mm)" → inscribed-circle radius threshold in source px.
-  // Same derivation as lineart: the clear gap between the outlines plus the
+  // Derivation: the clear gap between the outlines plus the
   // stroke width, halved. px/mm from the content rect's own pixel size vs mm.
   const pxPerMm = region.displayMmW > 0 ? contentW / region.displayMmW : 0
   const minRadiusPx = Math.max(0, (minPaintableMm * pxPerMm + lineThickness) / 2)

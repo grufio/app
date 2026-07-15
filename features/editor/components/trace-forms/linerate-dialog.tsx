@@ -1,9 +1,9 @@
 "use client"
 
 /**
- * Linerate trace dialog — the SAME shell as Line Art / Pixelate / Circulate
+ * Linerate trace dialog — the SAME shell as Pixelate / Circulate
  * (`TraceDialogShell`), so the layout, header, sticky footer and 24px section
- * rhythm are identical. Like lineart it has no cell grid, so we own the small
+ * rhythm are identical. Like them it has no cell grid, so we own the small
  * draft/busy/apply lifecycle inline. The preview is a fast client-side colour
  * approximation (`LineratePreviewPane`); the authoritative smooth, watertight
  * SVG comes from the server on Apply.

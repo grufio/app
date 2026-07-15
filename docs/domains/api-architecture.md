@@ -15,7 +15,7 @@ a new endpoint is a copy-and-substitute job, not a fresh design.
     — POST: validate + create project
   - [app/api/projects/[projectId]/route.ts](../../app/api/projects/%5BprojectId%5D/route.ts)
     — GET/DELETE single project
-  - [app/api/projects/[projectId]/filters/{lineart,pixelate,numerate}/route.ts](../../app/api/projects/%5BprojectId%5D/filters/)
+  - [app/api/projects/[projectId]/filters/{pixelate,numerate}/route.ts](../../app/api/projects/%5BprojectId%5D/filters/)
     — append filter to chain
   - [app/api/errors/ingest/route.ts](../../app/api/errors/ingest/route.ts)
     — frontend-error reporter (POST)

@@ -22,7 +22,7 @@
  * `CirculateGrid` structurally satisfy `CellGridMetadata` so the
  * shell can read those fields directly.
  *
- * Lineart uses the schema-driven `GenericTraceController` route via
+ * Linerate uses the schema-driven `GenericTraceController` route via
  * `BaseFilterController` + `GenericFilterForm`; it doesn't fit this
  * cell-grid + preview-pane mould, so it stays on its own track.
  */

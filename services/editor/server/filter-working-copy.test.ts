@@ -230,7 +230,7 @@ describe("getFilterPanelData", () => {
       {
         id: "f2",
         input_image_id: "img-pixelate",
-        output_image_id: "img-lineart",
+        output_image_id: "img-linerate",
         filter_type: "bw_soft",
       },
     ]
@@ -245,10 +245,10 @@ describe("getFilterPanelData", () => {
         source_image_id: "working-copy-id",
       },
       {
-        id: "img-lineart",
+        id: "img-linerate",
         name: "master (line art)",
         storage_bucket: "project_images",
-        storage_path: "projects/p/images/lineart",
+        storage_path: "projects/p/images/linerate",
         width_px: 1000,
         height_px: 800,
         source_image_id: "img-pixelate",
@@ -277,7 +277,7 @@ describe("getFilterPanelData", () => {
     const result = await getFilterPanelData({ supabase, projectId: "project-1" })
     expect(result.ok).toBe(true)
     if (result.ok) {
-      expect(result.display.id).toBe("img-lineart")
+      expect(result.display.id).toBe("img-linerate")
       expect(result.display.isFilterResult).toBe(true)
       expect(result.stack.map((s) => s.id)).toEqual(["f1", "f2"])
       expect(result.stack.map((s) => s.filterType)).toEqual(["bw_hard", "bw_soft"])

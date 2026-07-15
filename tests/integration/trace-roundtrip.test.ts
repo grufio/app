@@ -2,7 +2,7 @@
  * Integration test: project_image_trace round-trip (F21 PR 1).
  *
  * The Trace surface is mutually exclusive — one row per project,
- * `kind` constrained to {pixelate, circulate, lineart}, `output_image_id`
+ * `kind` constrained to {pixelate, circulate, linerate}, `output_image_id`
  * referencing `project_images`, and (M15) a `base_image_id` required for
  * the crop-bearing kinds pixelate/circulate. This test proves the schema
  * invariants directly via the supabase-js client; the full
@@ -51,7 +51,7 @@ describe("project_image_trace round-trip", () => {
       kind: "trace_output",
       sourceImageId: master.imageId,
     })
-    const lineartOut = await seedImage({
+    const linerateOut = await seedImage({
       supabase,
       projectId,
       kind: "trace_output",
@@ -90,15 +90,15 @@ describe("project_image_trace round-trip", () => {
       output_image_id: pixelateOut.imageId,
     })
 
-    // 3. Upsert lineart on the same project — replaces, not stacks.
+    // 3. Upsert linerate on the same project — replaces, not stacks.
     const { error: upsertErr } = await supabase
       .from("project_image_trace")
       .upsert(
         {
           project_id: projectId,
-          kind: "lineart",
+          kind: "linerate",
           params: { line_thickness: 3 },
-          output_image_id: lineartOut.imageId,
+          output_image_id: linerateOut.imageId,
         },
         { onConflict: "project_id" },
       )
@@ -111,8 +111,8 @@ describe("project_image_trace round-trip", () => {
 
     expect(afterUpsert).toHaveLength(1)
     expect(afterUpsert?.[0]).toMatchObject({
-      kind: "lineart",
-      output_image_id: lineartOut.imageId,
+      kind: "linerate",
+      output_image_id: linerateOut.imageId,
     })
 
     // 4. Unknown kind rejected by CHECK constraint.
@@ -148,7 +148,7 @@ describe("project_image_trace round-trip", () => {
     // trace carries its own frozen display rect in µpx (text-encoded).
     // This proves the columns exist in the local schema and round-trip
     // through insert / select / upsert, with DEFAULT '0' as the
-    // legacy/lineart signal.
+    // legacy/linerate signal.
     const seeded = await seedProject({ supabase })
     projectId = seeded.projectId
     ownerId = seeded.ownerId
@@ -169,13 +169,13 @@ describe("project_image_trace round-trip", () => {
     })
 
     // 1. A trace WITHOUT explicit display_* values inherits DEFAULT '0'
-    //    (the legacy / lineart signal). This is what lineart writes and
+    //    (the legacy / linerate signal). This is what linerate writes and
     //    what a pre-rebuild row would carry.
     const { error: defaultInsertErr } = await supabase
       .from("project_image_trace")
       .insert({
         project_id: projectId,
-        kind: "lineart",
+        kind: "linerate",
         params: {},
         output_image_id: pixelateOut.imageId,
       })

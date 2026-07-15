@@ -22,7 +22,7 @@
  *   (see `circulate-trace-overlay.tsx`). The `<g id="cells">` group nests
  *   `<g data-cell>` wrappers, so it's removed by a range strip up to the numbers
  *   group / `</svg>` rather than a `</g>`-matching regex.
- * Lineart has neither, so nothing is stripped and it renders fully here.
+ * Linerate has neither, so nothing is stripped and it renders fully here.
  *
  * The opaque white background `<rect>` is no longer present in the
  * Python output (see `filter-service/app/vectorise.py`). The trace
@@ -66,7 +66,7 @@ export function prepareTraceSvg(svgText: string): PreparedTraceSvg | null {
   })
 
   // Pixelate/circulate: drop the cells + their outlines — they render on the Konva
-  // canvas (crisp, zoom-stable). Keep the numbers group. Lineart has neither, so both
+  // canvas (crisp, zoom-stable). Keep the numbers group. Linerate has neither, so both
   // branches are a no-op for it and it renders fully.
   if (GRID_GROUP_RE.test(svg)) {
     svg = svg.replace(COLORS_GROUP_RE, "").replace(GRID_GROUP_RE, "")
