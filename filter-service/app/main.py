@@ -233,29 +233,21 @@ class LineArtRequest(BaseModel):
     # F22: stroke width is a float (≥0.1) so users can draw very thin
     # outlines. The frontend exposes a 0.1-step decimal input.
     line_thickness: float = 1.0
+    # Drives the L0 flatten strength (edge-preserving denoise before segmentation).
     blur_amount: int = 3
     smoothness: float = 0.6
-    # Selection budget: max distinct REAL paints picked from the palette (2..560,
-    # the full colour palette) — an upper bound, the actual colour count emerges
-    # from the image. NOT a PIL median-cut count anymore.
-    num_colors: int = 8
     # Optional palette pair (lab_munsell for "color" mode, lab_grays for "bw").
-    # When both are provided, ≤num_colors paints are selected from it and every
-    # pixel is snapped to the nearest selected paint BEFORE vtracer. When omitted
-    # (tests / legacy), the raw image is traced (no palette snap).
+    # When provided, every pixel snaps to its nearest chip of the FULL palette
+    # (no colour reduction). When omitted (tests/legacy) a k-means fallback runs.
     palette_oklab: list | None = None
     palette_rgb: list | None = None
-    # How the ≤num_colors paints are chosen — same shared reduction as
-    # pixelate/circulate/linerate: "top_n" (most-used chips) or "pam" (k-medoids).
-    palette_restriction: str = "top_n"
-    # Smallest inscribed-circle radius (source px) a region may keep;
-    # anything smaller is merged into its largest neighbour and skipped
-    # for label placement. The Node server derives this from the
-    # user's "min paintable gap (mm)" dial + the content's px/mm scale +
-    # the line width, so paint-by-numbers regions stay paintable and each
-    # fits its number. Default 8.0 = pre-feature behaviour (older clients
-    # that omit the field).
+    # Smallest inscribed-circle radius (source px) a region may keep; smaller
+    # slivers merge into their most similar-coloured neighbour. Derived by the
+    # Node server from the "min paintable gap (mm)" dial — the ONLY detail limiter.
     min_region_radius_px: float = 8.0
+    # Working resolution the segmentation runs at. 960 = measured detail ceiling
+    # (higher buys ~no extra detail but risks the Cloud-Run timeout).
+    work_edge: int = 960
 
 
 class LinerateRequest(BaseModel):
@@ -550,10 +542,10 @@ async def lineart_filter(request: LineArtRequest):
         raise HTTPException(status_code=400, detail="blur_amount must be between 0 and 20")
     if request.smoothness < 0 or request.smoothness > 1:
         raise HTTPException(status_code=400, detail="smoothness must be between 0 and 1")
-    if request.num_colors < 2 or request.num_colors > 560:
-        raise HTTPException(status_code=400, detail="num_colors must be between 2 and 560")
-    if request.palette_restriction not in ("top_n", "pam"):
-        raise HTTPException(status_code=400, detail="palette_restriction must be 'top_n' or 'pam'")
+    if request.min_region_radius_px < 0:
+        raise HTTPException(status_code=400, detail="min_region_radius_px must be >= 0")
+    if request.work_edge < 256 or request.work_edge > 2048:
+        raise HTTPException(status_code=400, detail="work_edge must be between 256 and 2048")
 
     timer = PhaseTimer()
     try:
@@ -568,11 +560,10 @@ async def lineart_filter(request: LineArtRequest):
             line_thickness=request.line_thickness,
             blur_amount=request.blur_amount,
             smoothness=request.smoothness,
-            num_colors=request.num_colors,
             palette_oklab=request.palette_oklab,
             palette_rgb=request.palette_rgb,
-            palette_restriction=request.palette_restriction,
             min_radius=request.min_region_radius_px,
+            work_edge=request.work_edge,
             on_phase=timer.mark,
         )
 

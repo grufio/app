@@ -204,12 +204,11 @@ describe("pixelateSchema", () => {
 
 describe("lineartSchema", () => {
   it("applies defaults matching frontend + Python", () => {
+    // Line Art uses the FULL palette — no num_colors / palette_restriction knob.
     expect(lineartSchema.parse({})).toEqual({
       line_thickness: 1,
       blur_amount: 3,
       smoothness: 0.6,
-      num_colors: 8,
-      palette_restriction: "top_n",
       min_paintable_mm: 4,
       color_mode: "color",
     })
@@ -220,12 +219,10 @@ describe("lineartSchema", () => {
       line_thickness: "3",
       blur_amount: "5",
       smoothness: "0.4",
-      num_colors: "12",
     })
     expect(out.line_thickness).toBe(3)
     expect(out.blur_amount).toBe(5)
     expect(out.smoothness).toBeCloseTo(0.4)
-    expect(out.num_colors).toBe(12)
   })
 
   it("rejects line_thickness out of [0.1, 10]", () => {
@@ -254,15 +251,11 @@ describe("lineartSchema", () => {
     expect(lineartSchema.safeParse({ smoothness: 1 }).success).toBe(true)
   })
 
-  it("rejects num_colors out of [2, 560] (palette-direct budget)", () => {
-    expect(lineartSchema.safeParse({ num_colors: 1 }).success).toBe(false)
-    expect(lineartSchema.safeParse({ num_colors: 561 }).success).toBe(false)
-    expect(lineartSchema.safeParse({ num_colors: 560 }).success).toBe(true)
-  })
-
-  it("defaults palette_restriction to top_n and accepts pam", () => {
-    expect(lineartSchema.parse({}).palette_restriction).toBe("top_n")
-    expect(lineartSchema.parse({ palette_restriction: "pam" }).palette_restriction).toBe("pam")
-    expect(lineartSchema.safeParse({ palette_restriction: "bogus" }).success).toBe(false)
+  it("has no colour-reduction knob (num_colors / palette_restriction stripped)", () => {
+    // Full-palette model: these fields are gone from the schema. Legacy rows that
+    // still carry them must parse (zod strips unknown keys) but not surface them.
+    const out = lineartSchema.parse({ num_colors: 12, palette_restriction: "pam" })
+    expect(out).not.toHaveProperty("num_colors")
+    expect(out).not.toHaveProperty("palette_restriction")
   })
 })

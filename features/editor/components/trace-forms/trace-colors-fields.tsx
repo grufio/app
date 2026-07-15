@@ -1,16 +1,18 @@
 "use client"
 
 /**
- * Shared "Colors" segment fields for trace dialogs (Pixelate + Circulate).
+ * Shared "Colors" segment fields for trace dialogs (Pixelate, Circulate,
+ * Linerate, Line Art).
  *
- * Two controls laid out in the panel grid:
+ * Up to two controls laid out in the panel grid:
  *   - palette mode (B/W vs Color → `color_mode`, which DB palette the server
  *     snaps cells to)
  *   - cap on distinct chips in the rendered output (`num_colors`, post-snap
- *     top-N reduction)
+ *     top-N reduction) — omitted when `showNumColors={false}` (Line Art uses the
+ *     full palette, so it has no colour-reduction knob)
  *
- * The shared contract lives here so the two traces can't drift on labels or
- * ids. Each form wraps this in its own `EditorSidebarSection title="Colors"`.
+ * The shared contract lives here so the traces can't drift on labels or ids.
+ * Each form wraps this in its own `EditorSidebarSection title="Colors"`.
  *
  * `pre_snap_chroma_scale` was a three-stop "Color saturation" selector
  * in #400 with a 1.2 default. Investigation against the user's actual
@@ -47,12 +49,15 @@ const NUM_COLORS_INPUT_PROPS = extractNumberInputProps(numColorsDialogSchema)
 
 export function TraceColorsFields(props: {
   colorMode: TraceColorMode
-  numColors: number
+  numColors?: number
   onColorModeChange: (value: TraceColorMode) => void
-  onNumColorsChange: (value: number) => void
+  onNumColorsChange?: (value: number) => void
+  /** When false, render only the color-mode select (no num_colors budget).
+   * Line Art uses the full palette, so it has no colour-reduction knob. */
+  showNumColors?: boolean
   disabled?: boolean
 }) {
-  const { colorMode, numColors, onColorModeChange, onNumColorsChange, disabled } = props
+  const { colorMode, numColors, onColorModeChange, onNumColorsChange, showNumColors = true, disabled } = props
   return (
     <PanelTwoFieldRow>
       <FormField
@@ -66,18 +71,23 @@ export function TraceColorsFields(props: {
         onCommit={(v) => onColorModeChange(v as TraceColorMode)}
         disabled={disabled}
       />
-      <FormField
-        variant="numeric"
-        numericMode="int"
-        label="Maximum number of colors"
-        labelVisuallyHidden
-        iconStart={<Layers aria-hidden="true" />}
-        id="num_colors"
-        value={String(numColors)}
-        onCommit={(raw) => onNumColorsChange(parseFormNumber(numColorsDialogSchema, raw).value)}
-        inputProps={NUM_COLORS_INPUT_PROPS}
-        disabled={disabled}
-      />
+      {showNumColors ? (
+        <FormField
+          variant="numeric"
+          numericMode="int"
+          label="Maximum number of colors"
+          labelVisuallyHidden
+          iconStart={<Layers aria-hidden="true" />}
+          id="num_colors"
+          value={String(numColors)}
+          onCommit={(raw) => {
+            const res = parseFormNumber(numColorsDialogSchema, raw)
+            if (res.ok) onNumColorsChange?.(res.value)
+          }}
+          inputProps={NUM_COLORS_INPUT_PROPS}
+          disabled={disabled}
+        />
+      ) : null}
       <PanelIconSlot />
     </PanelTwoFieldRow>
   )

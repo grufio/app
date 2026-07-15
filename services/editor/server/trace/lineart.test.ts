@@ -11,8 +11,6 @@ const base: LineartParams = {
   line_thickness: 2,
   blur_amount: 3,
   smoothness: 0.6,
-  num_colors: 8,
-  palette_restriction: "top_n",
   color_mode: "color",
   min_paintable_mm: 4,
 }
@@ -57,27 +55,14 @@ describe("lineArtImageAndActivate validation contract", () => {
     if (!result.ok) expect(result.stage).toBe("validation")
   })
 
-  it("rejects num_colors < 2", async () => {
-    const result = await run({ ...base, num_colors: 1 })
+  it("rejects min_paintable_mm below 0", async () => {
+    const result = await run({ ...base, min_paintable_mm: -1 })
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.stage).toBe("validation")
   })
 
-  it("rejects num_colors > 560 (above the full-palette budget)", async () => {
-    const result = await run({ ...base, num_colors: 561 })
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.stage).toBe("validation")
-  })
-
-  it("rejects an invalid palette_restriction", async () => {
-    // deliberately bogus value → zod enum rejects before the source lookup
-    const result = await run({ ...base, palette_restriction: "bogus" as never })
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.stage).toBe("validation")
-  })
-
-  it("accepts boundary values (num_colors 560, pam) and continues to source lookup", async () => {
-    const result = await run({ ...base, line_thickness: 1, blur_amount: 0, smoothness: 0, num_colors: 560, palette_restriction: "pam" })
+  it("accepts boundary values and continues to source lookup", async () => {
+    const result = await run({ ...base, line_thickness: 1, blur_amount: 0, smoothness: 0, min_paintable_mm: 0 })
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.stage).toBe("source_lookup")
   })

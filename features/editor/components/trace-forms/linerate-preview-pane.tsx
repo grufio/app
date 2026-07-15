@@ -24,8 +24,7 @@ import { assembleFaces, buildArcs, smoothArc } from "@/lib/editor/trace/boundary
 import { smoothnessToParams } from "@/lib/editor/trace/contour-trace"
 import { coverageSelectPaintMap } from "@/lib/editor/trace/coverage-select"
 import { LINERATE_RESOLUTION_EDGE, type LinerateParams } from "@/lib/editor/trace/linerate"
-import { loadAndDownscale, type PreviewImage } from "@/lib/editor/trace/lineart-preview"
-import { detailToMinArea, segmentRegions } from "@/lib/editor/trace/linerate-preview"
+import { detailToMinArea, loadAndDownscale, segmentRegions, type PreviewImage } from "@/lib/editor/trace/linerate-preview"
 import { useSourceImage } from "@/lib/editor/trace/use-source-image"
 import { useTracePalette } from "@/lib/editor/trace/use-trace-palette"
 

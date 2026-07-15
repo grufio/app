@@ -1,83 +1,70 @@
 import { z } from "zod"
 
-import { NUM_COLORS_FULL_PALETTE } from "./num-colors-schema"
-import { paletteRestrictionSchema } from "./palette-restriction-schema"
+import type { LinerateParams } from "./linerate"
 import type { TraceDefinition } from "./types"
 
+/**
+ * Line Art — maximum paintable detail. Shares linerate's segmentation core
+ * (colour == region): every pixel snaps to its nearest chip of the FULL Munsell
+ * palette, connected same-paint areas become regions, sub-paintable slivers merge
+ * into their most similar-coloured neighbour, watertight arcs smooth the edges,
+ * and every region carries a number.
+ *
+ * There is NO colour-reduction knob (no `num_colors`, no palette selection, no
+ * vtracer/median-cut) — that reduced the palette before the trace and was the
+ * root cause of the "17 colours" collapse. Detail is bounded only by
+ * `min_paintable_mm` (the paintability floor); the colour count emerges from the
+ * image.
+ */
 export const lineartSchema = z.object({
-  // Black stroke width around each colored region.
+  // Black stroke width around each coloured region.
   line_thickness: z.coerce.number().min(0.1).max(10).default(1),
-  // Pre-vtracer Gaussian blur radius. Smooths sensor noise before the
-  // palette selection so the resulting regions track real subject
-  // boundaries instead of speckle.
+  // Edge-preserving L0 flatten strength (denoise before segmentation) — higher =
+  // flatter/less speckle, lower = maximum detail.
   blur_amount: z.coerce.number().int().min(0).max(20).default(3),
-  // Smoothness ∈ [0, 1]. 0 = sharp corners (close to the
-  // quantised-pixel boundary), 1 = very smooth spline curves. Maps
-  // to vtracer's corner_threshold + length_threshold +
-  // filter_speckle inside the Python service.
+  // Smoothness ∈ [0, 1]: 0 = follow the working-pixel boundary, 1 = heavy curve
+  // smoothing. Drives the shared-arc RDP/Chaikin smoothing.
   smoothness: z.coerce.number().min(0).max(1).default(0.6),
-  // Selection budget: max distinct REAL paints picked from the fixed palette —
-  // an upper bound; the actual colour count emerges from the image. lineart is
-  // now palette-direct (like linerate/pixelate/circulate): ≤num_colors paints
-  // are selected and every pixel is snapped to the nearest selected paint BEFORE
-  // vtracer, so this is a true palette budget (not a PIL median-cut count).
-  // Default 8 kept for continuity; dialog caps at 64, validation at the full
-  // palette (560).
-  num_colors: z.coerce.number().int().min(2).max(NUM_COLORS_FULL_PALETTE).default(8),
-  // How those ≤num_colors paints are chosen — same shared reduction as
-  // pixelate/circulate/linerate: "top_n" (most-used chips) or "pam" (k-medoids).
-  palette_restriction: paletteRestrictionSchema,
-  // Smallest paintable gap between the black outlines, in mm on the
-  // printed page. Regions whose largest inscribed circle is narrower than
-  // this (plus the line width, added server-side) are merged into their
-  // neighbour so every surviving region stays paintable and can hold its
-  // number. 0 disables the merge. The server converts mm → source px via
-  // the content rect's px/mm scale (see services/editor/server/trace/lineart.ts).
+  // Smallest paintable gap between the outlines, in mm on the printed page — the
+  // ONLY detail limiter. Regions narrower than this merge into their most
+  // similar-coloured neighbour so every survivor stays paintable + holds its
+  // number. The server converts mm → source px (services/editor/server/trace/lineart.ts).
   min_paintable_mm: z.coerce.number().min(0).max(20).default(4),
-  // Which Munsell palette the paints are selected from — same contract as
-  // pixelate / circulate / linerate. "color" → lab_munsell, "bw" → lab_grays.
+  // Which Munsell palette the pixels snap against — "color" → lab_munsell (+grays),
+  // "bw" → lab_grays. The FULL palette is used (no reduction).
   color_mode: z.enum(["color", "bw"]).default("color"),
 })
 
 export type LineartParams = z.infer<typeof lineartSchema>
 
 /**
- * vtracer config shared with the server (`filter-service/app/lineart.py`
- * `LINEART_VTRACER_PARAMS`). The client WASM preview
- * (`lineart-vtracer-wasm.ts`) traces with the SAME engine + params so the
- * preview geometry matches the Apply result. Keep in lockstep with the
- * Python constant. `colormode="color"` + `mode="spline"` are fixed on the
- * WASM call site; the preview uses `hierarchical="stacked"` (not the
- * server's `cutout`) so it renders gapless without a backing image — see
- * `lineart-vtracer-wasm.ts`.
+ * Adapt Line Art params to the Linerate PREVIEW model so the dialog can reuse
+ * `LineratePreviewPane` (the client mirror of the shared segmentation core)
+ * instead of maintaining a second preview engine. The two Apply pipelines share
+ * the same L0 flatten + coverage snap + facet merge; Line Art is exactly the
+ * linerate model pinned to "full palette, finest detail":
+ *   - `detail: 1` → the facet min-area collapses to the paintability floor, so
+ *     detail is bounded ONLY by `min_paintable_mm` (matches lineart.py).
+ *   - `num_colors: 560` ≥ any real palette size → `coverageSelectPaintMap`'s
+ *     `counts.size <= K` early-return fires → the FULL palette is used (no
+ *     reduction), matching lineart's full-palette snap.
+ *   - `resolution: "high"` → work-edge 960, the lineart service default.
+ *   - `flatten: blur_amount/20` maps the 0..20 blur dial onto linerate's 0..1
+ *     flatten strength (server: `blur_amount` → L0, same denoise stage).
+ * `palette_restriction` is irrelevant once selection is bypassed, but the type
+ * requires it; "top_n" is the harmless default.
  */
-export const LINEART_VTRACER_CONFIG = {
-  colorPrecision: 8,
-  layerDifference: 0,
-  pathPrecision: 2,
-  spliceThreshold: 45,
-} as const
-
-/**
- * Map `smoothness` ∈ [0, 1] to vtracer's corner/length/speckle thresholds —
- * the same three lines the server runs in `lineart_to_svg`:
- *   corner_threshold = round(180 - s*120)   (0=sharp corners, 1=strong curves)
- *   length_threshold = round(s*8, 2)         (path simplification)
- *   filter_speckle   = max(16, round(s*32))  (drop small blobs)
- * The WASM binding clamps `length_threshold` to its documented [3.5, 10]
- * range (same clamp the native vtracer core applies), so the server's sub-3.5
- * values and the WASM values resolve identically — both feed vtracer 0.6.
- */
-export function smoothnessToVtracerParams(smoothness: number): {
-  cornerThreshold: number
-  lengthThreshold: number
-  filterSpeckle: number
-} {
-  const s = Math.max(0, Math.min(1, smoothness))
+export function lineartToLineratePreviewParams(draft: LineartParams): LinerateParams {
   return {
-    cornerThreshold: Math.round(180 - s * 120),
-    lengthThreshold: Math.round(s * 8 * 100) / 100,
-    filterSpeckle: Math.max(16, Math.round(s * 32)),
+    line_thickness: draft.line_thickness,
+    flatten: draft.blur_amount / 20,
+    detail: 1.0,
+    smoothness: draft.smoothness,
+    num_colors: 560,
+    palette_restriction: "top_n",
+    min_paintable_mm: draft.min_paintable_mm,
+    color_mode: draft.color_mode,
+    resolution: "high",
   }
 }
 
@@ -87,15 +74,13 @@ export const lineartTrace = {
   schema: lineartSchema,
   meta: {
     title: "Line Art",
-    description: "Vectorise the image into organic colored regions with black outlines.",
+    description: "Finest paintable paint-by-numbers: the full palette, watertight coloured regions with black outlines, one number each.",
   },
   ui: {
     line_thickness: { kind: "decimal", label: "Line Thickness", min: 0.1, max: 10, step: 0.1, description: "Stroke width in pixels (0.1-10)" },
-    blur_amount: { label: "Blur Amount", min: 0, max: 20, description: "Pre-trace blur to merge noisy speckle (0-20, 0=no blur)" },
-    smoothness: { kind: "decimal", label: "Smoothness", min: 0, max: 1, step: 0.05, description: "Edge smoothness (0=follow quantised pixels exactly, 1=heavy curve smoothing)" },
-    num_colors: { label: "Number of Colors", min: 2, max: 64, description: "Selection budget: max distinct paints picked from the palette (2-64 in the dialog). Fewer = bolder regions" },
-    palette_restriction: { kind: "select", label: "Palette selection", options: [{ value: "top_n", label: "Top-N" }, { value: "pam", label: "PAM" }], description: "How paints are chosen: Top-N (most-used chips) or PAM (k-medoids). Coverage-based." },
-    min_paintable_mm: { kind: "decimal", label: "Min. Gap (mm)", min: 0, max: 20, step: 0.5, description: "Smallest paintable gap between outlines in mm (0=off). Thinner regions merge so each stays paintable + fits its number." },
-    color_mode: { kind: "select", label: "Color mode", options: [{ value: "color", label: "Color" }, { value: "bw", label: "B/W" }], description: "Which Munsell palette the paints are selected from" },
+    blur_amount: { label: "Blur Amount", min: 0, max: 20, description: "Denoise before segmentation (0=max detail, 20=flattest)" },
+    smoothness: { kind: "decimal", label: "Smoothness", min: 0, max: 1, step: 0.05, description: "Edge smoothness (0=follow pixels, 1=heavy curve smoothing)" },
+    min_paintable_mm: { kind: "decimal", label: "Min. Gap (mm)", min: 0, max: 20, step: 0.5, description: "Smallest paintable gap in mm — the detail limiter. Smaller = finer regions + more colours." },
+    color_mode: { kind: "select", label: "Color mode", options: [{ value: "color", label: "Color" }, { value: "bw", label: "B/W" }], description: "Which Munsell palette the pixels snap against" },
   },
 } as const satisfies TraceDefinition<typeof lineartSchema>

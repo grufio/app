@@ -1,32 +1,22 @@
 /**
  * @vitest-environment jsdom
  *
- * Smoke test for LineArtDialog. Detailed wiring lives in
- * lineart-form / lineart-preview-pane / lineart-preview.test files;
- * this only verifies the dialog composes the three sub-pieces
- * (preview canvas + form + Apply/Cancel) on desktop, and the
+ * Smoke test for LineArtDialog. Detailed wiring lives in lineart-form and the
+ * shared linerate preview tests; this only verifies the dialog composes the
+ * three sub-pieces (preview pane + form + Apply/Cancel) on desktop, and the
  * edit-overlay ↔ preview toggle plus apply icon on mobile.
+ *
+ * The preview reuses `LineratePreviewPane` (Line Art is the linerate model
+ * pinned to full palette + finest detail). That pane spins up a Web Worker +
+ * canvas + wasm-free L0 FFT that jsdom can't run, so we mock the pane wholesale
+ * to a marker element — the dialog composition is what this test covers, not the
+ * preview internals.
  */
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-vi.mock("@/lib/editor/trace/lineart-preview", () => ({
-  loadAndDownscale: () => ({ width: 32, height: 24, rgba: new Uint8ClampedArray(32 * 24 * 4) }),
-  gaussianBlur: (img: unknown) => img,
-  rgbaFromPaintMap: () => new Uint8ClampedArray(32 * 24 * 4),
-  buildLineartPreviewSvg: () => ({ svg: '<svg id="mock-preview"></svg>', indicesUsed: [] }),
-}))
-
-vi.mock("@/lib/editor/trace/coverage-select", () => ({
-  coverageSelectPaintMap: () => new Int32Array(32 * 24),
-}))
-
-vi.mock("@/lib/editor/trace/lineart-vtracer-wasm", () => ({
-  traceRgbaToSvg: () => Promise.resolve('<svg><path d="M0 0" fill="#123456"/></svg>'),
-}))
-
-vi.mock("@/lib/editor/trace/use-trace-palette", () => ({
-  useTracePalette: () => null,
+vi.mock("./linerate-preview-pane", () => ({
+  LineratePreviewPane: () => <div data-testid="lineart-preview-mini" />,
 }))
 
 vi.mock("sonner", () => ({
@@ -82,7 +72,8 @@ describe("LineArtDialog (smoke)", () => {
     expect(document.body.querySelector("#blur_amount")).not.toBeNull()
     expect(document.body.querySelector("#smoothness")).not.toBeNull()
     expect(document.body.querySelector("#color_mode")).not.toBeNull()
-    expect(document.body.querySelector("#num_colors")).not.toBeNull()
+    // Full-palette model: no num_colors budget control in the form.
+    expect(document.body.querySelector("#num_colors")).toBeNull()
     expect(document.body.querySelector('[data-testid="lineart-preview-mini"]')).toBeNull()
 
     const buttons = Array.from(document.body.querySelectorAll("button"))

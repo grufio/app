@@ -5,8 +5,7 @@ import { describe, expect, it } from "vitest"
 
 import { coverageSelectPaintMap } from "./coverage-select"
 import { l0Smooth } from "./l0-smooth"
-import { detailToMinArea, segmentRegions } from "./linerate-preview"
-import type { PreviewImage } from "./lineart-preview"
+import { detailToMinArea, segmentRegions, type PreviewImage } from "./linerate-preview"
 import type { PaletteChip } from "./trace-cell-colors"
 
 // Fixture: a real image downscaled to 160px RGBA + the 304-chip palette + the

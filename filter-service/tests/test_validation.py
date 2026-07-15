@@ -40,7 +40,6 @@ def _lineart_body(png: str, **overrides) -> dict:
         "line_thickness": 1.0,
         "blur_amount": 3,
         "smoothness": 0.6,
-        "num_colors": 8,
     }
     body.update(overrides)
     return body
@@ -194,19 +193,19 @@ def test_lineart_rejects_out_of_range_smoothness(client, make_png_b64, value):
     assert "smoothness must be between 0 and 1" in res.json()["detail"]
 
 
-@pytest.mark.parametrize("value", [1, 0, 561, 1000])
-def test_lineart_rejects_out_of_range_num_colors(client, make_png_b64, value):
-    # lineart is now palette-direct: num_colors is the selection budget, capped at
-    # the full palette (560 = 512 lab_munsell + 48 lab_grays). 561 must 400.
-    res = client.post("/filters/lineart", json=_lineart_body(make_png_b64(), num_colors=value))
+@pytest.mark.parametrize("value", [0, 255, 2049, 5000])
+def test_lineart_rejects_out_of_range_work_edge(client, make_png_b64, value):
+    # lineart runs the segmentation at `work_edge`; the server clamps the range so
+    # a bad value can't blow up memory/time (960 = default detail ceiling).
+    res = client.post("/filters/lineart", json=_lineart_body(make_png_b64(), work_edge=value))
     assert res.status_code == 400
-    assert "num_colors must be between 2 and 560" in res.json()["detail"]
+    assert "work_edge must be between 256 and 2048" in res.json()["detail"]
 
 
-def test_lineart_rejects_invalid_palette_restriction(client, make_png_b64):
-    res = client.post("/filters/lineart", json=_lineart_body(make_png_b64(), palette_restriction="bogus"))
+def test_lineart_rejects_negative_min_region_radius(client, make_png_b64):
+    res = client.post("/filters/lineart", json=_lineart_body(make_png_b64(), min_region_radius_px=-1.0))
     assert res.status_code == 400
-    assert "palette_restriction must be 'top_n' or 'pam'" in res.json()["detail"]
+    assert "min_region_radius_px must be >= 0" in res.json()["detail"]
 
 
 @pytest.mark.parametrize("value", [1, 0, 561, 1000])

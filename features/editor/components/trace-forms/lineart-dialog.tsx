@@ -3,21 +3,22 @@
 /**
  * Line Art trace dialog — same shell as Pixelate / Circulate
  * (`TraceDialogShell`) so the mobile edit-overlay + sticky-footer +
- * 24px-section rhythm is identical. Lineart has no cell-grid (vtracer
- * draws vector paths), so we own the small draft/busy/apply lifecycle
- * inline instead of routing through `CellTraceDialog`. Preview is a
- * client-side K-means approximation (`lineart-preview.ts`); the
- * authoritative SVG comes from the server on Apply.
+ * 24px-section rhythm is identical. Lineart has no cell-grid, so we own the
+ * small draft/busy/apply lifecycle inline instead of routing through
+ * `CellTraceDialog`. Line Art IS the linerate segmentation model pinned to
+ * full-palette + finest detail, so the preview reuses `LineratePreviewPane`
+ * (the shared client mirror) via `lineartToLineratePreviewParams` rather than a
+ * second preview engine; the authoritative SVG comes from the server on Apply.
  */
 import { useMemo, useState } from "react"
 import { toast } from "sonner"
 
 import { formatOperationErrorForToast, normalizeApiError } from "@/lib/api/error-normalizer"
-import { lineartSchema, type LineartParams } from "@/lib/editor/trace/lineart"
+import { lineartSchema, lineartToLineratePreviewParams, type LineartParams } from "@/lib/editor/trace/lineart"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
 
 import { LineArtForm } from "./lineart-form"
-import { LineArtPreviewPane } from "./lineart-preview-pane"
+import { LineratePreviewPane } from "./linerate-preview-pane"
 import { TraceDialogShell } from "./trace-dialog-shell"
 
 type Props = {
@@ -94,15 +95,15 @@ export function LineArtDialog({
       description={`Image: ${fmt1(displayMmW)} × ${fmt1(displayMmH)} mm`}
       metadata={[
         `Image: ${fmt1(displayMmW)} × ${fmt1(displayMmH)} mm`,
-        `Colors: up to ${draft.num_colors}`,
+        "Colors: full palette",
         `Mode: ${draft.color_mode === "bw" ? "B/W" : "Color"}`,
       ]}
       preview={
-        <LineArtPreviewPane
+        <LineratePreviewPane
           sourceImageUrl={sourceImageUrl}
           displayMmW={displayMmW}
           displayMmH={displayMmH}
-          params={draft}
+          params={lineartToLineratePreviewParams(draft)}
         />
       }
       form={<LineArtForm params={draft} onParamsChange={setField} disabled={busy} />}

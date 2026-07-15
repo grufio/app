@@ -513,11 +513,28 @@ def linerate_to_svg(
     # timed out there). min_area = the paintability floor, widened by `detail`.
     min_radius_work = min_radius * (ww / width)
     min_area = _detail_to_min_area(detail, hh * ww, min_radius_work)
+    return _paint_map_to_svg(
+        X, hh, ww, width, height, sx, sy, sel_ok, sel_rgb, sel_pal_index,
+        have_palette, min_area, smoothness, line_thickness, min_radius, phase,
+    )
+
+
+def _paint_map_to_svg(
+    X, hh, ww, width, height, sx, sy, sel_ok, sel_rgb, sel_pal_index,
+    have_palette, min_area, smoothness, line_thickness, min_radius, phase,
+):
+    """Shared back-half of the segmentation traces (linerate + lineart): snap
+    every pixel to its nearest SELECTED paint, merge sub-`min_area` facets into
+    the most similar-coloured neighbour (colour-preserving), vectorise via
+    watertight shared arcs, and place one distance-transform number per region.
+    The CALLER decides the paint set + `min_area` — linerate reduces to a
+    `num_colors` budget with a `detail`-widened floor, lineart uses the FULL
+    palette with `min_area` at the bare paintability floor (max detail)."""
     P = nearest_palette_indices(X, sel_ok).reshape(hh, ww).astype(np.int32)
     labels, nreg, reg_sel = _facet_merge(P, len(sel_ok), sel_ok, min_area)
     phase("segment")
 
-    # --- watertight shared-arc vectorisation (unchanged back half) ---
+    # --- watertight shared-arc vectorisation ---
     arcs, region_arcs = build_arcs(labels)
     eps, iters = smoothness_to_params(smoothness)
     for arc in arcs:
