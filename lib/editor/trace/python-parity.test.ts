@@ -57,12 +57,13 @@ describe("Python parity: TS trace schema defaults vs Pydantic", () => {
   it("LineArtRequest", () => {
     const py = extractPydanticDefaults("LineArtRequest")
     const ts = lineartSchema.parse({})
-    // Server-computed fields the Node bridge derives rather than passing a TS
-    // param through 1:1 (like Pixelate's cells_x/crop_*). `min_region_radius_px`
-    // is computed from the TS `min_paintable_mm` dial + the content rect's
-    // px/mm scale + the line width (services/editor/server/trace/lineart.ts),
-    // so it has no matching TS default — exclude it from the pass-through check.
-    const SERVER_COMPUTED = new Set(["min_region_radius_px"])
+    // Server-computed / bridge-derived fields, not 1:1 TS pass-throughs.
+    // `min_region_radius_px` ← the TS `min_paintable_mm` dial + the content
+    // rect's px/mm scale + the line width (services/editor/server/trace/lineart.ts).
+    // `work_edge` is a service-only param the bridge never sends (the Python
+    // default 960 applies), so it has no matching TS field. Line Art uses the
+    // FULL palette, so there is NO num_colors / palette_restriction on either side.
+    const SERVER_COMPUTED = new Set(["min_region_radius_px", "work_edge"])
     for (const key of Object.keys(py)) {
       if (SERVER_COMPUTED.has(key)) continue
       expect(ts[key as keyof typeof ts]).toEqual(py[key])
@@ -158,9 +159,13 @@ describe("Python parity: TS trace schema defaults vs Pydantic", () => {
   })
 
   it("extracts the expected fields (regression guard for parser)", () => {
+    // Line Art is full-palette: no num_colors. The parser only pulls fields with
+    // a scalar-typed default (union-typed `palette_oklab: list | None` is skipped),
+    // so the stable markers are the scalar dials + the server-computed defaults.
     expect(Object.keys(extractPydanticDefaults("LineArtRequest"))).toEqual(
-      expect.arrayContaining(["line_thickness", "blur_amount", "smoothness", "num_colors"]),
+      expect.arrayContaining(["line_thickness", "blur_amount", "smoothness", "min_region_radius_px", "work_edge"]),
     )
+    expect(Object.keys(extractPydanticDefaults("LineArtRequest"))).not.toContain("num_colors")
     expect(Object.keys(extractPydanticDefaults("PixelateRequest"))).toContain("num_colors")
   })
 })

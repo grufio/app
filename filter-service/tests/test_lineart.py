@@ -1,211 +1,114 @@
-"""Lineart endpoint smoke test (`app/main.py` -> `app/lineart.py`).
+"""Unit tests for the rebuilt lineart pipeline (full-palette, max paintable detail).
 
-Deep geometry of the vtracer pipeline is out of scope here; this guards
-the happy path end-to-end so a broken pipeline (import error, vtracer
-contract change) is caught before the Cloud Run deploy.
+lineart now shares linerate's segmentation core: full-palette snap → colour-
+preserving merge → watertight arcs → one number per region. No colour reduction
+(no num_colors, no palette selection, no vtracer). These tests pin the two
+properties the old pipeline violated: the full palette pool survives (colour ==
+region, only the paintability floor removes chips), and every region is numbered.
 """
 from __future__ import annotations
 
-import base64
-import io
+import re
 
 import numpy as np
-from PIL import Image
+
+from app.lineart import lineart_to_svg
+from app.oklab import rgb255_to_oklab
 
 
-def _noise_png_b64(w: int = 24, h: int = 24) -> str:
-    arr = np.random.default_rng(0).integers(0, 255, (h, w, 3), dtype=np.uint8)
-    buf = io.BytesIO()
-    Image.fromarray(arr, mode="RGB").save(buf, format="PNG")
-    return base64.b64encode(buf.getvalue()).decode("ascii")
+def _palette(rgbs):
+    """(oklab list, rgb list) for a set of distinct RGB chips."""
+    rgb = [list(c) for c in rgbs]
+    ok = [list(rgb255_to_oklab(np.array([c], np.uint8))[0]) for c in rgbs]
+    return ok, rgb
 
 
-def test_lineart_happy_path_returns_svg(client):
-    res = client.post(
-        "/filters/lineart",
-        json={
-            "image_base64": _noise_png_b64(),
-            "line_thickness": 1.0,
-            "blur_amount": 3,
-            "smoothness": 0.6,
-            "num_colors": 8,
-        },
-    )
-    assert res.status_code == 200
-    assert res.headers["content-type"].startswith("application/json")
-    assert "X-Region-Count" in res.headers
-    body = res.json()
-    assert body["svg"].lstrip().startswith("<?xml")
-    assert "<svg" in body["svg"]
-    assert "palette_indices_used" in body
-    # No palette was sent in this request → no indices to report.
-    assert body["palette_indices_used"] == []
+def _blocks_image(rgbs, block=48, cols=6):
+    """An image of well-separated, paintable-sized colour blocks — one per chip."""
+    n = len(rgbs)
+    rows = (n + cols - 1) // cols
+    arr = np.zeros((rows * block, cols * block, 3), np.uint8)
+    for k, c in enumerate(rgbs):
+        r, cc = divmod(k, cols)
+        arr[r * block:(r + 1) * block, cc * block:(cc + 1) * block] = c
+    from PIL import Image
+    return Image.fromarray(arr, "RGB")
 
 
-def test_lineart_snaps_fills_to_palette(client):
-    """When palette pair is provided, every emitted <path fill="..."> is
-    a palette chip and the used-indices list reflects the chips that
-    actually appear. Same single-step contract as pixelate / circulate."""
-    palette_rgb = [
-        [255, 0, 0],   # idx 0 — pure red
-        [0, 255, 0],   # idx 1 — pure green
-        [0, 0, 255],   # idx 2 — pure blue
-        [255, 255, 0], # idx 3 — pure yellow
-    ]
-    # OKLab values for the palette (rough but deterministic — the
-    # exact match is via nearest-neighbour, not equality).
-    palette_oklab = [
-        [0.628, 0.225, 0.126],   # red
-        [0.866, -0.234, 0.179],  # green
-        [0.452, -0.032, -0.312], # blue
-        [0.968, -0.071, 0.198],  # yellow
-    ]
-    res = client.post(
-        "/filters/lineart",
-        json={
-            "image_base64": _noise_png_b64(),
-            "line_thickness": 1.0,
-            "blur_amount": 3,
-            "smoothness": 0.6,
-            "num_colors": 8,
-            "palette_oklab": palette_oklab,
-            "palette_rgb": palette_rgb,
-        },
-    )
-    assert res.status_code == 200
-    body = res.json()
-    used = body["palette_indices_used"]
-    assert isinstance(used, list)
-    assert all(isinstance(i, int) for i in used)
-    assert used == sorted(set(used))  # deduped, ascending
-    assert all(0 <= i < len(palette_rgb) for i in used)
-    # Every path's fill is one of the chip RGBs (no median-cut leftover).
-    import re as _re
-    palette_hex = {f"#{r:02x}{g:02x}{b:02x}" for r, g, b in palette_rgb}
-    fills = _re.findall(r'fill="(#[0-9a-fA-F]{6})"', body["svg"])
-    assert fills, "expected at least one filled path"
-    for hex_str in fills:
-        assert hex_str.lower() in palette_hex
-
-
-def test_lineart_emits_numbers_group_when_palette_set(client):
-    """With a palette in play the SVG must contain `<g id="numbers">`
-    with at least one `<text>` element — that's the paint-by-numbers
-    label layer the desktop visibility toggle gates on."""
-    palette_rgb = [[255, 0, 0], [0, 255, 0], [0, 0, 255], [255, 255, 0]]
-    palette_oklab = [
-        [0.628, 0.225, 0.126],
-        [0.866, -0.234, 0.179],
-        [0.452, -0.032, -0.312],
-        [0.968, -0.071, 0.198],
-    ]
-    res = client.post(
-        "/filters/lineart",
-        json={
-            "image_base64": _noise_png_b64(64, 64),
-            "line_thickness": 1.0,
-            "blur_amount": 3,
-            "smoothness": 0.6,
-            "num_colors": 8,
-            "palette_oklab": palette_oklab,
-            "palette_rgb": palette_rgb,
-        },
-    )
-    assert res.status_code == 200
-    svg = res.json()["svg"]
-    assert '<g id="numbers">' in svg
-    assert "</g>" in svg
-
-
-def test_lineart_no_numbers_group_without_palette(client):
-    """Without a palette there's no label-map to drive numbers — the
-    SVG should NOT contain `<g id="numbers">` at all (not an empty
-    group)."""
-    res = client.post(
-        "/filters/lineart",
-        json={
-            "image_base64": _noise_png_b64(),
-            "line_thickness": 1.0,
-            "blur_amount": 3,
-            "smoothness": 0.6,
-            "num_colors": 8,
-        },
-    )
-    assert res.status_code == 200
-    svg = res.json()["svg"]
-    assert '<g id="numbers">' not in svg
-
-
-# --- palette-direct budget (the property median-cut could never guarantee) ----
-
-_PALETTE_RGB = [[255, 0, 0], [0, 255, 0], [0, 0, 255], [255, 255, 0]]
-_PALETTE_OKLAB = [
-    [0.628, 0.225, 0.126],   # red
-    [0.866, -0.234, 0.179],  # green
-    [0.452, -0.032, -0.312], # blue
-    [0.968, -0.071, 0.198],  # yellow
+# A spread of 12 clearly-distinct chips.
+_RGBS = [
+    (200, 40, 40), (40, 200, 40), (40, 40, 200), (220, 220, 40),
+    (40, 220, 220), (220, 40, 220), (240, 140, 40), (140, 40, 240),
+    (40, 140, 60), (120, 90, 60), (230, 230, 230), (30, 30, 30),
 ]
 
 
-def _lineart_fills(svg: str) -> list[str]:
-    import re as _re
-    return [h.lower() for h in _re.findall(r'fill="(#[0-9a-fA-F]{6})"', svg)]
+def _fills(svg):
+    return set(re.findall(r'fill="(#[0-9a-fA-F]{6})"', svg))
 
 
-def test_lineart_num_colors_is_a_real_palette_budget(client):
-    """Palette-direct: with num_colors BELOW the palette size, the distinct fills
-    must be ≤ num_colors AND all real palette chips. The paints are SELECTED from
-    the palette before vtracer, so the budget is honoured — the old median-cut
-    pre-quantise never gave this (its bins were arbitrary RGB, snapped post-hoc)."""
-    res = client.post(
-        "/filters/lineart",
-        json={
-            "image_base64": _noise_png_b64(48, 48),
-            "line_thickness": 1.0, "blur_amount": 1, "smoothness": 0.6,
-            "num_colors": 2,
-            "palette_oklab": _PALETTE_OKLAB, "palette_rgb": _PALETTE_RGB,
-        },
+def test_lineart_preserves_the_full_pool():
+    """THE proof the old pipeline failed (it collapsed 40→5 / 84→17): with N
+    distinct, paintable-sized colour blocks against a palette that contains those
+    N chips, ALL N survive in palette_indices_used — colour == region, nothing is
+    reduced before or during the trace."""
+    pal_ok, pal_rgb = _palette(_RGBS)
+    img = _blocks_image(_RGBS)
+    svg, nreg, used = lineart_to_svg(
+        img, line_thickness=1.0, blur_amount=0, smoothness=0.4,
+        palette_oklab=pal_ok, palette_rgb=pal_rgb, min_radius=4.0, work_edge=512,
     )
-    assert res.status_code == 200
-    fills = _lineart_fills(res.json()["svg"])
-    palette_hex = {f"#{r:02x}{g:02x}{b:02x}" for r, g, b in _PALETTE_RGB}
-    assert fills, "expected filled paths"
-    assert set(fills) <= palette_hex, "every fill must be a real palette chip"
-    assert len(set(fills)) <= 2, f"budget of 2 exceeded: {set(fills)}"
+    assert len(used) == len(_RGBS), f"expected all {len(_RGBS)} chips, got {len(used)}"
+    # every emitted fill is a real palette chip
+    palette_hex = {f"#{r:02x}{g:02x}{b:02x}" for r, g, b in pal_rgb}
+    assert _fills(svg) <= palette_hex and _fills(svg)
 
 
-def test_lineart_accepts_full_palette_budget(client):
-    """A budget at/above the palette size is valid (no PIL 8-bit ceiling anymore)
-    and just uses whatever chips the image needs — no crash, fills stay real."""
-    res = client.post(
-        "/filters/lineart",
-        json={
-            "image_base64": _noise_png_b64(48, 48),
-            "line_thickness": 1.0, "blur_amount": 1, "smoothness": 0.6,
-            "num_colors": 560,
-            "palette_oklab": _PALETTE_OKLAB, "palette_rgb": _PALETTE_RGB,
-        },
+def test_lineart_numbers_every_region():
+    """Numbers are mandatory (the app makes no sense without them): every region
+    in <g id="regions"> gets exactly one <text> in <g id="numbers">."""
+    pal_ok, pal_rgb = _palette(_RGBS)
+    img = _blocks_image(_RGBS)
+    svg, nreg, used = lineart_to_svg(
+        img, line_thickness=1.0, blur_amount=0, smoothness=0.4,
+        palette_oklab=pal_ok, palette_rgb=pal_rgb, min_radius=4.0, work_edge=512,
     )
-    assert res.status_code == 200
-    fills = _lineart_fills(res.json()["svg"])
-    palette_hex = {f"#{r:02x}{g:02x}{b:02x}" for r, g, b in _PALETTE_RGB}
-    assert fills and set(fills) <= palette_hex
+    assert '<g id="regions">' in svg and '<g id="numbers">' in svg
+    assert svg.count("<path ") == nreg
+    assert svg.count("<text ") == nreg, "every region must carry exactly one number"
 
 
-def test_lineart_pam_selects_only_real_paints_and_is_deterministic(client):
-    """The PAM restriction path selects real chips too, and the whole pipeline is
-    deterministic (top_n/PAM have no RNG; the seed only drives subsampling, which
-    is a no-op below the sample cap) → identical SVG on repeat."""
-    body = {
-        "image_base64": _noise_png_b64(48, 48),
-        "line_thickness": 1.0, "blur_amount": 1, "smoothness": 0.6,
-        "num_colors": 3, "palette_restriction": "pam",
-        "palette_oklab": _PALETTE_OKLAB, "palette_rgb": _PALETTE_RGB,
-    }
-    r1 = client.post("/filters/lineart", json=body)
-    r2 = client.post("/filters/lineart", json=body)
-    assert r1.status_code == 200 and r2.status_code == 200
-    palette_hex = {f"#{r:02x}{g:02x}{b:02x}" for r, g, b in _PALETTE_RGB}
-    fills = _lineart_fills(r1.json()["svg"])
-    assert fills and set(fills) <= palette_hex
-    assert r1.json()["svg"] == r2.json()["svg"], "pipeline must be deterministic"
+def test_min_gap_is_the_only_detail_lever():
+    """`min_paintable_mm` (→ min_radius) is the single detail limiter: a larger
+    floor yields monotonically fewer regions (coarser), a smaller floor more."""
+    pal_ok, pal_rgb = _palette(_RGBS)
+    img = _blocks_image(_RGBS, block=60)
+    counts = []
+    for mr in (2.0, 8.0, 20.0):
+        _, nreg, _ = lineart_to_svg(
+            img, line_thickness=1.0, blur_amount=0, smoothness=0.4,
+            palette_oklab=pal_ok, palette_rgb=pal_rgb, min_radius=mr, work_edge=512,
+        )
+        counts.append(nreg)
+    assert counts[0] >= counts[1] >= counts[2], f"region count must fall as min_radius rises: {counts}"
+
+
+def test_lineart_is_deterministic():
+    pal_ok, pal_rgb = _palette(_RGBS)
+    img = _blocks_image(_RGBS)
+    kw = dict(line_thickness=1.0, blur_amount=1, smoothness=0.4,
+              palette_oklab=pal_ok, palette_rgb=pal_rgb, min_radius=4.0, work_edge=512)
+    a = lineart_to_svg(img, **kw)[0]
+    b = lineart_to_svg(img, **kw)[0]
+    assert a == b
+
+
+def test_lineart_runs_without_palette():
+    """Legacy/test fallback (prod always sends a palette): a k-means paint set is
+    used, the pipeline still produces a valid numbered SVG."""
+    img = _blocks_image(_RGBS)
+    svg, nreg, used = lineart_to_svg(
+        img, line_thickness=1.0, blur_amount=0, smoothness=0.4, min_radius=4.0, work_edge=512,
+    )
+    assert svg.lstrip().startswith("<?xml") and "<svg" in svg
+    assert used == []  # no palette → no palette indices reported

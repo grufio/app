@@ -4,7 +4,7 @@ import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 
 import { flattenToLam, l0Smooth } from "./l0-smooth"
-import type { PreviewImage } from "./lineart-preview"
+import type { PreviewImage } from "./linerate-preview"
 
 // Fixture generated from the server `_l0_smooth` (filter-service/app/linerate.py)
 // on a fixed 28×20 structured image at flatten=0.25. Regenerate with the Python

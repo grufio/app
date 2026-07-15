@@ -50,8 +50,6 @@ export async function lineArtImageAndActivate(args: {
     line_thickness: lineThickness,
     blur_amount: blurAmount,
     smoothness,
-    num_colors: numColors,
-    palette_restriction: paletteRestriction,
     color_mode: colorMode,
     min_paintable_mm: minPaintableMm,
   } = parsed.data
@@ -87,11 +85,11 @@ export async function lineArtImageAndActivate(args: {
   const contentW = region.plan.canvasPx.widthPx
   const contentH = region.plan.canvasPx.heightPx
 
-  // Convert the user's "min paintable gap (mm)" into vtracer's inscribed-circle
-  // radius threshold in source px. The gap is the CLEAR space between the black
-  // outlines; the stroke (line_thickness px) eats line_thickness/2 into the
-  // region on each side, so the region must be geometrically
-  // (gap + line_thickness) wide → radius = (gap_px + line_thickness) / 2.
+  // Convert the user's "min paintable gap (mm)" into the segmentation's
+  // inscribed-circle radius threshold in source px. The gap is the CLEAR space
+  // between the black outlines; the stroke (line_thickness px) eats
+  // line_thickness/2 into the region on each side, so the region must be
+  // geometrically (gap + line_thickness) wide → radius = (gap_px + line_thickness) / 2.
   // px/mm comes from the content rect's own pixel size vs its physical mm.
   const pxPerMm = region.displayMmW > 0 ? contentW / region.displayMmW : 0
   const minRadiusPx = Math.max(0, (minPaintableMm * pxPerMm + lineThickness) / 2)
@@ -112,11 +110,12 @@ export async function lineArtImageAndActivate(args: {
   try {
     const imageBase64 = contentBuffer.toString("base64")
 
-    // Palette-direct, same contract as linerate/pixelate/circulate: the service
-    // selects ≤num_colors real paints from this palette and snaps every pixel to
-    // the nearest selected paint before vtracer, so the SVG references real chips
-    // (not arbitrary median-cut bins). The set of indices used flows back so the
-    // mobile Colors sheet can list them.
+    // Palette-direct, same contract as linerate/pixelate/circulate — but line art
+    // uses the FULL palette (no colour reduction): every pixel snaps to its
+    // nearest chip of the whole palette before segmentation, so the SVG
+    // references real chips and the colour count emerges from the image. The set
+    // of indices used flows back so the mobile Colors sheet can list them.
+    // `work_edge` is left off deliberately — the service default (960) applies.
     const palette = await readTracePalette(supabase, colorMode)
 
     const callResult = await callFilterService({
@@ -127,10 +126,8 @@ export async function lineArtImageAndActivate(args: {
         line_thickness: lineThickness,
         blur_amount: blurAmount,
         smoothness,
-        num_colors: numColors,
         palette_oklab: palette.map((c) => c.oklab),
         palette_rgb: palette.map((c) => c.rgb),
-        palette_restriction: paletteRestriction,
         min_region_radius_px: minRadiusPx,
       },
     })

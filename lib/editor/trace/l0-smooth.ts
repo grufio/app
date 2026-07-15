@@ -13,7 +13,7 @@
  * (`linerate-preview.worker.ts`). It depends only on `flatten`, not `detail`.
  */
 import { fft2Real, ifft2Real, type Complex2D } from "./fft2"
-import type { PreviewImage } from "./lineart-preview"
+import type { PreviewImage } from "./linerate-preview"
 
 /** Mirror of `_flatten_to_lam`: flatten ∈ [0,1] → L0 strength ~0.002..0.047. */
 export function flattenToLam(flatten: number): number {

@@ -1,16 +1,17 @@
 /**
  * Client-side pipeline helpers for the LINERATE (paint-by-numbers) preview.
+ * Line Art reuses this same preview (it is the linerate model pinned to full
+ * palette + finest detail) via `lineartToLineratePreviewParams`.
  *
- * Unlike the sibling LINEART preview (vtracer/spline outlines, `lineart-preview.ts`),
- * linerate is a *labelling* problem: colour == region, and the `detail` slider
+ * Linerate is a *labelling* problem: colour == region, and the `detail` slider
  * drives the region COUNT via a facet min-area. This module is a fast, approximate
  * client mirror of the server's facet model
  * (`filter-service/app/linerate.py`): snap pixels to palette chips → connected
  * components → merge every facet below `min_area` into its most-similar-coloured
  * (strictly-larger) neighbour → final re-CC → flat fill + 1px outlines.
  *
- * It is deliberately NOT byte-parity with the server (Gaussian blur vs L0 flatten,
- * K-means vs coverage/PAM selection, a 384px buffer). The faithfulness we DO keep
+ * It is deliberately NOT byte-parity with the server (L0 flatten vs numpy FFT,
+ * coverage/PAM selection, a downscaled buffer). The faithfulness we DO keep
  * is that region granularity tracks the `detail`/`min_paintable_mm` dials — so the
  * preview answers "roughly how many regions will I get", which is the whole point
  * of having a preview. No per-region numbers (server-only).
@@ -18,6 +19,39 @@
 import { nearestPaletteIndex, type Oklab } from "@/lib/color/oklab"
 
 import type { PaletteChip } from "./trace-cell-colors"
+
+export type PreviewImage = {
+  width: number
+  height: number
+  /** RGBA, row-major, 4 bytes per pixel. */
+  rgba: Uint8ClampedArray
+}
+
+/**
+ * Draw `source` onto a scratch canvas at the downscaled resolution
+ * (max edge `maxEdgePx`, preserving aspect ratio) and read RGBA back.
+ * Returns `null` if a 2D context isn't available (jsdom-safe).
+ */
+export function loadAndDownscale(args: {
+  source: CanvasImageSource
+  sourceWidth: number
+  sourceHeight: number
+  maxEdgePx: number
+}): PreviewImage | null {
+  const { source, sourceWidth, sourceHeight, maxEdgePx } = args
+  if (sourceWidth <= 0 || sourceHeight <= 0) return null
+  const scale = Math.min(1, maxEdgePx / Math.max(sourceWidth, sourceHeight))
+  const w = Math.max(1, Math.round(sourceWidth * scale))
+  const h = Math.max(1, Math.round(sourceHeight * scale))
+  const work = document.createElement("canvas")
+  work.width = w
+  work.height = h
+  const ctx = work.getContext("2d", { willReadFrequently: true })
+  if (!ctx) return null
+  ctx.imageSmoothingEnabled = true
+  ctx.drawImage(source, 0, 0, sourceWidth, sourceHeight, 0, 0, w, h)
+  return { width: w, height: h, rgba: ctx.getImageData(0, 0, w, h).data }
+}
 
 // Mirror of the server `_detail_to_min_area` constants
 // (`filter-service/app/linerate.py`). A python-parity test asserts these stay
