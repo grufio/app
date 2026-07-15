@@ -26,7 +26,7 @@ construction. The front end runs at a capped WORKING resolution and the vector
 coordinates are scaled back to the content pixels; the watertight back half
 (`build_arcs` → `smooth_arc` → `assemble_faces`) is unchanged.
 
-Emits the same SVG contract as lineart (`<g id="regions">` with
+Emits the paint-by-numbers SVG contract (`<g id="regions">` with
 `<path fill stroke d/>` + `<g id="numbers">`), so the editor's
 `prepareTraceSvg` / `TraceInlineSvg` render it unchanged.
 """
@@ -561,18 +561,16 @@ def _paint_map_to_svg(
     X, hh, ww, width, height, sx, sy, sel_ok, sel_rgb, sel_pal_index,
     have_palette, min_area, smoothness, line_thickness, min_radius, phase,
 ):
-    """Shared back-half of the segmentation traces (linerate + lineart): snap
-    every pixel to its nearest SELECTED paint, merge sub-`min_area` facets into
-    the most similar-coloured neighbour (colour-preserving), vectorise via
-    watertight shared arcs, and place one distance-transform number per region.
-    The CALLER decides the paint set + `min_area` — linerate reduces to a
-    `num_colors` budget with a `detail`-widened floor, lineart uses the FULL
-    palette with `min_area` at the bare paintability floor (max detail)."""
+    """Back-half of the linerate segmentation: snap every pixel to its nearest
+    SELECTED paint, merge sub-`min_area` facets into the most similar-coloured
+    neighbour (colour-preserving), vectorise via watertight shared arcs, and place
+    one distance-transform number per region. The CALLER decides the paint set +
+    `min_area` — linerate reduces to a `num_colors` budget with a `detail`-widened
+    floor."""
     P = nearest_palette_indices(X, sel_ok).reshape(hh, ww).astype(np.int32)
     # Paintability is enforced by WIDTH, not just area: every region must hold an
     # inscribed disk of `min_radius` (scaled to work resolution), so thin slivers —
-    # which clear the area floor yet can't be painted — merge away too. Shared by
-    # linerate + lineart (both pass their own min_radius).
+    # which clear the area floor yet can't be painted — merge away too.
     min_radius_work = min_radius * (ww / width)
     labels, nreg, reg_sel = _facet_merge(
         P, len(sel_ok), sel_ok, min_area, min_radius_work=min_radius_work

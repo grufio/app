@@ -1,7 +1,5 @@
 /**
  * Client-side pipeline helpers for the LINERATE (paint-by-numbers) preview.
- * Line Art reuses this same preview (it is the linerate model pinned to full
- * palette + finest detail) via `lineartToLineratePreviewParams`.
  *
  * Linerate is a *labelling* problem: colour == region, and the `detail` slider
  * drives the region COUNT via a facet min-area. This module is a fast, approximate

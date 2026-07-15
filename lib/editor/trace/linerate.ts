@@ -4,8 +4,8 @@ import { paletteRestrictionSchema } from "./palette-restriction-schema"
 import type { TraceDefinition } from "./types"
 
 /**
- * Linerate — perceptual paint-by-numbers (P³), the sibling to `lineart`
- * (vtracer-based). The server pipeline makes colour == region in one step:
+ * Linerate — perceptual paint-by-numbers (P³). The server pipeline makes
+ * colour == region in one step:
  * L0 edge-preserving flatten → select ≤num_colors REAL paints from the fixed
  * palette → per-pixel paint assignment (convex Potts relaxation) → paintability
  * dissolve → shared-arc smoothing → distance-transform numbers. Adjacent
@@ -35,7 +35,7 @@ export const linerateSchema = z.object({
   // region stays paintable + holds its number. 0 = off.
   min_paintable_mm: z.coerce.number().min(0).max(20).default(4),
   // Which Munsell palette to select paints from — same contract as
-  // lineart / pixelate / circulate. "color" → lab_munsell, "bw" → lab_grays.
+  // pixelate / circulate. "color" → lab_munsell, "bw" → lab_grays.
   color_mode: z.enum(["color", "bw"]).default("color"),
   // Work resolution the server labels at (form fidelity vs latency). The bridge
   // maps this to the `work_edge` px the service uses; higher = finer region

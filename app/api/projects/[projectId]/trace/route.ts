@@ -1,7 +1,7 @@
 /**
  * Trace API surface (F21).
  *
- * Single-row-per-project Trace artefact (pixelate xor lineart).
+ * Single-row-per-project Trace artefact (pixelate xor linerate).
  * Replacing a Trace overwrites the row and tombstones the prior
  * output image; clearing deletes the row and re-activates the
  * fallback image (filter-tip or master).
@@ -36,7 +36,7 @@ type ApplyTraceRequest = {
 
 /** Resolve the trace's base image (cropped source bitmap) to a
  * signed-URL payload the client can pipe straight into Konva. Null
- * when the trace has no `base_image_id` (lineart) or the underlying
+ * when the trace has no `base_image_id` (linerate) or the underlying
  * row vanished — the editor falls back to the filter-tip in that
  * case. Server-side so the client only does one round-trip. */
 async function resolveTraceBaseImage(args: {

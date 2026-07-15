@@ -46,7 +46,7 @@ the existing 17 fit that profile.
 |---|---|---|
 | `/api/projects/[projectId]` | yes | yes |
 | `/api/projects/create` | yes | yes |
-| `/api/projects/[projectId]/filters/{numerate,lineart,pixelate}` | yes | yes |
+| `/api/projects/[projectId]/filters/{numerate,pixelate}` | yes | yes |
 | `/api/projects/[projectId]/images/filters` | yes | yes |
 | `/api/projects/[projectId]/images/filters/[filterId]` | yes | yes |
 | `/api/projects/[projectId]/images/filter-working-copy` | yes | yes |

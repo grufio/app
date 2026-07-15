@@ -59,8 +59,7 @@ export function jsonError(message: string, status: number, extra?: Record<string
     // Run logs access just to read the upstream message.
     if (
       stage === "pixelate_process" ||
-      stage === "circulate_process" ||
-      stage === "lineart_process"
+      stage === "circulate_process"
     ) {
       return message
     }

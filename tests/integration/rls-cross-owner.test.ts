@@ -53,8 +53,8 @@ async function seedAllOwnerTables(projectId: string) {
     kind: "trace_output",
     sourceImageId: fwcId,
   })
-  // lineart needs no trace_base row (pixelate's base_image_required_ck does).
-  await seedTrace({ supabase: service, projectId, outputImageId: traceOutId, kind: "lineart" })
+  // linerate needs no trace_base row (pixelate's base_image_required_ck does).
+  await seedTrace({ supabase: service, projectId, outputImageId: traceOutId, kind: "linerate" })
 
   const rows: Array<{ table: string; row: Record<string, unknown> }> = [
     { table: "project_grid", row: { project_id: projectId, color: "#000000", line_width_value: 1, spacing_x_value: 10, spacing_y_value: 10 } },

@@ -4,7 +4,7 @@ import { AppButton } from "@/components/ui/form-controls"
 
 /**
  * Cancel/Apply footer shared by all filter dialogs (pixelate,
- * lineart). Centralises the busy-state copy ("Applying…") and the
+ * linerate). Centralises the busy-state copy ("Applying…") and the
  * disabled-when-invalid wiring so that future filter forms get the
  * exact same UX without a copy/paste.
  */

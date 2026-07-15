@@ -13,7 +13,7 @@ export type FilterSelectOption = {
  * - `int` — numeric input that coerces to integer (default when omitted
  *   for fields with no `options`).
  * - `decimal` — numeric input that allows fractional values (e.g.
- *   lineart's smoothness slider).
+ *   linerate's smoothness slider).
  * - `boolean` — checkbox.
  * - `select` — dropdown driven by `options`.
  *
@@ -52,7 +52,7 @@ export type FilterDialogMeta = {
 /**
  * Per-render context the GenericFilterForm hands to bitmap-filter
  * hooks. Filters get image dimensions; that's all the bitmap side
- * needs. Trace operations (pixelate, lineart) have their own
+ * needs. Trace operations (pixelate, linerate) have their own
  * `TraceRenderContext` in `lib/editor/trace/types.ts` — kept
  * separate so the two surfaces can't cross-leak via the context
  * shape.

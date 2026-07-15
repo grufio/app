@@ -7,8 +7,8 @@
  * The paint-by-numbers labels stay in the DOM overlay ON TOP (see TraceInlineSvg),
  * preserving the cells < grid < numbers order.
  *
- * Non-interactive: pixelate cells carry no `data-trace-region` (that is a lineart
- * feature), so nothing here listens. Lineart/circulate have no `<g id="grid">`, so
+ * Non-interactive: pixelate cells carry no `data-trace-region` (that is a linerate
+ * feature), so nothing here listens. Linerate/circulate have no `<g id="grid">`, so
  * `parsePixelateTraceSvg` returns null for them and this overlay never mounts.
  *
  * Geometry comes straight from the trace SVG (authoritative, drift-free). The

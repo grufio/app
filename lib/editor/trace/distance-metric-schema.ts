@@ -23,8 +23,8 @@
  *     metric. KY + FS continue to use squared-Euclidean argmin in
  *     palette space (= OKLab) regardless — refactoring them to be
  *     metric-aware is a separate follow-up (see plan).
- *   - `lineart.snap_path_fills_to_palette` (vtracer fill snap) honours
- *     the metric too — Lineart has no UI selector yet, but the wiring
+ *   - `linerate.snap_path_fills_to_palette` (vtracer fill snap) honours
+ *     the metric too — Linerate has no UI selector yet, but the wiring
  *     keeps the snap consistent if the request body carries it.
  *   - `pre_snap_chroma_scale` (the OKLCh chroma boost from #400) is
  *     SKIPPED when `distance_metric == "ciede2000"`. The boost is

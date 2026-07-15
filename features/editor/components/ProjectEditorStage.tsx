@@ -118,7 +118,7 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
   /** The trace's own frozen display rect (µpx, text-encoded). The
    * overlay derives its SIZE/ASPECT from this rect, decoupled from
    * the live canvas transform (Invariant 2/3). "0" on width/height is
-   * the legacy/lineart signal → canvas keeps the prior behaviour. */
+   * the legacy/linerate signal → canvas keeps the prior behaviour. */
   traceDisplayRect?: {
     display_x_px_u: string
     display_y_px_u: string

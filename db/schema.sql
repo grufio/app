@@ -1763,8 +1763,8 @@ CREATE TABLE IF NOT EXISTS "public"."project_image_trace" (
     "display_width_px_u" "text" DEFAULT '0'::"text" NOT NULL,
     "display_height_px_u" "text" DEFAULT '0'::"text" NOT NULL,
     "palette_indices_used" integer[],
-    CONSTRAINT "project_image_trace_base_image_required_ck" CHECK ((("kind" = ANY (ARRAY['lineart'::"text", 'linerate'::"text"])) OR ("base_image_id" IS NOT NULL))),
-    CONSTRAINT "project_image_trace_kind_ck" CHECK (("kind" = ANY (ARRAY['pixelate'::"text", 'circulate'::"text", 'lineart'::"text", 'linerate'::"text"])))
+    CONSTRAINT "project_image_trace_base_image_required_ck" CHECK ((("kind" = ANY (ARRAY['linerate'::"text"])) OR ("base_image_id" IS NOT NULL))),
+    CONSTRAINT "project_image_trace_kind_ck" CHECK (("kind" = ANY (ARRAY['pixelate'::"text", 'circulate'::"text", 'linerate'::"text"])))
 );
 
 

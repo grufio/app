@@ -217,7 +217,7 @@ export async function seedTrace(args: {
   projectId: string
   outputImageId: string
   baseImageId?: string | null
-  kind?: "pixelate" | "lineart"
+  kind?: "pixelate" | "linerate"
 }): Promise<void> {
   const { supabase, projectId, outputImageId, baseImageId, kind } = args
   const { error } = await supabase.from("project_image_trace").insert({

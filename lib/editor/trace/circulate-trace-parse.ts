@@ -20,7 +20,7 @@
  * We render cells (filled ellipses, + optional per-cell contour stroke) and frames
  * (thin outlines) on the Konva canvas, and leave the numbers group in the DOM
  * overlay on top. Only circulate carries `<g id="frames">` (exclusive vs pixelate's
- * `<g id="grid">`); pixelate/lineart return `null` here so this overlay stays inert.
+ * `<g id="grid">`); pixelate/linerate return `null` here so this overlay stays inert.
  *
  * All coordinates are in crop-pixel (viewBox) space. Regex-based on purpose (mirrors
  * `pixelate-trace-parse.ts`): the SVG comes from a deterministic Python pipeline and

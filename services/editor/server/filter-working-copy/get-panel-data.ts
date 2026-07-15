@@ -190,7 +190,7 @@ export async function getFilterPanelData(args: {
 
   // Trace overrides the filter chain tip as the displayed canvas
   // image. Trace is the final product artefact (paint-by-numbers
-  // SVG); applying pixelate or lineart means "show me this", not
+  // SVG); applying pixelate or linerate means "show me this", not
   // "stack this on top of pixelate". Filter chain is still
   // returned in `stack` so the Filter sidebar reflects pixelate
   // history.

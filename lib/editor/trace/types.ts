@@ -1,7 +1,7 @@
 /**
  * Trace registry types.
  *
- * The Trace surface (pixelate, lineart) reuses the FilterDefinition
+ * The Trace surface (pixelate, linerate) reuses the FilterDefinition
  * shape but with its own render context — Trace pulls superpixel
  * dimensions inherited from a prior Pixelate filter; bitmap
  * filters never see those.

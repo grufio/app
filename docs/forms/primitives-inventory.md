@@ -46,7 +46,7 @@ themselves.
 
 ---
 
-## Consumers (14 files import from `@/components/ui/form-controls`)
+## Consumers (13 files import from `@/components/ui/form-controls`)
 
 Editor right-panel:
 - `ProjectEditorRightPanel.tsx`
@@ -60,7 +60,7 @@ Editor toolbars / nav:
 
 Filter dialogs:
 - `filter-forms/filter-form-footer.tsx`
-- `lineart-form.tsx`, `numerate-form.tsx`, `pixelate-form.tsx`
+- `numerate-form.tsx`, `pixelate-form.tsx`
 
 Other editor:
 - `numeric-input.tsx` (legacy helper)

@@ -3,7 +3,7 @@
  * a typed main entry (`wasm_vtracer` → `wasm_vtracer.js`) that eagerly
  * `import`s the `.wasm` (bundler-target magic). We instead import the pure-JS
  * `_bg.js` glue directly and instantiate the wasm by hand (see
- * `lineart-vtracer-wasm.ts`), which is bundler-agnostic and worker-safe — but
+ * `linerate-vtracer-wasm.ts`), which is bundler-agnostic and worker-safe — but
  * `_bg.js` has no `.d.ts`. Re-export the main entry's public types here and
  * add the internal wiring hook the manual instantiation needs.
  */

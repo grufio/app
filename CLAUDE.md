@@ -6,7 +6,7 @@ Keep it short (< 200 lines). Deep-dives belong in [docs/domains/](docs/domains/)
 ## What gruf.io is
 
 gruf.io is a graphical editor for image-based pattern generation
-(pixelate, lineart, numerate filters → vector/raster output for
+(pixelate, circulate, linerate filters → vector/raster output for
 print/PDF). Single-user app, hosted on Vercel + Supabase + a small
 Cloud Run filter-service in Python.
 

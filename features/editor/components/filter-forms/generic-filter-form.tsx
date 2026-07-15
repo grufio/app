@@ -9,7 +9,7 @@
  * after the schema fields, and the `transformBeforeSubmit` hook to
  * inject context-only params right before `onApply`.
  *
- * Replaces the per-filter `lineart-form.tsx` / `pixelate-form.tsx`
+ * Replaces the per-filter `linerate-form.tsx` / `pixelate-form.tsx`
  * (~410 LOC combined) without losing label, description,
  * validation, or live-helper behaviour.
  */

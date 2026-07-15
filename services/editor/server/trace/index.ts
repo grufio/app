@@ -1,6 +1,6 @@
 /**
  * Trace surface — mutually-exclusive bitmap-to-vector operations
- * (pixelate, lineart). One row per project in
+ * (pixelate, linerate). One row per project in
  * `project_image_trace`; applying replaces the prior row and
  * tombstones the prior output image.
  *
@@ -13,7 +13,6 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database, Json } from "@/lib/supabase/database.types"
 import { TRACE_REGISTRY, type RegisteredTraceId } from "@/lib/editor/trace/registry"
 import { circulateSchema } from "@/lib/editor/trace/circulate"
-import { lineartSchema } from "@/lib/editor/trace/lineart"
 import { linerateSchema } from "@/lib/editor/trace/linerate"
 import { pixelateSchema } from "@/lib/editor/trace/pixelate"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
@@ -21,7 +20,6 @@ import { getEditorTargetImageRow, resolveEditorTargetImageRows } from "@/lib/sup
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role"
 import { activateProjectImageOnly } from "@/services/editor/server/activate-project-image"
 import { circulateImageAndActivate } from "@/services/editor/server/trace/circulate"
-import { lineArtImageAndActivate } from "@/services/editor/server/trace/lineart"
 import { linerateImageAndActivate } from "@/services/editor/server/trace/linerate"
 import { pixelateImageAndActivate } from "@/services/editor/server/trace/pixelate"
 
@@ -35,7 +33,6 @@ export type TraceOpFailure = {
     | "source_download"
     | "pixelate_process"
     | "circulate_process"
-    | "lineart_process"
     | "linerate_process"
     | "service_unavailable"
     | "auth"
@@ -56,16 +53,16 @@ export type ProjectTraceRow = {
   output_image_id: string
   /** Pixelate writes a paired bitmap (the source cropped to the
    * cell grid) as a `trace_base` image row and links it here.
-   * Null for trace kinds without a crop (lineart). */
+   * Null for trace kinds without a crop (linerate). */
   base_image_id: string | null
   /** Unique palette chip indices the snap step emitted in the
    * output (sorted ascending). Null for legacy rows pre-migration
-   * and for lineart (no palette). */
+   * and for linerate (no palette). */
   palette_indices_used: number[] | null
   /** The trace's own frozen display rect (µpx, text-encoded): the
    * master/working_copy display rect that was authoritative at apply
    * time. The overlay renders from THIS rect, decoupled from the live
-   * canvas transform (Invariant 2). Legacy rows + lineart carry "0" —
+   * canvas transform (Invariant 2). Legacy rows + linerate carry "0" —
    * the editor falls back to the master-state render path when
    * `display_width_px_u` is "0". */
   display_x_px_u: string
@@ -102,14 +99,12 @@ function parseTraceKind(value: unknown): RegisteredTraceId | null {
 const TRACE_SCHEMAS = {
   pixelate: pixelateSchema,
   circulate: circulateSchema,
-  lineart: lineartSchema,
   linerate: linerateSchema,
 } as const satisfies Record<RegisteredTraceId, unknown>
 
 const TRACE_HANDLERS = {
   pixelate: pixelateImageAndActivate,
   circulate: circulateImageAndActivate,
-  lineart: lineArtImageAndActivate,
   linerate: linerateImageAndActivate,
 } as const satisfies Record<RegisteredTraceId, unknown>
 
@@ -136,7 +131,7 @@ function rowToTrace(row: {
     output_image_id: row.output_image_id,
     base_image_id: row.base_image_id,
     palette_indices_used: row.palette_indices_used,
-    // "0" is the legacy/lineart signal (see ProjectTraceRow); a null
+    // "0" is the legacy/linerate signal (see ProjectTraceRow); a null
     // from the DB layer is coalesced to the same signal so the client
     // contract is "always a string, '0' means no fixed rect".
     display_x_px_u: row.display_x_px_u ?? "0",
@@ -264,7 +259,7 @@ export async function applyProjectTrace(args: {
   } else {
     // Single-artifact model: at most one filter per project, so its output is
     // the trace source. project_image_filters is filter rows only; pixelate /
-    // lineart trace rows live on project_image_trace and never appear here.
+    // linerate trace rows live on project_image_trace and never appear here.
     const { data: chainRows } = await supabase
       .from("project_image_filters")
       .select("output_image_id")
@@ -340,7 +335,7 @@ export async function applyProjectTrace(args: {
         /** Unique palette chip indices that the filter-service snap
          * step actually emitted in the output (sorted ascending).
          * Null/undefined for trace kinds that don't reference the
-         * palette (lineart). */
+         * palette (linerate). */
         paletteIndicesUsed?: number[] | null
       }
     | TraceOpFailure
@@ -353,7 +348,7 @@ export async function applyProjectTrace(args: {
   // The handler resolved it from the authoritative project_image_state
   // read at apply time. A null x/y means no persisted origin → "0"
   // (centre at the canvas's default paint origin). Handlers that don't
-  // produce a rect (lineart) leave the columns at their DEFAULT '0'.
+  // produce a rect (linerate) leave the columns at their DEFAULT '0'.
   const displayRect = created.displayRectPxU
     ? {
         display_x_px_u: (created.displayRectPxU.xPxU ?? 0n).toString(),
@@ -386,14 +381,14 @@ export async function applyProjectTrace(args: {
         output_image_id: created.id,
         base_image_id: newBaseId,
         // Set of palette chips actually used in the snapped output.
-        // NULL for lineart (no palette); empty array stays as []. Lets
+        // NULL for linerate (no palette); empty array stays as []. Lets
         // the Colors sheet render only the chips that show up in the
         // image, not the full 128-chip palette.
         palette_indices_used: created.paletteIndicesUsed ?? null,
         // Only spread when the handler produced a rect; otherwise the
         // columns keep their DEFAULT '0' on insert (and their prior
-        // value is overwritten with '0' on a lineart replace, which is
-        // correct — lineart has no fixed crop rect).
+        // value is overwritten with '0' on a linerate replace, which is
+        // correct — linerate has no fixed crop rect).
         ...(displayRect ?? {
           display_x_px_u: "0",
           display_y_px_u: "0",

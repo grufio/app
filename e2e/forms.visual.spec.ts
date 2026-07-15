@@ -115,12 +115,12 @@ test.describe("forms — visual regressions", () => {
   // S4 follow-up: filter dialogs + create-project + restore/delete modals.
   // Update baselines via `npm run test:e2e:visual:update`.
 
-  // Trace dialog (Pixelate, Line Art): switch to Trace tab → "Add trace"
+  // Trace dialog (Pixelate, Linerate): switch to Trace tab → "Add trace"
   // → pick the kind → "Select". Card labels come from the trace registry
-  // (`lib/editor/trace/pixelate.ts` → "Pixelate", `lib/editor/trace/lineart.ts`
-  // → "Line Art").
+  // (`lib/editor/trace/pixelate.ts` → "Pixelate", `lib/editor/trace/linerate.ts`
+  // → "Linerate").
   //
-  // Asymmetry between the two trace dialogs: the Line Art controller renders a
+  // Asymmetry between the two trace dialogs: the Linerate controller renders a
   // visible `<DialogTitle>{title}</DialogTitle>` heading via BaseFilterController
   // (`features/editor/components/BaseFilterController.tsx:128`), whereas the
   // Pixelate dialog renders `<DialogTitle className="sr-only">Pixelate</DialogTitle>`
@@ -129,7 +129,7 @@ test.describe("forms — visual regressions", () => {
   // wait therefore fails for Pixelate. Both DialogTitles still become the
   // dialog's accessible name, so wait on `getByRole("dialog", { name })`, which
   // is robust for both paths.
-  async function openTraceDialog(page: import("@playwright/test").Page, name: "Line Art" | "Pixelate") {
+  async function openTraceDialog(page: import("@playwright/test").Page, name: "Linerate" | "Pixelate") {
     await page.setExtraHTTPHeaders({ "x-e2e-test": "1", "x-e2e-user": "1" })
     await setupMockRoutes(page, { withImage: true })
     await page.goto(`/projects/${PROJECT_ID}`)
@@ -141,13 +141,6 @@ test.describe("forms — visual regressions", () => {
     await page.getByRole("button", { name: "Select", exact: true }).click()
     await expect(page.getByRole("dialog", { name })).toBeVisible()
   }
-
-  test("trace dialog — lineart", async ({ page }) => {
-    await openTraceDialog(page, "Line Art")
-    await expect(page.getByRole("dialog", { name: "Line Art" })).toHaveScreenshot("trace-lineart-dialog.png", {
-      maxDiffPixels: 200,
-    })
-  })
 
   test("trace dialog — pixelate", async ({ page }) => {
     await openTraceDialog(page, "Pixelate")

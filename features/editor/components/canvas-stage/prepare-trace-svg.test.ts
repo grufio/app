@@ -35,8 +35,8 @@ const CIRCULATE_SVG = `<?xml version="1.0" encoding="UTF-8"?>
   </g>
 </svg>`
 
-// Lineart: <path> regions, no grid — nothing is stripped; paths get annotated.
-const LINEART_SVG = `<?xml version="1.0" encoding="UTF-8"?>
+// Linerate: <path> regions, no grid — nothing is stripped; paths get annotated.
+const LINERATE_SVG = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="500" height="500" viewBox="0 0 500 500">
   <g id="regions">
     <path d="M 0 0 L 100 0 L 100 100 Z" fill="#abcdef" stroke="black" stroke-width="2"/>
@@ -88,8 +88,8 @@ describe("prepareTraceSvg", () => {
     expect(out.html).toMatch(/<\/svg>/)
   })
 
-  it("lineart: annotates every <path> with data-trace-region + data-fill; strips nothing", () => {
-    const out = prepareTraceSvg(LINEART_SVG)!
+  it("linerate: annotates every <path> with data-trace-region + data-fill; strips nothing", () => {
+    const out = prepareTraceSvg(LINERATE_SVG)!
     const matches = out.html.match(/data-trace-region=""/g) ?? []
     expect(matches).toHaveLength(2)
     expect(out.html).toMatch(/data-fill="#abcdef"/)
@@ -100,8 +100,8 @@ describe("prepareTraceSvg", () => {
     expect(out.html).toMatch(/stroke-width="2"/)
   })
 
-  it("keeps the original RGB fill on every lineart <path>", () => {
-    const out = prepareTraceSvg(LINEART_SVG)!
+  it("keeps the original RGB fill on every linerate <path>", () => {
+    const out = prepareTraceSvg(LINERATE_SVG)!
     expect(out.html).toMatch(/<path[^>]*fill="#abcdef"[^>]*data-trace-region/)
     expect(out.html).toMatch(/<path[^>]*fill="#123456"[^>]*data-trace-region/)
   })

@@ -181,7 +181,7 @@ def translate_palette_indices(
     ]
 
 
-# --- paint selection (shared by linerate + lineart) ------------------------
+# --- paint selection (shared by pixelate/circulate/linerate) ------------------------
 
 _SELECT_SAMPLE = 12000   # subsample pixels for the palette-selection reduction
 _SELECT_KMEANS_ITERS = 15
@@ -198,8 +198,8 @@ def select_paints(okf_flat, rgb_flat, num_colors, pal_ok, pal_rgb, restriction, 
     paint i (−1 if no palette). Deterministic (top_n/PAM have no RNG). Without a
     palette (tests) falls back to plain unweighted k-means centroids.
 
-    Shared by linerate (per-pixel snap → facets) and lineart (per-pixel snap →
-    vtracer). Lives here, not in linerate, so lineart doesn't pull in cv2/the
+    Shared by linerate (per-pixel snap → facets) and linerate (per-pixel snap →
+    vtracer). Lives here, not in linerate, so linerate doesn't pull in cv2/the
     segmentation machinery."""
     K = max(2, int(num_colors))
     X = okf_flat.astype(np.float32)

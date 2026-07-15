@@ -16,7 +16,7 @@ export type ColorsSurfaceScopeProps = {
 }
 
 export function ColorsSurfaceScope({ trace }: ColorsSurfaceScopeProps) {
-  // All three trace kinds (pixelate, circulate, lineart) carry
+  // All three trace kinds (pixelate, circulate, linerate) carry
   // color_mode in params and snap on Munsell. Default "color" when
   // missing (pre-snap legacy rows never reach this branch — they have
   // palette_indices_used=null and short-circuit to the "re-run" empty

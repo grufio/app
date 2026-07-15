@@ -1,5 +1,5 @@
 /**
- * Pure helpers shared by filter services (pixelate / lineart / bw).
+ * Pure helpers shared by filter services (pixelate / linerate / bw).
  *
  * The filter pipelines themselves call out to the Python service over HTTP and
  * are awkward to unit-test, but the IO-free pieces (input rounding, output
@@ -20,7 +20,7 @@ export function toInt(value: number): number | null {
  * the failure branch's `stage` discriminates by filter so callers can
  * tell *which* filter's process step blew up. The generic parameter is
  * the filter-specific process stage literal (`"pixelate_process"`,
- * `"lineart_process"`, ...).
+ * `"linerate_process"`, ...).
  */
 export type FilterFailStage<TProcess extends string> =
   | "validation"

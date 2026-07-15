@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest"
 
 import { circulateSchema } from "./circulate"
-import { lineartSchema } from "./lineart"
 import { pixelateSchema } from "./pixelate"
 import { TRACE_REGISTRY } from "./registry"
 
@@ -89,12 +88,6 @@ describe("TRACE_REGISTRY", () => {
     expect(TRACE_REGISTRY.circulate.id).toBe("circulate")
     expect(TRACE_REGISTRY.circulate.label).toBe("Circulate")
     expect(TRACE_REGISTRY.circulate.schema).toBe(circulateSchema)
-  })
-
-  it("exposes lineart", () => {
-    expect(TRACE_REGISTRY.lineart.id).toBe("lineart")
-    expect(TRACE_REGISTRY.lineart.label).toBe("Line Art")
-    expect(TRACE_REGISTRY.lineart.schema).toBe(lineartSchema)
   })
 })
 
@@ -199,63 +192,5 @@ describe("pixelateSchema", () => {
         show_colors: false,
       }),
     ).toEqual({ ...PIXELATE_DEFAULTS, supercell_width_mm: 5, supercell_height_mm: 5 })
-  })
-})
-
-describe("lineartSchema", () => {
-  it("applies defaults matching frontend + Python", () => {
-    // Line Art uses the FULL palette — no num_colors / palette_restriction knob.
-    expect(lineartSchema.parse({})).toEqual({
-      line_thickness: 1,
-      blur_amount: 3,
-      smoothness: 0.6,
-      min_paintable_mm: 4,
-      color_mode: "color",
-    })
-  })
-
-  it("coerces numeric strings", () => {
-    const out = lineartSchema.parse({
-      line_thickness: "3",
-      blur_amount: "5",
-      smoothness: "0.4",
-    })
-    expect(out.line_thickness).toBe(3)
-    expect(out.blur_amount).toBe(5)
-    expect(out.smoothness).toBeCloseTo(0.4)
-  })
-
-  it("rejects line_thickness out of [0.1, 10]", () => {
-    expect(lineartSchema.safeParse({ line_thickness: 0 }).success).toBe(false)
-    expect(lineartSchema.safeParse({ line_thickness: 0.05 }).success).toBe(false)
-    expect(lineartSchema.safeParse({ line_thickness: 11 }).success).toBe(false)
-  })
-
-  it("accepts fractional line_thickness down to 0.1", () => {
-    expect(lineartSchema.safeParse({ line_thickness: 0.1 }).success).toBe(true)
-    expect(lineartSchema.parse({ line_thickness: 0.5 }).line_thickness).toBe(0.5)
-  })
-
-  it("rejects blur_amount out of [0, 20]", () => {
-    expect(lineartSchema.safeParse({ blur_amount: -1 }).success).toBe(false)
-    expect(lineartSchema.safeParse({ blur_amount: 21 }).success).toBe(false)
-  })
-
-  it("rejects smoothness out of [0, 1]", () => {
-    expect(lineartSchema.safeParse({ smoothness: -0.01 }).success).toBe(false)
-    expect(lineartSchema.safeParse({ smoothness: 1.01 }).success).toBe(false)
-  })
-
-  it("accepts smoothness at boundaries 0 and 1", () => {
-    expect(lineartSchema.safeParse({ smoothness: 0 }).success).toBe(true)
-    expect(lineartSchema.safeParse({ smoothness: 1 }).success).toBe(true)
-  })
-
-  it("has no colour-reduction knob (num_colors / palette_restriction stripped)", () => {
-    // Full-palette model: these fields are gone from the schema. Legacy rows that
-    // still carry them must parse (zod strips unknown keys) but not surface them.
-    const out = lineartSchema.parse({ num_colors: 12, palette_restriction: "pam" })
-    expect(out).not.toHaveProperty("num_colors")
-    expect(out).not.toHaveProperty("palette_restriction")
   })
 })
