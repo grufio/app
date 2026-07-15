@@ -171,12 +171,98 @@ export type SegmentedRegions = {
 }
 
 /**
+ * 1D squared Euclidean distance transform (Felzenszwalb & Huttenlocher 2012):
+ * the lower envelope of the parabolas rooted at each sample of cost `f`, i.e.
+ * `d[q] = min_p ((q - p)^2 + f[p])`. O(n). Scratch arrays `v`/`z` are reused
+ * across calls to avoid per-row allocation.
+ */
+function edt1d(f: Float64Array, n: number, d: Float64Array, v: Int32Array, z: Float64Array): void {
+  let k = 0
+  v[0] = 0
+  z[0] = -Infinity
+  z[1] = Infinity
+  for (let q = 1; q < n; q += 1) {
+    let s = (f[q] + q * q - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k])
+    while (s <= z[k]) {
+      k -= 1
+      s = (f[q] + q * q - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k])
+    }
+    k += 1
+    v[k] = q
+    z[k] = s
+    z[k + 1] = Infinity
+  }
+  k = 0
+  for (let q = 0; q < n; q += 1) {
+    while (z[k + 1] < q) k += 1
+    const dq = q - v[k]
+    d[q] = dq * dq + f[v[k]]
+  }
+}
+
+/**
+ * Per-region paintability-by-WIDTH test — client mirror of the server's
+ * `_facet_has_width`. A region is paintable only if it CONTAINS an inscribed disk
+ * of radius `minRadiusPx` — some interior pixel at least that far from the region
+ * boundary. Area alone doesn't imply width: a long thin sliver clears `minArea`
+ * yet is too narrow to paint. Boundary = a pixel whose 4-neighbour is a different
+ * region (or the image edge); squared-EDT to it, then flag every region owning a
+ * pixel with dist ≥ minRadiusPx. Returns Uint8Array(regionCount): 1 = wide enough.
+ */
+function regionWidthOk(
+  labels: Int32Array,
+  w: number,
+  h: number,
+  regionCount: number,
+  minRadiusPx: number,
+): Uint8Array {
+  const n = w * h
+  const INF = 1e20
+  const f = new Float64Array(n)
+  for (let y = 0; y < h; y += 1) {
+    for (let x = 0; x < w; x += 1) {
+      const i = y * w + x
+      const l = labels[i]
+      const boundary =
+        x === 0 || y === 0 || x === w - 1 || y === h - 1 ||
+        labels[i - 1] !== l || labels[i + 1] !== l ||
+        labels[i - w] !== l || labels[i + w] !== l
+      f[i] = boundary ? 0 : INF
+    }
+  }
+  const maxWH = Math.max(w, h)
+  const line = new Float64Array(maxWH)
+  const dline = new Float64Array(maxWH)
+  const v = new Int32Array(maxWH)
+  const z = new Float64Array(maxWH + 1)
+  for (let x = 0; x < w; x += 1) {
+    for (let y = 0; y < h; y += 1) line[y] = f[y * w + x]
+    edt1d(line, h, dline, v, z)
+    for (let y = 0; y < h; y += 1) f[y * w + x] = dline[y]
+  }
+  for (let y = 0; y < h; y += 1) {
+    const base = y * w
+    for (let x = 0; x < w; x += 1) line[x] = f[base + x]
+    edt1d(line, w, dline, v, z)
+    for (let x = 0; x < w; x += 1) f[base + x] = dline[x]
+  }
+  const r2 = minRadiusPx * minRadiusPx
+  const ok = new Uint8Array(regionCount)
+  for (let i = 0; i < n; i += 1) {
+    if (f[i] >= r2) ok[labels[i]] = 1
+  }
+  return ok
+}
+
+/**
  * Full linerate segmentation approximation: connected components → merge facets
- * below `minArea` into their most-similar-coloured STRICTLY-LARGER neighbour
- * (ties → smaller id) → final re-CC. The strictly-larger orientation makes the
- * merge target graph a forest (acyclic), which prevents two mutually-nearest
- * small facets from oscillating forever — the same trick the server's
- * `_facet_merge` uses. `chipOklab[chipIndex]` supplies each paint's colour.
+ * below `minArea` — or, when `minRadiusPx > 0`, narrower than that inscribed-disk
+ * radius (a thin sliver, however long) — into their most-similar-coloured
+ * STRICTLY-LARGER neighbour (ties → smaller id) → final re-CC. The strictly-larger
+ * orientation makes the merge target graph a forest (acyclic), which prevents two
+ * mutually-nearest small facets from oscillating forever — the same trick the
+ * server's `_facet_merge` uses. `chipOklab[chipIndex]` supplies each paint's
+ * colour. `minRadiusPx` mirrors the server width gate (0 = area only).
  */
 export function segmentRegions(
   paintMap: Int32Array,
@@ -184,17 +270,23 @@ export function segmentRegions(
   h: number,
   chipOklab: ReadonlyArray<Oklab>,
   minArea: number,
+  minRadiusPx = 0,
 ): SegmentedRegions {
   const cc = connectedComponents(paintMap, w, h)
   const { labels } = cc
   let { regionCount, regionPaint, regionArea } = cc
 
   for (let round = 0; round < MERGE_ROUNDS; round += 1) {
+    // Which facets still need merging this round: below the detail-driven area
+    // floor OR — when a paintability width is set — too narrow to hold an inscribed
+    // disk of `minRadiusPx` (a thin sliver). Recomputed per round (labels change).
+    const widthOk = minRadiusPx > 0 ? regionWidthOk(labels, w, h, regionCount, minRadiusPx) : null
+    const tooSmall = new Uint8Array(regionCount)
     let anySmall = false
     for (let r = 0; r < regionCount; r += 1) {
-      if (regionArea[r] < minArea) {
+      if (regionArea[r] < minArea || (widthOk !== null && widthOk[r] === 0)) {
+        tooSmall[r] = 1
         anySmall = true
-        break
       }
     }
     if (!anySmall) break
@@ -228,7 +320,7 @@ export function segmentRegions(
     for (let r = 0; r < regionCount; r += 1) target[r] = r
     let merged = false
     for (let s = 0; s < regionCount; s += 1) {
-      if (regionArea[s] >= minArea) continue
+      if (!tooSmall[s]) continue
       const sc = chipOklab[regionPaint[s]]
       let best = -1
       let bestD = Infinity

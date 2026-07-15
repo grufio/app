@@ -132,6 +132,34 @@ def _facet_adjacency(labels: np.ndarray, nreg: int):
     return (u // nreg).astype(np.int32), (u % nreg).astype(np.int32)
 
 
+def _facet_has_width(labels: np.ndarray, nreg: int, min_radius_work: float) -> np.ndarray:
+    """Per-facet paintability-by-WIDTH test (vectorised, one EDT per call).
+
+    A facet is paintable only if it CONTAINS an inscribed disk of radius
+    `min_radius_work` — i.e. some interior pixel sits at least that far from the
+    facet's own boundary. Area alone doesn't imply width: a long thin sliver
+    clears the `min_area` floor yet is too narrow to paint. Build the label-
+    boundary mask (a pixel whose 4-neighbour is a different facet, plus the image
+    edge), take the Euclidean distance transform to that boundary, and flag every
+    facet owning at least one pixel that far in. Returns a bool array (nreg,).
+    No per-facet Python loop — keeps the merge round vectorised (Cloud-Run hotspot).
+    """
+    diff_h = labels[:, :-1] != labels[:, 1:]
+    diff_v = labels[:-1, :] != labels[1:, :]
+    boundary = np.zeros(labels.shape, bool)
+    boundary[:, :-1] |= diff_h
+    boundary[:, 1:] |= diff_h
+    boundary[:-1, :] |= diff_v
+    boundary[1:, :] |= diff_v
+    boundary[0, :] = boundary[-1, :] = boundary[:, 0] = boundary[:, -1] = True
+    edt = cv2.distanceTransform((~boundary).astype(np.uint8), cv2.DIST_L2, 3)
+    has = np.zeros(nreg, bool)
+    wide = edt >= float(min_radius_work)
+    if wide.any():
+        has[np.unique(labels[wide])] = True
+    return has
+
+
 def _facet_merge(
     P: np.ndarray,
     nsel: int,
@@ -139,10 +167,13 @@ def _facet_merge(
     min_area: float,
     l_threshold: float = _MERGE_L_THRESHOLD,
     l_penalty: float = _MERGE_L_PENALTY,
+    min_radius_work: float = 0.0,
 ):
     """drake7707-style region cleanup. Connected-component facets of the paint
-    map, then merge every facet below `min_area` into a neighbour, iterating to
-    convergence — clean regions without an optimiser.
+    map, then merge every facet below `min_area` — or, when `min_radius_work > 0`,
+    any facet narrower than that inscribed-disk radius (a thin sliver, however
+    long) — into a neighbour, iterating to convergence — clean regions without an
+    optimiser.
 
     Merge admissibility is LIGHTNESS-AWARE, to stop a connected dark structure
     from percolating over the rounds and swallowing paintable bright islands (the
@@ -193,7 +224,14 @@ def _facet_merge(
 
     for _ in range(_FACET_MERGE_ROUNDS):
         area = np.bincount(labels.ravel(), minlength=nreg).astype(np.int64)
-        if not (area < min_area).any():
+        # A facet needs merging if it's below the detail-driven area floor OR —
+        # when a paintability width is set — it holds no inscribed disk of radius
+        # `min_radius_work` (a thin sliver, however large its area). Width is the
+        # real paintability limit; area alone lets long slivers survive.
+        too_small = area < min_area
+        if min_radius_work > 0.0:
+            too_small = too_small | ~_facet_has_width(labels, nreg, min_radius_work)
+        if not too_small.any():
             break
         pa, pb = _facet_adjacency(labels, nreg)
         if pa.size == 0:
@@ -207,7 +245,7 @@ def _facet_merge(
         # every merge points to a strictly-larger node (tie → smaller id) →
         # forest → acyclic → pointer-jumping converges.
         larger = (area[dst] > area[src]) | ((area[dst] == area[src]) & (dst < src))
-        small = area[src] < min_area
+        small = too_small[src]
 
         # M2 — coalesce like-lightness small facets first (one growth generation
         # per round, adjacency recomputed after). Bright clusters reach min_area
@@ -531,7 +569,14 @@ def _paint_map_to_svg(
     `num_colors` budget with a `detail`-widened floor, lineart uses the FULL
     palette with `min_area` at the bare paintability floor (max detail)."""
     P = nearest_palette_indices(X, sel_ok).reshape(hh, ww).astype(np.int32)
-    labels, nreg, reg_sel = _facet_merge(P, len(sel_ok), sel_ok, min_area)
+    # Paintability is enforced by WIDTH, not just area: every region must hold an
+    # inscribed disk of `min_radius` (scaled to work resolution), so thin slivers —
+    # which clear the area floor yet can't be painted — merge away too. Shared by
+    # linerate + lineart (both pass their own min_radius).
+    min_radius_work = min_radius * (ww / width)
+    labels, nreg, reg_sel = _facet_merge(
+        P, len(sel_ok), sel_ok, min_area, min_radius_work=min_radius_work
+    )
     phase("segment")
 
     # --- watertight shared-arc vectorisation ---

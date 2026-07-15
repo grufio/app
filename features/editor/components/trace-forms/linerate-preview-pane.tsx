@@ -151,7 +151,10 @@ export function LineratePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
     const minArea = detailToMinArea(deferredDetail, w * h, minRadiusPx)
 
     const chipOklab = palette.map((c) => c.oklab)
-    return segmentRegions(paintMap, w, h, chipOklab, minArea)
+    // minRadiusPx enforces the paintable WIDTH (inscribed disk), not just area —
+    // mirrors the server width gate so the preview stops showing thin slivers the
+    // Apply would merge away.
+    return segmentRegions(paintMap, w, h, chipOklab, minArea, minRadiusPx)
   }, [
     flattened,
     paintMap,
