@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { LINERATE_RESOLUTION_EDGE, linerateSchema } from "./linerate"
+import { LINERATE_LEVELS, LINERATE_RESOLUTION_EDGE, levelToUnit, linerateSchema, unitToLevel } from "./linerate"
 
 describe("linerate resolution dial", () => {
   it("defaults to medium (720)", () => {
@@ -17,5 +17,38 @@ describe("linerate resolution dial", () => {
       expect(linerateSchema.parse({ resolution: r }).resolution).toBe(r)
     }
     expect(linerateSchema.safeParse({ resolution: "ultra" }).success).toBe(false)
+  })
+})
+
+describe("linerate 1–10 level scale (UI presentation of the 0–1 dials)", () => {
+  it("round-trips every level 1..10", () => {
+    for (const l of LINERATE_LEVELS) {
+      expect(unitToLevel(levelToUnit(l))).toBe(l)
+    }
+  })
+
+  it("maps the endpoints across the full 0–1 range", () => {
+    expect(levelToUnit(1)).toBe(0)
+    expect(levelToUnit(10)).toBe(1)
+  })
+
+  it("clamps out-of-range levels and units", () => {
+    expect(levelToUnit(0)).toBe(0)
+    expect(levelToUnit(99)).toBe(1)
+    expect(unitToLevel(-1)).toBe(1)
+    expect(unitToLevel(5)).toBe(10)
+  })
+
+  it("shows the current schema defaults at the expected levels", () => {
+    const d = linerateSchema.parse({})
+    expect(unitToLevel(d.flatten)).toBe(3) // 0.25
+    expect(unitToLevel(d.detail)).toBe(8) // 0.75
+    expect(unitToLevel(d.smoothness)).toBe(6) // 0.6
+  })
+})
+
+describe("linerate num_colors default", () => {
+  it("defaults the selection budget to 32", () => {
+    expect(linerateSchema.parse({}).num_colors).toBe(32)
   })
 })

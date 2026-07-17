@@ -283,7 +283,10 @@ class LinerateRequest(BaseModel):
     # boundary arcs (0 = closer to the working pixels, 1 = very smooth).
     smoothness: float = 0.6
     # Max distinct REAL paints to select from the fixed palette.
-    num_colors: int = 28
+    # Kept in sync with linerateSchema's default (lib/editor/trace/linerate.ts);
+    # python-parity.test.ts enforces the match. Runtime always receives an
+    # explicit num_colors from the bridge, so this default is a parity anchor.
+    num_colors: int = 32
     # Optional Munsell palette pair; ≤num_colors chips are selected and each
     # pixel is assigned one (same OKLab contract as linerate/pixelate).
     palette_oklab: list | None = None

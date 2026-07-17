@@ -6,10 +6,10 @@
  * "Colors" section.
  * Stateless; the parent owns the draft.
  */
-import { Brush, Droplets, Grid2x2, Maximize2, Ruler, Waves } from "lucide-react"
+import { Droplets, Grid2x2, Maximize2, Ruler, Waves } from "lucide-react"
 
 import { FormField, type SelectFieldOption } from "@/components/ui/form-controls"
-import { linerateSchema, type LinerateParams } from "@/lib/editor/trace/linerate"
+import { LINERATE_LEVELS, levelToUnit, linerateSchema, unitToLevel, type LinerateParams } from "@/lib/editor/trace/linerate"
 import { extractNumberInputProps, parseFormNumber } from "@/lib/forms/zod-input-props"
 
 import { PanelIconSlot, PanelTwoFieldRow } from "../panel-layout"
@@ -23,11 +23,12 @@ type Props = {
   disabled: boolean
 }
 
-const LINE_THICKNESS_INPUT_PROPS = extractNumberInputProps(linerateSchema.shape.line_thickness)
-const FLATTEN_INPUT_PROPS = extractNumberInputProps(linerateSchema.shape.flatten)
-const DETAIL_INPUT_PROPS = extractNumberInputProps(linerateSchema.shape.detail)
-const SMOOTHNESS_INPUT_PROPS = extractNumberInputProps(linerateSchema.shape.smoothness)
 const MIN_PAINTABLE_INPUT_PROPS = extractNumberInputProps(linerateSchema.shape.min_paintable_mm)
+
+// Flatten / Detail / Smoothness present their 0–1 float as a 1–10 level.
+// Module-level so the `options` reference stays stable across renders (the
+// select FormField memoises on `prev.options === next.options`).
+const LEVEL_OPTIONS: SelectFieldOption[] = LINERATE_LEVELS.map((l) => ({ value: String(l), label: String(l) }))
 
 const RESOLUTION_OPTIONS: SelectFieldOption[] = [
   { value: "low", label: "Low (640)" },
@@ -42,74 +43,42 @@ export function LinerateForm({ params, onParamsChange, disabled }: Props) {
         <div className="space-y-3">
           <PanelTwoFieldRow>
             <FormField
-              variant="numeric"
-              numericMode="decimal"
-              label="Line thickness"
-              labelVisuallyHidden
-              iconStart={<Brush aria-hidden="true" />}
-              unit="px"
-              id="line_thickness"
-              value={String(params.line_thickness)}
-              onCommit={(raw) => {
-                const res = parseFormNumber(linerateSchema.shape.line_thickness, raw)
-                if (res.ok) onParamsChange("line_thickness", res.value)
-              }}
-              disabled={disabled}
-              inputProps={LINE_THICKNESS_INPUT_PROPS}
-            />
-            <FormField
-              variant="numeric"
-              numericMode="decimal"
+              variant="select"
               label="Flatten"
               labelVisuallyHidden
               iconStart={<Droplets aria-hidden="true" />}
               id="flatten"
-              value={String(params.flatten)}
-              onCommit={(raw) => {
-                const res = parseFormNumber(linerateSchema.shape.flatten, raw)
-                if (res.ok) onParamsChange("flatten", res.value)
-              }}
+              value={String(unitToLevel(params.flatten))}
+              options={LEVEL_OPTIONS}
+              onCommit={(v) => onParamsChange("flatten", levelToUnit(Number(v)))}
               disabled={disabled}
-              inputProps={FLATTEN_INPUT_PROPS}
             />
-            <PanelIconSlot />
-          </PanelTwoFieldRow>
-
-          <PanelTwoFieldRow>
             <FormField
-              variant="numeric"
-              numericMode="decimal"
+              variant="select"
               label="Detail"
               labelVisuallyHidden
               iconStart={<Grid2x2 aria-hidden="true" />}
               id="detail"
-              value={String(params.detail)}
-              onCommit={(raw) => {
-                const res = parseFormNumber(linerateSchema.shape.detail, raw)
-                if (res.ok) onParamsChange("detail", res.value)
-              }}
+              value={String(unitToLevel(params.detail))}
+              options={LEVEL_OPTIONS}
+              onCommit={(v) => onParamsChange("detail", levelToUnit(Number(v)))}
               disabled={disabled}
-              inputProps={DETAIL_INPUT_PROPS}
-            />
-            <FormField
-              variant="numeric"
-              numericMode="decimal"
-              label="Smoothness"
-              labelVisuallyHidden
-              iconStart={<Waves aria-hidden="true" />}
-              id="smoothness"
-              value={String(params.smoothness)}
-              onCommit={(raw) => {
-                const res = parseFormNumber(linerateSchema.shape.smoothness, raw)
-                if (res.ok) onParamsChange("smoothness", res.value)
-              }}
-              disabled={disabled}
-              inputProps={SMOOTHNESS_INPUT_PROPS}
             />
             <PanelIconSlot />
           </PanelTwoFieldRow>
 
           <PanelTwoFieldRow>
+            <FormField
+              variant="select"
+              label="Smoothness"
+              labelVisuallyHidden
+              iconStart={<Waves aria-hidden="true" />}
+              id="smoothness"
+              value={String(unitToLevel(params.smoothness))}
+              options={LEVEL_OPTIONS}
+              onCommit={(v) => onParamsChange("smoothness", levelToUnit(Number(v)))}
+              disabled={disabled}
+            />
             <FormField
               variant="numeric"
               numericMode="decimal"

@@ -26,7 +26,7 @@ export const linerateSchema = z.object({
   // boundary arcs inside the Python service.
   smoothness: z.coerce.number().min(0).max(1).default(0.6),
   // Maximum number of distinct REAL paints selected from the fixed palette.
-  num_colors: z.coerce.number().int().min(2).max(560).default(28),
+  num_colors: z.coerce.number().int().min(2).max(560).default(32),
   // How those ≤num_colors paints are chosen — same shared reduction as
   // pixelate/circulate: "top_n" (most-used chips) or "pam" (k-medoids).
   palette_restriction: paletteRestrictionSchema,
@@ -48,6 +48,26 @@ export type LinerateParams = z.infer<typeof linerateSchema>
 /** Resolution preset → server work-edge (px). Higher = finer form, slower. */
 export const LINERATE_RESOLUTION_EDGE = { low: 640, medium: 720, high: 960 } as const
 export type LinerateResolution = keyof typeof LINERATE_RESOLUTION_EDGE
+
+/**
+ * UI-only 1–10 granularity scale for the flatten / detail / smoothness dials.
+ * These params stay 0–1 floats on the wire and in storage — the dialog just
+ * presents them as ten even steps (a raw 0.05-float input was unintuitive).
+ * `levelToUnit`/`unitToLevel` are exact inverses over the integers 1..10.
+ * A 10-step scale only addresses 1/9 ≈ 0.11 increments, so the legacy defaults
+ * (0.25/0.75/0.6) snap to the nearest step the first time a level is picked;
+ * an untouched value keeps its exact stored float.
+ */
+export const LINERATE_LEVELS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const
+
+export function levelToUnit(level: number): number {
+  const clamped = Math.min(10, Math.max(1, Math.round(level)))
+  return (clamped - 1) / 9
+}
+
+export function unitToLevel(unit: number): number {
+  return Math.min(10, Math.max(1, Math.round(unit * 9) + 1))
+}
 
 export const linerateTrace = {
   id: "linerate",
