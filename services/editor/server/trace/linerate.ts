@@ -7,6 +7,7 @@ import { LINERATE_RESOLUTION_EDGE, linerateSchema, type LinerateParams } from "@
 import { readTracePalette } from "@/lib/supabase/palette"
 import { callFilterService, toInt, type FilterResult } from "@/services/editor/server/filters/_helpers"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
+import { SIGNED_URL_TTL } from "@/lib/storage/signed-url-ttl"
 import { compositeContentRegion } from "@/services/editor/server/trace/composite-content-region"
 import { resolveTraceContentRegion } from "@/services/editor/server/trace/content-region-resolve"
 
@@ -110,8 +111,30 @@ export async function linerateImageAndActivate(args: {
   const srcBuffer = Buffer.from(await srcBlob.arrayBuffer())
   const contentBuffer = await compositeContentRegion({ sourceBuffer: srcBuffer, plan: region.plan })
 
+  // Stage the composited input in storage and hand the filter-service a short-lived
+  // SIGNED URL instead of inlining it as base64. A large content image would blow
+  // Cloud Run's 32 MB request-body limit (rejected at the GFE as 413, before the
+  // container ever runs — no logs). The service downloads the exact same PNG bytes,
+  // so the output stays byte-identical. The temp object carries no DB row and is
+  // removed in the finally (best-effort).
+  const inputTempPath = `projects/${projectId}/images/${crypto.randomUUID()}`
+  let inputStaged = false
   try {
-    const imageBase64 = contentBuffer.toString("base64")
+    const { error: stageErr } = await supabase.storage
+      .from(PROJECT_IMAGES_BUCKET)
+      .upload(inputTempPath, contentBuffer, { contentType: "image/png", upsert: false })
+    if (stageErr) {
+      return { ok: false, status: 500, stage: "storage_upload", reason: "Failed to stage linerate input image" }
+    }
+    inputStaged = true
+
+    const { data: signed, error: signErr } = await supabase.storage
+      .from(PROJECT_IMAGES_BUCKET)
+      .createSignedUrl(inputTempPath, SIGNED_URL_TTL.thumbnail)
+    if (signErr || !signed?.signedUrl) {
+      return { ok: false, status: 500, stage: "storage_upload", reason: "Failed to sign linerate input image" }
+    }
+
     const palette = await readTracePalette(supabase, colorMode)
 
     const callResult = await callFilterService({
@@ -121,7 +144,7 @@ export async function linerateImageAndActivate(args: {
       // Cloud-Run budget (90 s) instead of the default 30 s so "High" doesn't abort.
       timeoutMs: 90_000,
       body: {
-        image_base64: imageBase64,
+        image_url: signed.signedUrl,
         line_thickness: lineThickness,
         flatten,
         detail,
@@ -216,5 +239,17 @@ export async function linerateImageAndActivate(args: {
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Linerate process failed"
     return { ok: false, status: 500, stage: "linerate_process", reason: msg }
+  } finally {
+    // Best-effort cleanup of the staged input. The owner (request-scoped) client
+    // can delete it via the project_images_storage_delete_owner policy — the temp
+    // object lives under the user's projects/{id}/images/ path, so no service-role
+    // (RLS bypass) is needed.
+    if (inputStaged) {
+      try {
+        await supabase.storage.from(PROJECT_IMAGES_BUCKET).remove([inputTempPath])
+      } catch {
+        // Orphan is auditable; a storage lifecycle sweep can reap it later.
+      }
+    }
   }
 }

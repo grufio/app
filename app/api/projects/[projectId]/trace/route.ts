@@ -24,10 +24,12 @@ import {
 } from "@/services/editor/server/trace"
 
 export const dynamic = "force-dynamic"
-// A high-resolution linerate trace can run ~tens of seconds on Cloud Run; give
-// the function room so it doesn't get killed before the service responds (the
-// Node caller waits up to 90 s, matching Cloud Run's own timeout).
-export const maxDuration = 90
+// A high-resolution linerate trace can run ~tens of seconds on Cloud Run. The Node
+// caller waits up to 90 s (matching Cloud Run's timeout); the route ALSO stages the
+// input in storage before the call and does the SVG upload + DB insert + a
+// best-effort temp cleanup after it — so the function needs headroom BEYOND the
+// 90 s filter call, or it gets killed mid-cleanup and leaks the staged input.
+export const maxDuration = 120
 
 type ApplyTraceRequest = {
   kind?: string
