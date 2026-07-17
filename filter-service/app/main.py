@@ -11,8 +11,12 @@ from pydantic import BaseModel
 from PIL import Image
 import cv2
 import numpy as np
+import asyncio
 import io
 import base64
+import urllib.error
+import urllib.request
+from urllib.parse import urlparse
 
 from app.circulate import circulate_cells_to_svg
 from app.linerate import linerate_to_svg
@@ -100,6 +104,40 @@ def _load_image_rgb(image_base64: str) -> np.ndarray:
     if img.mode != "RGB":
         img = img.convert("RGB")
     return np.asarray(img)
+
+
+_MAX_INPUT_IMAGE_BYTES = 64 * 1024 * 1024  # 64 MB — generous cap for a composited PNG
+
+
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        # The bridge passes a direct signed storage URL. Refuse to follow redirects
+        # so a redirect can't turn the download into an SSRF primitive (e.g. to a
+        # cloud metadata endpoint or a file:// URL).
+        return None
+
+
+# build_opener also registers file:// / ftp:// / data:// handlers; combined with the
+# https-scheme gate below, the no-redirect handler keeps the fetch to plain HTTPS.
+_DOWNLOAD_OPENER = urllib.request.build_opener(_NoRedirectHandler)
+
+
+def _download_image_bytes(url: str) -> bytes:
+    """Download the input image from a signed HTTPS URL. Raises HTTPException with a
+    sane status so the Node bridge can map it: 400 → bad url, 502/504 → transient
+    (retried), 413 → too large. Synchronous — call via asyncio.to_thread."""
+    if urlparse(url).scheme != "https":
+        raise HTTPException(status_code=400, detail="image_url must be an https URL")
+    try:
+        with _DOWNLOAD_OPENER.open(urllib.request.Request(url, method="GET"), timeout=60) as resp:
+            data = resp.read(_MAX_INPUT_IMAGE_BYTES + 1)
+    except urllib.error.HTTPError as e:
+        raise HTTPException(status_code=502, detail=f"Failed to download input image: HTTP {e.code}")
+    except (urllib.error.URLError, TimeoutError, OSError) as e:
+        raise HTTPException(status_code=504, detail=f"Failed to download input image: {e}")
+    if len(data) > _MAX_INPUT_IMAGE_BYTES:
+        raise HTTPException(status_code=413, detail="Input image exceeds the size limit")
+    return data
 
 
 def _luma_709(rgb_u8: np.ndarray) -> np.ndarray:
@@ -228,7 +266,12 @@ async def bw_warm_filter(request: BWRequest):
 
 
 class LinerateRequest(BaseModel):
-    image_base64: str
+    # Exactly one of image_base64 / image_url must be set. The Node bridge sends
+    # image_url (a signed storage URL) so a large input doesn't ride in the request
+    # body (Cloud Run's 32 MB limit → 413 at the GFE, before the container); the
+    # service downloads it. image_base64 stays as a back-compat fallback.
+    image_base64: str | None = None
+    image_url: str | None = None
     line_thickness: float = 1.0
     # Flatten ∈ [0, 1] → L0 edge-preserving smoothing strength. Higher = flatter,
     # more painterly (texture/noise removed, strong edges kept crisp).
@@ -524,10 +567,17 @@ async def linerate_filter(request: LinerateRequest):
         raise HTTPException(status_code=400, detail="palette_restriction must be 'top_n' or 'pam'")
     if request.work_edge < 256 or request.work_edge > 1280:
         raise HTTPException(status_code=400, detail="work_edge must be between 256 and 1280")
+    if not request.image_url and not request.image_base64:
+        raise HTTPException(status_code=400, detail="Either image_base64 or image_url must be provided")
 
     timer = PhaseTimer()
     try:
-        img_bytes = base64.b64decode(request.image_base64)
+        # image_url (signed storage URL) is the default path — the input never rides
+        # in the request body. Same bytes as the old base64 path → identical output.
+        if request.image_url:
+            img_bytes = await asyncio.to_thread(_download_image_bytes, request.image_url)
+        else:
+            img_bytes = base64.b64decode(request.image_base64)
         img = Image.open(io.BytesIO(img_bytes))
         if img.mode not in ("RGB", "L"):
             img = img.convert("RGB")

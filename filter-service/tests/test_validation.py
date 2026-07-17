@@ -47,6 +47,60 @@ def _linerate_body(png: str, **overrides) -> dict:
     return body
 
 
+# --- linerate image source: base64 vs signed URL ------------------------
+
+
+def test_linerate_requires_one_image_source(client, make_png_b64):
+    body = _linerate_body(make_png_b64())
+    del body["image_base64"]
+    res = client.post("/filters/linerate", json=body)
+    assert res.status_code == 400
+    assert "image_base64 or image_url" in res.json()["detail"]
+
+
+def test_linerate_image_url_is_byte_identical_to_image_base64(client, make_png_b64, monkeypatch):
+    # The bridge stages the input in storage and passes a signed URL; the service
+    # downloads the SAME PNG bytes. Same bytes → same pixels → same seed → identical
+    # SVG. Monkeypatch the download to return exactly the base64-path bytes and prove
+    # the two SVGs are byte-identical.
+    png = make_png_b64(64, 48)
+    raw = base64.b64decode(png)
+    res_b64 = client.post("/filters/linerate", json=_linerate_body(png))
+    assert res_b64.status_code == 200, res_b64.text
+
+    monkeypatch.setattr("app.main._download_image_bytes", lambda url: raw)
+    body_url = _linerate_body(png)
+    del body_url["image_base64"]
+    body_url["image_url"] = "https://storage.test/signed-input.png"
+    res_url = client.post("/filters/linerate", json=body_url)
+    assert res_url.status_code == 200, res_url.text
+    assert res_url.json()["svg"] == res_b64.json()["svg"]
+
+
+def test_linerate_image_url_download_failure_surfaces_status(client, make_png_b64, monkeypatch):
+    from fastapi import HTTPException
+
+    def _boom(url):
+        raise HTTPException(status_code=504, detail="download timed out")
+
+    monkeypatch.setattr("app.main._download_image_bytes", _boom)
+    body = _linerate_body(make_png_b64())
+    del body["image_base64"]
+    body["image_url"] = "https://storage.test/signed-input.png"
+    res = client.post("/filters/linerate", json=body)
+    assert res.status_code == 504
+
+
+def test_download_image_bytes_rejects_non_https_scheme():
+    from fastapi import HTTPException
+    from app.main import _download_image_bytes
+
+    for bad in ("http://example.test/x.png", "file:///etc/passwd", "ftp://host/x"):
+        with pytest.raises(HTTPException) as ei:
+            _download_image_bytes(bad)
+        assert ei.value.status_code == 400
+
+
 # --- pixelate bounds -----------------------------------------------------
 
 
