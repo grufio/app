@@ -282,6 +282,11 @@ class LinerateRequest(BaseModel):
     # Smoothness ∈ [0, 1] → RDP epsilon + Chaikin iterations on the shared
     # boundary arcs (0 = closer to the working pixels, 1 = very smooth).
     smoothness: float = 0.6
+    # Radius ∈ [0, 1] → the "Radius" dial: the paintability WIDTH test uses this
+    # fraction of the Min-Gap radius, so only clearly sub-Min-Gap slivers merge while
+    # thin-but-paintable strokes survive. Default kept in sync with linerateSchema
+    # (python-parity.test.ts); runtime always gets an explicit value from the bridge.
+    radius: float = 0.333
     # Max distinct REAL paints to select from the fixed palette.
     # Kept in sync with linerateSchema's default (lib/editor/trace/linerate.ts);
     # python-parity.test.ts enforces the match. Runtime always receives an
@@ -564,6 +569,8 @@ async def linerate_filter(request: LinerateRequest):
         raise HTTPException(status_code=400, detail="detail must be between 0 and 1")
     if request.smoothness < 0 or request.smoothness > 1:
         raise HTTPException(status_code=400, detail="smoothness must be between 0 and 1")
+    if request.radius < 0 or request.radius > 1:
+        raise HTTPException(status_code=400, detail="radius must be between 0 and 1")
     if request.num_colors < 2 or request.num_colors > 560:
         raise HTTPException(status_code=400, detail="num_colors must be between 2 and 560")
     if request.palette_restriction not in ("top_n", "pam"):
@@ -594,6 +601,7 @@ async def linerate_filter(request: LinerateRequest):
             smoothness=request.smoothness,
             num_colors=request.num_colors,
             min_radius=request.min_region_radius_px,
+            width_radius_frac=request.radius,
             palette_oklab=request.palette_oklab,
             palette_rgb=request.palette_rgb,
             palette_restriction=request.palette_restriction,

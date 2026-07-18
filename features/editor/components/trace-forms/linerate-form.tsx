@@ -1,12 +1,11 @@
 "use client"
 
 /**
- * Form fields for the Linerate trace dialog — a "Shape" section (line
- * thickness, flatten, detail, smoothness, min paintable gap) + a shared
- * "Colors" section.
+ * Form fields for the Linerate trace dialog — a "Shape" section (flatten,
+ * density, smoothness, radius, min paintable gap) + a shared "Colors" section.
  * Stateless; the parent owns the draft.
  */
-import { Droplets, Grid2x2, Maximize2, Ruler, Waves } from "lucide-react"
+import { Circle, Droplets, Grid2x2, Maximize2, Ruler, Waves } from "lucide-react"
 
 import { FormField, type SelectFieldOption } from "@/components/ui/form-controls"
 import { LINERATE_LEVELS, levelToUnit, linerateSchema, unitToLevel, type LinerateParams } from "@/lib/editor/trace/linerate"
@@ -55,7 +54,7 @@ export function LinerateForm({ params, onParamsChange, disabled }: Props) {
             />
             <FormField
               variant="select"
-              label="Detail"
+              label="Density"
               labelVisuallyHidden
               iconStart={<Grid2x2 aria-hidden="true" />}
               id="detail"
@@ -79,6 +78,21 @@ export function LinerateForm({ params, onParamsChange, disabled }: Props) {
               onCommit={(v) => onParamsChange("smoothness", levelToUnit(Number(v)))}
               disabled={disabled}
             />
+            <FormField
+              variant="select"
+              label="Radius"
+              labelVisuallyHidden
+              iconStart={<Circle aria-hidden="true" />}
+              id="radius"
+              value={String(unitToLevel(params.radius))}
+              options={LEVEL_OPTIONS}
+              onCommit={(v) => onParamsChange("radius", levelToUnit(Number(v)))}
+              disabled={disabled}
+            />
+            <PanelIconSlot />
+          </PanelTwoFieldRow>
+
+          <PanelTwoFieldRow>
             <FormField
               variant="numeric"
               numericMode="decimal"

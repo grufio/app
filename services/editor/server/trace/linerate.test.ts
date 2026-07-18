@@ -16,6 +16,7 @@ const validParams: LinerateParams = {
   flatten: 0.25,
   detail: 0.75,
   smoothness: 0.6,
+  radius: 0.333,
   num_colors: 28,
   palette_restriction: "top_n",
   min_paintable_mm: 4,

@@ -134,6 +134,7 @@ export function LineratePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
   // segmentation stays interruptible while the user drags a slider.
   const deferredDetail = useDeferredValue(params.detail)
   const deferredGapMm = useDeferredValue(params.min_paintable_mm)
+  const deferredRadius = useDeferredValue(params.radius)
 
   // Facet segmentation: paint map → connected components → min-area merge.
   const regions = useMemo(() => {
@@ -151,10 +152,10 @@ export function LineratePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
     const minArea = detailToMinArea(deferredDetail, w * h, minRadiusPx)
 
     const chipOklab = palette.map((c) => c.oklab)
-    // minRadiusPx enforces the paintable WIDTH (inscribed disk), not just area —
-    // mirrors the server width gate so the preview stops showing thin slivers the
-    // Apply would merge away.
-    return segmentRegions(paintMap, w, h, chipOklab, minArea, minRadiusPx)
+    // The WIDTH gate uses `radius` × minRadiusPx (the "Radius" dial), mirroring the
+    // server (linerate.py width_radius_frac): only clearly sub-Min-Gap slivers merge,
+    // thin-but-paintable strokes survive. The min_area floor keeps the FULL radius.
+    return segmentRegions(paintMap, w, h, chipOklab, minArea, minRadiusPx * deferredRadius)
   }, [
     flattened,
     paintMap,
@@ -163,6 +164,7 @@ export function LineratePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
     displayMmW,
     deferredDetail,
     deferredGapMm,
+    deferredRadius,
     params.line_thickness,
   ])
 

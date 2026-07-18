@@ -44,11 +44,21 @@ describe("linerate 1–10 level scale (UI presentation of the 0–1 dials)", () 
     expect(unitToLevel(d.flatten)).toBe(3) // 0.25
     expect(unitToLevel(d.detail)).toBe(8) // 0.75
     expect(unitToLevel(d.smoothness)).toBe(6) // 0.6
+    expect(unitToLevel(d.radius)).toBe(4) // 0.333 — the "Radius" dial default
   })
 })
 
 describe("linerate num_colors default", () => {
   it("defaults the selection budget to 32", () => {
     expect(linerateSchema.parse({}).num_colors).toBe(32)
+  })
+})
+
+describe("linerate radius (width-test) default", () => {
+  it("defaults to 0.333 (the analysed knee) and shows as level 4", () => {
+    const d = linerateSchema.parse({})
+    expect(d.radius).toBeCloseTo(0.333)
+    expect(unitToLevel(d.radius)).toBe(4)
+    expect(levelToUnit(4)).toBeCloseTo(0.333, 2)
   })
 })

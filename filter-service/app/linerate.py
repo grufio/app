@@ -56,6 +56,13 @@ _DETAIL_MAX_FRAC = 0.003    # ... at detail=0
 # swallowing paintable bright islands (blossoms) into one near-black blob.
 _MERGE_L_THRESHOLD = 0.20   # OKLab-L gap separating "like" from "unlike" lightness
 _MERGE_L_PENALTY = 10.0     # distance added to an unlike-L target (≫ OKLab² spread)
+# The width test (inscribed-disk paintability) uses a SMALLER radius than the
+# min_area floor: `width_radius_frac` × min_radius. The full radius merged every
+# stroke thinner than the Min-Gap *width*, over-merging paintable fine strokes (a
+# long ~1.5 mm stroke is paintable yet fails a 2 mm inscribed disk). Exposed as the
+# "Radius" dial; this is its DEFAULT — 0.333 ≈ the analysed knee where region growth
+# plateaus. The min_area floor + uniform number sizing keep the full min_radius.
+_WIDTH_MIN_RADIUS_FRAC = 0.333
 
 
 # ---- perceptual segmentation (P³) -----------------------------------------
@@ -503,6 +510,7 @@ def linerate_to_svg(
     num_colors: int = 16,
     smoothness: float = 0.6,
     min_radius: float = 8.0,
+    width_radius_frac: float = _WIDTH_MIN_RADIUS_FRAC,
     palette_oklab: list | None = None,
     palette_rgb: list | None = None,
     palette_restriction: str = "top_n",
@@ -553,13 +561,15 @@ def linerate_to_svg(
     min_area = _detail_to_min_area(detail, hh * ww, min_radius_work)
     return _paint_map_to_svg(
         X, hh, ww, width, height, sx, sy, sel_ok, sel_rgb, sel_pal_index,
-        have_palette, min_area, smoothness, line_thickness, min_radius, phase,
+        have_palette, min_area, smoothness, line_thickness, min_radius,
+        width_radius_frac, phase,
     )
 
 
 def _paint_map_to_svg(
     X, hh, ww, width, height, sx, sy, sel_ok, sel_rgb, sel_pal_index,
-    have_palette, min_area, smoothness, line_thickness, min_radius, phase,
+    have_palette, min_area, smoothness, line_thickness, min_radius,
+    width_radius_frac, phase,
 ):
     """Back-half of the linerate segmentation: snap every pixel to its nearest
     SELECTED paint, merge sub-`min_area` facets into the most similar-coloured
@@ -568,12 +578,15 @@ def _paint_map_to_svg(
     `min_area` — linerate reduces to a `num_colors` budget with a `detail`-widened
     floor."""
     P = nearest_palette_indices(X, sel_ok).reshape(hh, ww).astype(np.int32)
-    # Paintability is enforced by WIDTH, not just area: every region must hold an
-    # inscribed disk of `min_radius` (scaled to work resolution), so thin slivers —
-    # which clear the area floor yet can't be painted — merge away too.
+    # Paintability is enforced by WIDTH, not just area: a region must hold an
+    # inscribed disk before it counts as paintable. The width radius is `width_radius_frac`
+    # (the "Radius" dial) × the Min-Gap radius, so only clearly-too-thin slivers merge —
+    # moderately thin but paintable strokes survive (over-merge fix). The min_area floor
+    # keeps the full radius (baked into `min_area` by the caller).
     min_radius_work = min_radius * (ww / width)
     labels, nreg, reg_sel = _facet_merge(
-        P, len(sel_ok), sel_ok, min_area, min_radius_work=min_radius_work
+        P, len(sel_ok), sel_ok, min_area,
+        min_radius_work=min_radius_work * width_radius_frac,
     )
     phase("segment")
 
