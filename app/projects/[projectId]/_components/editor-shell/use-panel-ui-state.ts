@@ -26,7 +26,7 @@ export function usePanelUIState() {
   const [selectedNavId, setSelectedNavId] = useState<string>(() =>
     buildNavId({ kind: "artboard" }),
   )
-  const [editorSection, setEditorSection] = useState<EditorSection>("artboard")
+  const [editorSection, setEditorSection] = useState<EditorSection>("image")
   // Cross-mount channel: the Trace top-right bar's Edit action sets a
   // pending kind (the active trace's kind). The TraceSurfaceScope reads it
   // on mount and re-opens the matching configure dialog, then clears via

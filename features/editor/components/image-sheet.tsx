@@ -10,10 +10,18 @@
  * per-control restyle. No section titles; a footer hosts the round Apply +
  * Delete actions.
  *
+ * This is the merged Image + Artboard dialog (the former standalone
+ * `ArtboardSheet` was folded in). With an image present it stacks, top to
+ * bottom: `ImagePanel` (size/position/align + restore/fit), then the
+ * artboard/page controls — `ArtboardPanel` (canvas size), `PaddingSection`,
+ * `PageBackgroundSection`. Image settings sit on top.
+ *
  * Progressive disclosure:
  * - No master image yet: an add-row (`AddImageMenuAction` upload pipeline).
- * - Image exists: `ImagePanel` (size/position/align + restore/fit), with the
- *   footer Apply (close) and Delete (remove image via the cascade confirm).
+ *   The artboard controls only surface alongside an image (the dialog is
+ *   reached via the top bar's pencil, which only exists once an image is set).
+ * - Image exists: the stacked panels above, with the footer Apply (close) and
+ *   Delete (remove image via the cascade confirm).
  */
 import dynamic from "next/dynamic"
 import { Check, ImageIcon, Trash2, X } from "lucide-react"
@@ -24,7 +32,10 @@ import type { UploadedMasterSnapshot } from "@/lib/editor/upload-master-image"
 import type { Unit } from "@/lib/editor/units"
 
 import { AddImageMenuAction } from "./add-image-menu-button"
+import { ArtboardPanel } from "./artboard-panel"
 import { useEditorToolbarTone } from "./editor-toolbar-tone"
+import { PaddingSection } from "./padding-section"
+import { PageBackgroundSection } from "./page-background-section"
 import type { ProjectCanvasStageHandle } from "./project-canvas-stage"
 import { SheetAddRow } from "./sheet-chrome"
 
@@ -36,7 +47,7 @@ const ImagePanel = dynamic(() => import("./image-panel").then((m) => m.ImagePane
 export function ImageSheet(props: {
   projectId: string
   onClose: () => void
-  /** hasMasterImage drives the swap between the Add-row and ImagePanel. */
+  /** hasMasterImage drives the swap between the Add-row and the stacked panels. */
   hasMasterImage: boolean
   onImageUploaded: (master: UploadedMasterSnapshot | null) => void | Promise<void>
   panelImageTxU: { x: bigint; y: bigint; w: bigint; h: bigint } | null
@@ -54,6 +65,13 @@ export function ImageSheet(props: {
   canvasRef: React.RefObject<ProjectCanvasStageHandle | null>
   onRequestRestore: () => void
   onRequestDelete: () => void
+  // Page-background controls (folded in from the former ArtboardSheet).
+  pageBgEnabled: boolean
+  pageBgColor: string
+  pageBgOpacity: number
+  onPageBgEnabledChange: (v: boolean) => void
+  onPageBgColorChange: (v: string) => void
+  onPageBgOpacityChange: (v: number) => void
 }) {
   const {
     projectId,
@@ -73,6 +91,12 @@ export function ImageSheet(props: {
     canvasRef,
     onRequestRestore,
     onRequestDelete,
+    pageBgEnabled,
+    pageBgColor,
+    pageBgOpacity,
+    onPageBgEnabledChange,
+    onPageBgColorChange,
+    onPageBgOpacityChange,
   } = props
 
   const tone = useEditorToolbarTone()
@@ -97,23 +121,39 @@ export function ImageSheet(props: {
 
       <div className="flex-1 overflow-y-auto">
         {hasMasterImage ? (
-          <ImagePanel
-            widthPxU={panelImageTxU?.w}
-            heightPxU={panelImageTxU?.h}
-            xPxU={panelImageTxU?.x}
-            yPxU={panelImageTxU?.y}
-            unit={workspaceUnit}
-            ready={imagePanelReady}
-            disabled={!imagePanelEnabled}
-            locked={imageLocked}
-            onCommit={(w, h) => canvasRef.current?.setImageSize(w, h)}
-            onCommitPosition={(opts) => canvasRef.current?.setImagePosition(opts)}
-            onAlign={(opts) => canvasRef.current?.alignImage(opts)}
-            canRestore={!masterImageLoading && !deleteBusy && !restoreBusy}
-            canFit={canFit}
-            onFitToArtboard={onFitToArtboard}
-            onRestore={onRequestRestore}
-          />
+          <>
+            <ImagePanel
+              widthPxU={panelImageTxU?.w}
+              heightPxU={panelImageTxU?.h}
+              xPxU={panelImageTxU?.x}
+              yPxU={panelImageTxU?.y}
+              unit={workspaceUnit}
+              ready={imagePanelReady}
+              disabled={!imagePanelEnabled}
+              locked={imageLocked}
+              onCommit={(w, h) => canvasRef.current?.setImageSize(w, h)}
+              onCommitPosition={(opts) => canvasRef.current?.setImagePosition(opts)}
+              onAlign={(opts) => canvasRef.current?.alignImage(opts)}
+              canRestore={!masterImageLoading && !deleteBusy && !restoreBusy}
+              canFit={canFit}
+              onFitToArtboard={onFitToArtboard}
+              onRestore={onRequestRestore}
+            />
+            {/* Artboard / page settings, folded in below the image controls.
+                ArtboardPanel + PaddingSection are self-contained (they read the
+                workspace providers directly). The "Fit artboard to image" header
+                action is intentionally omitted here — no handler is wired. */}
+            <ArtboardPanel />
+            <PaddingSection />
+            <PageBackgroundSection
+              pageBgEnabled={pageBgEnabled}
+              pageBgColor={pageBgColor}
+              pageBgOpacity={pageBgOpacity}
+              onPageBgEnabledChange={onPageBgEnabledChange}
+              onPageBgColorChange={onPageBgColorChange}
+              onPageBgOpacityChange={onPageBgOpacityChange}
+            />
+          </>
         ) : (
           <SheetAddRow Icon={ImageIcon} label="Image">
             <AddImageMenuAction projectId={projectId} onUploaded={onImageUploaded} />

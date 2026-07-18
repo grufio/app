@@ -22,7 +22,6 @@ import { deriveSectionLocks } from "@/lib/editor/section-locks"
 import { EditorHomeBar } from "@/features/editor/components/editor-home-bar"
 import { EditorViewBar } from "@/features/editor/components/editor-view-bar"
 import { EditorSectionStepper } from "@/features/editor/components/editor-section-stepper"
-import { EditorArtboardBar } from "@/features/editor/components/editor-artboard-bar"
 import { EditorImageBar } from "@/features/editor/components/editor-image-bar"
 import { EditorFilterBar } from "@/features/editor/components/editor-filter-bar"
 import { EditorTraceBar } from "@/features/editor/components/editor-trace-bar"
@@ -666,14 +665,11 @@ export function ProjectDetailPageClient({
           {/* Filter + Trace dialog hosts live inside their respective
               surface scope components (see the section mounts below). */}
         </EditorErrorBoundary>
-        {/* Artboard-section top-right submenu: Artboard / Grid (2 × 40px circles). */}
-        {editorSection === "artboard" ? (
-          <EditorArtboardBar onOpenDialog={(kind) => setPendingArtboardDialog(kind)} />
-        ) : null}
         {/* Image-section top-right submenu: Add (no image) or Delete + Edit
             (image set). This top-right bar is the SOLE opener of the image
             dialog / picker — tapping the Image section only navigates, so the
-            navigation-preservation for the no-master case holds by construction. */}
+            navigation-preservation for the no-master case holds by construction.
+            The pencil opens the merged Image + Artboard dialog. */}
         {editorSection === "image" ? (
           <EditorImageBar
             hasImage={hasMasterImage}
@@ -683,13 +679,11 @@ export function ProjectDetailPageClient({
             onDelete={requestDeleteSelectedImage}
           />
         ) : null}
-        {/* Image dialog host (ImageSheet) lives in ArtboardSurfaceScope. Mount it
-            for BOTH artboard and image sections — as a SINGLE conditional so the
-            scope instance (and its local activeDialog) is preserved across an
-            artboard↔image switch instead of remounting. Under "image" only the
-            "image" pendingDialog can fire (artboard/grid setters live only in the
-            artboard section), so no cross-leak. */}
-        {editorSection === "artboard" || editorSection === "image" ? (
+        {/* Merged Image + Artboard dialog host (ImageSheet) lives in
+            ArtboardSurfaceScope, mounted on the image section. The pencil in
+            the top bar sets `pendingArtboardDialog = "image"`, which the scope
+            consumes to open the sheet. */}
+        {editorSection === "image" ? (
           <ArtboardSurfaceScope
             pendingDialog={pendingArtboardDialog}
             onConsumePendingDialog={consumePendingArtboardDialog}

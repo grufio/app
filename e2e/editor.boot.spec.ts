@@ -12,11 +12,13 @@ import { PROJECT_ID, setupMockRoutes } from "./_mocks"
 
 // Canvas-first model: the top-centre stepper (EditorSectionStepper) switches
 // sections via a dropdown; each active section exposes a floating top-right bar
-// with that section's actions. Section labels come from SECTION_ITEMS — the five
-// sections are Artboard / Image / Filter / Trace / Color. The Artboard section
-// bar opens the Artboard / Grid dialogs; the Image section bar opens the Image
-// edit dialog. (No image → the Image section bar's "Add image" opens the OS file
-// picker, not a dialog — see the upload test, which drives the hidden input.)
+// with that section's actions. Section labels come from SECTION_ITEMS — the four
+// sections are Image / Filter / Trace / Color. The Image section bar opens the
+// merged Image + Artboard dialog (image size/position plus artboard size,
+// padding and page background — the former standalone Artboard/Grid sheets were
+// folded in / removed). (No image → the Image section bar's "Add image" opens
+// the OS file picker, not a dialog — see the upload test, which drives the
+// hidden input.)
 
 // Switch section via the stepper dropdown: open it through the middle trigger,
 // then click the target section's menuitem. The active section is shown in the
@@ -29,20 +31,23 @@ async function gotoSection(page: import("@playwright/test").Page, name: string) 
   await page.getByRole("menuitem", { name, exact: true }).click()
 }
 
-// Artboard size / page-background dialog (ArtboardSheet): go to the Artboard
-// section, then open its top-right "Artboard" bar button (the stepper trigger
-// reads "Section: Artboard", so the only exact-"Artboard" button is the bar).
-async function openArtboardDialog(page: import("@playwright/test").Page) {
-  await gotoSection(page, "Artboard")
-  await page.getByRole("button", { name: "Artboard", exact: true }).click()
-}
-
-// Image edit dialog (ImageSheet) — requires a master image. Go to the Image
-// section, then open its top-right bar's "Edit image" button (the sole opener).
-async function openImageDialog(page: import("@playwright/test").Page) {
+// The merged Image + Artboard dialog (ImageSheet — the former standalone
+// Artboard/Grid sheets were folded in). Requires a master image: go to the Image
+// section, then open its top-right bar's "Edit image" pencil (the sole opener).
+// Idempotent — a no-op if the dialog is already open, since image and artboard
+// controls now live in this one sheet (callers may "re-open" between edits).
+async function openImageEditor(page: import("@playwright/test").Page) {
+  const dialog = page.locator('section[aria-label="Image"]')
+  if (await dialog.isVisible().catch(() => false)) return
   await gotoSection(page, "Image")
   await page.getByRole("button", { name: "Edit image", exact: true }).click()
+  await expect(dialog).toBeVisible()
 }
+
+// Back-compat aliases: image size/position and the artboard/page settings now
+// share the single merged dialog above.
+const openImageDialog = openImageEditor
+const openArtboardDialog = openImageEditor
 
 // Switch to the Filter section (reveals the top-right EditorFilterBar with its
 // "Add filter" / "Edit filter" action).
