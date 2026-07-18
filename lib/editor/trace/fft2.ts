@@ -30,9 +30,123 @@ export function fft1d(re: Float64Array, im: Float64Array, inverse: boolean): voi
   if (n <= 1) return
   if ((n & (n - 1)) === 0) {
     fft1dRadix2(re, im, inverse)
+  } else if (isSmooth(n)) {
+    fft1dMixed(re, im, inverse)
   } else {
     fft1dBluestein(re, im, inverse)
   }
+}
+
+/** Smallest prime factor of n (n ≥ 2). */
+function smallestPrimeFactor(n: number): number {
+  if (n % 2 === 0) return 2
+  for (let p = 3; p * p <= n; p += 2) if (n % p === 0) return p
+  return n
+}
+
+/** True when n factors entirely into {2,3,5,7} — mixed-radix is efficient + exact. */
+function isSmooth(n: number): boolean {
+  let m = n
+  for (const p of [2, 3, 5, 7]) while (m % p === 0) m /= p
+  return m === 1
+}
+
+// Twiddle cache: cos/sin of 2π·m/n for m=0..n-1, per size n. The L0 driver runs
+// ~130 FFTs of the SAME handful of sizes, so this turns millions of Math.cos/sin
+// calls into a one-time table per size. Forward W_n^m = exp(-iθ) = (cos, -sin);
+// inverse = conjugate = (cos, +sin).
+const trigCache = new Map<number, { cos: Float64Array; sin: Float64Array }>()
+function trigTable(n: number): { cos: Float64Array; sin: Float64Array } {
+  let t = trigCache.get(n)
+  if (t === undefined) {
+    const cos = new Float64Array(n)
+    const sin = new Float64Array(n)
+    for (let m = 0; m < n; m += 1) {
+      const ang = (2 * Math.PI * m) / n
+      cos[m] = Math.cos(ang)
+      sin[m] = Math.sin(ang)
+    }
+    t = { cos, sin }
+    trigCache.set(n, t)
+  }
+  return t
+}
+
+/** Direct O(n²) DFT — base case for a (small) prime factor. Unscaled, matching fft1dRadix2. */
+function dftDirect(re: Float64Array, im: Float64Array, inverse: boolean): { re: Float64Array; im: Float64Array } {
+  const n = re.length
+  const outRe = new Float64Array(n)
+  const outIm = new Float64Array(n)
+  const { cos, sin } = trigTable(n)
+  for (let k = 0; k < n; k += 1) {
+    let sr = 0
+    let si = 0
+    for (let t = 0; t < n; t += 1) {
+      const idx = (k * t) % n
+      const c = cos[idx]
+      const s = inverse ? sin[idx] : -sin[idx]
+      sr += re[t] * c - im[t] * s
+      si += re[t] * s + im[t] * c
+    }
+    outRe[k] = sr
+    outIm[k] = si
+  }
+  return { re: outRe, im: outIm }
+}
+
+/**
+ * Mixed-radix (decimation-in-time) FFT for smooth lengths, written in-place onto
+ * `re`/`im`. At each level it pulls out the smallest prime factor p, FFTs the p
+ * stride-p subsequences, then combines: X[k] = Σ_j W_n^{jk} · Y_j[k mod q].
+ * Same unscaled convention as fft1dRadix2 — EXACT (no padding, matches numpy).
+ */
+function fft1dMixed(re: Float64Array, im: Float64Array, inverse: boolean): void {
+  const out = mixedRec(re, im, inverse)
+  re.set(out.re)
+  im.set(out.im)
+}
+
+function mixedRec(re: Float64Array, im: Float64Array, inverse: boolean): { re: Float64Array; im: Float64Array } {
+  const n = re.length
+  if (n === 1) return { re: Float64Array.from(re), im: Float64Array.from(im) }
+  const p = smallestPrimeFactor(n)
+  if (p === n) return dftDirect(re, im, inverse)
+  const q = n / p
+
+  const subRe: Float64Array[] = new Array(p)
+  const subIm: Float64Array[] = new Array(p)
+  for (let j = 0; j < p; j += 1) {
+    const sr = new Float64Array(q)
+    const si = new Float64Array(q)
+    for (let k = 0; k < q; k += 1) {
+      sr[k] = re[k * p + j]
+      si[k] = im[k * p + j]
+    }
+    const sub = mixedRec(sr, si, inverse)
+    subRe[j] = sub.re
+    subIm[j] = sub.im
+  }
+
+  const { cos, sin } = trigTable(n)
+  const outRe = new Float64Array(n)
+  const outIm = new Float64Array(n)
+  for (let k = 0; k < n; k += 1) {
+    const kq = k % q
+    let accRe = 0
+    let accIm = 0
+    for (let j = 0; j < p; j += 1) {
+      const idx = (j * k) % n
+      const wRe = cos[idx]
+      const wIm = inverse ? sin[idx] : -sin[idx]
+      const yr = subRe[j][kq]
+      const yi = subIm[j][kq]
+      accRe += wRe * yr - wIm * yi
+      accIm += wRe * yi + wIm * yr
+    }
+    outRe[k] = accRe
+    outIm[k] = accIm
+  }
+  return { re: outRe, im: outIm }
 }
 
 /** In-place iterative radix-2 FFT (length MUST be a power of two). */

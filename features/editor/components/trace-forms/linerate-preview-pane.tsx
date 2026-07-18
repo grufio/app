@@ -28,10 +28,11 @@ import { detailToMinArea, loadAndDownscale, segmentRegions, type PreviewImage } 
 import { useSourceImage } from "@/lib/editor/trace/use-source-image"
 import { useTracePalette } from "@/lib/editor/trace/use-trace-palette"
 
-// Work resolution for the segmentation. Region count is fraction-based (thus
-// ~scale-invariant), so 256px matches the server's density while keeping the L0
-// FFT tractable in the worker.
-const MAX_PREVIEW_EDGE_PX = 256
+// Work resolution for the segmentation. Region count is NOT scale-invariant —
+// measured, 256px undercounted the Apply by ~40% and hid the fine thin regions
+// Density/Radius unlock. 512px resolves them; the mixed-radix L0 FFT (fft2.ts,
+// on 2·3·5·7-smooth dims) keeps it tractable in the worker (~1–2 s per flatten).
+const MAX_PREVIEW_EDGE_PX = 512
 // Outlines are drawn as smooth vector paths on a supersampled canvas via the
 // WATERTIGHT shared-arc method (buildArcs → smoothArc → assembleFaces, ported
 // from the server): each shared boundary is smoothed ONCE and used by both
@@ -39,7 +40,6 @@ const MAX_PREVIEW_EDGE_PX = 256
 // Smoothing amount follows the Smoothness dial (smoothnessToParams), eps scaled
 // from the server's work-edge (now the Resolution dial) to the preview resolution.
 const OUTLINE_SUPERSAMPLE = 4
-const OUTLINE_STROKE_PX = 2
 const ZOOM_STEP = 1.5
 const ZOOM_MIN = 1
 const ZOOM_MAX = 8
@@ -209,7 +209,11 @@ export function LineratePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
 
     // Stroke each internal shared arc once; skip image-border arcs (-1 label).
     ctx.lineJoin = "round"
-    ctx.lineWidth = OUTLINE_STROKE_PX
+    // Match the real trace's line thinness: the Apply SVG strokes `line_thickness`
+    // (=1) on a viewBox = source width, so the displayed line is line_thickness/sourceW
+    // of the image. Reproduce that exact fraction in canvas px (canvas = preview_w · ss).
+    const sourceW = source?.naturalWidth ?? flattened.width
+    ctx.lineWidth = Math.max(0.5, (params.line_thickness * flattened.width * ss) / sourceW)
     ctx.strokeStyle = "black"
     for (const arc of graph.arcs) {
       if (arc.labels[0] < 0 || arc.labels[1] < 0) continue
@@ -220,7 +224,7 @@ export function LineratePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
       for (let i = 1; i < s.length; i += 1) path.lineTo(s[i][0] * ss, s[i][1] * ss)
       ctx.stroke(path)
     }
-  }, [flattened, regions, graph, palette])
+  }, [flattened, regions, graph, palette, source, params.line_thickness])
 
   const valid = displayMmW > 0 && displayMmH > 0
   const showSpinner = !source || !palette || flattening || !flattened

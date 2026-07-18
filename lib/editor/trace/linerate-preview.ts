@@ -25,6 +25,18 @@ export type PreviewImage = {
   rgba: Uint8ClampedArray
 }
 
+/** Largest 2·3·5·7-smooth integer ≤ n (≥1) — keeps the heavy L0 FFT on the fast
+ * mixed-radix path instead of Bluestein (which pads to nextPow2(2n-1)). Smooth
+ * numbers are dense, so this loses ≤ a few px. */
+function smoothDown(n: number): number {
+  for (let m = Math.max(1, Math.floor(n)); m > 1; m -= 1) {
+    let x = m
+    for (const p of [2, 3, 5, 7]) while (x % p === 0) x /= p
+    if (x === 1) return m
+  }
+  return 1
+}
+
 /**
  * Draw `source` onto a scratch canvas at the downscaled resolution
  * (max edge `maxEdgePx`, preserving aspect ratio) and read RGBA back.
@@ -39,8 +51,10 @@ export function loadAndDownscale(args: {
   const { source, sourceWidth, sourceHeight, maxEdgePx } = args
   if (sourceWidth <= 0 || sourceHeight <= 0) return null
   const scale = Math.min(1, maxEdgePx / Math.max(sourceWidth, sourceHeight))
-  const w = Math.max(1, Math.round(sourceWidth * scale))
-  const h = Math.max(1, Math.round(sourceHeight * scale))
+  // Round each dim DOWN to a 2·3·5·7-smooth size so the L0 FFT runs on the fast
+  // mixed-radix path. Region count is fraction-based → losing ≤ a few px is a no-op.
+  const w = smoothDown(Math.round(sourceWidth * scale))
+  const h = smoothDown(Math.round(sourceHeight * scale))
   const work = document.createElement("canvas")
   work.width = w
   work.height = h

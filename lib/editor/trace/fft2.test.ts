@@ -53,8 +53,9 @@ describe("fft1d", () => {
     for (let i = 0; i < n; i += 1) expect(re[i] / n).toBeCloseTo(re0[i], 8)
   })
 
-  it("matches a naive DFT for NON-power-of-two lengths (Bluestein)", () => {
-    for (const n of [3, 6, 12, 24, 100]) {
+  it("matches a naive DFT for NON-power-of-two lengths (mixed-radix + Bluestein)", () => {
+    // smooth (2·3·5·7) → mixed-radix path; 13 (prime), 22 (=2·11) → Bluestein path.
+    for (const n of [3, 6, 12, 24, 100, 480, 720, 13, 22]) {
       const re = Array.from({ length: n }, (_, i) => Math.sin(i * 0.9) + i * 0.05)
       const im = Array.from({ length: n }, (_, i) => Math.cos(i * 0.3) - 1)
       const ref = naiveDft(re, im)
