@@ -25,6 +25,11 @@ export const linerateSchema = z.object({
   // smooth curves. Maps to RDP epsilon + Chaikin iterations on the shared
   // boundary arcs inside the Python service.
   smoothness: z.coerce.number().min(0).max(1).default(0.6),
+  // Radius ∈ [0, 1] → the "Radius" dial: the paintability WIDTH test uses this
+  // fraction of the Min-Gap radius. Lower = thinner paintable strokes survive (fewer
+  // over-merges); only clearly sub-Min-Gap slivers still merge. Default 0.333 (the
+  // analysed knee). Presented in the dialog as a 1–10 level like detail/flatten.
+  radius: z.coerce.number().min(0).max(1).default(0.333),
   // Maximum number of distinct REAL paints selected from the fixed palette.
   num_colors: z.coerce.number().int().min(2).max(560).default(32),
   // How those ≤num_colors paints are chosen — same shared reduction as
@@ -81,8 +86,9 @@ export const linerateTrace = {
   ui: {
     line_thickness: { kind: "decimal", label: "Line Thickness", min: 0.1, max: 10, step: 0.1, description: "Stroke width in pixels (0.1-10)" },
     flatten: { kind: "decimal", label: "Flatten", min: 0, max: 1, step: 0.05, description: "Painterly flattening (0=raw detail, 1=very flat). Removes texture/noise, keeps edges crisp." },
-    detail: { kind: "decimal", label: "Detail", min: 0, max: 1, step: 0.05, description: "Region granularity (0=few large regions, 1=many fine regions)" },
+    detail: { kind: "decimal", label: "Density", min: 0, max: 1, step: 0.05, description: "Region density (0=few large regions, 1=many fine regions)" },
     smoothness: { kind: "decimal", label: "Smoothness", min: 0, max: 1, step: 0.05, description: "Edge smoothness (0=follow working pixels, 1=heavy curve smoothing)" },
+    radius: { kind: "decimal", label: "Radius", min: 0, max: 1, step: 0.05, description: "Paintable stroke width vs Min. Gap (lower = keep thinner strokes, more fine regions)" },
     num_colors: { label: "Number of Colors", min: 2, max: 64, description: "Selection budget: max distinct paints picked from the palette (2-64 in the dialog)" },
     palette_restriction: { kind: "select", label: "Palette selection", options: [{ value: "top_n", label: "Top-N" }, { value: "pam", label: "PAM" }], description: "How paints are chosen: Top-N (most-used chips) or PAM (k-medoids). Coverage-based." },
     min_paintable_mm: { kind: "decimal", label: "Min. Gap (mm)", min: 0, max: 20, step: 0.5, description: "Smallest paintable gap between outlines in mm (0=off). Thinner regions merge so each stays paintable + fits its number." },
