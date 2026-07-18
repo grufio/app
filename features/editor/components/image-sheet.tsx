@@ -32,17 +32,29 @@ import type { UploadedMasterSnapshot } from "@/lib/editor/upload-master-image"
 import type { Unit } from "@/lib/editor/units"
 
 import { AddImageMenuAction } from "./add-image-menu-button"
-import { ArtboardPanel } from "./artboard-panel"
 import { useEditorToolbarTone } from "./editor-toolbar-tone"
-import { PaddingSection } from "./padding-section"
-import { PageBackgroundSection } from "./page-background-section"
 import type { ProjectCanvasStageHandle } from "./project-canvas-stage"
 import { SheetAddRow } from "./sheet-chrome"
 
+// All panels are code-split via next/dynamic so the merged sheet's body stays
+// out of the eager editor bundle (keeps the bundle-size budget — same pattern
+// as ImagePanel, matching how ArtboardSheet's panels loaded before the merge).
 const ImagePanel = dynamic(() => import("./image-panel").then((m) => m.ImagePanel), {
   ssr: false,
   loading: () => null,
 })
+const ArtboardPanel = dynamic(() => import("./artboard-panel").then((m) => m.ArtboardPanel), {
+  ssr: false,
+  loading: () => null,
+})
+const PaddingSection = dynamic(() => import("./padding-section").then((m) => m.PaddingSection), {
+  ssr: false,
+  loading: () => null,
+})
+const PageBackgroundSection = dynamic(
+  () => import("./page-background-section").then((m) => m.PageBackgroundSection),
+  { ssr: false, loading: () => null },
+)
 
 export function ImageSheet(props: {
   projectId: string
