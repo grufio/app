@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef } from "react"
 import { useMachine } from "@xstate/react"
 
 import type { RegisteredFilterId } from "@/lib/editor/filters/registry"
+import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
 
 import { createImageWorkflowMachine } from "./image-workflow.machine"
 import type {
@@ -64,11 +65,13 @@ export function useImageWorkflowMachine(args: {
 
   const readModel = useMemo(() => state.context.source, [state.context.source])
   const isMutating = state.matches({ operation: "removingFilter" }) || state.matches({ operation: "cropping" }) || state.matches({ operation: "restoring" })
-    || state.matches({ operation: "applyingFilter" })
+    || state.matches({ operation: "applyingFilter" }) || state.matches({ operation: "applyingTrace" }) || state.matches({ operation: "clearingTrace" })
   const isSyncing = state.matches({ operation: "syncing" })
   const isPersisting = state.matches({ persistence: "persisting" }) || state.matches({ persistence: "drain" })
   const isApplyingFilter = state.matches({ operation: "applyingFilter" })
   const isRemovingFilter = state.matches({ operation: "removingFilter" })
+  const isApplyingTrace = state.matches({ operation: "applyingTrace" })
+  const isClearingTrace = state.matches({ operation: "clearingTrace" })
   const isCropping = state.matches({ operation: "cropping" })
   const isRestoring = state.matches({ operation: "restoring" })
   const lastOperation = state.context.lastOperation
@@ -133,6 +136,51 @@ export function useImageWorkflowMachine(args: {
     }
     return pending
   }
+  const awaitOperation = (
+    args: { start: () => void; mutatingState: "applyingTrace" | "clearingTrace"; failMessage: string; timeoutMessage: string },
+  ) => {
+    let enteredMutationFlow = false
+    const pending = waitForStateChange({
+      actor: actorRef,
+      timeoutMs: WORKFLOW_WAIT_TIMEOUT_MS,
+      timeoutMessage: args.timeoutMessage,
+      evaluate: (snapshot) => {
+        const isMutatingNow = snapshot.matches({ operation: args.mutatingState })
+        const isSyncingNow = snapshot.matches({ operation: "syncing" })
+        const isIdleNow = snapshot.matches({ operation: "idle" })
+        const isErrorNow = snapshot.matches({ operation: "error" })
+        if (isMutatingNow || isSyncingNow) enteredMutationFlow = true
+        if (!enteredMutationFlow) return null
+        if (isErrorNow) return new Error(snapshot.context.lastOpError?.message ?? args.failMessage)
+        if (isIdleNow) return "resolve"
+        return null
+      },
+    })
+    args.start()
+    return pending
+  }
+  const applyTrace = (args: { kind: RegisteredTraceId; params: Record<string, unknown> }) => {
+    if (!state.can({ type: "TRACE_APPLY", kind: args.kind, params: args.params })) {
+      return Promise.reject(new Error("Trace apply is not allowed in the current workflow state"))
+    }
+    return awaitOperation({
+      start: () => sendEvent({ type: "TRACE_APPLY", kind: args.kind, params: args.params }),
+      mutatingState: "applyingTrace",
+      failMessage: "Failed to apply trace",
+      timeoutMessage: "Timed out while waiting for trace apply completion",
+    })
+  }
+  const clearTrace = () => {
+    if (!state.can({ type: "TRACE_REMOVE" })) {
+      return Promise.reject(new Error("Trace remove is not allowed in the current workflow state"))
+    }
+    return awaitOperation({
+      start: () => sendEvent({ type: "TRACE_REMOVE" }),
+      mutatingState: "clearingTrace",
+      failMessage: "Failed to remove trace",
+      timeoutMessage: "Timed out while waiting for trace remove completion",
+    })
+  }
   const removeFilter = (filterId: string) => sendEvent({ type: "FILTER_REMOVE", filterId })
   const applyCrop = (rect: { x: number; y: number; w: number; h: number }) => sendEvent({ type: "CROP_APPLY", rect })
   const restore = () => sendEvent({ type: "RESTORE" })
@@ -149,12 +197,16 @@ export function useImageWorkflowMachine(args: {
     isPersisting,
     isApplyingFilter,
     isRemovingFilter,
+    isApplyingTrace,
+    isClearingTrace,
     isCropping,
     isRestoring,
     lastOperation,
     operationError,
     persistenceError,
     applyFilter,
+    applyTrace,
+    clearTrace,
     refreshAndWait,
     removeFilter,
     applyCrop,

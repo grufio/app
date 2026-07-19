@@ -3,6 +3,7 @@ import { assign, fromPromise, setup } from "xstate"
 import { normalizeApiError } from "@/lib/api/error-normalizer"
 import type { OperationError } from "@/lib/api/operation-error"
 import type { RegisteredFilterId } from "@/lib/editor/filters/registry"
+import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
 
 import type {
   ImageWorkflowContext,
@@ -47,6 +48,14 @@ export function createImageWorkflowMachine() {
       removeFilter: fromPromise(async ({ input }: { input: { services: ImageWorkflowServices; filterId: string } }) => {
         await input.services.removeFilter(input.filterId)
       }),
+      applyTrace: fromPromise(
+        async ({ input }: { input: { services: ImageWorkflowServices; kind: RegisteredTraceId; params: Record<string, unknown> } }) => {
+          await input.services.applyTrace({ kind: input.kind, params: input.params })
+        }
+      ),
+      clearTrace: fromPromise(async ({ input }: { input: { services: ImageWorkflowServices } }) => {
+        await input.services.clearTrace()
+      }),
       applyCrop: fromPromise(
         async ({ input }: { input: { services: ImageWorkflowServices; sourceImageId: string; rect: { x: number; y: number; w: number; h: number } } }) => {
           await input.services.applyCrop({ sourceImageId: input.sourceImageId, rect: input.rect })
@@ -87,6 +96,8 @@ export function createImageWorkflowMachine() {
         lastOperation: ({ event, context }) => {
           if (event.type === "FILTER_APPLY") return "filter_apply"
           if (event.type === "FILTER_REMOVE") return "filter_remove"
+          if (event.type === "TRACE_APPLY") return "trace_apply"
+          if (event.type === "TRACE_REMOVE") return "trace_remove"
           if (event.type === "CROP_APPLY") return "crop_apply"
           if (event.type === "RESTORE") return "restore"
           if (event.type === "REFRESH" || event.type === "RETRY") return "refresh"
@@ -184,6 +195,16 @@ export function createImageWorkflowMachine() {
                 target: "applyingFilter",
                 actions: ["clearOperationError", "assignLastOperation"],
               },
+              TRACE_APPLY: {
+                guard: "canMutate",
+                target: "applyingTrace",
+                actions: ["clearOperationError", "assignLastOperation"],
+              },
+              TRACE_REMOVE: {
+                guard: "canMutate",
+                target: "clearingTrace",
+                actions: ["clearOperationError", "assignLastOperation"],
+              },
               CROP_APPLY: {
                 guard: "canMutate",
                 target: "cropping",
@@ -228,6 +249,25 @@ export function createImageWorkflowMachine() {
                 if (event.type !== "FILTER_REMOVE") throw new Error("Missing filterId for removeFilter")
                 return { services: context.services, filterId: event.filterId }
               },
+              onDone: { target: "syncing" },
+              onError: { target: "error", actions: "assignOperationFailure" },
+            },
+          },
+          applyingTrace: {
+            invoke: {
+              src: "applyTrace",
+              input: ({ context, event }) => {
+                if (event.type !== "TRACE_APPLY") throw new Error("Missing trace payload for applyTrace")
+                return { services: context.services, kind: event.kind, params: event.params }
+              },
+              onDone: { target: "syncing" },
+              onError: { target: "error", actions: "assignOperationFailure" },
+            },
+          },
+          clearingTrace: {
+            invoke: {
+              src: "clearTrace",
+              input: ({ context }) => ({ services: context.services }),
               onDone: { target: "syncing" },
               onError: { target: "error", actions: "assignOperationFailure" },
             },

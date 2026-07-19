@@ -65,8 +65,12 @@ export function TraceSurfaceScope(props: TraceSurfaceScopeProps) {
   const { beginSelection: beginTraceSelection } = traceDialog
   useEffect(() => {
     if (!pendingSelectionOpen) return
-    beginTraceSelection()
-    onConsumePendingSelectionOpen?.()
+    // Only consume the pending flag when the picker actually opened. When the
+    // source image is momentarily null (e.g. during the post-clear refresh),
+    // `beginSelection` no-ops and returns false — consuming here would swallow
+    // the click. `beginSelection` depends on `sourceImage`, so once the source
+    // recovers its identity changes, this effect re-fires and succeeds.
+    if (beginTraceSelection()) onConsumePendingSelectionOpen?.()
   }, [pendingSelectionOpen, beginTraceSelection, onConsumePendingSelectionOpen])
 
   // Snapshot from `traceDialog.session` carries the stable identity
