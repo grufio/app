@@ -106,6 +106,10 @@ export function useEditorWorkflowAdapter(args: {
   refreshMasterImage: () => Promise<void>
   refreshProjectImages: () => Promise<void>
   refreshFilterImage: () => Promise<void>
+  /** Re-fetch the trace row. Part of "refresh all editor data": the trace is
+   * downstream of the filter (removing a filter cascades it server-side), so
+   * every workflow mutation must re-fetch it or `hasTrace` goes stale. */
+  refreshTrace: () => Promise<void>
   seedMasterImage: (next: { id: string; masterRowId: string | null; signedUrl: string; masterSignedUrl: string; width_px: number; height_px: number; dpi: number | null; name: string } | null) => void
   /** Await-able persisted transform save, owned by `useDisplaySize` (the
    * single authoritative display-size source). The workflow machine wraps
@@ -127,6 +131,7 @@ export function useEditorWorkflowAdapter(args: {
     refreshMasterImage,
     refreshProjectImages,
     refreshFilterImage,
+    refreshTrace,
     seedMasterImage,
     saveImageState,
   } = args
@@ -182,12 +187,15 @@ export function useEditorWorkflowAdapter(args: {
     // row). The current state stays correct across these operations.
     // Each refresh hits an independent endpoint keyed only by projectId
     // and writes to its own isolated useState — no ordering constraint.
+    // `refreshTrace` is included so a filter-remove (which cascades the trace
+    // server-side) leaves the client `trace`/`hasTrace` consistent.
     await Promise.all([
       refreshMasterImage(),
       refreshProjectImages(),
       refreshFilterImage(),
+      refreshTrace(),
     ])
-  }, [refreshFilterImage, refreshMasterImage, refreshProjectImages])
+  }, [refreshFilterImage, refreshMasterImage, refreshProjectImages, refreshTrace])
 
   const refreshEditorData = useCallback(async () => {
     if (refreshInFlightRef.current) {
