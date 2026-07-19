@@ -618,11 +618,11 @@ def _paint_map_to_svg(
         regions.append(
             # stroke-width here is only a STRUCTURAL placeholder. The rendered
             # contour width is owned entirely by the client: trace-inline-svg.tsx
-            # overrides it via CSS to the shared TRACE_CONTOUR_STROKE_CSS_PX
-            # (constant 1 CSS px, non-scaling), matching the pixelate/circulate
-            # Konva hairlines. Do NOT set `vector-effect` server-side: this is a
-            # source-px viewBox, so a constant server stroke reads as too thick
-            # (that mistake was tried and reverted).
+            # overrides it via CSS to the shared `useTraceContourStrokeCssPx`
+            # (one device pixel) + `vector-effect: non-scaling-stroke`, matching
+            # the pixelate/circulate Konva hairlines. Do NOT set `vector-effect`
+            # server-side: this is a source-px viewBox, so a constant server
+            # stroke reads as too thick (that mistake was tried and reverted).
             f'<path d="{d}" fill="#{r:02x}{g:02x}{b:02x}" stroke="black" '
             f'stroke-width="{line_thickness}" fill-rule="evenodd"/>'
         )

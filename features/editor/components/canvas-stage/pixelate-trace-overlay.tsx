@@ -29,7 +29,8 @@ import { Group, Line, Rect } from "react-konva"
 import type { ParsedPixelateTrace } from "@/lib/editor/trace/pixelate-trace-parse"
 import type { TraceWorldRect } from "@/lib/editor/trace/trace-overlay-rect"
 
-import { getStaticLineRenderProps, TRACE_CONTOUR_STROKE_CSS_PX } from "./line-rendering"
+import { useTraceContourStrokeCssPx } from "./device-pixel-ratio"
+import { getStaticLineRenderProps } from "./line-rendering"
 
 export function PixelateTraceOverlay({
   parsed,
@@ -88,11 +89,11 @@ export function PixelateTraceOverlay({
     return lines
   }, [gridXs, gridYs, cornerX, cornerY, rect.width, rect.height, viewBoxW, viewBoxH, snapWorldToDeviceHalfPixel])
 
-  // Constant 1-CSS-pixel hairline, shared with the circulate frames and the
-  // linerate outlines (TRACE_CONTOUR_STROKE_CSS_PX). strokeScaleEnabled:false
-  // keeps it constant at any zoom; the grid is also device-snapped above, so it
-  // renders crisp exactly like the artboard grid.
-  const lineProps = getStaticLineRenderProps(TRACE_CONTOUR_STROKE_CSS_PX)
+  // ONE physical device pixel — the shared trace-contour hairline
+  // (useTraceContourStrokeCssPx), same width as the circulate frames and the
+  // linerate outlines. strokeScaleEnabled:false keeps it constant at any zoom;
+  // the grid is also device-snapped above, so it renders crisp like the artboard.
+  const lineProps = getStaticLineRenderProps(useTraceContourStrokeCssPx())
 
   return (
     <Group x={rect.x} y={rect.y} offsetX={rect.x} offsetY={rect.y} rotation={rotation} listening={false}>
