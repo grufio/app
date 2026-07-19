@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef } from "react"
 import { useMachine } from "@xstate/react"
 
 import type { ProjectImageItem } from "@/lib/api/project-images"
+import type { MasterImage } from "@/lib/editor/master-image"
 import type { RegisteredFilterId } from "@/lib/editor/filters/registry"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
 import type { UploadedMasterSnapshot } from "@/lib/editor/upload-master-image"
@@ -21,11 +22,16 @@ const WORKFLOW_WAIT_TIMEOUT_MS = 20_000
 
 export function useImageWorkflowMachine(args: {
   projectId?: string
-  sourceSnapshot: WorkflowSourceSnapshot
   services: ImageWorkflowServices
+  initialMaster?: MasterImage | null
 }) {
   const machine = useMemo(() => createImageWorkflowMachine(), [])
-  const [state, send, actorRef] = useMachine(machine, { input: { services: args.services } })
+  // `useMachine` reads `input` only at creation (SSR seed); later `initialMaster`
+  // changes are ignored — live updates flow through MASTER_LOADED. Passing it
+  // directly is fine (it's a prop, not a ref).
+  const [state, send, actorRef] = useMachine(machine, {
+    input: { services: args.services, initialMaster: args.initialMaster ?? null },
+  })
   const prevStateRef = useRef<string | null>(null)
   const lastEventRef = useRef<string>("INIT")
   const refreshWaitRef = useRef<Promise<void> | null>(null)
@@ -35,9 +41,6 @@ export function useImageWorkflowMachine(args: {
     send(event)
   }, [send])
 
-  useEffect(() => {
-    sendEvent({ type: "SOURCE_SNAPSHOT", snapshot: args.sourceSnapshot })
-  }, [args.sourceSnapshot, sendEvent])
   useEffect(() => {
     sendEvent({ type: "SERVICES_UPDATE", services: args.services })
   }, [args.services, sendEvent])
@@ -67,6 +70,10 @@ export function useImageWorkflowMachine(args: {
 
   const readModel = useMemo(() => state.context.source, [state.context.source])
   const projectImages = state.context.projectImages
+  const master = state.context.master
+  const masterLoading = state.context.masterLoading
+  const masterError = state.context.masterError
+  const masterRowId = state.context.master?.masterRowId ?? null
   const isMutating = state.matches({ operation: "removingFilter" }) || state.matches({ operation: "cropping" }) || state.matches({ operation: "restoring" })
     || state.matches({ operation: "applyingFilter" }) || state.matches({ operation: "applyingTrace" }) || state.matches({ operation: "clearingTrace" })
     || state.matches({ operation: "uploadingMaster" }) || state.matches({ operation: "deletingMaster" })
@@ -223,12 +230,31 @@ export function useImageWorkflowMachine(args: {
     (items: ProjectImageItem[]) => sendEvent({ type: "PROJECT_IMAGES_LOADED", items }),
     [sendEvent],
   )
+  // The source snapshot is now derived in the adapter from the machine-owned
+  // master (+ the filter hook) and pushed back in — the machine can't take it
+  // as an arg because it would create a create-time cycle. Stable sender.
+  const setSource = useCallback(
+    (snapshot: WorkflowSourceSnapshot) => sendEvent({ type: "SOURCE_SNAPSHOT", snapshot }),
+    [sendEvent],
+  )
+  // Stable identity (consumed in the adapter's loader effect deps).
+  const setMaster = useCallback(
+    (next: { master: MasterImage | null; loading?: boolean; error?: string }) =>
+      sendEvent({ type: "MASTER_LOADED", master: next.master, loading: next.loading, error: next.error }),
+    [sendEvent],
+  )
 
   return {
     state,
     readModel,
     projectImages,
     setProjectImages,
+    master,
+    masterLoading,
+    masterError,
+    masterRowId,
+    setMaster,
+    setSource,
     isMutating,
     isSyncing,
     isPersisting,
