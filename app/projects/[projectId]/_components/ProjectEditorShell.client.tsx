@@ -181,6 +181,28 @@ export function ProjectDetailPageClient({
   // before the first user edit; it reads the one source in ImageState
   // shape. Null = genuine fresh upload (no state) → intrinsic placement.
   const initialImageTransform = useMemo(() => getCurrentImageState(), [getCurrentImageState])
+  // Trace handlers are created BEFORE the workflow adapter so `refreshTrace`
+  // can join the adapter's "refresh all editor data" — the trace is downstream
+  // of the filter (removing a filter cascades it server-side), so every
+  // workflow mutation must re-fetch the trace or `hasTrace` goes stale.
+  const {
+    trace,
+    traceLoading,
+    isApplyingTrace,
+    isClearingTrace,
+    handleApplyTrace,
+    handleClearTrace,
+    refreshTrace,
+  } = useTraceHandlers({
+    projectId,
+    refreshFilterImage,
+    refreshMasterImage,
+    saveImageState,
+    // The trace-apply pre-save reads the one authoritative transform
+    // (incl. persisted rotation) so the trace is computed against the
+    // user's current display size, closing the resize→apply race.
+    getCurrentImageTx: getCurrentImageState,
+  })
   const {
     sourceSnapshot,
     workflow,
@@ -206,6 +228,7 @@ export function ProjectDetailPageClient({
     refreshMasterImage,
     refreshProjectImages,
     refreshFilterImage,
+    refreshTrace,
     seedMasterImage,
     saveImageState,
   })
@@ -234,23 +257,6 @@ export function ProjectDetailPageClient({
     if (!displayMm) return null
     return { ...filterSourceImage, displayMmW: displayMm.displayMmW, displayMmH: displayMm.displayMmH }
   }, [filterSourceImage, artboardWidthPx, artboardHeightPx, displayTxU])
-  const {
-    trace,
-    traceLoading,
-    isApplyingTrace,
-    isClearingTrace,
-    handleApplyTrace,
-    handleClearTrace,
-  } = useTraceHandlers({
-    projectId,
-    refreshFilterImage,
-    refreshMasterImage,
-    saveImageState,
-    // The trace-apply pre-save reads the one authoritative transform
-    // (incl. persisted rotation) so the trace is computed against the
-    // user's current display size, closing the resize→apply race.
-    getCurrentImageTx: getCurrentImageState,
-  })
 
   // Workflow-level filter error toasts at shell scope.
   useDedupingErrorToast(workflowFilterPanelError)
