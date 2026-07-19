@@ -35,3 +35,37 @@ export function buildDeleteMessage(args: DeleteMessageArgs): string {
   if (cascadeHasTrace) parts.push("the trace overlay")
   return `This will permanently delete the image, ${parts.join(" and ")}.`
 }
+
+/**
+ * Copy for the Reset confirm dialog. Reset removes the downstream artefact(s)
+ * that lock a layer, KEEPING the layer itself (unlike delete):
+ *   - image scope, filter + trace → "This removes the filter and the trace."
+ *   - image scope, filter only    → "This removes the filter."
+ *   - image scope, trace only     → "This removes the trace."
+ *   - filter scope (always a trace) → "This removes the trace."
+ * The image bar's reset removes the filter, which cascades the trace server-side;
+ * the filter bar's reset removes only the trace.
+ */
+export type ResetScope = "image" | "filter"
+
+export type ResetMessageArgs = {
+  scope: ResetScope
+  hasFilter: boolean
+  hasTrace: boolean
+}
+
+export function buildResetTitle(args: ResetMessageArgs): string {
+  const { scope, hasFilter, hasTrace } = args
+  if (scope === "filter") return "Remove the trace?"
+  if (hasFilter && hasTrace) return "Remove the filter and trace?"
+  if (hasFilter) return "Remove the filter?"
+  return "Remove the trace?"
+}
+
+export function buildResetMessage(args: ResetMessageArgs): string {
+  const { scope, hasFilter, hasTrace } = args
+  if (scope === "filter") return "This removes the trace."
+  if (hasFilter && hasTrace) return "This removes the filter and the trace."
+  if (hasFilter) return "This removes the filter."
+  return "This removes the trace."
+}

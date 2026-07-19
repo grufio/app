@@ -19,6 +19,11 @@ import {
   type ProjectCanvasStageHandle,
 } from "@/features/editor"
 import { deriveSectionLocks } from "@/lib/editor/section-locks"
+import {
+  buildResetMessage,
+  buildResetTitle,
+  type ResetScope,
+} from "@/features/editor/components/delete-message"
 import { EditorHomeBar } from "@/features/editor/components/editor-home-bar"
 import { EditorViewBar } from "@/features/editor/components/editor-view-bar"
 import { EditorSectionStepper } from "@/features/editor/components/editor-section-stepper"
@@ -550,40 +555,46 @@ export function ProjectDetailPageClient({
     () => deriveSectionLocks({ hasFilter, hasTrace }),
     [hasFilter, hasTrace],
   )
-  // Deleting the filter cascades the trace away (server-authoritative). When a
-  // trace exists, confirm first; otherwise remove instantly.
-  const [filterDeleteId, setFilterDeleteId] = useState<string | null>(null)
-  const [filterDeleteBusy, setFilterDeleteBusy] = useState(false)
-  const [filterDeleteError, setFilterDeleteError] = useState<string | null>(null)
+  // Filter delete is instant: the bar's Delete is greyed while a trace depends
+  // on the filter (you Reset the trace away first), so this is only reached when
+  // nothing downstream exists.
+  const handleRemoveFilter = useCallback(
+    (id: string) => {
+      void workflow.removeFilter(id)
+    },
+    [workflow],
+  )
   // Filter picker (top-right "+" / edit) open state — the Filter section's
   // sole dialog. Local, mounted only while the Filter section is active.
   const [filterSelectionOpen, setFilterSelectionOpen] = useState(false)
 
-  const handleRemoveFilter = useCallback(
-    (id: string) => {
-      if (hasTrace) {
-        setFilterDeleteError(null)
-        setFilterDeleteId(id)
-        return
-      }
-      void workflow.removeFilter(id)
-    },
-    [hasTrace, workflow],
-  )
+  // Reset (bar RotateCcw) = remove the downstream artefact that locks a layer,
+  // keeping the layer itself. Image scope → remove the filter (cascades the trace
+  // server-side) or, if a trace sits directly on the master, clear it. Filter
+  // scope → clear the trace. Confirmed via the reset dialog below.
+  const [resetScope, setResetScope] = useState<ResetScope | null>(null)
+  const [resetBusy, setResetBusy] = useState(false)
+  const [resetError, setResetError] = useState<string | null>(null)
 
-  const confirmFilterDelete = useCallback(async () => {
-    if (!filterDeleteId || filterDeleteBusy) return
-    setFilterDeleteBusy(true)
-    setFilterDeleteError(null)
+  const confirmReset = useCallback(async () => {
+    if (!resetScope || resetBusy) return
+    setResetBusy(true)
+    setResetError(null)
     try {
-      await workflow.removeFilter(filterDeleteId)
-      setFilterDeleteId(null)
+      if (resetScope === "image" && hasFilter) {
+        // Single-artefact model: at most one filter per project.
+        const filterId = filterStack[0]?.id
+        if (filterId) await workflow.removeFilter(filterId) // cascades the trace
+      } else {
+        await handleClearTrace()
+      }
+      setResetScope(null)
     } catch (err) {
-      setFilterDeleteError(err instanceof Error ? err.message : "Delete failed")
+      setResetError(err instanceof Error ? err.message : "Reset failed")
     } finally {
-      setFilterDeleteBusy(false)
+      setResetBusy(false)
     }
-  }, [filterDeleteId, filterDeleteBusy, workflow])
+  }, [resetScope, resetBusy, hasFilter, filterStack, workflow, handleClearTrace])
 
 
   return (
@@ -677,6 +688,8 @@ export function ProjectDetailPageClient({
               hasMasterImage ? setPendingArtboardDialog("image") : imageUploader.openFilePicker()
             }
             onDelete={requestDeleteSelectedImage}
+            locked={sectionLocks.imageLocked}
+            onReset={() => setResetScope("image")}
           />
         ) : null}
         {/* Merged Image + Artboard dialog host (ImageSheet) lives in
@@ -708,8 +721,7 @@ export function ProjectDetailPageClient({
             panelImageTxU={panelImageTxU}
             workspaceUnit={workspaceUnit ?? "cm"}
             imagePanelReady={imagePanelReady}
-            imagePanelEnabled={Boolean(masterImage) && workspaceReady && !sectionLocks.imageLocked}
-            imageLocked={sectionLocks.imageLocked}
+            imagePanelEnabled={Boolean(masterImage) && workspaceReady}
             masterImageLoading={masterImageLoading}
             deleteBusy={deleteBusy}
             restoreBusy={workflow.isRestoring}
@@ -729,6 +741,8 @@ export function ProjectDetailPageClient({
               const id = filterStack[0]?.id
               if (id) handleRemoveFilter(id)
             }}
+            locked={sectionLocks.filterLocked}
+            onReset={() => setResetScope("filter")}
           />
         ) : null}
         {editorSection === "filter" ? (
@@ -802,35 +816,37 @@ export function ProjectDetailPageClient({
       </ProjectEditorLayout>
 
       <Dialog
-        open={filterDeleteId !== null}
-        onOpenChange={(o) => (!o && !filterDeleteBusy ? setFilterDeleteId(null) : null)}
+        open={resetScope !== null}
+        onOpenChange={(o) => (!o && !resetBusy ? setResetScope(null) : null)}
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete filter?</DialogTitle>
+            <DialogTitle>
+              {resetScope ? buildResetTitle({ scope: resetScope, hasFilter, hasTrace }) : ""}
+            </DialogTitle>
             <DialogDescription>
-              The trace is built on the filter, so it will be deleted too.
+              {resetScope ? buildResetMessage({ scope: resetScope, hasFilter, hasTrace }) : ""}
             </DialogDescription>
           </DialogHeader>
-          {filterDeleteError ? (
-            <div role="alert" className="text-sm text-destructive">{filterDeleteError}</div>
+          {resetError ? (
+            <div role="alert" className="text-sm text-destructive">{resetError}</div>
           ) : null}
           <DialogFooter>
             <AppButton
               type="button"
               variant="outline"
-              onClick={() => setFilterDeleteId(null)}
-              disabled={filterDeleteBusy}
+              onClick={() => setResetScope(null)}
+              disabled={resetBusy}
             >
               Cancel
             </AppButton>
             <AppButton
               type="button"
               variant="destructive"
-              onClick={confirmFilterDelete}
-              disabled={filterDeleteBusy}
+              onClick={confirmReset}
+              disabled={resetBusy}
             >
-              {filterDeleteBusy ? "Deleting…" : "Delete filter + trace"}
+              {resetBusy ? "Removing…" : "Remove"}
             </AppButton>
           </DialogFooter>
         </DialogContent>

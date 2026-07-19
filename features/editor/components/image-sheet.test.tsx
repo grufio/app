@@ -38,7 +38,6 @@ function renderSheet(overrides: Partial<React.ComponentProps<typeof ImageSheet>>
     workspaceUnit: "cm" as const,
     imagePanelReady: true,
     imagePanelEnabled: true,
-    imageLocked: false,
     canFit: false,
     onFitToArtboard: vi.fn(),
     masterImageLoading: false,

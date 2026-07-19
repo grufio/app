@@ -64,9 +64,6 @@ export function ImageSheet(props: {
   workspaceUnit: Unit
   imagePanelReady: boolean
   imagePanelEnabled: boolean
-  /** True when a filter/trace depends on the image → image functions disabled
-   * (passed straight through to the inner `ImagePanel`). */
-  imageLocked?: boolean
   canFit: boolean
   onFitToArtboard: () => void
   masterImageLoading: boolean
@@ -91,7 +88,6 @@ export function ImageSheet(props: {
     workspaceUnit,
     imagePanelReady,
     imagePanelEnabled,
-    imageLocked,
     canFit,
     onFitToArtboard,
     masterImageLoading,
@@ -134,7 +130,6 @@ export function ImageSheet(props: {
               unit={workspaceUnit}
               ready={imagePanelReady}
               disabled={!imagePanelEnabled}
-              locked={imageLocked}
               onCommit={(w, h) => canvasRef.current?.setImageSize(w, h)}
               onCommitPosition={(opts) => canvasRef.current?.setImagePosition(opts)}
               onAlign={(opts) => canvasRef.current?.alignImage(opts)}

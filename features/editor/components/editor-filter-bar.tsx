@@ -3,49 +3,93 @@
 /**
  * Filter actions bar — floating, top-right. The filter section's submenu.
  *   - no filter set → a single Plus ("Add filter") → opens the filter picker
- *   - filter set → Trash2 ("Delete filter", left) + Pencil ("Edit filter",
- *     right); delete removes the filter (may confirm if a trace depends on it),
- *     edit re-opens the picker to change the preset.
+ *   - filter set → three icons: Delete · Edit · Reset. Delete/Edit act on the
+ *     filter itself; Reset removes only the downstream trace. The set toggles
+ *     INVERSELY with `locked` (a trace depends on the filter):
+ *       - locked   → Delete + Edit disabled, Reset enabled
+ *       - unlocked → Delete + Edit enabled, Reset disabled (stays visible, greyed)
+ *     So you Reset first (removes the trace ⇒ unlocked), then Edit/Delete work.
  * Shown while the Filter section is active. Tone from `EditorToolbarTone`.
  * Mirrors `EditorImageBar`.
  */
-import { Pencil, Plus, Trash2 } from "lucide-react"
+import { Pencil, Plus, RotateCcw, Trash2 } from "lucide-react"
 
 import { useEditorToolbarTone } from "./editor-toolbar-tone"
 import { circleClass } from "./floating-bar-styles"
 
 type Props = {
-  /** Whether a filter is set — picks add vs delete+edit. */
+  /** Whether a filter is set — picks add vs the delete/edit/reset trio. */
   hasFilter: boolean
   /** Opens the filter picker (to add, or to change the preset). */
   onOpen: () => void
-  /** Removes the current filter. Only used when `hasFilter`. */
+  /** Removes the current filter. Disabled while `locked`. */
   onDelete: () => void
   /** Disable the "Add filter" action — a filter needs a source image, so
    * without one (or while a filter/trace action is in flight) adding is not
-   * allowed. Only gates the ADD case; Edit/Delete (a filter exists) stay on. */
+   * allowed. Only gates the ADD case. */
   addDisabled?: boolean
+  /** A trace depends on the filter → Delete + Edit disabled, Reset enabled. */
+  locked?: boolean
+  /** Removes the downstream trace (via a confirm dialog). Enabled only while `locked`. */
+  onReset?: () => void
 }
 
-export function EditorFilterBar({ hasFilter, onOpen, onDelete, addDisabled = false }: Props) {
+const DISABLED_CLS = "disabled:pointer-events-none disabled:opacity-40"
+
+export function EditorFilterBar({
+  hasFilter,
+  onOpen,
+  onDelete,
+  addDisabled = false,
+  locked = false,
+  onReset,
+}: Props) {
   const tone = useEditorToolbarTone()
-  const openDisabled = !hasFilter && addDisabled
+
+  if (!hasFilter) {
+    return (
+      <div className="absolute top-3 right-3 z-20 flex flex-row gap-2">
+        <button
+          type="button"
+          aria-label="Add filter"
+          onClick={onOpen}
+          disabled={addDisabled}
+          className={`${circleClass(tone, "active")} ${DISABLED_CLS}`}
+        >
+          <Plus aria-hidden="true" className="size-5" />
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div className="absolute top-3 right-3 z-20 flex flex-row gap-2">
-      {hasFilter ? (
-        <button type="button" aria-label="Delete filter" onClick={onDelete} className={circleClass(tone, "active")}>
-          <Trash2 aria-hidden="true" className="size-5" />
-        </button>
-      ) : null}
       <button
         type="button"
-        aria-label={hasFilter ? "Edit filter" : "Add filter"}
-        onClick={onOpen}
-        disabled={openDisabled}
-        className={`${circleClass(tone, "active")} disabled:pointer-events-none disabled:opacity-40`}
+        aria-label="Delete filter"
+        onClick={onDelete}
+        disabled={locked}
+        className={`${circleClass(tone, "active")} ${DISABLED_CLS}`}
       >
-        {hasFilter ? <Pencil aria-hidden="true" className="size-5" /> : <Plus aria-hidden="true" className="size-5" />}
+        <Trash2 aria-hidden="true" className="size-5" />
+      </button>
+      <button
+        type="button"
+        aria-label="Edit filter"
+        onClick={onOpen}
+        disabled={locked}
+        className={`${circleClass(tone, "active")} ${DISABLED_CLS}`}
+      >
+        <Pencil aria-hidden="true" className="size-5" />
+      </button>
+      <button
+        type="button"
+        aria-label="Reset filter"
+        onClick={onReset}
+        disabled={!locked}
+        className={`${circleClass(tone, "active")} ${DISABLED_CLS}`}
+      >
+        <RotateCcw aria-hidden="true" className="size-5" />
       </button>
     </div>
   )

@@ -41,11 +41,6 @@ type Props = {
    */
   ready?: boolean
   disabled?: boolean
-  /** True when a filter/trace depends on the image → image functions are
-   * disabled and the section shows the locked tone. No unlock affordance:
-   * the user removes the filter/trace (which cascades) to edit again. The
-   * shell also ORs this into `disabled` via `useImagePanelEnabled`. */
-  locked?: boolean
   onCommit: (widthPxU: bigint, heightPxU: bigint) => void
   onCommitPosition: (opts: { xPxU?: bigint; yPxU?: bigint }) => void
   onAlign: (opts: { x?: "left" | "center" | "right"; y?: "top" | "center" | "bottom" }) => void
@@ -71,7 +66,6 @@ export function ImagePanel({
   unit,
   ready = true,
   disabled,
-  locked,
   onCommit,
   onCommitPosition,
   onAlign,
@@ -81,17 +75,15 @@ export function ImagePanel({
   onFitToArtboard,
 }: Props) {
   const controlsDisabled = Boolean(disabled) || !ready
-  const isLocked = Boolean(locked)
 
   return (
     <EditorSidebarSection
-      locked={isLocked}
       headerActions={
         <>
           <RightPanelIconButton
             type="button"
             aria-label="Restore image"
-            disabled={!canRestore || isLocked}
+            disabled={!canRestore}
             onClick={onRestore}
           >
             <RotateCcw className="size-4" />
@@ -99,7 +91,7 @@ export function ImagePanel({
           <RightPanelIconButton
             type="button"
             aria-label="Fit image to artboard"
-            disabled={!canFit || isLocked}
+            disabled={!canFit}
             onClick={onFitToArtboard}
           >
             <Maximize2 className="size-4" />
