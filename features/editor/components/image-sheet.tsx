@@ -35,6 +35,7 @@ import { AddImageMenuAction } from "./add-image-menu-button"
 import { useEditorToolbarTone } from "./editor-toolbar-tone"
 import type { ProjectCanvasStageHandle } from "./project-canvas-stage"
 import { SheetAddRow } from "./sheet-chrome"
+import { sheetRootClass } from "./sheet-shell"
 
 // All panels are code-split via next/dynamic so the merged sheet's body stays
 // out of the eager editor bundle (keeps the bundle-size budget — same pattern
@@ -120,9 +121,10 @@ export function ImageSheet(props: {
       className={cn(
         // Scope the dark theme to the editor tone (panel + inputs follow it).
         tone === "dark" && "dark",
-        "text-foreground absolute inset-0 z-30 flex flex-col overflow-hidden bg-background",
-        // Desktop: centred, rounded, bounded panel.
-        "md:inset-auto md:top-1/2 md:left-1/2 md:max-h-[80vh] md:w-80 md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-2xl md:border md:shadow-xl",
+        "text-foreground",
+        // Standard editor-sheet chrome: full width / full height on every
+        // breakpoint (matches Artboard / Filter / Trace / Colors — no card).
+        sheetRootClass(),
       )}
     >
       <header className="flex shrink-0 items-center justify-end px-2 py-2">
