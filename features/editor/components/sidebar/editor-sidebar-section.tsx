@@ -11,30 +11,21 @@ import { cn } from "@/lib/utils"
  * - outer: border-b px-4 py-3
  * - title: either a fixed-height title row, or a justify-between row with actions
  * - body: mt-3 wrapper
- *
- * `locked` is the section-lock visual signal — when true, the wrapper
- * picks up a subtle muted tint (`bg-muted/40`). The 1px bottom divider
- * stays put either way; the lock state only changes the fill.
  */
 export function EditorSidebarSection({
   title,
   testId,
   headerActions,
-  locked,
   children,
 }: {
   title?: string
   testId?: string
   headerActions?: React.ReactNode
-  locked?: boolean
   children: React.ReactNode
 }) {
   const hasHeader = Boolean(title) || Boolean(headerActions)
   return (
-    <div
-      className={cn("border-b px-4 py-3", locked && "bg-muted/40")}
-      data-testid={testId}
-    >
+    <div className="border-b px-4 py-3" data-testid={testId}>
       {headerActions ? (
         <div className={cn("flex items-center gap-2", title ? "justify-between" : "justify-end")}>
           {title ? (
