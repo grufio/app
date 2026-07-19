@@ -1,32 +1,29 @@
 "use client"
 
 /**
- * Editor Image dialog — Feather-3D style.
+ * Editor Image dialog — the merged Image + Artboard sheet.
  *
- * Responsive: full-screen overlay on mobile, a centred rounded panel on
- * desktop (`md:`). Tone-aware (dark/light) by scoping the app theme to the
- * editor's `EditorToolbarTone`: when the tone is dark we add the `dark` class
- * so the panel **and** the form-controls inside follow the dark theme — no
- * per-control restyle. No section titles; a footer hosts the round Apply +
- * Delete actions.
+ * Standard editor-sheet chrome: `sheetRootClass()` (full-screen overlay on
+ * every breakpoint) + `SheetHeader` (title + Close), matching the Grid / Trace
+ * / Filter / Colors sheets. Tone-aware (dark/light) by scoping the app theme to
+ * the editor's `EditorToolbarTone`: when the tone is dark we add the `dark`
+ * class so the panel **and** the form-controls inside follow the dark theme.
  *
- * This is the merged Image + Artboard dialog (the former standalone
- * `ArtboardSheet` was folded in). With an image present it stacks, top to
- * bottom: `ImagePanel` (size/position/align + restore/fit), then the
- * artboard/page controls — `ArtboardPanel` (canvas size), `PaddingSection`,
- * `PageBackgroundSection`. Image settings sit on top.
+ * With an image present the body stacks, top to bottom: `ImagePanel`
+ * (size/position/align + restore/fit), then the artboard/page controls —
+ * `ArtboardPanel` (canvas size), `PaddingSection`, `PageBackgroundSection`.
+ * Image settings sit on top.
  *
  * Progressive disclosure:
  * - No master image yet: an add-row (`AddImageMenuAction` upload pipeline).
  *   The artboard controls only surface alongside an image (the dialog is
  *   reached via the top bar's pencil, which only exists once an image is set).
- * - Image exists: the stacked panels above, with the footer Apply (close) and
- *   Delete (remove image via the cascade confirm).
+ * - Image exists: the stacked panels above. Deleting the image lives on the
+ *   top-right image bar (Trash2), not in this sheet.
  */
 import dynamic from "next/dynamic"
-import { Check, ImageIcon, Trash2, X } from "lucide-react"
+import { ImageIcon } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import type { UploadedMasterSnapshot } from "@/lib/editor/upload-master-image"
 import type { Unit } from "@/lib/editor/units"
@@ -34,7 +31,7 @@ import type { Unit } from "@/lib/editor/units"
 import { AddImageMenuAction } from "./add-image-menu-button"
 import { useEditorToolbarTone } from "./editor-toolbar-tone"
 import type { ProjectCanvasStageHandle } from "./project-canvas-stage"
-import { SheetAddRow } from "./sheet-chrome"
+import { SheetAddRow, SheetHeader } from "./sheet-chrome"
 import { sheetRootClass } from "./sheet-shell"
 
 // All panels are code-split via next/dynamic so the merged sheet's body stays
@@ -77,7 +74,6 @@ export function ImageSheet(props: {
   restoreBusy: boolean
   canvasRef: React.RefObject<ProjectCanvasStageHandle | null>
   onRequestRestore: () => void
-  onRequestDelete: () => void
   // Page-background controls (folded in from the former ArtboardSheet).
   pageBgEnabled: boolean
   pageBgColor: string
@@ -103,7 +99,6 @@ export function ImageSheet(props: {
     restoreBusy,
     canvasRef,
     onRequestRestore,
-    onRequestDelete,
     pageBgEnabled,
     pageBgColor,
     pageBgOpacity,
@@ -113,7 +108,6 @@ export function ImageSheet(props: {
   } = props
 
   const tone = useEditorToolbarTone()
-  const canDelete = !masterImageLoading && !deleteBusy && !imageLocked
 
   return (
     <section
@@ -123,15 +117,11 @@ export function ImageSheet(props: {
         tone === "dark" && "dark",
         "text-foreground",
         // Standard editor-sheet chrome: full width / full height on every
-        // breakpoint (matches Artboard / Filter / Trace / Colors — no card).
+        // breakpoint (matches Grid / Trace / Filter / Colors — no card).
         sheetRootClass(),
       )}
     >
-      <header className="flex shrink-0 items-center justify-end px-2 py-2">
-        <Button type="button" variant="ghost" size="icon" aria-label="Close" onClick={onClose}>
-          <X aria-hidden="true" className="size-5" />
-        </Button>
-      </header>
+      <SheetHeader title="Image" onClose={onClose} />
 
       <div className="flex-1 overflow-y-auto">
         {hasMasterImage ? (
@@ -174,31 +164,6 @@ export function ImageSheet(props: {
           </SheetAddRow>
         )}
       </div>
-
-      {hasMasterImage ? (
-        <footer className="flex shrink-0 items-center justify-end gap-2 border-t px-3 py-3">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            aria-label="Delete image"
-            className="text-destructive hover:text-destructive rounded-full"
-            disabled={!canDelete}
-            onClick={onRequestDelete}
-          >
-            <Trash2 aria-hidden="true" className="size-5" />
-          </Button>
-          <Button
-            type="button"
-            size="icon"
-            aria-label="Apply"
-            className="rounded-full"
-            onClick={onClose}
-          >
-            <Check aria-hidden="true" className="size-5" />
-          </Button>
-        </footer>
-      ) : null}
     </section>
   )
 }

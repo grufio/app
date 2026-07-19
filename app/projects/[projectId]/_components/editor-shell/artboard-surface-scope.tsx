@@ -75,7 +75,6 @@ export function ArtboardSurfaceScope({
       restoreBusy={props.restoreBusy}
       canvasRef={props.canvasRef}
       onRequestRestore={props.onRequestRestore}
-      onRequestDelete={props.onRequestDelete}
       pageBgEnabled={props.pageBgEnabled}
       pageBgColor={props.pageBgColor}
       pageBgOpacity={props.pageBgOpacity}
