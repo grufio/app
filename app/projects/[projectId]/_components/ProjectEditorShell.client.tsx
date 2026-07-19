@@ -188,21 +188,8 @@ export function ProjectDetailPageClient({
   const {
     trace,
     traceLoading,
-    isApplyingTrace,
-    isClearingTrace,
-    handleApplyTrace,
-    handleClearTrace,
     refreshTrace,
-  } = useTraceHandlers({
-    projectId,
-    refreshFilterImage,
-    refreshMasterImage,
-    saveImageState,
-    // The trace-apply pre-save reads the one authoritative transform
-    // (incl. persisted rotation) so the trace is computed against the
-    // user's current display size, closing the resize→apply race.
-    getCurrentImageTx: getCurrentImageState,
-  })
+  } = useTraceHandlers({ projectId })
   const {
     sourceSnapshot,
     workflow,
@@ -231,6 +218,9 @@ export function ProjectDetailPageClient({
     refreshTrace,
     seedMasterImage,
     saveImageState,
+    // Trace apply/clear run through the machine; the apply service pre-saves
+    // this transform to close the resize→apply race.
+    getCurrentImageTx: getCurrentImageState,
   })
 
   // Master-image uploader mounted once at the shell. Lets the "Add image"
@@ -291,7 +281,9 @@ export function ProjectDetailPageClient({
   const isNewFilterActionBusy = filterImageLoading || workflow.isMutating || workflow.isSyncing
   const isAddFilterDisabled = !hasFilterSourceImage || isNewFilterActionBusy
 
-  const isAddTraceDisabled = !hasFilterSourceImage || isNewFilterActionBusy || isApplyingTrace || isClearingTrace
+  // Trace apply/clear now run through the workflow machine, so their busy state
+  // is already part of `isNewFilterActionBusy` (workflow.isMutating).
+  const isAddTraceDisabled = !hasFilterSourceImage || isNewFilterActionBusy
 
   const {
     requestDeleteSelectedImage,
@@ -534,9 +526,9 @@ export function ProjectDetailPageClient({
           if (!proceed) return
         }
       }
-      await handleApplyTrace(args)
+      await workflow.applyTrace(args)
     },
-    [displayTxU, masterImage, artboardWidthPx, artboardHeightPx, paddingPx, handleApplyTrace],
+    [displayTxU, masterImage, artboardWidthPx, artboardHeightPx, paddingPx, workflow],
   )
 
   const handleTitleUpdated = useCallback((nextTitle: string) => setProject({ id: projectId, name: nextTitle }), [projectId, setProject])
@@ -592,7 +584,7 @@ export function ProjectDetailPageClient({
         const filterId = filterStack[0]?.id
         if (filterId) await workflow.removeFilter(filterId) // cascades the trace
       } else {
-        await handleClearTrace()
+        await workflow.clearTrace()
       }
       setResetScope(null)
     } catch (err) {
@@ -600,7 +592,7 @@ export function ProjectDetailPageClient({
     } finally {
       setResetBusy(false)
     }
-  }, [resetScope, resetBusy, hasFilter, filterStack, workflow, handleClearTrace])
+  }, [resetScope, resetBusy, hasFilter, filterStack, workflow])
 
 
   return (
@@ -627,7 +619,7 @@ export function ProjectDetailPageClient({
               masterImageLoading={editorImageSource.status === "loading"}
               masterImageError={editorImageSource.status === "error" ? editorImageSource.error : ""}
               // Canvas "Processing..." overlay while a filter or trace apply runs.
-              processing={workflow.isApplyingFilter || isApplyingTrace}
+              processing={workflow.isApplyingFilter || workflow.isApplyingTrace}
               toolbar={stageToolbar}
               // The canvas-editing tools (zoom / hand / crop) belong to the
               // Image section only. Every other section hides them.
@@ -769,7 +761,7 @@ export function ProjectDetailPageClient({
               if (trace) setPendingTraceKindOpen(trace.kind)
               else setPendingTraceSelectionOpen(true)
             }}
-            onDelete={() => void handleClearTrace()}
+            onDelete={() => void workflow.clearTrace()}
           />
         ) : null}
         {editorSection === "trace" ? (
@@ -777,10 +769,10 @@ export function ProjectDetailPageClient({
             traceSourceImage={traceDialogSourceImage}
             onApplyTrace={handleApplyTraceGuarded}
             isAddTraceDisabled={isAddTraceDisabled}
-            isClearingTrace={isClearingTrace}
+            isClearingTrace={workflow.isClearingTrace}
             isLoadingInitial={traceLoading}
             trace={trace ? { kind: trace.kind, params: trace.params } : null}
-            onClearTrace={handleClearTrace}
+            onClearTrace={workflow.clearTrace}
             pendingKindOpen={pendingTraceKindOpen}
             onConsumePendingKindOpen={consumePendingTraceKindOpen}
             pendingSelectionOpen={pendingTraceSelectionOpen}

@@ -3,8 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { applyProjectImageFilter, cropImageVariant, removeProjectImageFilter, restoreInitialMasterImage } from "@/lib/api/project-images"
+import { applyProjectTrace, clearProjectTrace } from "@/lib/api/project-trace"
 import { isOperationError, type OperationError } from "@/lib/api/operation-error"
 import type { RegisteredFilterId } from "@/lib/editor/filters/registry"
+import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
 import { useImageWorkflowMachine } from "@/lib/editor/machines/use-image-workflow-machine"
 import type { ImageState } from "@/lib/editor/imageState"
 
@@ -117,6 +119,10 @@ export function useEditorWorkflowAdapter(args: {
    * on trace apply. The adapter no longer owns a transform mirror — the
    * display source does. */
   saveImageState: (t: ImageState) => Promise<void>
+  /** Reads the one authoritative canvas transform (incl. persisted rotation).
+   * The `applyTrace` service persists it before running the trace so the trace
+   * is computed against the user's current display size (resize→apply race). */
+  getCurrentImageTx: () => ImageState | null
 }) {
   const {
     projectId,
@@ -134,6 +140,7 @@ export function useEditorWorkflowAdapter(args: {
     refreshTrace,
     seedMasterImage,
     saveImageState,
+    getCurrentImageTx,
   } = args
   // `uploadSyncing` used to guard the source-snapshot loading state
   // while the upload handler waited on workflow.refreshAndWait(). The
@@ -264,6 +271,21 @@ export function useEditorWorkflowAdapter(args: {
     },
     [saveImageState]
   )
+  const applyTraceService = useCallback(
+    async ({ kind, params }: { kind: RegisteredTraceId; params: Record<string, unknown> }) => {
+      // Persist the current transform first so the trace is computed against the
+      // user's current display size (resize→apply race), then run the trace.
+      const currentTx = getCurrentImageTx()
+      if (currentTx) await saveImageState(currentTx)
+      await applyProjectTrace({ projectId, kind, params })
+    },
+    [projectId, getCurrentImageTx, saveImageState]
+  )
+  const clearTraceService = useCallback(async () => {
+    // Only remove the trace. The machine's `syncing` refresh (refreshAll)
+    // restores the filter-chain tip; NO master-image reload here.
+    await clearProjectTrace(projectId)
+  }, [projectId])
   const workflowServices = useMemo(
     () => ({
       removeFilter: removeFilterService,
@@ -272,8 +294,10 @@ export function useEditorWorkflowAdapter(args: {
       restoreBase: restoreBaseService,
       refreshAll: refreshEditorData,
       saveTransform: saveTransformService,
+      applyTrace: applyTraceService,
+      clearTrace: clearTraceService,
     }),
-    [applyCropService, applyFilterService, refreshEditorData, removeFilterService, restoreBaseService, saveTransformService]
+    [applyCropService, applyFilterService, applyTraceService, clearTraceService, refreshEditorData, removeFilterService, restoreBaseService, saveTransformService]
   )
 
   const workflow = useImageWorkflowMachine({

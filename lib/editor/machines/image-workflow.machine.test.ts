@@ -12,6 +12,8 @@ function createServices(overrides?: Partial<ImageWorkflowServices>): ImageWorkfl
     restoreBase: vi.fn(async () => {}),
     refreshAll: vi.fn(async () => {}),
     saveTransform: vi.fn(async () => {}),
+    applyTrace: vi.fn(async () => {}),
+    clearTrace: vi.fn(async () => {}),
     ...overrides,
   }
 }
@@ -85,6 +87,48 @@ describe("createImageWorkflowMachine", () => {
       filterType: "bw_hard",
       filterParams: { superpixel_width: 10, superpixel_height: 10 },
     })
+    expect(services.refreshAll).toHaveBeenCalledTimes(1)
+  })
+
+  it("runs trace apply -> sync -> idle on success", async () => {
+    const services = createServices()
+    const actor = createActor(createImageWorkflowMachine(), { input: { services } })
+    actor.start()
+
+    actor.send({
+      type: "SOURCE_SNAPSHOT",
+      snapshot: {
+        status: "ready",
+        image: { id: "img_1", signedUrl: "u", width_px: 100, height_px: 80, name: "Image" },
+        error: "",
+      },
+    })
+
+    actor.send({ type: "TRACE_APPLY", kind: "pixelate", params: { colors: 8 } })
+
+    await waitFor(actor, (s) => s.matches({ operation: "idle" }))
+    expect(services.applyTrace).toHaveBeenCalledWith({ kind: "pixelate", params: { colors: 8 } })
+    expect(services.refreshAll).toHaveBeenCalledTimes(1)
+  })
+
+  it("runs trace remove -> sync -> idle on success (no master reload service)", async () => {
+    const services = createServices()
+    const actor = createActor(createImageWorkflowMachine(), { input: { services } })
+    actor.start()
+
+    actor.send({
+      type: "SOURCE_SNAPSHOT",
+      snapshot: {
+        status: "ready",
+        image: { id: "img_1", signedUrl: "u", width_px: 100, height_px: 80, name: "Image" },
+        error: "",
+      },
+    })
+
+    actor.send({ type: "TRACE_REMOVE" })
+
+    await waitFor(actor, (s) => s.matches({ operation: "idle" }))
+    expect(services.clearTrace).toHaveBeenCalledTimes(1)
     expect(services.refreshAll).toHaveBeenCalledTimes(1)
   })
 
