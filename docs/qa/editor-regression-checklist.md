@@ -39,7 +39,15 @@ Goal (MVP): a **5-minute** sanity check to catch the common editor regressions (
 - **Filter apply/remove**: after mutation the visible image refreshes from the canonical working-image endpoint.
 - **Restore isolation**: restore panel only shows restore-specific errors; filter/crop errors stay in filter error channel.
 
-### 6) Playwright local runbook (two-port mode)
+### 6) Trace contour consistency (1 min)
+
+- Apply a **Pixelate**, a **Circulate**, and a **Linerate** trace (one each).
+- **Same hairline**: the black region outlines are the same width across all three kinds — a crisp, solid 1-CSS-pixel line, not grey/soft on any of them.
+- **Constant on zoom**: the outline width does not change when zooming in/out.
+- **Retina check**: verify on both a `dpr=1` and a `dpr=2` display (or browser zoom) — the linerate (DOM SVG) outline must stay solid, not antialias into a faint grey line.
+- Width is defined once in `line-rendering.ts` (`TRACE_CONTOUR_STROKE_CSS_PX`); if one kind looks different, that constant is not reaching all three paths.
+
+### 7) Playwright local runbook (two-port mode)
 
 - Keep the normal app server on `http://127.0.0.1:3000` (for normal development).
 - Local E2E always uses dedicated `3110` server mode with `E2E_TEST=1`.
