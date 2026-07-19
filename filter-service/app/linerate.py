@@ -616,13 +616,12 @@ def _paint_map_to_svg(
             continue
         r, g, b = (int(v) for v in sel_rgb[reg_sel[rid]])
         regions.append(
-            # Constant hairline: `non-scaling-stroke` keeps the outline a fixed
-            # thin line regardless of the SVG's scale (the viewBox = the work
-            # grid), instead of scaling raw `stroke-width` with the display size.
-            # Matches how pixelate/circulate render their hairlines.
+            # The outline scales with the SVG (viewBox = source px): stroke-width=1
+            # is 1 source pixel, which renders sub-pixel-thin when the trace is
+            # shown smaller than the source — the intended hairline. (A previous
+            # `non-scaling-stroke` forced a constant 1px, which reads as too thick.)
             f'<path d="{d}" fill="#{r:02x}{g:02x}{b:02x}" stroke="black" '
-            f'stroke-width="{line_thickness}" vector-effect="non-scaling-stroke" '
-            f'fill-rule="evenodd"/>'
+            f'stroke-width="{line_thickness}" fill-rule="evenodd"/>'
         )
         # Place the label at the pole of inaccessibility of the RENDERED (smoothed)
         # face, not the raster label mask — smoothing shifts the boundary, so the
