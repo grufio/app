@@ -10,8 +10,8 @@ import * as React from "react"
 
 export function ProjectEditorLayout(props: { children: React.ReactNode }) {
   // `relative` is needed for absolutely-positioned overlays that should be
-  // bounded to the editor area (e.g. the mobile artboard sheet — see
-  // `ArtboardSheet`) and the bottom nav (`absolute bottom-4`), which anchor to
+  // bounded to the editor area (e.g. the mobile image sheet — see
+  // `ImageSheet`) and the bottom nav (`absolute bottom-4`), which anchor to
   // this box.
   //
   // `min-h-0`: as a flex item in the shell's `flex-col` root, this box would

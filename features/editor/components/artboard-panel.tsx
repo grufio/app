@@ -162,14 +162,18 @@ export const ArtboardPanel = memo(function ArtboardPanel({
       title="Artboard"
       testId="editor-artboard-panel"
       headerActions={
-        <RightPanelIconButton
-          type="button"
-          aria-label="Fit artboard to image"
-          disabled={!canFitToImage || sizeControlsDisabled}
-          onClick={() => onFitToImage?.()}
-        >
-          <Maximize2 className="size-4" />
-        </RightPanelIconButton>
+        // The "Fit artboard to image" action only renders when a handler is
+        // wired. In the merged Image dialog it is intentionally omitted.
+        onFitToImage ? (
+          <RightPanelIconButton
+            type="button"
+            aria-label="Fit artboard to image"
+            disabled={!canFitToImage || sizeControlsDisabled}
+            onClick={() => onFitToImage()}
+          >
+            <Maximize2 className="size-4" />
+          </RightPanelIconButton>
+        ) : undefined
       }
     >
       <PanelTwoFieldRow>

@@ -13,7 +13,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import type { EditorSection } from "@/lib/editor/editor-sections"
 import { EditorSectionStepper } from "./editor-section-stepper"
 
-function renderStepper(activeSection: EditorSection = "artboard", onSelectSection = vi.fn()) {
+function renderStepper(activeSection: EditorSection = "image", onSelectSection = vi.fn()) {
   const utils = render(<EditorSectionStepper activeSection={activeSection} onSelectSection={onSelectSection} />)
   return { onSelectSection, ...utils }
 }
@@ -28,7 +28,7 @@ describe("EditorSectionStepper", () => {
   })
 
   it("disables Previous on the first section and Next on the last", () => {
-    const { getByLabelText, rerender } = renderStepper("artboard")
+    const { getByLabelText, rerender } = renderStepper("image")
     expect((getByLabelText("Previous section") as HTMLButtonElement).disabled).toBe(true)
     expect((getByLabelText("Next section") as HTMLButtonElement).disabled).toBe(false)
 

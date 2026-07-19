@@ -7,13 +7,23 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { ImageSheet } from "./image-sheet"
 
 // ImagePanel is loaded via next/dynamic and pulls in canvas plumbing;
-// AddImageMenuAction wires the upload pipeline. Stub both so the swap
-// (Add-row ↔ panel) and close wiring are testable in isolation.
+// AddImageMenuAction wires the upload pipeline; the artboard/page panels
+// read the workspace providers. Stub them all so the swap (Add-row ↔
+// panels), footer and close wiring are testable in isolation.
 vi.mock("./image-panel", () => ({
   ImagePanel: () => <div data-testid="image-panel" />,
 }))
 vi.mock("./add-image-menu-button", () => ({
   AddImageMenuAction: () => <button type="button" aria-label="add-image" />,
+}))
+vi.mock("./artboard-panel", () => ({
+  ArtboardPanel: () => <div data-testid="artboard-panel" />,
+}))
+vi.mock("./padding-section", () => ({
+  PaddingSection: () => <div data-testid="padding-section" />,
+}))
+vi.mock("./page-background-section", () => ({
+  PageBackgroundSection: () => <div data-testid="page-background-section" />,
 }))
 
 afterEach(cleanup)
@@ -37,6 +47,12 @@ function renderSheet(overrides: Partial<React.ComponentProps<typeof ImageSheet>>
     canvasRef: { current: null },
     onRequestRestore: vi.fn(),
     onRequestDelete: vi.fn(),
+    pageBgEnabled: false,
+    pageBgColor: "#ffffff",
+    pageBgOpacity: 1,
+    onPageBgEnabledChange: vi.fn(),
+    onPageBgColorChange: vi.fn(),
+    onPageBgOpacityChange: vi.fn(),
     ...overrides,
   }
   return { props, ...render(<ImageSheet {...props} />) }

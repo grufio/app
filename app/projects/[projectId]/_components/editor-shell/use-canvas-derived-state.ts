@@ -6,8 +6,8 @@
  * Three values fall out of the same set of inputs and belong together:
  *
  *  - `canvasImage` — the Konva.Image source. Working-copy base (with
- *    `stageImage` fallback while it loads). On Image / Artboard section
- *    the visible `signedUrl` is swapped to the master URL so the user
+ *    `stageImage` fallback while it loads). On the Image section the
+ *    visible `signedUrl` is swapped to the master URL so the user
  *    sees the raw image (filter / trace are not surfaced in that
  *    section); ID + dims stay on the working copy to preserve the
  *    canvas-source-ID-equals-workflow-source-ID invariant — see
@@ -20,8 +20,8 @@
  *    highlighting; canvasImage source itself is selected here).
  *
  * Section semantics (one `editorSection` input, both viewports):
- *  - Artboard → raw master visible, no filter row highlight, no trace
- *    overlay
+ *  - Image → raw master visible (the section carries the artboard /
+ *    placement controls), no filter row highlight, no trace overlay
  *  - Filter → working copy (chain tip) visible, filter row highlight
  *    active, no trace overlay
  *  - Trace → working copy visible, trace overlay on top
@@ -54,7 +54,7 @@ export function useCanvasDerivedState(input: {
    * canvas gating on both viewports. */
   editorSection: EditorSection
   /** Master image signed URL — surfaced as the canvas image on the
-   * Artboard section so the user sees the raw upload, not the filter
+   * Image section so the user sees the raw upload, not the filter
    * chain tip. Null when no master is uploaded yet. */
   masterSignedUrl: string | null
   /** Raw Trace view-toggle session values. The hook returns the
@@ -112,9 +112,10 @@ export function useCanvasDerivedState(input: {
     ],
   )
 
-  // Artboard section surfaces the raw master URL. ID + dimensions stay
-  // on the working copy regardless (persistence invariant).
-  const showRawMaster = editorSection === "artboard"
+  // Image section surfaces the raw master URL (it now carries the former
+  // artboard placement controls too — matching Desktop's Image tab). ID +
+  // dimensions stay on the working copy regardless (persistence invariant).
+  const showRawMaster = editorSection === "image"
 
   const canvasImage = useMemo<CanvasImage | null>(
     () =>

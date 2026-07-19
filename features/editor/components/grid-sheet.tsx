@@ -3,8 +3,9 @@
 /**
  * Editor Grid sheet (full-screen on mobile, bounded card on desktop).
  *
- * One of the three standalone dialogs the artboard section's top-left
- * "+" menu opens (alongside `ArtboardSheet` + `ImageSheet`).
+ * Legacy grid dialog. Grid is currently removed from the editor nav — this
+ * component and `GridPanel` are kept as code (no entry point renders them)
+ * so the feature can be re-enabled later.
  *
  * Progressive disclosure (mirroring desktop):
  * - No grid yet: a desktop-style nav-row (icon + label + `+` action) to

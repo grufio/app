@@ -6,23 +6,9 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { ArtboardSurfaceScope, type ArtboardSurfaceScopeProps } from "./artboard-surface-scope"
 
-// The real sheets pull in dynamic panels + wide prop surfaces; the channel
-// behaviour is independent of their contents, so stub each one and tag the
-// dialog it represents.
-vi.mock("@/features/editor/components/artboard-sheet", () => ({
-  ArtboardSheet: ({ onClose }: { onClose: () => void }) => (
-    <div data-testid="sheet-artboard">
-      <button type="button" aria-label="close-sheet" onClick={onClose} />
-    </div>
-  ),
-}))
-vi.mock("@/features/editor/components/grid-sheet", () => ({
-  GridSheet: ({ onClose }: { onClose: () => void }) => (
-    <div data-testid="sheet-grid">
-      <button type="button" aria-label="close-sheet" onClick={onClose} />
-    </div>
-  ),
-}))
+// The real sheet pulls in dynamic panels + a wide prop surface; the channel
+// behaviour is independent of its contents, so stub it. The scope now routes to
+// a single merged Image dialog (Artboard folded in, Grid removed from the nav).
 vi.mock("@/features/editor/components/image-sheet", () => ({
   ImageSheet: ({ onClose }: { onClose: () => void }) => (
     <div data-testid="sheet-image">
@@ -31,7 +17,7 @@ vi.mock("@/features/editor/components/image-sheet", () => ({
   ),
 }))
 
-// The stubbed sheets ignore all artboard props, so an empty object is fine.
+// The stubbed sheet ignores all props, so an empty object is fine.
 const baseProps = {} as ArtboardSurfaceScopeProps
 
 describe("ArtboardSurfaceScope", () => {
@@ -39,33 +25,28 @@ describe("ArtboardSurfaceScope", () => {
 
   it("renders no sheet until a dialog is requested", () => {
     const { queryByTestId } = render(<ArtboardSurfaceScope {...baseProps} />)
-    expect(queryByTestId("sheet-artboard")).toBeNull()
-    expect(queryByTestId("sheet-grid")).toBeNull()
     expect(queryByTestId("sheet-image")).toBeNull()
   })
 
-  it.each(["artboard", "grid", "image"] as const)(
-    "opens the %s sheet on a pending request and consumes it",
-    (dialog) => {
-      const onConsumePendingDialog = vi.fn()
-      const { queryByTestId, rerender } = render(
-        <ArtboardSurfaceScope
-          {...baseProps}
-          pendingDialog={null}
-          onConsumePendingDialog={onConsumePendingDialog}
-        />,
-      )
-      expect(queryByTestId(`sheet-${dialog}`)).toBeNull()
+  it("opens the image sheet on a pending request and consumes it", () => {
+    const onConsumePendingDialog = vi.fn()
+    const { queryByTestId, rerender } = render(
+      <ArtboardSurfaceScope
+        {...baseProps}
+        pendingDialog={null}
+        onConsumePendingDialog={onConsumePendingDialog}
+      />,
+    )
+    expect(queryByTestId("sheet-image")).toBeNull()
 
-      rerender(
-        <ArtboardSurfaceScope
-          {...baseProps}
-          pendingDialog={dialog}
-          onConsumePendingDialog={onConsumePendingDialog}
-        />,
-      )
-      expect(queryByTestId(`sheet-${dialog}`)).not.toBeNull()
-      expect(onConsumePendingDialog).toHaveBeenCalledTimes(1)
-    },
-  )
+    rerender(
+      <ArtboardSurfaceScope
+        {...baseProps}
+        pendingDialog="image"
+        onConsumePendingDialog={onConsumePendingDialog}
+      />,
+    )
+    expect(queryByTestId("sheet-image")).not.toBeNull()
+    expect(onConsumePendingDialog).toHaveBeenCalledTimes(1)
+  })
 })

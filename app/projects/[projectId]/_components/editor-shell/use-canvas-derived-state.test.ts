@@ -30,14 +30,14 @@ const filterDisplayImage = {
   name: "filter-tip",
 }
 
-// Defaults represent the "happy artboard, no toggles touched"
+// Defaults represent the "happy image section, no toggles touched"
 // baseline. Each test overrides only the inputs that drive its
 // assertion — keeps the suite resilient to future hook-input additions.
 const baseArgs = {
   editorImageSource,
   filterDisplayImage,
   filterDisplayImageWithoutTrace: filterDisplayImage,
-  editorSection: "artboard" as const,
+  editorSection: "image" as const,
   masterSignedUrl: MASTER_URL,
   traceOverlayVisible: true,
   previewBitmapVisible: true,
@@ -52,8 +52,8 @@ const baseArgs = {
 // (filter URL → filter URL). The hook test below exercises the full
 // chain from "we have a master URL distinct from the filter URL" to
 // "canvas exposes the master URL".
-describe("useCanvasDerivedState — Artboard section surfaces master URL", () => {
-  it("Artboard section: canvas signedUrl swaps to master, ID stays on working copy", () => {
+describe("useCanvasDerivedState — Image section surfaces master URL", () => {
+  it("Image section: canvas signedUrl swaps to master, ID stays on working copy", () => {
     const { result } = renderHook(() => useCanvasDerivedState(baseArgs))
     expect(result.current.canvasImage?.signedUrl).toBe(MASTER_URL)
     // ID stays on the working copy so persistence keeps targeting the
@@ -69,7 +69,7 @@ describe("useCanvasDerivedState — Artboard section surfaces master URL", () =>
     expect(result.current.showFilterChain).toBe(true)
   })
 
-  it("Artboard section with null master URL: gracefully falls back to working-copy URL (partial-boot)", () => {
+  it("Image section with null master URL: gracefully falls back to working-copy URL (partial-boot)", () => {
     // When the master sign fails server-side, the API returns
     // masterSignedUrl: "" → shell passes null → pickCanvasImage skips
     // the override. Visual = pre-PR-#354 behaviour, no crash.
@@ -82,17 +82,17 @@ describe("useCanvasDerivedState — Artboard section surfaces master URL", () =>
 })
 
 // Integration guard for the bug where the Trace section's view
-// toggles leaked into the Artboard / Filter sections:
+// toggles leaked into the Image / Filter sections:
 // `previewBitmapVisible=false` on Trace → bitmap hidden everywhere.
 // The fix gates the canvas effect on the Trace section being active;
 // checkbox UI keeps reading the raw session values (so the user's
 // last preference survives a section trip).
 describe("useCanvasDerivedState — Trace view flags are Trace-section-scoped", () => {
-  it("Artboard section: hook returns effective flags = true even when session flags are all false", () => {
+  it("Image section: hook returns effective flags = true even when session flags are all false", () => {
     const { result } = renderHook(() =>
       useCanvasDerivedState({
         ...baseArgs,
-        editorSection: "artboard",
+        editorSection: "image",
         traceOverlayVisible: false,
         previewBitmapVisible: false,
         numbersLayerVisible: false,

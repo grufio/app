@@ -5,9 +5,9 @@
  *   - no master image → a single ImagePlus ("Add image") → opens the picker
  *   - master image present → Trash2 ("Delete image", left) + Pencil ("Edit
  *     image", right); delete opens the confirmation dialog, edit opens the
- *     image editor.
- * Shown while the Image section is active. Tone from
- * `EditorToolbarTone`. Mirrors `EditorArtboardBar`.
+ *     merged Image + Artboard dialog.
+ * Shown while the Image section is active. Tone from `EditorToolbarTone`.
+ * Mirrors the Filter / Trace floating bars.
  */
 import { ImagePlus, Pencil, Trash2 } from "lucide-react"
 

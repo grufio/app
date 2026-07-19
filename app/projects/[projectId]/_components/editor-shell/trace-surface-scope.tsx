@@ -43,7 +43,7 @@ export type TraceSurfaceScopeProps = {
   /** Fired when the user cancels the configure dialog (X / Cancel /
    * Escape / overlay click) — distinct from a successful Apply, which
    * unmounts via `reset` and never reaches the cancel handler. The
-   * shell wires this to restore the mobile section to "artboard". */
+   * shell wires this to restore the mobile section to "trace". */
   onConfigureCancelled?: () => void
 }
 

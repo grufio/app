@@ -5,21 +5,21 @@ import { deriveDisplayLayers } from "./display-layers"
 const rasterTip = { id: "raster-tip", signedUrl: "https://example.test/raster.png" }
 const traceArtefact = { id: "trace-svg", signedUrl: "https://example.test/trace.svg" }
 
-// Default input — artboard section, image ready, no real trace (IDs
+// Default input — image section, image ready, no real trace (IDs
 // match). One `activeSection` input drives both viewports now. Each
 // test overrides only the fields that matter for the assertion.
 const base = {
-  activeSection: "artboard" as const,
+  activeSection: "image" as const,
   editorImageSourceReady: true,
   filterDisplayImage: rasterTip,
   filterDisplayImageWithoutTrace: rasterTip,
 }
 
 describe("deriveDisplayLayers — trace overlay (invariant from #76 → #86)", () => {
-  it("returns null on the Artboard section even when a trace exists", () => {
+  it("returns null on the Image section even when a trace exists", () => {
     const result = deriveDisplayLayers({
       ...base,
-      activeSection: "artboard",
+      activeSection: "image",
       filterDisplayImage: traceArtefact,
       filterDisplayImageWithoutTrace: rasterTip,
     })
@@ -108,16 +108,6 @@ describe("deriveDisplayLayers — section gating is viewport-agnostic", () => {
     expect(result.traceOverlaySvgUrl).toBeNull()
   })
 
-  it("section=artboard + trace artefact → overlay null (artboard section never shows trace)", () => {
-    const result = deriveDisplayLayers({
-      ...base,
-      activeSection: "artboard",
-      filterDisplayImage: traceArtefact,
-      filterDisplayImageWithoutTrace: rasterTip,
-    })
-    expect(result.traceOverlaySvgUrl).toBeNull()
-  })
-
   it("section=image + trace artefact → overlay null (image section never shows trace)", () => {
     const result = deriveDisplayLayers({
       ...base,
@@ -147,14 +137,6 @@ describe("deriveDisplayLayers — showFilterChain", () => {
       editorImageSourceReady: true,
     })
     expect(result.showFilterChain).toBe(true)
-  })
-
-  it("Artboard section → showFilterChain is false", () => {
-    const result = deriveDisplayLayers({
-      ...base,
-      activeSection: "artboard",
-    })
-    expect(result.showFilterChain).toBe(false)
   })
 
   it("Image section → showFilterChain is false", () => {
@@ -190,10 +172,10 @@ describe("deriveDisplayLayers — Trace view flags are section-scoped", () => {
   // must not leak into other sections. Off-Trace the effective value
   // collapses to `true` (= show everything as if no toggle existed).
 
-  it("Artboard section: all three effective flags are true regardless of session input", () => {
+  it("Image section: all three effective flags are true regardless of session input", () => {
     const result = deriveDisplayLayers({
       ...base,
-      activeSection: "artboard",
+      activeSection: "image",
       traceOverlayVisible: false,
       previewBitmapVisible: false,
       numbersLayerVisible: false,
