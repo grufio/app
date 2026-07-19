@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
-import { applyProjectImageFilter, cropImageVariant, deleteMasterImageWithCascade, removeProjectImageFilter, restoreInitialMasterImage, type ProjectImageItem } from "@/lib/api/project-images"
+import { applyProjectImageFilter, cropImageVariant, deleteMasterImageWithCascade, listMasterImages, removeProjectImageFilter, restoreInitialMasterImage } from "@/lib/api/project-images"
 import { applyProjectTrace, clearProjectTrace } from "@/lib/api/project-trace"
 import { isOperationError, type OperationError } from "@/lib/api/operation-error"
 import type { RegisteredFilterId } from "@/lib/editor/filters/registry"
@@ -107,16 +107,12 @@ export function useEditorWorkflowAdapter(args: {
   filterImageError: string
   filterImageEmptyReason: "no_active_image" | null
   refreshMasterImage: () => Promise<void>
-  refreshProjectImages: () => Promise<void>
   refreshFilterImage: () => Promise<void>
   /** Re-fetch the trace row. Part of "refresh all editor data": the trace is
    * downstream of the filter (removing a filter cascades it server-side), so
    * every workflow mutation must re-fetch it or `hasTrace` goes stale. */
   refreshTrace: () => Promise<void>
   seedMasterImage: (next: { id: string; masterRowId: string | null; signedUrl: string; masterSignedUrl: string; width_px: number; height_px: number; dpi: number | null; name: string } | null) => void
-  /** Seed the project-images list — used by the machine's `deleteMaster`
-   * service to flip to the empty state instantly (cascade fixed point). */
-  seedProjectImages: (items: ProjectImageItem[]) => void
   /** Await-able persisted transform save, owned by `useDisplaySize` (the
    * single authoritative display-size source). The workflow machine wraps
    * it as the `saveTransform` service; the shell also awaits it directly
@@ -139,11 +135,9 @@ export function useEditorWorkflowAdapter(args: {
     filterImageError,
     filterImageEmptyReason,
     refreshMasterImage,
-    refreshProjectImages,
     refreshFilterImage,
     refreshTrace,
     seedMasterImage,
-    seedProjectImages,
     saveImageState,
     getCurrentImageTx,
   } = args
@@ -201,13 +195,16 @@ export function useEditorWorkflowAdapter(args: {
     // and writes to its own isolated useState — no ordering constraint.
     // `refreshTrace` is included so a filter-remove (which cascades the trace
     // server-side) leaves the client `trace`/`hasTrace` consistent.
+    // NOTE: project-images is NOT refreshed here — the master-images list only
+    // changes on upload/delete (i.e. a master-id change), which the shell's
+    // cascade effect reloads via `loadProjectImages`. Filter/trace/crop don't
+    // touch the list, so re-fetching it after every mutation is wasteful.
     await Promise.all([
       refreshMasterImage(),
-      refreshProjectImages(),
       refreshFilterImage(),
       refreshTrace(),
     ])
-  }, [refreshFilterImage, refreshMasterImage, refreshProjectImages, refreshTrace])
+  }, [refreshFilterImage, refreshMasterImage, refreshTrace])
 
   const refreshEditorData = useCallback(async () => {
     if (refreshInFlightRef.current) {
@@ -305,12 +302,12 @@ export function useEditorWorkflowAdapter(args: {
     [seedMasterImage]
   )
   const deleteMasterService = useCallback(async () => {
-    // Atomic cascade delete → empty is the stable fixed point; seed it now so
-    // the UI flips instantly, then the machine's `syncing` re-confirms.
+    // Atomic cascade delete → empty is the stable fixed point. Seeding
+    // master=null flips masterImage.id, which the shell's cascade effect picks
+    // up to reload the (now empty) project-images list via loadProjectImages.
     await deleteMasterImageWithCascade(projectId)
     seedMasterImage(null)
-    seedProjectImages([])
-  }, [projectId, seedMasterImage, seedProjectImages])
+  }, [projectId, seedMasterImage])
   const workflowServices = useMemo(
     () => ({
       removeFilter: removeFilterService,
@@ -346,6 +343,18 @@ export function useEditorWorkflowAdapter(args: {
     },
     [workflow]
   )
+  // Own the project-images list in the machine (read-model migration phase A):
+  // fetch it here and feed the machine context. The shell's cascade effect
+  // drives it on mount and whenever the master id changes (upload/replace/
+  // delete) — the only events that change the master-images list.
+  const loadProjectImages = useCallback(async () => {
+    try {
+      const payload = await listMasterImages(projectId)
+      workflow.setProjectImages(payload.items)
+    } catch {
+      workflow.setProjectImages([])
+    }
+  }, [projectId, workflow])
   const handleImageUploaded = useCallback(
     async (uploadedMaster: UploadedMasterSnapshot | null) => {
       // Drive the post-upload seed + reconcile through the machine
@@ -387,6 +396,7 @@ export function useEditorWorkflowAdapter(args: {
     filterSourceImage,
     handleApplyFilter,
     handleImageUploaded,
+    loadProjectImages,
     seededMasterIdRef,
     uploadSyncError,
     filterOperationError,

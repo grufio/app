@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef } from "react"
 import { useMachine } from "@xstate/react"
 
+import type { ProjectImageItem } from "@/lib/api/project-images"
 import type { RegisteredFilterId } from "@/lib/editor/filters/registry"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
 import type { UploadedMasterSnapshot } from "@/lib/editor/upload-master-image"
@@ -65,6 +66,7 @@ export function useImageWorkflowMachine(args: {
   }, [args.projectId, state])
 
   const readModel = useMemo(() => state.context.source, [state.context.source])
+  const projectImages = state.context.projectImages
   const isMutating = state.matches({ operation: "removingFilter" }) || state.matches({ operation: "cropping" }) || state.matches({ operation: "restoring" })
     || state.matches({ operation: "applyingFilter" }) || state.matches({ operation: "applyingTrace" }) || state.matches({ operation: "clearingTrace" })
     || state.matches({ operation: "uploadingMaster" }) || state.matches({ operation: "deletingMaster" })
@@ -214,10 +216,13 @@ export function useImageWorkflowMachine(args: {
   const retry = () => sendEvent({ type: "RETRY" })
   const dismissError = () => sendEvent({ type: "DISMISS_ERROR" })
   const saveTransform = (transform: WorkflowTransformPayload) => sendEvent({ type: "TRANSFORM_SAVE", transform })
+  const setProjectImages = (items: ProjectImageItem[]) => sendEvent({ type: "PROJECT_IMAGES_LOADED", items })
 
   return {
     state,
     readModel,
+    projectImages,
+    setProjectImages,
     isMutating,
     isSyncing,
     isPersisting,

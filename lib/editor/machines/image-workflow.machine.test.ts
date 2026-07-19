@@ -159,6 +159,23 @@ describe("createImageWorkflowMachine", () => {
     expect(services.refreshAll).toHaveBeenCalledTimes(1)
   })
 
+  it("assigns project images from PROJECT_IMAGES_LOADED in any state", async () => {
+    const services = createServices()
+    const actor = createActor(createImageWorkflowMachine(), { input: { services } })
+    actor.start()
+
+    expect(actor.getSnapshot().context.projectImages).toEqual([])
+
+    const items = [
+      { id: "img_1", name: "A", format: "png", width_px: 10, height_px: 10, dpi: null, storage_path: "p/1", storage_bucket: "b", file_size_bytes: 1, is_active: true, created_at: "2024-01-01" },
+    ]
+    actor.send({ type: "PROJECT_IMAGES_LOADED", items })
+    expect(actor.getSnapshot().context.projectImages).toEqual(items)
+
+    actor.send({ type: "PROJECT_IMAGES_LOADED", items: [] })
+    expect(actor.getSnapshot().context.projectImages).toEqual([])
+  })
+
   it("runs image delete -> sync -> idle on success", async () => {
     const services = createServices()
     const actor = createActor(createImageWorkflowMachine(), { input: { services } })
