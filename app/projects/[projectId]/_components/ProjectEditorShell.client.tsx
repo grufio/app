@@ -715,7 +715,6 @@ export function ProjectDetailPageClient({
             restoreBusy={workflow.isRestoring}
             canvasRef={canvasRef}
             onRequestRestore={() => setRestoreOpen(true)}
-            onRequestDelete={requestDeleteSelectedImage}
           />
         ) : null}
         {/* Filter-section top-right submenu: Plus (no filter) opens the
