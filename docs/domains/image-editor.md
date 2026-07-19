@@ -63,6 +63,16 @@ result. It splits into three layers: pure-math canvas model
   (`snapWorldToDeviceHalfPixel`) + `line-rendering.ts`
   (`getStaticLineRenderProps`). Geometry parser:
   [lib/editor/trace/pixelate-trace-parse.ts](../../lib/editor/trace/pixelate-trace-parse.ts).
+  - **Trace contour width** is a single shared constant
+    `TRACE_CONTOUR_STROKE_CSS_PX` (= 1 CSS px, non-scaling) in
+    `line-rendering.ts`, consumed by all three applied-trace outlines
+    (pixelate + circulate on Konva, linerate in the `trace-inline-svg.tsx`
+    CSS). A full CSS pixel — not `1/dpr` — because the linerate DOM SVG cannot
+    be pixel-snapped, so a sub-device-pixel stroke antialiases to grey there;
+    1 CSS px stays solid on both substrates. The server SVG's inline
+    `stroke-width` is only a structural placeholder (client CSS overrides it;
+    never set `vector-effect` server-side). See
+    [docs/analysis/trace-kontur-dpr-regression.md](../analysis/trace-kontur-dpr-regression.md).
 - [services/editor/](../../services/editor/) — server-side ops:
   artboard display (`artboard-display.ts`), image sizing
   (`image-sizing.ts`, `image-sizing-operations.ts`), workspace
