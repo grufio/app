@@ -84,7 +84,8 @@ export const linerateTrace = {
       "Perceptual paint-by-numbers: watertight colored regions with black outlines and one number per region. Adjacent regions always differ in color.",
   },
   ui: {
-    line_thickness: { kind: "decimal", label: "Line Thickness", min: 0.1, max: 10, step: 0.1, description: "Stroke width in pixels (0.1-10)" },
+    // `line_thickness` is fixed at 1 (a constant non-scaling hairline) — no
+    // dialog control for it; the trace is always a hairline outline.
     flatten: { kind: "decimal", label: "Flatten", min: 0, max: 1, step: 0.05, description: "Painterly flattening (0=raw detail, 1=very flat). Removes texture/noise, keeps edges crisp." },
     detail: { kind: "decimal", label: "Density", min: 0, max: 1, step: 0.05, description: "Region density (0=few large regions, 1=many fine regions)" },
     smoothness: { kind: "decimal", label: "Smoothness", min: 0, max: 1, step: 0.05, description: "Edge smoothness (0=follow working pixels, 1=heavy curve smoothing)" },
