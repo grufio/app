@@ -10,6 +10,9 @@ gruf.io is a graphical editor for image-based pattern generation
 print/PDF). Single-user app, hosted on Vercel + Supabase + a small
 Cloud Run filter-service in Python.
 
+**Positioning + quality mandate** (why template quality is the product, and
+is never traded for convenience): [docs/product/positioning.md](docs/product/positioning.md).
+
 ## Stack
 
 - **Frontend:** Next.js 16 (App Router), React 19, Konva for canvas,
