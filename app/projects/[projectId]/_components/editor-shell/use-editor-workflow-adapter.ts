@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
-import { applyProjectImageFilter, cropImageVariant, removeProjectImageFilter, restoreInitialMasterImage } from "@/lib/api/project-images"
+import { applyProjectImageFilter, cropImageVariant, deleteMasterImageWithCascade, removeProjectImageFilter, restoreInitialMasterImage, type ProjectImageItem } from "@/lib/api/project-images"
 import { applyProjectTrace, clearProjectTrace } from "@/lib/api/project-trace"
 import { isOperationError, type OperationError } from "@/lib/api/operation-error"
 import type { RegisteredFilterId } from "@/lib/editor/filters/registry"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
+import type { UploadedMasterSnapshot } from "@/lib/editor/upload-master-image"
 import { useImageWorkflowMachine } from "@/lib/editor/machines/use-image-workflow-machine"
 import type { ImageState } from "@/lib/editor/imageState"
 
@@ -113,6 +114,9 @@ export function useEditorWorkflowAdapter(args: {
    * every workflow mutation must re-fetch it or `hasTrace` goes stale. */
   refreshTrace: () => Promise<void>
   seedMasterImage: (next: { id: string; masterRowId: string | null; signedUrl: string; masterSignedUrl: string; width_px: number; height_px: number; dpi: number | null; name: string } | null) => void
+  /** Seed the project-images list — used by the machine's `deleteMaster`
+   * service to flip to the empty state instantly (cascade fixed point). */
+  seedProjectImages: (items: ProjectImageItem[]) => void
   /** Await-able persisted transform save, owned by `useDisplaySize` (the
    * single authoritative display-size source). The workflow machine wraps
    * it as the `saveTransform` service; the shell also awaits it directly
@@ -139,6 +143,7 @@ export function useEditorWorkflowAdapter(args: {
     refreshFilterImage,
     refreshTrace,
     seedMasterImage,
+    seedProjectImages,
     saveImageState,
     getCurrentImageTx,
   } = args
@@ -286,6 +291,26 @@ export function useEditorWorkflowAdapter(args: {
     // restores the filter-chain tip; NO master-image reload here.
     await clearProjectTrace(projectId)
   }, [projectId])
+  // Set when the machine seeds a freshly uploaded master, so the shell's
+  // post-upload cascade effect can skip a redundant `refreshProjectImages()`.
+  const seededMasterIdRef = useRef<string | null>(null)
+  const uploadMasterService = useCallback(
+    async ({ master }: { master: UploadedMasterSnapshot }) => {
+      // Instant seed for fast UX (the fresh upload IS the master row, so the
+      // stable masterRowId is its own id); the machine's `syncing` then
+      // reconciles project_images + filter_image via refreshAll.
+      seedMasterImage({ ...master, masterRowId: master.id })
+      seededMasterIdRef.current = master.id
+    },
+    [seedMasterImage]
+  )
+  const deleteMasterService = useCallback(async () => {
+    // Atomic cascade delete → empty is the stable fixed point; seed it now so
+    // the UI flips instantly, then the machine's `syncing` re-confirms.
+    await deleteMasterImageWithCascade(projectId)
+    seedMasterImage(null)
+    seedProjectImages([])
+  }, [projectId, seedMasterImage, seedProjectImages])
   const workflowServices = useMemo(
     () => ({
       removeFilter: removeFilterService,
@@ -296,8 +321,10 @@ export function useEditorWorkflowAdapter(args: {
       saveTransform: saveTransformService,
       applyTrace: applyTraceService,
       clearTrace: clearTraceService,
+      uploadMaster: uploadMasterService,
+      deleteMaster: deleteMasterService,
     }),
-    [applyCropService, applyFilterService, applyTraceService, clearTraceService, refreshEditorData, removeFilterService, restoreBaseService, saveTransformService]
+    [applyCropService, applyFilterService, applyTraceService, clearTraceService, deleteMasterService, refreshEditorData, removeFilterService, restoreBaseService, saveTransformService, uploadMasterService]
   )
 
   const workflow = useImageWorkflowMachine({
@@ -319,34 +346,22 @@ export function useEditorWorkflowAdapter(args: {
     },
     [workflow]
   )
-  const seededMasterIdRef = useRef<string | null>(null)
   const handleImageUploaded = useCallback(
-    async (uploadedMaster: { id: string; signedUrl: string; masterSignedUrl: string; width_px: number; height_px: number; dpi: number | null; name: string } | null) => {
-      // Upload path is fully synchronous from the UI's standpoint once
-      // the POST resolves: the master snapshot in the response is
-      // authoritative. We seed it and let the source-snapshot useEffect
-      // in the workflow machine pick the new image up through normal
-      // React-tree flow — no REFRESH event, no syncing state, no
-      // 20-second wait that can time out when any single dependent
-      // hook is slow.
-      //
-      // The two remaining derived slices (project_images, filter_image)
-      // are refreshed in the background. UI features that depend on
-      // them surface their own loading/error states; nothing here
-      // should block on them. Background-hook failures have their own
-      // surfaces (filterImageError etc.) — we don't double-surface
-      // them via uploadSyncError.
-      workflow.dismissError()
-      if (uploadedMaster?.id) {
-        // The freshly uploaded image IS the master row, so the stable
-        // identity (masterRowId) is its own id at seed time.
-        seedMasterImage({ ...uploadedMaster, masterRowId: uploadedMaster.id })
-        seededMasterIdRef.current = uploadedMaster.id
-      }
+    async (uploadedMaster: UploadedMasterSnapshot | null) => {
+      // Drive the post-upload seed + reconcile through the machine
+      // (`uploadingMaster → syncing → idle`): the service seeds instantly for
+      // fast UX and `refreshAll` reconciles the derived slices — no out-of-band
+      // fire-and-forget refresh. `uploadMaster` is fire-and-forget on purpose
+      // (the UI reads the seed from the source snapshot; it must not block on
+      // syncing). A null payload (defensive) just requests a refresh.
       setUploadSyncError(null)
-      void Promise.allSettled([refreshProjectImages(), refreshFilterImage()])
+      if (uploadedMaster?.id) {
+        workflow.uploadMaster(uploadedMaster)
+      } else {
+        workflow.refresh()
+      }
     },
-    [refreshFilterImage, refreshProjectImages, seedMasterImage, workflow],
+    [workflow],
   )
 
   // OperationError-typed composition. Order: persistence has highest

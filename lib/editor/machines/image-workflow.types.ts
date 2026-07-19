@@ -1,6 +1,7 @@
 import type { OperationError } from "@/lib/api/operation-error"
 import type { RegisteredFilterId } from "@/lib/editor/filters/registry"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
+import type { UploadedMasterSnapshot } from "@/lib/editor/upload-master-image"
 
 export type WorkflowSourceImage = {
   id: string
@@ -39,12 +40,29 @@ export type ImageWorkflowServices = {
   /** Remove the applied trace. The machine's `syncing` refresh restores the
    * filter-chain tip; no master-image reload happens here. */
   clearTrace: () => Promise<void>
+  /** Seed the freshly uploaded master (fast, synchronous UX); the machine's
+   * `syncing` refresh then reconciles the derived slices. The actual file POST
+   * runs in the uploader hook — only the post-upload seed+sync is machine-owned. */
+  uploadMaster: (args: { master: UploadedMasterSnapshot }) => Promise<void>
+  /** Delete the master (cascade) and seed the empty state; the machine's
+   * `syncing` refresh reconciles. */
+  deleteMaster: () => Promise<void>
 }
 
 export type ImageWorkflowContext = {
   services: ImageWorkflowServices
   source: WorkflowSourceSnapshot
-  lastOperation: "filter_apply" | "filter_remove" | "crop_apply" | "restore" | "refresh" | "trace_apply" | "trace_remove" | null
+  lastOperation:
+    | "filter_apply"
+    | "filter_remove"
+    | "crop_apply"
+    | "restore"
+    | "refresh"
+    | "trace_apply"
+    | "trace_remove"
+    | "image_upload"
+    | "image_delete"
+    | null
   lastOpError: OperationError | null
   lastPersistenceError: OperationError | null
   inFlightTransform: WorkflowTransformPayload | null
@@ -60,6 +78,8 @@ export type ImageWorkflowEvent =
   | { type: "FILTER_REMOVE"; filterId: string }
   | { type: "TRACE_APPLY"; kind: RegisteredTraceId; params: Record<string, unknown> }
   | { type: "TRACE_REMOVE" }
+  | { type: "IMAGE_UPLOAD"; master: UploadedMasterSnapshot }
+  | { type: "IMAGE_DELETE" }
   | { type: "CROP_APPLY"; rect: { x: number; y: number; w: number; h: number } }
   | { type: "RESTORE" }
   | { type: "TRANSFORM_SAVE"; transform: WorkflowTransformPayload }

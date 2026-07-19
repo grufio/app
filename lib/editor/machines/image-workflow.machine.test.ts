@@ -14,6 +14,8 @@ function createServices(overrides?: Partial<ImageWorkflowServices>): ImageWorkfl
     saveTransform: vi.fn(async () => {}),
     applyTrace: vi.fn(async () => {}),
     clearTrace: vi.fn(async () => {}),
+    uploadMaster: vi.fn(async () => {}),
+    deleteMaster: vi.fn(async () => {}),
     ...overrides,
   }
 }
@@ -129,6 +131,52 @@ describe("createImageWorkflowMachine", () => {
 
     await waitFor(actor, (s) => s.matches({ operation: "idle" }))
     expect(services.clearTrace).toHaveBeenCalledTimes(1)
+    expect(services.refreshAll).toHaveBeenCalledTimes(1)
+  })
+
+  it("runs image upload -> sync -> idle (no canMutate guard needed)", async () => {
+    const services = createServices()
+    const actor = createActor(createImageWorkflowMachine(), { input: { services } })
+    actor.start()
+
+    // No SOURCE_SNAPSHOT ready first: upload CREATES the source.
+    const master = {
+      id: "m_1",
+      signedUrl: "u",
+      masterSignedUrl: "mu",
+      width_px: 100,
+      height_px: 80,
+      dpi: null,
+      name: "Image",
+      storage_path: "projects/p/master/img.png",
+      format: "png",
+      file_size_bytes: 1234,
+    }
+    actor.send({ type: "IMAGE_UPLOAD", master })
+
+    await waitFor(actor, (s) => s.matches({ operation: "idle" }))
+    expect(services.uploadMaster).toHaveBeenCalledWith({ master })
+    expect(services.refreshAll).toHaveBeenCalledTimes(1)
+  })
+
+  it("runs image delete -> sync -> idle on success", async () => {
+    const services = createServices()
+    const actor = createActor(createImageWorkflowMachine(), { input: { services } })
+    actor.start()
+
+    actor.send({
+      type: "SOURCE_SNAPSHOT",
+      snapshot: {
+        status: "ready",
+        image: { id: "img_1", signedUrl: "u", width_px: 100, height_px: 80, name: "Image" },
+        error: "",
+      },
+    })
+
+    actor.send({ type: "IMAGE_DELETE" })
+
+    await waitFor(actor, (s) => s.matches({ operation: "idle" }))
+    expect(services.deleteMaster).toHaveBeenCalledTimes(1)
     expect(services.refreshAll).toHaveBeenCalledTimes(1)
   })
 

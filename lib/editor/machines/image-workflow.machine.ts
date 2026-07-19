@@ -4,6 +4,7 @@ import { normalizeApiError } from "@/lib/api/error-normalizer"
 import type { OperationError } from "@/lib/api/operation-error"
 import type { RegisteredFilterId } from "@/lib/editor/filters/registry"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
+import type { UploadedMasterSnapshot } from "@/lib/editor/upload-master-image"
 
 import type {
   ImageWorkflowContext,
@@ -56,6 +57,12 @@ export function createImageWorkflowMachine() {
       clearTrace: fromPromise(async ({ input }: { input: { services: ImageWorkflowServices } }) => {
         await input.services.clearTrace()
       }),
+      uploadMaster: fromPromise(async ({ input }: { input: { services: ImageWorkflowServices; master: UploadedMasterSnapshot } }) => {
+        await input.services.uploadMaster({ master: input.master })
+      }),
+      deleteMaster: fromPromise(async ({ input }: { input: { services: ImageWorkflowServices } }) => {
+        await input.services.deleteMaster()
+      }),
       applyCrop: fromPromise(
         async ({ input }: { input: { services: ImageWorkflowServices; sourceImageId: string; rect: { x: number; y: number; w: number; h: number } } }) => {
           await input.services.applyCrop({ sourceImageId: input.sourceImageId, rect: input.rect })
@@ -98,6 +105,8 @@ export function createImageWorkflowMachine() {
           if (event.type === "FILTER_REMOVE") return "filter_remove"
           if (event.type === "TRACE_APPLY") return "trace_apply"
           if (event.type === "TRACE_REMOVE") return "trace_remove"
+          if (event.type === "IMAGE_UPLOAD") return "image_upload"
+          if (event.type === "IMAGE_DELETE") return "image_delete"
           if (event.type === "CROP_APPLY") return "crop_apply"
           if (event.type === "RESTORE") return "restore"
           if (event.type === "REFRESH" || event.type === "RETRY") return "refresh"
@@ -205,6 +214,17 @@ export function createImageWorkflowMachine() {
                 target: "clearingTrace",
                 actions: ["clearOperationError", "assignLastOperation"],
               },
+              IMAGE_UPLOAD: {
+                // No canMutate guard: the upload CREATES the source (there may be
+                // no active image yet, e.g. first upload or after a delete).
+                target: "uploadingMaster",
+                actions: ["clearOperationError", "assignLastOperation"],
+              },
+              IMAGE_DELETE: {
+                guard: "canMutate",
+                target: "deletingMaster",
+                actions: ["clearOperationError", "assignLastOperation"],
+              },
               CROP_APPLY: {
                 guard: "canMutate",
                 target: "cropping",
@@ -267,6 +287,25 @@ export function createImageWorkflowMachine() {
           clearingTrace: {
             invoke: {
               src: "clearTrace",
+              input: ({ context }) => ({ services: context.services }),
+              onDone: { target: "syncing" },
+              onError: { target: "error", actions: "assignOperationFailure" },
+            },
+          },
+          uploadingMaster: {
+            invoke: {
+              src: "uploadMaster",
+              input: ({ context, event }) => {
+                if (event.type !== "IMAGE_UPLOAD") throw new Error("Missing master payload for uploadMaster")
+                return { services: context.services, master: event.master }
+              },
+              onDone: { target: "syncing" },
+              onError: { target: "error", actions: "assignOperationFailure" },
+            },
+          },
+          deletingMaster: {
+            invoke: {
+              src: "deleteMaster",
               input: ({ context }) => ({ services: context.services }),
               onDone: { target: "syncing" },
               onError: { target: "error", actions: "assignOperationFailure" },

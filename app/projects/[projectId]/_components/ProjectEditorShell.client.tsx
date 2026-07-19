@@ -74,7 +74,6 @@ import { useEditorWorkflowAdapter } from "./editor-shell/use-editor-workflow-ada
 import { ArtboardSurfaceScope } from "./editor-shell/artboard-surface-scope"
 import { ColorsSurfaceScope } from "./editor-shell/colors-surface-scope"
 import { TraceSurfaceScope } from "./editor-shell/trace-surface-scope"
-import { useDeleteMasterImageHandler } from "./editor-shell/use-delete-master-image-handler"
 import { usePanelUIState } from "./editor-shell/use-panel-ui-state"
 import { useImageActionRequests } from "./editor-shell/use-image-action-requests"
 
@@ -106,7 +105,6 @@ export function ProjectDetailPageClient({
     masterImageError,
     refreshMasterImage,
     seedMasterImage,
-    deleteBusy,
     deleteError,
     setDeleteError,
   } = useMasterImage(projectId, initialMasterImage)
@@ -217,6 +215,7 @@ export function ProjectDetailPageClient({
     refreshFilterImage,
     refreshTrace,
     seedMasterImage,
+    seedProjectImages,
     saveImageState,
     // Trace apply/clear run through the machine; the apply service pre-saves
     // this transform to close the resize→apply race.
@@ -310,17 +309,18 @@ export function ProjectDetailPageClient({
     imageLocked: filterStack.length > 0 || Boolean(trace),
   })
 
-  const handleDeleteMasterImage = useDeleteMasterImageHandler({
-    masterImageId: masterImage?.id,
-    projectId,
-    refreshFilterImage,
-    refreshProjectImages,
-    seedMasterImage,
-    seedProjectImages,
-    setDeleteError,
-    setDeleteOpen,
-    workflow,
-  })
+  // Delete runs through the machine (`deletingMaster → syncing → idle`): the
+  // service does the cascade delete + seeds the empty state; the machine's
+  // refresh reconciles. Busy/error come from the machine (isDeletingMaster /
+  // operationError), not a loose flag.
+  const handleDeleteMasterImage = useCallback(async () => {
+    try {
+      await workflow.deleteMaster()
+      setDeleteOpen(false)
+    } catch (e) {
+      setDeleteError(e instanceof Error ? e.message : "Failed to delete image")
+    }
+  }, [workflow, setDeleteOpen, setDeleteError])
 
   const handleRestoreInitialImage = useCallback(async () => {
     if (workflow.isRestoring) return
@@ -660,7 +660,7 @@ export function ProjectDetailPageClient({
             onRestoreImage={handleRestoreInitialImage}
             deleteOpen={deleteOpen}
             setDeleteOpen={setDeleteOpen}
-            deleteBusy={deleteBusy}
+            deleteBusy={workflow.isDeletingMaster}
             deleteError={deleteError}
             handleDeleteMasterImage={handleDeleteMasterImage}
             cascadeFilterCount={filterStack.length}
@@ -705,7 +705,7 @@ export function ProjectDetailPageClient({
             onPageBgEnabledChange={handlePageBgEnabledChange}
             onPageBgColorChange={handlePageBgColorChange}
             onPageBgOpacityChange={handlePageBgOpacityChange}
-            canFit={Boolean(masterImage) && !masterImageLoading && !deleteBusy}
+            canFit={Boolean(masterImage) && !masterImageLoading && !workflow.isDeletingMaster}
             onFitToArtboard={() => canvasRef.current?.fitImageToArtboard()}
             hasGrid={hasGrid}
             gridVisible={gridVisible}
@@ -721,7 +721,7 @@ export function ProjectDetailPageClient({
             imagePanelReady={imagePanelReady}
             imagePanelEnabled={Boolean(masterImage) && workspaceReady}
             masterImageLoading={masterImageLoading}
-            deleteBusy={deleteBusy}
+            deleteBusy={workflow.isDeletingMaster}
             restoreBusy={workflow.isRestoring}
             canvasRef={canvasRef}
             onRequestRestore={() => setRestoreOpen(true)}

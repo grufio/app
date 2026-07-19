@@ -5,6 +5,7 @@ import { useMachine } from "@xstate/react"
 
 import type { RegisteredFilterId } from "@/lib/editor/filters/registry"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
+import type { UploadedMasterSnapshot } from "@/lib/editor/upload-master-image"
 
 import { createImageWorkflowMachine } from "./image-workflow.machine"
 import type {
@@ -66,12 +67,15 @@ export function useImageWorkflowMachine(args: {
   const readModel = useMemo(() => state.context.source, [state.context.source])
   const isMutating = state.matches({ operation: "removingFilter" }) || state.matches({ operation: "cropping" }) || state.matches({ operation: "restoring" })
     || state.matches({ operation: "applyingFilter" }) || state.matches({ operation: "applyingTrace" }) || state.matches({ operation: "clearingTrace" })
+    || state.matches({ operation: "uploadingMaster" }) || state.matches({ operation: "deletingMaster" })
   const isSyncing = state.matches({ operation: "syncing" })
   const isPersisting = state.matches({ persistence: "persisting" }) || state.matches({ persistence: "drain" })
   const isApplyingFilter = state.matches({ operation: "applyingFilter" })
   const isRemovingFilter = state.matches({ operation: "removingFilter" })
   const isApplyingTrace = state.matches({ operation: "applyingTrace" })
   const isClearingTrace = state.matches({ operation: "clearingTrace" })
+  const isUploadingMaster = state.matches({ operation: "uploadingMaster" })
+  const isDeletingMaster = state.matches({ operation: "deletingMaster" })
   const isCropping = state.matches({ operation: "cropping" })
   const isRestoring = state.matches({ operation: "restoring" })
   const lastOperation = state.context.lastOperation
@@ -137,7 +141,12 @@ export function useImageWorkflowMachine(args: {
     return pending
   }
   const awaitOperation = (
-    args: { start: () => void; mutatingState: "applyingTrace" | "clearingTrace"; failMessage: string; timeoutMessage: string },
+    args: {
+      start: () => void
+      mutatingState: "applyingTrace" | "clearingTrace" | "removingFilter" | "deletingMaster"
+      failMessage: string
+      timeoutMessage: string
+    },
   ) => {
     let enteredMutationFlow = false
     const pending = waitForStateChange({
@@ -182,6 +191,23 @@ export function useImageWorkflowMachine(args: {
     })
   }
   const removeFilter = (filterId: string) => sendEvent({ type: "FILTER_REMOVE", filterId })
+  const uploadMaster = (master: UploadedMasterSnapshot) => {
+    // Fire-and-forget: the seed is instant and the UI reads it from the source
+    // snapshot; blocking on the machine's syncing would reintroduce the 20s wait
+    // the upload path deliberately avoids.
+    sendEvent({ type: "IMAGE_UPLOAD", master })
+  }
+  const deleteMaster = () => {
+    if (!state.can({ type: "IMAGE_DELETE" })) {
+      return Promise.reject(new Error("Image delete is not allowed in the current workflow state"))
+    }
+    return awaitOperation({
+      start: () => sendEvent({ type: "IMAGE_DELETE" }),
+      mutatingState: "deletingMaster",
+      failMessage: "Failed to delete image",
+      timeoutMessage: "Timed out while waiting for image delete completion",
+    })
+  }
   const applyCrop = (rect: { x: number; y: number; w: number; h: number }) => sendEvent({ type: "CROP_APPLY", rect })
   const restore = () => sendEvent({ type: "RESTORE" })
   const refresh = () => sendEvent({ type: "REFRESH" })
@@ -199,6 +225,8 @@ export function useImageWorkflowMachine(args: {
     isRemovingFilter,
     isApplyingTrace,
     isClearingTrace,
+    isUploadingMaster,
+    isDeletingMaster,
     isCropping,
     isRestoring,
     lastOperation,
@@ -207,6 +235,8 @@ export function useImageWorkflowMachine(args: {
     applyFilter,
     applyTrace,
     clearTrace,
+    uploadMaster,
+    deleteMaster,
     refreshAndWait,
     removeFilter,
     applyCrop,
