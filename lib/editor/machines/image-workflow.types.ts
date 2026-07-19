@@ -1,4 +1,5 @@
 import type { OperationError } from "@/lib/api/operation-error"
+import type { ProjectImageItem } from "@/lib/api/project-images"
 import type { RegisteredFilterId } from "@/lib/editor/filters/registry"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
 import type { UploadedMasterSnapshot } from "@/lib/editor/upload-master-image"
@@ -52,6 +53,9 @@ export type ImageWorkflowServices = {
 export type ImageWorkflowContext = {
   services: ImageWorkflowServices
   source: WorkflowSourceSnapshot
+  /** The project's master-image list (nav/selection). Owned by the machine
+   * (read-model migration phase A); fed via `PROJECT_IMAGES_LOADED`. */
+  projectImages: ProjectImageItem[]
   lastOperation:
     | "filter_apply"
     | "filter_remove"
@@ -74,6 +78,7 @@ export type ImageWorkflowEvent =
   | { type: "BOOT" }
   | { type: "REFRESH" }
   | { type: "SOURCE_SNAPSHOT"; snapshot: WorkflowSourceSnapshot }
+  | { type: "PROJECT_IMAGES_LOADED"; items: ProjectImageItem[] }
   | { type: "FILTER_APPLY"; filterType: RegisteredFilterId; filterParams: Record<string, unknown> }
   | { type: "FILTER_REMOVE"; filterId: string }
   | { type: "TRACE_APPLY"; kind: RegisteredTraceId; params: Record<string, unknown> }

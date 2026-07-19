@@ -90,6 +90,9 @@ export function createImageWorkflowMachine() {
       assignSourceSnapshot: assign({
         source: ({ event, context }) => (event.type === "SOURCE_SNAPSHOT" ? event.snapshot : context.source),
       }),
+      assignProjectImages: assign({
+        projectImages: ({ event, context }) => (event.type === "PROJECT_IMAGES_LOADED" ? event.items : context.projectImages),
+      }),
       assignServices: assign({
         services: ({ event, context }) => (event.type === "SERVICES_UPDATE" ? event.services : context.services),
       }),
@@ -149,6 +152,7 @@ export function createImageWorkflowMachine() {
     type: "parallel",
     context: ({ input }) => ({
       source: { status: "loading", image: null, error: "" } as WorkflowSourceSnapshot,
+      projectImages: [],
       lastOperation: null,
       lastOpError: null,
       lastPersistenceError: null,
@@ -412,6 +416,9 @@ export function createImageWorkflowMachine() {
     on: {
       SERVICES_UPDATE: {
         actions: "assignServices",
+      },
+      PROJECT_IMAGES_LOADED: {
+        actions: "assignProjectImages",
       },
     },
   })

@@ -60,7 +60,6 @@ import { reportError } from "@/lib/monitoring/error-reporting"
 import type { ImageState } from "@/lib/editor/imageState"
 import type { MasterImage } from "@/lib/editor/hooks/use-master-image"
 import { useMasterImage } from "@/lib/editor/hooks/use-master-image"
-import { useProjectImages } from "@/lib/editor/hooks/use-project-images"
 import type { Project } from "@/lib/editor/hooks/use-project"
 import { useProject } from "@/lib/editor/hooks/use-project"
 import { computeRenderableGrid } from "@/services/editor/grid/validation"
@@ -109,11 +108,6 @@ export function ProjectDetailPageClient({
     setDeleteError,
   } = useMasterImage(projectId, initialMasterImage)
 
-  const {
-    images: projectImages,
-    refresh: refreshProjectImages,
-    seedImages: seedProjectImages,
-  } = useProjectImages(projectId)
   const {
     image: filterDisplayImage,
     imageWithoutTrace: filterDisplayImageWithoutTrace,
@@ -196,7 +190,7 @@ export function ProjectDetailPageClient({
     filterSourceImage,
     handleApplyFilter,
     handleImageUploaded,
-    seededMasterIdRef,
+    loadProjectImages,
     uploadSyncError,
     restoreOperationError,
     workflowFilterPanelError,
@@ -211,11 +205,9 @@ export function ProjectDetailPageClient({
     filterImageError,
     filterImageEmptyReason,
     refreshMasterImage,
-    refreshProjectImages,
     refreshFilterImage,
     refreshTrace,
     seedMasterImage,
-    seedProjectImages,
     saveImageState,
     // Trace apply/clear run through the machine; the apply service pre-saves
     // this transform to close the resize→apply race.
@@ -289,7 +281,7 @@ export function ProjectDetailPageClient({
     requestDeleteGrid,
   } = useImageActionRequests({
     setSelectedNavId,
-    projectImages,
+    projectImages: workflow.projectImages,
     masterImageId: masterImage?.id ?? null,
     setDeleteError,
     setDeleteOpen,
@@ -379,15 +371,12 @@ export function ProjectDetailPageClient({
   })
 
   useEffect(() => {
-    // Skip the cascade refresh when this masterImage.id arrived via a
-    // direct seed from the upload-response. The workflow refresh fired
-    // by handleImageUploaded already fans out to refreshProjectImages
-    // in parallel — re-running it here would just burn a roundtrip.
-    if (seededMasterIdRef.current && seededMasterIdRef.current === masterImage?.id) {
-      return
-    }
-    void refreshProjectImages()
-  }, [masterImage?.id, refreshProjectImages, seededMasterIdRef])
+    // The master-images list only changes when the master itself does (upload /
+    // replace / delete → masterImage.id flips), so reload it here (and on mount).
+    // Filter/trace/crop don't touch the list, so it's NOT part of the machine's
+    // per-mutation refreshAll. `loadProjectImages` feeds the machine context.
+    void loadProjectImages()
+  }, [masterImage?.id, loadProjectImages])
 
   // Canvas source is always the working-copy across all three tabs.
   // Master is an immutable restore source (`guard_master_immutable`),
