@@ -27,7 +27,7 @@ import { Ellipse, Group } from "react-konva"
 import type { ParsedCirculateTrace } from "@/lib/editor/trace/circulate-trace-parse"
 import type { TraceWorldRect } from "@/lib/editor/trace/trace-overlay-rect"
 
-import { TRACE_CONTOUR_STROKE_CSS_PX } from "./line-rendering"
+import { useTraceContourStrokeCssPx } from "./device-pixel-ratio"
 
 export function CirculateTraceOverlay({
   parsed,
@@ -43,10 +43,10 @@ export function CirculateTraceOverlay({
 }) {
   const { viewBoxW, viewBoxH, cells, frames } = parsed
 
-  // Constant 1-CSS-pixel hairline — the shared trace-contour width
-  // (TRACE_CONTOUR_STROKE_CSS_PX), same as the pixelate grid and the linerate
-  // outlines. strokeScaleEnabled:false keeps it constant at any zoom.
-  const hairline = TRACE_CONTOUR_STROKE_CSS_PX
+  // ONE physical device pixel — the shared trace-contour hairline
+  // (useTraceContourStrokeCssPx), same width as the pixelate grid and the
+  // linerate outlines. strokeScaleEnabled:false keeps it constant at any zoom.
+  const hairline = useTraceContourStrokeCssPx()
 
   const cornerX = rect.x - rect.width / 2
   const cornerY = rect.y - rect.height / 2

@@ -37,7 +37,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react"
 
-import { TRACE_CONTOUR_STROKE_CSS_PX } from "./line-rendering"
+import { useTraceContourStrokeCssPx } from "./device-pixel-ratio"
 import { prepareTraceSvg } from "./prepare-trace-svg"
 
 type ImageRect = {
@@ -105,9 +105,11 @@ export function TraceInlineSvg({
   // Linerate region outlines render here as DOM SVG (unlike pixelate/circulate,
   // whose cells+outlines are stripped to the Konva canvas). The SVG is stretched
   // to the container via `preserveAspectRatio="none"`, so a plain `stroke-width`
-  // scales up with zoom → thick. The outline width is pinned in CSS below to the
-  // shared TRACE_CONTOUR_STROKE_CSS_PX (a constant 1 CSS px, non-scaling), so it
-  // matches the pixelate/circulate hairlines on both render substrates.
+  // scales up with zoom → thick. The outline width is pinned in the CSS below to
+  // the shared hairline (`useTraceContourStrokeCssPx` = 1 device px) + a
+  // `vector-effect: non-scaling-stroke`, so it renders exactly one device pixel
+  // regardless of the stretch — matching the pixelate/circulate Konva hairlines.
+  const strokeCssPx = useTraceContourStrokeCssPx()
 
   // Document-level deselect: Escape clears; click outside the
   // trace clears. The `containerRef.contains` guard prevents the
@@ -233,15 +235,13 @@ export function TraceInlineSvg({
           pointer-events: none;
         }
         /* Base region outlines: the shared trace-contour hairline —
-           TRACE_CONTOUR_STROKE_CSS_PX (a constant 1 CSS px), identical to the
-           pixelate/circulate Konva strokes (strokeScaleEnabled off).
-           non-scaling-stroke keeps it constant while the SVG is stretched to the
-           container; CSS beats the inline stroke-width="1" the server emits. A
-           full 1 CSS px (not a sub-device-pixel width) renders as a solid line
-           on this un-snapped DOM substrate, so it matches the snapped Konva
-           hairlines instead of antialiasing into a faint grey line. */
+           useTraceContourStrokeCssPx = ONE physical device pixel, in CSS px,
+           identical to the pixelate/circulate Konva strokes. non-scaling-stroke
+           makes it render at exactly that width regardless of the SVG's stretch
+           (so the thick source-px viewBox does NOT bleed through); CSS beats the
+           inline stroke-width="1" the server emits. */
         [data-testid="trace-inline-svg"] [data-trace-region] {
-          stroke-width: ${TRACE_CONTOUR_STROKE_CSS_PX}px;
+          stroke-width: ${strokeCssPx}px;
           vector-effect: non-scaling-stroke;
         }
         [data-testid="trace-inline-svg"][data-interactive="true"] [data-trace-region] {
