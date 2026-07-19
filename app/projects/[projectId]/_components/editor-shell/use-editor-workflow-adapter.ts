@@ -347,14 +347,18 @@ export function useEditorWorkflowAdapter(args: {
   // fetch it here and feed the machine context. The shell's cascade effect
   // drives it on mount and whenever the master id changes (upload/replace/
   // delete) — the only events that change the master-images list.
+  // Depend on the STABLE `setProjectImages` sender, not the whole `workflow`
+  // object (which is a fresh identity every render) — otherwise this callback,
+  // and the shell effect that depends on it, would re-run every render → loop.
+  const { setProjectImages } = workflow
   const loadProjectImages = useCallback(async () => {
     try {
       const payload = await listMasterImages(projectId)
-      workflow.setProjectImages(payload.items)
+      setProjectImages(payload.items)
     } catch {
-      workflow.setProjectImages([])
+      setProjectImages([])
     }
-  }, [projectId, workflow])
+  }, [projectId, setProjectImages])
   const handleImageUploaded = useCallback(
     async (uploadedMaster: UploadedMasterSnapshot | null) => {
       // Drive the post-upload seed + reconcile through the machine

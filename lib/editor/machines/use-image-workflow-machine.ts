@@ -216,7 +216,13 @@ export function useImageWorkflowMachine(args: {
   const retry = () => sendEvent({ type: "RETRY" })
   const dismissError = () => sendEvent({ type: "DISMISS_ERROR" })
   const saveTransform = (transform: WorkflowTransformPayload) => sendEvent({ type: "TRANSFORM_SAVE", transform })
-  const setProjectImages = (items: ProjectImageItem[]) => sendEvent({ type: "PROJECT_IMAGES_LOADED", items })
+  // Stable identity: consumed in an effect dependency (the shell's cascade
+  // loader). `sendEvent` is already stable, so this never changes across renders
+  // — without useCallback the loader effect would re-fire every render → loop.
+  const setProjectImages = useCallback(
+    (items: ProjectImageItem[]) => sendEvent({ type: "PROJECT_IMAGES_LOADED", items }),
+    [sendEvent],
+  )
 
   return {
     state,
