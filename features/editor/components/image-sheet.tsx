@@ -4,8 +4,8 @@
  * Editor Image dialog — the merged Image + Artboard sheet.
  *
  * Standard editor-sheet chrome: `sheetRootClass()` (full-screen overlay on
- * every breakpoint) + `SheetHeader` (title + Close), matching the Grid / Trace
- * / Filter / Colors sheets. Tone-aware (dark/light) by scoping the app theme to
+ * every breakpoint) + `SheetHeader` (title + Confirm/Close), matching the
+ * Grid / Trace / Filter / Colors sheets. Tone-aware (dark/light) by scoping the app theme to
  * the editor's `EditorToolbarTone`: when the tone is dark we add the `dark`
  * class so the panel **and** the form-controls inside follow the dark theme.
  *
@@ -121,7 +121,7 @@ export function ImageSheet(props: {
         sheetRootClass(),
       )}
     >
-      <SheetHeader title="Image" onClose={onClose} />
+      <SheetHeader title="Image" onClose={onClose} onConfirm={onClose} />
 
       <div className="flex-1 overflow-y-auto">
         {hasMasterImage ? (
