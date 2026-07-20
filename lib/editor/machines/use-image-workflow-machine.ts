@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef } from "react"
 import { useMachine } from "@xstate/react"
 
 import type { ProjectImageItem } from "@/lib/api/project-images"
+import type { FilterReadModel } from "@/lib/editor/filter-working-image"
 import type { MasterImage } from "@/lib/editor/master-image"
 import type { RegisteredFilterId } from "@/lib/editor/filters/registry"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
@@ -13,7 +14,6 @@ import { createImageWorkflowMachine } from "./image-workflow.machine"
 import type {
   ImageWorkflowEvent,
   ImageWorkflowServices,
-  WorkflowSourceSnapshot,
   WorkflowTransformPayload,
 } from "./image-workflow.types"
 import { waitForStateChange } from "./wait-for-state-change"
@@ -74,6 +74,7 @@ export function useImageWorkflowMachine(args: {
   const masterLoading = state.context.masterLoading
   const masterError = state.context.masterError
   const masterRowId = state.context.master?.masterRowId ?? null
+  const filter = state.context.filter
   const isMutating = state.matches({ operation: "removingFilter" }) || state.matches({ operation: "cropping" }) || state.matches({ operation: "restoring" })
     || state.matches({ operation: "applyingFilter" }) || state.matches({ operation: "applyingTrace" }) || state.matches({ operation: "clearingTrace" })
     || state.matches({ operation: "uploadingMaster" }) || state.matches({ operation: "deletingMaster" })
@@ -230,11 +231,11 @@ export function useImageWorkflowMachine(args: {
     (items: ProjectImageItem[]) => sendEvent({ type: "PROJECT_IMAGES_LOADED", items }),
     [sendEvent],
   )
-  // The source snapshot is now derived in the adapter from the machine-owned
-  // master (+ the filter hook) and pushed back in — the machine can't take it
-  // as an arg because it would create a create-time cycle. Stable sender.
-  const setSource = useCallback(
-    (snapshot: WorkflowSourceSnapshot) => sendEvent({ type: "SOURCE_SNAPSHOT", snapshot }),
+  // The filter read-model is machine-owned (phase C). `source` is derived
+  // internally from master + filter — no more SOURCE_SNAPSHOT mirror. The
+  // adapter's loader pushes filter data in via this stable sender.
+  const setFilter = useCallback(
+    (patch: Partial<FilterReadModel>) => sendEvent({ type: "FILTER_LOADED", patch }),
     [sendEvent],
   )
   // Stable identity (consumed in the adapter's loader effect deps).
@@ -254,7 +255,8 @@ export function useImageWorkflowMachine(args: {
     masterError,
     masterRowId,
     setMaster,
-    setSource,
+    filter,
+    setFilter,
     isMutating,
     isSyncing,
     isPersisting,
