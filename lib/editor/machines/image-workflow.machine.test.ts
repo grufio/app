@@ -164,6 +164,11 @@ describe("createImageWorkflowMachine", () => {
     await waitFor(actor, (s) => s.matches({ operation: "idle" }))
     expect(services.uploadMaster).toHaveBeenCalledWith({ master })
     expect(services.refreshAll).toHaveBeenCalledTimes(1)
+    // The default refreshAll mock returns { master: null }. The seeded upload
+    // master MUST survive the post-upload reconcile (regression: the Image bar
+    // stayed on "Add" because a null refresh clobbered the seed).
+    expect(actor.getSnapshot().context.master?.id).toBe("m_1")
+    expect(actor.getSnapshot().context.master?.masterRowId).toBe("m_1")
   })
 
   it("assigns project images from PROJECT_IMAGES_LOADED in any state", async () => {
@@ -199,8 +204,11 @@ describe("createImageWorkflowMachine", () => {
     actor.send({ type: "MASTER_LOADED", master: { ...seed, signedUrl: "u2" }, loading: false })
     expect(actor.getSnapshot().context.master?.signedUrl).toBe("u2")
 
-    actor.send({ type: "MASTER_LOADED", master: null })
-    expect(actor.getSnapshot().context.master).toBeNull()
+    // A null MASTER_LOADED (stale/transient read) must NOT wipe a present master
+    // — only IMAGE_DELETE clears it. The loading flag still updates.
+    actor.send({ type: "MASTER_LOADED", master: null, loading: true })
+    expect(actor.getSnapshot().context.master?.signedUrl).toBe("u2")
+    expect(actor.getSnapshot().context.masterLoading).toBe(true)
   })
 
   it("assigns master from the IMAGE_UPLOAD payload (masterRowId = own id)", async () => {
@@ -228,17 +236,36 @@ describe("createImageWorkflowMachine", () => {
     expect(actor.getSnapshot().matches({ source: "ready" })).toBe(true)
   })
 
-  it("runs image delete -> sync -> idle on success", async () => {
+  it("keeps a present master when refreshAll returns null (stale/transient read)", async () => {
+    const seed = { id: "a", masterRowId: "m", signedUrl: "u", masterSignedUrl: "mu", width_px: 10, height_px: 10, dpi: null, name: "M", restore_base: null }
+    // refreshAll returns no master (e.g. a transient signed-URL failure).
+    const services = createServices({ refreshAll: vi.fn(async () => ({ master: null, filter: EMPTY_FILTER })) })
+    const actor = createActor(createImageWorkflowMachine(), { input: { services, initialMaster: seed } })
+    actor.start()
+    expect(actor.getSnapshot().context.master).toEqual(seed)
+
+    actor.send({ type: "REFRESH" })
+    await waitFor(actor, (s) => s.matches({ operation: "idle" }))
+    // The SSR-seeded master survives — a null refresh does not clobber it.
+    expect(actor.getSnapshot().context.master?.id).toBe("a")
+  })
+
+  it("runs image delete -> sync -> idle on success and clears the master", async () => {
+    const seed = { id: "a", masterRowId: "m", signedUrl: "u", masterSignedUrl: "mu", width_px: 10, height_px: 10, dpi: null, name: "M", restore_base: null }
     const services = createServices()
-    const actor = createActor(createImageWorkflowMachine(), { input: { services } })
+    const actor = createActor(createImageWorkflowMachine(), { input: { services, initialMaster: seed } })
     actor.start()
 
     makeReady(actor)
+    expect(actor.getSnapshot().context.master?.id).toBe("a")
     actor.send({ type: "IMAGE_DELETE" })
 
     await waitFor(actor, (s) => s.matches({ operation: "idle" }))
     expect(services.deleteMaster).toHaveBeenCalledTimes(1)
     expect(services.refreshAll).toHaveBeenCalledTimes(1)
+    // Delete DOES clear the master (via clearMaster before syncing); the
+    // null-refresh guard only protects against stale reads, not real deletes.
+    expect(actor.getSnapshot().context.master).toBeNull()
   })
 
   it("coalesces transform saves with latest-wins semantics", async () => {
