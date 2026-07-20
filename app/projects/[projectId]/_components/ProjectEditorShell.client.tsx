@@ -74,7 +74,7 @@ import { ColorsSurfaceScope } from "./editor-shell/colors-surface-scope"
 import { TraceSurfaceScope } from "./editor-shell/trace-surface-scope"
 import { usePanelUIState } from "./editor-shell/use-panel-ui-state"
 import { useImageActionRequests } from "./editor-shell/use-image-action-requests"
-import { deriveHasEditableImage } from "./editor-shell/has-editable-image"
+import { deriveImageBarMode } from "./editor-shell/image-bar-mode"
 
 export function ProjectDetailPageClient({
   projectId,
@@ -217,14 +217,15 @@ export function ProjectDetailPageClient({
   // master image yet; when one exists the same icon opens the edit dialog.
   const imageUploader = useMasterImageUploader({ projectId, onUploaded: handleImageUploaded })
   const hasMasterImage = Boolean(masterImage)
-  // "Is there an editable image?" for the Add-vs-Edit affordances. Gated on the
-  // SAME signal the canvas uses (source ready) so the photo and the "Add image"
-  // button can't show at once when the master read-model is transiently null;
-  // OR a present master to avoid a flash of "Add" while the source is loading.
-  const hasEditableImage = deriveHasEditableImage({
+  // Tri-state for the Image bar, keyed on the SAME source read-model status the
+  // canvas + Filter bar use: "edit" (image present) / "pending" (still loading —
+  // show nothing, so no "Add" flash) / "add" (confirmed empty). See
+  // `image-bar-mode.ts`.
+  const imageBarMode = deriveImageBarMode({
     sourceStatus: editorImageSource.status,
     hasMaster: hasMasterImage,
   })
+  const hasEditableImage = imageBarMode === "edit"
 
   // Each surface owns its own state inside a per-surface scope
   // component mounted only while that surface is active — the shell
@@ -683,7 +684,10 @@ export function ProjectDetailPageClient({
             dialog / picker — tapping the Image section only navigates, so the
             navigation-preservation for the no-master case holds by construction.
             The pencil opens the merged Image + Artboard dialog. */}
-        {editorSection === "image" ? (
+        {/* While the source state is still `loading` (mode "pending") the bar is
+            not rendered at all — this is what stops the ~500ms "Add image" flash
+            before the real Edit/Delete controls appear. */}
+        {editorSection === "image" && imageBarMode !== "pending" ? (
           <EditorImageBar
             hasImage={hasEditableImage}
             onOpen={() =>
