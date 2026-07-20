@@ -109,11 +109,20 @@ export function createImageWorkflowMachine() {
       // Assign the master with signature dedup: keep the SAME object identity
       // when nothing meaningful changed, so the derived source snapshot doesn't
       // churn (and the shell's loader effect doesn't re-fire).
+      //
+      // Invariant: a background load NEVER nulls a present master. Only
+      // IMAGE_DELETE clears it (via `clearMaster`); every other flow keeps it.
+      // `getMasterImage` can legitimately return null while the image exists
+      // (transient signed-URL failure, read lag, `.catch(() => null)`), and the
+      // loader's "loading" tick sends `master: null` up front — so a null here
+      // is treated as stale and the current master is preserved (only the
+      // loading/error flags update). See the post-upload clobber this fixes.
       assignMaster: assign(({ event, context }) => {
         if (event.type !== "MASTER_LOADED") return {}
-        const same = masterImageSignature(event.master) === masterImageSignature(context.master)
+        const next = event.master ?? context.master
+        const same = masterImageSignature(next) === masterImageSignature(context.master)
         return {
-          master: same ? context.master : event.master,
+          master: same ? context.master : next,
           masterLoading: event.loading ?? false,
           masterError: event.error ?? "",
         }
@@ -130,9 +139,14 @@ export function createImageWorkflowMachine() {
         // The `syncing` invoke resolves with the refreshAll output (master + filter).
         const output = (event as { output?: { master: MasterImage | null; filter: FilterReadModelData } }).output
         if (!output) return {}
-        const same = masterImageSignature(output.master) === masterImageSignature(context.master)
+        // Same invariant as `assignMaster`: a post-mutation refresh must not null
+        // a present master (deletes clear it via `clearMaster` before syncing).
+        // A null master result from `refreshAll` is stale/transient — keep the
+        // one we have so a just-seeded upload survives the reconcile.
+        const next = output.master ?? context.master
+        const same = masterImageSignature(next) === masterImageSignature(context.master)
         return {
-          master: same ? context.master : output.master,
+          master: same ? context.master : next,
           masterLoading: false,
           masterError: "",
           filter: { ...context.filter, ...output.filter, loading: false, loadedOnce: true },
