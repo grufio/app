@@ -74,6 +74,7 @@ import { ColorsSurfaceScope } from "./editor-shell/colors-surface-scope"
 import { TraceSurfaceScope } from "./editor-shell/trace-surface-scope"
 import { usePanelUIState } from "./editor-shell/use-panel-ui-state"
 import { useImageActionRequests } from "./editor-shell/use-image-action-requests"
+import { deriveHasEditableImage } from "./editor-shell/has-editable-image"
 
 export function ProjectDetailPageClient({
   projectId,
@@ -216,6 +217,14 @@ export function ProjectDetailPageClient({
   // master image yet; when one exists the same icon opens the edit dialog.
   const imageUploader = useMasterImageUploader({ projectId, onUploaded: handleImageUploaded })
   const hasMasterImage = Boolean(masterImage)
+  // "Is there an editable image?" for the Add-vs-Edit affordances. Gated on the
+  // SAME signal the canvas uses (source ready) so the photo and the "Add image"
+  // button can't show at once when the master read-model is transiently null;
+  // OR a present master to avoid a flash of "Add" while the source is loading.
+  const hasEditableImage = deriveHasEditableImage({
+    sourceStatus: editorImageSource.status,
+    hasMaster: hasMasterImage,
+  })
 
   // Each surface owns its own state inside a per-surface scope
   // component mounted only while that surface is active — the shell
@@ -337,7 +346,7 @@ export function ProjectDetailPageClient({
   // Arrow keys → nudge active image.
   useEditorKeyboard({
     enabled: true,
-    canDelete: Boolean(masterImage),
+    canDelete: hasEditableImage,
     onDelete: requestDeleteSelectedImage,
     onNudge: handleNudge,
   })
@@ -676,9 +685,9 @@ export function ProjectDetailPageClient({
             The pencil opens the merged Image + Artboard dialog. */}
         {editorSection === "image" ? (
           <EditorImageBar
-            hasImage={hasMasterImage}
+            hasImage={hasEditableImage}
             onOpen={() =>
-              hasMasterImage ? setPendingArtboardDialog("image") : imageUploader.openFilePicker()
+              hasEditableImage ? setPendingArtboardDialog("image") : imageUploader.openFilePicker()
             }
             onDelete={requestDeleteSelectedImage}
             locked={sectionLocks.imageLocked}
@@ -709,7 +718,7 @@ export function ProjectDetailPageClient({
               await createGrid()
             }}
             onGridDeleteRequested={requestDeleteGrid}
-            hasMasterImage={Boolean(masterImage)}
+            hasMasterImage={hasEditableImage}
             onImageUploaded={handleImageUploaded}
             panelImageTxU={panelImageTxU}
             workspaceUnit={workspaceUnit ?? "cm"}
