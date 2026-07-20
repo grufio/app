@@ -1,5 +1,6 @@
 import type { OperationError } from "@/lib/api/operation-error"
 import type { ProjectImageItem } from "@/lib/api/project-images"
+import type { FilterReadModel, FilterReadModelData } from "@/lib/editor/filter-working-image"
 import type { MasterImage } from "@/lib/editor/master-image"
 import type { RegisteredFilterId } from "@/lib/editor/filters/registry"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
@@ -34,10 +35,10 @@ export type ImageWorkflowServices = {
   removeFilter: (filterId: string) => Promise<void>
   applyCrop: (args: { sourceImageId: string; rect: { x: number; y: number; w: number; h: number } }) => Promise<void>
   restoreBase: () => Promise<void>
-  /** Re-fetch all editor read-model slices after a mutation. Returns the
-   * freshly-fetched master (owned by the machine); other slices still land in
-   * their hooks via SOURCE_SNAPSHOT until later migration phases. */
-  refreshAll: () => Promise<{ master: MasterImage | null }>
+  /** Re-fetch the editor read-model slices after a mutation. Returns the
+   * freshly-fetched master + filter (both owned by the machine); the machine's
+   * `syncing.onDone` assigns them and re-derives the source snapshot. */
+  refreshAll: () => Promise<{ master: MasterImage | null; filter: FilterReadModelData }>
   saveTransform: (args: { transform: WorkflowTransformPayload }) => Promise<void>
   /** Apply a trace: persist the current transform first (resize→apply race),
    * then run the trace. Mirrors `applyFilter` — the machine drives the refresh. */
@@ -65,6 +66,10 @@ export type ImageWorkflowContext = {
   master: MasterImage | null
   masterLoading: boolean
   masterError: string
+  /** The filter working-image read-model (read-model migration phase C).
+   * Owned by the machine; `source` is derived internally from `master` +
+   * `filter` (no more `SOURCE_SNAPSHOT` mirror event). */
+  filter: FilterReadModel
   lastOperation:
     | "filter_apply"
     | "filter_remove"
@@ -86,9 +91,15 @@ export type ImageWorkflowEvent =
   | { type: "SERVICES_UPDATE"; services: ImageWorkflowServices }
   | { type: "BOOT" }
   | { type: "REFRESH" }
-  | { type: "SOURCE_SNAPSHOT"; snapshot: WorkflowSourceSnapshot }
   | { type: "PROJECT_IMAGES_LOADED"; items: ProjectImageItem[] }
   | { type: "MASTER_LOADED"; master: MasterImage | null; loading?: boolean; error?: string }
+  /** Filter read-model update (phase C). Carries a partial patch merged into
+   * `context.filter`; the loader sends `{ loading: true }` to start a fetch and
+   * the mapped data (+ `loading: false`, `loadedOnce: true`) on completion. */
+  | { type: "FILTER_LOADED"; patch: Partial<FilterReadModel> }
+  /** Internal: re-derive `context.source` from the master + filter slices.
+   * Raised after any slice change (never sent from React). */
+  | { type: "SOURCE_RECOMPUTE" }
   | { type: "FILTER_APPLY"; filterType: RegisteredFilterId; filterParams: Record<string, unknown> }
   | { type: "FILTER_REMOVE"; filterId: string }
   | { type: "TRACE_APPLY"; kind: RegisteredTraceId; params: Record<string, unknown> }

@@ -48,7 +48,6 @@ import { useMasterImageUploader } from "@/lib/editor/hooks/use-master-image-uplo
 import { useDedupingErrorToast } from "@/lib/editor/hooks/use-deduping-error-toast"
 import { useTraceHandlers } from "./editor-shell/use-trace-handlers"
 import { useCanvasDerivedState } from "./editor-shell/use-canvas-derived-state"
-import { useFilterWorkingImage } from "@/lib/editor/hooks/use-filter-working-image"
 import { useEditorKeyboard } from "@/lib/editor/hooks/use-editor-keyboard"
 import { useMutationLeaveGuard } from "@/lib/editor/hooks/use-mutation-leave-guard"
 import { shouldWarnBeforeUnload } from "@/lib/editor/hooks/should-warn-before-unload"
@@ -108,17 +107,6 @@ export function ProjectDetailPageClient({
   const [displayMasterRowId, setDisplayMasterRowId] = useState<string | null>(
     initialMasterImage?.masterRowId ?? null,
   )
-
-  const {
-    image: filterDisplayImage,
-    imageWithoutTrace: filterDisplayImageWithoutTrace,
-    stack: filterStack,
-    loading: filterImageLoading,
-    loadedOnce: filterImageLoadedOnce,
-    error: filterImageError,
-    emptyReason: filterImageEmptyReason,
-    refresh: refreshFilterImage,
-  } = useFilterWorkingImage(projectId)
 
   const {
     state: sessionState,
@@ -184,7 +172,6 @@ export function ProjectDetailPageClient({
     refreshTrace,
   } = useTraceHandlers({ projectId })
   const {
-    sourceSnapshot,
     workflow,
     editorImageSource,
     activeCanvasImageId,
@@ -198,22 +185,21 @@ export function ProjectDetailPageClient({
   } = useEditorWorkflowAdapter({
     projectId,
     initialMaster: initialMasterImage,
-    filterDisplayImageWithoutTrace,
-    filterImageLoading,
-    filterImageLoadedOnce,
-    filterImageError,
-    filterImageEmptyReason,
-    refreshFilterImage,
     refreshTrace,
     saveImageState,
     // Trace apply/clear run through the machine; the apply service pre-saves
     // this transform to close the resize→apply race.
     getCurrentImageTx: getCurrentImageState,
   })
-  // Master read-model is machine-owned (phase B); alias so the many downstream
-  // reads stay unchanged, and mirror the stable masterRowId into the display key.
+  // Master + filter read-models are machine-owned (phases B/C); alias so the
+  // many downstream reads stay unchanged, and mirror the stable masterRowId
+  // into the display key.
   const masterImage = workflow.master
   const masterImageLoading = workflow.masterLoading
+  const filterDisplayImage = workflow.filter.image
+  const filterDisplayImageWithoutTrace = workflow.filter.imageWithoutTrace
+  const filterStack = workflow.filter.stack
+  const filterImageLoading = workflow.filter.loading
   useEffect(() => {
     // Mirror the machine-owned masterRowId back to the display-size key. Safe:
     // the dep is a primitive that only changes on a real master upload/replace/
@@ -254,11 +240,11 @@ export function ProjectDetailPageClient({
 
   useEffect(() => {
     const unresolvedSourceMessage = "Working image target is unresolved. Refresh editor state."
-    if (sourceSnapshot.status !== "error" || sourceSnapshot.error !== unresolvedSourceMessage) {
+    if (editorImageSource.status !== "error" || editorImageSource.error !== unresolvedSourceMessage) {
       lastNoWorkingImageMetricRef.current = ""
       return
     }
-    const metricKey = `${projectId}:${sourceSnapshot.error}`
+    const metricKey = `${projectId}:${editorImageSource.error}`
     if (lastNoWorkingImageMetricRef.current === metricKey) return
     lastNoWorkingImageMetricRef.current = metricKey
     void reportError(new Error(unresolvedSourceMessage), {
@@ -272,10 +258,10 @@ export function ProjectDetailPageClient({
       },
       context: {
         projectId,
-        sourceStatus: sourceSnapshot.status,
+        sourceStatus: editorImageSource.status,
       },
     })
-  }, [projectId, sourceSnapshot])
+  }, [projectId, editorImageSource])
 
   const hasFilterSourceImage = Boolean(filterSourceImage)
   const isNewFilterActionBusy = filterImageLoading || workflow.isMutating || workflow.isSyncing

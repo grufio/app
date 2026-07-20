@@ -1,12 +1,14 @@
-import { assign, fromPromise, setup } from "xstate"
+import { assign, fromPromise, raise, setup } from "xstate"
 
 import { normalizeApiError } from "@/lib/api/error-normalizer"
 import type { OperationError } from "@/lib/api/operation-error"
+import { initialFilterReadModel, type FilterReadModelData } from "@/lib/editor/filter-working-image"
 import { masterImageSignature, toMasterImage, type MasterImage } from "@/lib/editor/master-image"
 import type { RegisteredFilterId } from "@/lib/editor/filters/registry"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
 import type { UploadedMasterSnapshot } from "@/lib/editor/upload-master-image"
 
+import { deriveSource } from "./derive-source"
 import type {
   ImageWorkflowContext,
   ImageWorkflowEvent,
@@ -91,8 +93,15 @@ export function createImageWorkflowMachine() {
       canMutate: ({ context }) => context.source.status === "ready" && Boolean(context.source.image?.id),
     },
     actions: {
-      assignSourceSnapshot: assign({
-        source: ({ event, context }) => (event.type === "SOURCE_SNAPSHOT" ? event.snapshot : context.source),
+      // Re-derive `context.source` from the master + filter slices. Runs after
+      // every slice change (raised as SOURCE_RECOMPUTE) so `source` — and the
+      // `canMutate`/`hasActiveImage` guards that read it — stay consistent.
+      recomputeSource: assign({ source: ({ context }) => deriveSource(context) }),
+      raiseRecompute: raise({ type: "SOURCE_RECOMPUTE" }),
+      // Merge a filter read-model patch (loading start, loaded data, or error).
+      assignFilter: assign({
+        filter: ({ event, context }) =>
+          event.type === "FILTER_LOADED" ? { ...context.filter, ...event.patch } : context.filter,
       }),
       assignProjectImages: assign({
         projectImages: ({ event, context }) => (event.type === "PROJECT_IMAGES_LOADED" ? event.items : context.projectImages),
@@ -117,12 +126,17 @@ export function createImageWorkflowMachine() {
         return { master: same ? context.master : master, masterLoading: false, masterError: "" }
       }),
       clearMaster: assign({ master: null, masterError: "" }),
-      assignMasterFromRefresh: assign(({ event, context }) => {
-        // The `syncing` invoke resolves with the refreshAll output.
-        const output = (event as { output?: { master: MasterImage | null } }).output
+      assignFromRefresh: assign(({ event, context }) => {
+        // The `syncing` invoke resolves with the refreshAll output (master + filter).
+        const output = (event as { output?: { master: MasterImage | null; filter: FilterReadModelData } }).output
         if (!output) return {}
         const same = masterImageSignature(output.master) === masterImageSignature(context.master)
-        return { master: same ? context.master : output.master, masterLoading: false, masterError: "" }
+        return {
+          master: same ? context.master : output.master,
+          masterLoading: false,
+          masterError: "",
+          filter: { ...context.filter, ...output.filter, loading: false, loadedOnce: true },
+        }
       }),
       assignServices: assign({
         services: ({ event, context }) => (event.type === "SERVICES_UPDATE" ? event.services : context.services),
@@ -188,6 +202,7 @@ export function createImageWorkflowMachine() {
       master: input.initialMaster ?? null,
       masterLoading: false,
       masterError: "",
+      filter: initialFilterReadModel,
       lastOperation: null,
       lastOpError: null,
       lastPersistenceError: null,
@@ -204,25 +219,28 @@ export function createImageWorkflowMachine() {
           error: {},
         },
         on: {
-          SOURCE_SNAPSHOT: [
+          // Internal re-derivation: the derived status picks the substate and
+          // `recomputeSource` assigns the fresh snapshot into context. Raised
+          // whenever the master or filter slice changes.
+          SOURCE_RECOMPUTE: [
             {
-              actions: "assignSourceSnapshot",
-              guard: ({ event }) => event.snapshot.status === "ready",
+              guard: ({ context }) => deriveSource(context).status === "ready",
               target: ".ready",
+              actions: "recomputeSource",
             },
             {
-              actions: "assignSourceSnapshot",
-              guard: ({ event }) => event.snapshot.status === "empty",
+              guard: ({ context }) => deriveSource(context).status === "empty",
               target: ".empty",
+              actions: "recomputeSource",
             },
             {
-              actions: "assignSourceSnapshot",
-              guard: ({ event }) => event.snapshot.status === "error",
+              guard: ({ context }) => deriveSource(context).status === "error",
               target: ".error",
+              actions: "recomputeSource",
             },
             {
-              actions: "assignSourceSnapshot",
               target: ".loading",
+              actions: "recomputeSource",
             },
           ],
         },
@@ -257,12 +275,12 @@ export function createImageWorkflowMachine() {
                 // no active image yet, e.g. first upload or after a delete).
                 // Seed the master into context instantly for fast UX.
                 target: "uploadingMaster",
-                actions: ["clearOperationError", "assignLastOperation", "assignMasterFromUpload"],
+                actions: ["clearOperationError", "assignLastOperation", "assignMasterFromUpload", "raiseRecompute"],
               },
               IMAGE_DELETE: {
                 guard: "canMutate",
                 target: "deletingMaster",
-                actions: ["clearOperationError", "assignLastOperation", "clearMaster"],
+                actions: ["clearOperationError", "assignLastOperation", "clearMaster", "raiseRecompute"],
               },
               CROP_APPLY: {
                 guard: "canMutate",
@@ -375,7 +393,7 @@ export function createImageWorkflowMachine() {
             invoke: {
               src: "refreshAll",
               input: ({ context }) => ({ services: context.services }),
-              onDone: { target: "idle", actions: "assignMasterFromRefresh" },
+              onDone: { target: "idle", actions: ["assignFromRefresh", "raiseRecompute"] },
               onError: { target: "error", actions: "assignOperationFailure" },
             },
           },
@@ -456,7 +474,10 @@ export function createImageWorkflowMachine() {
         actions: "assignProjectImages",
       },
       MASTER_LOADED: {
-        actions: "assignMaster",
+        actions: ["assignMaster", "raiseRecompute"],
+      },
+      FILTER_LOADED: {
+        actions: ["assignFilter", "raiseRecompute"],
       },
     },
   })

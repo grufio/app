@@ -1,8 +1,10 @@
-import { createActor, waitFor } from "xstate"
+import { createActor, waitFor, type Actor } from "xstate"
 import { describe, expect, it, vi } from "vitest"
 
 import { createImageWorkflowMachine } from "./image-workflow.machine"
 import type { ImageWorkflowServices } from "./image-workflow.types"
+
+const EMPTY_FILTER = { image: null, imageWithoutTrace: null, stack: [], emptyReason: null, error: "" }
 
 function createServices(overrides?: Partial<ImageWorkflowServices>): ImageWorkflowServices {
   return {
@@ -10,7 +12,7 @@ function createServices(overrides?: Partial<ImageWorkflowServices>): ImageWorkfl
     removeFilter: vi.fn(async () => {}),
     applyCrop: vi.fn(async () => {}),
     restoreBase: vi.fn(async () => {}),
-    refreshAll: vi.fn(async () => ({ master: null })),
+    refreshAll: vi.fn(async () => ({ master: null, filter: EMPTY_FILTER })),
     saveTransform: vi.fn(async () => {}),
     applyTrace: vi.fn(async () => {}),
     clearTrace: vi.fn(async () => {}),
@@ -20,27 +22,64 @@ function createServices(overrides?: Partial<ImageWorkflowServices>): ImageWorkfl
   }
 }
 
+const READY_TIP = {
+  id: "img_1",
+  signedUrl: "u",
+  width_px: 100,
+  height_px: 80,
+  storage_path: "",
+  source_image_id: null,
+  name: "Image",
+  isFilterResult: false,
+}
+
+/**
+ * Drive the source to "ready" via the filter read-model (phase C): `source` is
+ * now derived internally from the master + filter slices, so a loaded filter
+ * with a trace-free tip is what makes the source ready + mutations allowed.
+ */
+function makeReady(actor: Actor<ReturnType<typeof createImageWorkflowMachine>>) {
+  actor.send({
+    type: "FILTER_LOADED",
+    patch: { image: READY_TIP, imageWithoutTrace: READY_TIP, stack: [], emptyReason: null, error: "", loading: false, loadedOnce: true },
+  })
+}
+
 describe("createImageWorkflowMachine", () => {
-  it("maps SOURCE_SNAPSHOT to source state", () => {
+  it("derives source status from the filter read-model (phase C)", () => {
     const services = createServices()
     const actor = createActor(createImageWorkflowMachine(), { input: { services } })
     actor.start()
 
-    actor.send({ type: "SOURCE_SNAPSHOT", snapshot: { status: "loading", image: null, error: "" } })
+    // Initial: filter not loaded yet → loading.
     expect(actor.getSnapshot().matches({ source: "loading" })).toBe(true)
 
-    actor.send({
-      type: "SOURCE_SNAPSHOT",
-      snapshot: {
-        status: "ready",
-        image: { id: "img_1", signedUrl: "u", width_px: 100, height_px: 80, name: "Image" },
-        error: "",
-      },
-    })
+    // A loaded filter with a trace-free tip → ready.
+    makeReady(actor)
     expect(actor.getSnapshot().matches({ source: "ready" })).toBe(true)
+    expect(actor.getSnapshot().context.source.image?.id).toBe("img_1")
 
-    actor.send({ type: "SOURCE_SNAPSHOT", snapshot: { status: "empty", image: null, error: "" } })
+    // Loaded but no active image → empty.
+    actor.send({
+      type: "FILTER_LOADED",
+      patch: { image: null, imageWithoutTrace: null, stack: [], emptyReason: "no_active_image", error: "", loading: false, loadedOnce: true },
+    })
     expect(actor.getSnapshot().matches({ source: "empty" })).toBe(true)
+  })
+
+  it("assigns the filter slice from FILTER_LOADED (merge patch)", () => {
+    const services = createServices()
+    const actor = createActor(createImageWorkflowMachine(), { input: { services } })
+    actor.start()
+
+    actor.send({ type: "FILTER_LOADED", patch: { loading: true } })
+    expect(actor.getSnapshot().context.filter.loading).toBe(true)
+
+    actor.send({ type: "FILTER_LOADED", patch: { stack: [{ id: "f1", name: "F", filterType: "bw_hard", source_image_id: null }], loading: false, loadedOnce: true } })
+    const filter = actor.getSnapshot().context.filter
+    expect(filter.stack).toHaveLength(1)
+    expect(filter.loading).toBe(false)
+    expect(filter.loadedOnce).toBe(true)
   })
 
   it("runs remove -> sync -> idle on success", async () => {
@@ -48,15 +87,7 @@ describe("createImageWorkflowMachine", () => {
     const actor = createActor(createImageWorkflowMachine(), { input: { services } })
     actor.start()
 
-    actor.send({
-      type: "SOURCE_SNAPSHOT",
-      snapshot: {
-        status: "ready",
-        image: { id: "img_1", signedUrl: "u", width_px: 100, height_px: 80, name: "Image" },
-        error: "",
-      },
-    })
-
+    makeReady(actor)
     actor.send({ type: "FILTER_REMOVE", filterId: "f_1" })
 
     await waitFor(actor, (s) => s.matches({ operation: "idle" }))
@@ -69,15 +100,7 @@ describe("createImageWorkflowMachine", () => {
     const actor = createActor(createImageWorkflowMachine(), { input: { services } })
     actor.start()
 
-    actor.send({
-      type: "SOURCE_SNAPSHOT",
-      snapshot: {
-        status: "ready",
-        image: { id: "img_1", signedUrl: "u", width_px: 100, height_px: 80, name: "Image" },
-        error: "",
-      },
-    })
-
+    makeReady(actor)
     actor.send({
       type: "FILTER_APPLY",
       filterType: "bw_hard",
@@ -97,15 +120,7 @@ describe("createImageWorkflowMachine", () => {
     const actor = createActor(createImageWorkflowMachine(), { input: { services } })
     actor.start()
 
-    actor.send({
-      type: "SOURCE_SNAPSHOT",
-      snapshot: {
-        status: "ready",
-        image: { id: "img_1", signedUrl: "u", width_px: 100, height_px: 80, name: "Image" },
-        error: "",
-      },
-    })
-
+    makeReady(actor)
     actor.send({ type: "TRACE_APPLY", kind: "pixelate", params: { colors: 8 } })
 
     await waitFor(actor, (s) => s.matches({ operation: "idle" }))
@@ -118,15 +133,7 @@ describe("createImageWorkflowMachine", () => {
     const actor = createActor(createImageWorkflowMachine(), { input: { services } })
     actor.start()
 
-    actor.send({
-      type: "SOURCE_SNAPSHOT",
-      snapshot: {
-        status: "ready",
-        image: { id: "img_1", signedUrl: "u", width_px: 100, height_px: 80, name: "Image" },
-        error: "",
-      },
-    })
-
+    makeReady(actor)
     actor.send({ type: "TRACE_REMOVE" })
 
     await waitFor(actor, (s) => s.matches({ operation: "idle" }))
@@ -139,7 +146,7 @@ describe("createImageWorkflowMachine", () => {
     const actor = createActor(createImageWorkflowMachine(), { input: { services } })
     actor.start()
 
-    // No SOURCE_SNAPSHOT ready first: upload CREATES the source.
+    // No ready source first: upload CREATES the source.
     const master = {
       id: "m_1",
       signedUrl: "u",
@@ -207,20 +214,26 @@ describe("createImageWorkflowMachine", () => {
     expect(ctxMaster?.masterRowId).toBe("up1")
   })
 
+  it("assigns master + filter from the refreshAll output on syncing.onDone", async () => {
+    const refreshedFilter = { image: READY_TIP, imageWithoutTrace: READY_TIP, stack: [], emptyReason: null, error: "" }
+    const refreshedMaster = { id: "rm", masterRowId: "rm", signedUrl: "ru", masterSignedUrl: "rmu", width_px: 4, height_px: 4, dpi: null, name: "R", restore_base: null }
+    const services = createServices({ refreshAll: vi.fn(async () => ({ master: refreshedMaster, filter: refreshedFilter })) })
+    const actor = createActor(createImageWorkflowMachine(), { input: { services } })
+    actor.start()
+
+    actor.send({ type: "REFRESH" })
+    await waitFor(actor, (s) => s.matches({ operation: "idle" }))
+    expect(actor.getSnapshot().context.master?.id).toBe("rm")
+    expect(actor.getSnapshot().context.filter.imageWithoutTrace?.id).toBe("img_1")
+    expect(actor.getSnapshot().matches({ source: "ready" })).toBe(true)
+  })
+
   it("runs image delete -> sync -> idle on success", async () => {
     const services = createServices()
     const actor = createActor(createImageWorkflowMachine(), { input: { services } })
     actor.start()
 
-    actor.send({
-      type: "SOURCE_SNAPSHOT",
-      snapshot: {
-        status: "ready",
-        image: { id: "img_1", signedUrl: "u", width_px: 100, height_px: 80, name: "Image" },
-        error: "",
-      },
-    })
-
+    makeReady(actor)
     actor.send({ type: "IMAGE_DELETE" })
 
     await waitFor(actor, (s) => s.matches({ operation: "idle" }))
@@ -237,15 +250,7 @@ describe("createImageWorkflowMachine", () => {
     const actor = createActor(createImageWorkflowMachine(), { input: { services } })
     actor.start()
 
-    actor.send({
-      type: "SOURCE_SNAPSHOT",
-      snapshot: {
-        status: "ready",
-        image: { id: "img_1", signedUrl: "u", width_px: 100, height_px: 80, name: "Image" },
-        error: "",
-      },
-    })
-
+    makeReady(actor)
     actor.send({ type: "TRANSFORM_SAVE", transform: { widthPxU: 1000n, heightPxU: 800n, rotationDeg: 0 } })
     actor.send({ type: "TRANSFORM_SAVE", transform: { widthPxU: 1001n, heightPxU: 801n, rotationDeg: 1 } })
     actor.send({ type: "TRANSFORM_SAVE", transform: { widthPxU: 1002n, heightPxU: 802n, rotationDeg: 2 } })
@@ -266,15 +271,7 @@ describe("createImageWorkflowMachine", () => {
     const actor = createActor(createImageWorkflowMachine(), { input: { services } })
     actor.start()
 
-    actor.send({
-      type: "SOURCE_SNAPSHOT",
-      snapshot: {
-        status: "ready",
-        image: { id: "img_1", signedUrl: "u", width_px: 100, height_px: 80, name: "Image" },
-        error: "",
-      },
-    })
-
+    makeReady(actor)
     actor.send({ type: "FILTER_APPLY", filterType: "bw_hard", filterParams: {} })
     await waitFor(actor, (s) => s.matches({ operation: "error" }))
     expect(actor.getSnapshot().context.lastOpError).toMatchObject({ message: "apply failed" })
@@ -296,7 +293,7 @@ describe("createImageWorkflowMachine", () => {
   })
 
   it("accepts REFRESH while in operation error and recovers via syncing", async () => {
-    const refreshAll = vi.fn(async () => ({ master: null }))
+    const refreshAll = vi.fn(async () => ({ master: null, filter: EMPTY_FILTER }))
     const services = createServices({
       applyFilter: vi.fn(async () => {
         throw new Error("apply failed")
@@ -305,14 +302,7 @@ describe("createImageWorkflowMachine", () => {
     })
     const actor = createActor(createImageWorkflowMachine(), { input: { services } })
     actor.start()
-    actor.send({
-      type: "SOURCE_SNAPSHOT",
-      snapshot: {
-        status: "ready",
-        image: { id: "img_1", signedUrl: "u", width_px: 100, height_px: 80, name: "Image" },
-        error: "",
-      },
-    })
+    makeReady(actor)
 
     actor.send({ type: "FILTER_APPLY", filterType: "bw_hard", filterParams: {} })
     await waitFor(actor, (s) => s.matches({ operation: "error" }))
@@ -337,14 +327,7 @@ describe("createImageWorkflowMachine", () => {
         applyFilter: newApplyFilter,
       },
     })
-    actor.send({
-      type: "SOURCE_SNAPSHOT",
-      snapshot: {
-        status: "ready",
-        image: { id: "img_1", signedUrl: "u", width_px: 100, height_px: 80, name: "Image" },
-        error: "",
-      },
-    })
+    makeReady(actor)
     actor.send({ type: "FILTER_APPLY", filterType: "bw_hard", filterParams: {} })
 
     await waitFor(actor, (s) => s.matches({ operation: "idle" }))
@@ -364,14 +347,7 @@ describe("createImageWorkflowMachine", () => {
     })
     const actor = createActor(createImageWorkflowMachine(), { input: { services } })
     actor.start()
-    actor.send({
-      type: "SOURCE_SNAPSHOT",
-      snapshot: {
-        status: "ready",
-        image: { id: "img_1", signedUrl: "u", width_px: 100, height_px: 80, name: "Image" },
-        error: "",
-      },
-    })
+    makeReady(actor)
 
     actor.send({ type: "FILTER_APPLY", filterType: "bw_hard", filterParams: {} })
     await waitFor(actor, (s) => s.matches({ operation: "applyingFilter" }))
@@ -392,18 +368,11 @@ describe("createImageWorkflowMachine", () => {
     const refreshAll = vi
       .fn()
       .mockRejectedValueOnce(new Error("refresh failed"))
-      .mockResolvedValueOnce({ master: null })
+      .mockResolvedValueOnce({ master: null, filter: EMPTY_FILTER })
     const services = createServices({ refreshAll })
     const actor = createActor(createImageWorkflowMachine(), { input: { services } })
     actor.start()
-    actor.send({
-      type: "SOURCE_SNAPSHOT",
-      snapshot: {
-        status: "ready",
-        image: { id: "img_1", signedUrl: "u", width_px: 100, height_px: 80, name: "Image" },
-        error: "",
-      },
-    })
+    makeReady(actor)
 
     actor.send({ type: "FILTER_APPLY", filterType: "bw_hard", filterParams: {} })
     await waitFor(actor, (s) => s.matches({ operation: "error" }))
@@ -422,14 +391,7 @@ describe("createImageWorkflowMachine", () => {
     const services = createServices({ saveTransform })
     const actor = createActor(createImageWorkflowMachine(), { input: { services } })
     actor.start()
-    actor.send({
-      type: "SOURCE_SNAPSHOT",
-      snapshot: {
-        status: "ready",
-        image: { id: "img_1", signedUrl: "u", width_px: 100, height_px: 80, name: "Image" },
-        error: "",
-      },
-    })
+    makeReady(actor)
 
     actor.send({ type: "TRANSFORM_SAVE", transform: { widthPxU: 1000n, heightPxU: 800n, rotationDeg: 0 } })
     await waitFor(actor, (s) => s.matches({ persistence: "error" }))
@@ -440,4 +402,3 @@ describe("createImageWorkflowMachine", () => {
     expect(saveTransform).toHaveBeenCalledTimes(2)
   })
 })
-
