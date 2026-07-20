@@ -11,40 +11,41 @@
  * not a dialog — no close affordance, its own root container.)
  */
 import type { ReactNode } from "react"
-import { Check, X, type LucideIcon } from "lucide-react"
+import { type LucideIcon } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
+import { DialogFooterActions, DialogHeaderActions, type DialogAction } from "./dialog-action-controls"
+
+export type { DialogAction }
 
 /**
- * Sheet title-bar: the section title + a ghost Close button. When `onConfirm`
- * is provided, a Check ("confirm / done") button is shown next to Close —
- * clicking it blurs the focused field (committing any pending input) and runs
- * the confirm handler.
+ * Sheet title-bar: the section title + the responsive action group. Non-close
+ * `actions` render as icon buttons here on mobile and move to a bottom
+ * `SheetActionFooter` (text buttons) on desktop; the Close (X) is always here.
+ * A read-only sheet just passes `onClose`.
  */
 export function SheetHeader({
   title,
   onClose,
-  onConfirm,
+  actions,
 }: {
   title: string
   onClose: () => void
-  onConfirm?: () => void
+  actions?: DialogAction[]
 }) {
   return (
     <header className="flex shrink-0 items-center justify-between border-b bg-background px-4 py-3">
       <h2 className="text-sm font-semibold">{title}</h2>
-      <div className="flex items-center gap-1">
-        {onConfirm ? (
-          <Button type="button" variant="ghost" size="icon" aria-label="Confirm" onClick={onConfirm}>
-            <Check aria-hidden="true" className="size-5" />
-          </Button>
-        ) : null}
-        <Button type="button" variant="ghost" size="icon" aria-label="Close" onClick={onClose}>
-          <X aria-hidden="true" className="size-5" />
-        </Button>
-      </div>
+      <DialogHeaderActions actions={actions} onClose={onClose} />
     </header>
   )
+}
+
+/**
+ * Desktop-only bottom action bar for a sheet (hidden on mobile, where the
+ * `SheetHeader` icons carry the same actions). Place as the sheet's last child.
+ */
+export function SheetActionFooter({ actions }: { actions: DialogAction[] }) {
+  return <DialogFooterActions actions={actions} />
 }
 
 /**

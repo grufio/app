@@ -2,10 +2,10 @@
  * @vitest-environment jsdom
  */
 import { cleanup, fireEvent, render } from "@testing-library/react"
-import { Grid3x3 } from "lucide-react"
+import { Check, Grid3x3 } from "lucide-react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { SheetAddRow, SheetHeader } from "./sheet-chrome"
+import { SheetActionFooter, SheetAddRow, SheetHeader } from "./sheet-chrome"
 
 afterEach(cleanup)
 
@@ -16,6 +16,31 @@ describe("SheetHeader", () => {
     expect(getByText("Grid")).not.toBeNull()
     fireEvent.click(getByLabelText("Close"))
     expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it("renders action icons (mobile) alongside Close and fires them", () => {
+    const onDone = vi.fn()
+    const { getByLabelText } = render(
+      <SheetHeader
+        title="Image"
+        onClose={vi.fn()}
+        actions={[{ id: "done", label: "Done", icon: <Check />, onClick: onDone }]}
+      />,
+    )
+    fireEvent.click(getByLabelText("Done"))
+    expect(onDone).toHaveBeenCalledOnce()
+    expect(getByLabelText("Close")).toBeTruthy()
+  })
+})
+
+describe("SheetActionFooter", () => {
+  it("renders the actions as written-out text buttons (desktop)", () => {
+    const onDone = vi.fn()
+    const { getByRole } = render(
+      <SheetActionFooter actions={[{ id: "done", label: "Done", icon: <Check />, onClick: onDone }]} />,
+    )
+    fireEvent.click(getByRole("button", { name: "Done" }))
+    expect(onDone).toHaveBeenCalledOnce()
   })
 })
 

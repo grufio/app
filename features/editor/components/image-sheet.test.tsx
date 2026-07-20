@@ -81,9 +81,9 @@ describe("ImageSheet", () => {
     expect(props.onClose).toHaveBeenCalledTimes(1)
   })
 
-  it("confirms (Apply) via the SheetHeader Confirm button", () => {
+  it("confirms via the header Done action (mobile icon)", () => {
     const { props, getByLabelText } = renderSheet()
-    fireEvent.click(getByLabelText("Confirm"))
+    fireEvent.click(getByLabelText("Done"))
     expect(props.onClose).toHaveBeenCalledTimes(1)
   })
 })
