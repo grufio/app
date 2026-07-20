@@ -25,7 +25,7 @@ def _patched_generate(self, im, *a, **k):
     return _orig_generate(self, im, *a, **k)
 SAM2Predictor.generate = _patched_generate
 
-MODEL_PATH = "sam2_b.pt"
+MODEL_PATH = "sam2_l.pt"          # SAM2 hiera-large (L4 has ample headroom)
 
 
 def load_model():
