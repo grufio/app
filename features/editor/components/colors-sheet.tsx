@@ -31,9 +31,7 @@
  * `palette_index` ASC so `palette[i]` is the chip with
  * `palette_index === i`.
  */
-import { useTracePalette } from "@/lib/editor/trace/use-trace-palette"
-
-import { PaletteColorTile } from "./palette-color-tile"
+import { PaletteColorGrid } from "./palette-color-grid"
 
 type ColorsSheetProps = {
   /** The current trace's used-palette index list. `null` for legacy
@@ -51,8 +49,6 @@ export function ColorsSheet({
   traceMode,
   hasTrace,
 }: ColorsSheetProps) {
-  const palette = useTracePalette(traceMode ?? "color")
-
   return (
     <section
       aria-label="Colors"
@@ -63,71 +59,12 @@ export function ColorsSheet({
       </header>
 
       <div className="min-h-0 flex-1 overflow-auto p-4">
-        <ColorsBody
+        <PaletteColorGrid
           paletteIndicesUsed={paletteIndicesUsed}
+          traceMode={traceMode}
           hasTrace={hasTrace}
-          palette={palette}
         />
       </div>
     </section>
-  )
-}
-
-function ColorsBody({
-  paletteIndicesUsed,
-  hasTrace,
-  palette,
-}: {
-  paletteIndicesUsed: number[] | null
-  hasTrace: boolean
-  palette: ReturnType<typeof useTracePalette>
-}) {
-  if (!hasTrace) {
-    return <EmptyState text="Run a trace to see its colors." />
-  }
-  if (paletteIndicesUsed == null) {
-    // Legacy trace row from before the palette_indices_used migration.
-    // The user can re-run the trace to capture the data.
-    return <EmptyState text="Re-run this trace to capture its referenced colors." />
-  }
-  if (paletteIndicesUsed.length === 0) {
-    return <EmptyState text="This trace doesn't reference any palette colors." />
-  }
-  if (palette == null) {
-    return <EmptyState text="Loading palette…" />
-  }
-
-  // /api/palette returns chips ordered by palette_index ASC, so
-  // `palette[i]` is the chip with palette_index === i. Skip any
-  // out-of-range indices defensively (shouldn't happen under normal
-  // operation; defends against a server bug).
-  const tiles = paletteIndicesUsed
-    .map((idx) => ({ idx, chip: palette[idx] }))
-    .filter((entry): entry is { idx: number; chip: NonNullable<typeof entry.chip> } => entry.chip != null)
-
-  if (tiles.length === 0) {
-    return <EmptyState text="This trace's referenced colors are not in the active palette." />
-  }
-
-  return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-      {tiles.map(({ chip }, displayIdx) => (
-        <PaletteColorTile
-          key={chip.notation || displayIdx}
-          legendNumber={displayIdx + 1}
-          name={chip.color_name}
-          notation={chip.notation}
-          rgb={chip.rgb}
-        />
-      ))}
-    </div>
-  )
-}
-
-function EmptyState({ text }: { text: string }) {
-  return (
-    <div className="flex h-full items-center justify-center px-6 text-center text-sm text-muted-foreground">
-      {text}
-    </div>
   )
 }
