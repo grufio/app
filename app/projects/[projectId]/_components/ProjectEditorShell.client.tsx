@@ -30,6 +30,7 @@ import { EditorSectionStepper } from "@/features/editor/components/editor-sectio
 import { EditorImageBar } from "@/features/editor/components/editor-image-bar"
 import { EditorFilterBar } from "@/features/editor/components/editor-filter-bar"
 import { EditorTraceBar } from "@/features/editor/components/editor-trace-bar"
+import { ColorsDialog } from "@/features/editor/components/colors-dialog"
 import { FilterSelectionController } from "@/features/editor/components/FilterSelectionController"
 import { EditorToolbarToneProvider } from "@/features/editor/components/editor-toolbar-tone"
 import {
@@ -551,6 +552,11 @@ export function ProjectDetailPageClient({
   // Filter picker (top-right "+" / edit) open state — the Filter section's
   // sole dialog. Local, mounted only while the Filter section is active.
   const [filterSelectionOpen, setFilterSelectionOpen] = useState(false)
+  // Colors dialog (Trace section) — opened by the bold colour-count button in
+  // the trace bar. The realized colour count is the length of the trace's used
+  // palette indices (`null`/`0` for linerate/legacy → no button).
+  const [colorsOpen, setColorsOpen] = useState(false)
+  const traceColorCount = trace?.palette_indices_used?.length ?? null
 
   // Reset (bar RotateCcw) = remove the downstream artefact that locks a layer,
   // keeping the layer itself. Image scope → remove the filter (cascades the trace
@@ -751,7 +757,12 @@ export function ProjectDetailPageClient({
               else setPendingTraceSelectionOpen(true)
             }}
             onDelete={() => void workflow.clearTrace()}
+            colorCount={traceColorCount}
+            onOpenColors={() => setColorsOpen(true)}
           />
+        ) : null}
+        {editorSection === "trace" ? (
+          <ColorsDialog open={colorsOpen} onClose={() => setColorsOpen(false)} trace={trace} />
         ) : null}
         {editorSection === "trace" ? (
           <TraceSurfaceScope
