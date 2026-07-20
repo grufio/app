@@ -41,6 +41,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 
+import { DialogFooterActions, DialogHeaderActions, type DialogAction } from "../dialog-action-controls"
 import { EditorSidebarSection } from "../sidebar/editor-sidebar-section"
 
 type Props = {
@@ -97,6 +98,45 @@ export function TraceDialogShell({
     }
   }
 
+  // Responsive actions: icons in the header on mobile, text buttons in a footer
+  // on desktop (see `dialog-action-controls`). Close (X) stays in the header.
+  const deleteAction: DialogAction | null =
+    onDeleteTrace || deleting
+      ? {
+          id: "delete",
+          label: "Delete",
+          ariaLabel: "Delete trace",
+          icon: <Trash2 className="size-4" />,
+          onClick: () => void handleDelete(),
+          disabled: busyOrDeleting,
+          busy: deleting,
+          variant: "ghost",
+        }
+      : null
+  // Preview mode exposes Delete / Edit / Apply.
+  const previewActions: DialogAction[] = [
+    ...(deleteAction ? [deleteAction] : []),
+    {
+      id: "edit",
+      label: "Edit",
+      ariaLabel: "Edit parameters",
+      icon: <Pencil className="size-4" />,
+      onClick: () => setEditOpen(true),
+      disabled: busyOrDeleting,
+      variant: "outline",
+    },
+    {
+      id: "apply",
+      label: "Apply",
+      ariaLabel: "Apply filter",
+      icon: <Check className="size-4" />,
+      onClick: onApply,
+      disabled: !valid || busyOrDeleting,
+      busy,
+      variant: "default",
+    },
+  ]
+
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onCancel()}>
       <DialogContent
@@ -125,61 +165,21 @@ export function TraceDialogShell({
             source. */}
         <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
           <span className="text-sm font-medium">{title}</span>
-          <div className="ml-auto flex items-center gap-2">
-            {onDeleteTrace || deleting ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={() => void handleDelete()}
-                disabled={busyOrDeleting}
-                aria-label="Delete trace"
-              >
-                {deleting ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <Trash2 className="size-4" />
-                )}
-              </Button>
-            ) : null}
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              onClick={() => setEditOpen(true)}
-              disabled={busyOrDeleting}
-              aria-label="Edit parameters"
-            >
-              <Pencil className="size-4" />
-            </Button>
-            <Button
-              type="button"
-              size="icon"
-              onClick={onApply}
-              disabled={!valid || busyOrDeleting}
-              aria-label="Apply filter"
-            >
-              {busy ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <Check className="size-4" />
-              )}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={onCancel}
-              disabled={busyOrDeleting}
-              aria-label="Close"
-            >
-              <X className="size-4" />
-            </Button>
+          <div className="ml-auto">
+            <DialogHeaderActions
+              actions={previewActions}
+              onClose={onCancel}
+              closeLabel="Close"
+              closeIcon={<X aria-hidden="true" className="size-4" />}
+            />
           </div>
         </header>
         <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {previewMounted ? preview : null}
         </main>
+        {/* Desktop footer: the header's function icons rendered as text buttons
+            (hidden on mobile). Covered by the edit overlay while it's open. */}
+        <DialogFooterActions actions={previewActions} />
 
         {/* Edit overlay — sits ON TOP of the preview inside the same
             DialogContent (no second Portal, no DismissableLayer cascade).
@@ -189,33 +189,13 @@ export function TraceDialogShell({
           <div className="absolute inset-0 z-10 flex flex-col bg-background">
             <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
               <span className="text-sm font-medium">{title}</span>
-              <div className="ml-auto flex items-center gap-2">
-                {onDeleteTrace || deleting ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => void handleDelete()}
-                    disabled={busyOrDeleting}
-                    aria-label="Delete trace"
-                  >
-                    {deleting ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : (
-                      <Trash2 className="size-4" />
-                    )}
-                  </Button>
-                ) : null}
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={onCancel}
-                  disabled={busyOrDeleting}
-                  aria-label="Close"
-                >
-                  <X className="size-4" />
-                </Button>
+              <div className="ml-auto">
+                <DialogHeaderActions
+                  actions={deleteAction ? [deleteAction] : []}
+                  onClose={onCancel}
+                  closeLabel="Close"
+                  closeIcon={<X aria-hidden="true" className="size-4" />}
+                />
               </div>
             </header>
             {/* Borderless, full-width scroll column: the form's
@@ -234,6 +214,22 @@ export function TraceDialogShell({
               {form}
             </div>
             <DialogStickyFooter>
+              {/* Desktop-only Delete text button — on mobile Delete is the icon
+                  in the header, so this stays hidden and Cancel/Preview keep
+                  their spread (justify-between) layout unchanged. */}
+              {deleteAction ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="lg"
+                  className="hidden md:inline-flex"
+                  onClick={() => void handleDelete()}
+                  disabled={busyOrDeleting}
+                >
+                  {deleting ? <Loader2 aria-hidden="true" className="size-4 animate-spin" /> : null}
+                  Delete
+                </Button>
+              ) : null}
               <Button
                 type="button"
                 variant="outline"

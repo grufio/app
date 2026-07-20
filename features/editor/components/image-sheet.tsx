@@ -22,16 +22,17 @@
  *   top-right image bar (Trash2), not in this sheet.
  */
 import dynamic from "next/dynamic"
-import { ImageIcon } from "lucide-react"
+import { Check, ImageIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import type { UploadedMasterSnapshot } from "@/lib/editor/upload-master-image"
 import type { Unit } from "@/lib/editor/units"
 
 import { AddImageMenuAction } from "./add-image-menu-button"
+import type { DialogAction } from "./dialog-action-controls"
 import { useEditorToolbarTone } from "./editor-toolbar-tone"
 import type { ProjectCanvasStageHandle } from "./project-canvas-stage"
-import { SheetAddRow, SheetHeader } from "./sheet-chrome"
+import { SheetActionFooter, SheetAddRow, SheetHeader } from "./sheet-chrome"
 import { sheetRootClass } from "./sheet-shell"
 
 // All panels are code-split via next/dynamic so the merged sheet's body stays
@@ -105,6 +106,13 @@ export function ImageSheet(props: {
 
   const tone = useEditorToolbarTone()
 
+  // The only sheet-level function is "Done" (confirm + dismiss). Icon in the
+  // header on mobile, a text button in the desktop footer. Delete / restore /
+  // fit / align stay inside the body panels.
+  const sheetActions: DialogAction[] = [
+    { id: "done", label: "Done", icon: <Check aria-hidden="true" className="size-5" />, onClick: onClose },
+  ]
+
   return (
     <section
       aria-label="Image"
@@ -117,7 +125,7 @@ export function ImageSheet(props: {
         sheetRootClass(),
       )}
     >
-      <SheetHeader title="Image" onClose={onClose} onConfirm={onClose} />
+      <SheetHeader title="Image" onClose={onClose} actions={sheetActions} />
 
       <div className="flex-1 overflow-y-auto">
         {hasMasterImage ? (
@@ -159,6 +167,7 @@ export function ImageSheet(props: {
           </SheetAddRow>
         )}
       </div>
+      <SheetActionFooter actions={sheetActions} />
     </section>
   )
 }
