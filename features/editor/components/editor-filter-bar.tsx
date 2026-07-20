@@ -3,12 +3,12 @@
 /**
  * Filter actions bar — floating, top-right. The filter section's submenu.
  *   - no filter set → a single Plus ("Add filter") → opens the filter picker
- *   - filter set → three icons: Delete · Edit · Reset. Delete/Edit act on the
- *     filter itself; Reset removes only the downstream trace. The set toggles
- *     INVERSELY with `locked` (a trace depends on the filter):
- *       - locked   → Delete + Edit disabled, Reset enabled
- *       - unlocked → Delete + Edit enabled, Reset disabled (stays visible, greyed)
- *     So you Reset first (removes the trace ⇒ unlocked), then Edit/Delete work.
+ *   - filter set → EITHER the own-layer actions OR the reset, never both, gated
+ *     by `locked` (a trace depends on the filter):
+ *       - unlocked → Delete + Edit (act on the filter itself)
+ *       - locked   → Reset only (removes the downstream trace)
+ *     So while a trace depends on the filter you only see Reset; once it's gone
+ *     the own-layer Delete/Edit come back.
  * Shown while the Filter section is active. Tone from `EditorToolbarTone`.
  * Mirrors `EditorImageBar`.
  */
@@ -22,15 +22,15 @@ type Props = {
   hasFilter: boolean
   /** Opens the filter picker (to add, or to change the preset). */
   onOpen: () => void
-  /** Removes the current filter. Disabled while `locked`. */
+  /** Removes the current filter. Shown only while unlocked. */
   onDelete: () => void
   /** Disable the "Add filter" action — a filter needs a source image, so
    * without one (or while a filter/trace action is in flight) adding is not
    * allowed. Only gates the ADD case. */
   addDisabled?: boolean
-  /** A trace depends on the filter → Delete + Edit disabled, Reset enabled. */
+  /** A trace depends on the filter → show Reset instead of Delete/Edit. */
   locked?: boolean
-  /** Removes the downstream trace (via a confirm dialog). Enabled only while `locked`. */
+  /** Removes the downstream trace (via a confirm dialog). Shown only while `locked`. */
   onReset?: () => void
 }
 
@@ -64,33 +64,20 @@ export function EditorFilterBar({
 
   return (
     <div className="absolute top-3 right-3 z-20 flex flex-row gap-2">
-      <button
-        type="button"
-        aria-label="Delete filter"
-        onClick={onDelete}
-        disabled={locked}
-        className={`${circleClass(tone, "active")} ${DISABLED_CLS}`}
-      >
-        <Trash2 aria-hidden="true" className="size-5" />
-      </button>
-      <button
-        type="button"
-        aria-label="Edit filter"
-        onClick={onOpen}
-        disabled={locked}
-        className={`${circleClass(tone, "active")} ${DISABLED_CLS}`}
-      >
-        <Pencil aria-hidden="true" className="size-5" />
-      </button>
-      <button
-        type="button"
-        aria-label="Reset filter"
-        onClick={onReset}
-        disabled={!locked}
-        className={`${circleClass(tone, "active")} ${DISABLED_CLS}`}
-      >
-        <RotateCcw aria-hidden="true" className="size-5" />
-      </button>
+      {locked ? (
+        <button type="button" aria-label="Reset filter" onClick={onReset} className={circleClass(tone, "active")}>
+          <RotateCcw aria-hidden="true" className="size-5" />
+        </button>
+      ) : (
+        <>
+          <button type="button" aria-label="Delete filter" onClick={onDelete} className={circleClass(tone, "active")}>
+            <Trash2 aria-hidden="true" className="size-5" />
+          </button>
+          <button type="button" aria-label="Edit filter" onClick={onOpen} className={circleClass(tone, "active")}>
+            <Pencil aria-hidden="true" className="size-5" />
+          </button>
+        </>
+      )}
     </div>
   )
 }
