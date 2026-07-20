@@ -20,7 +20,7 @@ COPY requirements.txt .
 RUN pip install -r requirements.txt
 
 # Bake the SAM2 weights into the image so a cold start does NOT download them.
-RUN python -c "from ultralytics import SAM; SAM('sam2_b.pt')"
+RUN python -c "from ultralytics import SAM; SAM('sam2_l.pt')"
 
 COPY app ./app
 

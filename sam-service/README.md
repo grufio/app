@@ -59,7 +59,7 @@ curl -X POST localhost:8080/segment -H "Authorization: Bearer dev" \
 ```
 
 ## Notes
-- Model `sam2_b.pt` is baked into the image (no cold-start download).
+- Model `sam2_l.pt` (SAM2 hiera-large) is baked into the image (no cold-start download).
 - AMG tuning (dense grid 32, conf 0.70, stability 0.88) matches the validated
   color-lab prototype; the default was too coarse (few masks).
 - `--concurrency 1`: GPU-bound, one request per instance at a time.
