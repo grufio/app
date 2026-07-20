@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
-import { applyProjectImageFilter, cropImageVariant, deleteMasterImageWithCascade, listMasterImages, removeProjectImageFilter, restoreInitialMasterImage } from "@/lib/api/project-images"
+import { applyProjectImageFilter, cropImageVariant, deleteMasterImageWithCascade, getMasterImage, listMasterImages, removeProjectImageFilter, restoreInitialMasterImage } from "@/lib/api/project-images"
 import { applyProjectTrace, clearProjectTrace } from "@/lib/api/project-trace"
 import { isOperationError, type OperationError } from "@/lib/api/operation-error"
+import { toMasterImage, type MasterImage } from "@/lib/editor/master-image"
+import type { UploadedMasterSnapshot } from "@/lib/editor/upload-master-image"
 import type { RegisteredFilterId } from "@/lib/editor/filters/registry"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
-import type { UploadedMasterSnapshot } from "@/lib/editor/upload-master-image"
 import { useImageWorkflowMachine } from "@/lib/editor/machines/use-image-workflow-machine"
 import type { ImageState } from "@/lib/editor/imageState"
 
@@ -90,9 +91,9 @@ export function deriveEditorSourceSnapshot(args: {
 
 export function useEditorWorkflowAdapter(args: {
   projectId: string
-  masterImage: { id?: string; masterRowId?: string | null; signedUrl?: string; name?: string; width_px?: number; height_px?: number } | null
-  masterImageLoading: boolean
-  masterImageError: string
+  /** SSR-seeded master for the machine (read-model phase B). The machine owns
+   * the live master; the shell reads it back from `workflow.master`. */
+  initialMaster: MasterImage | null
   /** Trace-free filter chain tip. Used as the source for
    * `applyFilter` because filters operate on bitmaps — if a project
    * has an active trace, the filter chain tip points to the trace
@@ -106,13 +107,11 @@ export function useEditorWorkflowAdapter(args: {
   filterImageLoadedOnce: boolean
   filterImageError: string
   filterImageEmptyReason: "no_active_image" | null
-  refreshMasterImage: () => Promise<void>
   refreshFilterImage: () => Promise<void>
   /** Re-fetch the trace row. Part of "refresh all editor data": the trace is
    * downstream of the filter (removing a filter cascades it server-side), so
    * every workflow mutation must re-fetch it or `hasTrace` goes stale. */
   refreshTrace: () => Promise<void>
-  seedMasterImage: (next: { id: string; masterRowId: string | null; signedUrl: string; masterSignedUrl: string; width_px: number; height_px: number; dpi: number | null; name: string } | null) => void
   /** Await-able persisted transform save, owned by `useDisplaySize` (the
    * single authoritative display-size source). The workflow machine wraps
    * it as the `saveTransform` service; the shell also awaits it directly
@@ -126,18 +125,14 @@ export function useEditorWorkflowAdapter(args: {
 }) {
   const {
     projectId,
-    masterImage,
-    masterImageLoading,
-    masterImageError,
+    initialMaster,
     filterDisplayImageWithoutTrace,
     filterImageLoading,
     filterImageLoadedOnce,
     filterImageError,
     filterImageEmptyReason,
-    refreshMasterImage,
     refreshFilterImage,
     refreshTrace,
-    seedMasterImage,
     saveImageState,
     getCurrentImageTx,
   } = args
@@ -156,38 +151,10 @@ export function useEditorWorkflowAdapter(args: {
    * bitmap input — feeding the trace SVG to pixelate's Python
    * service breaks the decode step. */
   const filterApplySourceIdRef = useRef<string | null>(null)
-  const refreshInFlightRef = useRef<Promise<void> | null>(null)
+  const refreshInFlightRef = useRef<Promise<{ master: MasterImage | null }> | null>(null)
   const refreshQueuedRef = useRef(false)
 
-  const sourceSnapshot = useMemo<EditorImageSourceState>(
-    () =>
-      deriveEditorSourceSnapshot({
-        masterImageLoading,
-        filterImageLoading,
-        uploadSyncing,
-        filterImageLoadedOnce,
-        filterDisplayImageWithoutTrace,
-        filterImageError,
-        masterImageError,
-        masterImage,
-        filterImageEmptyReason,
-      }),
-    [filterDisplayImageWithoutTrace, filterImageError, filterImageEmptyReason, filterImageLoadedOnce, filterImageLoading, masterImage, masterImageError, masterImageLoading, uploadSyncing]
-  )
-
-  useEffect(() => {
-    activeSourceImageIdRef.current = sourceSnapshot.status === "ready" ? sourceSnapshot.image.id : null
-  }, [sourceSnapshot])
-
-  useEffect(() => {
-    // Prefer the trace-free variant when present; fall back to the
-    // trace-aware ID if the without-trace payload hasn't loaded yet
-    // (transient on first load). The filter-apply happens after the
-    // user clicks Apply, by which point both have settled.
-    filterApplySourceIdRef.current = filterDisplayImageWithoutTrace?.id ?? (sourceSnapshot.status === "ready" ? sourceSnapshot.image.id : null)
-  }, [filterDisplayImageWithoutTrace, sourceSnapshot])
-
-  const refreshEditorDataOnce = useCallback(async () => {
+  const refreshEditorDataOnce = useCallback(async (): Promise<{ master: MasterImage | null }> => {
     // No `loadImageState()` here: state is project-wide and immutable
     // by filter/trace/crop apply (none of those touch the master-anchored
     // row). The current state stays correct across these operations.
@@ -199,23 +166,28 @@ export function useEditorWorkflowAdapter(args: {
     // changes on upload/delete (i.e. a master-id change), which the shell's
     // cascade effect reloads via `loadProjectImages`. Filter/trace/crop don't
     // touch the list, so re-fetching it after every mutation is wasteful.
-    await Promise.all([
-      refreshMasterImage(),
+    // The master IS fetched here (machine-owned, phase B) and returned so the
+    // machine's `syncing.onDone` assigns it into context.
+    const [payload] = await Promise.all([
+      getMasterImage(projectId).catch(() => null),
       refreshFilterImage(),
       refreshTrace(),
     ])
-  }, [refreshFilterImage, refreshMasterImage, refreshTrace])
+    return { master: payload?.exists ? toMasterImage(payload) : null }
+  }, [projectId, refreshFilterImage, refreshTrace])
 
-  const refreshEditorData = useCallback(async () => {
+  const refreshEditorData = useCallback(async (): Promise<{ master: MasterImage | null }> => {
     if (refreshInFlightRef.current) {
       refreshQueuedRef.current = true
       return refreshInFlightRef.current
     }
-    const run = async () => {
+    const run = async (): Promise<{ master: MasterImage | null }> => {
+      let last: { master: MasterImage | null } = { master: null }
       do {
         refreshQueuedRef.current = false
-        await refreshEditorDataOnce()
+        last = await refreshEditorDataOnce()
       } while (refreshQueuedRef.current)
+      return last
     }
     const inFlight = run().finally(() => {
       if (refreshInFlightRef.current === inFlight) {
@@ -288,26 +260,19 @@ export function useEditorWorkflowAdapter(args: {
     // restores the filter-chain tip; NO master-image reload here.
     await clearProjectTrace(projectId)
   }, [projectId])
-  // Set when the machine seeds a freshly uploaded master, so the shell's
-  // post-upload cascade effect can skip a redundant `refreshProjectImages()`.
-  const seededMasterIdRef = useRef<string | null>(null)
   const uploadMasterService = useCallback(
-    async ({ master }: { master: UploadedMasterSnapshot }) => {
-      // Instant seed for fast UX (the fresh upload IS the master row, so the
-      // stable masterRowId is its own id); the machine's `syncing` then
-      // reconciles project_images + filter_image via refreshAll.
-      seedMasterImage({ ...master, masterRowId: master.id })
-      seededMasterIdRef.current = master.id
-    },
-    [seedMasterImage]
+    // The instant master seed now happens in the machine (the IMAGE_UPLOAD
+    // transition's `assignMasterFromUpload` action reads the event payload), so
+    // this service is a no-op — the mutation flow is transition + syncing.
+    async (_args: { master: UploadedMasterSnapshot }) => {},
+    []
   )
   const deleteMasterService = useCallback(async () => {
-    // Atomic cascade delete → empty is the stable fixed point. Seeding
-    // master=null flips masterImage.id, which the shell's cascade effect picks
-    // up to reload the (now empty) project-images list via loadProjectImages.
+    // Atomic cascade delete → empty is the stable fixed point. The machine's
+    // IMAGE_DELETE `clearMaster` action flips context.master to null instantly;
+    // `syncing` then re-confirms.
     await deleteMasterImageWithCascade(projectId)
-    seedMasterImage(null)
-  }, [projectId, seedMasterImage])
+  }, [projectId])
   const workflowServices = useMemo(
     () => ({
       removeFilter: removeFilterService,
@@ -326,9 +291,41 @@ export function useEditorWorkflowAdapter(args: {
 
   const workflow = useImageWorkflowMachine({
     projectId,
-    sourceSnapshot,
     services: workflowServices,
+    initialMaster,
   })
+
+  // Derive the source snapshot AFTER the machine exists, from the machine-owned
+  // master (+ the filter hook), and push it back in via `setSource`. It can't be
+  // a machine arg (create-time cycle: master lives in context). The memo is
+  // stable when its inputs are (master keeps identity via signature dedup), so
+  // this does NOT loop.
+  const { master, masterLoading, masterError, setSource } = workflow
+  const sourceSnapshot = useMemo<EditorImageSourceState>(
+    () =>
+      deriveEditorSourceSnapshot({
+        masterImageLoading: masterLoading,
+        filterImageLoading,
+        uploadSyncing,
+        filterImageLoadedOnce,
+        filterDisplayImageWithoutTrace,
+        filterImageError,
+        masterImageError: masterError,
+        masterImage: master,
+        filterImageEmptyReason,
+      }),
+    [filterDisplayImageWithoutTrace, filterImageError, filterImageEmptyReason, filterImageLoadedOnce, filterImageLoading, master, masterError, masterLoading, uploadSyncing]
+  )
+  useEffect(() => {
+    setSource(sourceSnapshot)
+  }, [sourceSnapshot, setSource])
+  useEffect(() => {
+    activeSourceImageIdRef.current = sourceSnapshot.status === "ready" ? sourceSnapshot.image.id : null
+  }, [sourceSnapshot])
+  useEffect(() => {
+    filterApplySourceIdRef.current = filterDisplayImageWithoutTrace?.id ?? (sourceSnapshot.status === "ready" ? sourceSnapshot.image.id : null)
+  }, [filterDisplayImageWithoutTrace, sourceSnapshot])
+
   const editorImageSource = workflow.readModel
   const activeCanvasImageId =
     editorImageSource.status === "ready" && editorImageSource.image ? editorImageSource.image.id : null
@@ -350,7 +347,7 @@ export function useEditorWorkflowAdapter(args: {
   // Depend on the STABLE `setProjectImages` sender, not the whole `workflow`
   // object (which is a fresh identity every render) — otherwise this callback,
   // and the shell effect that depends on it, would re-run every render → loop.
-  const { setProjectImages } = workflow
+  const { setProjectImages, setMaster } = workflow
   const loadProjectImages = useCallback(async () => {
     try {
       const payload = await listMasterImages(projectId)
@@ -359,6 +356,22 @@ export function useEditorWorkflowAdapter(args: {
       setProjectImages([])
     }
   }, [projectId, setProjectImages])
+  // Initial master load (read-model phase B): skip when SSR already seeded the
+  // machine (mirrors the old hook's skip-initial-fetch). Post-mutation refresh
+  // is handled by the machine's refreshAll → assignMasterFromRefresh.
+  const loadMaster = useCallback(async () => {
+    setMaster({ master: null, loading: true, error: "" })
+    try {
+      const payload = await getMasterImage(projectId)
+      setMaster({ master: payload?.exists ? toMasterImage(payload) : null, loading: false, error: "" })
+    } catch (e) {
+      setMaster({ master: null, loading: false, error: e instanceof Error ? e.message : "Failed to load image" })
+    }
+  }, [projectId, setMaster])
+  useEffect(() => {
+    if (initialMaster?.signedUrl) return
+    void loadMaster()
+  }, [initialMaster?.signedUrl, loadMaster])
   const handleImageUploaded = useCallback(
     async (uploadedMaster: UploadedMasterSnapshot | null) => {
       // Drive the post-upload seed + reconcile through the machine
@@ -401,7 +414,6 @@ export function useEditorWorkflowAdapter(args: {
     handleApplyFilter,
     handleImageUploaded,
     loadProjectImages,
-    seededMasterIdRef,
     uploadSyncError,
     filterOperationError,
     restoreOperationError,

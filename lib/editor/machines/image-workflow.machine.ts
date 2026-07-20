@@ -2,6 +2,7 @@ import { assign, fromPromise, setup } from "xstate"
 
 import { normalizeApiError } from "@/lib/api/error-normalizer"
 import type { OperationError } from "@/lib/api/operation-error"
+import { masterImageSignature, toMasterImage, type MasterImage } from "@/lib/editor/master-image"
 import type { RegisteredFilterId } from "@/lib/editor/filters/registry"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
 import type { UploadedMasterSnapshot } from "@/lib/editor/upload-master-image"
@@ -16,6 +17,9 @@ import type {
 
 type MachineInput = {
   services: ImageWorkflowServices
+  /** SSR-provided master (read-model phase B). When present the machine skips
+   * the initial fetch — the adapter only loads on mount if this is null. */
+  initialMaster?: MasterImage | null
 }
 
 /**
@@ -72,7 +76,7 @@ export function createImageWorkflowMachine() {
         await input.services.restoreBase()
       }),
       refreshAll: fromPromise(async ({ input }: { input: { services: ImageWorkflowServices } }) => {
-        await input.services.refreshAll()
+        return await input.services.refreshAll()
       }),
       persistTransform: fromPromise(
         async ({ input }: { input: { services: ImageWorkflowServices; transform: WorkflowTransformPayload } }) => {
@@ -92,6 +96,33 @@ export function createImageWorkflowMachine() {
       }),
       assignProjectImages: assign({
         projectImages: ({ event, context }) => (event.type === "PROJECT_IMAGES_LOADED" ? event.items : context.projectImages),
+      }),
+      // Assign the master with signature dedup: keep the SAME object identity
+      // when nothing meaningful changed, so the derived source snapshot doesn't
+      // churn (and the shell's loader effect doesn't re-fire).
+      assignMaster: assign(({ event, context }) => {
+        if (event.type !== "MASTER_LOADED") return {}
+        const same = masterImageSignature(event.master) === masterImageSignature(context.master)
+        return {
+          master: same ? context.master : event.master,
+          masterLoading: event.loading ?? false,
+          masterError: event.error ?? "",
+        }
+      }),
+      assignMasterFromUpload: assign(({ event, context }) => {
+        if (event.type !== "IMAGE_UPLOAD") return {}
+        // The fresh upload IS the master row → masterRowId is its own id.
+        const master = toMasterImage({ ...event.master, masterRowId: event.master.id })
+        const same = masterImageSignature(master) === masterImageSignature(context.master)
+        return { master: same ? context.master : master, masterLoading: false, masterError: "" }
+      }),
+      clearMaster: assign({ master: null, masterError: "" }),
+      assignMasterFromRefresh: assign(({ event, context }) => {
+        // The `syncing` invoke resolves with the refreshAll output.
+        const output = (event as { output?: { master: MasterImage | null } }).output
+        if (!output) return {}
+        const same = masterImageSignature(output.master) === masterImageSignature(context.master)
+        return { master: same ? context.master : output.master, masterLoading: false, masterError: "" }
       }),
       assignServices: assign({
         services: ({ event, context }) => (event.type === "SERVICES_UPDATE" ? event.services : context.services),
@@ -151,14 +182,17 @@ export function createImageWorkflowMachine() {
     id: "imageWorkflow",
     type: "parallel",
     context: ({ input }) => ({
+      services: input.services,
       source: { status: "loading", image: null, error: "" } as WorkflowSourceSnapshot,
       projectImages: [],
+      master: input.initialMaster ?? null,
+      masterLoading: false,
+      masterError: "",
       lastOperation: null,
       lastOpError: null,
       lastPersistenceError: null,
       inFlightTransform: null,
       pendingTransform: null,
-      ...input,
     }),
     states: {
       source: {
@@ -221,13 +255,14 @@ export function createImageWorkflowMachine() {
               IMAGE_UPLOAD: {
                 // No canMutate guard: the upload CREATES the source (there may be
                 // no active image yet, e.g. first upload or after a delete).
+                // Seed the master into context instantly for fast UX.
                 target: "uploadingMaster",
-                actions: ["clearOperationError", "assignLastOperation"],
+                actions: ["clearOperationError", "assignLastOperation", "assignMasterFromUpload"],
               },
               IMAGE_DELETE: {
                 guard: "canMutate",
                 target: "deletingMaster",
-                actions: ["clearOperationError", "assignLastOperation"],
+                actions: ["clearOperationError", "assignLastOperation", "clearMaster"],
               },
               CROP_APPLY: {
                 guard: "canMutate",
@@ -340,7 +375,7 @@ export function createImageWorkflowMachine() {
             invoke: {
               src: "refreshAll",
               input: ({ context }) => ({ services: context.services }),
-              onDone: { target: "idle" },
+              onDone: { target: "idle", actions: "assignMasterFromRefresh" },
               onError: { target: "error", actions: "assignOperationFailure" },
             },
           },
@@ -419,6 +454,9 @@ export function createImageWorkflowMachine() {
       },
       PROJECT_IMAGES_LOADED: {
         actions: "assignProjectImages",
+      },
+      MASTER_LOADED: {
+        actions: "assignMaster",
       },
     },
   })

@@ -10,7 +10,7 @@ function createServices(overrides?: Partial<ImageWorkflowServices>): ImageWorkfl
     removeFilter: vi.fn(async () => {}),
     applyCrop: vi.fn(async () => {}),
     restoreBase: vi.fn(async () => {}),
-    refreshAll: vi.fn(async () => {}),
+    refreshAll: vi.fn(async () => ({ master: null })),
     saveTransform: vi.fn(async () => {}),
     applyTrace: vi.fn(async () => {}),
     clearTrace: vi.fn(async () => {}),
@@ -176,6 +176,37 @@ describe("createImageWorkflowMachine", () => {
     expect(actor.getSnapshot().context.projectImages).toEqual([])
   })
 
+  it("seeds master from SSR input and assigns/dedups via MASTER_LOADED", async () => {
+    const services = createServices()
+    const seed = { id: "a", masterRowId: "m", signedUrl: "u", masterSignedUrl: "mu", width_px: 10, height_px: 10, dpi: null, name: "M", restore_base: null }
+    const actor = createActor(createImageWorkflowMachine(), { input: { services, initialMaster: seed } })
+    actor.start()
+    expect(actor.getSnapshot().context.master).toEqual(seed)
+
+    // Same signature → identity preserved (no churn).
+    const before = actor.getSnapshot().context.master
+    actor.send({ type: "MASTER_LOADED", master: { ...seed }, loading: false })
+    expect(actor.getSnapshot().context.master).toBe(before)
+
+    // Real change → replaced.
+    actor.send({ type: "MASTER_LOADED", master: { ...seed, signedUrl: "u2" }, loading: false })
+    expect(actor.getSnapshot().context.master?.signedUrl).toBe("u2")
+
+    actor.send({ type: "MASTER_LOADED", master: null })
+    expect(actor.getSnapshot().context.master).toBeNull()
+  })
+
+  it("assigns master from the IMAGE_UPLOAD payload (masterRowId = own id)", async () => {
+    const services = createServices()
+    const actor = createActor(createImageWorkflowMachine(), { input: { services } })
+    actor.start()
+    const master = { id: "up1", signedUrl: "u", masterSignedUrl: "mu", width_px: 5, height_px: 5, dpi: null, name: "Up", storage_path: "p", format: "png", file_size_bytes: 1 }
+    actor.send({ type: "IMAGE_UPLOAD", master })
+    const ctxMaster = actor.getSnapshot().context.master
+    expect(ctxMaster?.id).toBe("up1")
+    expect(ctxMaster?.masterRowId).toBe("up1")
+  })
+
   it("runs image delete -> sync -> idle on success", async () => {
     const services = createServices()
     const actor = createActor(createImageWorkflowMachine(), { input: { services } })
@@ -265,7 +296,7 @@ describe("createImageWorkflowMachine", () => {
   })
 
   it("accepts REFRESH while in operation error and recovers via syncing", async () => {
-    const refreshAll = vi.fn(async () => {})
+    const refreshAll = vi.fn(async () => ({ master: null }))
     const services = createServices({
       applyFilter: vi.fn(async () => {
         throw new Error("apply failed")
@@ -361,7 +392,7 @@ describe("createImageWorkflowMachine", () => {
     const refreshAll = vi
       .fn()
       .mockRejectedValueOnce(new Error("refresh failed"))
-      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce({ master: null })
     const services = createServices({ refreshAll })
     const actor = createActor(createImageWorkflowMachine(), { input: { services } })
     actor.start()

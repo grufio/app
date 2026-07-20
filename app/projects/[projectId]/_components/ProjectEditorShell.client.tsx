@@ -58,8 +58,7 @@ import { useProjectGrid } from "@/lib/editor/project-grid"
 import { useProjectWorkspace } from "@/lib/editor/project-workspace"
 import { reportError } from "@/lib/monitoring/error-reporting"
 import type { ImageState } from "@/lib/editor/imageState"
-import type { MasterImage } from "@/lib/editor/hooks/use-master-image"
-import { useMasterImage } from "@/lib/editor/hooks/use-master-image"
+import type { MasterImage } from "@/lib/editor/master-image"
 import type { Project } from "@/lib/editor/hooks/use-project"
 import { useProject } from "@/lib/editor/hooks/use-project"
 import { computeRenderableGrid } from "@/services/editor/grid/validation"
@@ -98,15 +97,17 @@ export function ProjectDetailPageClient({
   const { row: gridRow, hasGrid, createGrid, deleteGrid, spacingXPx, spacingYPx, lineWidthPx } = useProjectGrid()
 
   const { project, setProject } = useProject(projectId, initialProject)
-  const {
-    masterImage,
-    masterImageLoading,
-    masterImageError,
-    refreshMasterImage,
-    seedMasterImage,
-    deleteError,
-    setDeleteError,
-  } = useMasterImage(projectId, initialMasterImage)
+  // The master read-model is owned by the workflow machine (read-model phase B).
+  // `masterImage` / `masterImageLoading` are aliased from `workflow.*` below.
+  // `deleteError` is the delete-dialog surface (was in the old master hook).
+  const [deleteError, setDeleteError] = useState("")
+  // useDisplaySize needs the stable masterRowId, but the master now comes from
+  // the machine (created after this line). Mirror it into state and update it
+  // from `workflow.masterRowId` after the adapter — a one-render lag on a real
+  // master change, which the reseed effect tolerates.
+  const [displayMasterRowId, setDisplayMasterRowId] = useState<string | null>(
+    initialMasterImage?.masterRowId ?? null,
+  )
 
   const {
     image: filterDisplayImage,
@@ -165,7 +166,7 @@ export function ProjectDetailPageClient({
     saveImageState,
   } = useDisplaySize({
     projectId,
-    masterImageId: masterImage?.masterRowId ?? null,
+    masterImageId: displayMasterRowId,
     initial: initialImageState,
     canvasRef,
   })
@@ -196,23 +197,31 @@ export function ProjectDetailPageClient({
     workflowFilterPanelError,
   } = useEditorWorkflowAdapter({
     projectId,
-    masterImage,
-    masterImageLoading,
-    masterImageError,
+    initialMaster: initialMasterImage,
     filterDisplayImageWithoutTrace,
     filterImageLoading,
     filterImageLoadedOnce,
     filterImageError,
     filterImageEmptyReason,
-    refreshMasterImage,
     refreshFilterImage,
     refreshTrace,
-    seedMasterImage,
     saveImageState,
     // Trace apply/clear run through the machine; the apply service pre-saves
     // this transform to close the resize→apply race.
     getCurrentImageTx: getCurrentImageState,
   })
+  // Master read-model is machine-owned (phase B); alias so the many downstream
+  // reads stay unchanged, and mirror the stable masterRowId into the display key.
+  const masterImage = workflow.master
+  const masterImageLoading = workflow.masterLoading
+  useEffect(() => {
+    // Mirror the machine-owned masterRowId back to the display-size key. Safe:
+    // the dep is a primitive that only changes on a real master upload/replace/
+    // delete (masterRowId is signature-stable across filter/crop/trace), so this
+    // fires at most once per master change — not a render loop.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setDisplayMasterRowId(workflow.masterRowId)
+  }, [workflow.masterRowId])
 
   // Master-image uploader mounted once at the shell. Lets the "Add image"
   // affordances (menu bar + image bar) open the OS / mobile file picker
