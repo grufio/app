@@ -4,15 +4,16 @@
  * Colors dialog — opened from the Trace section's floating bar (the bold
  * colour-count button under "Edit"). Shows the palette chips the current trace
  * references, reusing `PaletteColorGrid` (the same body the Colors stepper
- * section uses). Fullscreen sheet with a sticky Close footer — mirrors
- * `TraceSelectionController`.
+ * section uses).
+ *
+ * Read-only: the only action is dismiss, which — per the editor's dialog
+ * convention — lives at the TOP (the corner close button), no sticky footer.
+ * Fullscreen sheet so a long palette scrolls.
  */
-import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
   DialogHeader,
-  DialogStickyFooter,
   DialogTitle,
 } from "@/components/ui/dialog"
 import type { ProjectTrace } from "@/lib/api/project-trace"
@@ -36,10 +37,9 @@ export function ColorsDialog({ open, onClose, trace }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      {/* The sticky footer's Close button is the single dismiss affordance —
-          drop the default corner X so there aren't two "Close" controls. */}
-      <DialogContent variant="fullscreen" showCloseButton={false}>
-        <DialogHeader className="shrink-0 border-b p-4">
+      {/* `pr-12` keeps the title clear of the top-right close button. */}
+      <DialogContent variant="fullscreen">
+        <DialogHeader className="shrink-0 border-b p-4 pr-12">
           <DialogTitle>Colors</DialogTitle>
         </DialogHeader>
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
@@ -49,11 +49,6 @@ export function ColorsDialog({ open, onClose, trace }: Props) {
             hasTrace={trace != null}
           />
         </div>
-        <DialogStickyFooter>
-          <Button size="lg" onClick={onClose}>
-            Close
-          </Button>
-        </DialogStickyFooter>
       </DialogContent>
     </Dialog>
   )
