@@ -123,8 +123,13 @@ def _l0_smooth(img_u8: np.ndarray, lam: float, kappa: float = 2.0) -> np.ndarray
     return np.clip(S, 0.0, 1.0) * 255.0
 
 
-def _facet_adjacency(labels: np.ndarray, nreg: int):
-    """Unique unordered adjacent facet-label pairs (vectorised)."""
+def _facet_adjacency(labels: np.ndarray, nreg: int, facet_obj: np.ndarray | None = None):
+    """Unique unordered adjacent facet-label pairs (vectorised).
+
+    With `facet_obj` (an object id per facet), cross-object pairs are DROPPED, so
+    the merge can never coalesce facets belonging to different objects — the object
+    partition becomes a hard "no facet crosses an object boundary" guard.
+    """
     keys = []
     for A, B in ((labels[:, :-1], labels[:, 1:]), (labels[:-1, :], labels[1:, :])):
         m = A != B
@@ -136,7 +141,12 @@ def _facet_adjacency(labels: np.ndarray, nreg: int):
     if not keys:
         return np.empty(0, np.int32), np.empty(0, np.int32)
     u = np.unique(np.concatenate(keys))
-    return (u // nreg).astype(np.int32), (u % nreg).astype(np.int32)
+    lo = (u // nreg).astype(np.int32)
+    hi = (u % nreg).astype(np.int32)
+    if facet_obj is not None:
+        same = facet_obj[lo] == facet_obj[hi]
+        lo, hi = lo[same], hi[same]
+    return lo, hi
 
 
 def _facet_has_width(labels: np.ndarray, nreg: int, min_radius_work: float) -> np.ndarray:
@@ -175,6 +185,8 @@ def _facet_merge(
     l_threshold: float = _MERGE_L_THRESHOLD,
     l_penalty: float = _MERGE_L_PENALTY,
     min_radius_work: float = 0.0,
+    *,
+    obj_map: np.ndarray | None = None,
 ):
     """drake7707-style region cleanup. Connected-component facets of the paint
     map, then merge every facet below `min_area` — or, when `min_radius_work > 0`,
@@ -204,10 +216,20 @@ def _facet_merge(
     so the target graph is a forest (acyclic) and chains resolve by vectorised
     pointer-jumping — no 2-cycle oscillation."""
     sel_L = sel_ok[:, 0]  # OKLab-L per paint
-    labels, nreg, facet_sel = _labels_from_paint_map(P, nsel)
+    n_obj = int(obj_map.max()) + 1 if obj_map is not None else 0
+    if obj_map is None:
+        labels, nreg, facet_sel = _labels_from_paint_map(P, nsel)
+        facet_obj = None
+    else:
+        # Seed facets on the (paint, object) composite so every facet lies within a
+        # single object; carry the REAL paint index (facet_sel) and object id
+        # (facet_obj) per facet. Done ONCE here — the merge rounds stay on the
+        # existing vectorised path, and facet_sel keeps the downstream region→paint
+        # chain intact.
+        labels, nreg, facet_sel, facet_obj = _labels_from_paint_map_obj(P, obj_map, n_obj)
 
     def _resolve_and_apply(tgt: np.ndarray) -> None:
-        nonlocal labels, facet_sel, nreg
+        nonlocal labels, facet_sel, facet_obj, nreg
         for _ in range(int(np.ceil(np.log2(max(2, nreg)))) + 1):  # resolve chains
             tgt = tgt[tgt]
         labels = tgt[labels]
@@ -216,6 +238,8 @@ def _facet_merge(
         remap[ids] = np.arange(len(ids))
         labels = remap[labels]
         facet_sel = facet_sel[ids]
+        if facet_obj is not None:
+            facet_obj = facet_obj[ids]
         nreg = len(ids)
 
     def _best_target(s: np.ndarray, t: np.ndarray, dd: np.ndarray) -> np.ndarray:
@@ -240,7 +264,7 @@ def _facet_merge(
             too_small = too_small | ~_facet_has_width(labels, nreg, min_radius_work)
         if not too_small.any():
             break
-        pa, pb = _facet_adjacency(labels, nreg)
+        pa, pb = _facet_adjacency(labels, nreg, facet_obj)
         if pa.size == 0:
             break
         # directed edges both ways; distance = OKLab² between the two paints
@@ -270,8 +294,15 @@ def _facet_merge(
             break
         pdist = dist + l_penalty * (dL > l_threshold).astype(dist.dtype)
         _resolve_and_apply(_best_target(src[keep], dst[keep], pdist[keep]))
-    # final re-CC on the merged paint map → adjacent facets always differ in paint
-    return _labels_from_paint_map(facet_sel[labels], nsel)
+    # final re-CC on the merged paint map → adjacent facets always differ in paint.
+    # Under the object guard, re-CC on the (paint, object) composite so an object
+    # boundary is kept even between two same-paint facets (the boundary is drawn).
+    if facet_obj is None:
+        return _labels_from_paint_map(facet_sel[labels], nsel)
+    lbl, nr, reg_paint, _ = _labels_from_paint_map_obj(
+        facet_sel[labels], facet_obj[labels], n_obj
+    )
+    return lbl, nr, reg_paint
 
 
 def _labels_from_paint_map(P: np.ndarray, nsel: int) -> tuple[np.ndarray, int, np.ndarray]:
@@ -291,6 +322,55 @@ def _labels_from_paint_map(P: np.ndarray, nsel: int) -> tuple[np.ndarray, int, n
         reg_sel.extend([k] * (ncc - 1))
         nxt += ncc - 1
     return labels, nxt, np.array(reg_sel, np.int32)
+
+
+def _labels_from_paint_map_obj(
+    P: np.ndarray, obj_map: np.ndarray, n_obj: int
+) -> tuple[np.ndarray, int, np.ndarray, np.ndarray]:
+    """Connected components of the (paint, object) COMPOSITE map. Each region is a
+    connected area of one paint WITHIN one object, so no region straddles an object
+    boundary. Returns (labels, nreg, reg_paint, reg_obj). Iterates only the composite
+    values actually present (not `nsel * n_obj`), keeping the CC count bounded to the
+    real (paint, object) combinations."""
+    comp = P.astype(np.int64) * n_obj + obj_map.astype(np.int64)
+    h, w = P.shape
+    labels = np.full((h, w), -1, np.int32)
+    reg_paint: list[int] = []
+    reg_obj: list[int] = []
+    nxt = 0
+    for c in np.unique(comp):
+        ncc, cc = cv2.connectedComponents((comp == c).astype(np.uint8), connectivity=4)
+        if ncc <= 1:
+            continue
+        m = cc > 0
+        labels[m] = cc[m] - 1 + nxt
+        reg_paint.extend([int(c) // n_obj] * (ncc - 1))
+        reg_obj.extend([int(c) % n_obj] * (ncc - 1))
+        nxt += ncc - 1
+    return labels, nxt, np.array(reg_paint, np.int32), np.array(reg_obj, np.int32)
+
+
+def _prepare_obj_map(partition: np.ndarray, ww: int, hh: int) -> np.ndarray:
+    """A raw object partition (uint label map, any resolution ≥ work) → a densified
+    object id map at the linerate work resolution (hh, ww). NEAREST-NEIGHBOUR only
+    (bilinear/LANCZOS would invent phantom object ids between two labels), and
+    DOWNSAMPLE-ONLY (upsampling a label map staircases the boundaries at exactly the
+    pixels that matter)."""
+    p = np.asarray(partition)
+    if p.ndim != 2:
+        raise ValueError("partition must be a 2-D label map")
+    if p.shape != (hh, ww):
+        if p.shape[0] < hh or p.shape[1] < ww:
+            raise ValueError(
+                f"partition {p.shape} smaller than work {(hh, ww)} — would upsample "
+                "the label map (staircase at boundaries); cache the partition at "
+                "≥ the max linerate work_edge"
+            )
+        # cv2.resize dsize is (width, height) = (ww, hh)
+        p = cv2.resize(p.astype(np.int32), (ww, hh), interpolation=cv2.INTER_NEAREST)
+    # densify ids to 0..n_obj-1 (SAM ids can be sparse/non-contiguous)
+    _, inv = np.unique(p, return_inverse=True)
+    return inv.reshape(hh, ww).astype(np.int64)
 
 
 # ---- shared-crack boundary graph -----------------------------------------
@@ -516,6 +596,8 @@ def linerate_to_svg(
     palette_restriction: str = "top_n",
     work_edge: int = _WORK_MAX_EDGE,
     on_phase: callable | None = None,
+    *,
+    partition: np.ndarray | None = None,
 ) -> tuple[str, int, list[int]]:
     def phase(name):
         if on_phase is not None:
@@ -535,6 +617,11 @@ def linerate_to_svg(
         hh, ww = work.shape[:2]
     sx = width / ww
     sy = height / hh
+
+    # Object partition (SAM) → per-pixel object id at the work resolution. Purely
+    # additive: it constrains the facet merge (no region crosses an object boundary),
+    # it never touches the pixels, palette or flatten. None = today's behaviour.
+    obj_map = _prepare_obj_map(partition, ww, hh) if partition is not None else None
 
     # --- P³ front end (colour == region) ---
     flat = _l0_smooth(work, _flatten_to_lam(flatten))
@@ -562,14 +649,14 @@ def linerate_to_svg(
     return _paint_map_to_svg(
         X, hh, ww, width, height, sx, sy, sel_ok, sel_rgb, sel_pal_index,
         have_palette, min_area, smoothness, line_thickness, min_radius,
-        width_radius_frac, phase,
+        width_radius_frac, phase, obj_map=obj_map,
     )
 
 
 def _paint_map_to_svg(
     X, hh, ww, width, height, sx, sy, sel_ok, sel_rgb, sel_pal_index,
     have_palette, min_area, smoothness, line_thickness, min_radius,
-    width_radius_frac, phase,
+    width_radius_frac, phase, *, obj_map=None,
 ):
     """Back-half of the linerate segmentation: snap every pixel to its nearest
     SELECTED paint, merge sub-`min_area` facets into the most similar-coloured
@@ -587,6 +674,7 @@ def _paint_map_to_svg(
     labels, nreg, reg_sel = _facet_merge(
         P, len(sel_ok), sel_ok, min_area,
         min_radius_work=min_radius_work * width_radius_frac,
+        obj_map=obj_map,
     )
     phase("segment")
 
