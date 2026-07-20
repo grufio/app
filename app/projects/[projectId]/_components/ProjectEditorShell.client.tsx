@@ -263,9 +263,24 @@ export function ProjectDetailPageClient({
     })
   }, [projectId, editorImageSource])
 
+  // Pipeline: Master → Filter → Trace. Section locks derive purely from
+  // data-presence (see `lib/editor/section-locks.ts`): a filter is UPSTREAM of
+  // the trace, so `filterLocked = hasTrace`. Derived here (not lower down) so
+  // the add-filter gate can honour it.
+  const hasFilter = filterStack.length > 0
+  const hasTrace = Boolean(trace)
+  const sectionLocks = useMemo(
+    () => deriveSectionLocks({ hasFilter, hasTrace }),
+    [hasFilter, hasTrace],
+  )
+
   const hasFilterSourceImage = Boolean(filterSourceImage)
   const isNewFilterActionBusy = filterImageLoading || workflow.isMutating || workflow.isSyncing
-  const isAddFilterDisabled = !hasFilterSourceImage || isNewFilterActionBusy
+  // Adding a filter must be blocked while a trace exists — a filter under an
+  // existing trace would reorder the pipeline and invalidate the trace. This is
+  // exactly `filterLocked`, and it also covers the trace-on-master case (no
+  // filter) where the Filter bar still shows "Add filter".
+  const isAddFilterDisabled = !hasFilterSourceImage || isNewFilterActionBusy || sectionLocks.filterLocked
 
   // Trace apply/clear now run through the workflow machine, so their busy state
   // is already part of `isNewFilterActionBusy` (workflow.isMutating).
@@ -517,14 +532,6 @@ export function ProjectDetailPageClient({
 
   const handleTitleUpdated = useCallback((nextTitle: string) => setProject({ id: projectId, name: nextTitle }), [projectId, setProject])
 
-  // Section locks. The Image section is locked while *any* downstream
-  // artefact (filter / trace) derives from the master; the Filter
-  // section is locked while a trace derives from the filter chain. The
-  // derivation is pure (see `lib/editor/section-locks.ts`); the actual
-  // cascade-delete behind an unlock is wired below.
-  const hasFilter = filterStack.length > 0
-  const hasTrace = Boolean(trace)
-
   // Closing the configure dialog returns to the trace section so the
   // user lands back on the current trace state, not the Image/artboard
   // tab. The dialog itself unmounts via closeConfigure, so no stale draft
@@ -532,11 +539,6 @@ export function ProjectDetailPageClient({
   const handleTraceConfigureCancelled = useCallback(() => {
     setEditorSection("trace")
   }, [setEditorSection])
-
-  const sectionLocks = useMemo(
-    () => deriveSectionLocks({ hasFilter, hasTrace }),
-    [hasFilter, hasTrace],
-  )
   // Filter delete is instant: the bar's Delete is greyed while a trace depends
   // on the filter (you Reset the trace away first), so this is only reached when
   // nothing downstream exists.
