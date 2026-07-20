@@ -32,6 +32,7 @@ import {
   EditorToolsBar,
   type EditorToolsBarTool,
 } from "./editor-tools-bar"
+import { EditorTraceToolsBar } from "./editor-trace-tools-bar"
 import type { ProjectCanvasStageHandle } from "./project-canvas-stage"
 
 // Code-split Konva-heavy canvas stage (no UI change, improves editor TTI).
@@ -139,6 +140,10 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
    * false. The Colors section is a read-only palette view, so the
    * canvas-editing toolbar doesn't belong there. Defaults to shown. */
   showToolsBar?: boolean
+  /** Shows the reduced Trace tools bar (Hand · Arrow · Zoom out · Zoom in) at
+   * the bottom centre. Mutually exclusive with `showToolsBar` — the shell gates
+   * this to the Trace section. */
+  showTraceToolsBar?: boolean
   /** Shows a "Processing..." overlay over the canvas while a long image
    * operation (e.g. applying a filter) is running. */
   processing?: boolean
@@ -167,6 +172,7 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
     previewBitmapVisible = true,
     numbersLayerVisible = true,
     showToolsBar = true,
+    showTraceToolsBar = false,
     processing = false,
   } = props
 
@@ -220,6 +226,18 @@ export const ProjectEditorStage = React.memo(function ProjectEditorStage(props: 
               onRotate={toolbar.actions.rotate}
               actionsDisabled={toolbar.actionsDisabled}
               rotateDisabled={Boolean(toolbar.rotateDisabled)}
+            />
+          </div>
+        ) : null}
+        {showTraceToolsBar ? (
+          <div className="absolute bottom-4 left-1/2 z-10 w-max -translate-x-1/2">
+            <EditorTraceToolsBar
+              className="pointer-events-auto"
+              tool={toolbar.tool}
+              onHand={() => toolbar.setTool("hand")}
+              onZoomIn={toolbar.actions.zoomIn}
+              onZoomOut={toolbar.actions.zoomOut}
+              actionsDisabled={toolbar.actionsDisabled}
             />
           </div>
         ) : null}
