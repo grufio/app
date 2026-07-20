@@ -239,6 +239,7 @@ export function useEditorWorkflowAdapter(args: {
   // (read-model phase C) — no more adapter memo / SOURCE_SNAPSHOT round-trip.
   // The shell reads it back as `workflow.readModel`.
   const editorImageSource = workflow.readModel
+  const { master, masterLoading } = workflow
   const filterImageWithoutTrace = workflow.filter.imageWithoutTrace
   useEffect(() => {
     activeSourceImageIdRef.current =
@@ -307,6 +308,23 @@ export function useEditorWorkflowAdapter(args: {
   useEffect(() => {
     void loadFilter()
   }, [loadFilter])
+  // Self-heal a diverged read-model: the canvas source can be `ready` (the
+  // filter working-copy resolved) while `master` is transiently null (a
+  // signed-URL failure / stale `exists:false` / cold load with no SSR seed).
+  // That would show the photo AND the "Add image" button at once. Re-fetch the
+  // master exactly once per divergence (ref-guarded — no fetch loop); the guard
+  // resets as soon as a master is present so a later divergence can retry.
+  const masterRecoveryTriedRef = useRef(false)
+  useEffect(() => {
+    if (master) {
+      masterRecoveryTriedRef.current = false
+      return
+    }
+    if (editorImageSource.status === "ready" && !masterLoading && !masterRecoveryTriedRef.current) {
+      masterRecoveryTriedRef.current = true
+      void loadMaster()
+    }
+  }, [editorImageSource.status, master, masterLoading, loadMaster])
   const handleImageUploaded = useCallback(
     async (uploadedMaster: UploadedMasterSnapshot | null) => {
       // Drive the post-upload seed + reconcile through the machine
