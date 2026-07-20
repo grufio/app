@@ -610,6 +610,9 @@ export function ProjectDetailPageClient({
               // The canvas-editing tools (zoom / hand / crop) belong to the
               // Image section only. Every other section hides them.
               showToolsBar={editorSection === "image"}
+              // The Trace section gets a reduced floating bar: Hand · Arrow
+              // (placeholder) · Zoom out · Zoom in.
+              showTraceToolsBar={editorSection === "trace"}
               canvasRef={canvasRef}
               artboardWidthPx={artboardWidthPx ?? undefined}
               artboardHeightPx={artboardHeightPx ?? undefined}
