@@ -18,7 +18,17 @@ import type {
 } from "./image-workflow.types"
 import { waitForStateChange } from "./wait-for-state-change"
 
+// Instant, DB-only operations (refresh, clear-trace, delete-master) settle well
+// under this; a stuck one this long is a genuine hang worth surfacing.
 const WORKFLOW_WAIT_TIMEOUT_MS = 20_000
+// Filter/trace APPLY hit the Cloud Run filter-service, which the API route lets
+// run up to `maxDuration = 120s` (app/api/projects/[projectId]/trace/route.ts).
+// A cold start (filter-service scales to zero) or a high-MP trace (~64s at 4MP)
+// legitimately exceeds the 20s wait — the UI must outlast the backend budget so
+// it observes the real outcome (idle | error) instead of abandoning the wait
+// while the operation is still running, which strands the machine in
+// `applyingTrace`/`applyingFilter` and blocks any re-apply.
+const WORKFLOW_APPLY_TIMEOUT_MS = 125_000
 
 export function useImageWorkflowMachine(args: {
   projectId?: string
@@ -99,7 +109,7 @@ export function useImageWorkflowMachine(args: {
     let enteredMutationFlow = false
     const pending = waitForStateChange({
       actor: actorRef,
-      timeoutMs: WORKFLOW_WAIT_TIMEOUT_MS,
+      timeoutMs: WORKFLOW_APPLY_TIMEOUT_MS,
       timeoutMessage: "Timed out while waiting for filter workflow completion",
       evaluate: (snapshot) => {
         const isApplying = snapshot.matches({ operation: "applyingFilter" })
@@ -156,12 +166,15 @@ export function useImageWorkflowMachine(args: {
       mutatingState: "applyingTrace" | "clearingTrace" | "removingFilter" | "deletingMaster"
       failMessage: string
       timeoutMessage: string
+      // Defaults to the short wait for instant DB-only ops; trace apply overrides
+      // with the Cloud-Run apply budget so a slow/cold trace isn't falsely abandoned.
+      timeoutMs?: number
     },
   ) => {
     let enteredMutationFlow = false
     const pending = waitForStateChange({
       actor: actorRef,
-      timeoutMs: WORKFLOW_WAIT_TIMEOUT_MS,
+      timeoutMs: args.timeoutMs ?? WORKFLOW_WAIT_TIMEOUT_MS,
       timeoutMessage: args.timeoutMessage,
       evaluate: (snapshot) => {
         const isMutatingNow = snapshot.matches({ operation: args.mutatingState })
@@ -187,6 +200,9 @@ export function useImageWorkflowMachine(args: {
       mutatingState: "applyingTrace",
       failMessage: "Failed to apply trace",
       timeoutMessage: "Timed out while waiting for trace apply completion",
+      // Trace runs the full Cloud Run pipeline (cold start + up to 4MP) — give the
+      // UI the backend budget instead of the 20s instant-op default.
+      timeoutMs: WORKFLOW_APPLY_TIMEOUT_MS,
     })
   }
   const clearTrace = () => {
