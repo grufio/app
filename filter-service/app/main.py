@@ -4,7 +4,7 @@ FastAPI service for image processing filters.
 import os
 import time
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -566,7 +566,13 @@ async def circulate_filter(request: CirculateRequest):
 
 
 @app.post("/filters/linerate")
-async def linerate_filter(request: LinerateRequest):
+async def linerate_filter(
+    request: LinerateRequest,
+    # Experimental flatten A/B knobs — passed as HEADERS (not body) so they stay OUT
+    # of the parity-checked LinerateRequest schema. Default "l0" = production behaviour.
+    x_flatten_algo: str = Header("l0"),
+    x_flatten_beta_max: float = Header(1e5),
+):
     """
     Linerate: perceptual paint-by-numbers (P³). L0 edge-preserving flatten →
     select ≤num_colors REAL paints from the fixed palette → per-pixel paint
@@ -620,6 +626,8 @@ async def linerate_filter(request: LinerateRequest):
             palette_rgb=request.palette_rgb,
             palette_restriction=request.palette_restriction,
             work_edge=request.work_edge,
+            flatten_algo=x_flatten_algo,
+            flatten_beta_max=x_flatten_beta_max,
             on_phase=timer.mark,
         )
 
