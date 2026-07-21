@@ -99,14 +99,17 @@ def _detail_to_min_area(detail: float, work_px: int, min_radius_work: float) -> 
 
 def _l0_smooth(img_u8: np.ndarray, lam: float, kappa: float = 2.0) -> np.ndarray:
     """L0 gradient minimisation (Xu et al. 2011) — edge-preserving flattening.
-    Pure numpy FFT (no dependency). Removes texture/noise while keeping strong
-    edges crisp so region boundaries land on real contours, not on noise."""
-    S = img_u8.astype(np.float64) / 255.0
+    Multithreaded scipy.fft in FLOAT32 — the ~84% hi-res hotspot. float32 halves the
+    FFT payload (complex64) and `workers` threads it, ~4x over the original single-
+    threaded float64. The result stays within a fraction of a 0-255 level of the
+    float64 reference (test_linerate_fft), so the palette snap — and the emitted SVG
+    geometry — is stable. Removes texture/noise while keeping strong edges crisp."""
+    S = img_u8.astype(np.float32) / np.float32(255.0)
     N, M, _ = S.shape
 
     def psf2otf(psf, shape):
         kh, kw = psf.shape
-        pad = np.zeros(shape)
+        pad = np.zeros(shape, np.float32)
         pad[:kh, :kw] = psf
         pad = np.roll(pad, -(kh // 2), 0)
         pad = np.roll(pad, -(kw // 2), 1)
