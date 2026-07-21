@@ -4,6 +4,10 @@ pillow==11.0.0
 python-multipart==0.0.20
 opencv-python-headless==4.10.0.84
 numpy==2.2.2
+# Multithreaded FFT for the L0 flatten (the ~84% hi-res hotspot); numpy.fft is
+# single-threaded. scipy.fft(workers) uses the same pocketfft in float64 →
+# numerically equal to numpy (proven in test_linerate_fft.py).
+scipy==1.18.0
 # F20: vtracer-driven numerate (replaces the rect-string loop in
 # /filters/numerate). vtracer collapses adjacent same-color cells
 # into one polygon per connected component; lxml parses + walks the
