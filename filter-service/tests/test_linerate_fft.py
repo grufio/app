@@ -48,15 +48,21 @@ def _l0_numpy_ref(img_u8: np.ndarray, lam: float, kappa: float = 2.0) -> np.ndar
     return np.clip(S, 0.0, 1.0) * 255.0
 
 
-def test_l0_smooth_scipy_matches_numpy_bitclose():
+def test_l0_smooth_float32_close_to_float64_reference():
+    # _l0_smooth runs the FFT in float32 (halves the payload, ~2x). It is therefore
+    # NOT bit-identical to the float64 solver — but must stay within a fraction of a
+    # 0-255 level on average so the palette snap (and thus the SVG geometry) is
+    # stable; only isolated boundary pixels may differ by a few levels. Measured on a
+    # real portrait work image: MAE ~0.006, max ~3.2. Gate generously above that.
     rng = np.random.default_rng(0)
     img = (rng.random((90, 70, 3)) * 255).astype(np.uint8)
     for lam in (0.01, 0.05, 0.2):
-        out = _l0_smooth(img, lam)
+        out = _l0_smooth(img, lam).astype(np.float64)
         ref = _l0_numpy_ref(img, lam)
         assert out.shape == ref.shape
-        # same pocketfft in float64 → equal to within FP round-off, not a tolerance band
-        assert np.allclose(out, ref, atol=1e-8, rtol=0), f"lam={lam} max|Δ|={np.max(np.abs(out-ref))}"
+        d = np.abs(out - ref)
+        assert d.mean() < 0.5, f"lam={lam} MAE={d.mean():.4f} too high — float32 drift"
+        assert d.max() < 8.0, f"lam={lam} max|Δ|={d.max():.3f} too high — float32 drift"
 
 
 def test_flatten_port_keeps_the_svg_stable():
