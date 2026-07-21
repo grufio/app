@@ -309,6 +309,76 @@ describe("createImageWorkflowMachine", () => {
     expect(services.refreshAll).toHaveBeenCalledTimes(1)
   })
 
+  it("re-applies a filter straight out of error (clears the error, re-enters applyingFilter)", async () => {
+    const services = createServices({
+      applyFilter: vi.fn(async () => {
+        throw new Error("apply failed")
+      }),
+    })
+    const actor = createActor(createImageWorkflowMachine(), { input: { services } })
+    actor.start()
+    makeReady(actor)
+
+    actor.send({ type: "FILTER_APPLY", filterType: "bw_hard", filterParams: {} })
+    await waitFor(actor, (s) => s.matches({ operation: "error" }))
+    expect(actor.getSnapshot().context.lastOpError).toBeTruthy()
+
+    // Retry directly from error: allowed (mirrors idle), clears the error, re-enters.
+    actor.send({ type: "FILTER_APPLY", filterType: "bw_hard", filterParams: {} })
+    expect(actor.getSnapshot().matches({ operation: "applyingFilter" })).toBe(true)
+    expect(actor.getSnapshot().context.lastOpError).toBe(null)
+  })
+
+  it("re-applies a trace straight out of error (clears the error, re-enters applyingTrace)", async () => {
+    const services = createServices({
+      applyTrace: vi.fn(async () => {
+        throw new Error("trace failed")
+      }),
+    })
+    const actor = createActor(createImageWorkflowMachine(), { input: { services } })
+    actor.start()
+    makeReady(actor)
+
+    actor.send({ type: "TRACE_APPLY", kind: "linerate", params: {} })
+    await waitFor(actor, (s) => s.matches({ operation: "error" }))
+    expect(actor.getSnapshot().context.lastOpError).toBeTruthy()
+
+    actor.send({ type: "TRACE_APPLY", kind: "linerate", params: {} })
+    expect(actor.getSnapshot().matches({ operation: "applyingTrace" })).toBe(true)
+    expect(actor.getSnapshot().context.lastOpError).toBe(null)
+  })
+
+  it("backstops a stalled apply to error after the timeout (filter + trace)", async () => {
+    vi.useFakeTimers()
+    try {
+      // Services whose promises never settle — the apply would otherwise strand
+      // the machine in applyingFilter/applyingTrace forever.
+      const stall = () => new Promise<void>(() => {})
+      for (const ev of [
+        { type: "FILTER_APPLY", filterType: "bw_hard", filterParams: {} } as const,
+        { type: "TRACE_APPLY", kind: "linerate", params: {} } as const,
+      ]) {
+        const applyingState = ev.type === "FILTER_APPLY" ? "applyingFilter" : "applyingTrace"
+        const services = createServices({ applyFilter: stall, applyTrace: stall })
+        const actor = createActor(createImageWorkflowMachine(), { input: { services } })
+        actor.start()
+        makeReady(actor)
+
+        actor.send(ev)
+        expect(actor.getSnapshot().matches({ operation: applyingState })).toBe(true)
+
+        // Still applying just before the 180s backstop; error only after it.
+        await vi.advanceTimersByTimeAsync(179_000)
+        expect(actor.getSnapshot().matches({ operation: applyingState })).toBe(true)
+        await vi.advanceTimersByTimeAsync(2_000)
+        expect(actor.getSnapshot().matches({ operation: "error" })).toBe(true)
+        expect(actor.getSnapshot().context.lastOpError?.code).toBe("APPLY_TIMEOUT")
+      }
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it("runs explicit refresh event through syncing", async () => {
     const services = createServices()
     const actor = createActor(createImageWorkflowMachine(), { input: { services } })

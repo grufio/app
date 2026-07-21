@@ -21,14 +21,17 @@ import { waitForStateChange } from "./wait-for-state-change"
 // Instant, DB-only operations (refresh, clear-trace, delete-master) settle well
 // under this; a stuck one this long is a genuine hang worth surfacing.
 const WORKFLOW_WAIT_TIMEOUT_MS = 20_000
-// Filter/trace APPLY hit the Cloud Run filter-service, which the API route lets
+// Filter/trace APPLY hit the Cloud Run filter-service, which the trace route lets
 // run up to `maxDuration = 120s` (app/api/projects/[projectId]/trace/route.ts).
 // A cold start (filter-service scales to zero) or a high-MP trace (~64s at 4MP)
 // legitimately exceeds the 20s wait — the UI must outlast the backend budget so
 // it observes the real outcome (idle | error) instead of abandoning the wait
 // while the operation is still running, which strands the machine in
-// `applyingTrace`/`applyingFilter` and blocks any re-apply.
-const WORKFLOW_APPLY_TIMEOUT_MS = 125_000
+// `applyingTrace`/`applyingFilter` and blocks any re-apply. Kept ABOVE the
+// machine's own apply backstop (`APPLY_ACTOR_TIMEOUT_MS` = 180s in
+// image-workflow.machine.ts) so a genuine hang is bounded there — the machine
+// reaches `error` first and this wait resolves via the real error path.
+const WORKFLOW_APPLY_TIMEOUT_MS = 190_000
 
 export function useImageWorkflowMachine(args: {
   projectId?: string

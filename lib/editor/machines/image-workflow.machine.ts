@@ -36,6 +36,33 @@ function toUnknownOperationError(error: unknown, fallbackMessage: string): Opera
   return { ...normalized, message: fallbackMessage }
 }
 
+/**
+ * Hard backstop for a Cloud-Run apply whose promise never settles (e.g. the
+ * browser fetch stalls on a dead network — fetch has no default timeout, so the
+ * invoked actor would otherwise sit in `applyingFilter`/`applyingTrace` forever
+ * and strand the machine).
+ *
+ * MUST sit safely ABOVE the longest LEGITIMATE apply, or it would false-fire on
+ * a genuine slow trace and discard a result that actually completed server-side.
+ * Worst legit case (trace): the actor runs `saveImageState` (~a few s) and THEN
+ * the trace call, whose server ceiling is the route's `maxDuration = 120s`
+ * (app/api/projects/[projectId]/trace/route.ts) — so client-observed
+ * `applyingTrace` can approach ~125s at the cold-start + high-MP operating
+ * point. 180s leaves a comfortable margin: it only trips a truly hung fetch.
+ * Kept BELOW the hook's apply wait (`WORKFLOW_APPLY_TIMEOUT_MS`, 190s) so the
+ * machine reaches `error` first and the UI promise settles via the real error
+ * path (with a message), retryable from `error`, rather than the bare UI timeout.
+ */
+const APPLY_ACTOR_TIMEOUT_MS = 180_000
+
+/** Synthetic error for the apply backstop — the `after` transition carries no
+ * `event.error`, so we assign a canonical timeout `OperationError` directly. */
+const APPLY_TIMEOUT_ERROR: OperationError = {
+  stage: "timeout",
+  code: "APPLY_TIMEOUT",
+  message: "The operation took too long and was stopped. Please try again.",
+}
+
 export function createImageWorkflowMachine() {
   return setup({
     types: {
@@ -179,6 +206,9 @@ export function createImageWorkflowMachine() {
         lastOpError: ({ event }) =>
           toUnknownOperationError((event as { error?: unknown }).error, "Image workflow operation failed."),
       }),
+      assignOperationTimeout: assign({
+        lastOpError: () => APPLY_TIMEOUT_ERROR,
+      }),
       assignPersistenceFailure: assign({
         lastPersistenceError: ({ event }) =>
           toUnknownOperationError((event as { error?: unknown }).error, "Failed to save image transform."),
@@ -319,6 +349,8 @@ export function createImageWorkflowMachine() {
             },
           },
           applyingFilter: {
+            // Backstop: a stalled apply that never settles can't strand the machine.
+            after: { [APPLY_ACTOR_TIMEOUT_MS]: { target: "error", actions: "assignOperationTimeout" } },
             invoke: {
               src: "applyFilter",
               input: ({ context, event }) => {
@@ -345,6 +377,8 @@ export function createImageWorkflowMachine() {
             },
           },
           applyingTrace: {
+            // Backstop: a stalled apply that never settles can't strand the machine.
+            after: { [APPLY_ACTOR_TIMEOUT_MS]: { target: "error", actions: "assignOperationTimeout" } },
             invoke: {
               src: "applyTrace",
               input: ({ context, event }) => {
@@ -413,6 +447,20 @@ export function createImageWorkflowMachine() {
           },
           error: {
             on: {
+              // Retry an apply directly out of `error` — mirrors the `idle`
+              // transitions so a failed/timed-out apply isn't a dead end (the
+              // dialog/picker stays open on error; re-applying clears the error
+              // and re-enters the flow instead of hitting the mutation guard).
+              FILTER_APPLY: {
+                guard: "canMutate",
+                target: "applyingFilter",
+                actions: ["clearOperationError", "assignLastOperation"],
+              },
+              TRACE_APPLY: {
+                guard: "canMutate",
+                target: "applyingTrace",
+                actions: ["clearOperationError", "assignLastOperation"],
+              },
               DISMISS_ERROR: { target: "idle", actions: "clearOperationError" },
               RETRY: { target: "syncing", actions: ["clearOperationError", "assignLastOperation"] },
               REFRESH: { target: "syncing", actions: ["clearOperationError", "assignLastOperation"] },

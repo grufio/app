@@ -1,6 +1,8 @@
 "use client"
 
 import { useState } from "react"
+import { Loader2 } from "lucide-react"
+import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -10,6 +12,7 @@ import {
   DialogStickyFooter,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { formatOperationErrorForToast, normalizeApiError } from "@/lib/api/error-normalizer"
 import { FILTER_REGISTRY, type RegisteredFilterId } from "@/lib/editor/filters/registry"
 
 import { FilterTypeCards } from "./filter-type-cards"
@@ -20,10 +23,12 @@ type Props = {
   workingImageUrl: string | null
   open: boolean
   onClose: () => void
-  /** Applies the picked filter directly. The B&W filters have no
-   * configurable params, so picking a card + clicking Apply is the
-   * whole interaction — there is no separate configure step. */
-  onApply: (filterType: FilterType) => void
+  /** Applies the picked filter. The B&W filters have no configurable params,
+   * so picking a card + Apply is the whole interaction — no separate configure
+   * step. Returns a promise that settles when the apply completes: the picker
+   * stays open + busy until then (owns its own feedback, like the trace dialog),
+   * so no canvas overlay is needed. */
+  onApply: (filterType: FilterType) => Promise<void>
 }
 
 const FILTER_CARD_ITEMS = Object.values(FILTER_REGISTRY).map((f) => ({
@@ -38,16 +43,32 @@ export function FilterSelectionController({
   onApply,
 }: Props) {
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
 
   const handleClose = () => {
+    if (busy) return
     setSelectedCardId(null)
     onClose()
   }
 
-  const handleApply = () => {
-    if (!selectedCardId) return
-    onApply(selectedCardId as FilterType)
-    handleClose()
+  // Await the apply and keep the picker open + busy until it settles — the
+  // dialog owns the feedback (like the trace dialogs), so there's no canvas
+  // overlay to leak. On failure the picker toasts and stays open for a retry
+  // (the machine allows re-apply straight out of `error`).
+  const handleApply = async () => {
+    if (!selectedCardId || busy) return
+    setBusy(true)
+    try {
+      await onApply(selectedCardId as FilterType)
+      setSelectedCardId(null)
+      onClose()
+    } catch (e) {
+      const error = e instanceof Error ? e : new Error(String(e))
+      const formatted = formatOperationErrorForToast(normalizeApiError(error))
+      toast.error(formatted.title, formatted.detail ? { description: formatted.detail } : undefined)
+    } finally {
+      setBusy(false)
+    }
   }
 
   const items = FILTER_CARD_ITEMS.map((item) => ({ ...item, thumbUrl: workingImageUrl }))
@@ -64,15 +85,16 @@ export function FilterSelectionController({
           <FilterTypeCards
             items={items}
             selectedId={selectedCardId}
-            onSelect={setSelectedCardId}
+            onSelect={busy ? undefined : setSelectedCardId}
             className="grid-cols-2 gap-2"
           />
         </div>
         <DialogStickyFooter>
-          <Button variant="outline" size="lg" onClick={handleClose}>
+          <Button variant="outline" size="lg" onClick={handleClose} disabled={busy}>
             Cancel
           </Button>
-          <Button size="lg" onClick={handleApply} disabled={!selectedCardId}>
+          <Button size="lg" onClick={() => void handleApply()} disabled={!selectedCardId || busy}>
+            {busy ? <Loader2 aria-hidden="true" className="size-4 animate-spin" /> : null}
             Apply
           </Button>
         </DialogStickyFooter>
