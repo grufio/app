@@ -42,17 +42,52 @@ export const linerateSchema = z.object({
   // Which Munsell palette to select paints from — same contract as
   // pixelate / circulate. "color" → lab_munsell, "bw" → lab_grays.
   color_mode: z.enum(["color", "bw"]).default("color"),
-  // Work resolution the server labels at (form fidelity vs latency). The bridge
-  // maps this to the `work_edge` px the service uses; higher = finer region
-  // boundaries but slower. Default "medium".
-  resolution: z.enum(["low", "medium", "high"]).default("medium"),
+  // Target working MEGAPIXELS the server labels at (form fidelity vs latency),
+  // aspect-invariant. The bridge derives the `work_edge` px from this + the source
+  // dimensions (never upscaling). Higher = finer region boundaries but slower.
+  // `preprocess` coerces legacy persisted presets (low/medium/high) → 1/2/4 MP.
+  resolution: z.preprocess(
+    (v) => {
+      if (v === "low") return 1
+      if (v === "medium") return 2
+      if (v === "high") return 4
+      return typeof v === "string" ? Number(v) : v // a select emits a string "1"/"2"/"4"
+    },
+    z.union([z.literal(1), z.literal(2), z.literal(4)]),
+  ).default(2),
+  // Flatten algorithm: "l0" (FFT L0, best quality) or "edge_preserving" (cv2 domain
+  // transform, ~2x faster). Defaults byte-equal to the Python LinerateRequest
+  // (python-parity.test.ts). The three ep_* knobs only apply when edge_preserving.
+  flatten_algo: z.enum(["l0", "edge_preserving"]).default("l0"),
+  // edge_preserving spatial reach → cv2 sigma_s (~1..200). Shown as a 1–10 level.
+  sigma_s: z.coerce.number().min(1).max(200).default(57),
+  // edge_preserving edge sensitivity → cv2 sigma_r (~0..1). Shown as a 1–10 level.
+  sigma_r: z.coerce.number().min(0.01).max(1).default(0.23),
+  // edge_preserving filter variant: "recurs" (RECURS_FILTER) or "normconv" (NORMCONV_FILTER).
+  ep_flag: z.enum(["recurs", "normconv"]).default("recurs"),
 })
 
 export type LinerateParams = z.infer<typeof linerateSchema>
 
-/** Resolution preset → server work-edge (px). Higher = finer form, slower. */
-export const LINERATE_RESOLUTION_EDGE = { low: 640, medium: 720, high: 960 } as const
-export type LinerateResolution = keyof typeof LINERATE_RESOLUTION_EDGE
+/** The selectable working-resolution targets, in megapixels. */
+export const LINERATE_RESOLUTION_MP = [1, 2, 4] as const
+export type LinerateResolution = (typeof LINERATE_RESOLUTION_MP)[number]
+
+/**
+ * Resolution MP target → server `work_edge` (px = the LONG edge the labelling runs at).
+ * Aspect-invariant: total working pixels ≈ `mp·1e6` for portrait, landscape or square,
+ * because the service scales by `work_edge / max(W, H)`. NEVER upscales the source, and
+ * clamps to the filter-service's accepted range [256, 8192] (a pathological aspect
+ * degrades to a slightly-sub-MP trace instead of a rejected request).
+ */
+export function resolutionMpToWorkEdge(mp: number, width: number, height: number): number {
+  const long = Math.max(width, height)
+  const short = Math.min(width, height)
+  if (!Number.isFinite(long) || long <= 0 || !Number.isFinite(short) || short <= 0) return 720
+  const aspect = long / short // >= 1
+  const derived = Math.round(Math.sqrt(mp * 1e6 * aspect))
+  return Math.min(8192, Math.max(256, Math.min(long, derived)))
+}
 
 /**
  * UI-only 1–10 granularity scale for the flatten / detail / smoothness dials.
@@ -94,6 +129,6 @@ export const linerateTrace = {
     palette_restriction: { kind: "select", label: "Palette selection", options: [{ value: "top_n", label: "Top-N" }, { value: "pam", label: "PAM" }], description: "How paints are chosen: Top-N (most-used chips) or PAM (k-medoids). Coverage-based." },
     min_paintable_mm: { kind: "decimal", label: "Min. Gap (mm)", min: 0, max: 20, step: 0.5, description: "Smallest paintable gap between outlines in mm (0=off). Thinner regions merge so each stays paintable + fits its number." },
     color_mode: { kind: "select", label: "Color mode", options: [{ value: "color", label: "Color" }, { value: "bw", label: "B/W" }], description: "Which Munsell palette to select paints from" },
-    resolution: { kind: "select", label: "Resolution", options: [{ value: "low", label: "Low (640)" }, { value: "medium", label: "Medium (720)" }, { value: "high", label: "High (960)" }], description: "Work resolution: higher = finer region shapes but a slower trace" },
+    resolution: { kind: "select", label: "Resolution", options: [{ value: "1", label: "1 MP" }, { value: "2", label: "2 MP" }, { value: "4", label: "4 MP" }], description: "Working resolution in megapixels: higher = finer region shapes but a slower trace" },
   },
 } as const satisfies TraceDefinition<typeof linerateSchema>

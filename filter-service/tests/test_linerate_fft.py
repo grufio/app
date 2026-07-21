@@ -93,8 +93,26 @@ def test_flatten_algo_variants_all_produce_svg():
     cols = [(200, 60, 60), (60, 60, 200)]
     pal_ok = [list(rgb255_to_oklab(np.array([c], np.uint8))[0]) for c in cols]
     pal_rgb = [list(c) for c in cols]
-    for algo in ("l0", "l0_fast", "edge_preserving"):
+    for algo in ("l0", "edge_preserving"):
         svg, n, _ = linerate_to_svg(img, flatten=0.3, detail=0.5, num_colors=4, min_radius=3.0,
                                     palette_oklab=pal_ok, palette_rgb=pal_rgb, flatten_algo=algo)
         assert '<g id="regions">' in svg, f"{algo}: no regions block"
         assert n >= 2, f"{algo}: expected >=2 regions, got {n}"
+
+
+def test_edge_preserving_explicit_sigma_and_both_flags():
+    from PIL import Image
+    arr = np.zeros((60, 48, 3), np.uint8)
+    arr[:, :24] = (200, 60, 60)
+    arr[:, 24:] = (60, 60, 200)
+    img = Image.fromarray(arr, "RGB")
+    cols = [(200, 60, 60), (60, 60, 200)]
+    pal_ok = [list(rgb255_to_oklab(np.array([c], np.uint8))[0]) for c in cols]
+    pal_rgb = [list(c) for c in cols]
+    for ep_flag in ("recurs", "normconv"):
+        svg, n, _ = linerate_to_svg(
+            img, flatten=0.3, detail=0.5, num_colors=4, min_radius=3.0,
+            palette_oklab=pal_ok, palette_rgb=pal_rgb,
+            flatten_algo="edge_preserving", sigma_s=90.0, sigma_r=0.35, ep_flag=ep_flag,
+        )
+        assert '<g id="regions">' in svg and n >= 2, f"ep_flag={ep_flag}: bad output"

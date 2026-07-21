@@ -3,7 +3,7 @@ import crypto from "node:crypto"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/lib/supabase/database.types"
-import { LINERATE_RESOLUTION_EDGE, linerateSchema, type LinerateParams } from "@/lib/editor/trace/linerate"
+import { resolutionMpToWorkEdge, linerateSchema, type LinerateParams } from "@/lib/editor/trace/linerate"
 import { readTracePalette } from "@/lib/supabase/palette"
 import { callFilterService, toInt, type FilterResult } from "@/services/editor/server/filters/_helpers"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
@@ -61,8 +61,11 @@ export async function linerateImageAndActivate(args: {
     min_paintable_mm: minPaintableMm,
     palette_restriction: paletteRestriction,
     resolution,
+    flatten_algo: flattenAlgo,
+    sigma_s: sigmaS,
+    sigma_r: sigmaR,
+    ep_flag: epFlag,
   } = parsed.data
-  const workEdge = LINERATE_RESOLUTION_EDGE[resolution]
 
   const { data: src, error: srcErr } = await supabase
     .from("project_images")
@@ -81,6 +84,10 @@ export async function linerateImageAndActivate(args: {
   if (origWidth == null || origHeight == null || origWidth < 1 || origHeight < 1) {
     return { ok: false, status: 400, stage: "validation", reason: "Invalid source dimensions" }
   }
+
+  // The Resolution dial is a MEGAPIXEL target; derive the server work_edge from the
+  // source dimensions — aspect-invariant, never upscaling, clamped to the service range.
+  const workEdge = resolutionMpToWorkEdge(resolution, origWidth, origHeight)
 
   // The trace only converts the printable content rect (artboard − padding).
   const region = await resolveTraceContentRegion({
@@ -157,6 +164,10 @@ export async function linerateImageAndActivate(args: {
         palette_restriction: paletteRestriction,
         min_region_radius_px: minRadiusPx,
         work_edge: workEdge,
+        flatten_algo: flattenAlgo,
+        sigma_s: sigmaS,
+        sigma_r: sigmaR,
+        ep_flag: epFlag,
       },
     })
 

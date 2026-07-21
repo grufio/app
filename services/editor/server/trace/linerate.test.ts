@@ -21,7 +21,11 @@ const validParams: LinerateParams = {
   palette_restriction: "top_n",
   min_paintable_mm: 4,
   color_mode: "color",
-  resolution: "medium",
+  resolution: 2,
+  flatten_algo: "l0",
+  sigma_s: 57,
+  sigma_r: 0.23,
+  ep_flag: "recurs",
 }
 
 describe("linerateImageAndActivate validation contract", () => {
