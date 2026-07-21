@@ -321,6 +321,10 @@ class LinerateRequest(BaseModel):
     # Work resolution (max edge px) the labelling runs at — form fidelity vs
     # latency. Node bridge maps the "Resolution" dial (low/medium/high) → 640/720/960.
     work_edge: int = 720
+    # Experimental flatten selector (A/B the ~84% hi-res hotspot): "l0" (FFT L0),
+    # "l0_fast" (fewer L0 iterations), "edge_preserving" (cv2 domain transform, no FFT).
+    flatten_algo: str = "l0"
+    flatten_beta_max: float = 1e5
 
 
 class PixelateRequest(BaseModel):
@@ -620,6 +624,8 @@ async def linerate_filter(request: LinerateRequest):
             palette_rgb=request.palette_rgb,
             palette_restriction=request.palette_restriction,
             work_edge=request.work_edge,
+            flatten_algo=request.flatten_algo,
+            flatten_beta_max=request.flatten_beta_max,
             on_phase=timer.mark,
         )
 
