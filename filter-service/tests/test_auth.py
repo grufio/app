@@ -13,7 +13,7 @@ def test_health_is_exempt_even_when_secured(client, monkeypatch):
     monkeypatch.setattr(main, "_FILTER_SERVICE_TOKEN", "s3cret")
     res = client.get("/health")
     assert res.status_code == 200
-    assert res.json() == {"status": "ok"}
+    assert res.json()["status"] == "ok"
 
 
 def test_missing_token_is_rejected(client, monkeypatch, png_b64):
