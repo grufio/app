@@ -172,7 +172,15 @@ def _encode_png(arr: np.ndarray, timer: PhaseTimer) -> Response:
 
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
+    # Thread config is surfaced to diagnose CPU-bound trace latency on Cloud Run
+    # (OpenCV vs BLAS/OMP pinning — see Dockerfile). Cheap, read-only.
+    return {
+        "status": "ok",
+        "cpu_count": os.cpu_count(),
+        "cv2_threads": cv2.getNumThreads(),
+        "omp": os.environ.get("OMP_NUM_THREADS"),
+        "openblas": os.environ.get("OPENBLAS_NUM_THREADS"),
+    }
 
 
 @app.post("/filters/bw_hard")

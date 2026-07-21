@@ -639,6 +639,7 @@ def linerate_to_svg(
     sel_ok, sel_rgb, sel_pal_index = select_paints(
         X, rgb_flat, num_colors, pal_ok, pal_rgb, palette_restriction, seed
     )
+    phase("select")
 
     # Snap each pixel to its nearest selected paint, then merge tiny facets into
     # their most similar-coloured neighbour (drake7707-style) — clean regions
@@ -680,6 +681,7 @@ def _paint_map_to_svg(
 
     # --- watertight shared-arc vectorisation ---
     arcs, region_arcs = build_arcs(labels)
+    phase("build_arcs")
     eps, iters = smoothness_to_params(smoothness)
     for arc in arcs:
         arc["smooth"] = smooth_arc(arc["corners"], eps, iters)
