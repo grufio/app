@@ -4,7 +4,7 @@ FastAPI service for image processing filters.
 import os
 import time
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -321,10 +321,6 @@ class LinerateRequest(BaseModel):
     # Work resolution (max edge px) the labelling runs at — form fidelity vs
     # latency. Node bridge maps the "Resolution" dial (low/medium/high) → 640/720/960.
     work_edge: int = 720
-    # Experimental flatten selector (A/B the ~84% hi-res hotspot): "l0" (FFT L0),
-    # "l0_fast" (fewer L0 iterations), "edge_preserving" (cv2 domain transform, no FFT).
-    flatten_algo: str = "l0"
-    flatten_beta_max: float = 1e5
 
 
 class PixelateRequest(BaseModel):
@@ -570,7 +566,13 @@ async def circulate_filter(request: CirculateRequest):
 
 
 @app.post("/filters/linerate")
-async def linerate_filter(request: LinerateRequest):
+async def linerate_filter(
+    request: LinerateRequest,
+    # Experimental flatten A/B knobs — passed as HEADERS (not body) so they stay OUT
+    # of the parity-checked LinerateRequest schema. Default "l0" = production behaviour.
+    x_flatten_algo: str = Header("l0"),
+    x_flatten_beta_max: float = Header(1e5),
+):
     """
     Linerate: perceptual paint-by-numbers (P³). L0 edge-preserving flatten →
     select ≤num_colors REAL paints from the fixed palette → per-pixel paint
@@ -624,8 +626,8 @@ async def linerate_filter(request: LinerateRequest):
             palette_rgb=request.palette_rgb,
             palette_restriction=request.palette_restriction,
             work_edge=request.work_edge,
-            flatten_algo=request.flatten_algo,
-            flatten_beta_max=request.flatten_beta_max,
+            flatten_algo=x_flatten_algo,
+            flatten_beta_max=x_flatten_beta_max,
             on_phase=timer.mark,
         )
 

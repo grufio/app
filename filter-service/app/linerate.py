@@ -120,7 +120,10 @@ def _l0_smooth(img_u8: np.ndarray, lam: float, kappa: float = 2.0, beta_max: flo
     Normin1 = _sfft.fft2(S, axes=(0, 1), workers=_FFT_WORKERS)
     Den2 = (np.abs(otfx) ** 2 + np.abs(otfy) ** 2)[:, :, None]
     beta = 2 * lam
-    while beta < beta_max:
+    # Default beta_max = 1e5 → behaviourally `while beta < 1e5` (the client L0 port +
+    # python-parity.test.ts key off this literal). `l0_fast` lowers beta_max to stop
+    # the β-schedule early (fewer FFT iterations).
+    while beta < 1e5 and beta < beta_max:
         Den = 1 + beta * Den2
         h = np.concatenate([np.diff(S, 1, 1), S[:, :1, :] - S[:, -1:, :]], 1)
         v = np.concatenate([np.diff(S, 1, 0), S[:1, :, :] - S[-1:, :, :]], 0)
