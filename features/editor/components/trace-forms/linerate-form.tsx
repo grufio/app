@@ -30,9 +30,9 @@ const MIN_PAINTABLE_INPUT_PROPS = extractNumberInputProps(linerateSchema.shape.m
 const LEVEL_OPTIONS: SelectFieldOption[] = LINERATE_LEVELS.map((l) => ({ value: String(l), label: String(l) }))
 
 const RESOLUTION_OPTIONS: SelectFieldOption[] = [
-  { value: "low", label: "Low (640)" },
-  { value: "medium", label: "Medium (720)" },
-  { value: "high", label: "High (960)" },
+  { value: "1", label: "1 MP" },
+  { value: "2", label: "2 MP" },
+  { value: "4", label: "4 MP" },
 ]
 
 export function LinerateForm({ params, onParamsChange, disabled }: Props) {
@@ -141,9 +141,9 @@ export function LinerateForm({ params, onParamsChange, disabled }: Props) {
               labelVisuallyHidden
               iconStart={<Maximize2 aria-hidden="true" />}
               id="resolution"
-              value={params.resolution}
+              value={String(params.resolution)}
               options={RESOLUTION_OPTIONS}
-              onCommit={(v) => onParamsChange("resolution", v as LinerateParams["resolution"])}
+              onCommit={(v) => onParamsChange("resolution", Number(v) as LinerateParams["resolution"])}
               disabled={disabled}
             />
           </div>

@@ -36,6 +36,17 @@ Frontend forms collect parameters → API appends to
 (trace) → the Python filter-service does the actual pixel/vector
 work.
 
+Linerate's **Resolution** dial is a working-**megapixel** target
+(1 / 2 / 4 MP), aspect-invariant: the Node bridge derives the service
+`work_edge` from the source dimensions via `resolutionMpToWorkEdge`
+(never upscaling; clamped to 256–8192). Legacy persisted
+`low/medium/high` rows coerce to 1/2/4 MP on load (`z.preprocess` in
+`linerateSchema`). Its **Flatten algorithm** is selectable: `l0`
+(FFT-based L0 smoothing, best quality) or `edge_preserving` (cv2
+domain-transform, no FFT, ~2× faster, tunable via `sigma_s` / `sigma_r`
+/ `ep_flag` = `recurs`|`normconv`). The four new fields are byte-parity
+mirrored TS ⇄ Pydantic (`python-parity.test.ts`).
+
 ## Colour authority: server decides, preview approximates
 
 The **server (Python `filter-service/app/pixelate.py`) is authoritative**

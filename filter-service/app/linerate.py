@@ -97,7 +97,7 @@ def _detail_to_min_area(detail: float, work_px: int, min_radius_work: float) -> 
     return max(floor, frac * work_px)
 
 
-def _l0_smooth(img_u8: np.ndarray, lam: float, kappa: float = 2.0, beta_max: float = 1e5) -> np.ndarray:
+def _l0_smooth(img_u8: np.ndarray, lam: float, kappa: float = 2.0) -> np.ndarray:
     """L0 gradient minimisation (Xu et al. 2011) — edge-preserving flattening.
     Multithreaded scipy.fft in FLOAT32 — the ~84% hi-res hotspot. float32 halves the
     FFT payload (complex64) and `workers` threads it, ~4x over the original single-
@@ -120,10 +120,7 @@ def _l0_smooth(img_u8: np.ndarray, lam: float, kappa: float = 2.0, beta_max: flo
     Normin1 = _sfft.fft2(S, axes=(0, 1), workers=_FFT_WORKERS)
     Den2 = (np.abs(otfx) ** 2 + np.abs(otfy) ** 2)[:, :, None]
     beta = 2 * lam
-    # Default beta_max = 1e5 → behaviourally `while beta < 1e5` (the client L0 port +
-    # python-parity.test.ts key off this literal). `l0_fast` lowers beta_max to stop
-    # the β-schedule early (fewer FFT iterations).
-    while beta < 1e5 and beta < beta_max:
+    while beta < 1e5:
         Den = 1 + beta * Den2
         h = np.concatenate([np.diff(S, 1, 1), S[:, :1, :] - S[:, -1:, :]], 1)
         v = np.concatenate([np.diff(S, 1, 0), S[:1, :, :] - S[-1:, :, :]], 0)
@@ -138,16 +135,20 @@ def _l0_smooth(img_u8: np.ndarray, lam: float, kappa: float = 2.0, beta_max: flo
     return np.clip(S, 0.0, 1.0) * 255.0
 
 
-def _edge_preserving_flatten(work_u8: np.ndarray, flatten: float) -> np.ndarray:
+def _edge_preserving_flatten(
+    work_u8: np.ndarray, sigma_s: float, sigma_r: float, ep_flag: str = "recurs"
+) -> np.ndarray:
     """Domain-transform edge-preserving filter (cv2, O(N), NO FFT) — a much cheaper
     alternative to the FFT-based L0. Different character (smooths toward edges rather
-    than a piecewise-constant L0 result), but orders faster. `flatten` ∈ [0,1] scales
-    the spatial + range strength. Returns a float 0-255 (hh, ww, 3) like _l0_smooth."""
-    f = max(0.0, min(1.0, flatten))
-    sigma_s = 10.0 + f * 140.0        # spatial extent (0..200)
-    sigma_r = 0.10 + f * 0.40         # range (edge sensitivity, 0..1)
+    than a piecewise-constant L0 result), but orders faster. Explicit params:
+    `sigma_s` ∈ ~1..200 (spatial reach), `sigma_r` ∈ ~0..1 (edge sensitivity), `ep_flag`
+    "recurs" (RECURS_FILTER, smoother/faster) or "normconv" (NORMCONV_FILTER, sharper).
+    Returns a float 0-255 (hh, ww, 3) like _l0_smooth."""
+    cv_flag = cv2.NORMCONV_FILTER if ep_flag == "normconv" else cv2.RECURS_FILTER
+    ss = float(max(1.0, min(200.0, sigma_s)))
+    sr = float(max(0.01, min(1.0, sigma_r)))
     bgr = cv2.cvtColor(work_u8, cv2.COLOR_RGB2BGR)
-    out = cv2.edgePreservingFilter(bgr, flags=cv2.RECURS_FILTER, sigma_s=sigma_s, sigma_r=sigma_r)
+    out = cv2.edgePreservingFilter(bgr, flags=cv_flag, sigma_s=ss, sigma_r=sr)
     return cv2.cvtColor(out, cv2.COLOR_BGR2RGB).astype(np.float32)
 
 
@@ -624,7 +625,9 @@ def linerate_to_svg(
     palette_restriction: str = "top_n",
     work_edge: int = _WORK_MAX_EDGE,
     flatten_algo: str = "l0",
-    flatten_beta_max: float = 1e5,
+    sigma_s: float = 57.0,
+    sigma_r: float = 0.23,
+    ep_flag: str = "recurs",
     on_phase: callable | None = None,
     *,
     partition: np.ndarray | None = None,
@@ -654,14 +657,12 @@ def linerate_to_svg(
     obj_map = _prepare_obj_map(partition, ww, hh) if partition is not None else None
 
     # --- P³ front end (colour == region) ---
-    # flatten_algo: "l0" (FFT L0, default) | "l0_fast" (fewer L0 iterations via a
-    # lower beta cap) | "edge_preserving" (cv2 domain transform, no FFT). Experimental
-    # knobs to A/B the flatten cost (the ~84% hi-res hotspot) in one deploy.
+    # flatten_algo: "l0" (FFT L0, default, best quality) | "edge_preserving" (cv2 domain
+    # transform, no FFT, ~2x faster, tunable via sigma_s/sigma_r/ep_flag).
     if flatten_algo == "edge_preserving":
-        flat = _edge_preserving_flatten(work, flatten)
+        flat = _edge_preserving_flatten(work, sigma_s, sigma_r, ep_flag)
     else:
-        bmax = 1e3 if flatten_algo == "l0_fast" else flatten_beta_max
-        flat = _l0_smooth(work, _flatten_to_lam(flatten), beta_max=bmax)
+        flat = _l0_smooth(work, _flatten_to_lam(flatten))
     phase("flatten")
 
     okf = rgb255_to_oklab(flat)                       # (hh, ww, 3)

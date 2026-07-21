@@ -4,7 +4,7 @@ FastAPI service for image processing filters.
 import os
 import time
 
-from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -318,9 +318,18 @@ class LinerateRequest(BaseModel):
     # regions dissolve into their majority-neighbour paint before vectorising.
     # The Node bridge derives it from the "min paintable gap (mm)" dial.
     min_region_radius_px: float = 8.0
-    # Work resolution (max edge px) the labelling runs at — form fidelity vs
-    # latency. Node bridge maps the "Resolution" dial (low/medium/high) → 640/720/960.
+    # Work resolution (max edge px) the labelling runs at — form fidelity vs latency.
+    # The Node bridge derives it from the Resolution dial (1/2/4 MP → work_edge).
     work_edge: int = 720
+    # Flatten algorithm: "l0" (FFT L0, default, best quality) or "edge_preserving"
+    # (cv2 domain transform, ~2x faster). The three edge_preserving knobs are user-
+    # tunable; defaults stay byte-equal to linerateSchema (python-parity.test.ts).
+    # NOTE: ep_flag MUST be a plain string, never a cv2.* constant — a cv2 constant
+    # default crashes the parity default extractor.
+    flatten_algo: str = "l0"
+    sigma_s: float = 57.0
+    sigma_r: float = 0.23
+    ep_flag: str = "recurs"
 
 
 class PixelateRequest(BaseModel):
@@ -566,13 +575,7 @@ async def circulate_filter(request: CirculateRequest):
 
 
 @app.post("/filters/linerate")
-async def linerate_filter(
-    request: LinerateRequest,
-    # Experimental flatten A/B knobs — passed as HEADERS (not body) so they stay OUT
-    # of the parity-checked LinerateRequest schema. Default "l0" = production behaviour.
-    x_flatten_algo: str = Header("l0"),
-    x_flatten_beta_max: float = Header(1e5),
-):
+async def linerate_filter(request: LinerateRequest):
     """
     Linerate: perceptual paint-by-numbers (P³). L0 edge-preserving flatten →
     select ≤num_colors REAL paints from the fixed palette → per-pixel paint
@@ -595,8 +598,8 @@ async def linerate_filter(
         raise HTTPException(status_code=400, detail="num_colors must be between 2 and 560")
     if request.palette_restriction not in ("top_n", "pam"):
         raise HTTPException(status_code=400, detail="palette_restriction must be 'top_n' or 'pam'")
-    if request.work_edge < 256 or request.work_edge > 4096:
-        raise HTTPException(status_code=400, detail="work_edge must be between 256 and 4096")
+    if request.work_edge < 256 or request.work_edge > 8192:
+        raise HTTPException(status_code=400, detail="work_edge must be between 256 and 8192")
     if not request.image_url and not request.image_base64:
         raise HTTPException(status_code=400, detail="Either image_base64 or image_url must be provided")
 
@@ -626,8 +629,10 @@ async def linerate_filter(
             palette_rgb=request.palette_rgb,
             palette_restriction=request.palette_restriction,
             work_edge=request.work_edge,
-            flatten_algo=x_flatten_algo,
-            flatten_beta_max=x_flatten_beta_max,
+            flatten_algo=request.flatten_algo,
+            sigma_s=request.sigma_s,
+            sigma_r=request.sigma_r,
+            ep_flag=request.ep_flag,
             on_phase=timer.mark,
         )
 

@@ -1,22 +1,52 @@
 import { describe, expect, it } from "vitest"
 
-import { LINERATE_LEVELS, LINERATE_RESOLUTION_EDGE, levelToUnit, linerateSchema, unitToLevel } from "./linerate"
+import { LINERATE_LEVELS, LINERATE_RESOLUTION_MP, levelToUnit, linerateSchema, resolutionMpToWorkEdge, unitToLevel } from "./linerate"
 
-describe("linerate resolution dial", () => {
-  it("defaults to medium (720)", () => {
-    expect(linerateSchema.parse({}).resolution).toBe("medium")
-    expect(LINERATE_RESOLUTION_EDGE.medium).toBe(720)
+describe("linerate resolution dial (MP targets)", () => {
+  it("defaults to 2 MP", () => {
+    expect(linerateSchema.parse({}).resolution).toBe(2)
   })
 
-  it("maps the three presets to work-edge px", () => {
-    expect(LINERATE_RESOLUTION_EDGE).toEqual({ low: 640, medium: 720, high: 960 })
-  })
-
-  it("accepts the three presets and rejects anything else", () => {
-    for (const r of ["low", "medium", "high"] as const) {
-      expect(linerateSchema.parse({ resolution: r }).resolution).toBe(r)
+  it("offers 1 / 2 / 4 MP", () => {
+    expect(LINERATE_RESOLUTION_MP).toEqual([1, 2, 4])
+    for (const mp of LINERATE_RESOLUTION_MP) {
+      expect(linerateSchema.parse({ resolution: mp }).resolution).toBe(mp)
     }
+  })
+
+  it("coerces the legacy low/medium/high presets to 1/2/4 MP", () => {
+    expect(linerateSchema.parse({ resolution: "low" }).resolution).toBe(1)
+    expect(linerateSchema.parse({ resolution: "medium" }).resolution).toBe(2)
+    expect(linerateSchema.parse({ resolution: "high" }).resolution).toBe(4)
+    expect(linerateSchema.parse({ resolution: "4" }).resolution).toBe(4) // a select emits a string
+  })
+
+  it("rejects unknown resolutions", () => {
+    expect(linerateSchema.safeParse({ resolution: 3 }).success).toBe(false)
     expect(linerateSchema.safeParse({ resolution: "ultra" }).success).toBe(false)
+  })
+})
+
+describe("resolutionMpToWorkEdge", () => {
+  it("keeps total working pixels ≈ the MP target (aspect-invariant)", () => {
+    for (const [w, h] of [[3869, 6000], [6000, 3869], [4000, 4000]] as const) {
+      for (const mp of [1, 2, 4] as const) {
+        const we = resolutionMpToWorkEdge(mp, w, h)
+        const shortWork = (we * Math.min(w, h)) / Math.max(w, h)
+        const px = we * shortWork
+        expect(px).toBeGreaterThan(mp * 1e6 * 0.9)
+        expect(px).toBeLessThan(mp * 1e6 * 1.1)
+      }
+    }
+  })
+
+  it("never upscales a source smaller than the target", () => {
+    expect(resolutionMpToWorkEdge(4, 800, 600)).toBe(800)
+  })
+
+  it("clamps to [256, 8192] for pathological aspect ratios", () => {
+    expect(resolutionMpToWorkEdge(4, 40000, 1000)).toBeLessThanOrEqual(8192)
+    expect(resolutionMpToWorkEdge(1, 300, 100)).toBeGreaterThanOrEqual(256)
   })
 })
 

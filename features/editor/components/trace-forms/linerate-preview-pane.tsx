@@ -23,7 +23,7 @@ import { Button } from "@/components/ui/button"
 import { assembleFaces, buildArcs, smoothArc } from "@/lib/editor/trace/boundary-arcs"
 import { smoothnessToParams } from "@/lib/editor/trace/contour-trace"
 import { coverageSelectPaintMap } from "@/lib/editor/trace/coverage-select"
-import { LINERATE_RESOLUTION_EDGE, type LinerateParams } from "@/lib/editor/trace/linerate"
+import { resolutionMpToWorkEdge, type LinerateParams } from "@/lib/editor/trace/linerate"
 import { detailToMinArea, loadAndDownscale, segmentRegions, type PreviewImage } from "@/lib/editor/trace/linerate-preview"
 import { useSourceImage } from "@/lib/editor/trace/use-source-image"
 import { useTracePalette } from "@/lib/editor/trace/use-trace-palette"
@@ -172,14 +172,20 @@ export function LineratePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
   // the segmentation + smoothness, not zoom.
   const graph = useMemo(() => {
     if (!regions || !flattened) return null
-    // Smoothing amount from the Smoothness dial, eps scaled 480px → preview res.
+    // Smoothing amount from the Smoothness dial, eps scaled server-work-edge → preview res.
     const { eps, iters } = smoothnessToParams(params.smoothness)
-    const serverWorkEdge = LINERATE_RESOLUTION_EDGE[params.resolution]
-    const scaledEps = (eps * Math.max(flattened.width, flattened.height)) / serverWorkEdge
+    // The Resolution dial is now a MP target → derive the same work_edge the server uses.
+    const serverWorkEdge = source
+      ? resolutionMpToWorkEdge(params.resolution, source.naturalWidth, source.naturalHeight)
+      : Math.max(flattened.width, flattened.height)
+    const scaledEps =
+      Number.isFinite(serverWorkEdge) && serverWorkEdge > 0
+        ? (eps * Math.max(flattened.width, flattened.height)) / serverWorkEdge
+        : eps
     const g = buildArcs(regions.labels, flattened.width, flattened.height)
     for (const arc of g.arcs) arc.smooth = smoothArc(arc.corners, g.cornerStride, scaledEps, iters)
     return g
-  }, [regions, flattened, params.smoothness])
+  }, [regions, flattened, params.smoothness, params.resolution, source])
 
   // Draw: watertight region fills (evenodd for holes) + one thin stroke per shared
   // INTERNAL arc. Border arcs (label -1) are never stroked → straight, clean frame.
