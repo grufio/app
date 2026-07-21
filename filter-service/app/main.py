@@ -22,6 +22,12 @@ from app.circulate import circulate_cells_to_svg
 from app.linerate import linerate_to_svg
 from app.pixelate import pixelate_cells_to_svg
 
+# Pin the OpenCV thread pool to the CPU allocation. The container has --cpu 4 but
+# os.cpu_count() reports the host's 8, so cv2 defaults to 8 threads on 4 vCPU →
+# over-subscription/thrash on the distance-transform / connected-components ops.
+# Matches the OMP/OPENBLAS pins in the Dockerfile and the linerate FFT workers.
+cv2.setNumThreads(max(1, int(os.environ.get("OMP_NUM_THREADS", "4") or "4")))
+
 
 class PhaseTimer:
     """

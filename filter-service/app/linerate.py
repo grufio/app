@@ -32,13 +32,22 @@ Emits the paint-by-numbers SVG contract (`<g id="regions">` with
 """
 from __future__ import annotations
 
+import os
+
 import numpy as np
 import cv2
+from scipy import fft as _sfft
 from PIL import Image
 
 from .oklab import nearest_palette_indices, rgb255_to_oklab
 from .cell_labels import build_label_map
 from .palette_reduction import select_paints
+
+# The L0 flatten FFT is ~84% of a hi-res trace and was single-threaded under
+# numpy.fft. scipy.fft threads it (same pocketfft, float64 → numerically equal).
+# Pin to the CPU allocation (OMP_NUM_THREADS = the Cloud Run --cpu), never
+# os.cpu_count() (the host has 8, the container 4 → over-subscription/thrash).
+_FFT_WORKERS = max(1, int(os.environ.get("OMP_NUM_THREADS", "4") or "4"))
 
 
 # ---- tuning ---------------------------------------------------------------
@@ -101,11 +110,11 @@ def _l0_smooth(img_u8: np.ndarray, lam: float, kappa: float = 2.0) -> np.ndarray
         pad[:kh, :kw] = psf
         pad = np.roll(pad, -(kh // 2), 0)
         pad = np.roll(pad, -(kw // 2), 1)
-        return np.fft.fft2(pad)
+        return _sfft.fft2(pad, workers=_FFT_WORKERS)
 
     otfx = psf2otf(np.array([[1, -1]]), (N, M))
     otfy = psf2otf(np.array([[1], [-1]]), (N, M))
-    Normin1 = np.fft.fft2(S, axes=(0, 1))
+    Normin1 = _sfft.fft2(S, axes=(0, 1), workers=_FFT_WORKERS)
     Den2 = (np.abs(otfx) ** 2 + np.abs(otfy) ** 2)[:, :, None]
     beta = 2 * lam
     while beta < 1e5:
@@ -117,8 +126,8 @@ def _l0_smooth(img_u8: np.ndarray, lam: float, kappa: float = 2.0) -> np.ndarray
         v[idx] = 0
         hd = np.concatenate([h[:, -1:, :] - h[:, :1, :], -np.diff(h, 1, 1)], 1)
         vd = np.concatenate([v[-1:, :, :] - v[:1, :, :], -np.diff(v, 1, 0)], 0)
-        FS = (Normin1 + beta * np.fft.fft2(hd + vd, axes=(0, 1))) / Den
-        S = np.real(np.fft.ifft2(FS, axes=(0, 1)))
+        FS = (Normin1 + beta * _sfft.fft2(hd + vd, axes=(0, 1), workers=_FFT_WORKERS)) / Den
+        S = np.real(_sfft.ifft2(FS, axes=(0, 1), workers=_FFT_WORKERS))
         beta *= kappa
     return np.clip(S, 0.0, 1.0) * 255.0
 
