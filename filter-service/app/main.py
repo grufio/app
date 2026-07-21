@@ -575,8 +575,8 @@ async def linerate_filter(request: LinerateRequest):
         raise HTTPException(status_code=400, detail="num_colors must be between 2 and 560")
     if request.palette_restriction not in ("top_n", "pam"):
         raise HTTPException(status_code=400, detail="palette_restriction must be 'top_n' or 'pam'")
-    if request.work_edge < 256 or request.work_edge > 1280:
-        raise HTTPException(status_code=400, detail="work_edge must be between 256 and 1280")
+    if request.work_edge < 256 or request.work_edge > 4096:
+        raise HTTPException(status_code=400, detail="work_edge must be between 256 and 4096")
     if not request.image_url and not request.image_base64:
         raise HTTPException(status_code=400, detail="Either image_base64 or image_url must be provided")
 
