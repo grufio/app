@@ -1,8 +1,0 @@
-# torch / torchvision come from the CUDA base image — do NOT list them here
-# (listing would risk pip pulling a CPU-only build over the CUDA one).
-ultralytics>=8.3.0
-fastapi>=0.110
-uvicorn[standard]>=0.29
-pillow>=10
-numpy>=1.26
-requests>=2.31
