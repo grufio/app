@@ -19,7 +19,7 @@ import urllib.request
 from urllib.parse import urlparse
 
 from app.circulate import circulate_cells_to_svg
-from app.linerate import linerate_to_svg
+from app.linerate import linerate_to_svg, _HAS_CUDA as _LINERATE_GPU
 from app.pixelate import pixelate_cells_to_svg
 
 # Pin the OpenCV thread pool to the CPU allocation. The container has --cpu 4 but
@@ -186,6 +186,9 @@ async def health():
         "cv2_threads": cv2.getNumThreads(),
         "omp": os.environ.get("OMP_NUM_THREADS"),
         "openblas": os.environ.get("OPENBLAS_NUM_THREADS"),
+        # Whether the L0 flatten runs on the GPU (cuFFT). False on the CPU deploy
+        # or a GPU instance whose CUDA init failed → surfaces a silent slow path.
+        "linerate_gpu": _LINERATE_GPU,
     }
 
 

@@ -119,3 +119,18 @@ def test_edge_preserving_explicit_sigma_and_both_flags():
             flatten_algo="edge_preserving", sigma_s=90.0, sigma_r=0.35, ep_flag=ep_flag,
         )
         assert '<g id="regions">' in svg and n >= 1, f"ep_flag={ep_flag}: no valid SVG"
+
+
+def test_l0_smooth_dispatches_to_scipy_without_cuda():
+    """The GPU flatten is guarded: absent torch/CUDA (local, CI, the CPU deploy),
+    `_l0_smooth` must fall through to the scipy path byte-for-byte. This pins that
+    the guard defaults off and the dispatcher is a no-op on CPU."""
+    from app.linerate import _HAS_CUDA, _l0_smooth_scipy
+
+    assert _HAS_CUDA is False, "test env must have no CUDA (the GPU path stays off)"
+    rng = np.random.default_rng(5)
+    img = rng.integers(0, 256, (48, 64, 3)).astype(np.uint8)
+    img[:24, :32] = (200, 40, 40)
+    out = _l0_smooth(img, 0.02)
+    ref = _l0_smooth_scipy(img, 0.02)
+    assert np.array_equal(out, ref), "dispatcher must be byte-identical to scipy on CPU"
