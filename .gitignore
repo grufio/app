@@ -62,3 +62,6 @@ supabase/.temp/
 
 # allow committed Vercel env template
 !.env.vercel.production.example
+
+# model weights (SAM/FastSAM/etc.) — large binaries, never committed
+*.pt
