@@ -663,6 +663,40 @@ def linerate_to_svg(
     )
 
 
+def _region_pole(loops, hh: int, ww: int):
+    """Pole of inaccessibility of the region (even-odd union of `loops`) in work
+    coords, plus its inscribed radius — where the region's number is placed.
+
+    Computed on the region's BOUNDING BOX + a 1px zero margin instead of the full
+    (hh, ww) work grid. This is byte-identical to the full-grid distance transform:
+    the nearest boundary to any region pixel is the region's own edge, which lies
+    inside its bbox, and the 1px zero margin reproduces the full-grid image-edge
+    border (`copyMakeBorder`) so a frame-hugging label still insets. But it rasters
+    ~grid/bbox fewer pixels per region — the old code allocated a full (hh, ww)
+    array per loop, which dominated `compose` at hi-res. Returns (nx, ny, radius)
+    or None."""
+    polys = [
+        np.clip(np.round(np.asarray(lp)).astype(np.int32), (0, 0), (ww - 1, hh - 1))
+        for lp in loops
+        if len(lp) >= 3
+    ]
+    if not polys:
+        return None
+    pts = np.concatenate(polys)
+    x0, x1 = int(pts[:, 0].min()), int(pts[:, 0].max())
+    y0, y1 = int(pts[:, 1].min()), int(pts[:, 1].max())
+    bw, bh = x1 - x0 + 1, y1 - y0 + 1
+    off = np.array([x0 - 1, y0 - 1], np.int32)  # crop origin, incl. the 1px margin
+    fmask = np.zeros((bh + 2, bw + 2), np.uint8)
+    for poly in polys:
+        one = np.zeros((bh + 2, bw + 2), np.uint8)
+        cv2.fillPoly(one, [poly - off], 1)
+        fmask ^= one
+    dt = cv2.distanceTransform(fmask, cv2.DIST_L2, 5)
+    _, radius, _, (px, py) = cv2.minMaxLoc(dt)
+    return int(px) + x0 - 1, int(py) + y0 - 1, radius
+
+
 def _paint_map_to_svg(
     X, hh, ww, width, height, sx, sy, sel_ok, sel_rgb, sel_pal_index,
     have_palette, min_area, smoothness, line_thickness, min_radius,
@@ -728,19 +762,10 @@ def _paint_map_to_svg(
         # face, not the raster label mask — smoothing shifts the boundary, so the
         # mask pole landed outside / under the drawn region. Even-odd rasterise
         # (XOR per loop) so a face with a hole is excluded correctly.
-        fmask = np.zeros((hh, ww), np.uint8)
-        for lp in loops:
-            if len(lp) < 3:
-                continue
-            one = np.zeros((hh, ww), np.uint8)
-            cv2.fillPoly(one, [np.round(np.asarray(lp)).astype(np.int32)], 1)
-            fmask ^= one
-        # Pad a zero border so the IMAGE EDGE counts as a boundary too — the pole
-        # then insets from the frame and a border-hugging label can't be clipped.
-        padded = cv2.copyMakeBorder(fmask, 1, 1, 1, 1, cv2.BORDER_CONSTANT, value=0)
-        dt = cv2.distanceTransform(padded, cv2.DIST_L2, 5)
-        _, radius, _, (px, py) = cv2.minMaxLoc(dt)
-        nx, ny = px - 1, py - 1
+        pole = _region_pole(loops, hh, ww)
+        if pole is None:
+            continue
+        nx, ny, radius = pole
         if radius > 0:
             rc = radius * sx                                   # work radius → content px
             fs = _label_font_size(min_radius, rc, len(str(number_of[rid])))
