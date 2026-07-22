@@ -56,6 +56,14 @@ Anything below overrides "common practice" for this repo:
 > knappe Rückfrage in Prosa oder warte. **Lieber nichts tun als raten.** Das
 > gilt besonders für Layout-/Positionsänderungen, die du hier nicht selbst im
 > Browser verifizieren kannst: nicht „blind" weiterbauen und hoffen.
+>
+> **‼️ Das gilt für JEDE eigenmächtige Aktion, nicht nur fürs Bauen.** Laufende
+> Prozesse/Tasks/Messungen abbrechen oder neu starten, Scope ändern, deployen,
+> löschen, Werte/Reihenfolge anpassen — NICHTS davon auf Basis einer Annahme,
+> was der User „wohl will". Ein laufender Task, der (gepuffert) nichts ausgibt,
+> ist **NICHT** hängend — niemals abschießen, um ein kosmetisches Problem zu
+> „fixen". **Der User gibt die Anweisungen.** Im Zweifel: fragen oder warten,
+> nie raten. Diese Regel steht über jeder Effizienz-/Fortschritts-Überlegung.
 
 1. **Branch + PR Pflicht.** Never push directly to `main`. Every change:
    `git checkout -b <branch>` → push → `gh pr create` → user reviews + merges.
