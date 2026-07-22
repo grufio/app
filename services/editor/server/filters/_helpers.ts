@@ -178,6 +178,11 @@ export function backoffDelayMs(attempt: number): number {
 }
 
 const FILTER_SERVICE_BASE_URL = process.env.FILTER_SERVICE_URL || "http://localhost:8001"
+// Linerate can be routed to a dedicated (GPU) service for the cuFFT flatten;
+// everything else stays on the shared CPU filter-service. Both accept the same
+// FILTER_SERVICE_TOKEN. Module constant → an env change needs a Vercel redeploy
+// to take effect (not a live switch). Unset → identical to today (shared URL).
+export const LINERATE_SERVICE_BASE_URL = process.env.LINERATE_SERVICE_URL || FILTER_SERVICE_BASE_URL
 const DEFAULT_TIMEOUT_MS = 30_000
 const DEFAULT_MAX_ATTEMPTS = 3
 
@@ -200,6 +205,10 @@ export async function callFilterService<R extends "bytes" | "json" = "bytes">(op
    * endpoint and a JSON envelope from `/filters/pixelate` (which
    * pairs the SVG with the cropped source bitmap). */
   responseKind?: R
+  /** Override the target service base URL (e.g. route linerate to the GPU
+   * service via `LINERATE_SERVICE_BASE_URL`). Defaults to the shared
+   * `FILTER_SERVICE_BASE_URL`. */
+  baseUrl?: string
   /** Test seam: replaces global fetch + sleep when set. */
   fetchImpl?: typeof fetch
   sleep?: (ms: number) => Promise<void>
@@ -209,7 +218,7 @@ export async function callFilterService<R extends "bytes" | "json" = "bytes">(op
   const responseKind = opts.responseKind ?? "bytes"
   const fetchImpl = opts.fetchImpl ?? fetch
   const sleep = opts.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)))
-  const url = `${FILTER_SERVICE_BASE_URL}${opts.path}`
+  const url = `${opts.baseUrl ?? FILTER_SERVICE_BASE_URL}${opts.path}`
   const headers = filterServiceHeaders()
   const bodyText = JSON.stringify(opts.body)
   const startedAt = performance.now()

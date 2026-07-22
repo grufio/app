@@ -5,7 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/lib/supabase/database.types"
 import { resolutionMpToWorkEdge, linerateSchema, type LinerateParams } from "@/lib/editor/trace/linerate"
 import { readTracePalette } from "@/lib/supabase/palette"
-import { callFilterService, toInt, type FilterResult } from "@/services/editor/server/filters/_helpers"
+import { callFilterService, LINERATE_SERVICE_BASE_URL, toInt, type FilterResult } from "@/services/editor/server/filters/_helpers"
 import { PROJECT_IMAGES_BUCKET } from "@/lib/storage/buckets"
 import { SIGNED_URL_TTL } from "@/lib/storage/signed-url-ttl"
 import { compositeContentRegion } from "@/services/editor/server/trace/composite-content-region"
@@ -148,6 +148,9 @@ export async function linerateImageAndActivate(args: {
     const callResult = await callFilterService({
       path: "/filters/linerate",
       responseKind: "json",
+      // Route linerate to the GPU service (cuFFT flatten) when LINERATE_SERVICE_URL
+      // is set; falls back to the shared filter-service. Same FILTER_SERVICE_TOKEN.
+      baseUrl: LINERATE_SERVICE_BASE_URL,
       // Higher work resolutions legitimately take longer; give the trace the full
       // Cloud-Run budget (90 s) instead of the default 30 s so "High" doesn't abort.
       timeoutMs: 90_000,

@@ -1,0 +1,30 @@
+# GPU variant of the filter-service — runs the linerate L0 flatten on cuFFT
+# (torch) on a Cloud Run L4. Only linerate is routed here (Variante B); the
+# shared CPU `Dockerfile` serves pixelate/circulate/bw/numerate. Same app code;
+# the GPU flatten is a guarded path (`_HAS_CUDA` in linerate.py) that only
+# activates when a CUDA GPU is present. Base + dep set verified in the Phase-0
+# spike on a real L4.
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# OMP=8 matches the GPU deploy's `--cpu 8`. On the GPU the FFT runs on cuFFT, so
+# these threads drive only the CPU-side stages (segment/facet-merge, cv2) and the
+# scipy fallback. Keep in sync with `--cpu` in the GPU deploy.
+ENV OMP_NUM_THREADS=8 \
+    OPENBLAS_NUM_THREADS=8 \
+    MKL_NUM_THREADS=8 \
+    NUMEXPR_NUM_THREADS=8
+
+COPY requirements.txt .
+# torch with the bundled CUDA 12.1 runtime (cuFFT). Installed from the cu121 wheel
+# index — NOT added to requirements.txt, so the CPU image + local/CI stay
+# torch-free and the linerate GPU path is guarded off there.
+RUN pip install --no-cache-dir torch==2.4.1 --index-url https://download.pytorch.org/whl/cu121 \
+ && pip install --no-cache-dir -r requirements.txt
+
+COPY app/ ./app/
+
+EXPOSE 8001
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001"]
