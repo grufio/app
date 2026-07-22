@@ -49,6 +49,20 @@ from .palette_reduction import select_paints
 # os.cpu_count() (the host has 8, the container 4 → over-subscription/thrash).
 _FFT_WORKERS = max(1, int(os.environ.get("OMP_NUM_THREADS", "4") or "4"))
 
+# GPU L0 flatten (cuFFT) — the ~66% hi-res hotspot. When a CUDA GPU is present
+# (the GPU Cloud Run deploy), the flatten runs on torch.fft, measured ~100x over
+# scipy at 4MP on an L4. torch is NOT a hard dependency: absent (local/CI/CPU
+# deploy) → `_HAS_CUDA` is False → the scipy path runs, byte-for-byte unchanged.
+# cuFFT ≠ scipy pocketfft, so the GPU flatten differs by a fraction of a level,
+# which shifts the palette snap by ≤1-2 regions on ~70-270 (verified + accepted).
+try:
+    import torch as _torch
+
+    _HAS_CUDA = bool(_torch.cuda.is_available())
+except Exception:
+    _torch = None
+    _HAS_CUDA = False
+
 
 # ---- tuning ---------------------------------------------------------------
 
@@ -97,7 +111,7 @@ def _detail_to_min_area(detail: float, work_px: int, min_radius_work: float) -> 
     return max(floor, frac * work_px)
 
 
-def _l0_smooth(img_u8: np.ndarray, lam: float, kappa: float = 2.0) -> np.ndarray:
+def _l0_smooth_scipy(img_u8: np.ndarray, lam: float, kappa: float = 2.0) -> np.ndarray:
     """L0 gradient minimisation (Xu et al. 2011) — edge-preserving flattening.
     Multithreaded scipy.fft in FLOAT32 — the ~84% hi-res hotspot. float32 halves the
     FFT payload (complex64) and `workers` threads it, ~4x over the original single-
@@ -133,6 +147,50 @@ def _l0_smooth(img_u8: np.ndarray, lam: float, kappa: float = 2.0) -> np.ndarray
         S = np.real(_sfft.ifft2(FS, axes=(0, 1), workers=_FFT_WORKERS))
         beta *= kappa
     return np.clip(S, 0.0, 1.0) * 255.0
+
+
+def _l0_smooth_gpu(img_u8: np.ndarray, lam: float, kappa: float = 2.0) -> np.ndarray:
+    """GPU L0 flatten via torch cuFFT — same math as `_l0_smooth_scipy`, ~100x at
+    4MP on an L4. Only reached when `_HAS_CUDA` (a CUDA GPU is present)."""
+    assert _HAS_CUDA and _torch is not None
+    dev = _torch.device("cuda")
+    S = _torch.from_numpy(np.ascontiguousarray(img_u8)).to(dev, _torch.float32) / 255.0
+    N, M, _ = S.shape
+
+    def psf2otf(psf, shape):
+        kh, kw = len(psf), len(psf[0])
+        pad = _torch.zeros(shape, dtype=_torch.float32, device=dev)
+        pad[:kh, :kw] = _torch.tensor(psf, dtype=_torch.float32, device=dev)
+        pad = _torch.roll(pad, shifts=(-(kh // 2), -(kw // 2)), dims=(0, 1))
+        return _torch.fft.fft2(pad)
+
+    otfx = psf2otf([[1.0, -1.0]], (N, M))
+    otfy = psf2otf([[1.0], [-1.0]], (N, M))
+    Normin1 = _torch.fft.fft2(S, dim=(0, 1))
+    Den2 = (otfx.abs() ** 2 + otfy.abs() ** 2).unsqueeze(-1)
+    beta = 2 * lam
+    while beta < 1e5:
+        Den = 1 + beta * Den2
+        h = _torch.cat([_torch.diff(S, dim=1), S[:, :1, :] - S[:, -1:, :]], dim=1)
+        v = _torch.cat([_torch.diff(S, dim=0), S[:1, :, :] - S[-1:, :, :]], dim=0)
+        idx = (h ** 2 + v ** 2).sum(2) < (lam / beta)
+        h[idx] = 0
+        v[idx] = 0
+        hd = _torch.cat([h[:, -1:, :] - h[:, :1, :], -_torch.diff(h, dim=1)], dim=1)
+        vd = _torch.cat([v[-1:, :, :] - v[:1, :, :], -_torch.diff(v, dim=0)], dim=0)
+        FS = (Normin1 + beta * _torch.fft.fft2(hd + vd, dim=(0, 1))) / Den
+        S = _torch.real(_torch.fft.ifft2(FS, dim=(0, 1)))
+        beta *= kappa
+    out = _torch.clamp(S, 0.0, 1.0) * 255.0
+    return out.detach().to("cpu").numpy()
+
+
+def _l0_smooth(img_u8: np.ndarray, lam: float, kappa: float = 2.0) -> np.ndarray:
+    """L0 flatten dispatcher: cuFFT on GPU when available, else multithreaded
+    scipy.fft. Callers stay backend-agnostic."""
+    if _HAS_CUDA:
+        return _l0_smooth_gpu(img_u8, lam, kappa)
+    return _l0_smooth_scipy(img_u8, lam, kappa)
 
 
 def _edge_preserving_flatten(
