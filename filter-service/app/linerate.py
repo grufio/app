@@ -193,6 +193,28 @@ def _l0_smooth(img_u8: np.ndarray, lam: float, kappa: float = 2.0) -> np.ndarray
     return _l0_smooth_scipy(img_u8, lam, kappa)
 
 
+def _nearest_palette_torch(cell_oklab: np.ndarray, palette_oklab: np.ndarray) -> np.ndarray:
+    """GPU nearest-palette snap (torch, float32) — same contract as
+    `nearest_palette_indices` but the per-pixel argmin runs on the GPU, ~grid×palette
+    faster than the chunked f64 numpy snap (the largest CPU cost of the segment
+    phase at hi-res). Only reached when `_HAS_CUDA`.
+
+    The f32 argmin can pick a DIFFERENT chip than the f64 numpy snap ONLY at
+    near-equidistant Voronoi boundaries (a handful of pixels) — the accepted
+    "different but equally good" drift, stacked on the cuFFT-flatten drift. That the
+    difference is bounded to genuine ties is pinned CUDA-free in
+    test_linerate_gpu_snap.py; the combined flatten+snap region equivalence is an
+    on-device check."""
+    assert _HAS_CUDA and _torch is not None
+    dev = _torch.device("cuda")
+    X = _torch.from_numpy(np.ascontiguousarray(cell_oklab, np.float32).reshape(-1, 3)).to(dev)
+    pal = _torch.from_numpy(np.ascontiguousarray(palette_oklab, np.float32).reshape(-1, 3)).to(dev)
+    # argmin of euclidean distance == argmin of squared euclidean (what the numpy
+    # snap uses); cdist avoids the (N, M, 3) broadcast transient.
+    idx = _torch.cdist(X, pal).argmin(dim=1)
+    return idx.detach().to("cpu").numpy().astype(np.int64)
+
+
 def _edge_preserving_flatten(
     work_u8: np.ndarray, sigma_s: float, sigma_r: float, ep_flag: str = "recurs"
 ) -> np.ndarray:
@@ -708,7 +730,12 @@ def _paint_map_to_svg(
     one distance-transform number per region. The CALLER decides the paint set +
     `min_area` — linerate reduces to a `num_colors` budget with a `detail`-widened
     floor."""
-    P = nearest_palette_indices(X, sel_ok).reshape(hh, ww).astype(np.int32)
+    # Per-pixel snap to the nearest selected paint — the biggest CPU cost of the
+    # segment phase at hi-res. On the GPU it runs as a torch argmin (guarded HERE,
+    # not in `nearest_palette_indices`, whose small snaps in select/pixelate/circulate
+    # must stay on CPU); absent CUDA it's the unchanged f64 numpy snap.
+    _snap = _nearest_palette_torch if _HAS_CUDA else nearest_palette_indices
+    P = _snap(X, sel_ok).reshape(hh, ww).astype(np.int32)
     # Paintability is enforced by WIDTH, not just area: a region must hold an
     # inscribed disk before it counts as paintable. The width radius is `width_radius_frac`
     # (the "Radius" dial) × the Min-Gap radius, so only clearly-too-thin slivers merge —
