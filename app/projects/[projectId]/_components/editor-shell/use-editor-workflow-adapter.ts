@@ -349,8 +349,12 @@ export function useEditorWorkflowAdapter(args: {
   // `??` (not `||`) is required: a non-null OperationError object is
   // always truthy regardless of .message, so `||` would short-circuit
   // incorrectly.
+  // `filter_apply` is intentionally excluded: the FilterSelectionController now
+  // awaits the apply and toasts failures in its own catch (like the trace
+  // dialogs), so surfacing it here too would double-toast. `filter_remove` is
+  // fire-and-forget with no dialog, so it still routes through this channel.
   const filterOperationError: OperationError | null =
-    workflow.lastOperation === "filter_apply" || workflow.lastOperation === "filter_remove"
+    workflow.lastOperation === "filter_remove"
       ? (workflow.operationError ?? null)
       : null
   const restoreOperationError: OperationError | null =
