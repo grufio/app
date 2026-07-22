@@ -65,3 +65,7 @@ supabase/.temp/
 
 # model weights (SAM/FastSAM/etc.) — large binaries, never committed
 *.pt
+
+# CLAUDE.md — local-only agent context, must NEVER be on GitHub (per owner).
+# Kept in the working tree (auto-loaded into Claude Code) but untracked.
+CLAUDE.md
