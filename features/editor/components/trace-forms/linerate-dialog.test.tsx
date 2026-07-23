@@ -2,10 +2,11 @@
  * @vitest-environment jsdom
  *
  * Behaviour test for LinerateDialog's server-preview lifecycle:
+ *  - The Preview button is hidden while the draft matches the last-previewed
+ *    params (initially the OPENING params) — an untouched dialog offers no
+ *    Preview; it appears after a change and hides again once previewed.
  *  - The preview runs on the current draft each time Preview is tapped
  *    (generation-driven re-run, no remount).
- *  - The Preview button hides while the draft still matches the last-previewed
- *    params, and reappears after any change.
  * The opt-in props (`canPreview` / `onPreviewRequested` / `generation`) are what
  * drive this; pixelate/circulate don't pass them and keep their old behaviour
  * (covered by pixelate-dialog.test.tsx).
@@ -67,21 +68,30 @@ describe("LinerateDialog — server preview lifecycle", () => {
     )
   }
 
-  it("runs the preview on tap and hides the button until the draft changes", async () => {
+  it("hides Preview until a change, runs it on the changed draft, then hides again", async () => {
     const onPreviewTrace = vi.fn(async () => SVG)
     renderDialog(onPreviewTrace)
 
-    // Opens on the params overlay; the Preview button is offered (first preview
-    // is always dirty).
+    // Opens on the params overlay. Nothing changed from the opening params →
+    // the Preview button is NOT offered.
     await waitFor(() => {
-      expect(document.body.querySelector("#flatten")).not.toBeNull()
+      expect(document.body.querySelector("#min_paintable_mm")).not.toBeNull()
     })
-    const preview = findButton("Preview")
-    expect(preview).toBeTruthy()
+    expect(findButton("Preview")).toBeUndefined()
 
-    // Tap Preview → the pane mounts + runs the server preview once with the
-    // current draft.
-    fireEvent.click(preview as HTMLButtonElement)
+    // Change the Min-gap field → the draft is dirty → Preview is offered.
+    const gap = document.body.querySelector("#min_paintable_mm") as HTMLInputElement
+    gap.focus()
+    fireEvent.change(gap, { target: { value: "6" } })
+    fireEvent.blur(gap)
+    const preview = await waitFor(() => {
+      const b = findButton("Preview")
+      if (!b) throw new Error("Preview not offered after change")
+      return b
+    })
+
+    // Tap Preview → the pane runs the server preview once with the current draft.
+    fireEvent.click(preview)
     await waitFor(() => {
       expect(onPreviewTrace).toHaveBeenCalledTimes(1)
     })
@@ -90,15 +100,15 @@ describe("LinerateDialog — server preview lifecycle", () => {
     )
 
     // Re-open the params (pencil). Nothing changed since the preview → the
-    // Preview button is hidden.
+    // Preview button is hidden again.
     fireEvent.click(document.body.querySelector('button[aria-label="Edit parameters"]') as HTMLButtonElement)
     await waitFor(() => {
-      expect(document.body.querySelector("#flatten")).not.toBeNull()
+      expect(document.body.querySelector("#min_paintable_mm")).not.toBeNull()
     })
     expect(findButton("Preview")).toBeUndefined()
   })
 
-  it("re-offers Preview after a change and re-runs on the new draft", async () => {
+  it("re-offers Preview after a further change and re-runs on the new draft", async () => {
     const onPreviewTrace = vi.fn(async () => SVG)
     renderDialog(onPreviewTrace)
 
@@ -106,34 +116,35 @@ describe("LinerateDialog — server preview lifecycle", () => {
       expect(document.body.querySelector("#min_paintable_mm")).not.toBeNull()
     })
 
-    // First preview.
-    fireEvent.click(findButton("Preview") as HTMLButtonElement)
-    await waitFor(() => {
-      expect(onPreviewTrace).toHaveBeenCalledTimes(1)
-    })
+    const changeGap = (value: string) => {
+      const gap = document.body.querySelector("#min_paintable_mm") as HTMLInputElement
+      gap.focus()
+      fireEvent.change(gap, { target: { value } })
+      fireEvent.blur(gap)
+    }
+    const tapPreview = async (times: number) => {
+      const b = await waitFor(() => {
+        const btn = findButton("Preview")
+        if (!btn) throw new Error("Preview button not offered")
+        return btn
+      })
+      fireEvent.click(b)
+      await waitFor(() => {
+        expect(onPreviewTrace).toHaveBeenCalledTimes(times)
+      })
+    }
 
-    // Back to params, change the numeric Min-gap field (a real <input> that
-    // commits on blur) → the draft is dirty → Preview is offered again.
+    // A change enables the first preview (an untouched dialog offers none).
+    changeGap("6")
+    await tapPreview(1)
+
+    // Back to params, change again → Preview re-offered → second run
+    // (generation bump, no remount).
     fireEvent.click(document.body.querySelector('button[aria-label="Edit parameters"]') as HTMLButtonElement)
-    const gap = await waitFor(() => {
-      const el = document.body.querySelector("#min_paintable_mm") as HTMLInputElement | null
-      if (!el) throw new Error("min_paintable_mm input not re-mounted")
-      return el
-    })
-    gap.focus()
-    fireEvent.change(gap, { target: { value: "6" } })
-    fireEvent.blur(gap)
-
-    const preview2 = await waitFor(() => {
-      const b = findButton("Preview")
-      if (!b) throw new Error("Preview button not re-offered after change")
-      return b
-    })
-
-    // Second tap → the pane re-runs (generation bump), no remount.
-    fireEvent.click(preview2)
     await waitFor(() => {
-      expect(onPreviewTrace).toHaveBeenCalledTimes(2)
+      expect(document.body.querySelector("#min_paintable_mm")).not.toBeNull()
     })
+    changeGap("8")
+    await tapPreview(2)
   })
 })
