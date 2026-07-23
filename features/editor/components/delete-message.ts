@@ -69,3 +69,23 @@ export function buildResetMessage(args: ResetMessageArgs): string {
   if (hasFilter) return "This removes the filter."
   return "This removes the trace."
 }
+
+/**
+ * Copy for the leaf-delete confirm dialog. Unlike Reset (which removes a
+ * DOWNSTREAM artefact so an upstream layer becomes editable again), leaf-delete
+ * removes the section's OWN artefact — the filter or the trace itself — and is
+ * only reachable while nothing downstream locks it (the bar shows Reset, not
+ * Delete, while locked). One scope per section that owns a deletable leaf:
+ *   - filter → "Delete the filter?" / "This removes the filter."
+ *   - trace  → "Delete the trace?"  / "This removes the trace."
+ * Image delete keeps its own cascade-aware dialog (`buildDeleteMessage`).
+ */
+export type DeleteScope = "filter" | "trace"
+
+export function buildDeleteTitle(scope: DeleteScope): string {
+  return scope === "filter" ? "Delete the filter?" : "Delete the trace?"
+}
+
+export function buildDeleteLeafMessage(scope: DeleteScope): string {
+  return scope === "filter" ? "This removes the filter." : "This removes the trace."
+}

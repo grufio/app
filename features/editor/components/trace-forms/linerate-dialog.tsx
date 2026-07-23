@@ -42,7 +42,6 @@ type Props = {
     kind: RegisteredTraceId
     params: Record<string, unknown>
   }) => Promise<string>
-  onDeleteTrace?: () => void | Promise<void>
   initialParams?: Record<string, unknown>
 }
 
@@ -59,7 +58,6 @@ export function LinerateDialog({
   onSuccess,
   onApplyTrace,
   onPreviewTrace,
-  onDeleteTrace,
   initialParams,
 }: Props) {
   const defaults = useMemo(
@@ -156,7 +154,6 @@ export function LinerateDialog({
       busy={busy}
       onCancel={handleCancel}
       onApply={() => void handleApply()}
-      onDeleteTrace={onDeleteTrace}
       canPreview={previewDirty}
       onPreviewRequested={handlePreviewRequested}
     />

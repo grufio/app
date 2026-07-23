@@ -44,6 +44,17 @@ describe("EditorFilterBar", () => {
     expect(onOpen).toHaveBeenCalledOnce()
   })
 
+  it("greys out (disables) Delete while not mutable, and it no longer fires", () => {
+    const onDelete = vi.fn()
+    const { getByLabelText } = render(
+      <EditorFilterBar hasFilter onOpen={vi.fn()} onDelete={onDelete} onReset={vi.fn()} deleteDisabled />,
+    )
+    const del = getByLabelText("Delete filter") as HTMLButtonElement
+    expect(del.disabled).toBe(true)
+    fireEvent.click(del)
+    expect(onDelete).not.toHaveBeenCalled()
+  })
+
   it("with a filter, locked: shows Reset only (no Delete/Edit) and fires onReset", () => {
     const onReset = vi.fn()
     const { getByLabelText, queryByLabelText } = render(

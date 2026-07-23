@@ -4,7 +4,13 @@
  */
 import { describe, expect, it } from "vitest"
 
-import { buildDeleteMessage, buildResetMessage, buildResetTitle } from "./delete-message"
+import {
+  buildDeleteMessage,
+  buildResetMessage,
+  buildResetTitle,
+  buildDeleteTitle,
+  buildDeleteLeafMessage,
+} from "./delete-message"
 
 describe("buildDeleteMessage", () => {
   it("no filters, no trace → 'empty the project' variant", () => {
@@ -67,5 +73,17 @@ describe("buildResetMessage / buildResetTitle", () => {
     const args = { scope: "filter" as const, hasFilter: true, hasTrace: true }
     expect(buildResetTitle(args)).toBe("Remove the trace?")
     expect(buildResetMessage(args)).toBe("This removes the trace.")
+  })
+})
+
+describe("buildDeleteTitle / buildDeleteLeafMessage (bar leaf-delete confirm)", () => {
+  it("filter scope → deletes the filter", () => {
+    expect(buildDeleteTitle("filter")).toBe("Delete the filter?")
+    expect(buildDeleteLeafMessage("filter")).toBe("This removes the filter.")
+  })
+
+  it("trace scope → deletes the trace", () => {
+    expect(buildDeleteTitle("trace")).toBe("Delete the trace?")
+    expect(buildDeleteLeafMessage("trace")).toBe("This removes the trace.")
   })
 })

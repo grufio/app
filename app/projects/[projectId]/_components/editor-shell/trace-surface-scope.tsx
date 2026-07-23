@@ -109,16 +109,6 @@ export function TraceSurfaceScope(props: TraceSurfaceScopeProps) {
     onConfigureCancelled?.()
   }, [traceDialog, onConfigureCancelled])
 
-  // Delete from inside the active trace's configure dialog: clear the
-  // trace and only THEN dismiss the dialog. Awaiting keeps the dialog
-  // (and its delete spinner) up until the clear + image refresh finish,
-  // so the surface doesn't switch back before the work is done.
-  const { onClearTrace } = props
-  const handleDeleteTrace = useCallback(async () => {
-    await onClearTrace()
-    handleCloseConfigure()
-  }, [onClearTrace, handleCloseConfigure])
-
   return (
     <>
       <EditorTraceDialogHost
@@ -131,7 +121,6 @@ export function TraceSurfaceScope(props: TraceSurfaceScopeProps) {
         onApplied={handleApplied}
         onApplyTrace={props.onApplyTrace}
         onPreviewTrace={props.onPreviewTrace}
-        onDeleteTrace={props.trace !== null ? handleDeleteTrace : undefined}
         initialParams={props.trace?.params}
       />
       {/* The top-right bar (theme toggle + the Eye view-options for trace)

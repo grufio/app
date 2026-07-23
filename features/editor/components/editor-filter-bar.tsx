@@ -22,12 +22,16 @@ type Props = {
   hasFilter: boolean
   /** Opens the filter picker (to add, or to change the preset). */
   onOpen: () => void
-  /** Removes the current filter. Shown only while unlocked. */
+  /** Opens the delete-filter confirm. Shown only while unlocked. */
   onDelete: () => void
   /** Disable the "Add filter" action — a filter needs a source image, so
    * without one (or while a filter/trace action is in flight) adding is not
    * allowed. Only gates the ADD case. */
   addDisabled?: boolean
+  /** Greys out the Delete button while the workflow can't mutate (not idle /
+   * a mutation in flight), so the confirmed remove never no-ops from the UI.
+   * The button stays in place (disabled), never removed — no layout shift. */
+  deleteDisabled?: boolean
   /** A trace depends on the filter → show Reset instead of Delete/Edit. */
   locked?: boolean
   /** Removes the downstream trace (via a confirm dialog). Shown only while `locked`. */
@@ -41,6 +45,7 @@ export function EditorFilterBar({
   onOpen,
   onDelete,
   addDisabled = false,
+  deleteDisabled = false,
   locked = false,
   onReset,
 }: Props) {
@@ -70,7 +75,13 @@ export function EditorFilterBar({
         </button>
       ) : (
         <>
-          <button type="button" aria-label="Delete filter" onClick={onDelete} className={circleClass(tone, "active")}>
+          <button
+            type="button"
+            aria-label="Delete filter"
+            onClick={onDelete}
+            disabled={deleteDisabled}
+            className={`${circleClass(tone, "active")} ${DISABLED_CLS}`}
+          >
             <Trash2 aria-hidden="true" className="size-5" />
           </button>
           <button type="button" aria-label="Edit filter" onClick={onOpen} className={circleClass(tone, "active")}>

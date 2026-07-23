@@ -22,7 +22,10 @@ import { deriveSectionLocks } from "@/lib/editor/section-locks"
 import {
   buildResetMessage,
   buildResetTitle,
+  buildDeleteTitle,
+  buildDeleteLeafMessage,
   type ResetScope,
+  type DeleteScope,
 } from "@/features/editor/components/delete-message"
 import { EditorHomeBar } from "@/features/editor/components/editor-home-bar"
 import { EditorViewBar } from "@/features/editor/components/editor-view-bar"
@@ -562,15 +565,6 @@ export function ProjectDetailPageClient({
   const handleTraceConfigureCancelled = useCallback(() => {
     setEditorSection("trace")
   }, [setEditorSection])
-  // Filter delete is instant: the bar's Delete is greyed while a trace depends
-  // on the filter (you Reset the trace away first), so this is only reached when
-  // nothing downstream exists.
-  const handleRemoveFilter = useCallback(
-    (id: string) => {
-      void workflow.removeFilter(id)
-    },
-    [workflow],
-  )
   // Filter picker (top-right "+" / edit) open state — the Filter section's
   // sole dialog. Local, mounted only while the Filter section is active.
   const [filterSelectionOpen, setFilterSelectionOpen] = useState(false)
@@ -607,6 +601,37 @@ export function ProjectDetailPageClient({
       setResetBusy(false)
     }
   }, [resetScope, resetBusy, hasFilter, filterStack, workflow])
+
+  // Leaf-delete (bar Trash) = remove the section's OWN artefact (the filter or
+  // the trace itself), always behind this confirm. Only reachable while nothing
+  // downstream locks the layer (locked → the bar shows Reset, not Delete). The
+  // `finally` closes any open section surface (filter picker) AND clears the
+  // busy flag whether the mutation resolved or rejected, so a failed clear
+  // never strands an open surface — the same discipline as `confirmReset`.
+  const [deleteScope, setDeleteScope] = useState<DeleteScope | null>(null)
+  const [deleteBusy2, setDeleteBusy2] = useState(false)
+  const [deleteScopeError, setDeleteScopeError] = useState<string | null>(null)
+
+  const confirmDeleteScope = useCallback(async () => {
+    if (!deleteScope || deleteBusy2) return
+    setDeleteBusy2(true)
+    setDeleteScopeError(null)
+    try {
+      if (deleteScope === "filter") {
+        const filterId = filterStack[0]?.id
+        if (filterId) await workflow.removeFilter(filterId)
+      } else {
+        await workflow.clearTrace()
+      }
+      setDeleteScope(null)
+    } catch (err) {
+      setDeleteScopeError(err instanceof Error ? err.message : "Delete failed")
+    } finally {
+      // Always close the section's open surface, resolved or rejected.
+      setFilterSelectionOpen(false)
+      setDeleteBusy2(false)
+    }
+  }, [deleteScope, deleteBusy2, filterStack, workflow])
 
 
   return (
@@ -753,10 +778,8 @@ export function ProjectDetailPageClient({
             hasFilter={hasFilter}
             addDisabled={isAddFilterDisabled}
             onOpen={() => setFilterSelectionOpen(true)}
-            onDelete={() => {
-              const id = filterStack[0]?.id
-              if (id) handleRemoveFilter(id)
-            }}
+            onDelete={() => setDeleteScope("filter")}
+            deleteDisabled={!workflow.canMutate}
             locked={sectionLocks.filterLocked}
             onReset={() => setResetScope("filter")}
           />
@@ -779,7 +802,8 @@ export function ProjectDetailPageClient({
               if (trace) setPendingTraceKindOpen(trace.kind)
               else setPendingTraceSelectionOpen(true)
             }}
-            onDelete={() => void workflow.clearTrace()}
+            onDelete={() => setDeleteScope("trace")}
+            deleteDisabled={!workflow.canMutate}
             colorCount={traceColorCount}
             onOpenColors={() => setColorsOpen(true)}
           />
@@ -869,6 +893,43 @@ export function ProjectDetailPageClient({
               disabled={resetBusy}
             >
               {resetBusy ? "Removing…" : "Remove"}
+            </AppButton>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Leaf-delete confirm (Filter/Trace bar Trash) — same chrome + copy
+          source as the reset dialog above, distinct only in scope/copy. */}
+      <Dialog
+        open={deleteScope !== null}
+        onOpenChange={(o) => (!o && !deleteBusy2 ? setDeleteScope(null) : null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{deleteScope ? buildDeleteTitle(deleteScope) : ""}</DialogTitle>
+            <DialogDescription>
+              {deleteScope ? buildDeleteLeafMessage(deleteScope) : ""}
+            </DialogDescription>
+          </DialogHeader>
+          {deleteScopeError ? (
+            <div role="alert" className="text-sm text-destructive">{deleteScopeError}</div>
+          ) : null}
+          <DialogFooter>
+            <AppButton
+              type="button"
+              variant="outline"
+              onClick={() => setDeleteScope(null)}
+              disabled={deleteBusy2}
+            >
+              Cancel
+            </AppButton>
+            <AppButton
+              type="button"
+              variant="destructive"
+              onClick={confirmDeleteScope}
+              disabled={deleteBusy2}
+            >
+              {deleteBusy2 ? "Removing…" : "Remove"}
             </AppButton>
           </DialogFooter>
         </DialogContent>

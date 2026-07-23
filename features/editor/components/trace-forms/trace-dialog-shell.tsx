@@ -28,9 +28,13 @@
  * (call `onCancel`) — same as the preview-header X. The only forward path is
  * Preview → Apply. The Preview button collapses the edit overlay to reveal the
  * live preview; Apply on that preview commits the trace.
+ *
+ * Delete lives ONLY in the section's floating bar (see `EditorTraceBar`), never
+ * in this dialog — a single delete affordance per section, always behind a
+ * confirm. This shell therefore never renders a Delete action.
  */
 import { useState, type ReactNode } from "react"
-import { Check, Loader2, Pencil, Trash2, X } from "lucide-react"
+import { Check, Pencil, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -58,10 +62,6 @@ type Props = {
   busy: boolean
   onCancel: () => void
   onApply: () => void
-  /** When set, the active trace is being edited — renders a Delete
-   * (Trash2) action in every header variant that removes the trace and
-   * closes the dialog. Omitted for the new-trace flow (no icon). */
-  onDeleteTrace?: () => void | Promise<void>
   /** Opt-in preview-button gate. When `false`, the edit-overlay's Preview
    * button is NOT rendered (used by linerate to hide it once nothing changed
    * since the last preview). `undefined`/`true` → always rendered, so
@@ -84,7 +84,6 @@ export function TraceDialogShell({
   busy,
   onCancel,
   onApply,
-  onDeleteTrace,
   canPreview,
   onPreviewRequested,
 }: Props) {
@@ -94,46 +93,17 @@ export function TraceDialogShell({
   // source image survive — only the *first* preview-tap pays the compute.
   const [editOpen, setEditOpen] = useState(true)
   const [previewMounted, setPreviewMounted] = useState(false)
-  // Delete runs the async clear; keep the dialog up with a spinner on
-  // the Delete button (mirrors the Apply Check → Loader2) until it
-  // resolves and the surface dismisses, so it doesn't switch back early.
-  const [deleting, setDeleting] = useState(false)
-  const busyOrDeleting = busy || deleting
-  const handleDelete = async () => {
-    if (busyOrDeleting || !onDeleteTrace) return
-    setDeleting(true)
-    try {
-      await onDeleteTrace()
-    } finally {
-      setDeleting(false)
-    }
-  }
 
-  // Responsive actions: icons in the header on mobile, text buttons in a footer
-  // on desktop (see `dialog-action-controls`). Close (X) stays in the header.
-  const deleteAction: DialogAction | null =
-    onDeleteTrace || deleting
-      ? {
-          id: "delete",
-          label: "Delete",
-          ariaLabel: "Delete trace",
-          icon: <Trash2 className="size-4" />,
-          onClick: () => void handleDelete(),
-          disabled: busyOrDeleting,
-          busy: deleting,
-          variant: "ghost",
-        }
-      : null
-  // Preview mode exposes Delete / Edit / Apply.
+  // Preview mode exposes Edit / Apply. Delete is not here — it lives in the
+  // section's floating bar, always behind a confirm.
   const previewActions: DialogAction[] = [
-    ...(deleteAction ? [deleteAction] : []),
     {
       id: "edit",
       label: "Edit",
       ariaLabel: "Edit parameters",
       icon: <Pencil className="size-4" />,
       onClick: () => setEditOpen(true),
-      disabled: busyOrDeleting,
+      disabled: busy,
       variant: "outline",
     },
     {
@@ -142,7 +112,7 @@ export function TraceDialogShell({
       ariaLabel: "Apply filter",
       icon: <Check className="size-4" />,
       onClick: onApply,
-      disabled: !valid || busyOrDeleting,
+      disabled: !valid || busy,
       busy,
       variant: "default",
     },
@@ -202,7 +172,7 @@ export function TraceDialogShell({
               <span className="text-sm font-medium">{title}</span>
               <div className="ml-auto">
                 <DialogHeaderActions
-                  actions={deleteAction ? [deleteAction] : []}
+                  actions={[]}
                   onClose={onCancel}
                   closeLabel="Close"
                   closeIcon={<X aria-hidden="true" className="size-4" />}
@@ -225,28 +195,12 @@ export function TraceDialogShell({
               {form}
             </div>
             <DialogStickyFooter>
-              {/* Desktop-only Delete text button — on mobile Delete is the icon
-                  in the header, so this stays hidden and Cancel/Preview keep
-                  their spread (justify-between) layout unchanged. */}
-              {deleteAction ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="lg"
-                  className="hidden md:inline-flex"
-                  onClick={() => void handleDelete()}
-                  disabled={busyOrDeleting}
-                >
-                  {deleting ? <Loader2 aria-hidden="true" className="size-4 animate-spin" /> : null}
-                  Delete
-                </Button>
-              ) : null}
               <Button
                 type="button"
                 variant="outline"
                 size="lg"
                 onClick={onCancel}
-                disabled={busyOrDeleting}
+                disabled={busy}
               >
                 Cancel
               </Button>
@@ -271,7 +225,7 @@ export function TraceDialogShell({
                   setPreviewMounted(true)
                   setEditOpen(false)
                 }}
-                disabled={busyOrDeleting || canPreview === false}
+                disabled={busy || canPreview === false}
               >
                 Preview
               </Button>
