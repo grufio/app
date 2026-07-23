@@ -2,9 +2,9 @@
  * @vitest-environment jsdom
  *
  * Behaviour test for LinerateDialog's server-preview lifecycle:
- *  - The Preview button is hidden while the draft matches the last-previewed
- *    params (initially the OPENING params) — an untouched dialog offers no
- *    Preview; it appears after a change and hides again once previewed.
+ *  - The Preview button is DISABLED (not hidden) while the draft matches the
+ *    last-previewed params (initially the OPENING params) — an untouched dialog
+ *    has it greyed; it enables after a change and disables again once previewed.
  *  - The preview runs on the current draft each time Preview is tapped
  *    (generation-driven re-run, no remount).
  * The opt-in props (`canPreview` / `onPreviewRequested` / `generation`) are what
@@ -68,25 +68,25 @@ describe("LinerateDialog — server preview lifecycle", () => {
     )
   }
 
-  it("hides Preview until a change, runs it on the changed draft, then hides again", async () => {
+  it("disables Preview until a change, runs it on the changed draft, then disables again", async () => {
     const onPreviewTrace = vi.fn(async () => SVG)
     renderDialog(onPreviewTrace)
 
     // Opens on the params overlay. Nothing changed from the opening params →
-    // the Preview button is NOT offered.
+    // the Preview button is present but DISABLED (greyed, in place).
     await waitFor(() => {
       expect(document.body.querySelector("#min_paintable_mm")).not.toBeNull()
     })
-    expect(findButton("Preview")).toBeUndefined()
+    expect(findButton("Preview")?.disabled).toBe(true)
 
-    // Change the Min-gap field → the draft is dirty → Preview is offered.
+    // Change the Min-gap field → the draft is dirty → Preview enables.
     const gap = document.body.querySelector("#min_paintable_mm") as HTMLInputElement
     gap.focus()
     fireEvent.change(gap, { target: { value: "6" } })
     fireEvent.blur(gap)
     const preview = await waitFor(() => {
       const b = findButton("Preview")
-      if (!b) throw new Error("Preview not offered after change")
+      if (!b || b.disabled) throw new Error("Preview not enabled after change")
       return b
     })
 
@@ -100,12 +100,12 @@ describe("LinerateDialog — server preview lifecycle", () => {
     )
 
     // Re-open the params (pencil). Nothing changed since the preview → the
-    // Preview button is hidden again.
+    // Preview button is disabled again.
     fireEvent.click(document.body.querySelector('button[aria-label="Edit parameters"]') as HTMLButtonElement)
     await waitFor(() => {
       expect(document.body.querySelector("#min_paintable_mm")).not.toBeNull()
     })
-    expect(findButton("Preview")).toBeUndefined()
+    expect(findButton("Preview")?.disabled).toBe(true)
   })
 
   it("re-offers Preview after a further change and re-runs on the new draft", async () => {
@@ -125,7 +125,7 @@ describe("LinerateDialog — server preview lifecycle", () => {
     const tapPreview = async (times: number) => {
       const b = await waitFor(() => {
         const btn = findButton("Preview")
-        if (!btn) throw new Error("Preview button not offered")
+        if (!btn || btn.disabled) throw new Error("Preview button not enabled")
         return btn
       })
       fireEvent.click(b)

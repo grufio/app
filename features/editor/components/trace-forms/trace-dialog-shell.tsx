@@ -256,26 +256,25 @@ export function TraceDialogShell({
                   focused input on every mobile keyboard (and jsdom never
                   does) — without this the preview underneath would render the
                   pre-edit value for the focused field.
-                  `canPreview === false` hides the button (linerate: nothing
-                  changed since the last preview); undefined/true keeps it, so
-                  pixelate/circulate are unchanged. */}
-              {canPreview === false ? null : (
-                <Button
-                  type="button"
-                  size="lg"
-                  onClick={() => {
-                    if (document.activeElement instanceof HTMLElement) {
-                      document.activeElement.blur()
-                    }
-                    onPreviewRequested?.()
-                    setPreviewMounted(true)
-                    setEditOpen(false)
-                  }}
-                  disabled={busyOrDeleting}
-                >
-                  Preview
-                </Button>
-              )}
+                  `canPreview === false` DISABLES the button (linerate: nothing
+                  changed since the last preview) — it stays in place, greyed,
+                  so the footer layout never shifts. undefined/true keeps it
+                  enabled, so pixelate/circulate are unchanged. */}
+              <Button
+                type="button"
+                size="lg"
+                onClick={() => {
+                  if (document.activeElement instanceof HTMLElement) {
+                    document.activeElement.blur()
+                  }
+                  onPreviewRequested?.()
+                  setPreviewMounted(true)
+                  setEditOpen(false)
+                }}
+                disabled={busyOrDeleting || canPreview === false}
+              >
+                Preview
+              </Button>
             </DialogStickyFooter>
           </div>
         ) : null}
