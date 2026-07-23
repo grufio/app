@@ -133,6 +133,40 @@ export async function applyProjectTrace(args: {
   }
 }
 
+/** POST /api/projects/[projectId]/trace/preview — run the linerate trace at
+ * 0.5 MP and return the un-persisted SVG string. No side effects (no upload,
+ * no DB row, no activation); the dialog renders the SVG inline. Only linerate
+ * is supported. */
+export async function previewProjectTrace(args: {
+  projectId: string
+  kind: TraceKind
+  params?: Record<string, unknown>
+}): Promise<{ svg: string; width_px: number; height_px: number }> {
+  const { projectId, kind, params } = args
+  const res = await fetchJson<{
+    ok?: boolean
+    svg?: string
+    width_px?: number
+    height_px?: number
+  }>(`${tracePath(projectId)}/preview`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ kind, params: params ?? {} }),
+  })
+  if (!res.ok) {
+    throw new Error(formatApiError("Failed to preview trace", res.status, res.error))
+  }
+  if (typeof res.data?.svg !== "string" || !res.data.svg) {
+    throw new Error("Failed to preview trace (invalid response)")
+  }
+  return {
+    svg: res.data.svg,
+    width_px: Number(res.data.width_px ?? 0),
+    height_px: Number(res.data.height_px ?? 0),
+  }
+}
+
 /** DELETE /api/projects/[projectId]/trace — clear the active trace. */
 export async function clearProjectTrace(projectId: string): Promise<{ active_image_id: string }> {
   const res = await fetchJson<{ ok?: boolean; active_image_id?: string }>(tracePath(projectId), {

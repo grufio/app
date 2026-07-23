@@ -20,7 +20,7 @@ import { getEditorTargetImageRow, resolveEditorTargetImageRows } from "@/lib/sup
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role"
 import { activateProjectImageOnly } from "@/services/editor/server/activate-project-image"
 import { circulateImageAndActivate } from "@/services/editor/server/trace/circulate"
-import { linerateImageAndActivate } from "@/services/editor/server/trace/linerate"
+import { computeLinerateSvg, linerateImageAndActivate } from "@/services/editor/server/trace/linerate"
 import { pixelateImageAndActivate } from "@/services/editor/server/trace/pixelate"
 
 export type TraceOpFailure = {
@@ -85,6 +85,18 @@ export type TraceClearSuccess = {
   ok: true
   active_image_id: string
 }
+
+export type TracePreviewSuccess = {
+  ok: true
+  /** The un-persisted trace SVG string, rendered inline by the dialog preview. */
+  svg: string
+  width_px: number
+  height_px: number
+}
+
+/** Preview work-resolution MEGAPIXEL target. The preview runs the SAME server
+ * trace at 0.5 MP (byte-parity params, coarser edges) — never persisted. */
+const PREVIEW_RESOLUTION_MP = 0.5
 
 export type TraceGetSuccess = {
   ok: true
@@ -187,6 +199,110 @@ async function tombstoneTraceImage(args: {
   }
 }
 
+/**
+ * Resolve the BITMAP source image id a trace operates on — the bitmap that sits
+ * "below" the filter chain. Shared by Apply and Preview so both agree on which
+ * pixels the trace runs against. The active image (used everywhere else in the
+ * editor) may be the previous trace's SVG output, which is the wrong source:
+ * trace pipelines want bitmap pixels, and re-using a prior trace would feed SVG
+ * bytes into the Python image-decode step.
+ *
+ * Order of preference:
+ *   1. explicit `source_image_id` in params (legacy override)
+ *   2. latest filter-chain output (project_image_filters)
+ *   3. project's working_copy (kind='working_copy')
+ *   4. master image (kind='master')
+ */
+async function resolveTraceSourceImageId(args: {
+  supabase: SupabaseClient<Database>
+  projectId: string
+  rawParams: Record<string, unknown>
+}): Promise<{ ok: true; sourceImageId: string } | TraceOpFailure> {
+  const { supabase, projectId, rawParams } = args
+  const requestedSourceImageId =
+    typeof rawParams.source_image_id === "string" && rawParams.source_image_id.trim()
+      ? rawParams.source_image_id.trim()
+      : null
+
+  const resolveSourceById = async (
+    imageId: string,
+  ): Promise<{ ok: true } | { ok: false; reason: string; code?: string }> => {
+    const { data: row, error } = await supabase
+      .from("project_images")
+      .select("id")
+      .eq("project_id", projectId)
+      .eq("id", imageId)
+      .is("deleted_at", null)
+      .maybeSingle()
+    if (error || !row) {
+      return { ok: false, reason: error?.message ?? "Source image not found", code: error?.code }
+    }
+    return { ok: true }
+  }
+
+  if (requestedSourceImageId) {
+    const lookup = await resolveSourceById(requestedSourceImageId)
+    if (!lookup.ok) {
+      return { ok: false, status: 404, stage: "source_lookup", reason: lookup.reason, code: lookup.code }
+    }
+    return { ok: true, sourceImageId: requestedSourceImageId }
+  }
+
+  // Single-artifact model: at most one filter per project, so its output is
+  // the trace source. project_image_filters is filter rows only; pixelate /
+  // linerate trace rows live on project_image_trace and never appear here.
+  const { data: chainRows } = await supabase
+    .from("project_image_filters")
+    .select("output_image_id")
+    .eq("project_id", projectId)
+    .limit(1)
+  const chainTipId = chainRows?.[0]?.output_image_id ? String(chainRows[0].output_image_id) : null
+
+  if (chainTipId) {
+    const lookup = await resolveSourceById(chainTipId)
+    if (!lookup.ok) {
+      return { ok: false, status: 404, stage: "source_lookup", reason: lookup.reason, code: lookup.code }
+    }
+    return { ok: true, sourceImageId: chainTipId }
+  }
+
+  // No filter chain — fall back to the same "active editor target" resolver the
+  // Filter pipeline uses, so trace and filter always agree on which bitmap to
+  // operate on. The old hand-rolled query (kind in working_copy/master, sorted
+  // by newest) ignored the active-image state and could pick a stale
+  // working_copy from a previous master upload.
+  const lookup = await resolveEditorTargetImageRows(supabase, projectId)
+  if (lookup.error) {
+    return { ok: false, status: 400, stage: "active_lookup", reason: lookup.error.reason, code: lookup.error.code }
+  }
+  // `preferredWorking` is the working_copy of the active master. If none exists
+  // yet (no filter has ever been opened on this project), fall back to the
+  // active master directly.
+  let bitmapRowId: string | null = null
+  if (lookup.preferredWorking?.id) {
+    bitmapRowId = String(lookup.preferredWorking.id)
+  } else {
+    const { data: masterRow, error: masterErr } = await supabase
+      .from("project_images")
+      .select("id")
+      .eq("project_id", projectId)
+      .eq("kind", "master")
+      .eq("is_active", true)
+      .is("deleted_at", null)
+      .maybeSingle()
+    if (masterErr) {
+      return { ok: false, status: 400, stage: "active_lookup", reason: masterErr.message, code: masterErr.code }
+    }
+    if (masterRow?.id) {
+      bitmapRowId = String(masterRow.id)
+    }
+  }
+  if (!bitmapRowId) {
+    return { ok: false, status: 404, stage: "active_lookup", reason: "No bitmap source image found for trace" }
+  }
+  return { ok: true, sourceImageId: bitmapRowId }
+}
+
 export async function applyProjectTrace(args: {
   supabase: SupabaseClient<Database>
   projectId: string
@@ -214,104 +330,9 @@ export async function applyProjectTrace(args: {
   }
   const params = parsedParams.data as Record<string, unknown>
 
-  // Trace operates on the BITMAP that sits "below" the filter chain
-  // — the filter-chain tip if any filters exist, otherwise the
-  // master / working-copy row. The active image (used everywhere
-  // else in the editor) may be the previous trace's SVG output,
-  // which is the wrong source: trace pipelines want bitmap pixels,
-  // and re-using a prior trace would feed SVG bytes into the
-  // Python image-decode step.
-  //
-  // Order of preference:
-  //   1. explicit `source_image_id` in params (legacy override)
-  //   2. latest filter-chain output (project_image_filters)
-  //   3. project's working_copy (kind='working_copy')
-  //   4. master image (kind='master')
-  const requestedSourceImageId =
-    typeof rawParams.source_image_id === "string" && rawParams.source_image_id.trim()
-      ? rawParams.source_image_id.trim()
-      : null
-
-  let sourceImageId: string
-
-  const resolveSourceById = async (
-    imageId: string,
-  ): Promise<{ ok: true } | { ok: false; reason: string; code?: string }> => {
-    const { data: row, error } = await supabase
-      .from("project_images")
-      .select("id")
-      .eq("project_id", projectId)
-      .eq("id", imageId)
-      .is("deleted_at", null)
-      .maybeSingle()
-    if (error || !row) {
-      return { ok: false, reason: error?.message ?? "Source image not found", code: error?.code }
-    }
-    return { ok: true }
-  }
-
-  if (requestedSourceImageId) {
-    sourceImageId = requestedSourceImageId
-    const lookup = await resolveSourceById(sourceImageId)
-    if (!lookup.ok) {
-      return { ok: false, status: 404, stage: "source_lookup", reason: lookup.reason, code: lookup.code }
-    }
-  } else {
-    // Single-artifact model: at most one filter per project, so its output is
-    // the trace source. project_image_filters is filter rows only; pixelate /
-    // linerate trace rows live on project_image_trace and never appear here.
-    const { data: chainRows } = await supabase
-      .from("project_image_filters")
-      .select("output_image_id")
-      .eq("project_id", projectId)
-      .limit(1)
-    const chainTipId = chainRows?.[0]?.output_image_id ? String(chainRows[0].output_image_id) : null
-
-    if (chainTipId) {
-      sourceImageId = chainTipId
-      const lookup = await resolveSourceById(sourceImageId)
-      if (!lookup.ok) {
-        return { ok: false, status: 404, stage: "source_lookup", reason: lookup.reason, code: lookup.code }
-      }
-    } else {
-      // No filter chain — fall back to the same "active editor
-      // target" resolver the Filter pipeline uses, so trace and
-      // filter always agree on which bitmap to operate on. The old
-      // hand-rolled query (kind in working_copy/master, sorted by
-      // newest) ignored the active-image state and could pick a
-      // stale working_copy from a previous master upload.
-      const lookup = await resolveEditorTargetImageRows(supabase, projectId)
-      if (lookup.error) {
-        return { ok: false, status: 400, stage: "active_lookup", reason: lookup.error.reason, code: lookup.error.code }
-      }
-      // `preferredWorking` is the working_copy of the active master.
-      // If none exists yet (no filter has ever been opened on this
-      // project), fall back to the active master directly.
-      let bitmapRowId: string | null = null
-      if (lookup.preferredWorking?.id) {
-        bitmapRowId = String(lookup.preferredWorking.id)
-      } else {
-        const { data: masterRow, error: masterErr } = await supabase
-          .from("project_images")
-          .select("id")
-          .eq("project_id", projectId)
-          .eq("kind", "master")
-          .eq("is_active", true)
-          .is("deleted_at", null)
-          .maybeSingle()
-        if (masterErr) {
-          return { ok: false, status: 400, stage: "active_lookup", reason: masterErr.message, code: masterErr.code }
-        }
-        if (masterRow?.id) {
-          bitmapRowId = String(masterRow.id)
-        }
-      }
-      if (!bitmapRowId) {
-        return { ok: false, status: 404, stage: "active_lookup", reason: "No bitmap source image found for trace" }
-      }
-      sourceImageId = bitmapRowId
-    }
-  }
+  const sourceResult = await resolveTraceSourceImageId({ supabase, projectId, rawParams })
+  if (!sourceResult.ok) return sourceResult
+  const sourceImageId = sourceResult.sourceImageId
 
   const handler = TRACE_HANDLERS[kind] as (input: {
     supabase: SupabaseClient<Database>
@@ -499,6 +520,55 @@ export async function applyProjectTrace(args: {
     width_px: created.widthPx,
     height_px: created.heightPx,
   }
+}
+
+/**
+ * Preview a linerate trace: the SAME server trace `applyProjectTrace` runs, at
+ * 0.5 MP work resolution, returning ONLY the SVG string — no upload, no DB
+ * insert, no trace-row upsert, no activation. It shares the source-resolution
+ * helper with Apply so both agree on which bitmap the trace runs against; the
+ * region structure is scale-invariant, so the preview matches Apply's regions
+ * (only the edges are coarser). Only linerate is supported — pixelate/circulate
+ * keep their fast client-side preview panes.
+ */
+export async function previewProjectTrace(args: {
+  supabase: SupabaseClient<Database>
+  projectId: string
+  kind: unknown
+  params?: unknown
+}): Promise<TracePreviewSuccess | TraceOpFailure> {
+  const { supabase, projectId } = args
+  const kind = parseTraceKind(args.kind)
+  if (kind !== "linerate") {
+    return { ok: false, status: 400, stage: "validation", reason: "Preview is only supported for linerate" }
+  }
+  const rawParams = (args.params as Record<string, unknown> | null | undefined) ?? {}
+  const parsedParams = linerateSchema.safeParse(rawParams)
+  if (!parsedParams.success) {
+    const issues = parsedParams.error.issues
+      .map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
+      .join("; ")
+    return {
+      ok: false,
+      status: 400,
+      stage: "validation",
+      reason: `Invalid linerate params: ${issues || "unknown"}`,
+    }
+  }
+
+  const sourceResult = await resolveTraceSourceImageId({ supabase, projectId, rawParams })
+  if (!sourceResult.ok) return sourceResult
+
+  const computed = await computeLinerateSvg({
+    supabase,
+    projectId,
+    sourceImageId: sourceResult.sourceImageId,
+    params: parsedParams.data,
+    resolutionMpOverride: PREVIEW_RESOLUTION_MP,
+  })
+  if (!computed.ok) return computed
+
+  return { ok: true, svg: computed.svg, width_px: computed.widthPx, height_px: computed.heightPx }
 }
 
 export async function getProjectTrace(args: {

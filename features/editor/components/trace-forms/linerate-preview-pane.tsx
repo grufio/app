@@ -1,64 +1,52 @@
 "use client"
 
 /**
- * Linerate preview pane — a client mirror of the server paint-by-numbers front
- * half: downscale → L0 edge-preserving flatten (Web Worker) → coverage paint
- * selection → connected-component facets → merge facets below the `detail`-derived
- * min-area into their most-similar neighbour → flat fill + 1px outlines. Uses the
- * same L0 (`l0-smooth.ts`) and coverage (`coverage-select.ts`) the server runs,
- * plus the facet helpers in `linerate-preview.ts`.
- *
- * NOT bit-identical to Apply (JS FFT ≠ numpy, ~256px work res, no per-region
- * numbers), but the region density matches the result — an earlier Gaussian-blur
- * approximation left texture standing and the segmentation over-split it into
- * speckle. L0 is the one heavy stage and depends only on `flatten`, so it runs in
- * a worker off the main thread; Detail/Min-gap only re-run the fast CC + merge.
+ * Linerate preview pane — renders the SAME server trace as Apply, run at
+ * 0.5 MP (no persist). The pane calls `onPreview()` (a server round-trip through
+ * `previewProjectTrace`) once per `generation` and renders the returned SVG
+ * string inline, mirroring the circulate/pixelate preview panes
+ * (`dangerouslySetInnerHTML` into a contain-fit + zoom display box). Each Preview
+ * tap bumps `generation` so the pane re-runs with the current draft WITHOUT a
+ * remount. No client-side segmentation — the preview and Apply share one
+ * implementation, so the region structure matches (only the edges are coarser at
+ * 0.5 MP).
  *
  * Pane sizing + zoom controls mirror the sibling trace preview panes.
  */
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Loader2, Maximize2, ZoomIn, ZoomOut } from "lucide-react"
+import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
-import { assembleFaces, buildArcs, smoothArc } from "@/lib/editor/trace/boundary-arcs"
-import { smoothnessToParams } from "@/lib/editor/trace/contour-trace"
-import { coverageSelectPaintMap } from "@/lib/editor/trace/coverage-select"
-import { resolutionMpToWorkEdge, type LinerateParams } from "@/lib/editor/trace/linerate"
-import { detailToMinArea, loadAndDownscale, segmentRegions, type PreviewImage } from "@/lib/editor/trace/linerate-preview"
-import { useSourceImage } from "@/lib/editor/trace/use-source-image"
-import { useTracePalette } from "@/lib/editor/trace/use-trace-palette"
+import { formatOperationErrorForToast, normalizeApiError } from "@/lib/api/error-normalizer"
+import { prepareTraceSvg } from "@/features/editor/components/canvas-stage/prepare-trace-svg"
 
-// Work resolution for the segmentation. Region count is NOT scale-invariant —
-// measured, 256px undercounted the Apply by ~40% and hid the fine thin regions
-// Density/Radius unlock. 512px resolves them; the mixed-radix L0 FFT (fft2.ts,
-// on 2·3·5·7-smooth dims) keeps it tractable in the worker (~1–2 s per flatten).
-const MAX_PREVIEW_EDGE_PX = 512
-// Outlines are drawn as smooth vector paths on a supersampled canvas via the
-// WATERTIGHT shared-arc method (buildArcs → smoothArc → assembleFaces, ported
-// from the server): each shared boundary is smoothed ONCE and used by both
-// neighbours → no holes; image-border arcs stay straight → straight frame.
-// Smoothing amount follows the Smoothness dial (smoothnessToParams), eps scaled
-// from the server's work-edge (now the Resolution dial) to the preview resolution.
-const OUTLINE_SUPERSAMPLE = 4
 const ZOOM_STEP = 1.5
 const ZOOM_MIN = 1
 const ZOOM_MAX = 8
 
 type Props = {
-  sourceImageUrl: string
   displayMmW: number
   displayMmH: number
-  params: LinerateParams
+  /** Runs the server trace at 0.5 MP and resolves with the SVG string. Called
+   * once per `generation` — reads the current draft at call time. */
+  onPreview: () => Promise<string>
+  /** Bumped by the dialog on each Preview tap; the preview re-runs on change
+   * (no remount). */
+  generation: number
 }
 
-export function LineratePreviewPane({ sourceImageUrl, displayMmW, displayMmH, params }: Props) {
-  const source = useSourceImage(sourceImageUrl)
-  const palette = useTracePalette(params.color_mode)
-
-  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+export function LineratePreviewPane({ displayMmW, displayMmH, onPreview, generation }: Props) {
   const paneRef = useRef<HTMLDivElement | null>(null)
   const [pane, setPane] = useState<{ w: number; h: number }>({ w: 0, h: 0 })
   const [zoom, setZoom] = useState(1)
+  const [svgText, setSvgText] = useState<string | null>(null)
+  // The generation whose result is currently settled. `loading` is derived:
+  // the pane is loading whenever the settled generation trails the requested
+  // one. Deriving it (instead of a synchronous setState at the top of the
+  // effect) keeps the re-run spinner without a cascading-render setState.
+  const [settledGeneration, setSettledGeneration] = useState<number | null>(null)
+  const loading = settledGeneration !== generation
 
   useEffect(() => {
     const el = paneRef.current
@@ -71,170 +59,38 @@ export function LineratePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
     return () => ro.disconnect()
   }, [])
 
-  const downscaled = useMemo(() => {
-    if (!source) return null
-    return loadAndDownscale({
-      source,
-      sourceWidth: source.naturalWidth,
-      sourceHeight: source.naturalHeight,
-      maxEdgePx: MAX_PREVIEW_EDGE_PX,
-    })
-  }, [source])
-
-  // L0 edge-preserving flatten runs in a Web Worker (heavy: several 2D FFTs; it
-  // would freeze the tab on the main thread). Depends only on `flatten`.
-  const workerRef = useRef<Worker | null>(null)
-  const reqIdRef = useRef(0)
-  const [flattened, setFlattened] = useState<PreviewImage | null>(null)
-  const [flattening, setFlattening] = useState(false)
-
+  // Run the server preview once per generation. `onPreview` reads the current
+  // draft at call time — the preview is a deliberate on-tap recompute (each run
+  // is a Cloud-Run round-trip), not a live per-keystroke one.
   useEffect(() => {
-    const worker = new Worker(
-      new URL("../../../../lib/editor/trace/linerate-preview.worker.ts", import.meta.url),
-      { type: "module" },
-    )
-    workerRef.current = worker
+    let cancelled = false
+    onPreview()
+      .then((svg) => {
+        if (!cancelled) setSvgText(svg)
+      })
+      .catch((e: unknown) => {
+        if (cancelled) return
+        const error = e instanceof Error ? e : new Error(String(e))
+        const formatted = formatOperationErrorForToast(normalizeApiError(error))
+        toast.error(formatted.title, formatted.detail ? { description: formatted.detail } : undefined)
+      })
+      .finally(() => {
+        if (!cancelled) setSettledGeneration(generation)
+      })
     return () => {
-      worker.terminate()
-      workerRef.current = null
+      cancelled = true
     }
-  }, [])
+    // Re-run on each generation bump; `onPreview` is stable and reads the ref.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [generation])
 
-  useEffect(() => {
-    const worker = workerRef.current
-    if (!downscaled || !worker) {
-      setFlattened(null)
-      return
-    }
-    const id = (reqIdRef.current += 1)
-    setFlattening(true)
-    const onMessage = (e: MessageEvent<{ id: number; rgba: ArrayBuffer; width: number; height: number }>) => {
-      if (e.data.id !== reqIdRef.current) return // ignore stale results
-      setFlattened({ width: e.data.width, height: e.data.height, rgba: new Uint8ClampedArray(e.data.rgba) })
-      setFlattening(false)
-    }
-    worker.addEventListener("message", onMessage)
-    worker.postMessage({
-      id,
-      rgba: downscaled.rgba,
-      width: downscaled.width,
-      height: downscaled.height,
-      flatten: params.flatten,
-    })
-    return () => worker.removeEventListener("message", onMessage)
-  }, [downscaled, params.flatten])
-
-  // Coverage paint selection (top-K most-used chips) → per-pixel paint map.
-  const paintMap = useMemo(() => {
-    if (!flattened || !palette || palette.length === 0) return null
-    return coverageSelectPaintMap(flattened, palette, params.num_colors)
-  }, [flattened, palette, params.num_colors])
-
-  // `detail` + `min_paintable_mm` drive region granularity; defer them so the
-  // segmentation stays interruptible while the user drags a slider.
-  const deferredDetail = useDeferredValue(params.detail)
-  const deferredGapMm = useDeferredValue(params.min_paintable_mm)
-  const deferredRadius = useDeferredValue(params.radius)
-
-  // Facet segmentation: paint map → connected components → min-area merge.
-  const regions = useMemo(() => {
-    if (!flattened || !paintMap || !palette || palette.length === 0) return null
-    const w = flattened.width
-    const h = flattened.height
-
-    // Min-radius floor in preview px — mirrors the server mm→px chain
-    // (services/editor/server/trace/linerate.ts + linerate.py min_radius_work):
-    // (min_paintable_mm·(previewW/displayMmW) + line_thickness·(previewW/contentW))/2.
-    const contentW = source?.naturalWidth ?? w
-    const mmTerm = displayMmW > 0 ? deferredGapMm * (w / displayMmW) : 0
-    const ltTerm = contentW > 0 ? params.line_thickness * (w / contentW) : 0
-    const minRadiusPx = Math.max(0, (mmTerm + ltTerm) / 2)
-    const minArea = detailToMinArea(deferredDetail, w * h, minRadiusPx)
-
-    const chipOklab = palette.map((c) => c.oklab)
-    // The WIDTH gate uses `radius` × minRadiusPx (the "Radius" dial), mirroring the
-    // server (linerate.py width_radius_frac): only clearly sub-Min-Gap slivers merge,
-    // thin-but-paintable strokes survive. The min_area floor keeps the FULL radius.
-    return segmentRegions(paintMap, w, h, chipOklab, minArea, minRadiusPx * deferredRadius)
-  }, [
-    flattened,
-    paintMap,
-    palette,
-    source,
-    displayMmW,
-    deferredDetail,
-    deferredGapMm,
-    deferredRadius,
-    params.line_thickness,
-  ])
-
-  // Watertight boundary arc graph (shared arcs smoothed once). Depends only on
-  // the segmentation + smoothness, not zoom.
-  const graph = useMemo(() => {
-    if (!regions || !flattened) return null
-    // Smoothing amount from the Smoothness dial, eps scaled server-work-edge → preview res.
-    const { eps, iters } = smoothnessToParams(params.smoothness)
-    // The Resolution dial is now a MP target → derive the same work_edge the server uses.
-    const serverWorkEdge = source
-      ? resolutionMpToWorkEdge(params.resolution, source.naturalWidth, source.naturalHeight)
-      : Math.max(flattened.width, flattened.height)
-    const scaledEps =
-      Number.isFinite(serverWorkEdge) && serverWorkEdge > 0
-        ? (eps * Math.max(flattened.width, flattened.height)) / serverWorkEdge
-        : eps
-    const g = buildArcs(regions.labels, flattened.width, flattened.height)
-    for (const arc of g.arcs) arc.smooth = smoothArc(arc.corners, g.cornerStride, scaledEps, iters)
-    return g
-  }, [regions, flattened, params.smoothness, params.resolution, source])
-
-  // Draw: watertight region fills (evenodd for holes) + one thin stroke per shared
-  // INTERNAL arc. Border arcs (label -1) are never stroked → straight, clean frame.
-  useEffect(() => {
-    const target = canvasRef.current
-    if (!target || !flattened || !regions || !graph || !palette || palette.length === 0) return
-    const ctx = target.getContext("2d")
-    if (!ctx) return
-    const ss = OUTLINE_SUPERSAMPLE
-    ctx.clearRect(0, 0, target.width, target.height)
-
-    // Fill each region's face (all loops as subpaths, evenodd carves holes).
-    for (const [region, arcIdxs] of graph.regionArcs) {
-      if (arcIdxs.length === 0) continue
-      const loops = assembleFaces(graph.arcs, graph.regionArcs, region)
-      const path = new Path2D()
-      for (const loop of loops) {
-        if (loop.length === 0) continue
-        path.moveTo(loop[0][0] * ss, loop[0][1] * ss)
-        for (let i = 1; i < loop.length; i += 1) path.lineTo(loop[i][0] * ss, loop[i][1] * ss)
-        path.closePath()
-      }
-      const [r, g, b] = palette[regions.regionChip[region]].rgb
-      ctx.fillStyle = `rgb(${r},${g},${b})`
-      ctx.fill(path, "evenodd")
-    }
-
-    // Stroke each internal shared arc once; skip image-border arcs (-1 label).
-    ctx.lineJoin = "round"
-    // Match the real trace's line thinness: the Apply SVG strokes `line_thickness`
-    // (=1) on a viewBox = source width, so the displayed line is line_thickness/sourceW
-    // of the image. Reproduce that exact fraction in canvas px (canvas = preview_w · ss).
-    const sourceW = source?.naturalWidth ?? flattened.width
-    ctx.lineWidth = Math.max(0.5, (params.line_thickness * flattened.width * ss) / sourceW)
-    ctx.strokeStyle = "black"
-    for (const arc of graph.arcs) {
-      if (arc.labels[0] < 0 || arc.labels[1] < 0) continue
-      const s = arc.smooth
-      if (s.length < 2) continue
-      const path = new Path2D()
-      path.moveTo(s[0][0] * ss, s[0][1] * ss)
-      for (let i = 1; i < s.length; i += 1) path.lineTo(s[i][0] * ss, s[i][1] * ss)
-      ctx.stroke(path)
-    }
-  }, [flattened, regions, graph, palette, source, params.line_thickness])
+  // Prepare the SVG for inline injection (strip xml decl, size to 100%,
+  // annotate paths) — the same preparation the canvas overlay uses.
+  const svgHtml = useMemo(() => (svgText ? prepareTraceSvg(svgText)?.html ?? null : null), [svgText])
 
   const valid = displayMmW > 0 && displayMmH > 0
-  const showSpinner = !source || !palette || flattening || !flattened
-  const showInvalid = source !== null && palette !== null && !valid
+  const showSpinner = loading
+  const showInvalid = !loading && svgText !== null && !valid
 
   const handleZoomIn = () => setZoom((z) => Math.min(ZOOM_MAX, z * ZOOM_STEP))
   const handleZoomOut = () => setZoom((z) => Math.max(ZOOM_MIN, z / ZOOM_STEP))
@@ -254,13 +110,11 @@ export function LineratePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
           className="flex items-center justify-center"
           style={{ width: "fit-content", minWidth: "100%", height: "fit-content", minHeight: "100%" }}
         >
-          <canvas
-            ref={canvasRef}
-            width={flattened ? flattened.width * OUTLINE_SUPERSAMPLE : 1}
-            height={flattened ? flattened.height * OUTLINE_SUPERSAMPLE : 1}
-            className="block"
-            style={{ width: display?.w ?? 0, height: display?.h ?? 0 }}
+          <div
+            className="relative block"
+            style={{ width: display?.w ?? 0, height: display?.h ?? 0, lineHeight: 0 }}
             data-testid="linerate-preview-mini"
+            {...(svgHtml ? { dangerouslySetInnerHTML: { __html: svgHtml } } : {})}
           />
         </div>
       </div>
@@ -277,7 +131,7 @@ export function LineratePreviewPane({ sourceImageUrl, displayMmW, displayMmH, pa
         </div>
       ) : null}
 
-      {source && valid ? (
+      {svgHtml && valid ? (
         <div className="pointer-events-none absolute bottom-2 left-0 right-0 z-10 flex justify-center">
           <div
             className="pointer-events-auto flex items-center gap-0.5 rounded-full border bg-background/90 px-1 py-1 shadow-md backdrop-blur"

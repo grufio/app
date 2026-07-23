@@ -26,18 +26,45 @@ export type LinerateFilterSuccess = {
 }
 export type LinerateFilterResult = LinerateFilterSuccess | Extract<FilterResult<"linerate_process">, { ok: false }>
 
+/** Successful compute: the raw SVG string + geometry, BEFORE persistence.
+ * Apply uploads/inserts it; Preview returns the `svg` straight to the client. */
+export type LinerateComputeSuccess = {
+  ok: true
+  svg: string
+  widthPx: number
+  heightPx: number
+  displayRectPxU: { xPxU: bigint; yPxU: bigint; widthPxU: bigint; heightPxU: bigint }
+  paletteIndicesUsed: number[] | null
+  /** Source image name — carried out so the Apply wrapper can build the output
+   * image's name without re-querying the source row. */
+  sourceName: string
+}
+export type LinerateComputeResult =
+  | LinerateComputeSuccess
+  | Extract<FilterResult<"linerate_process">, { ok: false }>
+
 /**
- * Linerate trace: segmentation-based paint-by-numbers. Mirrors the other trace
- * handlers for source lookup, content-rect compositing, palette snap and
- * activation; only the filter-service endpoint + params differ.
+ * Compute the linerate SVG for a source image: parse → source lookup →
+ * content-rect composite → filter-service call → SVG string. This is the
+ * SHARED front half of the trace: `linerateImageAndActivate` (Apply) persists
+ * the result; `previewProjectTrace` (Preview) returns it un-persisted. No
+ * upload / DB insert happens here.
+ *
+ * `resolutionMpOverride` lets the preview run the SAME pipeline at a lower work
+ * resolution (0.5 MP) — every other param is identical to Apply, so the region
+ * structure is scale-invariant (the service scales `min_radius` with
+ * `work_edge`); only the edges are coarser.
  */
-export async function linerateImageAndActivate(args: {
+export async function computeLinerateSvg(args: {
   supabase: SupabaseClient<Database>
   projectId: string
   sourceImageId: string
   params: LinerateParams
-}): Promise<LinerateFilterResult> {
-  const { supabase, projectId, sourceImageId, params } = args
+  /** When set, overrides the params `resolution` MP target for the work edge
+   * (preview runs at 0.5 MP). Apply passes nothing → uses `params.resolution`. */
+  resolutionMpOverride?: number
+}): Promise<LinerateComputeResult> {
+  const { supabase, projectId, sourceImageId, params, resolutionMpOverride } = args
   const parsed = linerateSchema.safeParse(params)
   if (!parsed.success) {
     const issues = parsed.error.issues
@@ -87,7 +114,8 @@ export async function linerateImageAndActivate(args: {
 
   // The Resolution dial is a MEGAPIXEL target; derive the server work_edge from the
   // source dimensions — aspect-invariant, never upscaling, clamped to the service range.
-  const workEdge = resolutionMpToWorkEdge(resolution, origWidth, origHeight)
+  // Preview overrides the MP target (0.5 MP) but keeps every other param identical.
+  const workEdge = resolutionMpToWorkEdge(resolutionMpOverride ?? resolution, origWidth, origHeight)
 
   // The trace only converts the printable content rect (artboard − padding).
   const region = await resolveTraceContentRegion({
@@ -207,50 +235,17 @@ export async function linerateImageAndActivate(args: {
     const paletteIndicesUsed = Array.isArray(payload?.palette_indices_used)
       ? payload.palette_indices_used.filter((n): n is number => typeof n === "number" && Number.isInteger(n) && n >= 0)
       : null
-    const outputBuffer = Buffer.from(svgString, "utf-8")
 
-    const imageId = crypto.randomUUID()
-    const objectPath = `projects/${projectId}/images/${imageId}`
-
-    const { error: uploadErr } = await supabase.storage
-      .from("project_images")
-      .upload(objectPath, outputBuffer, {
-        contentType: "image/svg+xml",
-        upsert: false,
-      })
-
-    if (uploadErr) {
-      return { ok: false, status: 500, stage: "storage_upload", reason: "Failed to upload linerate image" }
-    }
-
-    const { error: insertErr } = await supabase.from("project_images").insert({
-      id: imageId,
-      project_id: projectId,
-      kind: "trace_output",
-      name: `${src.name.replace(/ \((?:filter working|pixelate|line art|linerate|numerate|B&W hard|B&W soft|B&W warm)\)/g, "")} (linerate)`,
-      format: "svg",
-      width_px: contentW,
-      height_px: contentH,
-      storage_bucket: PROJECT_IMAGES_BUCKET,
-      storage_path: objectPath,
-      file_size_bytes: outputBuffer.byteLength,
-      is_active: false,
-      source_image_id: sourceImageId,
-    })
-
-    if (insertErr) {
-      await supabase.storage.from(PROJECT_IMAGES_BUCKET).remove([objectPath])
-      return { ok: false, status: 400, stage: "db_insert", reason: insertErr.message, code: insertErr.code }
-    }
-
+    // Front half done — hand the SVG string + geometry back. Apply persists it;
+    // Preview returns it as-is. No upload / DB insert in the shared compute.
     return {
       ok: true,
-      id: imageId,
-      storagePath: objectPath,
+      svg: svgString,
       widthPx: contentW,
       heightPx: contentH,
       displayRectPxU: region.displayRectPxU,
       paletteIndicesUsed,
+      sourceName: src.name,
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Linerate process failed"
@@ -267,5 +262,69 @@ export async function linerateImageAndActivate(args: {
         // Orphan is auditable; a storage lifecycle sweep can reap it later.
       }
     }
+  }
+}
+
+/**
+ * Linerate trace (Apply): compute the SVG (shared front half), then PERSIST it —
+ * upload the SVG as a `trace_output` project_images row. Mirrors the other trace
+ * handlers for source lookup, content-rect compositing, palette snap and
+ * activation; only the filter-service endpoint + params differ. Byte-identical to
+ * the pre-extraction behaviour — the only change is that the compute is factored
+ * into `computeLinerateSvg` so the preview path can share it un-persisted.
+ */
+export async function linerateImageAndActivate(args: {
+  supabase: SupabaseClient<Database>
+  projectId: string
+  sourceImageId: string
+  params: LinerateParams
+}): Promise<LinerateFilterResult> {
+  const { supabase, projectId, sourceImageId, params } = args
+  const computed = await computeLinerateSvg({ supabase, projectId, sourceImageId, params })
+  if (!computed.ok) return computed
+
+  const outputBuffer = Buffer.from(computed.svg, "utf-8")
+  const imageId = crypto.randomUUID()
+  const objectPath = `projects/${projectId}/images/${imageId}`
+
+  const { error: uploadErr } = await supabase.storage
+    .from("project_images")
+    .upload(objectPath, outputBuffer, {
+      contentType: "image/svg+xml",
+      upsert: false,
+    })
+
+  if (uploadErr) {
+    return { ok: false, status: 500, stage: "storage_upload", reason: "Failed to upload linerate image" }
+  }
+
+  const { error: insertErr } = await supabase.from("project_images").insert({
+    id: imageId,
+    project_id: projectId,
+    kind: "trace_output",
+    name: `${computed.sourceName.replace(/ \((?:filter working|pixelate|line art|linerate|numerate|B&W hard|B&W soft|B&W warm)\)/g, "")} (linerate)`,
+    format: "svg",
+    width_px: computed.widthPx,
+    height_px: computed.heightPx,
+    storage_bucket: PROJECT_IMAGES_BUCKET,
+    storage_path: objectPath,
+    file_size_bytes: outputBuffer.byteLength,
+    is_active: false,
+    source_image_id: sourceImageId,
+  })
+
+  if (insertErr) {
+    await supabase.storage.from(PROJECT_IMAGES_BUCKET).remove([objectPath])
+    return { ok: false, status: 400, stage: "db_insert", reason: insertErr.message, code: insertErr.code }
+  }
+
+  return {
+    ok: true,
+    id: imageId,
+    storagePath: objectPath,
+    widthPx: computed.widthPx,
+    heightPx: computed.heightPx,
+    displayRectPxU: computed.displayRectPxU,
+    paletteIndicesUsed: computed.paletteIndicesUsed,
   }
 }

@@ -62,6 +62,15 @@ type Props = {
    * (Trash2) action in every header variant that removes the trace and
    * closes the dialog. Omitted for the new-trace flow (no icon). */
   onDeleteTrace?: () => void | Promise<void>
+  /** Opt-in preview-button gate. When `false`, the edit-overlay's Preview
+   * button is NOT rendered (used by linerate to hide it once nothing changed
+   * since the last preview). `undefined`/`true` → always rendered, so
+   * pixelate/circulate keep their current behaviour. */
+  canPreview?: boolean
+  /** Opt-in preview trigger. Called (in addition to the mount/collapse) when
+   * the Preview button is tapped, so the owning dialog can bump a preview
+   * generation. Undefined for pixelate/circulate (no server preview). */
+  onPreviewRequested?: () => void
 }
 
 export function TraceDialogShell({
@@ -76,6 +85,8 @@ export function TraceDialogShell({
   onCancel,
   onApply,
   onDeleteTrace,
+  canPreview,
+  onPreviewRequested,
 }: Props) {
   // Settings first: the dialog opens on the params overlay; "Preview"
   // collapses it and mounts the preview pane on demand. Once mounted, the
@@ -244,21 +255,27 @@ export function TraceDialogShell({
                   synchronously, but the button tap doesn't reliably blur the
                   focused input on every mobile keyboard (and jsdom never
                   does) — without this the preview underneath would render the
-                  pre-edit value for the focused field. */}
-              <Button
-                type="button"
-                size="lg"
-                onClick={() => {
-                  if (document.activeElement instanceof HTMLElement) {
-                    document.activeElement.blur()
-                  }
-                  setPreviewMounted(true)
-                  setEditOpen(false)
-                }}
-                disabled={busyOrDeleting}
-              >
-                Preview
-              </Button>
+                  pre-edit value for the focused field.
+                  `canPreview === false` hides the button (linerate: nothing
+                  changed since the last preview); undefined/true keeps it, so
+                  pixelate/circulate are unchanged. */}
+              {canPreview === false ? null : (
+                <Button
+                  type="button"
+                  size="lg"
+                  onClick={() => {
+                    if (document.activeElement instanceof HTMLElement) {
+                      document.activeElement.blur()
+                    }
+                    onPreviewRequested?.()
+                    setPreviewMounted(true)
+                    setEditOpen(false)
+                  }}
+                  disabled={busyOrDeleting}
+                >
+                  Preview
+                </Button>
+              )}
             </DialogStickyFooter>
           </div>
         ) : null}

@@ -11,13 +11,6 @@ import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 
 import { linerateSchema } from "./linerate"
-import { smoothnessToParams } from "./contour-trace"
-import { flattenToLam } from "./l0-smooth"
-import {
-  LINERATE_DETAIL_MAX_FRAC,
-  LINERATE_DETAIL_MIN_FRAC,
-  detailToMinArea,
-} from "./linerate-preview"
 import { pixelateSchema } from "./pixelate"
 
 const PYTHON_PATH = join(__dirname, "../../../filter-service/app/main.py")
@@ -149,66 +142,5 @@ describe("Python parity: TS trace schema defaults vs Pydantic", () => {
       expect.arrayContaining(["line_thickness", "flatten", "detail", "smoothness", "num_colors", "min_region_radius_px", "work_edge"]),
     )
     expect(Object.keys(extractPydanticDefaults("PixelateRequest"))).toContain("num_colors")
-  })
-})
-
-// The linerate PREVIEW ports the server's `detail`→facet-min-area mapping so the
-// dialog's Detail slider shows an approximate region count. The port must stay in
-// lockstep with the Python source: if a server-side PR changes the constants or the
-// interpolation shape, this fails the client build (not silently diverge).
-describe("Python parity: linerate detail→min-area preview port", () => {
-  const LINERATE_PATH = join(__dirname, "../../../filter-service/app/linerate.py")
-  const LINERATE_SOURCE = readFileSync(LINERATE_PATH, "utf-8")
-
-  const readConst = (name: string): number => {
-    const m = new RegExp(`${name}\\s*=\\s*([0-9.]+)`).exec(LINERATE_SOURCE)
-    if (!m) throw new Error(`${name} not found in ${LINERATE_PATH}`)
-    return Number.parseFloat(m[1])
-  }
-
-  it("constants match the TS port", () => {
-    expect(readConst("_DETAIL_MIN_FRAC")).toBe(LINERATE_DETAIL_MIN_FRAC)
-    expect(readConst("_DETAIL_MAX_FRAC")).toBe(LINERATE_DETAIL_MAX_FRAC)
-  })
-
-  it("interpolation is GEOMETRIC on both sides", () => {
-    // Server: frac = _DETAIL_MAX_FRAC * (_DETAIL_MIN_FRAC / _DETAIL_MAX_FRAC) ** d
-    expect(LINERATE_SOURCE).toMatch(
-      /frac\s*=\s*_DETAIL_MAX_FRAC\s*\*\s*\(_DETAIL_MIN_FRAC\s*\/\s*_DETAIL_MAX_FRAC\)\s*\*\*\s*d/,
-    )
-    // TS mirrors it: at the endpoints min-area = frac_max·px (d=0) and frac_min·px (d=1).
-    const px = 1_000_000
-    expect(detailToMinArea(0, px, 0)).toBeCloseTo(LINERATE_DETAIL_MAX_FRAC * px, 3)
-    expect(detailToMinArea(1, px, 0)).toBeCloseTo(LINERATE_DETAIL_MIN_FRAC * px, 3)
-  })
-
-  it("L0 flatten mapping + β schedule match the client port", () => {
-    // The preview's client L0 (`l0-smooth.ts`) must track the server `_l0_smooth`
-    // / `_flatten_to_lam`. Parse the server constants and assert the TS port agrees.
-    const lamMatch = /return\s+0\.002\s*\+\s*f\s*\*\s*0\.045/.exec(LINERATE_SOURCE)
-    expect(lamMatch, "server _flatten_to_lam formula changed").not.toBeNull()
-    expect(flattenToLam(0)).toBeCloseTo(0.002, 9)
-    expect(flattenToLam(1)).toBeCloseTo(0.047, 9)
-    // β schedule: start 2·lam, ×kappa=2.0, stop at 1e5 (kept in sync in l0-smooth.ts).
-    expect(LINERATE_SOURCE).toMatch(/beta\s*=\s*2\s*\*\s*lam/)
-    expect(LINERATE_SOURCE).toMatch(/kappa:\s*float\s*=\s*2\.0/)
-    expect(LINERATE_SOURCE).toMatch(/while\s+beta\s*<\s*1e5/)
-  })
-
-  it("smoothness→(eps,iters) mapping matches the client port", () => {
-    // The preview outlines use the same smoothness_to_params the server applies
-    // to its arcs, so preview ⇄ Apply smoothing stays consistent.
-    expect(LINERATE_SOURCE).toMatch(/return\s+0\.5\s*\+\s*s\s*\*\s*2\.0\s*,\s*2\s*\+\s*int\(round\(s\s*\*\s*2\)\)/)
-    expect(smoothnessToParams(0)).toEqual({ eps: 0.5, iters: 2 })
-    expect(smoothnessToParams(1)).toEqual({ eps: 2.5, iters: 4 })
-  })
-
-  it("watertight back-half functions the preview ports still exist server-side", () => {
-    // boundary-arcs.ts is a client port of these; a server rewrite should flag the
-    // port for review (we intentionally do NOT assert stroke parity — the preview
-    // strokes internal arcs once + skips the frame, unlike the server face paths).
-    expect(LINERATE_SOURCE).toMatch(/def build_arcs\(/)
-    expect(LINERATE_SOURCE).toMatch(/def smooth_arc\(/)
-    expect(LINERATE_SOURCE).toMatch(/def assemble_faces\(/)
   })
 })

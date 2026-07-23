@@ -26,6 +26,9 @@ import { EditorTraceDialogHost } from "./editor-trace-dialog-host"
 export type TraceSurfaceScopeProps = {
   traceSourceImage: TraceDialogSourceImage | null
   onApplyTrace: (args: { kind: TraceKind; params: Record<string, unknown> }) => Promise<void>
+  /** Linerate dialog preview: run the server trace at 0.5 MP and return the
+   * un-persisted SVG string. Threaded down to the LinerateDialog's preview pane. */
+  onPreviewTrace: (args: { kind: TraceKind; params: Record<string, unknown> }) => Promise<string>
   isAddTraceDisabled: boolean
   isClearingTrace: boolean
   isLoadingInitial: boolean
@@ -127,6 +130,7 @@ export function TraceSurfaceScope(props: TraceSurfaceScopeProps) {
         onCloseConfigure={handleCloseConfigure}
         onApplied={handleApplied}
         onApplyTrace={props.onApplyTrace}
+        onPreviewTrace={props.onPreviewTrace}
         onDeleteTrace={props.trace !== null ? handleDeleteTrace : undefined}
         initialParams={props.trace?.params}
       />

@@ -43,6 +43,7 @@ import {
 } from "@/components/ui/dialog"
 import { AppButton } from "@/components/ui/form-controls"
 import { displayTxToMm } from "@/lib/editor/trace/display-tx-to-mm"
+import { previewProjectTrace } from "@/lib/api/project-trace"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
 import { useDisplaySize } from "@/lib/editor/hooks/use-display-size"
 import { useMasterImageUploader } from "@/lib/editor/hooks/use-master-image-uploader"
@@ -541,6 +542,17 @@ export function ProjectDetailPageClient({
     [displayTxU, masterImage, artboardWidthPx, artboardHeightPx, paddingPx, workflow],
   )
 
+  // Linerate dialog preview: run the SAME server trace at 0.5 MP and return the
+  // un-persisted SVG string. Read-only — no workflow mutation, no coverage
+  // guard (the preview just visualises what Apply would produce).
+  const handlePreviewTrace = useCallback(
+    async (args: { kind: RegisteredTraceId; params: Record<string, unknown> }): Promise<string> => {
+      const { svg } = await previewProjectTrace({ projectId, kind: args.kind, params: args.params })
+      return svg
+    },
+    [projectId],
+  )
+
   const handleTitleUpdated = useCallback((nextTitle: string) => setProject({ id: projectId, name: nextTitle }), [projectId, setProject])
 
   // Closing the configure dialog returns to the trace section so the
@@ -779,6 +791,7 @@ export function ProjectDetailPageClient({
           <TraceSurfaceScope
             traceSourceImage={traceDialogSourceImage}
             onApplyTrace={handleApplyTraceGuarded}
+            onPreviewTrace={handlePreviewTrace}
             isAddTraceDisabled={isAddTraceDisabled}
             isClearingTrace={workflow.isClearingTrace}
             isLoadingInitial={traceLoading}
