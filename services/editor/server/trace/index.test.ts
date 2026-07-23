@@ -33,7 +33,7 @@ vi.mock("./pixelate", () => ({
   pixelateImageAndActivate: (...args: unknown[]) => pixelateMock(...(args as [])),
 }))
 
-import { applyProjectTrace } from "./index"
+import { applyProjectTrace, previewProjectTrace } from "./index"
 
 const PROJECT_ID = "project-id"
 const WORKING_COPY_ID = "working-copy-id"
@@ -269,5 +269,66 @@ describe("applyProjectTrace — per-trace display rect persistence (Invariant 2)
       display_width_px_u: "566929134",
       display_height_px_u: "283464567",
     })
+  })
+})
+
+describe("previewProjectTrace — no-persist compute path", () => {
+  const validLinerateParams = {
+    line_thickness: 1,
+    flatten: 0.25,
+    detail: 0.75,
+    smoothness: 0.6,
+    radius: 0.333,
+    num_colors: 28,
+    palette_restriction: "top_n",
+    min_paintable_mm: 4,
+    color_mode: "color",
+    resolution: 2,
+    flatten_algo: "l0",
+    sigma_s: 57,
+    sigma_r: 0.23,
+    ep_flag: "recurs",
+  }
+
+  it("rejects a non-linerate kind (preview is linerate-only)", async () => {
+    const supabase = makeMockSupabase({ tables: {} })
+    const result = await previewProjectTrace({
+      supabase,
+      projectId: PROJECT_ID,
+      kind: "pixelate",
+      params: { supercell_width_mm: 6, supercell_height_mm: 6 },
+    })
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.stage).toBe("validation")
+  })
+
+  it("rejects invalid linerate params at validation", async () => {
+    const supabase = makeMockSupabase({ tables: {} })
+    const result = await previewProjectTrace({
+      supabase,
+      projectId: PROJECT_ID,
+      kind: "linerate",
+      params: { ...validLinerateParams, line_thickness: 0 },
+    })
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.stage).toBe("validation")
+  })
+
+  it("resolves the shared source (fails at source_lookup) — never persists", async () => {
+    // Valid params + an explicit source_image_id take the resolveSourceById
+    // branch; a null source row surfaces source_lookup, proving the shared
+    // resolver ran and the compute front-half started — with NO trace-row
+    // upsert / image insert on the preview path.
+    const supabase = makeMockSupabase({
+      tables: { project_images: { select: { data: null, error: null } } },
+    })
+    const result = await previewProjectTrace({
+      supabase,
+      projectId: PROJECT_ID,
+      kind: "linerate",
+      params: { ...validLinerateParams, source_image_id: WORKING_COPY_ID },
+    })
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.stage).toBe("source_lookup")
   })
 })

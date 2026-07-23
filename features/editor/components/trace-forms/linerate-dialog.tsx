@@ -4,11 +4,13 @@
  * Linerate trace dialog — the SAME shell as Pixelate / Circulate
  * (`TraceDialogShell`), so the layout, header, sticky footer and 24px section
  * rhythm are identical. Like them it has no cell grid, so we own the small
- * draft/busy/apply lifecycle inline. The preview is a fast client-side colour
- * approximation (`LineratePreviewPane`); the authoritative smooth, watertight
- * SVG comes from the server on Apply.
+ * draft/busy/apply lifecycle inline. The preview IS the same server trace as
+ * Apply, run at 0.5 MP (no persist); the pane renders the returned SVG. Each
+ * Preview tap bumps a generation counter (the pane re-runs on it, no remount)
+ * and records the previewed params; the Preview button hides while the draft
+ * still matches the last-previewed params (nothing to re-render).
  */
-import { useMemo, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 import { toast } from "sonner"
 
 import { formatOperationErrorForToast, normalizeApiError } from "@/lib/api/error-normalizer"
@@ -30,6 +32,12 @@ type Props = {
     kind: RegisteredTraceId
     params: Record<string, unknown>
   }) => Promise<void>
+  /** Run the server trace at 0.5 MP and return the un-persisted SVG string. The
+   * preview pane calls this on each preview generation and renders the SVG. */
+  onPreviewTrace: (args: {
+    kind: RegisteredTraceId
+    params: Record<string, unknown>
+  }) => Promise<string>
   onDeleteTrace?: () => void | Promise<void>
   initialParams?: Record<string, unknown>
 }
@@ -40,12 +48,12 @@ function fmt1(n: number): string {
 
 export function LinerateDialog({
   open,
-  sourceImageUrl,
   displayMmW,
   displayMmH,
   onClose,
   onSuccess,
   onApplyTrace,
+  onPreviewTrace,
   onDeleteTrace,
   initialParams,
 }: Props) {
@@ -56,8 +64,33 @@ export function LinerateDialog({
   const [draft, setDraft] = useState<LinerateParams>(defaults)
   const [busy, setBusy] = useState(false)
 
+  // Preview generation: bumped on each Preview tap so the (kept-mounted) pane
+  // re-runs the server preview with the CURRENT draft — no remount. Paired with
+  // the params snapshot that was last previewed, which drives `previewDirty`.
+  const [previewGeneration, setPreviewGeneration] = useState(0)
+  const [lastPreviewedParams, setLastPreviewedParams] = useState<LinerateParams | null>(null)
+
   const setField = <K extends keyof LinerateParams>(key: K, value: LinerateParams[K]) =>
     setDraft((prev) => ({ ...prev, [key]: value }))
+
+  // Runs the server preview with the CURRENT draft. Recreated when the draft
+  // changes; the pane's effect (keyed on the generation) reads whichever
+  // closure is bound at the render that committed the new generation — which is
+  // always the latest draft, since a Preview tap follows the field commits.
+  const runPreview = useCallback(
+    () => onPreviewTrace({ kind: "linerate", params: draft as Record<string, unknown> }),
+    [onPreviewTrace, draft],
+  )
+
+  // The draft params are flat primitives, so JSON.stringify is a sound deep
+  // compare. Null last-previewed (before the first preview) → dirty → the first
+  // Preview is always offered.
+  const previewDirty = lastPreviewedParams === null || JSON.stringify(draft) !== JSON.stringify(lastPreviewedParams)
+
+  const handlePreviewRequested = useCallback(() => {
+    setPreviewGeneration((g) => g + 1)
+    setLastPreviewedParams(draft)
+  }, [draft])
 
   const handleCancel = () => {
     if (busy) return
@@ -95,10 +128,10 @@ export function LinerateDialog({
       ]}
       preview={
         <LineratePreviewPane
-          sourceImageUrl={sourceImageUrl}
           displayMmW={displayMmW}
           displayMmH={displayMmH}
-          params={draft}
+          onPreview={runPreview}
+          generation={previewGeneration}
         />
       }
       form={<LinerateForm params={draft} onParamsChange={setField} disabled={busy} />}
@@ -107,6 +140,8 @@ export function LinerateDialog({
       onCancel={handleCancel}
       onApply={() => void handleApply()}
       onDeleteTrace={onDeleteTrace}
+      canPreview={previewDirty}
+      onPreviewRequested={handlePreviewRequested}
     />
   )
 }

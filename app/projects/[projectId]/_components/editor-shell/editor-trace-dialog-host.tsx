@@ -37,6 +37,12 @@ export function EditorTraceDialogHost(props: {
     kind: RegisteredTraceId
     params: Record<string, unknown>
   }) => Promise<void>
+  /** Linerate dialog preview: run the server trace at 0.5 MP and return the
+   * un-persisted SVG string. Only the LinerateDialog consumes it. */
+  onPreviewTrace: (args: {
+    kind: RegisteredTraceId
+    params: Record<string, unknown>
+  }) => Promise<string>
   /** Present only when a trace is already applied — the configure
    * dialog is then editing that active trace and shows a Delete action
    * in its header. Undefined for the new-trace flow. */
@@ -54,6 +60,7 @@ export function EditorTraceDialogHost(props: {
     onCloseConfigure,
     onApplied,
     onApplyTrace,
+    onPreviewTrace,
     onDeleteTrace,
     initialParams,
   } = props
@@ -110,6 +117,7 @@ export function EditorTraceDialogHost(props: {
           onClose={onCloseConfigure}
           onSuccess={onApplied}
           onApplyTrace={onApplyTrace}
+          onPreviewTrace={onPreviewTrace}
           onDeleteTrace={onDeleteTrace}
           initialParams={initialParams}
         />
