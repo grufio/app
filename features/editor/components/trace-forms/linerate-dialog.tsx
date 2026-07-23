@@ -14,6 +14,7 @@ import { useCallback, useMemo, useState } from "react"
 import { toast } from "sonner"
 
 import { formatOperationErrorForToast, normalizeApiError } from "@/lib/api/error-normalizer"
+import type { TraceContentRegion } from "@/lib/editor/trace/content-region"
 import { linerateSchema, type LinerateParams } from "@/lib/editor/trace/linerate"
 import type { RegisteredTraceId } from "@/lib/editor/trace/registry"
 
@@ -26,6 +27,9 @@ type Props = {
   sourceImageUrl: string
   displayMmW: number
   displayMmH: number
+  /** Content region (artboard − padding) — the crop the final trace uses. The
+   * preview sizes its box to this so its aspect matches Apply (no distortion). */
+  contentRegion?: TraceContentRegion | null
   onClose: () => void
   onSuccess: () => void
   onApplyTrace: (args: {
@@ -50,6 +54,7 @@ export function LinerateDialog({
   open,
   displayMmW,
   displayMmH,
+  contentRegion,
   onClose,
   onSuccess,
   onApplyTrace,
@@ -133,6 +138,7 @@ export function LinerateDialog({
         <LineratePreviewPane
           displayMmW={displayMmW}
           displayMmH={displayMmH}
+          contentRegion={contentRegion}
           onPreview={runPreview}
           generation={previewGeneration}
         />
