@@ -80,9 +80,6 @@ export type CellTraceDialogProps<P, G extends CellGridMetadata> = {
     kind: RegisteredTraceId
     params: Record<string, unknown>
   }) => Promise<void>
-  /** Present only when editing the active trace — surfaces the Delete
-   * action in the dialog header. */
-  onDeleteTrace?: () => void | Promise<void>
   /** Saved params of the active trace; seeds the draft when editing
    * (instead of schema defaults). */
   initialParams?: Record<string, unknown>
@@ -112,7 +109,6 @@ export function CellTraceDialog<P extends Record<string, unknown>, G extends Cel
     onClose,
     onSuccess,
     onApplyTrace,
-    onDeleteTrace,
     initialParams,
     contentRegion,
   } = props
@@ -189,7 +185,6 @@ export function CellTraceDialog<P extends Record<string, unknown>, G extends Cel
       busy={busy}
       onCancel={handleCancel}
       onApply={() => void handleApply()}
-      onDeleteTrace={onDeleteTrace}
     />
   )
 }

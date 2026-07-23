@@ -28,6 +28,17 @@ describe("EditorTraceBar", () => {
     expect(onDelete).toHaveBeenCalledOnce()
   })
 
+  it("greys out (disables) Delete while not mutable, and it no longer fires", () => {
+    const onDelete = vi.fn()
+    const { getByLabelText } = render(
+      <EditorTraceBar hasTrace onOpen={vi.fn()} onDelete={onDelete} deleteDisabled />,
+    )
+    const del = getByLabelText("Delete trace") as HTMLButtonElement
+    expect(del.disabled).toBe(true)
+    fireEvent.click(del)
+    expect(onDelete).not.toHaveBeenCalled()
+  })
+
   it("shows the colours button (bold count, no icon) when the trace has colours", () => {
     const onOpenColors = vi.fn()
     const { getByLabelText, getByText } = render(

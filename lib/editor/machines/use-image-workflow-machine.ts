@@ -99,6 +99,12 @@ export function useImageWorkflowMachine(args: {
   const isClearingTrace = state.matches({ operation: "clearingTrace" })
   const isUploadingMaster = state.matches({ operation: "uploadingMaster" })
   const isDeletingMaster = state.matches({ operation: "deletingMaster" })
+  // UI gate for the leaf-delete affordances (Filter/Trace bar Trash):
+  // TRACE_REMOVE and FILTER_REMOVE share the same acceptance — allowed only
+  // from `operation: idle` under `canMutate` (ready source + active image).
+  // `TRACE_REMOVE` carries no payload, so its `can` is the exact predicate;
+  // exposing it lets the bars grey out Delete instead of rejecting the clear.
+  const canMutate = state.can({ type: "TRACE_REMOVE" })
   const isCropping = state.matches({ operation: "cropping" })
   const isRestoring = state.matches({ operation: "restoring" })
   const lastOperation = state.context.lastOperation
@@ -285,6 +291,7 @@ export function useImageWorkflowMachine(args: {
     isClearingTrace,
     isUploadingMaster,
     isDeletingMaster,
+    canMutate,
     isCropping,
     isRestoring,
     lastOperation,

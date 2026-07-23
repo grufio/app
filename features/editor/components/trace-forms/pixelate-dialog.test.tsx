@@ -77,9 +77,11 @@ describe("PixelateDialog (smoke)", () => {
     expect(document.body.querySelector('button[aria-label="Apply filter"]')).not.toBeNull()
   })
 
-  it("renders a Delete trace action in the header only when onDeleteTrace is set, and it fires", async () => {
-    const onDeleteTrace = vi.fn()
-    const { rerender } = render(
+  it("never renders a Delete action — delete lives only in the section bar", async () => {
+    // Editing the active trace (initialParams present) used to surface a
+    // Delete button in the dialog header; delete is now bar-only, always
+    // behind a confirm. The dialog must NOT expose any delete affordance.
+    render(
       <PixelateDialog
         open
         sourceImageUrl="https://example.test/img.png"
@@ -88,31 +90,19 @@ describe("PixelateDialog (smoke)", () => {
         onClose={() => {}}
         onSuccess={() => {}}
         onApplyTrace={async () => {}}
+        initialParams={{ supercell_width_mm: 7.5 }}
       />,
     )
 
-    // New-trace flow: no delete affordance in the header.
+    await waitFor(() => {
+      expect(document.body.querySelector("#supercell_width_mm")).not.toBeNull()
+    })
     expect(document.body.querySelector('button[aria-label="Delete trace"]')).toBeNull()
-
-    // Editing the active trace: the header surfaces Delete.
-    rerender(
-      <PixelateDialog
-        open
-        sourceImageUrl="https://example.test/img.png"
-        displayMmW={100}
-        displayMmH={75}
-        onClose={() => {}}
-        onSuccess={() => {}}
-        onApplyTrace={async () => {}}
-        onDeleteTrace={onDeleteTrace}
-      />,
-    )
-    const del = document.body.querySelector(
-      'button[aria-label="Delete trace"]',
-    ) as HTMLButtonElement
-    expect(del).toBeTruthy()
-    fireEvent.click(del)
-    expect(onDeleteTrace).toHaveBeenCalledTimes(1)
+    expect(
+      Array.from(document.body.querySelectorAll("button")).find(
+        (b) => b.textContent?.trim() === "Delete",
+      ),
+    ).toBeUndefined()
   })
 
   it("seeds the form from initialParams and applies them unchanged (remembers settings)", async () => {
@@ -155,55 +145,7 @@ describe("PixelateDialog (smoke)", () => {
     })
   })
 
-  it("spins the Delete action and disables Apply while the clear runs", async () => {
-    let resolveDelete: () => void = () => {}
-    const onDeleteTrace = vi.fn(
-      () =>
-        new Promise<void>((resolve) => {
-          resolveDelete = resolve
-        }),
-    )
-    render(
-      <PixelateDialog
-        open
-        sourceImageUrl="https://example.test/img.png"
-        displayMmW={100}
-        displayMmH={75}
-        onClose={() => {}}
-        onSuccess={() => {}}
-        onApplyTrace={async () => {}}
-        onDeleteTrace={onDeleteTrace}
-      />,
-    )
-
-    const del = await waitFor(() => {
-      const el = document.body.querySelector(
-        'button[aria-label="Delete trace"]',
-      ) as HTMLButtonElement | null
-      if (!el) throw new Error("delete button not mounted")
-      return el
-    })
-
-    fireEvent.click(del)
-
-    // The clear is in flight: Delete shows a spinner (mirrors Apply's
-    // Check → Loader2) and Apply is disabled so it can't race.
-    await waitFor(() => {
-      expect(del.querySelector(".animate-spin")).not.toBeNull()
-    })
-    const apply = document.body.querySelector(
-      'button[aria-label="Apply filter"]',
-    ) as HTMLButtonElement
-    expect(apply.hasAttribute("disabled")).toBe(true)
-
-    // Settle: once the clear resolves, the spinner clears.
-    resolveDelete()
-    await waitFor(() => {
-      expect(del.querySelector(".animate-spin")).toBeNull()
-    })
-  })
-
-  it("mobile: the edit-overlay header exposes Delete trace when editing the active trace", async () => {
+  it("mobile: the edit-overlay header carries NO Delete action (delete is bar-only)", async () => {
     window.matchMedia = ((query: string) =>
       ({
         matches: true,
@@ -216,7 +158,6 @@ describe("PixelateDialog (smoke)", () => {
         dispatchEvent: () => false,
       }) as unknown as MediaQueryList) as typeof window.matchMedia
 
-    const onDeleteTrace = vi.fn()
     render(
       <PixelateDialog
         open
@@ -226,20 +167,16 @@ describe("PixelateDialog (smoke)", () => {
         onClose={() => {}}
         onSuccess={() => {}}
         onApplyTrace={async () => {}}
-        onDeleteTrace={onDeleteTrace}
+        initialParams={{ supercell_width_mm: 7.5 }}
       />,
     )
 
-    // Mobile opens on the edit overlay (params); its header carries Delete.
+    // Mobile opens on the edit overlay (params); its header must NOT carry
+    // Delete even while editing the active trace.
     await waitFor(() => {
       expect(document.body.querySelector("#supercell_width_mm")).not.toBeNull()
     })
-    const del = document.body.querySelector(
-      'button[aria-label="Delete trace"]',
-    ) as HTMLButtonElement
-    expect(del).toBeTruthy()
-    fireEvent.click(del)
-    expect(onDeleteTrace).toHaveBeenCalledTimes(1)
+    expect(document.body.querySelector('button[aria-label="Delete trace"]')).toBeNull()
   })
 
   it("mobile: opens on params; Preview reveals preview; pencil re-opens; apply icon fires the trace", async () => {

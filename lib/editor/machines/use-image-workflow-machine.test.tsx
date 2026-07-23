@@ -97,3 +97,51 @@ describe("useImageWorkflowMachine — apply wait budget covers the Cloud Run bac
     expect(settled).toBe("resolved")
   })
 })
+
+/**
+ * `canMutate` is the UI gate for the bar leaf-delete (Filter/Trace Trash):
+ * it must exactly mirror when TRACE_REMOVE/FILTER_REMOVE are accepted (idle +
+ * ready source with an active image). Gating the Delete buttons on it is what
+ * keeps `clearTrace`/`removeFilter` from ever rejecting/no-oping from the UI.
+ */
+describe("useImageWorkflowMachine — canMutate mirrors leaf-remove acceptance", () => {
+  it("mirrors state.can(TRACE_REMOVE): false with no ready source, true once ready", () => {
+    // Stable `services` identity across renders: the hook fires SERVICES_UPDATE
+    // on every new identity, so an inline object would loop the machine.
+    const services = createServices()
+    const { result } = renderHook(() => useImageWorkflowMachine({ services }))
+
+    // No source yet → the machine rejects the remove events → the exported
+    // gate must be false so the bars grey out Delete (never reject from UI).
+    expect(result.current.state.can({ type: "TRACE_REMOVE" })).toBe(false)
+    expect(result.current.state.can({ type: "FILTER_REMOVE", filterId: "f_1" })).toBe(false)
+    expect(result.current.canMutate).toBe(false)
+
+    act(() => { makeReady(result.current) })
+
+    // Ready source with an active image → both remove events accepted → the
+    // gate flips true. `canMutate` tracks the shared idle+canMutate predicate.
+    expect(result.current.state.can({ type: "TRACE_REMOVE" })).toBe(true)
+    expect(result.current.state.can({ type: "FILTER_REMOVE", filterId: "f_1" })).toBe(true)
+    expect(result.current.canMutate).toBe(true)
+  })
+
+  it("goes false once a mutation is in flight (not idle), matching the guard", () => {
+    // Removing a filter drives the machine out of idle into `removingFilter`
+    // (the service is a hung promise here, so it stays there). The gate must
+    // drop to false — in lock-step with the machine's own remove acceptance —
+    // so the bars grey out Delete instead of issuing a second, rejected clear.
+    const services = createServices({
+      removeFilter: vi.fn(() => new Promise<void>(() => {})),
+    })
+    const { result } = renderHook(() => useImageWorkflowMachine({ services }))
+    act(() => { makeReady(result.current) })
+    expect(result.current.canMutate).toBe(true)
+
+    act(() => { result.current.removeFilter("f_1") })
+
+    expect(result.current.isRemovingFilter).toBe(true)
+    expect(result.current.canMutate).toBe(false)
+    expect(result.current.state.can({ type: "TRACE_REMOVE" })).toBe(false)
+  })
+})
