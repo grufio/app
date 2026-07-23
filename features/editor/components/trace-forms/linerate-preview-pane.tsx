@@ -18,8 +18,9 @@ import { Loader2, Maximize2, ZoomIn, ZoomOut } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
-import { formatOperationErrorForToast, normalizeApiError } from "@/lib/api/error-normalizer"
 import { prepareTraceSvg } from "@/features/editor/components/canvas-stage/prepare-trace-svg"
+import { formatOperationErrorForToast, normalizeApiError } from "@/lib/api/error-normalizer"
+import type { TraceContentRegion } from "@/lib/editor/trace/content-region"
 
 const ZOOM_STEP = 1.5
 const ZOOM_MIN = 1
@@ -28,6 +29,10 @@ const ZOOM_MAX = 8
 type Props = {
   displayMmW: number
   displayMmH: number
+  /** Content region (artboard − padding) — the crop the final trace uses. The
+   * box is sized to this so its aspect matches the returned content-rect SVG and
+   * it isn't stretched. Absent → falls back to the full artboard mm. */
+  contentRegion?: TraceContentRegion | null
   /** Runs the server trace at 0.5 MP and resolves with the SVG string. Called
    * once per `generation` — reads the current draft at call time. */
   onPreview: () => Promise<string>
@@ -36,7 +41,7 @@ type Props = {
   generation: number
 }
 
-export function LineratePreviewPane({ displayMmW, displayMmH, onPreview, generation }: Props) {
+export function LineratePreviewPane({ displayMmW, displayMmH, contentRegion, onPreview, generation }: Props) {
   const paneRef = useRef<HTMLDivElement | null>(null)
   const [pane, setPane] = useState<{ w: number; h: number }>({ w: 0, h: 0 })
   const [zoom, setZoom] = useState(1)
@@ -88,7 +93,13 @@ export function LineratePreviewPane({ displayMmW, displayMmH, onPreview, generat
   // annotate paths) — the same preparation the canvas overlay uses.
   const svgHtml = useMemo(() => (svgText ? prepareTraceSvg(svgText)?.html ?? null : null), [svgText])
 
-  const valid = displayMmW > 0 && displayMmH > 0
+  // Size the preview box by the CONTENT rect (artboard − padding), the same crop
+  // Apply uses — so the box aspect matches the returned content-rect SVG and it
+  // isn't stretched (prepareTraceSvg renders with preserveAspectRatio="none").
+  // Mirrors CirculatePreviewPane's `effMm` fallback.
+  const effMmW = contentRegion?.displayMmW ?? displayMmW
+  const effMmH = contentRegion?.displayMmH ?? displayMmH
+  const valid = effMmW > 0 && effMmH > 0
   const showSpinner = loading
   const showInvalid = !loading && svgText !== null && !valid
 
@@ -98,10 +109,10 @@ export function LineratePreviewPane({ displayMmW, displayMmH, onPreview, generat
   const zoomLabel = `${Math.round(zoom * 100)}%`
 
   const display = useMemo(() => {
-    if (!valid || pane.w <= 0 || pane.h <= 0 || displayMmW <= 0 || displayMmH <= 0) return null
-    const fitScale = Math.min(pane.w / displayMmW, pane.h / displayMmH)
-    return { w: displayMmW * fitScale * zoom, h: displayMmH * fitScale * zoom }
-  }, [valid, pane.w, pane.h, displayMmW, displayMmH, zoom])
+    if (!valid || pane.w <= 0 || pane.h <= 0 || effMmW <= 0 || effMmH <= 0) return null
+    const fitScale = Math.min(pane.w / effMmW, pane.h / effMmH)
+    return { w: effMmW * fitScale * zoom, h: effMmH * fitScale * zoom }
+  }, [valid, pane.w, pane.h, effMmW, effMmH, zoom])
 
   return (
     <div ref={paneRef} className="relative w-full flex-1 min-h-0 bg-muted">
