@@ -67,8 +67,10 @@ export function LinerateDialog({
   // Preview generation: bumped on each Preview tap so the (kept-mounted) pane
   // re-runs the server preview with the CURRENT draft — no remount. Paired with
   // the params snapshot that was last previewed, which drives `previewDirty`.
+  // Baseline = the OPENING params (`defaults`), so an untouched dialog is NOT
+  // dirty: the Preview button hides until the user actually changes something.
   const [previewGeneration, setPreviewGeneration] = useState(0)
-  const [lastPreviewedParams, setLastPreviewedParams] = useState<LinerateParams | null>(null)
+  const [lastPreviewedParams, setLastPreviewedParams] = useState<LinerateParams>(defaults)
 
   const setField = <K extends keyof LinerateParams>(key: K, value: LinerateParams[K]) =>
     setDraft((prev) => ({ ...prev, [key]: value }))
@@ -83,9 +85,10 @@ export function LinerateDialog({
   )
 
   // The draft params are flat primitives, so JSON.stringify is a sound deep
-  // compare. Null last-previewed (before the first preview) → dirty → the first
-  // Preview is always offered.
-  const previewDirty = lastPreviewedParams === null || JSON.stringify(draft) !== JSON.stringify(lastPreviewedParams)
+  // compare. Dirty = the draft differs from the last-previewed (initially the
+  // opening) params → the Preview button is offered only after a real change,
+  // and hides again once that change has been previewed.
+  const previewDirty = JSON.stringify(draft) !== JSON.stringify(lastPreviewedParams)
 
   const handlePreviewRequested = useCallback(() => {
     setPreviewGeneration((g) => g + 1)
