@@ -47,8 +47,14 @@ export class FakeResizeObserver {
  * no-ops — these tests assert a single static viewport, not resize transitions.
  */
 export function installMatchMedia(matches = false): void {
-  window.matchMedia = ((query: string) =>
-    ({
+  // Assign via `Object.defineProperty` — its descriptor `value` is typed `any`,
+  // so no double type assertion is needed to satisfy the `MediaQueryList` shape
+  // (which would count against the type-escape budget, as this file is not a
+  // `*.test.ts`).
+  Object.defineProperty(window, "matchMedia", {
+    writable: true,
+    configurable: true,
+    value: (query: string) => ({
       matches,
       media: query,
       onchange: null,
@@ -57,5 +63,6 @@ export function installMatchMedia(matches = false): void {
       addEventListener: () => {},
       removeEventListener: () => {},
       dispatchEvent: () => false,
-    }) as unknown as MediaQueryList) as typeof window.matchMedia
+    }),
+  })
 }
