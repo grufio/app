@@ -148,7 +148,7 @@ describe("PixelateDialog (smoke)", () => {
   it("mobile: the edit-overlay header carries NO Delete action (delete is bar-only)", async () => {
     window.matchMedia = ((query: string) =>
       ({
-        matches: false,
+        matches: true,
         media: query,
         onchange: null,
         addListener: () => {},
@@ -182,7 +182,7 @@ describe("PixelateDialog (smoke)", () => {
   it("mobile: opens on params; Preview reveals preview; pencil re-opens; apply icon fires the trace", async () => {
     window.matchMedia = ((query: string) =>
       ({
-        matches: false,
+        matches: true,
         media: query,
         onchange: null,
         addListener: () => {},
@@ -258,7 +258,7 @@ describe("PixelateDialog (smoke)", () => {
   it("mobile: a typed numeric value is committed before Preview closes the edit dialog", async () => {
     window.matchMedia = ((query: string) =>
       ({
-        matches: false,
+        matches: true,
         media: query,
         onchange: null,
         addListener: () => {},
@@ -329,7 +329,7 @@ describe("PixelateDialog (smoke)", () => {
   it("mobile: tapping Preview keeps the outer fullscreen preview open (does not call onClose)", async () => {
     window.matchMedia = ((query: string) =>
       ({
-        matches: false,
+        matches: true,
         media: query,
         onchange: null,
         addListener: () => {},
@@ -379,7 +379,7 @@ describe("PixelateDialog (smoke)", () => {
   it("mobile: edit-mode X closes the entire trace flow", async () => {
     window.matchMedia = ((query: string) =>
       ({
-        matches: false,
+        matches: true,
         media: query,
         onchange: null,
         addListener: () => {},
@@ -421,7 +421,7 @@ describe("PixelateDialog (smoke)", () => {
   it("mobile: edit-mode Cancel closes the entire trace flow", async () => {
     window.matchMedia = ((query: string) =>
       ({
-        matches: false,
+        matches: true,
         media: query,
         onchange: null,
         addListener: () => {},

@@ -36,8 +36,6 @@
 import { useState, type ReactNode } from "react"
 import { Check, Pencil, X } from "lucide-react"
 
-import { useIsDesktop } from "@/lib/editor/hooks/use-is-desktop"
-
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -95,10 +93,6 @@ export function TraceDialogShell({
   // source image survive — only the *first* preview-tap pays the compute.
   const [editOpen, setEditOpen] = useState(true)
   const [previewMounted, setPreviewMounted] = useState(false)
-  // Placement, decided ONCE: icons in the header on mobile, text buttons in a
-  // footer on desktop. Rendering the actions in exactly one of the two spots
-  // (never both) is what prevents the duplicate/ghosted action buttons.
-  const isDesktop = useIsDesktop()
 
   // Preview mode exposes Edit / Apply. Delete is not here — it lives in the
   // section's floating bar, always behind a confirm.
@@ -154,7 +148,7 @@ export function TraceDialogShell({
           <span className="text-sm font-medium">{title}</span>
           <div className="ml-auto">
             <DialogHeaderActions
-              actions={isDesktop ? [] : previewActions}
+              actions={previewActions}
               onClose={onCancel}
               closeLabel="Close"
               closeIcon={<X aria-hidden="true" className="size-4" />}
@@ -164,11 +158,9 @@ export function TraceDialogShell({
         <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {previewMounted ? preview : null}
         </main>
-        {/* Desktop footer: the actions as text buttons. Rendered ONLY on
-            desktop (mobile carries them as header icons), so a single copy of
-            each action exists in the DOM. Covered by the edit overlay while
-            it's open. */}
-        {isDesktop ? <DialogFooterActions actions={previewActions} /> : null}
+        {/* Desktop footer: the header's function icons rendered as text buttons
+            (hidden on mobile). Covered by the edit overlay while it's open. */}
+        <DialogFooterActions actions={previewActions} />
 
         {/* Edit overlay — sits ON TOP of the preview inside the same
             DialogContent (no second Portal, no DismissableLayer cascade).
