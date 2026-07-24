@@ -90,7 +90,7 @@ describe("CirculateDialog (smoke)", () => {
   it("mobile: opens on params; Preview reveals preview; pencil re-opens; apply icon fires the trace", async () => {
     window.matchMedia = ((query: string) =>
       ({
-        matches: true,
+        matches: false,
         media: query,
         onchange: null,
         addListener: () => {},
