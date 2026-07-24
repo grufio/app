@@ -3,13 +3,17 @@
  */
 import { cleanup, fireEvent, render } from "@testing-library/react"
 import { Check, Grid3x3 } from "lucide-react"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+
+import { installMatchMedia } from "@/lib/test/jsdom-stubs"
 
 import { SheetActionFooter, SheetAddRow, SheetHeader } from "./sheet-chrome"
 
 afterEach(cleanup)
 
 describe("SheetHeader", () => {
+  beforeEach(() => installMatchMedia(true)) // mobile → header icons render
+
   it("renders the title and fires onClose from the Close button", () => {
     const onClose = vi.fn()
     const { getByText, getByLabelText } = render(<SheetHeader title="Grid" onClose={onClose} />)
@@ -34,6 +38,8 @@ describe("SheetHeader", () => {
 })
 
 describe("SheetActionFooter", () => {
+  beforeEach(() => installMatchMedia(false)) // desktop → footer text renders
+
   it("renders the actions as written-out text buttons (desktop)", () => {
     const onDone = vi.fn()
     const { getByRole } = render(

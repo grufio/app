@@ -1,14 +1,17 @@
 /**
  * @vitest-environment jsdom
  *
- * Note: jsdom does not evaluate Tailwind `md:` media queries, so BOTH the
- * mobile header icons and the desktop footer text buttons are present in the
- * DOM here. These tests assert structure/behaviour by role + accessible name,
- * not visibility (which is CSS-only and verified manually at the breakpoint).
+ * The two pieces now self-select by viewport via `useIsMobile()` — exactly one
+ * is mounted at a time (no CSS `md:` toggling). So each block installs the
+ * matching `matchMedia`: the header-icon cases render as MOBILE
+ * (`installMatchMedia(true)`), the footer-text cases as DESKTOP
+ * (`installMatchMedia(false)`).
  */
 import { cleanup, fireEvent, render } from "@testing-library/react"
 import { Check, Trash2 } from "lucide-react"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+
+import { installMatchMedia } from "@/lib/test/jsdom-stubs"
 
 import { DialogFooterActions, DialogHeaderActions, type DialogAction } from "./dialog-action-controls"
 
@@ -23,6 +26,8 @@ function makeActions(overrides: Partial<DialogAction>[] = []): DialogAction[] {
 }
 
 describe("DialogHeaderActions", () => {
+  beforeEach(() => installMatchMedia(true)) // mobile → header icons render
+
   it("renders each action as an icon button (descriptive ariaLabel) plus a Close", () => {
     const onClose = vi.fn()
     const { getByLabelText } = render(<DialogHeaderActions actions={makeActions()} onClose={onClose} />)
@@ -56,6 +61,8 @@ describe("DialogHeaderActions", () => {
 })
 
 describe("DialogFooterActions", () => {
+  beforeEach(() => installMatchMedia(false)) // desktop → footer text renders
+
   it("renders each action as a written-out text button and fires onClick", () => {
     const onClick = vi.fn()
     const { getByRole } = render(<DialogFooterActions actions={makeActions([{}, { onClick }])} />)
@@ -67,6 +74,27 @@ describe("DialogFooterActions", () => {
 
   it("renders nothing when there are no actions", () => {
     const { container } = render(<DialogFooterActions actions={[]} />)
+    expect(container.firstChild).toBeNull()
+  })
+})
+
+// Regression fence for the "render once" contract: the piece for the OTHER
+// viewport must not be in the DOM at all (not merely CSS-hidden). This is what
+// prevents the duplicated / ghosted action buttons.
+describe("render-once (single representation per viewport)", () => {
+  it("desktop: header renders only Close, no action icons", () => {
+    installMatchMedia(false)
+    const { getByLabelText, queryByLabelText } = render(
+      <DialogHeaderActions actions={makeActions()} onClose={vi.fn()} />,
+    )
+    expect(getByLabelText("Close")).toBeTruthy()
+    expect(queryByLabelText("Apply filter")).toBeNull()
+    expect(queryByLabelText("Delete trace")).toBeNull()
+  })
+
+  it("mobile: footer renders nothing", () => {
+    installMatchMedia(true)
+    const { container } = render(<DialogFooterActions actions={makeActions()} />)
     expect(container.firstChild).toBeNull()
   })
 })

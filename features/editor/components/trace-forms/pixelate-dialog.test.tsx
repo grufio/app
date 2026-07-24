@@ -73,8 +73,9 @@ describe("PixelateDialog (smoke)", () => {
     const buttons = Array.from(document.body.querySelectorAll("button"))
     expect(buttons.find((b) => b.textContent?.trim() === "Cancel")).toBeTruthy()
     expect(buttons.find((b) => b.textContent?.trim() === "Preview")).toBeTruthy()
-    // Apply is the icon in the (under-overlay) preview header.
-    expect(document.body.querySelector('button[aria-label="Apply filter"]')).not.toBeNull()
+    // Default viewport is desktop → Apply is the footer TEXT button (single
+    // representation; the mobile header icon is not mounted).
+    expect(buttons.find((b) => b.textContent?.trim() === "Apply")).toBeTruthy()
   })
 
   it("never renders a Delete action — delete lives only in the section bar", async () => {
@@ -121,20 +122,18 @@ describe("PixelateDialog (smoke)", () => {
     )
 
     // The form mounts seeded with the saved value — no user input. Collapse
-    // the overlay via Preview, then the Apply icon sends that value back,
-    // proving the draft was restored from initialParams rather than schema
-    // defaults.
+    // the overlay via Preview, then Apply sends that value back, proving the
+    // draft was restored from initialParams rather than schema defaults.
+    // Default viewport is desktop → Preview/Apply are footer TEXT buttons.
     await waitFor(() => {
       expect(document.body.querySelector("#supercell_width_mm")).not.toBeNull()
     })
-    fireEvent.click(
+    const byText = (label: string) =>
       Array.from(document.body.querySelectorAll("button")).find(
-        (b) => b.textContent?.trim() === "Preview",
-      ) as HTMLButtonElement,
-    )
-    fireEvent.click(
-      document.body.querySelector('button[aria-label="Apply filter"]') as HTMLButtonElement,
-    )
+        (b) => b.textContent?.trim() === label,
+      ) as HTMLButtonElement
+    fireEvent.click(byText("Preview"))
+    fireEvent.click(byText("Apply"))
     await waitFor(() => {
       expect(onApplyTrace).toHaveBeenCalledWith(
         expect.objectContaining({
