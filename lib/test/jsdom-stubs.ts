@@ -38,3 +38,24 @@ export class FakeResizeObserver {
   unobserve() {}
   disconnect() {}
 }
+
+/**
+ * Install a static `window.matchMedia` for tests that render components using
+ * `useIsMobile()` (jsdom has no `matchMedia`, and the hook reads it eagerly, so
+ * an unstubbed render throws). `matches` selects the viewport the render sees:
+ * `true` = mobile (header icons), `false` = desktop (footer text). Listeners are
+ * no-ops — these tests assert a single static viewport, not resize transitions.
+ */
+export function installMatchMedia(matches = false): void {
+  window.matchMedia = ((query: string) =>
+    ({
+      matches,
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    }) as unknown as MediaQueryList) as typeof window.matchMedia
+}

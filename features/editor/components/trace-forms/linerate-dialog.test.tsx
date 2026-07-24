@@ -94,8 +94,9 @@ describe("LinerateDialog — server preview lifecycle", () => {
       expect(onPreviewTrace).toHaveBeenCalledTimes(1)
     })
 
-    // Re-open the params (pencil). Nothing changed since the preview → disabled.
-    fireEvent.click(document.body.querySelector('button[aria-label="Edit parameters"]') as HTMLButtonElement)
+    // Re-open the params (Edit). Nothing changed since the preview → disabled.
+    // Default viewport is desktop → Edit is the footer text button.
+    fireEvent.click(findButton("Edit") as HTMLButtonElement)
     await waitFor(() => {
       expect(document.body.querySelector("#min_paintable_mm")).not.toBeNull()
     })

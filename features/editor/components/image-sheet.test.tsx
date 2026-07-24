@@ -2,7 +2,9 @@
  * @vitest-environment jsdom
  */
 import { cleanup, fireEvent, render } from "@testing-library/react"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+
+import { installMatchMedia } from "@/lib/test/jsdom-stubs"
 
 import { ImageSheet } from "./image-sheet"
 
@@ -57,6 +59,8 @@ function renderSheet(overrides: Partial<React.ComponentProps<typeof ImageSheet>>
 }
 
 describe("ImageSheet", () => {
+  beforeEach(() => installMatchMedia(false)) // desktop by default
+
   it("shows the upload Add-row when no master image exists", () => {
     const { getByLabelText, queryByTestId } = renderSheet({ hasMasterImage: false })
     expect(queryByTestId("image-panel")).toBeNull()
@@ -82,6 +86,7 @@ describe("ImageSheet", () => {
   })
 
   it("confirms via the header Done action (mobile icon)", () => {
+    installMatchMedia(true) // mobile → Done surfaces as a header icon button
     const { props, getByLabelText } = renderSheet()
     fireEvent.click(getByLabelText("Done"))
     expect(props.onClose).toHaveBeenCalledTimes(1)

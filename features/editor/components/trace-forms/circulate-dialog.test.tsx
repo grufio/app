@@ -84,7 +84,9 @@ describe("CirculateDialog (smoke)", () => {
     const buttons = Array.from(document.body.querySelectorAll("button"))
     expect(buttons.find((b) => b.textContent?.trim() === "Cancel")).toBeTruthy()
     expect(buttons.find((b) => b.textContent?.trim() === "Preview")).toBeTruthy()
-    expect(document.body.querySelector('button[aria-label="Apply filter"]')).not.toBeNull()
+    // Default viewport is desktop → Apply is the footer TEXT button (single
+    // representation; the mobile header icon is not mounted).
+    expect(buttons.find((b) => b.textContent?.trim() === "Apply")).toBeTruthy()
   })
 
   it("mobile: opens on params; Preview reveals preview; pencil re-opens; apply icon fires the trace", async () => {

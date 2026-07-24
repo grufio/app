@@ -5,20 +5,24 @@
  *
  * The editor dialogs present their non-close functions differently per
  * viewport:
- *   - MOBILE (`< md`): icon buttons in the top header (as before).
+ *   - MOBILE (`< md`): icon buttons in the top header.
  *   - DESKTOP (`≥ md`): only the Close (X) stays top-right; the other functions
  *     move to a bottom bar rendered as TEXT buttons (written-out names).
  *
  * Callers define the actions once (`DialogAction[]`) and place both pieces:
  * `DialogHeaderActions` in the header and `DialogFooterActions` at the bottom.
- * The header hides its icon group at `md`; the footer shows only at `md` — so
- * exactly one representation is visible at a time. The Close button is separate
- * and always visible in the header.
+ * Each piece self-selects by viewport via `useIsMobile()`, so **exactly one
+ * representation is ever mounted** — the other is not in the DOM at all. This
+ * replaces the previous CSS approach (`md:hidden` / `hidden md:flex`), where the
+ * hidden copy lingered as `display:none` and could be surfaced or double-painted
+ * by the browser, and where two mounted copies could drift out of state. The
+ * Close button is separate and always visible in the header on both viewports.
  */
 import { Loader2, X } from "lucide-react"
 import type { ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
+import { useIsMobile } from "@/lib/ui/use-mobile"
 import { cn } from "@/lib/utils"
 
 export type DialogAction = {
@@ -40,8 +44,8 @@ export type DialogAction = {
 
 /**
  * Header slot: non-close actions as icon buttons (mobile only), plus the
- * always-visible Close (X). On desktop the icon group is hidden — only Close
- * remains — and the actions surface via `DialogFooterActions`.
+ * always-visible Close (X). On desktop the icon group is not rendered — only
+ * Close remains — and the actions surface via `DialogFooterActions`.
  */
 export function DialogHeaderActions({
   actions = [],
@@ -54,10 +58,11 @@ export function DialogHeaderActions({
   closeLabel?: string
   closeIcon?: ReactNode
 }) {
+  const isMobile = useIsMobile()
   return (
     <div className="flex items-center gap-1">
-      {actions.length > 0 ? (
-        <div className="flex items-center gap-1 md:hidden">
+      {isMobile && actions.length > 0 ? (
+        <div className="flex items-center gap-1">
           {actions.map((action) => (
             <Button
               key={action.id}
@@ -82,8 +87,8 @@ export function DialogHeaderActions({
 
 /**
  * Footer slot: the same actions as full-width-ish TEXT buttons, desktop only.
- * Hidden on mobile (where the header icons carry them). Renders nothing when
- * there are no actions (e.g. a read-only dialog with just Close).
+ * Not rendered on mobile (where the header icons carry them). Renders nothing
+ * when there are no actions (e.g. a read-only dialog with just Close).
  */
 export function DialogFooterActions({
   actions,
@@ -92,9 +97,11 @@ export function DialogFooterActions({
   actions: DialogAction[]
   className?: string
 }) {
-  if (actions.length === 0) return null
+  // Hook first (Rules of Hooks): must run before any early return.
+  const isMobile = useIsMobile()
+  if (isMobile || actions.length === 0) return null
   return (
-    <div className={cn("hidden shrink-0 items-center justify-end gap-2 border-t p-3 md:flex", className)}>
+    <div className={cn("flex shrink-0 items-center justify-end gap-2 border-t p-3", className)}>
       {actions.map((action) => (
         <Button
           key={action.id}

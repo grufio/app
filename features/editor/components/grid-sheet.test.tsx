@@ -2,7 +2,9 @@
  * @vitest-environment jsdom
  */
 import { cleanup, fireEvent, render } from "@testing-library/react"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+
+import { installMatchMedia } from "@/lib/test/jsdom-stubs"
 
 import { GridSheet } from "./grid-sheet"
 
@@ -32,6 +34,8 @@ function renderSheet(overrides: Partial<React.ComponentProps<typeof GridSheet>> 
 }
 
 describe("GridSheet", () => {
+  beforeEach(() => installMatchMedia(false))
+
   it("shows the Add-Grid row when no grid exists", () => {
     const { props, getByLabelText, queryByTestId } = renderSheet({ hasGrid: false })
     expect(queryByTestId("grid-panel")).toBeNull()

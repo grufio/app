@@ -2,10 +2,11 @@
  * @vitest-environment jsdom
  */
 import { cleanup, fireEvent, render } from "@testing-library/react"
-import { afterEach, describe, expect, it, vi, type Mock } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest"
 
 import type { ProjectTrace } from "@/lib/api/project-trace"
 import { useTracePalette } from "@/lib/editor/trace/use-trace-palette"
+import { installMatchMedia } from "@/lib/test/jsdom-stubs"
 
 import { ColorsDialog } from "./colors-dialog"
 
@@ -35,6 +36,7 @@ function makeTrace(overrides: Partial<ProjectTrace> = {}): ProjectTrace {
 }
 
 describe("ColorsDialog", () => {
+  beforeEach(() => installMatchMedia(false))
   afterEach(() => cleanup())
 
   it("does not render its content when closed", () => {
