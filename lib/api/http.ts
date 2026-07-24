@@ -52,6 +52,26 @@ export async function fetchJson<T>(input: RequestInfo | URL, init?: RequestInit)
       const res = await fetch(input, init)
       const status = res.status
 
+      // TEMPORARY DIAGNOSTIC — capture the source of the Apply-429 on the
+      // client (it never reaches the function). Remove once root cause is
+      // confirmed. See lib/api/debug-429-overlay.ts.
+      if (status === 429 && typeof window !== "undefined") {
+        try {
+          const headers: Record<string, string> = {}
+          res.headers.forEach((v, k) => {
+            headers[k] = v
+          })
+          const bodyText = await res.clone().text().catch(() => "")
+          const url =
+            typeof input === "string" ? input : input instanceof URL ? input.toString() : (input as Request).url
+          void import("@/lib/api/debug-429-overlay").then((m) =>
+            m.reportRateLimit429({ url, method: (init?.method ?? "GET").toUpperCase(), headers, bodyText })
+          )
+        } catch {
+          // A diagnostic must never break the request path.
+        }
+      }
+
       const body = (await res.json().catch(() => null)) as unknown
       const json = (body && typeof body === "object" ? (body as JsonRecord) : null) as unknown
 
